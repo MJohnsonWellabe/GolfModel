@@ -44,5 +44,5 @@ def test_decay_weights_never_weight_future_rows():
 def test_sample_adapter_respects_asof():
     adapter = SampleAdapter()
     asof = datetime(2026, 1, 1)
-    df = adapter.rounds_sg(asof)
+    df = adapter.rounds(asof)
     assert (pd.to_datetime(df["date"]) < pd.Timestamp(asof)).all()

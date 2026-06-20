@@ -12,7 +12,7 @@ export interface Manifest {
   n_bets: number;
   n_actionable: number;
   wave_wind: Record<string, number>;
-  course_fit: Record<string, number>;
+  model?: string;
   sources: string[];
 }
 
@@ -48,13 +48,18 @@ export interface Golfer {
   player_id: string;
   player_name: string;
   wave: string;
-  sg_profile: Record<string, number>;
-  course_fit: Record<string, number>;
+  rating: {
+    skill: number | null;
+    skill_overall: number | null;
+    n_eff: number;
+    n_course: number;
+    course_rounds_played: number;
+  };
   expected: { e_score: number; p10: number; p50: number; p90: number; sd: number };
   line: Record<string, unknown> | null;
   bet: Bet | null;
   distribution: { counts: number[]; edges: number[] };
-  recent_rounds: { date: string; course_id: string; round_num: number; to_par: number; sg_total: number }[];
+  recent_rounds: { date: string; course_id: string; round_num: number; to_par: number }[];
 }
 
 export interface Backtest {

@@ -38,7 +38,6 @@ jobs:
           pip install -e .
       - name: Run backtest
         env:
-          DATAGOLF_API_KEY: ${{ secrets.DATAGOLF_API_KEY }}
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           python -m golfmodel run-backtest --source "${{ github.event.inputs.source || 'sample' }}" --n-sims "${{ github.event.inputs.n_sims || '6000' }}"

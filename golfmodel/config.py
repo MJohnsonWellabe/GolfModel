@@ -37,33 +37,19 @@ def settings() -> dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def courses() -> dict[str, dict[str, Any]]:
-    """Course metadata keyed by course_id, with normalized attribute priors."""
-    raw = _read_yaml(CONFIG_DIR / "courses.yaml").get("courses", {})
-    out: dict[str, dict[str, Any]] = {}
-    cats = settings()["baseline"]["categories"]
-    for cid, meta in raw.items():
-        meta = dict(meta)
-        prior = meta.get("attribute_prior", {c: 1.0 for c in cats})
-        # Normalize so the prior multipliers average to 1 across categories
-        # (neutral course == all 1s == plain SG total).
-        vals = [float(prior.get(c, 1.0)) for c in cats]
-        mean = sum(vals) / len(vals) if vals else 1.0
-        meta["attribute_prior"] = {c: float(prior.get(c, 1.0)) / mean for c in cats}
-        out[cid] = meta
-    return out
+    """Course metadata keyed by course_id (slug of the ESPN event name)."""
+    return _read_yaml(CONFIG_DIR / "courses.yaml").get("courses", {})
 
 
-def course_meta(course_id: str) -> dict[str, Any]:
+def course_meta(course_id: str | None) -> dict[str, Any]:
     """Course metadata with sane defaults for unknown courses."""
-    cats = settings()["baseline"]["categories"]
     default = {
-        "name": course_id,
+        "name": course_id or "Unknown",
         "par": settings()["environment"]["default_par"],
-        "yardage": 7100,
         "lat": None,
         "lon": None,
         "exposure": 0.4,
-        "attribute_prior": {c: 1.0 for c in cats},
+        "cluster": None,
     }
     return {**default, **courses().get(course_id, {})}
 

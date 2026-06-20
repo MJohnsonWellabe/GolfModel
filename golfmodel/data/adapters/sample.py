@@ -1,7 +1,6 @@
-"""Sample adapter: reads bundled synthetic data. Always available, no secrets.
+"""Sample adapter: reads bundled synthetic data. Always available, no network.
 
-This is what makes ``make pipeline`` work for anyone who clones the repo. It
-auto-generates the sample data on first use if it is missing.
+Auto-generates the sample data on first use if missing.
 """
 from __future__ import annotations
 
@@ -21,7 +20,7 @@ class SampleAdapter(DataAdapter):
     name = "sample"
 
     def __init__(self) -> None:
-        if not (SAMPLE_DIR / "rounds_sg.parquet").exists():
+        if not (SAMPLE_DIR / "rounds.parquet").exists():
             generate_sample.generate()
 
     def available(self) -> bool:
@@ -34,8 +33,8 @@ class SampleAdapter(DataAdapter):
         path = SAMPLE_DIR / f"{name}.parquet"
         return pd.read_parquet(path) if path.exists() else pd.DataFrame()
 
-    def rounds_sg(self, asof: datetime | None = None) -> pd.DataFrame:
-        df = self._read("rounds_sg")
+    def rounds(self, asof: datetime | None = None) -> pd.DataFrame:
+        df = self._read("rounds")
         if asof is not None and not df.empty:
             df = df[pd.to_datetime(df["date"]) < pd.Timestamp(asof)]
         return df

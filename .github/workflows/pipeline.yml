@@ -42,7 +42,7 @@ jobs:
 
       - name: Run model pipeline
         env:
-          DATAGOLF_API_KEY: ${{ secrets.DATAGOLF_API_KEY }}
+          # ESPN + Open-Meteo are keyless; Odds API key is optional (free tier).
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
           python -m golfmodel run-pipeline --source "${{ github.event.inputs.source || 'live' }}"

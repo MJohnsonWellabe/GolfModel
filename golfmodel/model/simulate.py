@@ -17,6 +17,7 @@ def _skewnorm_params(mean: float, sd: float, skew_a: float) -> tuple[float, floa
     a = float(skew_a)
     delta = a / np.sqrt(1 + a * a)
     # var = scale^2 (1 - 2 delta^2 / pi); mean = loc + scale delta sqrt(2/pi)
+    sd = max(float(sd), 1e-3)  # scale must be strictly positive
     scale = sd / np.sqrt(1 - 2 * delta * delta / np.pi)
     loc = mean - scale * delta * np.sqrt(2 / np.pi)
     return a, loc, scale

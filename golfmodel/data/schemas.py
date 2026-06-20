@@ -1,17 +1,13 @@
 """Canonical internal schemas — the contract every adapter maps into.
 
-Kept deliberately lightweight (plain pandas validation) so a schema check can
-never break imports over a third-party version mismatch. Each schema lists the
-required columns; ``validate`` ensures presence, coerces dtypes, and orders
-columns. The model code only ever sees these canonical frames.
+Free-data rebuild: there is no free per-round strokes-gained, so the core table
+is plain round SCORES (``rounds``). Skill is derived from scores vs the field.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import pandas as pd
-
-SG_CATEGORIES = ["sg_ott", "sg_app", "sg_arg", "sg_putt"]
 
 
 @dataclass(frozen=True)
@@ -24,9 +20,9 @@ class Schema:
         return list(self.columns)
 
 
-# Per-round strokes-gained history (the core training table).
-ROUNDS_SG = Schema(
-    "rounds_sg",
+# Per-round scores (the core training table). No strokes-gained (paid-only).
+ROUNDS = Schema(
+    "rounds",
     {
         "player_id": "string",
         "player_name": "string",
@@ -35,17 +31,14 @@ ROUNDS_SG = Schema(
         "tour": "string",
         "date": "datetime64[ns]",
         "round_num": "int64",
-        "sg_ott": "float64",
-        "sg_app": "float64",
-        "sg_arg": "float64",
-        "sg_putt": "float64",
-        "sg_total": "float64",
         "score": "float64",
         "to_par": "float64",
+        "par": "int64",
     },
 )
 
 # Upcoming-round field: who is teeing off, when, in what group/wave.
+# Tee time/wave are best-effort (ESPN's free feed often omits them).
 FIELD = Schema(
     "field",
     {
@@ -60,8 +53,8 @@ FIELD = Schema(
     },
 )
 
-# Betting lines. ``market`` in {round_ou, matchup, outright}. For round_ou the
-# line/over_price/under_price columns are used; for matchup, opponent_id + price.
+# Betting lines. ``market`` in {round_ou, matchup}. round_ou uses
+# line/over_price/under_price; matchup uses opponent_id + prices.
 LINES = Schema(
     "lines",
     {
@@ -87,10 +80,13 @@ def validate(df: pd.DataFrame, schema: Schema, *, allow_extra: bool = True) -> p
     for col, dtype in schema.columns.items():
         try:
             if dtype.startswith("datetime"):
-                out[col] = pd.to_datetime(out[col])
+                # Normalize any tz-aware input (e.g. ESPN's UTC stamps) to naive UTC
+                # so all date comparisons across sources are consistent.
+                ser = pd.to_datetime(out[col], utc=True, errors="coerce")
+                out[col] = ser.dt.tz_localize(None)
             else:
                 out[col] = out[col].astype(dtype)
-        except (ValueError, TypeError) as exc:  # surface bad data clearly
+        except (ValueError, TypeError) as exc:
             raise ValueError(f"{schema.name}.{col}: cannot coerce to {dtype}: {exc}") from exc
     cols = schema.required + ([c for c in out.columns if c not in schema.required] if allow_extra else [])
     return out[cols]

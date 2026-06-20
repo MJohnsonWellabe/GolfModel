@@ -20,13 +20,11 @@ def partner_adjustments(field: pd.DataFrame, player_skills: pd.DataFrame, cfg: d
     if not cfg.get("enabled", False):
         return zero
 
-    from ..data.schemas import SG_CATEGORIES
-
     effect = float(cfg.get("effect_sd", 0.0))
     if effect <= 0 or "group_id" not in field.columns:
         return zero
 
-    skill_total = player_skills.set_index("player_id")[SG_CATEGORIES].sum(axis=1)
+    skill_total = player_skills.set_index("player_id")["skill"]
     f = field[["player_id", "group_id"]].copy()
     f["skill"] = f["player_id"].map(skill_total).fillna(0.0)
     group_mean = f.groupby("group_id")["skill"].transform("mean")

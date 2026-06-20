@@ -1,39 +1,58 @@
-# Course metadata: par, yardage, lat/lon (for Open-Meteo weather), exposure, and
-# attribute priors used by the course-fit model when historical rounds are thin.
+# Course metadata keyed by course_id (a slug of the ESPN event name, e.g.
+# "U.S. Open" -> "u_s_open"). Attach lat/lon for Open-Meteo weather, par,
+# exposure (0 sheltered .. 1 links/open, scales wind impact), and an optional
+# similarity `cluster` so course history transfers between similar venues.
 #
-# attribute_prior weights are RELATIVE emphasis on each SG category for THIS course
-# (they are normalized at load). Higher = that skill matters more here.
-#   sg_ott  off-the-tee     (driving distance/accuracy)
-#   sg_app  approach        (iron play / proximity)
-#   sg_arg  around-green    (short game / scrambling)
-#   sg_putt putting
-#
-# exposure: 0 (sheltered, parkland) .. 1 (links, wide open) — scales wind impact.
+# Unknown events fall back to neutral defaults (no weather, course_id = slug).
+# Add real venues here as you target them. A few examples are seeded below.
 
 courses:
-  SAMPLE_LINKS:
+  # --- real PGA venues (examples; extend as needed) ---
+  u_s_open:
+    name: "U.S. Open"
+    par: 70
+    lat: 40.46
+    lon: -74.66
+    exposure: 0.5
+    cluster: usga_major
+
+  the_sentry:
+    name: "The Sentry (Kapalua)"
+    par: 73
+    lat: 21.00
+    lon: -156.66
+    exposure: 0.8
+    cluster: resort
+
+  farmers_insurance_open:
+    name: "Farmers Insurance Open (Torrey Pines)"
+    par: 72
+    lat: 32.90
+    lon: -117.25
+    exposure: 0.6
+    cluster: poa_west
+
+  # --- synthetic courses used by the bundled sample data ---
+  sample_links:
     name: "Sample Links GC"
     par: 71
-    yardage: 7300
     lat: 56.34
     lon: -2.80
     exposure: 0.9
-    attribute_prior: { sg_ott: 1.3, sg_app: 1.1, sg_arg: 1.0, sg_putt: 0.8 }
+    cluster: sample
 
-  SAMPLE_PARK:
+  sample_park:
     name: "Sample Parkland CC"
     par: 72
-    yardage: 7150
     lat: 33.50
     lon: -84.30
     exposure: 0.2
-    attribute_prior: { sg_ott: 0.9, sg_app: 1.3, sg_arg: 1.0, sg_putt: 1.1 }
+    cluster: sample
 
-  SAMPLE_DESERT:
+  sample_desert:
     name: "Sample Desert Resort"
     par: 72
-    yardage: 7000
     lat: 33.72
     lon: -116.37
     exposure: 0.5
-    attribute_prior: { sg_ott: 1.0, sg_app: 1.2, sg_arg: 0.9, sg_putt: 1.2 }
+    cluster: sample

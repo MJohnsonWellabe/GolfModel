@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from ..config import course_meta
 from ..model.pipeline import PipelineResult
 
-SCHEMA = 1
+SCHEMA = 2  # bumped for the free-data, score-based rebuild
 DISCLAIMER = "ACADEMIC EXERCISE — NOT BETTING ADVICE. For educational use only."
 
 
@@ -17,6 +17,7 @@ def build_manifest(result: PipelineResult) -> dict:
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "disclaimer": DISCLAIMER,
+        "model": "score-based rating (free data)",
         "event_id": result.event_id,
         "course_id": result.course_id,
         "course_name": cmeta.get("name"),
@@ -28,6 +29,5 @@ def build_manifest(result: PipelineResult) -> dict:
         "n_bets": int(len(result.board)),
         "n_actionable": n_actionable,
         "wave_wind": {k: round(v, 1) for k, v in result.wave_wind.items()},
-        "course_fit": {k: round(v, 3) for k, v in result.multipliers.items()},
         "sources": result.sources,
     }

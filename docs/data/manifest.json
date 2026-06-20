@@ -1,26 +1,21 @@
 {
-  "schema": 1,
-  "generated_at": "2026-06-20T22:47:29.221757+00:00",
+  "schema": 2,
+  "generated_at": "2026-06-20T23:59:24.530721+00:00",
   "disclaimer": "ACADEMIC EXERCISE \u2014 NOT BETTING ADVICE. For educational use only.",
+  "model": "score-based rating (free data)",
   "event_id": "U001",
-  "course_id": "SAMPLE_LINKS",
+  "course_id": "sample_links",
   "course_name": "Sample Links GC",
   "round_num": 2,
   "par": 71,
-  "course_base_to_par": 1.02,
-  "field_strength": -0.395,
+  "course_base_to_par": 1.38,
+  "field_strength": -0.109,
   "n_players": 48,
   "n_bets": 48,
-  "n_actionable": 8,
+  "n_actionable": 20,
   "wave_wind": {
     "AM": 9.8,
     "PM": 26.6
-  },
-  "course_fit": {
-    "sg_ott": 1.334,
-    "sg_app": 1.091,
-    "sg_arg": 0.873,
-    "sg_putt": 0.703
   },
   "sources": [
     "sample"

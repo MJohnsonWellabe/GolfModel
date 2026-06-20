@@ -47,9 +47,9 @@ def run_backtest_cmd(
     from .data.registry import load_bundle
 
     if source == "sample":
-        rounds = SampleAdapter().rounds_sg(None)
+        rounds = SampleAdapter().rounds(None)
     else:
-        rounds = load_bundle(source="live").rounds_sg
+        rounds = load_bundle(source="live").rounds
 
     summary = run_backtest(rounds, settings(), n_sims=n_sims)
     out = DOCS_DATA_DIR / "backtest" / "summary.json"

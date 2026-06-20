@@ -1,72 +1,77 @@
-# GolfModel — Single-Round Score Over/Under Value Model
+# GolfModel — Single-Round Score Over/Under Value Model (free-data)
 
-> ⚠️ **ACADEMIC EXERCISE — NOT BETTING ADVICE.** This project is a personal/educational
-> study of statistical modeling and forecast calibration. Nothing here is a recommendation
-> to place a wager. Respect the terms of service of every data provider. Do not use this to
-> bet real money.
+> ⚠️ **ACADEMIC EXERCISE — NOT BETTING ADVICE.** A personal/educational study of
+> statistical modeling and forecast calibration. Nothing here is a recommendation to
+> place a wager. Respect every data provider's terms of service. Do not bet real money.
 
 GolfModel estimates each PGA golfer's **expected single-round score** plus a **predictive
-interval**, converts that into a probability for an Over/Under (and matchup / outright)
-betting line, removes the book's vig, and ranks the **best-value** bets. It then
-**back-tests** the engine against tournaments with strict walk-forward (no lookahead).
+interval**, converts that into a probability for an Over/Under line, removes the book's
+vig, and ranks the **best-value** bets. It **back-tests** the engine walk-forward (no
+lookahead). It runs entirely on **free data**.
+
+## Free-data design
+
+| Need | Source | Cost |
+|---|---|---|
+| Round scores, fields, tee times | **ESPN** public golf JSON API | free, no key |
+| Weather (wind/precip/temp) | **Open-Meteo** (forecast + historical archive) | free, no key |
+| FanDuel round-O/U lines | **manual capture** (`scripts/capture_lines.py`) + optional **The Odds API** free tier | free |
+| Sample data | bundled synthetic (runs with no network) | n/a |
+
+**No strokes-gained.** Per-round strokes-gained is paid-only (ShotLink/DataGolf), so this
+build uses a **score-based rating** instead: each golfer's time-decayed *strokes gained vs
+the field*, empirical-Bayes shrunk toward an average tour player, blended with a
+**course/cluster-specific** rating for course affinity. It keeps recent form, course
+history, similar-field strength, weather, playing-partner term, expected score + interval,
+and the value board — it just can't decompose skill into OTT/APP/ARG/PUTT.
 
 ## How it works
 
 ```
 GitHub Actions (scheduled + manual)
-  fetch data (DataGolf, The Odds API, Open-Meteo weather, manual lines)
+  ESPN scores/fields  +  Open-Meteo weather  +  manual/Odds lines
         │  → parquet cache (.gitignored)
         ▼
-  features (decayed SG · course-fit · field strength · weather/wave · partners)
-        │  ── asof firewall (no lookahead) ──►
+  features (decayed score rating · course affinity · field strength · weather/wave)
+        │  ── as-of firewall (no lookahead) ──►
         ▼
-  model (shrunk baseline → SG→strokes → Monte-Carlo predictive distribution)
-        ├─► betting (vig removal, edge / EV, ranking)  → docs/data/*.json
-        └─► backtest (walk-forward, metrics)           → docs/data/backtest/*.json
+  model (shrunk rating → expected strokes → skew-normal Monte-Carlo distribution)
+        ├─► betting (vig removal, edge/EV, ranking)  → docs/data/*.json
+        └─► backtest (walk-forward, metrics)         → docs/data/backtest/*.json
         ▼
-  Vite + React build → docs/  → GitHub Pages (browser only reads committed JSON)
+  Vite + React build → docs/ → GitHub Pages (browser only reads committed JSON)
 ```
 
-The browser never calls an API or sees a key — it only fetches static JSON that the
-pipeline committed. Paid API keys live exclusively in GitHub Actions secrets.
-
-## Quick start (no secrets required)
+## Quick start (no network needed)
 
 ```bash
 make setup            # install python deps + generate sample data
-make pipeline         # run the model on bundled SAMPLE data → writes docs/data/*.json
+make pipeline         # run on bundled SAMPLE data → docs/data/*.json
+make backtest         # walk-forward backtest → docs/data/backtest/summary.json
 make web-build        # build the React dashboard into docs/
-make web-dev          # or: live-reload dev server for the dashboard
 make test             # run the test suite
 ```
 
-`make pipeline` defaults to `SOURCE=sample`, so it runs end-to-end with **zero secrets**
-using bundled synthetic data. That is the thin slice that proves the whole pipe.
-
-## Real data
-
-Set keys (locally in a `.gitignored` `.env`, or as GitHub Actions secrets):
-
-```
-DATAGOLF_API_KEY=...     # DataGolf Scratch Plus
-ODDS_API_KEY=...         # The Odds API
-```
-
-Open-Meteo (weather) needs no key. Then:
+## Live (free) data
 
 ```bash
-make pipeline SOURCE=live
+make pipeline SOURCE=live     # pull real ESPN scores/fields + Open-Meteo weather
 ```
 
-## Data sources
+Optional: set `ODDS_API_KEY` (The Odds API free tier) for any available FanDuel round
+props, and hand-capture lines with `python scripts/capture_lines.py ...`. Add real venues
+(lat/lon, par, exposure, cluster) to `config/courses.yaml` keyed by the slug of the ESPN
+event name (e.g. `u_s_open`) so weather and course affinity bind.
 
-| Source | Provides | Key |
-|---|---|---|
-| **DataGolf** (Scratch Plus) | per-round strokes-gained (OTT/APP/ARG/PUTT), fields, course-fit, odds archives | paid |
-| **The Odds API** | live FanDuel lines | paid |
-| **Open-Meteo** | hourly + historical weather by course lat/lon | free, no key |
-| **Manual lines** | captured FanDuel round-score O/U lines (`data/manual/lines_manual.csv`) | n/a |
-| **Sample** | bundled synthetic data so the app runs with no keys | n/a |
+## Deploy (GitHub Pages)
 
-See [`docs/`](docs/) for the published site and `golfmodel/` for the package.
-The full design lives in the project plan; key modules are documented inline.
+Settings → Pages → Deploy from a branch → **folder `/docs`**. The pipeline workflow
+refreshes predictions and rebuilds the site on a schedule.
+
+## Honest limitations
+
+- No strokes-gained categories (paid-only) → single score-based rating.
+- ESPN's free feed usually omits tee times, so the AM/PM **wave** split degrades to
+  course-day weather unless tee times are present.
+- Round-O/U lines are niche; real backtest ROI/CLV needs captured FanDuel prices. The
+  bundled backtest reports prediction accuracy + O/U calibration and a *synthetic* ROI.

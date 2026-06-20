@@ -2,15 +2,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
-from ..config import DOCS_DATA_DIR, course_meta
+from ..config import DOCS_DATA_DIR
 from ..data.base import DataBundle
-from ..data.schemas import SG_CATEGORIES
 from ..model.pipeline import PipelineResult
 from .manifest import DISCLAIMER, SCHEMA, build_manifest
 
@@ -26,12 +23,10 @@ def _histogram(sims_col: np.ndarray, bins: int = 24) -> dict:
 
 
 def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | None = None) -> dict:
-    """Write manifest, value board, and per-golfer files. Returns the manifest."""
     out = out_dir or DOCS_DATA_DIR
     manifest = build_manifest(result)
     _write(out / "manifest.json", manifest)
 
-    # Value board
     board_records = result.board.to_dict(orient="records") if not result.board.empty else []
     _write(
         out / "value_board.json",
@@ -46,25 +41,31 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
         },
     )
 
-    # Per-golfer detail
     skills = result.player_skills.set_index("player_id")
     lines = bundle.lines
-    rounds = bundle.rounds_sg
+    rounds = bundle.rounds
     summary_idx = {pid: i for i, pid in enumerate(result.summary["player_id"])}
     index = []
     for _, row in result.summary.iterrows():
         pid = row["player_id"]
         i = summary_idx[pid]
-        sg_profile = {c: round(float(skills.loc[pid, c]), 3) for c in SG_CATEGORIES} if pid in skills.index else {}
         recent = (
             rounds[rounds["player_id"] == pid]
             .sort_values("date", ascending=False)
-            .head(10)[["date", "course_id", "round_num", "to_par", "sg_total"]]
+            .head(10)[["date", "course_id", "round_num", "to_par"]]
             .to_dict(orient="records")
         )
+        course_hist = rounds[(rounds["player_id"] == pid) & (rounds["course_id"] == result.course_id)]
         pl = lines[(lines["player_id"] == pid) & (lines.get("market", "round_ou") == "round_ou")] if not lines.empty else lines
         line_obj = pl.iloc[0].to_dict() if not pl.empty else None
         bet = next((b for b in board_records if b["player_id"] == pid), None)
+        rating = {
+            "skill": round(float(skills.loc[pid, "skill"]), 3) if pid in skills.index else None,
+            "skill_overall": round(float(skills.loc[pid, "skill_overall"]), 3) if pid in skills.index else None,
+            "n_eff": round(float(skills.loc[pid, "n_eff"]), 1) if pid in skills.index else 0,
+            "n_course": round(float(skills.loc[pid, "n_course"]), 1) if pid in skills.index else 0,
+            "course_rounds_played": int(len(course_hist)),
+        }
         _write(
             out / "golfers" / f"{pid}.json",
             {
@@ -72,8 +73,7 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
                 "player_id": pid,
                 "player_name": row["player_name"],
                 "wave": row.get("wave", ""),
-                "sg_profile": sg_profile,
-                "course_fit": {k: round(v, 3) for k, v in result.multipliers.items()},
+                "rating": rating,
                 "expected": {
                     "e_score": round(float(row["e_score"]), 2),
                     "p10": round(float(row["p10"]), 2),

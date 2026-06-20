@@ -17,15 +17,21 @@ def assign_score_sd(e_df: pd.DataFrame, env: Environment, cfg: dict) -> pd.DataF
     dcfg = cfg["distribution"]
     base = float(dcfg["base_score_sd"])
     k = float(dcfg["sd_shrinkage_k"])
-    field_sd = float(e_df["score_sd_raw"].median()) if not e_df.empty else base
+    if e_df.empty:
+        return e_df.assign(score_sd=[])
+    field_sd = float(e_df["score_sd_raw"].median())
 
     out = e_df.copy()
-    n = out["n_eff"].to_numpy()
-    raw = out["score_sd_raw"].to_numpy()
+    n = np.nan_to_num(out["n_eff"].to_numpy(), nan=0.0)
+    raw = np.nan_to_num(out["score_sd_raw"].to_numpy(), nan=base)
+    field_sd = base if not np.isfinite(field_sd) or field_sd <= 0 else field_sd
     shrunk = (n * raw + k * field_sd) / (n + k)
-    shrunk = np.maximum(shrunk, 0.6 * base)
+    shrunk = np.maximum(np.nan_to_num(shrunk, nan=base), 0.6 * base)
     sd_mult = out["wave"].map(lambda w: env.wave_sd_mult.get(str(w), 1.0)).to_numpy()
-    out["score_sd"] = shrunk * sd_mult
+    sd_mult = np.nan_to_num(sd_mult.astype(float), nan=1.0)
+    out["score_sd"] = np.clip(shrunk * sd_mult, 0.5 * base, None)
+    # Drop any player whose expected score is non-finite (bad/insufficient data).
+    out = out[np.isfinite(out["e_strokes"].to_numpy())].reset_index(drop=True)
     return out
 
 

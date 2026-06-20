@@ -25,22 +25,17 @@ export function GolferDetail({ playerId, onClose }: { playerId: string; onClose:
 
             <div className="detail-grid">
               <div>
-                <h3>Strokes-gained profile</h3>
+                <h3>Rating (strokes vs field)</h3>
                 <table className="mini">
                   <tbody>
-                    {Object.entries(g.sg_profile).map(([k, v]) => (
-                      <tr key={k}><td>{k.replace("sg_", "SG ").toUpperCase()}</td><td className={v >= 0 ? "pos" : "neg"}>{v.toFixed(2)}</td></tr>
-                    ))}
+                    <tr><td>Blended skill</td><td className={(g.rating.skill ?? 0) >= 0 ? "pos" : "neg"}>{g.rating.skill?.toFixed(2) ?? "–"}</td></tr>
+                    <tr><td>Overall skill</td><td className={(g.rating.skill_overall ?? 0) >= 0 ? "pos" : "neg"}>{g.rating.skill_overall?.toFixed(2) ?? "–"}</td></tr>
+                    <tr><td>Effective rounds</td><td>{g.rating.n_eff.toFixed(0)}</td></tr>
+                    <tr><td>This course (eff.)</td><td>{g.rating.n_course.toFixed(1)}</td></tr>
+                    <tr><td>Rounds here</td><td>{g.rating.course_rounds_played}</td></tr>
                   </tbody>
                 </table>
-                <h3>Course-fit weights</h3>
-                <table className="mini">
-                  <tbody>
-                    {Object.entries(g.course_fit).map(([k, v]) => (
-                      <tr key={k}><td>{k.replace("sg_", "SG ").toUpperCase()}</td><td>{v.toFixed(2)}×</td></tr>
-                    ))}
-                  </tbody>
-                </table>
+                <p className="muted small">Positive = beats the field. Blended pulls the overall rating toward course-specific form.</p>
               </div>
 
               <div>
@@ -72,7 +67,7 @@ export function GolferDetail({ playerId, onClose }: { playerId: string; onClose:
 
             <h3>Recent rounds</h3>
             <table className="mini wide">
-              <thead><tr><th>Date</th><th>Course</th><th>Rd</th><th>To par</th><th>SG total</th></tr></thead>
+              <thead><tr><th>Date</th><th>Course</th><th>Rd</th><th>To par</th></tr></thead>
               <tbody>
                 {g.recent_rounds.map((r, i) => (
                   <tr key={i}>
@@ -80,7 +75,6 @@ export function GolferDetail({ playerId, onClose }: { playerId: string; onClose:
                     <td>{r.course_id}</td>
                     <td>{r.round_num}</td>
                     <td className={r.to_par <= 0 ? "pos" : "neg"}>{r.to_par > 0 ? "+" : ""}{r.to_par}</td>
-                    <td className={r.sg_total >= 0 ? "pos" : "neg"}>{r.sg_total.toFixed(2)}</td>
                   </tr>
                 ))}
               </tbody>

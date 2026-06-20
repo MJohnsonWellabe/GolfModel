@@ -12,7 +12,7 @@ import pandas as pd
 class DataBundle:
     """Everything the model needs for one event/round, already canonicalized."""
 
-    rounds_sg: pd.DataFrame          # historical per-round SG (training data)
+    rounds: pd.DataFrame             # historical per-round scores (training data)
     field: pd.DataFrame              # upcoming-round field (players, tee times, waves)
     lines: pd.DataFrame              # betting lines for the upcoming round
     weather: pd.DataFrame = field(default_factory=pd.DataFrame)  # per-wave conditions
@@ -28,7 +28,8 @@ class DataAdapter(ABC):
 
     Adapters return empty frames for tables they do not provide; the registry
     composes them via a fallback chain. ``available`` lets the registry skip an
-    adapter (e.g. missing API key) without raising.
+    adapter without raising. Every table method takes an ``asof`` cutoff so
+    backtests stay leak-free.
     """
 
     name: str = "base"
@@ -36,8 +37,7 @@ class DataAdapter(ABC):
     def available(self) -> bool:
         return True
 
-    # Each table method takes an ``asof`` cutoff so backtests stay leak-free.
-    def rounds_sg(self, asof: datetime | None = None) -> pd.DataFrame:
+    def rounds(self, asof: datetime | None = None) -> pd.DataFrame:
         return pd.DataFrame()
 
     def field(self, event_id: str | None, round_num: int | None, asof: datetime | None = None) -> pd.DataFrame:

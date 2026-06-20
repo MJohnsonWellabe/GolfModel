@@ -1,11 +1,11 @@
-"""Adapter registry: composes a canonical DataBundle from the available sources.
+"""Adapter registry: composes a canonical DataBundle from free sources.
 
-``source='sample'`` runs entirely on bundled synthetic data (no secrets).
+``source='sample'`` runs entirely on bundled synthetic data (no network).
 ``source='live'`` uses per-table fallback chains:
-    rounds_sg : DataGolf -> Sample
-    field     : DataGolf -> Sample
-    lines     : Manual -> Odds API -> Sample
-    weather   : Open-Meteo (computed from field tee times) -> Sample
+    rounds  : ESPN -> Sample
+    field   : ESPN -> Sample
+    lines   : Manual -> Odds API (free tier) -> Sample
+    weather : Open-Meteo (from field tee windows / course-day) -> Sample
 """
 from __future__ import annotations
 
@@ -13,52 +13,51 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from ..config import course_meta
+from ..config import course_meta, settings
 from .base import DataBundle
-from .schemas import FIELD, LINES, ROUNDS_SG, validate
+from .schemas import FIELD, LINES, ROUNDS, validate
 from .adapters.sample import SampleAdapter
-from .adapters.datagolf import DataGolfAdapter
+from .adapters.espn import EspnAdapter
 from .adapters.odds_api import OddsApiAdapter
 from .adapters.manual_lines import ManualLinesAdapter
 from .adapters.weather import WeatherAdapter
 
 
-def _first_nonempty(frames: list[pd.DataFrame]) -> tuple[pd.DataFrame, str | None]:
+def _first_nonempty(frames):
     for name, df in frames:
         if df is not None and not df.empty:
             return df, name
     return pd.DataFrame(), None
 
 
-def tee_windows(field: pd.DataFrame, window_hours: float) -> dict[str, tuple[datetime, datetime]]:
-    """Min/max tee-time window per wave, padded so play time is covered."""
+def tee_windows(field: pd.DataFrame, window_hours: float, event_date: datetime | None):
+    """Min/max tee-time window per wave. If tee times are missing (common on the
+    free ESPN feed), fall back to a single daytime window on the event date."""
     out: dict[str, tuple[datetime, datetime]] = {}
-    if field.empty or "tee_time" not in field.columns:
-        return out
     f = field.copy()
-    f["tee_time"] = pd.to_datetime(f["tee_time"])
-    for wave, grp in f.groupby(f.get("wave", "all")):
-        start = grp["tee_time"].min()
-        end = grp["tee_time"].max() + timedelta(hours=window_hours)
-        out[str(wave)] = (start.to_pydatetime(), end.to_pydatetime())
+    if "tee_time" in f.columns:
+        f["tee_time"] = pd.to_datetime(f["tee_time"], errors="coerce")
+    have_tees = "tee_time" in f.columns and f["tee_time"].notna().any()
+    if have_tees:
+        for wave, grp in f.dropna(subset=["tee_time"]).groupby(f["wave"].fillna("all")):
+            start = grp["tee_time"].min()
+            end = grp["tee_time"].max() + timedelta(hours=window_hours)
+            out[str(wave)] = (start.to_pydatetime(), end.to_pydatetime())
+    elif event_date is not None:
+        day = pd.Timestamp(event_date).normalize()
+        out["all"] = ((day + timedelta(hours=6)).to_pydatetime(), (day + timedelta(hours=18)).to_pydatetime())
     return out
 
 
-def load_bundle(
-    source: str = "sample",
-    event_id: str | None = None,
-    round_num: int | None = None,
-    asof: datetime | None = None,
-    historical_weather: bool = False,
-) -> DataBundle:
+def load_bundle(source="sample", event_id=None, round_num=None, asof=None, historical_weather=False) -> DataBundle:
     sample = SampleAdapter()
     if source == "sample":
         meta = sample.meta()
         event_id = event_id or meta["event_id"]
         round_num = round_num or meta["round_num"]
         asof = asof or pd.Timestamp(meta["asof"]).to_pydatetime()
-        bundle = DataBundle(
-            rounds_sg=validate(sample.rounds_sg(asof), ROUNDS_SG),
+        return DataBundle(
+            rounds=validate(sample.rounds(asof), ROUNDS),
             field=validate(sample.field(event_id, round_num), FIELD),
             lines=validate(sample.lines(event_id, round_num, asof), LINES),
             weather=sample.weather(),
@@ -68,18 +67,24 @@ def load_bundle(
             asof=asof,
             sources=["sample"],
         )
-        return bundle
 
-    # --- live ---
-    dg, odds, manual, weather = DataGolfAdapter(), OddsApiAdapter(), ManualLinesAdapter(), WeatherAdapter()
+    # --- live (free) ---
+    asof = asof or pd.Timestamp(datetime.utcnow())  # predict as of "now"
+    espn, odds, manual, weather = EspnAdapter(), OddsApiAdapter(), ManualLinesAdapter(), WeatherAdapter()
     sources: list[str] = []
 
-    rounds, src = _first_nonempty([("datagolf", dg.rounds_sg(asof)), ("sample", sample.rounds_sg(asof))])
+    rounds, src = _first_nonempty([("espn", espn.rounds(asof)), ("sample", sample.rounds(asof))])
     sources.append(src or "sample")
     field_df, fsrc = _first_nonempty(
-        [("datagolf", dg.field(event_id, round_num, asof)), ("sample", sample.field(event_id, round_num))]
+        [("espn", espn.field(event_id, round_num, asof)), ("sample", sample.field(event_id, round_num))]
     )
     sources.append(fsrc or "sample")
+
+    field_df = validate(field_df, FIELD)
+    event_id = event_id or (field_df["event_id"].iloc[0] if not field_df.empty else None)
+    round_num = round_num or (int(field_df["round_num"].iloc[0]) if not field_df.empty else None)
+    course_id = field_df["course_id"].iloc[0] if not field_df.empty else (event_id or "")
+
     lines_df, lsrc = _first_nonempty(
         [
             ("manual_lines", manual.lines(event_id, round_num, asof)),
@@ -89,24 +94,23 @@ def load_bundle(
     )
     sources.append(lsrc or "sample")
 
-    field_df = validate(field_df, FIELD)
-    course_id = field_df["course_id"].iloc[0] if not field_df.empty else (event_id or "")
-
-    # Weather: compute per-wave conditions from Open-Meteo at the course lat/lon.
+    # Weather from Open-Meteo at the course lat/lon over the tee windows.
     wx = pd.DataFrame()
     cm = course_meta(course_id)
-    from ..config import settings
-
-    windows = tee_windows(field_df, settings()["weather"]["tee_window_hours"])
-    if windows and cm.get("lat") is not None:
-        date = pd.to_datetime(field_df["tee_time"]).min()
-        wx = weather.wave_conditions(cm["lat"], cm["lon"], windows, date, historical_weather)
-        sources.append("weather:open-meteo")
+    if cm.get("lat") is not None and not field_df.empty:
+        event_date = pd.to_datetime(field_df["tee_time"], errors="coerce").min()
+        if pd.isna(event_date):
+            event_date = pd.Timestamp(asof or datetime.utcnow())
+        windows = tee_windows(field_df, settings()["weather"]["tee_window_hours"], event_date)
+        if windows:
+            wx = weather.wave_conditions(cm["lat"], cm["lon"], windows, event_date, historical_weather)
+            if not wx.empty:
+                sources.append("weather:open-meteo")
     if wx.empty:
         wx = sample.weather()
 
     return DataBundle(
-        rounds_sg=validate(rounds, ROUNDS_SG),
+        rounds=validate(rounds, ROUNDS),
         field=field_df,
         lines=validate(lines_df, LINES),
         weather=wx,

@@ -8,8 +8,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from ..data.schemas import SG_CATEGORIES
-
 
 def exposure_factor(exposure: float) -> float:
     """How strongly raw wind is "felt" at the course (sheltered < links)."""
@@ -34,23 +32,6 @@ def sd_multiplier(wind_mph: float, exposure: float, cfg: dict) -> float:
     """Variance amplifier: wind widens the round-score distribution."""
     eff = effective_wind(wind_mph, exposure)
     return 1.0 + cfg["wind_variance_per_10mph"] * eff / 10.0
-
-
-def wind_course_fit_adjust(multipliers: dict[str, float], wind_mph: float, exposure: float) -> dict[str, float]:
-    """Under strong wind on exposed courses, up-weight ball-striking (OTT/APP)."""
-    eff = effective_wind(wind_mph, exposure)
-    if eff < 12.0:
-        return dict(multipliers)
-    boost = min(0.35, (eff - 12.0) / 40.0)
-    out = dict(multipliers)
-    out["sg_ott"] *= 1.0 + boost
-    out["sg_app"] *= 1.0 + boost
-    out["sg_arg"] *= 1.0 - 0.5 * boost
-    out["sg_putt"] *= 1.0 - 0.5 * boost
-    # renormalize to mean 1
-    vals = np.array([out[c] for c in SG_CATEGORIES])
-    vals = vals / vals.mean()
-    return {c: float(v) for c, v in zip(SG_CATEGORIES, vals)}
 
 
 def wave_effects(weather: pd.DataFrame, course_meta: dict, cfg: dict) -> pd.DataFrame:
