@@ -1,0 +1,7 @@
+# Which tours/events to include when pulling live data.
+tours:
+  - pga
+
+# Optional explicit allow-list of event ids to process for the upcoming pipeline.
+# Empty = let the data layer pick the current/next event.
+events: []

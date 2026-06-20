@@ -1,0 +1,180 @@
+{
+  "schema": 1,
+  "player_id": "P017",
+  "player_name": "Player 017",
+  "wave": "AM",
+  "sg_profile": {
+    "sg_ott": -0.532,
+    "sg_app": 0.031,
+    "sg_arg": -0.236,
+    "sg_putt": 0.572
+  },
+  "course_fit": {
+    "sg_ott": 1.334,
+    "sg_app": 1.091,
+    "sg_arg": 0.873,
+    "sg_putt": 0.703
+  },
+  "expected": {
+    "e_score": 72.69,
+    "p10": 68.31,
+    "p50": 72.29,
+    "p90": 77.63,
+    "sd": 3.71
+  },
+  "line": {
+    "market": "round_ou",
+    "book": "FanDuel",
+    "event_id": "U001",
+    "round_num": 2,
+    "player_id": "P017",
+    "line": 72.5,
+    "over_price": 104.0,
+    "under_price": -125.0,
+    "captured_at": "2026-06-18 00:00:00",
+    "opponent_id": ""
+  },
+  "bet": {
+    "player_id": "P017",
+    "player_name": "Player 017",
+    "wave": "AM",
+    "line": 72.5,
+    "side": "Over",
+    "price": 104,
+    "model_prob": 0.4798,
+    "novig_prob": 0.4687,
+    "edge": 0.0111,
+    "ev_per_unit": -0.0211,
+    "kelly": 0.0,
+    "e_score": 72.69,
+    "n_eff": 49.6,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      12,
+      57,
+      206,
+      516,
+      1001,
+      1327,
+      1424,
+      1368,
+      1201,
+      900,
+      739,
+      469,
+      330,
+      193,
+      117,
+      63,
+      41,
+      20,
+      7,
+      4,
+      3,
+      1,
+      0,
+      1
+    ],
+    "edges": [
+      62.84,
+      64.13,
+      65.42,
+      66.71,
+      68.0,
+      69.29,
+      70.58,
+      71.87,
+      73.16,
+      74.45,
+      75.74,
+      77.03,
+      78.32,
+      79.61,
+      80.9,
+      82.19,
+      83.48,
+      84.77,
+      86.06,
+      87.35,
+      88.64,
+      89.93,
+      91.22,
+      92.51,
+      93.8
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 00:00:00",
+      "course_id": "SAMPLE_LINKS",
+      "round_num": 2,
+      "to_par": 3.7,
+      "sg_total": 0.672
+    },
+    {
+      "date": "2026-06-11 00:00:00",
+      "course_id": "SAMPLE_LINKS",
+      "round_num": 1,
+      "to_par": 5.2,
+      "sg_total": 0.271
+    },
+    {
+      "date": "2026-06-03 00:00:00",
+      "course_id": "SAMPLE_DESERT",
+      "round_num": 2,
+      "to_par": -0.7,
+      "sg_total": -0.127
+    },
+    {
+      "date": "2026-06-03 00:00:00",
+      "course_id": "SAMPLE_DESERT",
+      "round_num": 1,
+      "to_par": -1.4,
+      "sg_total": -1.27
+    },
+    {
+      "date": "2026-05-28 00:00:00",
+      "course_id": "SAMPLE_PARK",
+      "round_num": 2,
+      "to_par": 3.1,
+      "sg_total": 0.135
+    },
+    {
+      "date": "2026-05-28 00:00:00",
+      "course_id": "SAMPLE_PARK",
+      "round_num": 1,
+      "to_par": 0.9,
+      "sg_total": -0.471
+    },
+    {
+      "date": "2026-05-20 00:00:00",
+      "course_id": "SAMPLE_LINKS",
+      "round_num": 2,
+      "to_par": 5.8,
+      "sg_total": 0.786
+    },
+    {
+      "date": "2026-05-20 00:00:00",
+      "course_id": "SAMPLE_LINKS",
+      "round_num": 1,
+      "to_par": 6.2,
+      "sg_total": -0.841
+    },
+    {
+      "date": "2026-05-12 00:00:00",
+      "course_id": "SAMPLE_DESERT",
+      "round_num": 2,
+      "to_par": -0.7,
+      "sg_total": -0.192
+    },
+    {
+      "date": "2026-05-12 00:00:00",
+      "course_id": "SAMPLE_DESERT",
+      "round_num": 1,
+      "to_par": -0.7,
+      "sg_total": -0.745
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "schema": 1,
+  "players": [
+    {
+      "player_id": "P002",
+      "player_name": "Player 002"
+    },
+    {
+      "player_id": "P000",
+      "player_name": "Player 000"
+    },
+    {
+      "player_id": "P017",
+      "player_name": "Player 017"
+    },
+    {
+      "player_id": "P043",
+      "player_name": "Player 043"
+    },
+    {
+      "player_id": "P006",
+      "player_name": "Player 006"
+    },
+    {
+      "player_id": "P054",
+      "player_name": "Player 054"
+    },
+    {
+      "player_id": "P028",
+      "player_name": "Player 028"
+    },
+    {
+      "player_id": "P026",
+      "player_name": "Player 026"
+    },
+    {
+      "player_id": "P037",
+      "player_name": "Player 037"
+    },
+    {
+      "player_id": "P030",
+      "player_name": "Player 030"
+    },
+    {
+      "player_id": "P010",
+      "player_name": "Player 010"
+    },
+    {
+      "player_id": "P041",
+      "player_name": "Player 041"
+    },
+    {
+      "player_id": "P015",
+      "player_name": "Player 015"
+    },
+    {
+      "player_id": "P038",
+      "player_name": "Player 038"
+    },
+    {
+      "player_id": "P042",
+      "player_name": "Player 042"
+    },
+    {
+      "player_id": "P020",
+      "player_name": "Player 020"
+    },
+    {
+      "player_id": "P021",
+      "player_name": "Player 021"
+    },
+    {
+      "player_id": "P023",
+      "player_name": "Player 023"
+    },
+    {
+      "player_id": "P055",
+      "player_name": "Player 055"
+    },
+    {
+      "player_id": "P057",
+      "player_name": "Player 057"
+    },
+    {
+      "player_id": "P056",
+      "player_name": "Player 056"
+    },
+    {
+      "player_id": "P033",
+      "player_name": "Player 033"
+    },
+    {
+      "player_id": "P022",
+      "player_name": "Player 022"
+    },
+    {
+      "player_id": "P031",
+      "player_name": "Player 031"
+    },
+    {
+      "player_id": "P025",
+      "player_name": "Player 025"
+    },
+    {
+      "player_id": "P034",
+      "player_name": "Player 034"
+    },
+    {
+      "player_id": "P001",
+      "player_name": "Player 001"
+    },
+    {
+      "player_id": "P048",
+      "player_name": "Player 048"
+    },
+    {
+      "player_id": "P046",
+      "player_name": "Player 046"
+    },
+    {
+      "player_id": "P045",
+      "player_name": "Player 045"
+    },
+    {
+      "player_id": "P007",
+      "player_name": "Player 007"
+    },
+    {
+      "player_id": "P032",
+      "player_name": "Player 032"
+    },
+    {
+      "player_id": "P049",
+      "player_name": "Player 049"
+    },
+    {
+      "player_id": "P052",
+      "player_name": "Player 052"
+    },
+    {
+      "player_id": "P009",
+      "player_name": "Player 009"
+    },
+    {
+      "player_id": "P003",
+      "player_name": "Player 003"
+    },
+    {
+      "player_id": "P047",
+      "player_name": "Player 047"
+    },
+    {
+      "player_id": "P008",
+      "player_name": "Player 008"
+    },
+    {
+      "player_id": "P036",
+      "player_name": "Player 036"
+    },
+    {
+      "player_id": "P058",
+      "player_name": "Player 058"
+    },
+    {
+      "player_id": "P013",
+      "player_name": "Player 013"
+    },
+    {
+      "player_id": "P012",
+      "player_name": "Player 012"
+    },
+    {
+      "player_id": "P024",
+      "player_name": "Player 024"
+    },
+    {
+      "player_id": "P004",
+      "player_name": "Player 004"
+    },
+    {
+      "player_id": "P014",
+      "player_name": "Player 014"
+    },
+    {
+      "player_id": "P029",
+      "player_name": "Player 029"
+    },
+    {
+      "player_id": "P051",
+      "player_name": "Player 051"
+    },
+    {
+      "player_id": "P044",
+      "player_name": "Player 044"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# Global model & pipeline parameters. Tunable; backtest is the judge.
+
+decay:
+  # Exponential time-decay half-life (days) for weighting historical rounds.
+  halflife_days: 180
+  # Rounds older than this are dropped entirely (perf + relevance).
+  max_age_days: 730
+
+baseline:
+  # Empirical-Bayes shrinkage strength toward the field mean (in "effective rounds").
+  # skill = (n_eff * player_mean + k * field_mean) / (n_eff + k)
+  shrinkage_k: 8.0
+  # SG categories the model tracks.
+  categories: [sg_ott, sg_app, sg_arg, sg_putt]
+
+course_fit:
+  # Ridge regularization for the to_par ~ SG-components regression.
+  ridge_alpha: 5.0
+  # Weight (in effective rounds) given to the attribute prior when course history is thin.
+  prior_strength: 30.0
+
+field_strength:
+  # Kernel bandwidth for similar-field re-weighting (in SG-strength units).
+  similarity_bandwidth: 0.6
+
+partners:
+  # Low-signal term; OFF by default until the backtest proves it adds value.
+  enabled: false
+  effect_sd: 0.0
+
+weather:
+  # Strokes added to the field per 1 mph of wind above the calm baseline (regularized fit).
+  wind_strokes_per_mph: 0.06
+  calm_wind_mph: 5.0
+  # Strokes added when measurable precip is present in the tee window.
+  precip_penalty: 0.4
+  # Multiplier on round-score SD per 10 mph of wind (variance amplifier).
+  wind_variance_per_10mph: 0.12
+  # Tee-time window (hours) around each player's start used to aggregate conditions.
+  tee_window_hours: 4.5
+
+distribution:
+  monte_carlo_sims: 10000
+  # Baseline per-round score SD (strokes) before player/weather adjustment.
+  base_score_sd: 2.7
+  # Shrinkage for player-specific SD toward the field SD (effective rounds).
+  sd_shrinkage_k: 12.0
+  # Skewness of the round-score distribution (right tail = blow-up holes).
+  skew: 3.0
+  # SD of the per-wave shared environment shock (strokes).
+  shared_shock_sd: 0.8
+  random_seed: 20260620
+
+betting:
+  vig_method: multiplicative   # or "shin"
+  min_edge: 0.03               # ignore bets below this model-vs-novig edge
+  min_n_eff: 4.0               # require this much effective sample for the player
+  kelly_fraction: 0.25         # fractional Kelly (academic display only)
+
+environment:
+  # Default par when course metadata is missing.
+  default_par: 71

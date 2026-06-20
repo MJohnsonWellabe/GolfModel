@@ -1,0 +1,39 @@
+# Course metadata: par, yardage, lat/lon (for Open-Meteo weather), exposure, and
+# attribute priors used by the course-fit model when historical rounds are thin.
+#
+# attribute_prior weights are RELATIVE emphasis on each SG category for THIS course
+# (they are normalized at load). Higher = that skill matters more here.
+#   sg_ott  off-the-tee     (driving distance/accuracy)
+#   sg_app  approach        (iron play / proximity)
+#   sg_arg  around-green    (short game / scrambling)
+#   sg_putt putting
+#
+# exposure: 0 (sheltered, parkland) .. 1 (links, wide open) — scales wind impact.
+
+courses:
+  SAMPLE_LINKS:
+    name: "Sample Links GC"
+    par: 71
+    yardage: 7300
+    lat: 56.34
+    lon: -2.80
+    exposure: 0.9
+    attribute_prior: { sg_ott: 1.3, sg_app: 1.1, sg_arg: 1.0, sg_putt: 0.8 }
+
+  SAMPLE_PARK:
+    name: "Sample Parkland CC"
+    par: 72
+    yardage: 7150
+    lat: 33.50
+    lon: -84.30
+    exposure: 0.2
+    attribute_prior: { sg_ott: 0.9, sg_app: 1.3, sg_arg: 1.0, sg_putt: 1.1 }
+
+  SAMPLE_DESERT:
+    name: "Sample Desert Resort"
+    par: 72
+    yardage: 7000
+    lat: 33.72
+    lon: -116.37
+    exposure: 0.5
+    attribute_prior: { sg_ott: 1.0, sg_app: 1.2, sg_arg: 0.9, sg_putt: 1.2 }

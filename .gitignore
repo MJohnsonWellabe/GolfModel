@@ -1,0 +1,31 @@
+# Secrets
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+
+# Data caches (re-fetched / regenerated; never committed)
+data/raw/
+data/interim/
+
+# Node / Vite
+web/node_modules/
+web/dist/
+node_modules/
+.vite/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/
