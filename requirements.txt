@@ -7,7 +7,8 @@ statsmodels==0.14.4
 pyarrow==18.0.0
 pyyaml==6.0.2
 requests==2.32.3
-typer==0.12.5
+# 0.12.5 breaks with click>=8.2 (option values stop parsing); need a newer typer.
+typer>=0.15
 python-dotenv==1.0.1
 
 # Testing / dev
