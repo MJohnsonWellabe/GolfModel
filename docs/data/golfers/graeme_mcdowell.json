@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "graeme_mcdowell",
+  "player_name": "Graeme McDowell",
+  "wave": "all",
+  "rating": {
+    "skill": -1.204,
+    "skill_overall": -0.534,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.01,
+    "p10": 71.37,
+    "p50": 74.72,
+    "p90": 79.08,
+    "sd": 3.04
+  },
+  "line": null,
+  "bet": {
+    "player_id": "graeme_mcdowell",
+    "player_name": "Graeme McDowell",
+    "wave": "all",
+    "e_score": 75.01,
+    "p10": 71.37,
+    "p90": 79.08,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      10,
+      44,
+      154,
+      365,
+      682,
+      977,
+      1200,
+      1247,
+      1220,
+      1069,
+      860,
+      715,
+      466,
+      358,
+      234,
+      158,
+      102,
+      55,
+      38,
+      24,
+      8,
+      9,
+      3
+    ],
+    "edges": [
+      66.11,
+      67.04,
+      67.96,
+      68.89,
+      69.82,
+      70.75,
+      71.68,
+      72.6,
+      73.53,
+      74.46,
+      75.39,
+      76.32,
+      77.24,
+      78.17,
+      79.1,
+      80.03,
+      80.96,
+      81.89,
+      82.81,
+      83.74,
+      84.67,
+      85.6,
+      86.53,
+      87.45,
+      88.38
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 6.0
+    }
+  ]
+}

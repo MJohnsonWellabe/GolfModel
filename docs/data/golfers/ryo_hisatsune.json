@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "ryo_hisatsune",
+  "player_name": "Ryo Hisatsune",
+  "wave": "all",
+  "rating": {
+    "skill": 0.834,
+    "skill_overall": 0.224,
+    "n_eff": 71.6,
+    "n_course": 3.0,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 73.03,
+    "p10": 68.68,
+    "p50": 72.6,
+    "p90": 78.07,
+    "sd": 3.7
+  },
+  "line": null,
+  "bet": {
+    "player_id": "ryo_hisatsune",
+    "player_name": "Ryo Hisatsune",
+    "wave": "all",
+    "e_score": 73.03,
+    "p10": 68.68,
+    "p90": 78.07,
+    "n_eff": 71.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      27,
+      107,
+      351,
+      646,
+      1066,
+      1400,
+      1408,
+      1261,
+      1075,
+      853,
+      613,
+      463,
+      300,
+      181,
+      107,
+      67,
+      33,
+      25,
+      6,
+      1,
+      2,
+      4,
+      2
+    ],
+    "edges": [
+      62.67,
+      63.92,
+      65.16,
+      66.4,
+      67.64,
+      68.88,
+      70.12,
+      71.36,
+      72.6,
+      73.84,
+      75.09,
+      76.33,
+      77.57,
+      78.81,
+      80.05,
+      81.29,
+      82.53,
+      83.77,
+      85.01,
+      86.26,
+      87.5,
+      88.74,
+      89.98,
+      91.22,
+      92.46
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -1.0
+    }
+  ]
+}

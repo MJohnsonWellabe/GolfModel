@@ -54,13 +54,15 @@ export function GolferDetail({ playerId, onClose }: { playerId: string; onClose:
                     { value: g.expected.e_score, label: "E[score]", color: "#2e7d32" },
                   ]}
                 />
-                {g.bet && (
+                {g.bet && g.bet.has_line && g.bet.line !== null ? (
                   <p className="betline">
                     Model side: <strong className={g.bet.side === "Over" ? "over" : "under"}>{g.bet.side} {g.bet.line.toFixed(1)}</strong>
-                    {" "}@ {g.bet.price > 0 ? `+${g.bet.price}` : g.bet.price} ·
-                    edge <span className={g.bet.edge > 0 ? "pos" : "neg"}>{(g.bet.edge * 100).toFixed(1)}%</span> ·
-                    EV {g.bet.ev_per_unit.toFixed(3)}
+                    {" "}@ {(g.bet.price ?? 0) > 0 ? `+${g.bet.price}` : g.bet.price} ·
+                    edge <span className={(g.bet.edge ?? 0) > 0 ? "pos" : "neg"}>{((g.bet.edge ?? 0) * 100).toFixed(1)}%</span> ·
+                    EV {(g.bet.ev_per_unit ?? 0).toFixed(3)}
                   </p>
+                ) : (
+                  <p className="betline muted">No line loaded — projection only.</p>
                 )}
               </div>
             </div>

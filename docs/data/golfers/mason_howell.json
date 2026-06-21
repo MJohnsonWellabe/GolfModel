@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "mason_howell",
+  "player_name": "Mason Howell",
+  "wave": "all",
+  "rating": {
+    "skill": -0.927,
+    "skill_overall": -0.757,
+    "n_eff": 9.8,
+    "n_course": 2.5,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 74.77,
+    "p10": 70.33,
+    "p50": 74.32,
+    "p90": 79.84,
+    "sd": 3.74
+  },
+  "line": null,
+  "bet": {
+    "player_id": "mason_howell",
+    "player_name": "Mason Howell",
+    "wave": "all",
+    "e_score": 74.77,
+    "p10": 70.33,
+    "p90": 79.84,
+    "n_eff": 9.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      7,
+      29,
+      101,
+      277,
+      576,
+      900,
+      1160,
+      1342,
+      1218,
+      1115,
+      922,
+      701,
+      515,
+      402,
+      292,
+      178,
+      107,
+      70,
+      37,
+      24,
+      16,
+      7,
+      2,
+      2
+    ],
+    "edges": [
+      64.57,
+      65.72,
+      66.87,
+      68.02,
+      69.17,
+      70.32,
+      71.47,
+      72.62,
+      73.77,
+      74.92,
+      76.07,
+      77.22,
+      78.37,
+      79.52,
+      80.67,
+      81.82,
+      82.97,
+      84.12,
+      85.27,
+      86.42,
+      87.57,
+      88.72,
+      89.87,
+      91.02,
+      92.17
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 2,
+      "to_par": -4.0
+    }
+  ]
+}

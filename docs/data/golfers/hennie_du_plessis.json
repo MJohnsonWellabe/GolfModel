@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "hennie_du_plessis",
+  "player_name": "Hennie Du Plessis",
+  "wave": "all",
+  "rating": {
+    "skill": -1.204,
+    "skill_overall": -0.534,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.02,
+    "p10": 71.4,
+    "p50": 74.67,
+    "p90": 79.16,
+    "sd": 3.07
+  },
+  "line": null,
+  "bet": {
+    "player_id": "hennie_du_plessis",
+    "player_name": "Hennie Du Plessis",
+    "wave": "all",
+    "e_score": 75.02,
+    "p10": 71.4,
+    "p90": 79.16,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      7,
+      28,
+      134,
+      323,
+      717,
+      1058,
+      1373,
+      1336,
+      1312,
+      1026,
+      807,
+      624,
+      470,
+      319,
+      185,
+      130,
+      74,
+      31,
+      17,
+      16,
+      7,
+      4,
+      0,
+      2
+    ],
+    "edges": [
+      66.58,
+      67.59,
+      68.6,
+      69.61,
+      70.62,
+      71.63,
+      72.63,
+      73.64,
+      74.65,
+      75.66,
+      76.67,
+      77.68,
+      78.69,
+      79.69,
+      80.7,
+      81.71,
+      82.72,
+      83.73,
+      84.74,
+      85.75,
+      86.75,
+      87.76,
+      88.77,
+      89.78,
+      90.79
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 6.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "tyrrell_hatton",
+  "player_name": "Tyrrell Hatton",
+  "wave": "all",
+  "rating": {
+    "skill": 1.356,
+    "skill_overall": 0.9,
+    "n_eff": 11.2,
+    "n_course": 3.9,
+    "course_rounds_played": 7
+  },
+  "expected": {
+    "e_score": 72.49,
+    "p10": 68.27,
+    "p50": 72.07,
+    "p90": 77.37,
+    "sd": 3.61
+  },
+  "line": null,
+  "bet": {
+    "player_id": "tyrrell_hatton",
+    "player_name": "Tyrrell Hatton",
+    "wave": "all",
+    "e_score": 72.49,
+    "p10": 68.27,
+    "p90": 77.37,
+    "n_eff": 11.2,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      5,
+      32,
+      100,
+      318,
+      613,
+      1060,
+      1270,
+      1359,
+      1314,
+      1040,
+      863,
+      648,
+      506,
+      326,
+      236,
+      132,
+      70,
+      48,
+      32,
+      9,
+      10,
+      5,
+      2,
+      2
+    ],
+    "edges": [
+      62.53,
+      63.7,
+      64.87,
+      66.03,
+      67.2,
+      68.37,
+      69.53,
+      70.7,
+      71.86,
+      73.03,
+      74.2,
+      75.36,
+      76.53,
+      77.7,
+      78.86,
+      80.03,
+      81.2,
+      82.36,
+      83.53,
+      84.69,
+      85.86,
+      87.03,
+      88.19,
+      89.36,
+      90.53
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 4,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": -2.0
+    }
+  ]
+}

@@ -1,0 +1,121 @@
+{
+  "schema": 2,
+  "player_id": "jackson_herrington",
+  "player_name": "Jackson Herrington",
+  "wave": "all",
+  "rating": {
+    "skill": -0.811,
+    "skill_overall": -0.506,
+    "n_eff": 3.5,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.64,
+    "p10": 71.27,
+    "p50": 74.3,
+    "p90": 78.5,
+    "sd": 2.89
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jackson_herrington",
+    "player_name": "Jackson Herrington",
+    "wave": "all",
+    "e_score": 74.64,
+    "p10": 71.27,
+    "p90": 78.5,
+    "n_eff": 3.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      6,
+      31,
+      128,
+      369,
+      803,
+      1248,
+      1518,
+      1469,
+      1267,
+      1030,
+      763,
+      509,
+      330,
+      231,
+      143,
+      70,
+      46,
+      23,
+      8,
+      4,
+      2,
+      1,
+      0,
+      1
+    ],
+    "edges": [
+      66.45,
+      67.49,
+      68.52,
+      69.55,
+      70.58,
+      71.61,
+      72.65,
+      73.68,
+      74.71,
+      75.74,
+      76.77,
+      77.81,
+      78.84,
+      79.87,
+      80.9,
+      81.93,
+      82.97,
+      84.0,
+      85.03,
+      86.06,
+      87.09,
+      88.13,
+      89.16,
+      90.19,
+      91.22
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 4.0
+    }
+  ]
+}

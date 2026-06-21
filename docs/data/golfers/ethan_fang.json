@@ -1,0 +1,145 @@
+{
+  "schema": 2,
+  "player_id": "ethan_fang",
+  "player_name": "Ethan Fang",
+  "wave": "all",
+  "rating": {
+    "skill": -1.208,
+    "skill_overall": -0.704,
+    "n_eff": 4.7,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.05,
+    "p10": 71.2,
+    "p50": 74.69,
+    "p90": 79.44,
+    "sd": 3.27
+  },
+  "line": null,
+  "bet": {
+    "player_id": "ethan_fang",
+    "player_name": "Ethan Fang",
+    "wave": "all",
+    "e_score": 75.05,
+    "p10": 71.2,
+    "p90": 79.44,
+    "n_eff": 4.7,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      11,
+      41,
+      136,
+      332,
+      682,
+      1062,
+      1225,
+      1337,
+      1193,
+      1084,
+      852,
+      659,
+      486,
+      352,
+      218,
+      136,
+      79,
+      56,
+      24,
+      18,
+      9,
+      3,
+      3
+    ],
+    "edges": [
+      65.25,
+      66.28,
+      67.32,
+      68.35,
+      69.38,
+      70.42,
+      71.45,
+      72.48,
+      73.51,
+      74.55,
+      75.58,
+      76.61,
+      77.65,
+      78.68,
+      79.71,
+      80.74,
+      81.78,
+      82.81,
+      83.84,
+      84.88,
+      85.91,
+      86.94,
+      87.97,
+      89.01,
+      90.04
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 6.0
+    },
+    {
+      "date": "2025-09-11 04:00:00",
+      "course_id": "procore_championship",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-09-11 04:00:00",
+      "course_id": "procore_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": -1.0
+    }
+  ]
+}

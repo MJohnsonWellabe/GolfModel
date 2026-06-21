@@ -1,0 +1,139 @@
+{
+  "schema": 2,
+  "player_id": "angel_hidalgo",
+  "player_name": "Angel Hidalgo",
+  "wave": "all",
+  "rating": {
+    "skill": 0.249,
+    "skill_overall": 0.009,
+    "n_eff": 4.0,
+    "n_course": 3.0,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 73.55,
+    "p10": 69.74,
+    "p50": 73.15,
+    "p90": 77.94,
+    "sd": 3.27
+  },
+  "line": null,
+  "bet": {
+    "player_id": "angel_hidalgo",
+    "player_name": "Angel Hidalgo",
+    "wave": "all",
+    "e_score": 73.55,
+    "p10": 69.74,
+    "p90": 77.94,
+    "n_eff": 4.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      5,
+      30,
+      94,
+      333,
+      749,
+      1210,
+      1472,
+      1446,
+      1272,
+      1070,
+      797,
+      574,
+      370,
+      249,
+      130,
+      95,
+      45,
+      27,
+      19,
+      7,
+      3,
+      1,
+      1,
+      1
+    ],
+    "edges": [
+      64.22,
+      65.37,
+      66.52,
+      67.68,
+      68.83,
+      69.98,
+      71.13,
+      72.29,
+      73.44,
+      74.59,
+      75.74,
+      76.9,
+      78.05,
+      79.2,
+      80.36,
+      81.51,
+      82.66,
+      83.81,
+      84.97,
+      86.12,
+      87.27,
+      88.42,
+      89.58,
+      90.73,
+      91.88
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 2,
+      "to_par": 4.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "pierceson_coody",
+  "player_name": "Pierceson Coody",
+  "wave": "all",
+  "rating": {
+    "skill": 0.887,
+    "skill_overall": 0.473,
+    "n_eff": 57.8,
+    "n_course": 3.0,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 73.01,
+    "p10": 68.54,
+    "p50": 72.56,
+    "p90": 78.11,
+    "sd": 3.79
+  },
+  "line": null,
+  "bet": {
+    "player_id": "pierceson_coody",
+    "player_name": "Pierceson Coody",
+    "wave": "all",
+    "e_score": 73.01,
+    "p10": 68.54,
+    "p90": 78.11,
+    "n_eff": 57.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      19,
+      81,
+      223,
+      477,
+      803,
+      1152,
+      1350,
+      1212,
+      1148,
+      921,
+      818,
+      578,
+      431,
+      293,
+      192,
+      127,
+      65,
+      48,
+      28,
+      10,
+      7,
+      3,
+      4
+    ],
+    "edges": [
+      62.36,
+      63.53,
+      64.7,
+      65.87,
+      67.04,
+      68.21,
+      69.39,
+      70.56,
+      71.73,
+      72.9,
+      74.07,
+      75.24,
+      76.42,
+      77.59,
+      78.76,
+      79.93,
+      81.1,
+      82.27,
+      83.45,
+      84.62,
+      85.79,
+      86.96,
+      88.13,
+      89.3,
+      90.47
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -2.0
+    }
+  ]
+}

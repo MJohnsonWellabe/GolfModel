@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "patrick_cantlay",
+  "player_name": "Patrick Cantlay",
+  "wave": "all",
+  "rating": {
+    "skill": 0.595,
+    "skill_overall": 0.859,
+    "n_eff": 47.5,
+    "n_course": 2.5,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 73.17,
+    "p10": 68.99,
+    "p50": 72.74,
+    "p90": 77.98,
+    "sd": 3.56
+  },
+  "line": null,
+  "bet": {
+    "player_id": "patrick_cantlay",
+    "player_name": "Patrick Cantlay",
+    "wave": "all",
+    "e_score": 73.17,
+    "p10": 68.99,
+    "p90": 77.98,
+    "n_eff": 47.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      20,
+      84,
+      288,
+      681,
+      1203,
+      1486,
+      1526,
+      1340,
+      1056,
+      786,
+      571,
+      392,
+      255,
+      151,
+      76,
+      42,
+      24,
+      5,
+      6,
+      2,
+      0,
+      1,
+      1
+    ],
+    "edges": [
+      62.68,
+      63.97,
+      65.26,
+      66.55,
+      67.84,
+      69.13,
+      70.42,
+      71.71,
+      73.0,
+      74.29,
+      75.57,
+      76.86,
+      78.15,
+      79.44,
+      80.73,
+      82.02,
+      83.31,
+      84.6,
+      85.89,
+      87.18,
+      88.47,
+      89.76,
+      91.04,
+      92.33,
+      93.62
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    }
+  ]
+}

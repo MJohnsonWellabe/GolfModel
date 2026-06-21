@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "justin_rose",
+  "player_name": "Justin Rose",
+  "wave": "all",
+  "rating": {
+    "skill": 0.817,
+    "skill_overall": 0.609,
+    "n_eff": 46.6,
+    "n_course": 3.4,
+    "course_rounds_played": 5
+  },
+  "expected": {
+    "e_score": 73.06,
+    "p10": 68.75,
+    "p50": 72.6,
+    "p90": 78.0,
+    "sd": 3.65
+  },
+  "line": null,
+  "bet": {
+    "player_id": "justin_rose",
+    "player_name": "Justin Rose",
+    "wave": "all",
+    "e_score": 73.06,
+    "p10": 68.75,
+    "p90": 78.0,
+    "n_eff": 46.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      3,
+      15,
+      50,
+      207,
+      486,
+      847,
+      1154,
+      1379,
+      1255,
+      1118,
+      996,
+      773,
+      586,
+      412,
+      268,
+      189,
+      130,
+      52,
+      36,
+      22,
+      11,
+      6,
+      1,
+      4
+    ],
+    "edges": [
+      62.52,
+      63.68,
+      64.85,
+      66.01,
+      67.18,
+      68.34,
+      69.5,
+      70.67,
+      71.83,
+      73.0,
+      74.16,
+      75.32,
+      76.49,
+      77.65,
+      78.81,
+      79.98,
+      81.14,
+      82.31,
+      83.47,
+      84.63,
+      85.8,
+      86.96,
+      88.13,
+      89.29,
+      90.45
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

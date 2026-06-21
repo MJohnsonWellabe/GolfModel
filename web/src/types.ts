@@ -20,15 +20,18 @@ export interface Bet {
   player_id: string;
   player_name: string;
   wave: string;
-  line: number;
-  side: "Over" | "Under";
-  price: number;
-  model_prob: number;
-  novig_prob: number;
-  edge: number;
-  ev_per_unit: number;
-  kelly: number;
+  has_line: boolean;
+  line: number | null;
+  side: "Over" | "Under" | "";
+  price: number | null;
+  model_prob: number | null;
+  novig_prob: number | null;
+  edge: number | null;
+  ev_per_unit: number | null;
+  kelly: number | null;
   e_score: number;
+  p10: number;
+  p90: number;
   n_eff: number;
   actionable: boolean;
 }

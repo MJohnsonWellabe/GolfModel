@@ -1,0 +1,121 @@
+{
+  "schema": 2,
+  "player_id": "jayden_schaper",
+  "player_name": "Jayden Schaper",
+  "wave": "all",
+  "rating": {
+    "skill": -1.04,
+    "skill_overall": -0.646,
+    "n_eff": 3.7,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.88,
+    "p10": 71.66,
+    "p50": 74.58,
+    "p90": 78.54,
+    "sd": 2.73
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jayden_schaper",
+    "player_name": "Jayden Schaper",
+    "wave": "all",
+    "e_score": 74.88,
+    "p10": 71.66,
+    "p90": 78.54,
+    "n_eff": 3.7,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      8,
+      35,
+      136,
+      363,
+      676,
+      1080,
+      1302,
+      1339,
+      1227,
+      1075,
+      871,
+      622,
+      469,
+      302,
+      197,
+      125,
+      89,
+      34,
+      26,
+      14,
+      7,
+      0,
+      1
+    ],
+    "edges": [
+      66.57,
+      67.46,
+      68.35,
+      69.23,
+      70.12,
+      71.0,
+      71.89,
+      72.78,
+      73.66,
+      74.55,
+      75.43,
+      76.32,
+      77.21,
+      78.09,
+      78.98,
+      79.86,
+      80.75,
+      81.64,
+      82.52,
+      83.41,
+      84.3,
+      85.18,
+      86.07,
+      86.95,
+      87.84
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 5.0
+    }
+  ]
+}

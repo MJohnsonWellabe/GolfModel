@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "chase_kyes",
+  "player_name": "Chase Kyes",
+  "wave": "all",
+  "rating": {
+    "skill": -1.204,
+    "skill_overall": -0.534,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.05,
+    "p10": 71.26,
+    "p50": 74.68,
+    "p90": 79.52,
+    "sd": 3.21
+  },
+  "line": null,
+  "bet": {
+    "player_id": "chase_kyes",
+    "player_name": "Chase Kyes",
+    "wave": "all",
+    "e_score": 75.05,
+    "p10": 71.26,
+    "p90": 79.52,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      8,
+      50,
+      214,
+      530,
+      939,
+      1394,
+      1485,
+      1410,
+      1121,
+      914,
+      672,
+      469,
+      340,
+      204,
+      117,
+      66,
+      36,
+      15,
+      9,
+      3,
+      1,
+      0,
+      1
+    ],
+    "edges": [
+      65.35,
+      66.48,
+      67.61,
+      68.73,
+      69.86,
+      70.99,
+      72.11,
+      73.24,
+      74.37,
+      75.49,
+      76.62,
+      77.75,
+      78.87,
+      80.0,
+      81.13,
+      82.25,
+      83.38,
+      84.51,
+      85.63,
+      86.76,
+      87.89,
+      89.01,
+      90.14,
+      91.27,
+      92.39
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 7.0
+    }
+  ]
+}

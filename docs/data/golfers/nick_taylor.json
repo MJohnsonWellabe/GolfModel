@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "nick_taylor",
+  "player_name": "Nick Taylor",
+  "wave": "all",
+  "rating": {
+    "skill": 0.452,
+    "skill_overall": 0.297,
+    "n_eff": 61.0,
+    "n_course": 2.9,
+    "course_rounds_played": 6
+  },
+  "expected": {
+    "e_score": 73.42,
+    "p10": 69.22,
+    "p50": 72.96,
+    "p90": 78.25,
+    "sd": 3.59
+  },
+  "line": null,
+  "bet": {
+    "player_id": "nick_taylor",
+    "player_name": "Nick Taylor",
+    "wave": "all",
+    "e_score": 73.42,
+    "p10": 69.22,
+    "p90": 78.25,
+    "n_eff": 61.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      3,
+      20,
+      75,
+      234,
+      524,
+      892,
+      1267,
+      1439,
+      1309,
+      1116,
+      907,
+      729,
+      516,
+      376,
+      209,
+      165,
+      96,
+      57,
+      29,
+      18,
+      7,
+      5,
+      4,
+      3
+    ],
+    "edges": [
+      63.16,
+      64.33,
+      65.49,
+      66.66,
+      67.82,
+      68.99,
+      70.16,
+      71.32,
+      72.49,
+      73.65,
+      74.82,
+      75.98,
+      77.15,
+      78.31,
+      79.48,
+      80.65,
+      81.81,
+      82.98,
+      84.14,
+      85.31,
+      86.47,
+      87.64,
+      88.81,
+      89.97,
+      91.14
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -4.0
+    }
+  ]
+}

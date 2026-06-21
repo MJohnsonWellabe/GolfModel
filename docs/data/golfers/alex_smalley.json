@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "alex_smalley",
+  "player_name": "Alex Smalley",
+  "wave": "all",
+  "rating": {
+    "skill": 0.004,
+    "skill_overall": 0.578,
+    "n_eff": 60.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 73.81,
+    "p10": 69.56,
+    "p50": 73.36,
+    "p90": 78.73,
+    "sd": 3.65
+  },
+  "line": null,
+  "bet": {
+    "player_id": "alex_smalley",
+    "player_name": "Alex Smalley",
+    "wave": "all",
+    "e_score": 73.81,
+    "p10": 69.56,
+    "p90": 78.73,
+    "n_eff": 60.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      5,
+      17,
+      38,
+      126,
+      271,
+      595,
+      950,
+      1168,
+      1240,
+      1161,
+      1069,
+      869,
+      663,
+      560,
+      421,
+      273,
+      217,
+      129,
+      109,
+      50,
+      27,
+      25,
+      6,
+      11
+    ],
+    "edges": [
+      63.29,
+      64.35,
+      65.41,
+      66.47,
+      67.53,
+      68.58,
+      69.64,
+      70.7,
+      71.76,
+      72.82,
+      73.88,
+      74.94,
+      76.0,
+      77.06,
+      78.12,
+      79.18,
+      80.24,
+      81.3,
+      82.36,
+      83.42,
+      84.47,
+      85.53,
+      86.59,
+      87.65,
+      88.71
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": 11.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": -2.0
+    }
+  ]
+}

@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "giuseppe_puebla",
+  "player_name": "Giuseppe Puebla",
+  "wave": "all",
+  "rating": {
+    "skill": -0.274,
+    "skill_overall": -0.121,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.12,
+    "p10": 70.39,
+    "p50": 73.78,
+    "p90": 78.31,
+    "sd": 3.11
+  },
+  "line": null,
+  "bet": {
+    "player_id": "giuseppe_puebla",
+    "player_name": "Giuseppe Puebla",
+    "wave": "all",
+    "e_score": 74.12,
+    "p10": 70.39,
+    "p90": 78.31,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      8,
+      42,
+      134,
+      366,
+      745,
+      1144,
+      1355,
+      1452,
+      1263,
+      1032,
+      757,
+      637,
+      432,
+      267,
+      163,
+      90,
+      58,
+      31,
+      9,
+      11,
+      1,
+      0,
+      2,
+      1
+    ],
+    "edges": [
+      65.47,
+      66.53,
+      67.59,
+      68.65,
+      69.71,
+      70.77,
+      71.83,
+      72.89,
+      73.95,
+      75.01,
+      76.07,
+      77.13,
+      78.19,
+      79.25,
+      80.31,
+      81.37,
+      82.43,
+      83.49,
+      84.55,
+      85.61,
+      86.67,
+      87.73,
+      88.79,
+      89.85,
+      90.91
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

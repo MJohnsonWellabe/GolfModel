@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "arni_sveinsson",
+  "player_name": "Arni Sveinsson",
+  "wave": "all",
+  "rating": {
+    "skill": -2.879,
+    "skill_overall": -1.278,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 76.67,
+    "p10": 72.5,
+    "p50": 76.29,
+    "p90": 81.47,
+    "sd": 3.54
+  },
+  "line": null,
+  "bet": {
+    "player_id": "arni_sveinsson",
+    "player_name": "Arni Sveinsson",
+    "wave": "all",
+    "e_score": 76.67,
+    "p10": 72.5,
+    "p90": 81.47,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      13,
+      53,
+      176,
+      515,
+      963,
+      1236,
+      1424,
+      1348,
+      1205,
+      1011,
+      672,
+      490,
+      348,
+      212,
+      156,
+      84,
+      47,
+      27,
+      9,
+      3,
+      4,
+      1,
+      1
+    ],
+    "edges": [
+      66.1,
+      67.31,
+      68.51,
+      69.71,
+      70.92,
+      72.12,
+      73.33,
+      74.53,
+      75.73,
+      76.94,
+      78.14,
+      79.35,
+      80.55,
+      81.75,
+      82.96,
+      84.16,
+      85.37,
+      86.57,
+      87.77,
+      88.98,
+      90.18,
+      91.39,
+      92.59,
+      93.79,
+      95.0
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 14.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 7.0
+    }
+  ]
+}

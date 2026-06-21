@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "miles_russell",
+  "player_name": "Miles Russell",
+  "wave": "all",
+  "rating": {
+    "skill": 0.281,
+    "skill_overall": 0.056,
+    "n_eff": 6.7,
+    "n_course": 3.0,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 73.54,
+    "p10": 69.84,
+    "p50": 73.16,
+    "p90": 77.75,
+    "sd": 3.1
+  },
+  "line": null,
+  "bet": {
+    "player_id": "miles_russell",
+    "player_name": "Miles Russell",
+    "wave": "all",
+    "e_score": 73.54,
+    "p10": 69.84,
+    "p90": 77.75,
+    "n_eff": 6.7,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      29,
+      132,
+      351,
+      600,
+      962,
+      1169,
+      1263,
+      1179,
+      1056,
+      852,
+      739,
+      509,
+      412,
+      267,
+      174,
+      126,
+      81,
+      45,
+      15,
+      13,
+      11,
+      2,
+      3
+    ],
+    "edges": [
+      65.38,
+      66.31,
+      67.24,
+      68.17,
+      69.1,
+      70.02,
+      70.95,
+      71.88,
+      72.81,
+      73.74,
+      74.66,
+      75.59,
+      76.52,
+      77.45,
+      78.38,
+      79.3,
+      80.23,
+      81.16,
+      82.09,
+      83.02,
+      83.94,
+      84.87,
+      85.8,
+      86.73,
+      87.66
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-09-11 04:00:00",
+      "course_id": "procore_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-09-11 04:00:00",
+      "course_id": "procore_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "isco_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    }
+  ]
+}

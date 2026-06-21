@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "carlos_ortiz",
+  "player_name": "Carlos Ortiz",
+  "wave": "all",
+  "rating": {
+    "skill": 0.122,
+    "skill_overall": -0.225,
+    "n_eff": 5.0,
+    "n_course": 2.9,
+    "course_rounds_played": 6
+  },
+  "expected": {
+    "e_score": 73.7,
+    "p10": 69.72,
+    "p50": 73.34,
+    "p90": 78.22,
+    "sd": 3.36
+  },
+  "line": null,
+  "bet": {
+    "player_id": "carlos_ortiz",
+    "player_name": "Carlos Ortiz",
+    "wave": "all",
+    "e_score": 73.7,
+    "p10": 69.72,
+    "p90": 78.22,
+    "n_eff": 5.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      7,
+      22,
+      68,
+      183,
+      404,
+      734,
+      1054,
+      1269,
+      1234,
+      1196,
+      998,
+      815,
+      624,
+      465,
+      350,
+      214,
+      152,
+      92,
+      52,
+      31,
+      12,
+      7,
+      12,
+      5
+    ],
+    "edges": [
+      64.16,
+      65.18,
+      66.2,
+      67.22,
+      68.23,
+      69.25,
+      70.27,
+      71.29,
+      72.31,
+      73.33,
+      74.34,
+      75.36,
+      76.38,
+      77.4,
+      78.42,
+      79.44,
+      80.45,
+      81.47,
+      82.49,
+      83.51,
+      84.53,
+      85.55,
+      86.57,
+      87.58,
+      88.6
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
+      "to_par": 3.0
+    }
+  ]
+}

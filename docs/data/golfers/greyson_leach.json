@@ -1,0 +1,133 @@
+{
+  "schema": 2,
+  "player_id": "greyson_leach",
+  "player_name": "Greyson Leach",
+  "wave": "all",
+  "rating": {
+    "skill": -2.869,
+    "skill_overall": -1.264,
+    "n_eff": 3.9,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 76.69,
+    "p10": 71.99,
+    "p50": 76.27,
+    "p90": 81.87,
+    "sd": 3.93
+  },
+  "line": null,
+  "bet": {
+    "player_id": "greyson_leach",
+    "player_name": "Greyson Leach",
+    "wave": "all",
+    "e_score": 76.69,
+    "p10": 71.99,
+    "p90": 81.87,
+    "n_eff": 3.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      1,
+      12,
+      47,
+      178,
+      468,
+      802,
+      1142,
+      1327,
+      1308,
+      1239,
+      994,
+      777,
+      602,
+      390,
+      274,
+      176,
+      109,
+      66,
+      41,
+      25,
+      14,
+      5,
+      2
+    ],
+    "edges": [
+      63.85,
+      65.12,
+      66.39,
+      67.66,
+      68.93,
+      70.2,
+      71.47,
+      72.74,
+      74.01,
+      75.28,
+      76.55,
+      77.82,
+      79.09,
+      80.36,
+      81.63,
+      82.89,
+      84.16,
+      85.43,
+      86.7,
+      87.97,
+      89.24,
+      90.51,
+      91.78,
+      93.05,
+      94.32
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 9.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 12.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 4,
+      "to_par": 4.0
+    }
+  ]
+}

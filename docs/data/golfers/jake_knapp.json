@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jake_knapp",
+  "player_name": "Jake Knapp",
+  "wave": "all",
+  "rating": {
+    "skill": 0.357,
+    "skill_overall": 0.882,
+    "n_eff": 36.3,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 73.4,
+    "p10": 69.0,
+    "p50": 72.98,
+    "p90": 78.47,
+    "sd": 3.73
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jake_knapp",
+    "player_name": "Jake Knapp",
+    "wave": "all",
+    "e_score": 73.4,
+    "p10": 69.0,
+    "p90": 78.47,
+    "n_eff": 36.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      23,
+      117,
+      260,
+      619,
+      949,
+      1281,
+      1376,
+      1323,
+      1106,
+      835,
+      677,
+      487,
+      354,
+      235,
+      148,
+      96,
+      57,
+      18,
+      12,
+      11,
+      5,
+      6,
+      1
+    ],
+    "edges": [
+      63.02,
+      64.22,
+      65.42,
+      66.63,
+      67.83,
+      69.03,
+      70.23,
+      71.43,
+      72.64,
+      73.84,
+      75.04,
+      76.24,
+      77.45,
+      78.65,
+      79.85,
+      81.05,
+      82.26,
+      83.46,
+      84.66,
+      85.86,
+      87.07,
+      88.27,
+      89.47,
+      90.67,
+      91.87
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 1.0
+    }
+  ]
+}

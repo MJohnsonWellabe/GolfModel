@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "joaqu_n_niemann",
+  "player_name": "Joaqu\u00edn Niemann",
+  "wave": "all",
+  "rating": {
+    "skill": 0.834,
+    "skill_overall": 0.646,
+    "n_eff": 9.0,
+    "n_course": 3.4,
+    "course_rounds_played": 5
+  },
+  "expected": {
+    "e_score": 72.94,
+    "p10": 68.48,
+    "p50": 72.52,
+    "p90": 78.03,
+    "sd": 3.83
+  },
+  "line": null,
+  "bet": {
+    "player_id": "joaqu_n_niemann",
+    "player_name": "Joaqu\u00edn Niemann",
+    "wave": "all",
+    "e_score": 72.94,
+    "p10": 68.48,
+    "p90": 78.03,
+    "n_eff": 9.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      9,
+      37,
+      124,
+      344,
+      691,
+      1151,
+      1336,
+      1383,
+      1283,
+      1043,
+      837,
+      621,
+      455,
+      256,
+      167,
+      115,
+      63,
+      41,
+      23,
+      11,
+      6,
+      2,
+      1,
+      1
+    ],
+    "edges": [
+      62.4,
+      63.67,
+      64.95,
+      66.22,
+      67.49,
+      68.77,
+      70.04,
+      71.32,
+      72.59,
+      73.86,
+      75.14,
+      76.41,
+      77.68,
+      78.96,
+      80.23,
+      81.5,
+      82.78,
+      84.05,
+      85.32,
+      86.6,
+      87.87,
+      89.14,
+      90.42,
+      91.69,
+      92.97
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 5.0
+    }
+  ]
+}

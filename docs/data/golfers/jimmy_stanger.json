@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jimmy_stanger",
+  "player_name": "Jimmy Stanger",
+  "wave": "all",
+  "rating": {
+    "skill": -0.186,
+    "skill_overall": -0.004,
+    "n_eff": 26.6,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 73.98,
+    "p10": 70.17,
+    "p50": 73.65,
+    "p90": 78.26,
+    "sd": 3.21
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jimmy_stanger",
+    "player_name": "Jimmy Stanger",
+    "wave": "all",
+    "e_score": 73.98,
+    "p10": 70.17,
+    "p90": 78.26,
+    "n_eff": 26.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      2,
+      26,
+      71,
+      223,
+      516,
+      853,
+      1145,
+      1331,
+      1289,
+      1189,
+      1035,
+      764,
+      496,
+      389,
+      255,
+      157,
+      99,
+      69,
+      45,
+      23,
+      10,
+      8,
+      4
+    ],
+    "edges": [
+      63.8,
+      64.82,
+      65.84,
+      66.87,
+      67.89,
+      68.91,
+      69.94,
+      70.96,
+      71.98,
+      73.01,
+      74.03,
+      75.06,
+      76.08,
+      77.1,
+      78.13,
+      79.15,
+      80.17,
+      81.2,
+      82.22,
+      83.24,
+      84.27,
+      85.29,
+      86.32,
+      87.34,
+      88.36
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 3.0
+    }
+  ]
+}

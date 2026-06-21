@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "filippo_celli",
+  "player_name": "Filippo Celli",
+  "wave": "all",
+  "rating": {
+    "skill": 0.098,
+    "skill_overall": 0.044,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 73.72,
+    "p10": 69.68,
+    "p50": 73.29,
+    "p90": 78.42,
+    "sd": 3.44
+  },
+  "line": null,
+  "bet": {
+    "player_id": "filippo_celli",
+    "player_name": "Filippo Celli",
+    "wave": "all",
+    "e_score": 73.72,
+    "p10": 69.68,
+    "p90": 78.42,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      12,
+      41,
+      169,
+      414,
+      779,
+      1134,
+      1394,
+      1341,
+      1194,
+      992,
+      781,
+      563,
+      444,
+      273,
+      194,
+      116,
+      65,
+      47,
+      25,
+      10,
+      4,
+      3,
+      3
+    ],
+    "edges": [
+      63.54,
+      64.66,
+      65.77,
+      66.88,
+      67.99,
+      69.1,
+      70.21,
+      71.32,
+      72.43,
+      73.54,
+      74.65,
+      75.77,
+      76.88,
+      77.99,
+      79.1,
+      80.21,
+      81.32,
+      82.43,
+      83.54,
+      84.65,
+      85.76,
+      86.88,
+      87.99,
+      89.1,
+      90.21
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 0.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "bud_cauley",
+  "player_name": "Bud Cauley",
+  "wave": "all",
+  "rating": {
+    "skill": 0.627,
+    "skill_overall": 0.446,
+    "n_eff": 60.1,
+    "n_course": 3.4,
+    "course_rounds_played": 5
+  },
+  "expected": {
+    "e_score": 73.23,
+    "p10": 69.16,
+    "p50": 72.83,
+    "p90": 77.85,
+    "sd": 3.41
+  },
+  "line": null,
+  "bet": {
+    "player_id": "bud_cauley",
+    "player_name": "Bud Cauley",
+    "wave": "all",
+    "e_score": 73.23,
+    "p10": 69.16,
+    "p90": 77.85,
+    "n_eff": 60.1,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      7,
+      32,
+      140,
+      336,
+      632,
+      937,
+      1248,
+      1330,
+      1209,
+      1040,
+      858,
+      705,
+      511,
+      380,
+      243,
+      169,
+      91,
+      58,
+      41,
+      20,
+      7,
+      3,
+      2,
+      1
+    ],
+    "edges": [
+      64.09,
+      65.15,
+      66.2,
+      67.26,
+      68.31,
+      69.37,
+      70.43,
+      71.48,
+      72.54,
+      73.59,
+      74.65,
+      75.71,
+      76.76,
+      77.82,
+      78.88,
+      79.93,
+      80.99,
+      82.04,
+      83.1,
+      84.16,
+      85.21,
+      86.27,
+      87.32,
+      88.38,
+      89.44
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -7.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 2.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "andrew_novak",
+  "player_name": "Andrew Novak",
+  "wave": "all",
+  "rating": {
+    "skill": 0.114,
+    "skill_overall": -0.048,
+    "n_eff": 60.8,
+    "n_course": 2.9,
+    "course_rounds_played": 6
+  },
+  "expected": {
+    "e_score": 73.72,
+    "p10": 69.32,
+    "p50": 73.24,
+    "p90": 78.88,
+    "sd": 3.78
+  },
+  "line": null,
+  "bet": {
+    "player_id": "andrew_novak",
+    "player_name": "Andrew Novak",
+    "wave": "all",
+    "e_score": 73.72,
+    "p10": 69.32,
+    "p90": 78.88,
+    "n_eff": 60.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      3,
+      17,
+      97,
+      275,
+      533,
+      1002,
+      1263,
+      1358,
+      1249,
+      1091,
+      892,
+      724,
+      480,
+      356,
+      285,
+      150,
+      89,
+      65,
+      34,
+      20,
+      8,
+      4,
+      2,
+      3
+    ],
+    "edges": [
+      63.19,
+      64.39,
+      65.6,
+      66.8,
+      68.01,
+      69.21,
+      70.41,
+      71.62,
+      72.82,
+      74.03,
+      75.23,
+      76.43,
+      77.64,
+      78.84,
+      80.05,
+      81.25,
+      82.45,
+      83.66,
+      84.86,
+      86.07,
+      87.27,
+      88.47,
+      89.68,
+      90.88,
+      92.09
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": 1.0
+    }
+  ]
+}

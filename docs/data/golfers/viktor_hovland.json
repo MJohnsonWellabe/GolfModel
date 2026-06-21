@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "viktor_hovland",
+  "player_name": "Viktor Hovland",
+  "wave": "all",
+  "rating": {
+    "skill": 0.818,
+    "skill_overall": 0.604,
+    "n_eff": 47.0,
+    "n_course": 2.9,
+    "course_rounds_played": 6
+  },
+  "expected": {
+    "e_score": 73.04,
+    "p10": 68.93,
+    "p50": 72.67,
+    "p90": 77.76,
+    "sd": 3.46
+  },
+  "line": null,
+  "bet": {
+    "player_id": "viktor_hovland",
+    "player_name": "Viktor Hovland",
+    "wave": "all",
+    "e_score": 73.04,
+    "p10": 68.93,
+    "p90": 77.76,
+    "n_eff": 47.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      6,
+      11,
+      78,
+      209,
+      450,
+      749,
+      1078,
+      1275,
+      1181,
+      1160,
+      1005,
+      766,
+      641,
+      444,
+      357,
+      224,
+      146,
+      96,
+      50,
+      35,
+      20,
+      8,
+      5,
+      6
+    ],
+    "edges": [
+      63.34,
+      64.38,
+      65.42,
+      66.46,
+      67.5,
+      68.54,
+      69.58,
+      70.62,
+      71.66,
+      72.7,
+      73.74,
+      74.78,
+      75.82,
+      76.86,
+      77.9,
+      78.94,
+      79.98,
+      81.02,
+      82.06,
+      83.09,
+      84.13,
+      85.17,
+      86.21,
+      87.25,
+      88.29
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    }
+  ]
+}

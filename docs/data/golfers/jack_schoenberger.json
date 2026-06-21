@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "jack_schoenberger",
+  "player_name": "Jack Schoenberger",
+  "wave": "all",
+  "rating": {
+    "skill": -0.088,
+    "skill_overall": -0.039,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 73.9,
+    "p10": 70.32,
+    "p50": 73.55,
+    "p90": 78.03,
+    "sd": 3.02
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jack_schoenberger",
+    "player_name": "Jack Schoenberger",
+    "wave": "all",
+    "e_score": 73.9,
+    "p10": 70.32,
+    "p90": 78.03,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      3,
+      16,
+      92,
+      257,
+      549,
+      881,
+      1245,
+      1319,
+      1297,
+      1140,
+      903,
+      707,
+      518,
+      411,
+      264,
+      173,
+      94,
+      61,
+      38,
+      17,
+      9,
+      4,
+      0,
+      2
+    ],
+    "edges": [
+      65.41,
+      66.37,
+      67.33,
+      68.29,
+      69.25,
+      70.21,
+      71.17,
+      72.13,
+      73.09,
+      74.05,
+      75.02,
+      75.98,
+      76.94,
+      77.9,
+      78.86,
+      79.82,
+      80.78,
+      81.74,
+      82.7,
+      83.66,
+      84.62,
+      85.58,
+      86.54,
+      87.5,
+      88.46
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

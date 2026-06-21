@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "tom_kim",
+  "player_name": "Tom Kim",
+  "wave": "all",
+  "rating": {
+    "skill": 1.374,
+    "skill_overall": 0.341,
+    "n_eff": 55.4,
+    "n_course": 3.9,
+    "course_rounds_played": 7
+  },
+  "expected": {
+    "e_score": 72.46,
+    "p10": 68.56,
+    "p50": 72.06,
+    "p90": 76.9,
+    "sd": 3.28
+  },
+  "line": null,
+  "bet": {
+    "player_id": "tom_kim",
+    "player_name": "Tom Kim",
+    "wave": "all",
+    "e_score": 72.46,
+    "p10": 68.56,
+    "p90": 76.9,
+    "n_eff": 55.4,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      11,
+      78,
+      166,
+      427,
+      716,
+      1024,
+      1268,
+      1319,
+      1186,
+      970,
+      820,
+      586,
+      500,
+      346,
+      224,
+      146,
+      97,
+      53,
+      27,
+      18,
+      7,
+      6,
+      3,
+      2
+    ],
+    "edges": [
+      64.03,
+      65.04,
+      66.04,
+      67.05,
+      68.05,
+      69.06,
+      70.06,
+      71.07,
+      72.07,
+      73.07,
+      74.08,
+      75.08,
+      76.09,
+      77.09,
+      78.1,
+      79.1,
+      80.11,
+      81.11,
+      82.11,
+      83.12,
+      84.12,
+      85.13,
+      86.13,
+      87.14,
+      88.14
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 2.0
+    }
+  ]
+}

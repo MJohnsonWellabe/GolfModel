@@ -1,0 +1,115 @@
+{
+  "schema": 2,
+  "player_id": "spencer_tibbits",
+  "player_name": "Spencer Tibbits",
+  "wave": "all",
+  "rating": {
+    "skill": 0.2,
+    "skill_overall": 0.095,
+    "n_eff": 3.0,
+    "n_course": 3.0,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 73.58,
+    "p10": 69.32,
+    "p50": 73.18,
+    "p90": 78.4,
+    "sd": 3.57
+  },
+  "line": null,
+  "bet": {
+    "player_id": "spencer_tibbits",
+    "player_name": "Spencer Tibbits",
+    "wave": "all",
+    "e_score": 73.58,
+    "p10": 69.32,
+    "p90": 78.4,
+    "n_eff": 3.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      13,
+      47,
+      163,
+      345,
+      630,
+      930,
+      1073,
+      1216,
+      1165,
+      1023,
+      882,
+      676,
+      550,
+      458,
+      267,
+      209,
+      138,
+      85,
+      60,
+      36,
+      16,
+      8,
+      8
+    ],
+    "edges": [
+      63.45,
+      64.48,
+      65.5,
+      66.53,
+      67.55,
+      68.58,
+      69.6,
+      70.63,
+      71.65,
+      72.68,
+      73.7,
+      74.73,
+      75.75,
+      76.78,
+      77.8,
+      78.83,
+      79.85,
+      80.87,
+      81.9,
+      82.92,
+      83.95,
+      84.97,
+      86.0,
+      87.02,
+      88.05
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 6.0
+    }
+  ]
+}

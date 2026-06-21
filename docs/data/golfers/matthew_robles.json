@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "matthew_robles",
+  "player_name": "Matthew Robles",
+  "wave": "all",
+  "rating": {
+    "skill": -1.948,
+    "skill_overall": -0.865,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.78,
+    "p10": 72.04,
+    "p50": 75.38,
+    "p90": 80.15,
+    "sd": 3.2
+  },
+  "line": null,
+  "bet": {
+    "player_id": "matthew_robles",
+    "player_name": "Matthew Robles",
+    "wave": "all",
+    "e_score": 75.78,
+    "p10": 72.04,
+    "p90": 80.15,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      17,
+      101,
+      271,
+      663,
+      1070,
+      1427,
+      1358,
+      1280,
+      1053,
+      852,
+      637,
+      460,
+      319,
+      211,
+      137,
+      75,
+      28,
+      21,
+      6,
+      4,
+      4,
+      1,
+      1
+    ],
+    "edges": [
+      66.75,
+      67.82,
+      68.89,
+      69.96,
+      71.03,
+      72.1,
+      73.17,
+      74.24,
+      75.31,
+      76.38,
+      77.45,
+      78.52,
+      79.59,
+      80.67,
+      81.74,
+      82.81,
+      83.88,
+      84.95,
+      86.02,
+      87.09,
+      88.16,
+      89.23,
+      90.3,
+      91.37,
+      92.44
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 9.0
+    }
+  ]
+}

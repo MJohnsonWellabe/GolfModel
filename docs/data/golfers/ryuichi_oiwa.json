@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "ryuichi_oiwa",
+  "player_name": "Ryuichi Oiwa",
+  "wave": "all",
+  "rating": {
+    "skill": -0.832,
+    "skill_overall": -0.369,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.65,
+    "p10": 70.57,
+    "p50": 74.27,
+    "p90": 79.39,
+    "sd": 3.5
+  },
+  "line": null,
+  "bet": {
+    "player_id": "ryuichi_oiwa",
+    "player_name": "Ryuichi Oiwa",
+    "wave": "all",
+    "e_score": 74.65,
+    "p10": 70.57,
+    "p90": 79.39,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      16,
+      70,
+      229,
+      534,
+      960,
+      1265,
+      1390,
+      1333,
+      1194,
+      920,
+      691,
+      470,
+      344,
+      246,
+      130,
+      110,
+      43,
+      30,
+      11,
+      5,
+      4,
+      2,
+      1
+    ],
+    "edges": [
+      64.52,
+      65.68,
+      66.84,
+      68.0,
+      69.16,
+      70.33,
+      71.49,
+      72.65,
+      73.81,
+      74.97,
+      76.13,
+      77.29,
+      78.45,
+      79.62,
+      80.78,
+      81.94,
+      83.1,
+      84.26,
+      85.42,
+      86.58,
+      87.75,
+      88.91,
+      90.07,
+      91.23,
+      92.39
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    }
+  ]
+}

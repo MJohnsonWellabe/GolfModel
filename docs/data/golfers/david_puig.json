@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "david_puig",
+  "player_name": "David Puig",
+  "wave": "all",
+  "rating": {
+    "skill": -0.331,
+    "skill_overall": 0.131,
+    "n_eff": 6.3,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.15,
+    "p10": 69.98,
+    "p50": 73.73,
+    "p90": 78.91,
+    "sd": 3.53
+  },
+  "line": null,
+  "bet": {
+    "player_id": "david_puig",
+    "player_name": "David Puig",
+    "wave": "all",
+    "e_score": 74.15,
+    "p10": 69.98,
+    "p90": 78.91,
+    "n_eff": 6.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      46,
+      148,
+      362,
+      648,
+      1041,
+      1310,
+      1340,
+      1217,
+      1014,
+      866,
+      663,
+      450,
+      322,
+      216,
+      150,
+      100,
+      42,
+      25,
+      12,
+      8,
+      7,
+      2,
+      1
+    ],
+    "edges": [
+      64.72,
+      65.84,
+      66.95,
+      68.07,
+      69.19,
+      70.3,
+      71.42,
+      72.54,
+      73.65,
+      74.77,
+      75.89,
+      77.0,
+      78.12,
+      79.24,
+      80.36,
+      81.47,
+      82.59,
+      83.71,
+      84.82,
+      85.94,
+      87.06,
+      88.17,
+      89.29,
+      90.41,
+      91.52
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 8.0
+    }
+  ]
+}

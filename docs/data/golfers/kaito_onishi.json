@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "kaito_onishi",
+  "player_name": "Kaito Onishi",
+  "wave": "all",
+  "rating": {
+    "skill": -0.695,
+    "skill_overall": -0.681,
+    "n_eff": 16.7,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 74.49,
+    "p10": 70.38,
+    "p50": 74.09,
+    "p90": 79.2,
+    "sd": 3.5
+  },
+  "line": null,
+  "bet": {
+    "player_id": "kaito_onishi",
+    "player_name": "Kaito Onishi",
+    "wave": "all",
+    "e_score": 74.49,
+    "p10": 70.38,
+    "p90": 79.2,
+    "n_eff": 16.7,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      14,
+      64,
+      179,
+      393,
+      716,
+      1073,
+      1247,
+      1288,
+      1140,
+      1051,
+      832,
+      599,
+      469,
+      324,
+      245,
+      153,
+      101,
+      46,
+      34,
+      16,
+      8,
+      7,
+      0,
+      1
+    ],
+    "edges": [
+      65.49,
+      66.56,
+      67.64,
+      68.71,
+      69.78,
+      70.85,
+      71.92,
+      72.99,
+      74.06,
+      75.13,
+      76.2,
+      77.28,
+      78.35,
+      79.42,
+      80.49,
+      81.56,
+      82.63,
+      83.7,
+      84.77,
+      85.84,
+      86.91,
+      87.99,
+      89.06,
+      90.13,
+      91.2
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 7.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-13 05:00:00",
+      "course_id": "butterfield_bermuda_championship",
+      "round_num": 4,
+      "to_par": 7.0
+    },
+    {
+      "date": "2025-11-13 05:00:00",
+      "course_id": "butterfield_bermuda_championship",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-11-13 05:00:00",
+      "course_id": "butterfield_bermuda_championship",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-11-13 05:00:00",
+      "course_id": "butterfield_bermuda_championship",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-06 05:00:00",
+      "course_id": "world_wide_technology_championship",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-06 05:00:00",
+      "course_id": "world_wide_technology_championship",
+      "round_num": 1,
+      "to_par": -1.0
+    }
+  ]
+}

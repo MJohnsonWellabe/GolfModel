@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "keegan_bradley",
+  "player_name": "Keegan Bradley",
+  "wave": "all",
+  "rating": {
+    "skill": 1.146,
+    "skill_overall": 0.461,
+    "n_eff": 54.5,
+    "n_course": 3.9,
+    "course_rounds_played": 7
+  },
+  "expected": {
+    "e_score": 72.66,
+    "p10": 68.63,
+    "p50": 72.23,
+    "p90": 77.28,
+    "sd": 3.45
+  },
+  "line": null,
+  "bet": {
+    "player_id": "keegan_bradley",
+    "player_name": "Keegan Bradley",
+    "wave": "all",
+    "e_score": 72.66,
+    "p10": 68.63,
+    "p90": 77.28,
+    "n_eff": 54.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      6,
+      31,
+      140,
+      337,
+      755,
+      1132,
+      1355,
+      1389,
+      1282,
+      1031,
+      767,
+      601,
+      419,
+      284,
+      192,
+      107,
+      76,
+      54,
+      18,
+      10,
+      5,
+      5,
+      3
+    ],
+    "edges": [
+      62.18,
+      63.31,
+      64.44,
+      65.57,
+      66.7,
+      67.83,
+      68.96,
+      70.09,
+      71.22,
+      72.35,
+      73.48,
+      74.62,
+      75.75,
+      76.88,
+      78.01,
+      79.14,
+      80.27,
+      81.4,
+      82.53,
+      83.66,
+      84.79,
+      85.92,
+      87.06,
+      88.19,
+      89.32
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -1.0
+    }
+  ]
+}

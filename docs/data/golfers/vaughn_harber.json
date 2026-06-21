@@ -1,0 +1,109 @@
+{
+  "schema": 2,
+  "player_id": "vaughn_harber",
+  "player_name": "Vaughn Harber",
+  "wave": "all",
+  "rating": {
+    "skill": -1.204,
+    "skill_overall": -0.534,
+    "n_eff": 2.0,
+    "n_course": 2.0,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 75.07,
+    "p10": 71.31,
+    "p50": 74.71,
+    "p90": 79.32,
+    "sd": 3.16
+  },
+  "line": null,
+  "bet": {
+    "player_id": "vaughn_harber",
+    "player_name": "Vaughn Harber",
+    "wave": "all",
+    "e_score": 75.07,
+    "p10": 71.31,
+    "p90": 79.32,
+    "n_eff": 2.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      8,
+      56,
+      178,
+      508,
+      904,
+      1294,
+      1481,
+      1367,
+      1214,
+      964,
+      718,
+      509,
+      315,
+      201,
+      129,
+      78,
+      33,
+      19,
+      15,
+      2,
+      5,
+      0,
+      1
+    ],
+    "edges": [
+      65.44,
+      66.55,
+      67.65,
+      68.75,
+      69.85,
+      70.96,
+      72.06,
+      73.16,
+      74.27,
+      75.37,
+      76.47,
+      77.57,
+      78.68,
+      79.78,
+      80.88,
+      81.99,
+      83.09,
+      84.19,
+      85.29,
+      86.4,
+      87.5,
+      88.6,
+      89.71,
+      90.81,
+      91.91
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 7.0
+    }
+  ]
+}

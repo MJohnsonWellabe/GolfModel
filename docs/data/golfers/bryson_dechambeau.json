@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "bryson_dechambeau",
+  "player_name": "Bryson DeChambeau",
+  "wave": "all",
+  "rating": {
+    "skill": 0.18,
+    "skill_overall": 0.19,
+    "n_eff": 8.4,
+    "n_course": 2.5,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 73.59,
+    "p10": 69.3,
+    "p50": 73.14,
+    "p90": 78.61,
+    "sd": 3.71
+  },
+  "line": null,
+  "bet": {
+    "player_id": "bryson_dechambeau",
+    "player_name": "Bryson DeChambeau",
+    "wave": "all",
+    "e_score": 73.59,
+    "p10": 69.3,
+    "p90": 78.61,
+    "n_eff": 8.4,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      62,
+      135,
+      344,
+      751,
+      1129,
+      1368,
+      1381,
+      1213,
+      1016,
+      836,
+      601,
+      398,
+      277,
+      208,
+      114,
+      79,
+      43,
+      19,
+      10,
+      3,
+      0,
+      2,
+      1
+    ],
+    "edges": [
+      63.6,
+      64.81,
+      66.03,
+      67.24,
+      68.45,
+      69.67,
+      70.88,
+      72.09,
+      73.31,
+      74.52,
+      75.73,
+      76.95,
+      78.16,
+      79.37,
+      80.59,
+      81.8,
+      83.01,
+      84.23,
+      85.44,
+      86.65,
+      87.87,
+      89.08,
+      90.29,
+      91.51,
+      92.72
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": -6.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 4,
+      "to_par": -7.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 7.0
+    }
+  ]
+}
