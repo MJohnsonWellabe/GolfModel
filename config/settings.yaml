@@ -44,11 +44,5 @@ distribution:
   shared_shock_sd: 0.8        # SD of the per-wave shared environment shock
   random_seed: 20260620
 
-betting:
-  vig_method: multiplicative   # or "shin"
-  min_edge: 0.03
-  min_n_eff: 4.0
-  kelly_fraction: 0.25
-
 environment:
   default_par: 71

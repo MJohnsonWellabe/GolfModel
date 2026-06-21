@@ -1,12 +1,12 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "matti_schmid",
   "player_name": "Matti Schmid",
   "wave": "all",
   "rating": {
-    "skill": -1.107,
-    "skill_overall": -0.076,
-    "n_eff": 54.9,
+    "skill": -1.116,
+    "skill_overall": -0.087,
+    "n_eff": 56.4,
     "n_course": 2.0,
     "course_rounds_played": 2
   },
@@ -14,28 +14,8 @@
     "e_score": 75.01,
     "p10": 70.65,
     "p50": 74.58,
-    "p90": 79.97,
+    "p90": 79.98,
     "sd": 3.71
-  },
-  "line": null,
-  "bet": {
-    "player_id": "matti_schmid",
-    "player_name": "Matti Schmid",
-    "wave": "all",
-    "e_score": 75.01,
-    "p10": 70.65,
-    "p90": 79.97,
-    "n_eff": 54.9,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
   },
   "distribution": {
     "counts": [
@@ -44,17 +24,17 @@
       83,
       307,
       555,
-      947,
-      1216,
-      1309,
-      1260,
-      1051,
-      927,
+      949,
+      1217,
+      1306,
+      1261,
+      1052,
+      926,
       708,
-      542,
-      377,
-      250,
-      159,
+      543,
+      375,
+      251,
+      158,
       110,
       74,
       36,
@@ -67,29 +47,29 @@
     "edges": [
       64.87,
       66.02,
-      67.18,
+      67.17,
       68.33,
       69.48,
       70.63,
       71.78,
       72.93,
-      74.08,
-      75.23,
-      76.38,
-      77.53,
-      78.68,
-      79.83,
-      80.98,
-      82.14,
-      83.29,
-      84.44,
-      85.59,
-      86.74,
-      87.89,
-      89.04,
-      90.19,
-      91.34,
-      92.49
+      74.09,
+      75.24,
+      76.39,
+      77.54,
+      78.7,
+      79.85,
+      81.0,
+      82.15,
+      83.31,
+      84.46,
+      85.61,
+      86.76,
+      87.91,
+      89.07,
+      90.22,
+      91.37,
+      92.52
     ]
   },
   "recent_rounds": [
@@ -132,14 +112,14 @@
     {
       "date": "2026-05-14 04:00:00",
       "course_id": "pga_championship",
-      "round_num": 4,
-      "to_par": -1.0
+      "round_num": 3,
+      "to_par": -5.0
     },
     {
       "date": "2026-05-14 04:00:00",
       "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": -5.0
+      "round_num": 1,
+      "to_par": -1.0
     },
     {
       "date": "2026-05-14 04:00:00",
@@ -150,7 +130,7 @@
     {
       "date": "2026-05-14 04:00:00",
       "course_id": "pga_championship",
-      "round_num": 1,
+      "round_num": 4,
       "to_par": -1.0
     }
   ]

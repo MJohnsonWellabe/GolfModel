@@ -38,11 +38,12 @@ def test_prob_over_at_mean_is_about_half_for_symmetric():
     assert prob_over(sims[:, 0], 70.0) == pytest.approx(0.5, abs=0.03)
 
 
-def test_end_to_end_sample_pipeline_produces_board():
+def test_end_to_end_sample_pipeline_produces_predictions():
     bundle = load_bundle(source="sample")
     result = run_event(bundle, settings())
     assert len(result.summary) > 0
     assert {"e_score", "p10", "p90"}.issubset(result.summary.columns)
-    assert not result.board.empty
-    # every probability is a valid probability
-    assert result.board["model_prob"].between(0, 1).all()
+    # ranked by expected score (best first)
+    assert result.summary["e_score"].is_monotonic_increasing
+    # predictions are plausible golf scores
+    assert result.summary["e_score"].between(55, 95).all()

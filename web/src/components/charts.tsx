@@ -68,6 +68,34 @@ export function LineChart({
   );
 }
 
+export function Scatter({
+  points,
+  min,
+  max,
+  width = 320,
+  height = 320,
+}: {
+  points: { pred: number; actual: number }[];
+  min: number;
+  max: number;
+  width?: number;
+  height?: number;
+}) {
+  const pad = 34;
+  const sx = (v: number) => pad + ((v - min) / (max - min || 1)) * (width - 2 * pad);
+  const sy = (v: number) => height - pad - ((v - min) / (max - min || 1)) * (height - 2 * pad);
+  return (
+    <svg className="chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="predicted vs actual">
+      <line x1={sx(min)} y1={sy(min)} x2={sx(max)} y2={sy(max)} stroke="#888" strokeDasharray="4 3" />
+      {points.map((p, i) => (
+        <circle key={i} cx={sx(p.pred)} cy={sy(p.actual)} r={2.2} fill="#5b8def" opacity={0.5} />
+      ))}
+      <text x={width / 2} y={height - 6} fontSize="10" fill="#888" textAnchor="middle">predicted →</text>
+      <text x={10} y={height / 2} fontSize="10" fill="#888" transform={`rotate(-90 10 ${height / 2})`} textAnchor="middle">actual →</text>
+    </svg>
+  );
+}
+
 export function Reliability({
   data,
   width = 280,

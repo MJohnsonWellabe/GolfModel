@@ -1,41 +1,21 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "jason_day",
   "player_name": "Jason Day",
   "wave": "all",
   "rating": {
-    "skill": 0.407,
-    "skill_overall": 0.184,
-    "n_eff": 43.6,
+    "skill": 0.441,
+    "skill_overall": 0.223,
+    "n_eff": 45.8,
     "n_course": 0.9,
     "course_rounds_played": 4
   },
   "expected": {
-    "e_score": 73.45,
-    "p10": 68.86,
-    "p50": 72.99,
-    "p90": 78.64,
-    "sd": 3.86
-  },
-  "line": null,
-  "bet": {
-    "player_id": "jason_day",
-    "player_name": "Jason Day",
-    "wave": "all",
-    "e_score": 73.45,
-    "p10": 68.86,
-    "p90": 78.64,
-    "n_eff": 43.6,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
+    "e_score": 73.41,
+    "p10": 68.82,
+    "p50": 72.95,
+    "p90": 78.61,
+    "sd": 3.87
   },
   "distribution": {
     "counts": [
@@ -43,14 +23,14 @@
       18,
       95,
       307,
-      676,
-      1093,
+      675,
+      1095,
       1407,
-      1461,
+      1460,
       1306,
       1033,
-      852,
-      657,
+      853,
+      656,
       429,
       279,
       174,
@@ -65,31 +45,31 @@
       1
     ],
     "edges": [
-      62.3,
-      63.65,
-      64.99,
-      66.33,
-      67.68,
-      69.02,
-      70.36,
-      71.7,
-      73.05,
-      74.39,
-      75.73,
-      77.07,
-      78.42,
-      79.76,
-      81.1,
-      82.45,
-      83.79,
-      85.13,
-      86.47,
-      87.82,
-      89.16,
-      90.5,
-      91.84,
-      93.19,
-      94.53
+      62.26,
+      63.6,
+      64.95,
+      66.29,
+      67.64,
+      68.98,
+      70.32,
+      71.67,
+      73.01,
+      74.35,
+      75.7,
+      77.04,
+      78.38,
+      79.73,
+      81.07,
+      82.42,
+      83.76,
+      85.1,
+      86.45,
+      87.79,
+      89.13,
+      90.48,
+      91.82,
+      93.16,
+      94.51
     ]
   },
   "recent_rounds": [
@@ -132,6 +112,12 @@
     {
       "date": "2026-05-07 04:00:00",
       "course_id": "truist_championship",
+      "round_num": 4,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
       "round_num": 3,
       "to_par": 1.0
     },
@@ -145,12 +131,6 @@
       "date": "2026-05-07 04:00:00",
       "course_id": "truist_championship",
       "round_num": 1,
-      "to_par": 4.0
-    },
-    {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
-      "round_num": 4,
       "to_par": 4.0
     }
   ]

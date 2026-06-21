@@ -1,4 +1,4 @@
-"""Command-line interface: run the pipeline, the backtest, or regenerate samples."""
+"""Command-line interface: run predictions, the backtest, or regenerate samples."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ import typer
 
 from .config import DOCS_DATA_DIR, settings
 
-app = typer.Typer(add_completion=False, help="GolfModel — academic round-score O/U value model.")
+app = typer.Typer(add_completion=False, help="GolfModel — academic golf score prediction model.")
 
 
 @app.command("run-pipeline")
@@ -28,42 +28,43 @@ def run_pipeline(
     typer.echo(
         f"[{source}] event {manifest['event_id']} {manifest['course_name']} "
         f"R{manifest['round_num']} | players={manifest['n_players']} "
-        f"bets={manifest['n_bets']} actionable={manifest['n_actionable']} "
-        f"sources={manifest['sources']}"
+        f"par={manifest['par']} sources={manifest['sources']}"
     )
-    if not result.board.empty:
-        top = result.board.head(5)[["player_name", "side", "line", "price", "edge", "ev_per_unit"]]
+    if not result.summary.empty:
+        top = result.summary.head(6)[["player_name", "e_score", "p10", "p90"]]
+        typer.echo("Lowest expected scores:")
         typer.echo(top.to_string(index=False))
 
 
 @app.command("run-backtest")
 def run_backtest_cmd(
     source: str = typer.Option("sample", help="sample | live"),
-    n_sims: int = typer.Option(4000, help="Monte-Carlo sims per round"),
+    year: int = typer.Option(2026, help="test year (predict this year's rounds vs actual)"),
+    n_sims: int = typer.Option(2500, help="Monte-Carlo sims per round"),
 ):
-    """Walk-forward backtest and write docs/data/backtest/summary.json."""
+    """Walk-forward score-prediction backtest -> docs/data/backtest/summary.json."""
     from .backtest.walkforward import run_backtest
     from .data.adapters.sample import SampleAdapter
     from .data.registry import load_bundle
 
     if source == "sample":
         rounds = SampleAdapter().rounds(None)
+        # Sample data has no real-year structure; test on its full span.
+        summary = run_backtest(rounds, settings(), test_year=None, min_history_rounds=600, n_sims=n_sims)
     else:
         rounds = load_bundle(source="live").rounds
+        summary = run_backtest(rounds, settings(), test_year=year, n_sims=n_sims)
 
-    summary = run_backtest(rounds, settings(), n_sims=n_sims)
     out = DOCS_DATA_DIR / "backtest" / "summary.json"
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps({"schema": 1, **summary}, indent=2, default=str))
+    out.write_text(json.dumps(summary, indent=2, default=str))
 
     typer.echo(f"Backtest: {summary.get('n_predictions', 0)} predictions -> {out}")
     if summary.get("n_predictions"):
-        p = summary["prediction"]
+        h = summary["headline"]
         typer.echo(
-            f"  RMSE {p['rmse']} (naive {p['rmse_naive']}) | coverage80 "
-            f"{p['interval_coverage_80']} | CRPS {p['crps']} | "
-            f"O/U Brier {summary['over_under']['brier']} (0.5-baseline "
-            f"{summary['over_under']['brier_baseline_0.5']})"
+            f"  RMSE {h['rmse']} (naive {h['rmse_naive']}, {h['improvement_vs_naive_pct']}% better) | "
+            f"MAE {h['mae']} | coverage80 {h['interval_coverage_80']} | CRPS {h['crps']}"
         )
 
 

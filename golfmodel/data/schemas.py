@@ -53,23 +53,6 @@ FIELD = Schema(
     },
 )
 
-# Betting lines. ``market`` in {round_ou, matchup}. round_ou uses
-# line/over_price/under_price; matchup uses opponent_id + prices.
-LINES = Schema(
-    "lines",
-    {
-        "market": "string",
-        "book": "string",
-        "event_id": "string",
-        "round_num": "int64",
-        "player_id": "string",
-        "line": "float64",
-        "over_price": "float64",
-        "under_price": "float64",
-        "captured_at": "datetime64[ns]",
-    },
-)
-
 
 def validate(df: pd.DataFrame, schema: Schema, *, allow_extra: bool = True) -> pd.DataFrame:
     """Check required columns exist, coerce dtypes, return canonical column order."""

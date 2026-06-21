@@ -1,41 +1,21 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "viktor_hovland",
   "player_name": "Viktor Hovland",
   "wave": "all",
   "rating": {
-    "skill": 0.818,
-    "skill_overall": 0.604,
-    "n_eff": 47.0,
+    "skill": 0.811,
+    "skill_overall": 0.594,
+    "n_eff": 48.1,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
     "e_score": 73.04,
-    "p10": 68.93,
+    "p10": 68.94,
     "p50": 72.67,
     "p90": 77.76,
     "sd": 3.46
-  },
-  "line": null,
-  "bet": {
-    "player_id": "viktor_hovland",
-    "player_name": "Viktor Hovland",
-    "wave": "all",
-    "e_score": 73.04,
-    "p10": 68.93,
-    "p90": 77.76,
-    "n_eff": 47.0,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
   },
   "distribution": {
     "counts": [
@@ -43,15 +23,15 @@
       11,
       78,
       209,
-      450,
-      749,
-      1078,
-      1275,
-      1181,
-      1160,
-      1005,
-      766,
-      641,
+      449,
+      750,
+      1076,
+      1277,
+      1178,
+      1162,
+      1006,
+      764,
+      643,
       444,
       357,
       224,
@@ -65,11 +45,11 @@
       6
     ],
     "edges": [
-      63.34,
-      64.38,
-      65.42,
-      66.46,
-      67.5,
+      63.35,
+      64.39,
+      65.43,
+      66.47,
+      67.51,
       68.54,
       69.58,
       70.62,
@@ -82,8 +62,8 @@
       77.9,
       78.94,
       79.98,
-      81.02,
-      82.06,
+      81.01,
+      82.05,
       83.09,
       84.13,
       85.17,
@@ -144,14 +124,14 @@
     {
       "date": "2026-05-07 04:00:00",
       "course_id": "truist_championship",
-      "round_num": 3,
-      "to_par": -2.0
+      "round_num": 4,
+      "to_par": -1.0
     },
     {
       "date": "2026-05-07 04:00:00",
       "course_id": "truist_championship",
-      "round_num": 2,
-      "to_par": 2.0
+      "round_num": 3,
+      "to_par": -2.0
     }
   ]
 }

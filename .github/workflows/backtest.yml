@@ -1,7 +1,7 @@
 name: backtest
 
-# Heavier walk-forward backtest; manual dispatch. Commits the backtest summary
-# JSON so the dashboard's Backtest tab updates.
+# Walk-forward score-prediction backtest; manual dispatch. Commits the summary
+# JSON so the dashboard's Backtest tab updates. Free data, no secrets.
 
 on:
   workflow_dispatch:
@@ -9,11 +9,14 @@ on:
       source:
         description: "Data source"
         type: choice
-        options: [sample, live]
-        default: sample
+        options: [live, sample]
+        default: live
+      year:
+        description: "Test year (predict this year's rounds vs actual)"
+        default: "2026"
       n_sims:
         description: "Monte-Carlo sims per round"
-        default: "6000"
+        default: "2500"
 
 permissions:
   contents: write
@@ -37,10 +40,11 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
       - name: Run backtest
-        env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: |
-          python -m golfmodel run-backtest --source "${{ github.event.inputs.source || 'sample' }}" --n-sims "${{ github.event.inputs.n_sims || '6000' }}"
+          python -m golfmodel run-backtest \
+            --source "${{ github.event.inputs.source || 'live' }}" \
+            --year "${{ github.event.inputs.year || '2026' }}" \
+            --n-sims "${{ github.event.inputs.n_sims || '2500' }}"
       - name: Commit backtest summary
         run: |
           git config user.name "github-actions[bot]"

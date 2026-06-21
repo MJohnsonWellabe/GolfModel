@@ -4,7 +4,6 @@
 ``source='live'`` uses per-table fallback chains:
     rounds  : ESPN -> Sample
     field   : ESPN -> Sample
-    lines   : Manual -> Odds API (free tier) -> Sample
     weather : Open-Meteo (from field tee windows / course-day) -> Sample
 """
 from __future__ import annotations
@@ -15,11 +14,9 @@ import pandas as pd
 
 from ..config import course_meta, settings
 from .base import DataBundle
-from .schemas import FIELD, LINES, ROUNDS, validate
+from .schemas import FIELD, ROUNDS, validate
 from .adapters.sample import SampleAdapter
 from .adapters.espn import EspnAdapter
-from .adapters.odds_api import OddsApiAdapter
-from .adapters.manual_lines import ManualLinesAdapter
 from .adapters.weather import WeatherAdapter
 
 
@@ -59,7 +56,6 @@ def load_bundle(source="sample", event_id=None, round_num=None, asof=None, histo
         return DataBundle(
             rounds=validate(sample.rounds(asof), ROUNDS),
             field=validate(sample.field(event_id, round_num), FIELD),
-            lines=validate(sample.lines(event_id, round_num, asof), LINES),
             weather=sample.weather(),
             event_id=event_id,
             course_id=meta["course_id"],
@@ -70,7 +66,7 @@ def load_bundle(source="sample", event_id=None, round_num=None, asof=None, histo
 
     # --- live (free) ---
     asof = asof or pd.Timestamp(datetime.utcnow())  # predict as of "now"
-    espn, odds, manual, weather = EspnAdapter(), OddsApiAdapter(), ManualLinesAdapter(), WeatherAdapter()
+    espn, weather = EspnAdapter(), WeatherAdapter()
     sources: list[str] = []
 
     rounds, src = _first_nonempty([("espn", espn.rounds(asof)), ("sample", sample.rounds(asof))])
@@ -84,15 +80,6 @@ def load_bundle(source="sample", event_id=None, round_num=None, asof=None, histo
     event_id = event_id or (field_df["event_id"].iloc[0] if not field_df.empty else None)
     round_num = round_num or (int(field_df["round_num"].iloc[0]) if not field_df.empty else None)
     course_id = field_df["course_id"].iloc[0] if not field_df.empty else (event_id or "")
-
-    lines_df, lsrc = _first_nonempty(
-        [
-            ("manual_lines", manual.lines(event_id, round_num, asof)),
-            ("odds_api", odds.lines(event_id, round_num, asof)),
-            ("sample", sample.lines(event_id, round_num, asof)),
-        ]
-    )
-    sources.append(lsrc or "sample")
 
     # Weather from Open-Meteo at the course lat/lon over the tee windows.
     wx = pd.DataFrame()
@@ -112,7 +99,6 @@ def load_bundle(source="sample", event_id=None, round_num=None, asof=None, histo
     return DataBundle(
         rounds=validate(rounds, ROUNDS),
         field=field_df,
-        lines=validate(lines_df, LINES),
         weather=wx,
         event_id=event_id,
         course_id=course_id,

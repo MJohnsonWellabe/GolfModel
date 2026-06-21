@@ -1,6 +1,6 @@
 """Generate deterministic synthetic sample data (scores only) so the app runs
-with no network. Mirrors the free-data shape: per-round scores, an upcoming
-field with AM/PM waves + weather, and FanDuel-style round Over/Under lines.
+with no network: per-round scores plus an upcoming field with AM/PM waves +
+weather.
 
 Run: ``python -m golfmodel.data.generate_sample``
 """
@@ -19,20 +19,6 @@ SAMPLE_DIR = DATA_DIR / "sample"
 REF_DATE = datetime(2026, 6, 18, 0, 0, 0)
 N_PLAYERS = 60
 SEED = 7
-
-
-def _american_from_prob(p: float, vig: float = 0.045) -> int:
-    p_book = min(0.97, max(0.03, p + vig / 2))
-    dec = 1.0 / p_book
-    if dec >= 2.0:
-        return int(round((dec - 1.0) * 100))
-    return int(round(-100.0 / (dec - 1.0)))
-
-
-def _normal_cdf(x, mu, sd):
-    from math import erf, sqrt
-
-    return 0.5 * (1 + erf((x - mu) / (sd * sqrt(2))))
 
 
 def generate() -> dict:
@@ -96,7 +82,7 @@ def generate() -> dict:
     field_players = list(rng.choice(players, size=48, replace=False))
     wave_cond = {"AM": {"wind": 7.0, "precip": 0.0, "temp": 17.0}, "PM": {"wind": 19.0, "precip": 1.0, "temp": 21.0}}
 
-    field_rows, weather_rows, line_rows = [], [], []
+    field_rows, weather_rows = [], []
     for wave, cond in wave_cond.items():
         weather_rows.append(
             {"event_id": up_event, "course_id": up_course, "round_num": up_round, "wave": wave,
@@ -111,23 +97,10 @@ def generate() -> dict:
             {"event_id": up_event, "course_id": up_course, "round_num": up_round, "player_id": p["player_id"],
              "player_name": p["player_name"], "tee_time": tee, "wave": wave, "group_id": f"G{idx // 3:02d}"}
         )
-        cond = wave_cond[wave]
-        weather_pen = wx.strokes_shift(cond["wind"], cond["precip"], up_meta["exposure"], cfg["weather"])
-        skill = p["skill"] + p["course_pref"][up_course]
-        true_mean = up_meta["par"] + course_base[up_course] - skill + weather_pen
-        true_sd = base_sd * p["consistency"]
-        line = round(true_mean * 2) / 2 + float(rng.choice([-0.5, 0.0, 0.0, 0.5]))
-        p_over = 1.0 - _normal_cdf(line, true_mean, true_sd)
-        line_rows.append(
-            {"market": "round_ou", "book": "FanDuel", "event_id": up_event, "round_num": up_round,
-             "player_id": p["player_id"], "line": float(line), "over_price": _american_from_prob(p_over),
-             "under_price": _american_from_prob(1 - p_over), "captured_at": REF_DATE, "opponent_id": ""}
-        )
 
     SAMPLE_DIR.mkdir(parents=True, exist_ok=True)
     rounds.to_parquet(SAMPLE_DIR / "rounds.parquet", index=False)
     pd.DataFrame(field_rows).to_parquet(SAMPLE_DIR / "field.parquet", index=False)
-    pd.DataFrame(line_rows).to_parquet(SAMPLE_DIR / "lines.parquet", index=False)
     pd.DataFrame(weather_rows).to_parquet(SAMPLE_DIR / "weather.parquet", index=False)
     meta = {"event_id": up_event, "course_id": up_course, "round_num": up_round,
             "asof": REF_DATE.isoformat(), "event_date": up_date.isoformat()}

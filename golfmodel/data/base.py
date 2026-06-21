@@ -14,7 +14,6 @@ class DataBundle:
 
     rounds: pd.DataFrame             # historical per-round scores (training data)
     field: pd.DataFrame              # upcoming-round field (players, tee times, waves)
-    lines: pd.DataFrame              # betting lines for the upcoming round
     weather: pd.DataFrame = field(default_factory=pd.DataFrame)  # per-wave conditions
     event_id: str | None = None
     course_id: str | None = None
@@ -41,7 +40,4 @@ class DataAdapter(ABC):
         return pd.DataFrame()
 
     def field(self, event_id: str | None, round_num: int | None, asof: datetime | None = None) -> pd.DataFrame:
-        return pd.DataFrame()
-
-    def lines(self, event_id: str | None, round_num: int | None, asof: datetime | None = None) -> pd.DataFrame:
         return pd.DataFrame()

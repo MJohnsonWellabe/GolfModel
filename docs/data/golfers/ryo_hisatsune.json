@@ -1,57 +1,37 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "ryo_hisatsune",
   "player_name": "Ryo Hisatsune",
   "wave": "all",
   "rating": {
-    "skill": 0.834,
-    "skill_overall": 0.224,
-    "n_eff": 71.6,
+    "skill": 0.824,
+    "skill_overall": 0.21,
+    "n_eff": 73.2,
     "n_course": 3.0,
     "course_rounds_played": 3
   },
   "expected": {
-    "e_score": 73.03,
-    "p10": 68.68,
+    "e_score": 73.04,
+    "p10": 68.69,
     "p50": 72.6,
     "p90": 78.07,
-    "sd": 3.7
-  },
-  "line": null,
-  "bet": {
-    "player_id": "ryo_hisatsune",
-    "player_name": "Ryo Hisatsune",
-    "wave": "all",
-    "e_score": 73.03,
-    "p10": 68.68,
-    "p90": 78.07,
-    "n_eff": 71.6,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
+    "sd": 3.69
   },
   "distribution": {
     "counts": [
       2,
       27,
-      107,
+      108,
       351,
-      646,
-      1066,
+      645,
+      1065,
       1400,
-      1408,
-      1261,
-      1075,
-      853,
-      613,
-      463,
+      1405,
+      1260,
+      1078,
+      855,
+      612,
+      464,
       300,
       181,
       107,
@@ -65,31 +45,31 @@
       2
     ],
     "edges": [
-      62.67,
-      63.92,
-      65.16,
-      66.4,
-      67.64,
-      68.88,
-      70.12,
-      71.36,
-      72.6,
-      73.84,
+      62.7,
+      63.94,
+      65.18,
+      66.41,
+      67.65,
+      68.89,
+      70.13,
+      71.37,
+      72.61,
+      73.85,
       75.09,
       76.33,
       77.57,
       78.81,
-      80.05,
-      81.29,
-      82.53,
-      83.77,
-      85.01,
-      86.26,
-      87.5,
-      88.74,
-      89.98,
-      91.22,
-      92.46
+      80.04,
+      81.28,
+      82.52,
+      83.76,
+      85.0,
+      86.24,
+      87.48,
+      88.72,
+      89.96,
+      91.2,
+      92.44
     ]
   },
   "recent_rounds": [
@@ -138,8 +118,8 @@
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
-      "round_num": 2,
-      "to_par": -2.0
+      "round_num": 3,
+      "to_par": 9.0
     },
     {
       "date": "2026-05-28 04:00:00",
@@ -150,8 +130,8 @@
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
-      "round_num": 4,
-      "to_par": -1.0
+      "round_num": 2,
+      "to_par": -2.0
     }
   ]
 }

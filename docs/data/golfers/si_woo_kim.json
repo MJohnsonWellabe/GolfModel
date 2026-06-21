@@ -1,54 +1,34 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "si_woo_kim",
   "player_name": "Si Woo Kim",
   "wave": "all",
   "rating": {
-    "skill": 0.725,
-    "skill_overall": 1.024,
-    "n_eff": 66.4,
+    "skill": 0.715,
+    "skill_overall": 1.009,
+    "n_eff": 69.1,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 73.08,
-    "p10": 68.66,
-    "p50": 72.68,
+    "e_score": 73.09,
+    "p10": 68.67,
+    "p50": 72.69,
     "p90": 78.15,
     "sd": 3.71
-  },
-  "line": null,
-  "bet": {
-    "player_id": "si_woo_kim",
-    "player_name": "Si Woo Kim",
-    "wave": "all",
-    "e_score": 73.08,
-    "p10": 68.66,
-    "p90": 78.15,
-    "n_eff": 66.4,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
   },
   "distribution": {
     "counts": [
       9,
       31,
       129,
-      355,
-      708,
-      1138,
+      354,
+      707,
+      1139,
       1316,
-      1355,
-      1254,
-      1108,
+      1356,
+      1253,
+      1109,
       827,
       589,
       482,
@@ -65,31 +45,31 @@
       1
     ],
     "edges": [
-      62.81,
-      64.05,
-      65.29,
-      66.53,
-      67.77,
-      69.01,
-      70.25,
-      71.49,
-      72.73,
-      73.97,
+      62.83,
+      64.07,
+      65.31,
+      66.55,
+      67.78,
+      69.02,
+      70.26,
+      71.5,
+      72.74,
+      73.98,
       75.21,
       76.45,
       77.69,
       78.93,
       80.17,
       81.41,
-      82.65,
-      83.89,
-      85.13,
-      86.37,
-      87.61,
-      88.85,
-      90.09,
-      91.33,
-      92.57
+      82.64,
+      83.88,
+      85.12,
+      86.36,
+      87.6,
+      88.84,
+      90.07,
+      91.31,
+      92.55
     ]
   },
   "recent_rounds": [
@@ -132,12 +112,6 @@
     {
       "date": "2026-05-21 04:00:00",
       "course_id": "the_cj_cup_byron_nelson",
-      "round_num": 4,
-      "to_par": -6.0
-    },
-    {
-      "date": "2026-05-21 04:00:00",
-      "course_id": "the_cj_cup_byron_nelson",
       "round_num": 3,
       "to_par": -3.0
     },
@@ -152,6 +126,12 @@
       "course_id": "the_cj_cup_byron_nelson",
       "round_num": 1,
       "to_par": -7.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -6.0
     }
   ]
 }

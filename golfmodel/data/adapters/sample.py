@@ -42,11 +42,5 @@ class SampleAdapter(DataAdapter):
     def field(self, event_id=None, round_num=None, asof=None) -> pd.DataFrame:
         return self._read("field")
 
-    def lines(self, event_id=None, round_num=None, asof=None) -> pd.DataFrame:
-        df = self._read("lines")
-        if asof is not None and not df.empty and "captured_at" in df.columns:
-            df = df[pd.to_datetime(df["captured_at"]) <= pd.Timestamp(asof)]
-        return df
-
     def weather(self) -> pd.DataFrame:
         return self._read("weather")

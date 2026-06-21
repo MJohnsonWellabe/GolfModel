@@ -1,41 +1,21 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "cameron_young",
   "player_name": "Cameron Young",
   "wave": "all",
   "rating": {
-    "skill": 1.383,
-    "skill_overall": 1.107,
-    "n_eff": 55.9,
+    "skill": 1.359,
+    "skill_overall": 1.067,
+    "n_eff": 57.9,
     "n_course": 3.9,
     "course_rounds_played": 7
   },
   "expected": {
-    "e_score": 72.46,
+    "e_score": 72.48,
     "p10": 68.21,
-    "p50": 72.05,
-    "p90": 77.42,
-    "sd": 3.61
-  },
-  "line": null,
-  "bet": {
-    "player_id": "cameron_young",
-    "player_name": "Cameron Young",
-    "wave": "all",
-    "e_score": 72.46,
-    "p10": 68.21,
-    "p90": 77.42,
-    "n_eff": 55.9,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
+    "p50": 72.07,
+    "p90": 77.47,
+    "sd": 3.63
   },
   "distribution": {
     "counts": [
@@ -43,18 +23,18 @@
       26,
       78,
       236,
-      591,
-      958,
-      1305,
-      1393,
-      1338,
+      590,
+      962,
+      1304,
+      1392,
+      1336,
       1128,
-      873,
-      698,
-      463,
-      352,
+      876,
+      696,
+      464,
+      350,
       215,
-      148,
+      149,
       95,
       58,
       18,
@@ -65,31 +45,31 @@
       1
     ],
     "edges": [
-      62.14,
-      63.33,
+      62.13,
+      63.32,
       64.52,
-      65.72,
+      65.71,
       66.91,
-      68.1,
-      69.29,
-      70.48,
-      71.67,
-      72.87,
-      74.06,
-      75.25,
-      76.44,
-      77.63,
-      78.82,
-      80.02,
-      81.21,
-      82.4,
-      83.59,
-      84.78,
-      85.97,
-      87.16,
-      88.36,
-      89.55,
-      90.74
+      68.11,
+      69.3,
+      70.5,
+      71.69,
+      72.89,
+      74.09,
+      75.28,
+      76.48,
+      77.68,
+      78.87,
+      80.07,
+      81.26,
+      82.46,
+      83.66,
+      84.85,
+      86.05,
+      87.24,
+      88.44,
+      89.64,
+      90.83
     ]
   },
   "recent_rounds": [
@@ -138,20 +118,20 @@
     {
       "date": "2026-05-14 04:00:00",
       "course_id": "pga_championship",
-      "round_num": 4,
-      "to_par": 0.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": 2.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
       "round_num": 2,
       "to_par": -3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 0.0
     }
   ]
 }

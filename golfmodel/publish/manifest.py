@@ -6,13 +6,12 @@ from datetime import datetime, timezone
 from ..config import course_meta
 from ..model.pipeline import PipelineResult
 
-SCHEMA = 2  # bumped for the free-data, score-based rebuild
-DISCLAIMER = "ACADEMIC EXERCISE — NOT BETTING ADVICE. For educational use only."
+SCHEMA = 3  # score-prediction model (betting removed)
+DISCLAIMER = "ACADEMIC EXERCISE — score prediction only. Not betting advice."
 
 
 def build_manifest(result: PipelineResult) -> dict:
     cmeta = course_meta(result.course_id)
-    n_actionable = int(result.board["actionable"].sum()) if "actionable" in result.board.columns else 0
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -26,8 +25,6 @@ def build_manifest(result: PipelineResult) -> dict:
         "course_base_to_par": round(result.course_base, 2),
         "field_strength": round(result.field_strength, 3),
         "n_players": int(len(result.summary)),
-        "n_bets": int(len(result.board)),
-        "n_actionable": n_actionable,
         "wave_wind": {k: round(v, 1) for k, v in result.wave_wind.items()},
         "sources": result.sources,
     }

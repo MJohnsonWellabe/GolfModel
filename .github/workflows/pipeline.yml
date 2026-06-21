@@ -41,9 +41,7 @@ jobs:
           pip install -e .
 
       - name: Run model pipeline
-        env:
-          # ESPN + Open-Meteo are keyless; Odds API key is optional (free tier).
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        # ESPN + Open-Meteo are free and keyless — no secrets needed.
         run: |
           python -m golfmodel run-pipeline --source "${{ github.event.inputs.source || 'live' }}"
 

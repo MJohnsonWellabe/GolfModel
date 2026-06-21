@@ -29,3 +29,4 @@ node_modules/
 *.swp
 .idea/
 .vscode/
+web/*.tsbuildinfo

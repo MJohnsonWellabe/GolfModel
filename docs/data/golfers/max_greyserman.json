@@ -1,58 +1,38 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "max_greyserman",
   "player_name": "Max Greyserman",
   "wave": "all",
   "rating": {
-    "skill": 0.356,
-    "skill_overall": 0.095,
-    "n_eff": 54.1,
+    "skill": 0.359,
+    "skill_overall": 0.1,
+    "n_eff": 56.6,
     "n_course": 3.9,
     "course_rounds_played": 7
   },
   "expected": {
     "e_score": 73.5,
-    "p10": 68.86,
+    "p10": 68.84,
     "p50": 72.97,
-    "p90": 78.75,
-    "sd": 3.96
-  },
-  "line": null,
-  "bet": {
-    "player_id": "max_greyserman",
-    "player_name": "Max Greyserman",
-    "wave": "all",
-    "e_score": 73.5,
-    "p10": 68.86,
-    "p90": 78.75,
-    "n_eff": 54.1,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
+    "p90": 78.76,
+    "sd": 3.98
   },
   "distribution": {
     "counts": [
       20,
       78,
-      274,
+      275,
       568,
-      978,
-      1260,
-      1416,
-      1233,
-      1112,
-      842,
-      720,
-      559,
-      315,
-      242,
+      981,
+      1261,
+      1413,
+      1237,
+      1106,
+      844,
+      719,
+      558,
+      316,
+      241,
       161,
       90,
       63,
@@ -65,31 +45,31 @@
       2
     ],
     "edges": [
-      63.69,
-      64.96,
-      66.23,
-      67.5,
-      68.77,
-      70.04,
-      71.31,
+      63.66,
+      64.93,
+      66.21,
+      67.48,
+      68.75,
+      70.03,
+      71.3,
       72.58,
       73.85,
       75.12,
-      76.39,
-      77.66,
-      78.93,
-      80.2,
-      81.47,
-      82.74,
-      84.02,
-      85.29,
-      86.56,
-      87.83,
-      89.1,
-      90.37,
-      91.64,
-      92.91,
-      94.18
+      76.4,
+      77.67,
+      78.95,
+      80.22,
+      81.49,
+      82.77,
+      84.04,
+      85.31,
+      86.59,
+      87.86,
+      89.14,
+      90.41,
+      91.68,
+      92.96,
+      94.23
     ]
   },
   "recent_rounds": [
@@ -138,20 +118,20 @@
     {
       "date": "2026-05-21 04:00:00",
       "course_id": "the_cj_cup_byron_nelson",
-      "round_num": 4,
-      "to_par": -4.0
-    },
-    {
-      "date": "2026-05-21 04:00:00",
-      "course_id": "the_cj_cup_byron_nelson",
-      "round_num": 3,
-      "to_par": -6.0
-    },
-    {
-      "date": "2026-05-21 04:00:00",
-      "course_id": "the_cj_cup_byron_nelson",
       "round_num": 2,
       "to_par": -9.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -4.0
     }
   ]
 }

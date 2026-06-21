@@ -1,15 +1,12 @@
-"""Walk-forward backtest over historical rounds with a strict as-of firewall.
+"""Walk-forward score-prediction backtest with a strict as-of firewall.
 
 For each played round (chronologically) we rebuild the score-based rating from
 data dated strictly before that round, predict the score distribution, and score
-it against the actual result. An *independent* line (each player's season-to-date
-mean) tests the calibration of our Over/Under probabilities and drives a synthetic
-flat-stake betting simulation.
+it against the actual result. By default we *test* on the target year (e.g. 2026),
+using everything before each round (incl. prior years) as training history — so it
+answers "what would the model have predicted for this year's rounds, vs reality?"
 
-Honesty notes:
-- Backtest runs weather-free (free historical weather-by-tee-time isn't wired in).
-- ROI is vs a SYNTHETIC vig'd line from the naive baseline (mechanics demo only);
-  real ROI/CLV require captured FanDuel prices.
+A naive baseline (each player's prior-rounds mean score) is scored alongside.
 """
 from __future__ import annotations
 
@@ -21,20 +18,24 @@ import pandas as pd
 from ..config import course_meta, settings
 from ..features.environment import compute_environment
 from ..model.baseline import compute_player_skills
-from ..model.distribution import assign_score_sd, predictive_summary, prob_over
+from ..model.distribution import assign_score_sd, predictive_summary
 from ..model.sg_to_strokes import expected_scores
-from ..betting.vig import american_to_decimal, prob_to_american, remove_vig_two_way
-from . import baselines, metrics_bet, metrics_pred
+from . import baselines, metrics_pred
 
 _EMPTY_WEATHER = pd.DataFrame(columns=["wave", "wind_mph", "precip", "temp_c"])
 
 
-def run_backtest(rounds: pd.DataFrame, cfg: dict | None = None, *, warmup_events: int = 20,
-                 n_sims: int = 4000, min_edge: float | None = None) -> dict:
+def run_backtest(
+    rounds: pd.DataFrame,
+    cfg: dict | None = None,
+    *,
+    test_year: int | None = 2026,
+    min_history_rounds: int = 2000,
+    n_sims: int = 2500,
+) -> dict:
     cfg = copy.deepcopy(cfg or settings())
     cfg["distribution"]["monte_carlo_sims"] = n_sims
     cfg["partners"]["enabled"] = False
-    edge_thr = cfg["betting"]["min_edge"] if min_edge is None else min_edge
 
     rounds = rounds.copy()
     rounds["date"] = pd.to_datetime(rounds["date"])
@@ -44,16 +45,14 @@ def run_backtest(rounds: pd.DataFrame, cfg: dict | None = None, *, warmup_events
     )
 
     records = []
-    field_sd_global = float(rounds["to_par"].std())
-
-    for n, key in keys.iterrows():
-        if n < warmup_events:
-            continue
+    for _, key in keys.iterrows():
         asof, cid = key["date"], key["course_id"]
+        if test_year is not None and asof.year != test_year:
+            continue
         this_round = rounds[(rounds["event_id"] == key["event_id"]) & (rounds["round_num"] == key["round_num"])]
         prior = rounds[rounds["date"] < asof]
-        if prior.empty:
-            continue
+        if len(prior) < min_history_rounds:
+            continue  # not enough history to make a fair prediction yet
 
         field_ids = this_round["player_id"].tolist()
         skills, _ = compute_player_skills(prior, field_ids, cid, asof, cfg)
@@ -72,72 +71,84 @@ def run_backtest(rounds: pd.DataFrame, cfg: dict | None = None, *, warmup_events
         e_df = assign_score_sd(e_df, env, cfg)
         summary, sims = predictive_summary(e_df, cfg)
 
-        line_naive = baselines.season_to_date_mean(rounds, asof)
+        naive = baselines.season_to_date_mean(rounds, asof)
         actual = this_round.set_index("player_id")["score"]
+        event_name = course_meta(cid).get("name", cid)
         for i, prow in summary.reset_index(drop=True).iterrows():
             pid = prow["player_id"]
-            if pid not in actual.index or pid not in line_naive.index:
+            if pid not in actual.index or pid not in naive.index:
                 continue
-            y, line = float(actual.loc[pid]), float(line_naive.loc[pid])
-            p_over = prob_over(sims[:, i], line)
-            outcome = 1.0 if y > line else 0.0
-
-            mkt_p_over = 0.5
-            over_price = prob_to_american(min(0.97, mkt_p_over + 0.025))
-            under_price = prob_to_american(min(0.97, (1 - mkt_p_over) + 0.025))
-            p_nv_over, _ = remove_vig_two_way(over_price, under_price, cfg["betting"]["vig_method"])
-            edge_over = p_over - p_nv_over
-            if edge_over >= -edge_over:
-                price, won, edge, entry_novig = over_price, outcome, edge_over, p_nv_over
-            else:
-                price, won, edge, entry_novig = under_price, 1 - outcome, -edge_over, 1 - p_nv_over
-
             records.append(
                 {
-                    "date": asof, "player_id": pid, "pred": float(prow["e_score"]), "actual": y,
+                    "date": asof, "event": event_name, "round_num": int(key["round_num"]),
+                    "player_id": pid, "player_name": prow["player_name"],
+                    "pred": float(prow["e_score"]), "actual": float(actual.loc[pid]),
                     "p10": float(prow["p10"]), "p90": float(prow["p90"]),
-                    "crps": metrics_pred.crps_sample(sims[:, i], y),
-                    "naive_pred": line, "p_over": p_over, "outcome": outcome,
-                    "bet": 1.0 if edge >= edge_thr else 0.0, "bet_won": won,
-                    "bet_dec": american_to_decimal(price), "entry_novig": entry_novig,
+                    "crps": metrics_pred.crps_sample(sims[:, i], float(actual.loc[pid])),
+                    "naive": float(naive.loc[pid]),
                 }
             )
 
-    return _aggregate(pd.DataFrame(records), field_sd_global)
+    return _aggregate(pd.DataFrame(records), test_year)
 
 
-def _aggregate(df: pd.DataFrame, field_sd: float) -> dict:
+def _aggregate(df: pd.DataFrame, test_year: int | None) -> dict:
     if df.empty:
-        return {"n_predictions": 0, "note": "no backtestable rounds (insufficient history)"}
+        return {"n_predictions": 0, "test_year": test_year,
+                "note": "no backtestable rounds (insufficient history for the test window)"}
 
-    pred, actual, naive = df["pred"].to_numpy(), df["actual"].to_numpy(), df["naive_pred"].to_numpy()
-    bets = df[df["bet"] == 1.0]
-    settle = (
-        metrics_bet.settle_flat(np.ones(len(bets)), bets["bet_dec"].to_numpy(), bets["bet_won"].to_numpy())
-        if not bets.empty else {"roi": 0.0, "hit_rate": 0.0, "n_bets": 0, "profit": 0.0}
-    )
-    bank, cum = [], 0.0
-    for _, r in bets.sort_values("date").iterrows():
-        cum += (r["bet_dec"] - 1.0) if r["bet_won"] else -1.0
-        bank.append({"date": str(pd.Timestamp(r["date"]).date()), "bankroll": round(cum, 3)})
+    pred, actual, naive = df["pred"].to_numpy(), df["actual"].to_numpy(), df["naive"].to_numpy()
+    rmse, rmse_naive = metrics_pred.rmse(pred, actual), metrics_pred.rmse(naive, actual)
+
+    # Predicted-vs-actual scatter (down-sampled for the chart).
+    samp = df.sample(min(400, len(df)), random_state=0)
+    scatter = [{"pred": round(float(r.pred), 1), "actual": round(float(r.actual), 1)} for r in samp.itertuples()]
+
+    # Error histogram (pred - actual).
+    err = pred - actual
+    counts, edges = np.histogram(err, bins=np.arange(-15.5, 16.5, 1.0))
+    error_hist = {"counts": counts.tolist(), "edges": [round(float(e), 1) for e in edges]}
+
+    by_round = []
+    for rn, g in df.groupby("round_num"):
+        by_round.append({"round": int(rn), "n": int(len(g)),
+                         "rmse": round(metrics_pred.rmse(g["pred"], g["actual"]), 3)})
+
+    by_event = []
+    for (ev, dt), g in df.groupby(["event", df["date"].dt.date]):
+        by_event.append({"event": ev, "date": str(dt), "n": int(len(g)),
+                         "rmse": round(metrics_pred.rmse(g["pred"], g["actual"]), 3),
+                         "rmse_naive": round(metrics_pred.rmse(g["naive"], g["actual"]), 3)})
+    by_event.sort(key=lambda x: x["date"])
+
+    # Best/worst individual predictions (by absolute error).
+    df = df.assign(abs_err=(df["pred"] - df["actual"]).abs())
+    best = df.nsmallest(8, "abs_err")
+    worst = df.nlargest(8, "abs_err")
+    def _ex(g):
+        return [{"player": r.player_name, "event": r.event, "round": int(r.round_num),
+                 "pred": round(float(r.pred), 1), "actual": round(float(r.actual), 1)} for r in g.itertuples()]
 
     return {
+        "schema": 3,
+        "test_year": test_year,
         "n_predictions": int(len(df)),
+        "n_rounds": int(df.groupby(["event", "round_num", df["date"].dt.date]).ngroups),
         "date_range": [str(df["date"].min().date()), str(df["date"].max().date())],
-        "prediction": {
-            "rmse": round(metrics_pred.rmse(pred, actual), 4),
-            "mae": round(metrics_pred.mae(pred, actual), 4),
-            "rmse_naive": round(metrics_pred.rmse(naive, actual), 4),
-            "interval_coverage_80": round(metrics_pred.interval_coverage(df["p10"], df["p90"], actual), 4),
-            "crps": round(float(df["crps"].mean()), 4),
+        "headline": {
+            "rmse": round(rmse, 3),
+            "mae": round(metrics_pred.mae(pred, actual), 3),
+            "rmse_naive": round(rmse_naive, 3),
+            "mae_naive": round(metrics_pred.mae(naive, actual), 3),
+            "improvement_vs_naive_pct": round(100 * (rmse_naive - rmse) / rmse_naive, 1) if rmse_naive else 0.0,
+            "interval_coverage_80": round(metrics_pred.interval_coverage(df["p10"], df["p90"], actual), 3),
+            "crps": round(float(df["crps"].mean()), 3),
+            "mean_actual": round(float(actual.mean()), 2),
+            "mean_pred": round(float(pred.mean()), 2),
         },
-        "over_under": {
-            "brier": round(metrics_bet.brier(df["p_over"], df["outcome"]), 4),
-            "brier_baseline_0.5": round(metrics_bet.brier(np.full(len(df), 0.5), df["outcome"].to_numpy()), 4),
-            "log_loss": round(metrics_bet.log_loss(df["p_over"], df["outcome"]), 4),
-            "reliability": metrics_bet.reliability_curve(df["p_over"].to_numpy(), df["outcome"].to_numpy()),
-        },
-        "betting_synthetic": settle,
-        "bankroll_curve": bank,
-        "disclaimer": "ROI is vs a synthetic vig'd line (mechanics demo). Real ROI/CLV need captured book prices.",
+        "scatter": scatter,
+        "error_hist": error_hist,
+        "by_round": by_round,
+        "by_event": by_event,
+        "examples": {"best": _ex(best), "worst": _ex(worst)},
     }

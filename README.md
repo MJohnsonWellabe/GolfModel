@@ -1,13 +1,12 @@
-# GolfModel — Single-Round Score Over/Under Value Model (free-data)
+# GolfModel — Single-Round Score Prediction (free data)
 
-> ⚠️ **ACADEMIC EXERCISE — NOT BETTING ADVICE.** A personal/educational study of
-> statistical modeling and forecast calibration. Nothing here is a recommendation to
-> place a wager. Respect every data provider's terms of service. Do not bet real money.
+> ⚠️ **ACADEMIC EXERCISE — score prediction only.** A personal/educational study of
+> statistical modeling and forecast calibration. Not betting advice. Respect every data
+> provider's terms of service.
 
-GolfModel estimates each PGA golfer's **expected single-round score** plus a **predictive
-interval**, converts that into a probability for an Over/Under line, removes the book's
-vig, and ranks the **best-value** bets. It **back-tests** the engine walk-forward (no
-lookahead). It runs entirely on **free data**.
+GolfModel predicts each PGA golfer's **expected single-round score** plus a **predictive
+interval**, and **back-tests** itself walk-forward against the rounds that actually
+happened this year. It runs entirely on **free data**.
 
 ## Free-data design
 
@@ -15,29 +14,27 @@ lookahead). It runs entirely on **free data**.
 |---|---|---|
 | Round scores, fields, tee times | **ESPN** public golf JSON API | free, no key |
 | Weather (wind/precip/temp) | **Open-Meteo** (forecast + historical archive) | free, no key |
-| FanDuel round-O/U lines | **manual capture** (`scripts/capture_lines.py`) + optional **The Odds API** free tier | free |
 | Sample data | bundled synthetic (runs with no network) | n/a |
 
 **No strokes-gained.** Per-round strokes-gained is paid-only (ShotLink/DataGolf), so this
-build uses a **score-based rating** instead: each golfer's time-decayed *strokes gained vs
-the field*, empirical-Bayes shrunk toward an average tour player, blended with a
-**course/cluster-specific** rating for course affinity. It keeps recent form, course
-history, similar-field strength, weather, playing-partner term, expected score + interval,
-and the value board — it just can't decompose skill into OTT/APP/ARG/PUTT.
+build uses a **score-based rating**: each golfer's time-decayed *strokes gained vs the
+field*, empirical-Bayes shrunk toward an average tour player, blended with a
+course/cluster-specific rating for course affinity — plus weather/wave and an optional
+playing-partner term. Output: an expected score + interval per golfer.
 
 ## How it works
 
 ```
 GitHub Actions (scheduled + manual)
-  ESPN scores/fields  +  Open-Meteo weather  +  manual/Odds lines
+  ESPN scores/fields  +  Open-Meteo weather
         │  → parquet cache (.gitignored)
         ▼
   features (decayed score rating · course affinity · field strength · weather/wave)
         │  ── as-of firewall (no lookahead) ──►
         ▼
   model (shrunk rating → expected strokes → skew-normal Monte-Carlo distribution)
-        ├─► betting (vig removal, edge/EV, ranking)  → docs/data/*.json
-        └─► backtest (walk-forward, metrics)         → docs/data/backtest/*.json
+        ├─► predictions (expected score + interval)  → docs/data/*.json
+        └─► backtest (walk-forward vs actual scores)  → docs/data/backtest/summary.json
         ▼
   Vite + React build → docs/ → GitHub Pages (browser only reads committed JSON)
 ```
@@ -46,22 +43,29 @@ GitHub Actions (scheduled + manual)
 
 ```bash
 make setup            # install python deps + generate sample data
-make pipeline         # run on bundled SAMPLE data → docs/data/*.json
-make backtest         # walk-forward backtest → docs/data/backtest/summary.json
-make web-build        # build the React dashboard into docs/
+make pipeline         # predict on bundled SAMPLE data → docs/data/*.json
+make backtest         # score-prediction backtest → docs/data/backtest/summary.json
+make web-build        # build the dashboard into docs/
 make test             # run the test suite
 ```
 
 ## Live (free) data
 
 ```bash
-make pipeline SOURCE=live     # pull real ESPN scores/fields + Open-Meteo weather
+make pipeline SOURCE=live                          # real ESPN predictions for the next round
+python -m golfmodel run-backtest --source live --year 2026   # test on this year's rounds
 ```
 
-Optional: set `ODDS_API_KEY` (The Odds API free tier) for any available FanDuel round
-props, and hand-capture lines with `python scripts/capture_lines.py ...`. Add real venues
-(lat/lon, par, exposure, cluster) to `config/courses.yaml` keyed by the slug of the ESPN
-event name (e.g. `u_s_open`) so weather and course affinity bind.
+Add real venues (lat/lon, par, exposure, cluster) to `config/courses.yaml` keyed by the
+slug of the ESPN event name (e.g. `u_s_open`) so weather and course affinity bind.
+
+## The backtest
+
+For each played round in the test year, the model is rebuilt from data dated **strictly
+before** that round (the `asof` firewall) and compared to the score that actually
+happened. Metrics: RMSE / MAE vs a naive season-to-date-mean baseline, 80% interval
+coverage, and CRPS — plus predicted-vs-actual scatter, error histogram, and per-round /
+per-event breakdowns. The dashboard's **Backtest** tab renders all of it.
 
 ## Deploy (GitHub Pages)
 
@@ -73,5 +77,6 @@ refreshes predictions and rebuilds the site on a schedule.
 - No strokes-gained categories (paid-only) → single score-based rating.
 - ESPN's free feed usually omits tee times, so the AM/PM **wave** split degrades to
   course-day weather unless tee times are present.
-- Round-O/U lines are niche; real backtest ROI/CLV needs captured FanDuel prices. The
-  bundled backtest reports prediction accuracy + O/U calibration and a *synthetic* ROI.
+- Single-round golf is mostly noise: even a good model sits near a ~3-stroke RMSE floor.
+  The model is unbiased and well-calibrated and beats the naive baseline by a few percent —
+  which is about the realistic ceiling.

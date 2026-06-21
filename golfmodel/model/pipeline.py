@@ -1,4 +1,4 @@
-"""Orchestrate a single event/round: data bundle -> predictions -> value board."""
+"""Orchestrate a single event/round: data bundle -> per-player score predictions."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -14,15 +14,13 @@ from ..features.partners import partner_adjustments
 from .baseline import compute_player_skills
 from .distribution import assign_score_sd, predictive_summary
 from .sg_to_strokes import expected_scores
-from ..betting.rank import value_board
 
 
 @dataclass
 class PipelineResult:
-    summary: pd.DataFrame
-    board: pd.DataFrame
-    sims: np.ndarray
-    player_skills: pd.DataFrame
+    summary: pd.DataFrame        # per-player expected score + interval, ranked by e_score
+    sims: np.ndarray             # [n_sims, n_players]
+    player_skills: pd.DataFrame  # score-based rating per player
     field_strength: float
     env_par: int
     course_base: float
@@ -52,11 +50,14 @@ def run_event(bundle: DataBundle, cfg: dict | None = None) -> PipelineResult:
     e_df = expected_scores(player_skills, field, env, partner_adj)
     e_df = assign_score_sd(e_df, env, cfg)
     summary, sims = predictive_summary(e_df, cfg)
-    board = value_board(summary, sims, bundle.lines, cfg)
+    # Rank by expected score (best first), keeping sims columns aligned.
+    if len(summary):
+        order = summary["e_score"].to_numpy().argsort()
+        summary = summary.iloc[order].reset_index(drop=True)
+        sims = sims[:, order]
 
     return PipelineResult(
         summary=summary,
-        board=board,
         sims=sims,
         player_skills=player_skills,
         field_strength=fs,

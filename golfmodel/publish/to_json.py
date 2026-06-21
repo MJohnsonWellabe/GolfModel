@@ -27,9 +27,24 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
     manifest = build_manifest(result)
     _write(out / "manifest.json", manifest)
 
-    board_records = result.board.to_dict(orient="records") if not result.board.empty else []
+    # Predictions board: one row per player, ranked by expected score.
+    preds = []
+    for _, row in result.summary.iterrows():
+        preds.append(
+            {
+                "player_id": row["player_id"],
+                "player_name": row["player_name"],
+                "wave": row.get("wave", ""),
+                "e_score": round(float(row["e_score"]), 2),
+                "e_to_par": round(float(row["e_score"]) - manifest["par"], 2),
+                "p10": round(float(row["p10"]), 2),
+                "p90": round(float(row["p90"]), 2),
+                "sd": round(float(row["sd_sim"]), 2),
+                "n_eff": round(float(row["n_eff"]), 1),
+            }
+        )
     _write(
-        out / "value_board.json",
+        out / "predictions.json",
         {
             "schema": SCHEMA,
             "disclaimer": DISCLAIMER,
@@ -37,18 +52,16 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
             "event_id": result.event_id,
             "course_name": manifest["course_name"],
             "round_num": result.round_num,
-            "bets": board_records,
+            "par": manifest["par"],
+            "predictions": preds,
         },
     )
 
+    # Per-golfer detail
     skills = result.player_skills.set_index("player_id")
-    lines = bundle.lines
     rounds = bundle.rounds
-    summary_idx = {pid: i for i, pid in enumerate(result.summary["player_id"])}
-    index = []
-    for _, row in result.summary.iterrows():
+    for i, row in result.summary.iterrows():
         pid = row["player_id"]
-        i = summary_idx[pid]
         recent = (
             rounds[rounds["player_id"] == pid]
             .sort_values("date", ascending=False)
@@ -56,9 +69,6 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
             .to_dict(orient="records")
         )
         course_hist = rounds[(rounds["player_id"] == pid) & (rounds["course_id"] == result.course_id)]
-        pl = lines[(lines["player_id"] == pid) & (lines.get("market", "round_ou") == "round_ou")] if not lines.empty else lines
-        line_obj = pl.iloc[0].to_dict() if not pl.empty else None
-        bet = next((b for b in board_records if b["player_id"] == pid), None)
         rating = {
             "skill": round(float(skills.loc[pid, "skill"]), 3) if pid in skills.index else None,
             "skill_overall": round(float(skills.loc[pid, "skill_overall"]), 3) if pid in skills.index else None,
@@ -81,13 +91,11 @@ def publish_event(result: PipelineResult, bundle: DataBundle, out_dir: Path | No
                     "p90": round(float(row["p90"]), 2),
                     "sd": round(float(row["sd_sim"]), 2),
                 },
-                "line": line_obj,
-                "bet": bet,
                 "distribution": _histogram(result.sims[:, i]),
                 "recent_rounds": recent,
             },
         )
-        index.append({"player_id": pid, "player_name": row["player_name"]})
 
+    index = [{"player_id": r["player_id"], "player_name": r["player_name"]} for _, r in result.summary.iterrows()]
     _write(out / "golfers" / "index.json", {"schema": SCHEMA, "players": index})
     return manifest

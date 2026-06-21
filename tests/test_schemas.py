@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 
 from golfmodel.data.adapters.sample import SampleAdapter
-from golfmodel.data.schemas import FIELD, LINES, ROUNDS, validate
+from golfmodel.data.schemas import FIELD, ROUNDS, validate
 
 
 def test_validate_missing_column_raises():
@@ -27,4 +27,3 @@ def test_sample_adapter_conforms_to_schemas():
     a = SampleAdapter()
     validate(a.rounds(), ROUNDS)
     validate(a.field(), FIELD)
-    validate(a.lines(), LINES)

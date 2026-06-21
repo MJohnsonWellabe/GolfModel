@@ -1,41 +1,21 @@
 {
-  "schema": 2,
+  "schema": 3,
   "player_id": "j_j_spaun",
   "player_name": "J.J. Spaun",
   "wave": "all",
   "rating": {
-    "skill": 0.687,
-    "skill_overall": 0.787,
-    "n_eff": 56.6,
+    "skill": 0.695,
+    "skill_overall": 0.799,
+    "n_eff": 58.8,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 73.14,
-    "p10": 68.88,
-    "p50": 72.67,
-    "p90": 78.1,
-    "sd": 3.62
-  },
-  "line": null,
-  "bet": {
-    "player_id": "j_j_spaun",
-    "player_name": "J.J. Spaun",
-    "wave": "all",
-    "e_score": 73.14,
-    "p10": 68.88,
-    "p90": 78.1,
-    "n_eff": 56.6,
-    "has_line": false,
-    "line": null,
-    "side": "",
-    "price": null,
-    "model_prob": null,
-    "novig_prob": null,
-    "edge": null,
-    "ev_per_unit": null,
-    "kelly": null,
-    "actionable": false
+    "e_score": 73.13,
+    "p10": 68.9,
+    "p50": 72.66,
+    "p90": 78.06,
+    "sd": 3.6
   },
   "distribution": {
     "counts": [
@@ -43,16 +23,16 @@
       45,
       185,
       491,
-      877,
-      1328,
-      1501,
-      1386,
-      1142,
-      938,
-      715,
-      552,
+      876,
+      1322,
+      1503,
+      1389,
+      1139,
+      942,
+      716,
+      551,
       335,
-      226,
+      227,
       131,
       79,
       30,
@@ -65,31 +45,31 @@
       1
     ],
     "edges": [
-      63.34,
-      64.6,
-      65.86,
-      67.13,
-      68.39,
+      63.37,
+      64.63,
+      65.89,
+      67.15,
+      68.41,
       69.66,
       70.92,
-      72.19,
-      73.45,
-      74.72,
-      75.98,
-      77.25,
-      78.51,
-      79.78,
-      81.04,
-      82.31,
-      83.57,
-      84.84,
-      86.1,
-      87.36,
-      88.63,
-      89.89,
-      91.16,
-      92.42,
-      93.69
+      72.18,
+      73.44,
+      74.7,
+      75.95,
+      77.21,
+      78.47,
+      79.73,
+      80.99,
+      82.24,
+      83.5,
+      84.76,
+      86.02,
+      87.28,
+      88.53,
+      89.79,
+      91.05,
+      92.31,
+      93.57
     ]
   },
   "recent_rounds": [
@@ -132,14 +112,14 @@
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
-      "round_num": 4,
-      "to_par": 0.0
+      "round_num": 3,
+      "to_par": -2.0
     },
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
-      "round_num": 3,
-      "to_par": -2.0
+      "round_num": 1,
+      "to_par": -6.0
     },
     {
       "date": "2026-05-28 04:00:00",
@@ -150,8 +130,8 @@
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
-      "round_num": 1,
-      "to_par": -6.0
+      "round_num": 4,
+      "to_par": 0.0
     }
   ]
 }
