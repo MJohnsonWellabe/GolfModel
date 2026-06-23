@@ -4,28 +4,28 @@
   "player_name": "Daniel Berger",
   "wave": "all",
   "rating": {
-    "skill": -0.404,
-    "skill_overall": 0.044,
-    "n_eff": 51.8,
+    "skill": -0.372,
+    "skill_overall": 0.088,
+    "n_eff": 38.5,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 74.29,
-    "p10": 69.77,
-    "p50": 73.86,
-    "p90": 79.5,
-    "sd": 3.84
+    "e_score": 74.07,
+    "p10": 69.55,
+    "p50": 73.64,
+    "p90": 79.27,
+    "sd": 3.83
   },
   "line": null,
   "bet": {
     "player_id": "daniel_berger",
     "player_name": "Daniel Berger",
     "wave": "all",
-    "e_score": 74.29,
-    "p10": 69.77,
-    "p90": 79.5,
-    "n_eff": 51.8,
+    "e_score": 74.07,
+    "p10": 69.55,
+    "p90": 79.27,
+    "n_eff": 38.5,
     "has_line": false,
     "line": null,
     "side": "",
@@ -43,16 +43,16 @@
       2,
       16,
       71,
-      229,
-      572,
-      1002,
+      228,
+      573,
+      1001,
       1301,
       1387,
       1347,
-      1160,
+      1161,
       881,
-      656,
-      545,
+      655,
+      546,
       307,
       251,
       141,
@@ -65,31 +65,31 @@
       2
     ],
     "edges": [
-      61.76,
-      63.06,
-      64.36,
-      65.66,
-      66.96,
-      68.26,
-      69.57,
-      70.87,
-      72.17,
-      73.47,
-      74.77,
-      76.07,
-      77.38,
-      78.68,
-      79.98,
-      81.28,
-      82.58,
-      83.88,
-      85.19,
-      86.49,
-      87.79,
-      89.09,
-      90.39,
-      91.69,
-      93.0
+      61.54,
+      62.84,
+      64.14,
+      65.44,
+      66.74,
+      68.05,
+      69.35,
+      70.65,
+      71.95,
+      73.25,
+      74.55,
+      75.85,
+      77.15,
+      78.45,
+      79.75,
+      81.05,
+      82.35,
+      83.65,
+      84.95,
+      86.25,
+      87.55,
+      88.85,
+      90.15,
+      91.45,
+      92.75
     ]
   },
   "recent_rounds": [
@@ -118,40 +118,40 @@
       "to_par": 0.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "arnold_palmer_invitational_pres_by_mastercard",
       "round_num": 4,
       "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-05 05:00:00",
+      "course_id": "arnold_palmer_invitational_pres_by_mastercard",
       "round_num": 3,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
       "to_par": 0.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": 4.0
-    },
-    {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
-      "round_num": 4,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
-      "round_num": 3,
-      "to_par": -3.0
     }
   ]
 }

@@ -4,28 +4,28 @@
   "player_name": "Patrick Reed",
   "wave": "all",
   "rating": {
-    "skill": 0.774,
-    "skill_overall": 0.777,
-    "n_eff": 11.0,
+    "skill": 0.412,
+    "skill_overall": 0.24,
+    "n_eff": 4.6,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 73.07,
-    "p10": 69.29,
-    "p50": 72.73,
-    "p90": 77.4,
-    "sd": 3.18
+    "e_score": 73.24,
+    "p10": 69.46,
+    "p50": 72.9,
+    "p90": 77.58,
+    "sd": 3.19
   },
   "line": null,
   "bet": {
     "player_id": "patrick_reed",
     "player_name": "Patrick Reed",
     "wave": "all",
-    "e_score": 73.07,
-    "p10": 69.29,
-    "p90": 77.4,
-    "n_eff": 11.0,
+    "e_score": 73.24,
+    "p10": 69.46,
+    "p90": 77.58,
+    "n_eff": 4.6,
     "has_line": false,
     "line": null,
     "side": "",
@@ -43,19 +43,19 @@
       16,
       75,
       219,
-      543,
-      853,
-      1285,
-      1314,
-      1273,
-      1186,
-      919,
-      715,
       544,
+      855,
+      1282,
+      1314,
+      1275,
+      1184,
+      921,
+      714,
+      543,
       405,
       269,
-      155,
-      105,
+      156,
+      104,
       48,
       33,
       16,
@@ -65,34 +65,40 @@
       3
     ],
     "edges": [
-      63.98,
-      65.0,
-      66.02,
-      67.05,
-      68.07,
-      69.1,
-      70.12,
-      71.14,
-      72.17,
-      73.19,
-      74.21,
-      75.24,
-      76.26,
-      77.29,
-      78.31,
-      79.33,
-      80.36,
-      81.38,
-      82.41,
-      83.43,
-      84.45,
-      85.48,
-      86.5,
-      87.53,
-      88.55
+      64.14,
+      65.16,
+      66.19,
+      67.21,
+      68.24,
+      69.26,
+      70.29,
+      71.31,
+      72.34,
+      73.36,
+      74.39,
+      75.41,
+      76.44,
+      77.46,
+      78.49,
+      79.51,
+      80.54,
+      81.56,
+      82.59,
+      83.62,
+      84.64,
+      85.67,
+      86.69,
+      87.72,
+      88.74
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
@@ -100,58 +106,52 @@
       "to_par": 3.0
     },
     {
-      "date": "2026-06-18 04:00:00",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
       "course_id": "u_s_open",
       "round_num": 1,
-      "to_par": 2.0
+      "to_par": 3.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 4,
-      "to_par": 0.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 2,
-      "to_par": 2.0
+      "to_par": 4.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": -2.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 1,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 4,
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
       "to_par": 1.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 3,
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
       "to_par": 0.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
       "round_num": 2,
-      "to_par": -3.0
+      "to_par": 3.0
     }
   ]
 }

@@ -6,52 +6,108 @@
       "player_name": "Wyndham Clark"
     },
     {
-      "player_id": "scottie_scheffler",
-      "player_name": "Scottie Scheffler"
-    },
-    {
-      "player_id": "sahith_theegala",
-      "player_name": "Sahith Theegala"
+      "player_id": "sam_burns",
+      "player_name": "Sam Burns"
     },
     {
       "player_id": "tom_kim",
       "player_name": "Tom Kim"
     },
     {
-      "player_id": "sam_stevens",
-      "player_name": "Sam Stevens"
-    },
-    {
-      "player_id": "emiliano_grillo",
-      "player_name": "Emiliano Grillo"
+      "player_id": "j_t_poston",
+      "player_name": "J.T. Poston"
     },
     {
       "player_id": "keith_mitchell",
       "player_name": "Keith Mitchell"
     },
     {
-      "player_id": "sam_burns",
-      "player_name": "Sam Burns"
+      "player_id": "scottie_scheffler",
+      "player_name": "Scottie Scheffler"
     },
     {
-      "player_id": "xander_schauffele",
-      "player_name": "Xander Schauffele"
+      "player_id": "joaqu_n_niemann",
+      "player_name": "Joaqu\u00edn Niemann"
     },
     {
-      "player_id": "matt_fitzpatrick",
-      "player_name": "Matt Fitzpatrick"
+      "player_id": "tyrrell_hatton",
+      "player_name": "Tyrrell Hatton"
+    },
+    {
+      "player_id": "gary_woodland",
+      "player_name": "Gary Woodland"
+    },
+    {
+      "player_id": "sam_stevens",
+      "player_name": "Sam Stevens"
+    },
+    {
+      "player_id": "justin_rose",
+      "player_name": "Justin Rose"
+    },
+    {
+      "player_id": "john_parry",
+      "player_name": "John Parry"
+    },
+    {
+      "player_id": "aaron_rai",
+      "player_name": "Aaron Rai"
     },
     {
       "player_id": "tommy_fleetwood",
       "player_name": "Tommy Fleetwood"
     },
     {
+      "player_id": "xander_schauffele",
+      "player_name": "Xander Schauffele"
+    },
+    {
+      "player_id": "sahith_theegala",
+      "player_name": "Sahith Theegala"
+    },
+    {
+      "player_id": "ludvig_berg",
+      "player_name": "Ludvig \u00c5berg"
+    },
+    {
+      "player_id": "ben_griffin",
+      "player_name": "Ben Griffin"
+    },
+    {
+      "player_id": "justin_thomas",
+      "player_name": "Justin Thomas"
+    },
+    {
+      "player_id": "akshay_bhatia",
+      "player_name": "Akshay Bhatia"
+    },
+    {
       "player_id": "collin_morikawa",
       "player_name": "Collin Morikawa"
     },
     {
-      "player_id": "keegan_bradley",
-      "player_name": "Keegan Bradley"
+      "player_id": "matt_fitzpatrick",
+      "player_name": "Matt Fitzpatrick"
+    },
+    {
+      "player_id": "ben_james",
+      "player_name": "Ben James"
+    },
+    {
+      "player_id": "ryan_fox",
+      "player_name": "Ryan Fox"
+    },
+    {
+      "player_id": "jackson_koivun",
+      "player_name": "Jackson Koivun"
+    },
+    {
+      "player_id": "ben_kohles",
+      "player_name": "Ben Kohles"
+    },
+    {
+      "player_id": "pierceson_coody",
+      "player_name": "Pierceson Coody"
     },
     {
       "player_id": "corey_conners",
@@ -66,128 +122,40 @@
       "player_name": "Ryder Cowan"
     },
     {
-      "player_id": "michael_kim",
-      "player_name": "Michael Kim"
-    },
-    {
-      "player_id": "sungjae_im",
-      "player_name": "Sungjae Im"
-    },
-    {
-      "player_id": "j_t_poston",
-      "player_name": "J.T. Poston"
-    },
-    {
-      "player_id": "john_parry",
-      "player_name": "John Parry"
-    },
-    {
-      "player_id": "aaron_rai",
-      "player_name": "Aaron Rai"
-    },
-    {
-      "player_id": "zac_blair",
-      "player_name": "Zac Blair"
-    },
-    {
-      "player_id": "maverick_mcnealy",
-      "player_name": "Maverick McNealy"
-    },
-    {
-      "player_id": "ryo_hisatsune",
-      "player_name": "Ryo Hisatsune"
-    },
-    {
-      "player_id": "akshay_bhatia",
-      "player_name": "Akshay Bhatia"
-    },
-    {
-      "player_id": "brian_harman",
-      "player_name": "Brian Harman"
-    },
-    {
-      "player_id": "rory_mcilroy",
-      "player_name": "Rory McIlroy"
-    },
-    {
-      "player_id": "gary_woodland",
-      "player_name": "Gary Woodland"
-    },
-    {
-      "player_id": "pierceson_coody",
-      "player_name": "Pierceson Coody"
+      "player_id": "emiliano_grillo",
+      "player_name": "Emiliano Grillo"
     },
     {
       "player_id": "dustin_johnson",
       "player_name": "Dustin Johnson"
     },
     {
-      "player_id": "tyrrell_hatton",
-      "player_name": "Tyrrell Hatton"
-    },
-    {
-      "player_id": "ben_griffin",
-      "player_name": "Ben Griffin"
-    },
-    {
-      "player_id": "justin_rose",
-      "player_name": "Justin Rose"
-    },
-    {
-      "player_id": "niklas_n_rgaard",
-      "player_name": "Niklas N\u00f8rgaard"
-    },
-    {
       "player_id": "max_mcgreevy",
       "player_name": "Max McGreevy"
     },
     {
-      "player_id": "william_mouw",
-      "player_name": "William Mouw"
+      "player_id": "zac_blair",
+      "player_name": "Zac Blair"
     },
     {
-      "player_id": "justin_thomas",
-      "player_name": "Justin Thomas"
+      "player_id": "rory_mcilroy",
+      "player_name": "Rory McIlroy"
     },
     {
-      "player_id": "laurie_canter",
-      "player_name": "Laurie Canter"
+      "player_id": "maverick_mcnealy",
+      "player_name": "Maverick McNealy"
     },
     {
-      "player_id": "joaqu_n_niemann",
-      "player_name": "Joaqu\u00edn Niemann"
+      "player_id": "brian_harman",
+      "player_name": "Brian Harman"
     },
     {
-      "player_id": "cameron_young",
-      "player_name": "Cameron Young"
+      "player_id": "keegan_bradley",
+      "player_name": "Keegan Bradley"
     },
     {
-      "player_id": "ben_kohles",
-      "player_name": "Ben Kohles"
-    },
-    {
-      "player_id": "bud_cauley",
-      "player_name": "Bud Cauley"
-    },
-    {
-      "player_id": "jordan_spieth",
-      "player_name": "Jordan Spieth"
-    },
-    {
-      "player_id": "michael_brennan",
-      "player_name": "Michael Brennan"
-    },
-    {
-      "player_id": "andrew_putnam",
-      "player_name": "Andrew Putnam"
-    },
-    {
-      "player_id": "harry_higgs",
-      "player_name": "Harry Higgs"
-    },
-    {
-      "player_id": "chris_gotterup",
-      "player_name": "Chris Gotterup"
+      "player_id": "jacob_bridgeman",
+      "player_name": "Jacob Bridgeman"
     },
     {
       "player_id": "robert_macintyre",
@@ -198,92 +166,124 @@
       "player_name": "Miles Russell"
     },
     {
-      "player_id": "jackson_koivun",
-      "player_name": "Jackson Koivun"
-    },
-    {
-      "player_id": "ryan_fox",
-      "player_name": "Ryan Fox"
-    },
-    {
-      "player_id": "angel_hidalgo",
-      "player_name": "Angel Hidalgo"
-    },
-    {
       "player_id": "johnny_keefer",
       "player_name": "Johnny Keefer"
-    },
-    {
-      "player_id": "ludvig_berg",
-      "player_name": "Ludvig \u00c5berg"
-    },
-    {
-      "player_id": "jacob_bridgeman",
-      "player_name": "Jacob Bridgeman"
-    },
-    {
-      "player_id": "marek_fleming",
-      "player_name": "Marek Fleming"
-    },
-    {
-      "player_id": "kurt_kitayama",
-      "player_name": "Kurt Kitayama"
-    },
-    {
-      "player_id": "jackson_van_paris",
-      "player_name": "Jackson Van Paris"
     },
     {
       "player_id": "max_greyserman",
       "player_name": "Max Greyserman"
     },
     {
-      "player_id": "spencer_tibbits",
-      "player_name": "Spencer Tibbits"
+      "player_id": "chris_gotterup",
+      "player_name": "Chris Gotterup"
     },
     {
-      "player_id": "ben_james",
-      "player_name": "Ben James"
+      "player_id": "michael_brennan",
+      "player_name": "Michael Brennan"
     },
     {
-      "player_id": "caleb_surratt",
-      "player_name": "Caleb Surratt"
+      "player_id": "harry_higgs",
+      "player_name": "Harry Higgs"
     },
     {
-      "player_id": "nico_echavarria",
-      "player_name": "Nico Echavarria"
+      "player_id": "laurie_canter",
+      "player_name": "Laurie Canter"
+    },
+    {
+      "player_id": "cameron_young",
+      "player_name": "Cameron Young"
+    },
+    {
+      "player_id": "niklas_n_rgaard",
+      "player_name": "Niklas N\u00f8rgaard"
+    },
+    {
+      "player_id": "michael_kim",
+      "player_name": "Michael Kim"
+    },
+    {
+      "player_id": "sungjae_im",
+      "player_name": "Sungjae Im"
+    },
+    {
+      "player_id": "ryo_hisatsune",
+      "player_name": "Ryo Hisatsune"
     },
     {
       "player_id": "adrien_dumont_de_chassart",
       "player_name": "Adrien Dumont de Chassart"
     },
     {
-      "player_id": "hideki_matsuyama",
-      "player_name": "Hideki Matsuyama"
+      "player_id": "kurt_kitayama",
+      "player_name": "Kurt Kitayama"
     },
     {
-      "player_id": "neal_shipley",
-      "player_name": "Neal Shipley"
-    },
-    {
-      "player_id": "eric_lee",
-      "player_name": "Eric Lee"
-    },
-    {
-      "player_id": "patrick_rodgers",
-      "player_name": "Patrick Rodgers"
-    },
-    {
-      "player_id": "russell_henley",
-      "player_name": "Russell Henley"
+      "player_id": "angel_hidalgo",
+      "player_name": "Angel Hidalgo"
     },
     {
       "player_id": "peter_uihlein",
       "player_name": "Peter Uihlein"
     },
     {
+      "player_id": "nico_echavarria",
+      "player_name": "Nico Echavarria"
+    },
+    {
+      "player_id": "marek_fleming",
+      "player_name": "Marek Fleming"
+    },
+    {
+      "player_id": "bud_cauley",
+      "player_name": "Bud Cauley"
+    },
+    {
+      "player_id": "jordan_spieth",
+      "player_name": "Jordan Spieth"
+    },
+    {
+      "player_id": "jackson_van_paris",
+      "player_name": "Jackson Van Paris"
+    },
+    {
+      "player_id": "spencer_tibbits",
+      "player_name": "Spencer Tibbits"
+    },
+    {
+      "player_id": "eric_lee",
+      "player_name": "Eric Lee"
+    },
+    {
+      "player_id": "caleb_surratt",
+      "player_name": "Caleb Surratt"
+    },
+    {
       "player_id": "james_nicholas",
       "player_name": "James Nicholas"
+    },
+    {
+      "player_id": "russell_henley",
+      "player_name": "Russell Henley"
+    },
+    {
+      "player_id": "neal_shipley",
+      "player_name": "Neal Shipley"
+    },
+    {
+      "player_id": "hideki_matsuyama",
+      "player_name": "Hideki Matsuyama"
+    },
+    {
+      "player_id": "andrew_putnam",
+      "player_name": "Andrew Putnam"
+    },
+    {
+      "player_id": "william_mouw",
+      "player_name": "William Mouw"
+    },
+    {
+      "player_id": "patrick_rodgers",
+      "player_name": "Patrick Rodgers"
     },
     {
       "player_id": "dylan_wu",

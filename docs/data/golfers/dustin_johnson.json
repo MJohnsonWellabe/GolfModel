@@ -4,28 +4,28 @@
   "player_name": "Dustin Johnson",
   "wave": "all",
   "rating": {
-    "skill": 0.801,
-    "skill_overall": 0.431,
-    "n_eff": 11.7,
-    "n_course": 3.4,
-    "course_rounds_played": 5
+    "skill": 0.555,
+    "skill_overall": 0.245,
+    "n_eff": 6.2,
+    "n_course": 4.4,
+    "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 73.1,
-    "p10": 68.8,
-    "p50": 72.66,
-    "p90": 78.03,
-    "sd": 3.63
+    "e_score": 73.07,
+    "p10": 68.79,
+    "p50": 72.62,
+    "p90": 78.01,
+    "sd": 3.66
   },
   "line": null,
   "bet": {
     "player_id": "dustin_johnson",
     "player_name": "Dustin Johnson",
     "wave": "all",
-    "e_score": 73.1,
-    "p10": 68.8,
-    "p90": 78.03,
-    "n_eff": 11.7,
+    "e_score": 73.07,
+    "p10": 68.79,
+    "p90": 78.01,
+    "n_eff": 6.2,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,65 +39,65 @@
   },
   "distribution": {
     "counts": [
-      8,
-      39,
-      158,
-      440,
-      757,
-      1116,
-      1274,
-      1383,
-      1178,
-      1044,
-      746,
-      589,
-      430,
-      312,
-      229,
-      122,
-      82,
-      48,
-      21,
-      10,
-      3,
-      8,
+      9,
+      36,
+      176,
+      427,
+      839,
+      1220,
+      1395,
+      1335,
+      1201,
+      1010,
+      715,
+      565,
+      377,
+      276,
+      185,
+      116,
+      52,
+      25,
+      23,
+      13,
+      1,
+      1,
       1,
       2
     ],
     "edges": [
-      63.58,
-      64.73,
-      65.88,
-      67.04,
-      68.19,
-      69.34,
-      70.5,
-      71.65,
-      72.8,
-      73.96,
-      75.11,
-      76.26,
-      77.42,
-      78.57,
-      79.72,
-      80.87,
-      82.03,
-      83.18,
-      84.33,
-      85.49,
-      86.64,
-      87.79,
-      88.95,
-      90.1,
-      91.25
+      63.41,
+      64.62,
+      65.82,
+      67.02,
+      68.22,
+      69.42,
+      70.62,
+      71.82,
+      73.03,
+      74.23,
+      75.43,
+      76.63,
+      77.83,
+      79.03,
+      80.23,
+      81.43,
+      82.64,
+      83.84,
+      85.04,
+      86.24,
+      87.44,
+      88.64,
+      89.84,
+      91.05,
+      92.25
     ]
   },
   "recent_rounds": [
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
-      "round_num": 3,
-      "to_par": 1.0
+      "round_num": 1,
+      "to_par": -4.0
     },
     {
       "date": "2026-06-18 04:00:00",
@@ -108,50 +108,50 @@
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
-      "round_num": 1,
-      "to_par": -4.0
+      "round_num": 3,
+      "to_par": 1.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 4,
       "to_par": 2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 2,
       "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
-      "to_par": 0.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": 2.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 2,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 4,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 3,
-      "to_par": 3.0
+      "to_par": -4.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
+      "to_par": 5.0
     }
   ]
 }

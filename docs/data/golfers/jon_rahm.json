@@ -4,28 +4,28 @@
   "player_name": "Jon Rahm",
   "wave": "all",
   "rating": {
-    "skill": 0.766,
-    "skill_overall": 0.772,
-    "n_eff": 12.0,
+    "skill": 0.513,
+    "skill_overall": 0.397,
+    "n_eff": 5.5,
     "n_course": 2.9,
     "course_rounds_played": 6
   },
   "expected": {
-    "e_score": 73.05,
-    "p10": 68.66,
-    "p50": 72.58,
-    "p90": 78.07,
-    "sd": 3.72
+    "e_score": 73.11,
+    "p10": 68.76,
+    "p50": 72.65,
+    "p90": 78.08,
+    "sd": 3.69
   },
   "line": null,
   "bet": {
     "player_id": "jon_rahm",
     "player_name": "Jon Rahm",
     "wave": "all",
-    "e_score": 73.05,
-    "p10": 68.66,
-    "p90": 78.07,
-    "n_eff": 12.0,
+    "e_score": 73.11,
+    "p10": 68.76,
+    "p90": 78.08,
+    "n_eff": 5.5,
     "has_line": false,
     "line": null,
     "side": "",
@@ -41,19 +41,19 @@
     "counts": [
       7,
       19,
-      86,
-      292,
+      84,
+      293,
       613,
-      1017,
-      1209,
-      1387,
-      1313,
-      1117,
-      855,
-      675,
-      494,
-      327,
-      234,
+      1015,
+      1213,
+      1378,
+      1315,
+      1120,
+      858,
+      677,
+      492,
+      328,
+      233,
       146,
       105,
       48,
@@ -65,31 +65,31 @@
       2
     ],
     "edges": [
-      62.66,
-      63.86,
-      65.07,
-      66.27,
-      67.47,
-      68.68,
-      69.88,
-      71.09,
-      72.29,
-      73.49,
-      74.7,
-      75.9,
-      77.11,
-      78.31,
-      79.52,
-      80.72,
-      81.92,
-      83.13,
-      84.33,
-      85.54,
-      86.74,
-      87.94,
-      89.15,
-      90.35,
-      91.56
+      62.82,
+      64.01,
+      65.2,
+      66.39,
+      67.59,
+      68.78,
+      69.97,
+      71.17,
+      72.36,
+      73.55,
+      74.74,
+      75.94,
+      77.13,
+      78.32,
+      79.51,
+      80.71,
+      81.9,
+      83.09,
+      84.28,
+      85.48,
+      86.67,
+      87.86,
+      89.06,
+      90.25,
+      91.44
     ]
   },
   "recent_rounds": [
@@ -106,52 +106,52 @@
       "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 3,
       "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 2,
-      "to_par": 0.0
+      "to_par": 1.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 1,
       "to_par": -1.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 4,
-      "to_par": -4.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 3,
-      "to_par": 1.0
+      "to_par": 3.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 2,
-      "to_par": -2.0
+      "to_par": 5.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 1,
-      "to_par": 6.0
+      "to_par": -1.0
     }
   ]
 }

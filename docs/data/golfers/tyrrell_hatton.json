@@ -4,28 +4,28 @@
   "player_name": "Tyrrell Hatton",
   "wave": "all",
   "rating": {
-    "skill": 1.356,
-    "skill_overall": 0.9,
-    "n_eff": 11.2,
-    "n_course": 3.9,
-    "course_rounds_played": 7
+    "skill": 1.6,
+    "skill_overall": 0.865,
+    "n_eff": 7.5,
+    "n_course": 4.8,
+    "course_rounds_played": 8
   },
   "expected": {
-    "e_score": 72.49,
-    "p10": 68.27,
-    "p50": 72.07,
-    "p90": 77.37,
-    "sd": 3.61
+    "e_score": 72.07,
+    "p10": 68.21,
+    "p50": 71.7,
+    "p90": 76.5,
+    "sd": 3.28
   },
   "line": null,
   "bet": {
     "player_id": "tyrrell_hatton",
     "player_name": "Tyrrell Hatton",
     "wave": "all",
-    "e_score": 72.49,
-    "p10": 68.27,
-    "p90": 77.37,
-    "n_eff": 11.2,
+    "e_score": 72.07,
+    "p10": 68.21,
+    "p90": 76.5,
+    "n_eff": 7.5,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,60 +39,66 @@
   },
   "distribution": {
     "counts": [
-      5,
-      32,
-      100,
-      318,
-      613,
-      1060,
-      1270,
-      1359,
-      1314,
-      1040,
-      863,
-      648,
-      506,
-      326,
-      236,
-      132,
-      70,
-      48,
-      32,
-      9,
-      10,
-      5,
+      7,
+      34,
+      111,
+      264,
+      583,
+      909,
+      1237,
+      1298,
+      1281,
+      1092,
+      888,
+      714,
+      495,
+      387,
+      260,
+      170,
+      112,
+      69,
+      45,
+      21,
+      13,
+      4,
       2,
-      2
+      4
     ],
     "edges": [
-      62.53,
-      63.7,
-      64.87,
-      66.03,
-      67.2,
-      68.37,
-      69.53,
-      70.7,
-      71.86,
-      73.03,
-      74.2,
-      75.36,
-      76.53,
-      77.7,
-      78.86,
-      80.03,
-      81.2,
-      82.36,
-      83.53,
-      84.69,
-      85.86,
-      87.03,
-      88.19,
-      89.36,
-      90.53
+      63.13,
+      64.15,
+      65.16,
+      66.18,
+      67.19,
+      68.21,
+      69.22,
+      70.24,
+      71.25,
+      72.27,
+      73.29,
+      74.3,
+      75.32,
+      76.33,
+      77.35,
+      78.36,
+      79.38,
+      80.39,
+      81.41,
+      82.42,
+      83.44,
+      84.45,
+      85.47,
+      86.49,
+      87.5
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
+      "to_par": -3.0
+    },
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
@@ -112,45 +118,39 @@
       "to_par": 4.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
-      "to_par": 4.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": 2.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 4,
-      "to_par": -6.0
+      "to_par": 1.0
     },
     {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 3,
-      "to_par": 0.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 2,
-      "to_par": -6.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 1,
-      "to_par": 2.0
+      "to_par": -3.0
     },
     {
       "date": "2025-07-17 04:00:00",
       "course_id": "the_open",
       "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 3,
       "to_par": -2.0
     }
   ]

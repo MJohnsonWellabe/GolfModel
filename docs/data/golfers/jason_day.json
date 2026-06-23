@@ -4,28 +4,28 @@
   "player_name": "Jason Day",
   "wave": "all",
   "rating": {
-    "skill": 0.407,
-    "skill_overall": 0.184,
-    "n_eff": 43.6,
+    "skill": 0.587,
+    "skill_overall": 0.393,
+    "n_eff": 29.4,
     "n_course": 0.9,
     "course_rounds_played": 4
   },
   "expected": {
-    "e_score": 73.45,
-    "p10": 68.86,
-    "p50": 72.99,
-    "p90": 78.64,
-    "sd": 3.86
+    "e_score": 73.07,
+    "p10": 68.6,
+    "p50": 72.63,
+    "p90": 78.14,
+    "sd": 3.78
   },
   "line": null,
   "bet": {
     "player_id": "jason_day",
     "player_name": "Jason Day",
     "wave": "all",
-    "e_score": 73.45,
-    "p10": 68.86,
-    "p90": 78.64,
-    "n_eff": 43.6,
+    "e_score": 73.07,
+    "p10": 68.6,
+    "p90": 78.14,
+    "n_eff": 29.4,
     "has_line": false,
     "line": null,
     "side": "",
@@ -42,21 +42,21 @@
       5,
       18,
       95,
-      307,
-      676,
-      1093,
-      1407,
-      1461,
-      1306,
-      1033,
-      852,
-      657,
+      306,
+      671,
+      1088,
+      1404,
+      1459,
+      1315,
+      1036,
+      854,
+      655,
       429,
-      279,
-      174,
-      107,
-      50,
-      27,
+      280,
+      179,
+      105,
+      51,
+      26,
       14,
       5,
       1,
@@ -65,31 +65,31 @@
       1
     ],
     "edges": [
-      62.3,
-      63.65,
-      64.99,
-      66.33,
-      67.68,
-      69.02,
-      70.36,
-      71.7,
-      73.05,
-      74.39,
-      75.73,
-      77.07,
-      78.42,
-      79.76,
-      81.1,
-      82.45,
-      83.79,
-      85.13,
-      86.47,
-      87.82,
-      89.16,
-      90.5,
-      91.84,
-      93.19,
-      94.53
+      62.18,
+      63.49,
+      64.8,
+      66.11,
+      67.42,
+      68.74,
+      70.05,
+      71.36,
+      72.67,
+      73.99,
+      75.3,
+      76.61,
+      77.92,
+      79.24,
+      80.55,
+      81.86,
+      83.17,
+      84.49,
+      85.8,
+      87.11,
+      88.42,
+      89.74,
+      91.05,
+      92.36,
+      93.67
     ]
   },
   "recent_rounds": [
@@ -106,52 +106,52 @@
       "to_par": 2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 4,
-      "to_par": 2.0
+      "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 3,
-      "to_par": 5.0
+      "to_par": -2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 2,
+      "to_par": -7.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 3,
       "to_par": 0.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
-      "round_num": 3,
-      "to_par": 1.0
-    },
-    {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
       "round_num": 2,
       "to_par": -2.0
     },
     {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
       "round_num": 1,
-      "to_par": 4.0
+      "to_par": -2.0
     },
     {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
       "round_num": 4,
-      "to_par": 4.0
+      "to_par": 8.0
     }
   ]
 }

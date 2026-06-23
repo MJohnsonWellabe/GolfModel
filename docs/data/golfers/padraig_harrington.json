@@ -4,28 +4,28 @@
   "player_name": "Padraig Harrington",
   "wave": "all",
   "rating": {
-    "skill": -1.002,
-    "skill_overall": -0.431,
-    "n_eff": 10.4,
+    "skill": -1.308,
+    "skill_overall": -0.842,
+    "n_eff": 6.9,
     "n_course": 2.0,
     "course_rounds_played": 2
   },
   "expected": {
-    "e_score": 74.81,
-    "p10": 70.76,
-    "p50": 74.35,
-    "p90": 79.45,
-    "sd": 3.43
+    "e_score": 74.93,
+    "p10": 71.15,
+    "p50": 74.51,
+    "p90": 79.27,
+    "sd": 3.2
   },
   "line": null,
   "bet": {
     "player_id": "padraig_harrington",
     "player_name": "Padraig Harrington",
     "wave": "all",
-    "e_score": 74.81,
-    "p10": 70.76,
-    "p90": 79.45,
-    "n_eff": 10.4,
+    "e_score": 74.93,
+    "p10": 71.15,
+    "p90": 79.27,
+    "n_eff": 6.9,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,57 +39,57 @@
   },
   "distribution": {
     "counts": [
-      10,
+      9,
+      38,
+      152,
+      356,
+      717,
+      1046,
+      1221,
+      1356,
+      1162,
+      1019,
+      806,
+      673,
+      483,
+      335,
+      251,
+      150,
+      96,
+      53,
       35,
-      147,
-      351,
-      722,
-      1037,
-      1213,
-      1363,
-      1168,
-      1016,
-      799,
-      681,
-      489,
-      332,
-      256,
-      148,
-      101,
-      56,
-      35,
-      23,
-      7,
-      8,
+      24,
+      9,
+      6,
       2,
       1
     ],
     "edges": [
-      65.81,
-      66.87,
-      67.92,
-      68.98,
-      70.03,
-      71.09,
-      72.15,
-      73.2,
-      74.26,
-      75.31,
-      76.37,
-      77.42,
-      78.48,
-      79.53,
-      80.59,
-      81.64,
-      82.7,
-      83.75,
-      84.81,
-      85.87,
-      86.92,
-      87.98,
-      89.03,
-      90.09,
-      91.14
+      66.55,
+      67.53,
+      68.52,
+      69.5,
+      70.49,
+      71.47,
+      72.46,
+      73.44,
+      74.43,
+      75.41,
+      76.4,
+      77.38,
+      78.37,
+      79.35,
+      80.34,
+      81.32,
+      82.31,
+      83.29,
+      84.28,
+      85.26,
+      86.25,
+      87.23,
+      88.22,
+      89.2,
+      90.19
     ]
   },
   "recent_rounds": [
@@ -118,40 +118,40 @@
       "to_par": 3.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 4,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": 4.0
-    },
-    {
-      "date": "2025-07-17 04:00:00",
-      "course_id": "the_open",
-      "round_num": 1,
-      "to_par": 4.0
-    },
-    {
       "date": "2025-07-17 04:00:00",
       "course_id": "the_open",
       "round_num": 2,
       "to_par": 5.0
+    },
+    {
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 4,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 1,
+      "to_par": -1.0
     }
   ]
 }

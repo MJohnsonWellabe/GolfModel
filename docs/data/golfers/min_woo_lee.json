@@ -4,28 +4,28 @@
   "player_name": "Min Woo Lee",
   "wave": "all",
   "rating": {
-    "skill": 0.159,
-    "skill_overall": 0.451,
-    "n_eff": 48.9,
-    "n_course": 2.5,
+    "skill": 0.228,
+    "skill_overall": 0.544,
+    "n_eff": 35.1,
+    "n_course": 2.4,
     "course_rounds_played": 4
   },
   "expected": {
-    "e_score": 73.63,
-    "p10": 69.09,
-    "p50": 73.17,
-    "p90": 78.85,
-    "sd": 3.88
+    "e_score": 73.37,
+    "p10": 68.87,
+    "p50": 72.92,
+    "p90": 78.55,
+    "sd": 3.85
   },
   "line": null,
   "bet": {
     "player_id": "min_woo_lee",
     "player_name": "Min Woo Lee",
     "wave": "all",
-    "e_score": 73.63,
-    "p10": 69.09,
-    "p90": 78.85,
-    "n_eff": 48.9,
+    "e_score": 73.37,
+    "p10": 68.87,
+    "p90": 78.55,
+    "n_eff": 35.1,
     "has_line": false,
     "line": null,
     "side": "",
@@ -40,22 +40,22 @@
   "distribution": {
     "counts": [
       7,
-      45,
-      149,
-      373,
-      721,
+      44,
+      150,
+      372,
+      719,
       1076,
-      1337,
+      1336,
       1294,
-      1193,
-      1062,
-      865,
-      595,
-      421,
-      336,
+      1196,
+      1063,
+      867,
+      594,
+      422,
+      335,
       210,
-      134,
-      65,
+      135,
+      63,
       55,
       31,
       15,
@@ -65,31 +65,31 @@
       1
     ],
     "edges": [
-      63.31,
-      64.54,
-      65.78,
-      67.01,
-      68.24,
-      69.48,
-      70.71,
-      71.94,
-      73.18,
-      74.41,
-      75.64,
-      76.88,
-      78.11,
-      79.34,
-      80.58,
-      81.81,
-      83.04,
-      84.28,
-      85.51,
-      86.74,
-      87.98,
-      89.21,
-      90.44,
-      91.68,
-      92.91
+      63.13,
+      64.35,
+      65.58,
+      66.8,
+      68.02,
+      69.25,
+      70.47,
+      71.69,
+      72.92,
+      74.14,
+      75.37,
+      76.59,
+      77.81,
+      79.04,
+      80.26,
+      81.49,
+      82.71,
+      83.93,
+      85.16,
+      86.38,
+      87.6,
+      88.83,
+      90.05,
+      91.28,
+      92.5
     ]
   },
   "recent_rounds": [
@@ -118,40 +118,40 @@
       "to_par": 2.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 4,
-      "to_par": 1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 3,
-      "to_par": 1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
-      "to_par": 0.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
       "to_par": -3.0
     },
     {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 3,
-      "to_par": 1.0
+      "to_par": -3.0
     },
     {
-      "date": "2026-05-07 04:00:00",
-      "course_id": "truist_championship",
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
       "round_num": 2,
+      "to_par": -7.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 1,
       "to_par": -2.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-12 04:00:00",
+      "course_id": "the_players_championship",
+      "round_num": 1,
+      "to_par": 0.0
     }
   ]
 }

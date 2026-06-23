@@ -4,28 +4,28 @@
   "player_name": "Bryson DeChambeau",
   "wave": "all",
   "rating": {
-    "skill": 0.18,
-    "skill_overall": 0.19,
-    "n_eff": 8.4,
-    "n_course": 2.5,
+    "skill": 0.383,
+    "skill_overall": 0.474,
+    "n_eff": 5.1,
+    "n_course": 2.4,
     "course_rounds_played": 4
   },
   "expected": {
-    "e_score": 73.59,
-    "p10": 69.3,
-    "p50": 73.14,
-    "p90": 78.61,
-    "sd": 3.71
+    "e_score": 73.2,
+    "p10": 68.97,
+    "p50": 72.76,
+    "p90": 78.15,
+    "sd": 3.65
   },
   "line": null,
   "bet": {
     "player_id": "bryson_dechambeau",
     "player_name": "Bryson DeChambeau",
     "wave": "all",
-    "e_score": 73.59,
-    "p10": 69.3,
-    "p90": 78.61,
-    "n_eff": 8.4,
+    "e_score": 73.2,
+    "p10": 68.97,
+    "p90": 78.15,
+    "n_eff": 5.1,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,23 +39,23 @@
   },
   "distribution": {
     "counts": [
-      10,
-      62,
-      135,
-      344,
-      751,
-      1129,
-      1368,
-      1381,
-      1213,
-      1016,
-      836,
-      601,
-      398,
-      277,
-      208,
-      114,
-      79,
+      9,
+      63,
+      132,
+      345,
+      736,
+      1136,
+      1364,
+      1375,
+      1226,
+      1018,
+      837,
+      596,
+      408,
+      276,
+      207,
+      113,
+      81,
       43,
       19,
       10,
@@ -65,40 +65,34 @@
       1
     ],
     "edges": [
-      63.6,
-      64.81,
-      66.03,
-      67.24,
-      68.45,
-      69.67,
-      70.88,
-      72.09,
-      73.31,
-      74.52,
-      75.73,
-      76.95,
-      78.16,
-      79.37,
-      80.59,
-      81.8,
-      83.01,
-      84.23,
-      85.44,
-      86.65,
-      87.87,
-      89.08,
-      90.29,
-      91.51,
-      92.72
+      63.34,
+      64.54,
+      65.73,
+      66.93,
+      68.12,
+      69.32,
+      70.51,
+      71.71,
+      72.9,
+      74.1,
+      75.29,
+      76.49,
+      77.68,
+      78.88,
+      80.07,
+      81.27,
+      82.46,
+      83.66,
+      84.85,
+      86.05,
+      87.24,
+      88.44,
+      89.63,
+      90.83,
+      92.02
     ]
   },
   "recent_rounds": [
-    {
-      "date": "2026-06-18 04:00:00",
-      "course_id": "u_s_open",
-      "round_num": 2,
-      "to_par": 5.0
-    },
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
@@ -106,28 +100,16 @@
       "to_par": 0.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 2,
-      "to_par": 1.0
+      "to_par": 5.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2025-07-17 04:00:00",
+      "course_id": "the_open",
       "round_num": 1,
-      "to_par": 6.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 2,
-      "to_par": 2.0
-    },
-    {
-      "date": "2026-04-09 04:00:00",
-      "course_id": "masters_tournament",
-      "round_num": 1,
-      "to_par": 4.0
+      "to_par": 7.0
     },
     {
       "date": "2025-07-17 04:00:00",
@@ -138,20 +120,38 @@
     {
       "date": "2025-07-17 04:00:00",
       "course_id": "the_open",
-      "round_num": 4,
-      "to_par": -7.0
-    },
-    {
-      "date": "2025-07-17 04:00:00",
-      "course_id": "the_open",
       "round_num": 3,
       "to_par": -3.0
     },
     {
       "date": "2025-07-17 04:00:00",
       "course_id": "the_open",
+      "round_num": 4,
+      "to_par": -7.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
       "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-06-12 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 2,
       "to_par": 7.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-05-15 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": -3.0
     }
   ]
 }
