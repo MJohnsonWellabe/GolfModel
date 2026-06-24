@@ -4,28 +4,28 @@
   "player_name": "Jake Knapp",
   "wave": "all",
   "rating": {
-    "skill": 0.39,
-    "skill_overall": 0.921,
-    "n_eff": 32.6,
-    "n_course": 2.0,
-    "course_rounds_played": 2
+    "skill": 0.815,
+    "skill_overall": 0.815,
+    "n_eff": 37.7,
+    "n_course": 0.0,
+    "course_rounds_played": 0
   },
   "expected": {
-    "e_score": 73.18,
-    "p10": 68.86,
-    "p50": 72.76,
-    "p90": 78.16,
-    "sd": 3.67
+    "e_score": 69.53,
+    "p10": 65.49,
+    "p50": 69.12,
+    "p90": 74.11,
+    "sd": 3.44
   },
   "line": null,
   "bet": {
     "player_id": "jake_knapp",
     "player_name": "Jake Knapp",
     "wave": "all",
-    "e_score": 73.18,
-    "p10": 68.86,
-    "p90": 78.16,
-    "n_eff": 32.6,
+    "e_score": 69.53,
+    "p10": 65.49,
+    "p90": 74.11,
+    "n_eff": 37.7,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,57 +39,57 @@
   },
   "distribution": {
     "counts": [
-      4,
-      23,
-      117,
-      261,
-      609,
-      953,
-      1286,
-      1366,
-      1323,
-      1111,
-      838,
-      677,
-      492,
-      354,
-      232,
-      149,
-      95,
-      57,
-      19,
+      15,
+      45,
+      220,
+      514,
+      895,
+      1350,
+      1494,
+      1339,
+      1183,
+      950,
+      700,
+      498,
+      331,
+      200,
+      113,
+      60,
+      41,
+      35,
       11,
-      11,
-      5,
-      6,
+      3,
+      0,
+      2,
+      0,
       1
     ],
     "edges": [
-      62.97,
-      64.15,
-      65.33,
-      66.51,
-      67.7,
-      68.88,
-      70.06,
-      71.24,
-      72.42,
-      73.61,
-      74.79,
-      75.97,
-      77.15,
-      78.33,
-      79.51,
-      80.7,
-      81.88,
-      83.06,
-      84.24,
+      60.38,
+      61.57,
+      62.76,
+      63.95,
+      65.15,
+      66.34,
+      67.53,
+      68.72,
+      69.92,
+      71.11,
+      72.3,
+      73.5,
+      74.69,
+      75.88,
+      77.07,
+      78.27,
+      79.46,
+      80.65,
+      81.84,
+      83.04,
+      84.23,
       85.42,
       86.61,
-      87.79,
-      88.97,
-      90.15,
-      91.33
+      87.81,
+      89.0
     ]
   },
   "recent_rounds": [
@@ -106,52 +106,52 @@
       "to_par": 7.0
     },
     {
-      "date": "2026-03-26 04:00:00",
-      "course_id": "texas_children_s_houston_open",
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
       "round_num": 4,
-      "to_par": -8.0
-    },
-    {
-      "date": "2026-03-26 04:00:00",
-      "course_id": "texas_children_s_houston_open",
-      "round_num": 3,
-      "to_par": 1.0
-    },
-    {
-      "date": "2026-03-26 04:00:00",
-      "course_id": "texas_children_s_houston_open",
-      "round_num": 2,
-      "to_par": -5.0
-    },
-    {
-      "date": "2026-03-26 04:00:00",
-      "course_id": "texas_children_s_houston_open",
-      "round_num": 1,
-      "to_par": -1.0
-    },
-    {
-      "date": "2026-03-12 04:00:00",
-      "course_id": "the_players_championship",
-      "round_num": 2,
       "to_par": 0.0
     },
     {
-      "date": "2026-03-12 04:00:00",
-      "course_id": "the_players_championship",
-      "round_num": 1,
-      "to_par": 3.0
-    },
-    {
-      "date": "2026-02-19 05:00:00",
-      "course_id": "the_genesis_invitational",
-      "round_num": 4,
-      "to_par": -5.0
-    },
-    {
-      "date": "2026-02-19 05:00:00",
-      "course_id": "the_genesis_invitational",
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
       "round_num": 3,
-      "to_par": -4.0
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-16 04:00:00",
+      "course_id": "rbc_heritage",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 1.0
     }
   ]
 }

@@ -1,31 +1,31 @@
 {
   "schema": 2,
-  "player_id": "j_j_spaun",
-  "player_name": "J.J. Spaun",
+  "player_id": "mac_meissner",
+  "player_name": "Mac Meissner",
   "wave": "all",
   "rating": {
-    "skill": 0.817,
-    "skill_overall": 0.789,
-    "n_eff": 57.7,
-    "n_course": 1.0,
-    "course_rounds_played": 4
+    "skill": 0.458,
+    "skill_overall": 0.458,
+    "n_eff": 52.1,
+    "n_course": 0.0,
+    "course_rounds_played": 0
   },
   "expected": {
-    "e_score": 69.5,
-    "p10": 65.59,
-    "p50": 69.12,
-    "p90": 74.03,
-    "sd": 3.36
+    "e_score": 69.81,
+    "p10": 66.35,
+    "p50": 69.48,
+    "p90": 73.81,
+    "sd": 2.93
   },
   "line": null,
   "bet": {
-    "player_id": "j_j_spaun",
-    "player_name": "J.J. Spaun",
+    "player_id": "mac_meissner",
+    "player_name": "Mac Meissner",
     "wave": "all",
-    "e_score": 69.5,
-    "p10": 65.59,
-    "p90": 74.03,
-    "n_eff": 57.7,
+    "e_score": 69.81,
+    "p10": 66.35,
+    "p90": 73.81,
+    "n_eff": 52.1,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,71 +39,71 @@
   },
   "distribution": {
     "counts": [
-      8,
-      30,
-      119,
-      288,
-      586,
-      1044,
-      1286,
-      1330,
-      1289,
-      1098,
-      909,
-      700,
-      418,
-      317,
-      225,
-      157,
+      1,
+      22,
+      59,
+      191,
+      481,
+      851,
+      1155,
+      1388,
+      1344,
+      1227,
+      956,
+      701,
+      566,
+      397,
+      273,
+      167,
       93,
-      46,
-      28,
-      19,
-      7,
-      1,
-      1,
-      1
+      59,
+      35,
+      21,
+      6,
+      3,
+      2,
+      2
     ],
     "edges": [
-      60.19,
-      61.28,
-      62.36,
-      63.45,
-      64.54,
-      65.62,
-      66.71,
-      67.8,
-      68.88,
-      69.97,
-      71.06,
-      72.14,
-      73.23,
-      74.31,
-      75.4,
-      76.49,
-      77.57,
-      78.66,
-      79.75,
-      80.83,
-      81.92,
-      83.0,
-      84.09,
-      85.18,
-      86.26
+      61.24,
+      62.2,
+      63.16,
+      64.11,
+      65.07,
+      66.02,
+      66.98,
+      67.94,
+      68.89,
+      69.85,
+      70.8,
+      71.76,
+      72.71,
+      73.67,
+      74.63,
+      75.58,
+      76.54,
+      77.49,
+      78.45,
+      79.4,
+      80.36,
+      81.32,
+      82.27,
+      83.23,
+      84.18
     ]
   },
   "recent_rounds": [
     {
-      "date": "2026-06-18 04:00:00",
-      "course_id": "u_s_open",
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
       "round_num": 2,
-      "to_par": 1.0
+      "to_par": 3.0
     },
     {
-      "date": "2026-06-18 04:00:00",
-      "course_id": "u_s_open",
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
       "round_num": 1,
-      "to_par": 7.0
+      "to_par": -1.0
     },
     {
       "date": "2026-06-04 04:00:00",
@@ -115,43 +115,43 @@
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
       "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
       "to_par": -4.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 2,
-      "to_par": 5.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 1,
-      "to_par": -5.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 3,
-      "to_par": -2.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 1,
-      "to_par": -6.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 2,
-      "to_par": -2.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 4,
-      "to_par": 0.0
     }
   ]
 }

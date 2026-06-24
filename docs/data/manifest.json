@@ -1,24 +1,24 @@
 {
   "schema": 2,
-  "generated_at": "2026-06-23T13:45:19.582156+00:00",
+  "generated_at": "2026-06-24T13:25:02.474207+00:00",
   "disclaimer": "ACADEMIC EXERCISE \u2014 NOT BETTING ADVICE. For educational use only.",
   "model": "score-based rating (free data)",
-  "event_id": "401811952",
-  "course_id": "u_s_open",
-  "course_name": "U.S. Open",
-  "round_num": 5,
-  "par": 70,
-  "course_base_to_par": 3.42,
-  "field_strength": 0.147,
-  "n_players": 156,
-  "n_bets": 156,
+  "event_id": "401811953",
+  "course_id": "travelers_championship",
+  "course_name": "travelers_championship",
+  "round_num": 1,
+  "par": 71,
+  "course_base_to_par": -0.76,
+  "field_strength": 0.471,
+  "n_players": 72,
+  "n_bets": 72,
   "n_actionable": 0,
   "wave_wind": {
-    "all": 6.0
+    "AM": 6.3,
+    "PM": 17.1
   },
   "sources": [
     "espn",
-    "sample",
-    "weather:open-meteo"
+    "sample"
   ]
 }

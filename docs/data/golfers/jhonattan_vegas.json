@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jhonattan_vegas",
+  "player_name": "Jhonattan Vegas",
+  "wave": "all",
+  "rating": {
+    "skill": -0.658,
+    "skill_overall": -0.721,
+    "n_eff": 48.2,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 70.99,
+    "p10": 67.15,
+    "p50": 70.58,
+    "p90": 75.43,
+    "sd": 3.26
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jhonattan_vegas",
+    "player_name": "Jhonattan Vegas",
+    "wave": "all",
+    "e_score": 70.99,
+    "p10": 67.15,
+    "p90": 75.43,
+    "n_eff": 48.2,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      3,
+      12,
+      41,
+      152,
+      338,
+      569,
+      906,
+      1233,
+      1291,
+      1192,
+      1023,
+      918,
+      690,
+      501,
+      388,
+      279,
+      152,
+      137,
+      80,
+      36,
+      31,
+      22,
+      3,
+      3
+    ],
+    "edges": [
+      61.46,
+      62.43,
+      63.41,
+      64.39,
+      65.36,
+      66.34,
+      67.31,
+      68.29,
+      69.26,
+      70.24,
+      71.21,
+      72.19,
+      73.16,
+      74.14,
+      75.12,
+      76.09,
+      77.07,
+      78.04,
+      79.02,
+      79.99,
+      80.97,
+      81.94,
+      82.92,
+      83.89,
+      84.87
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 3.0
+    }
+  ]
+}
