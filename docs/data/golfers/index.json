@@ -2,16 +2,16 @@
   "schema": 2,
   "players": [
     {
-      "player_id": "ryan_fox",
-      "player_name": "Ryan Fox"
+      "player_id": "tom_hoge",
+      "player_name": "Tom Hoge"
+    },
+    {
+      "player_id": "min_woo_lee",
+      "player_name": "Min Woo Lee"
     },
     {
       "player_id": "matt_mccarty",
       "player_name": "Matt McCarty"
-    },
-    {
-      "player_id": "tom_hoge",
-      "player_name": "Tom Hoge"
     },
     {
       "player_id": "jackson_suber",
@@ -20,14 +20,6 @@
     {
       "player_id": "nicolai_h_jgaard",
       "player_name": "Nicolai H\u00f8jgaard"
-    },
-    {
-      "player_id": "min_woo_lee",
-      "player_name": "Min Woo Lee"
-    },
-    {
-      "player_id": "lucas_glover",
-      "player_name": "Lucas Glover"
     },
     {
       "player_id": "eric_cole",
@@ -42,12 +34,20 @@
       "player_name": "Ryan Gerard"
     },
     {
-      "player_id": "tony_finau",
-      "player_name": "Tony Finau"
-    },
-    {
       "player_id": "ben_james",
       "player_name": "Ben James"
+    },
+    {
+      "player_id": "ryan_fox",
+      "player_name": "Ryan Fox"
+    },
+    {
+      "player_id": "lucas_glover",
+      "player_name": "Lucas Glover"
+    },
+    {
+      "player_id": "tony_finau",
+      "player_name": "Tony Finau"
     },
     {
       "player_id": "gary_woodland",
