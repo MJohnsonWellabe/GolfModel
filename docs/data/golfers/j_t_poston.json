@@ -4,28 +4,28 @@
   "player_name": "J.T. Poston",
   "wave": "all",
   "rating": {
-    "skill": 0.481,
-    "skill_overall": 0.679,
-    "n_eff": 51.0,
-    "n_course": 1.0,
-    "course_rounds_played": 4
+    "skill": 0.387,
+    "skill_overall": 0.474,
+    "n_eff": 58.2,
+    "n_course": 1.9,
+    "course_rounds_played": 5
   },
   "expected": {
-    "e_score": 69.87,
-    "p10": 66.22,
-    "p50": 69.53,
+    "e_score": 69.67,
+    "p10": 65.87,
+    "p50": 69.3,
     "p90": 74.05,
-    "sd": 3.09
+    "sd": 3.22
   },
   "line": null,
   "bet": {
     "player_id": "j_t_poston",
     "player_name": "J.T. Poston",
     "wave": "all",
-    "e_score": 69.87,
-    "p10": 66.22,
+    "e_score": 69.67,
+    "p10": 65.87,
     "p90": 74.05,
-    "n_eff": 51.0,
+    "n_eff": 58.2,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,60 +39,66 @@
   },
   "distribution": {
     "counts": [
-      6,
-      22,
-      104,
-      270,
-      601,
-      950,
-      1195,
-      1272,
-      1236,
-      1110,
-      934,
-      663,
-      523,
-      409,
-      266,
-      176,
-      103,
-      68,
-      44,
-      21,
-      13,
-      9,
+      5,
+      41,
+      141,
+      411,
+      798,
+      1232,
+      1425,
+      1427,
+      1273,
+      1009,
+      767,
+      510,
+      366,
+      268,
+      136,
+      89,
+      53,
+      23,
+      18,
+      4,
       3,
-      2
+      0,
+      0,
+      1
     ],
     "edges": [
-      61.47,
-      62.42,
-      63.37,
-      64.32,
-      65.27,
-      66.22,
-      67.17,
-      68.12,
-      69.08,
-      70.03,
-      70.98,
-      71.93,
-      72.88,
-      73.83,
-      74.78,
-      75.74,
-      76.69,
-      77.64,
-      78.59,
-      79.54,
-      80.49,
-      81.44,
-      82.39,
-      83.35,
-      84.3
+      60.77,
+      61.88,
+      63.0,
+      64.11,
+      65.23,
+      66.34,
+      67.45,
+      68.57,
+      69.68,
+      70.8,
+      71.91,
+      73.03,
+      74.14,
+      75.26,
+      76.37,
+      77.49,
+      78.6,
+      79.72,
+      80.83,
+      81.94,
+      83.06,
+      84.17,
+      85.29,
+      86.4,
+      87.52
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 1,
+      "to_par": -3.0
+    },
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
@@ -120,14 +126,14 @@
     {
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 4,
-      "to_par": 0.0
+      "round_num": 3,
+      "to_par": -3.0
     },
     {
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 3,
-      "to_par": -3.0
+      "round_num": 1,
+      "to_par": -2.0
     },
     {
       "date": "2026-06-04 04:00:00",
@@ -138,20 +144,14 @@
     {
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 1,
-      "to_par": -2.0
+      "round_num": 4,
+      "to_par": 0.0
     },
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
       "round_num": 4,
       "to_par": -1.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 3,
-      "to_par": 3.0
     }
   ]
 }

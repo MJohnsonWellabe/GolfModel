@@ -4,28 +4,28 @@
   "player_name": "Keith Mitchell",
   "wave": "all",
   "rating": {
-    "skill": 0.567,
-    "skill_overall": 0.567,
-    "n_eff": 50.2,
-    "n_course": 0.0,
-    "course_rounds_played": 0
+    "skill": 0.53,
+    "skill_overall": 0.624,
+    "n_eff": 61.3,
+    "n_course": 1.0,
+    "course_rounds_played": 1
   },
   "expected": {
-    "e_score": 69.77,
-    "p10": 65.95,
-    "p50": 69.38,
-    "p90": 74.1,
-    "sd": 3.22
+    "e_score": 69.53,
+    "p10": 65.7,
+    "p50": 69.13,
+    "p90": 73.87,
+    "sd": 3.23
   },
   "line": null,
   "bet": {
     "player_id": "keith_mitchell",
     "player_name": "Keith Mitchell",
     "wave": "all",
-    "e_score": 69.77,
-    "p10": 65.95,
-    "p90": 74.1,
-    "n_eff": 50.2,
+    "e_score": 69.53,
+    "p10": 65.7,
+    "p90": 73.87,
+    "n_eff": 61.3,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,60 +39,66 @@
   },
   "distribution": {
     "counts": [
-      3,
-      9,
-      78,
-      225,
-      585,
-      944,
-      1393,
-      1411,
-      1322,
-      1116,
-      890,
-      701,
-      505,
-      333,
-      207,
-      128,
-      78,
-      33,
-      23,
-      12,
-      0,
-      3,
-      0,
-      1
+      5,
+      36,
+      132,
+      348,
+      635,
+      936,
+      1272,
+      1299,
+      1149,
+      1093,
+      837,
+      656,
+      531,
+      362,
+      256,
+      171,
+      124,
+      66,
+      39,
+      29,
+      15,
+      6,
+      1,
+      2
     ],
     "edges": [
-      60.32,
-      61.42,
-      62.52,
-      63.61,
-      64.71,
-      65.81,
-      66.91,
-      68.0,
-      69.1,
-      70.2,
-      71.3,
-      72.39,
-      73.49,
-      74.59,
+      61.04,
+      62.01,
+      62.99,
+      63.97,
+      64.94,
+      65.92,
+      66.9,
+      67.87,
+      68.85,
+      69.83,
+      70.8,
+      71.78,
+      72.76,
+      73.73,
+      74.71,
       75.69,
-      76.79,
-      77.88,
-      78.98,
-      80.08,
-      81.18,
-      82.27,
-      83.37,
-      84.47,
-      85.57,
-      86.66
+      76.66,
+      77.64,
+      78.62,
+      79.59,
+      80.57,
+      81.55,
+      82.52,
+      83.5,
+      84.48
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 1,
+      "to_par": -2.0
+    },
     {
       "date": "2026-06-18 04:00:00",
       "course_id": "u_s_open",
@@ -116,12 +122,6 @@
       "course_id": "u_s_open",
       "round_num": 1,
       "to_par": 0.0
-    },
-    {
-      "date": "2026-06-11 04:00:00",
-      "course_id": "rbc_canadian_open",
-      "round_num": 4,
-      "to_par": -1.0
     },
     {
       "date": "2026-06-11 04:00:00",
@@ -132,26 +132,26 @@
     {
       "date": "2026-06-11 04:00:00",
       "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
       "round_num": 2,
       "to_par": -6.0
     },
     {
       "date": "2026-06-11 04:00:00",
       "course_id": "rbc_canadian_open",
-      "round_num": 1,
-      "to_par": -3.0
+      "round_num": 4,
+      "to_par": -1.0
     },
     {
       "date": "2026-05-28 04:00:00",
       "course_id": "charles_schwab_challenge",
       "round_num": 2,
       "to_par": -1.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 1,
-      "to_par": 1.0
     }
   ]
 }
