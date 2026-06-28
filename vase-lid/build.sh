@@ -12,8 +12,9 @@ python3 render_preview.py || echo "   (preview skipped - matplotlib not installe
 
 echo
 echo "Done. Files:"
-echo "  stl/vase_lid_base.stl     - print x1"
-echo "  stl/vase_lid_slider.stl   - print x1"
-echo "  vase_lid_plate.3mf        - both parts laid out flat (import into Bambu Studio)"
-echo "  vase_lid_assembled.3mf    - preview of the two parts mated (mid-open)"
+echo "  stl/vase_lid_full.stl     - BOTH parts in ONE file, laid out flat (print this)"
+echo "  stl/vase_lid_base.stl     - base only (print x1)"
+echo "  stl/vase_lid_slider.stl   - slider only (print x1)"
+echo "  vase_lid_plate.3mf        - both parts as separate objects (Bambu Studio)"
+echo "  vase_lid_assembled.3mf    - preview of the two parts mated"
 echo "  preview_top.png / preview_iso.png"

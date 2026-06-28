@@ -1,94 +1,88 @@
 #!/usr/bin/env python3
 """
-Adjustable telescoping vase lid ("Stem Organizer").
+Adjustable ROUND telescoping vase lid ("Stem Organizer") - revision 2.
 
 A two-piece lid that slides open/closed to fit a range of vase mouths and
-ratchets/locks at the chosen size. It works like a drawer slide:
+ratchets/locks at the chosen size. Reworked to be ROUND:
 
-  * BASE  (vase_lid_base.stl)   - a plate with two C-channel edge rails and a
-                                  sprung snap-finger lock.
-  * SLIDER(vase_lid_slider.stl) - a plate whose edges ride in the base's rails;
-                                  a row of lock holes catches the finger nub.
+  * Each part is a DISK (so the perimeter is a smooth curve, not a rectangle).
+  * The two guide rails are moved INBOARD (inset from the edge), which frees the
+    whole perimeter to be round.
+  * Two overlapping disks read as a circle near the closed size and a smooth
+    rounded oval as you open wider (a single-axis slide can't stay a perfect
+    circle - it ovals as it extends; there are no sharp corners either way).
 
-Slide the slider out to fit a bigger vase; the finger nub clicks into the next
-lock hole and holds the size. Push the finger (from underneath) to resize.
+  BASE  (vase_lid_base.stl)   - a ring with two inset rails + a sprung lock finger
+  SLIDER(vase_lid_slider.stl) - a disk plate with the square stem holes, two slots
+                                that ride on the base rails, and a row of lock holes
 
-Each plate has a grid of square stem holes so a bouquet's stems come through in
-an organised way; the centre region opens up as you expand for the main bundle.
-Locating lips on the outer (sliding) ends drop just inside the vase mouth to
-centre the lid, while the plates' outer shoulders rest on the rim.
+Both parts print FLAT, features up, NO supports. In use you flip the assembled
+lid so the lips/rails point down into the vase.
 
-Toolchain: trimesh + manifold3d (robust boolean) + shapely (2D profiles).
+Toolchain: trimesh + manifold3d + shapely.
 Outputs: stl/vase_lid_base.stl, stl/vase_lid_slider.stl,
-         vase_lid_plate.3mf (both parts laid out flat for printing),
-         vase_lid_assembled.3mf (preview of the two parts mated, mid-open).
-
-All dimensions are millimetres. Tune the parameters below and re-run:
-    python3 vase_lid.py
+         stl/vase_lid_full.stl       (BOTH parts in ONE STL, laid out flat),
+         vase_lid_plate.3mf, vase_lid_assembled.3mf
+All dimensions are millimetres.
 """
 
 import os
 import numpy as np
 import trimesh
-from trimesh.creation import box
-from trimesh.boolean import union, difference
+from trimesh.creation import box, cylinder
+from trimesh.boolean import union, difference, intersection
 
 # --------------------------------------------------------------------------
-# PARAMETERS  (edit, then re-run)
+# PARAMETERS
 # --------------------------------------------------------------------------
-FIT_MIN   = 90.0    # smallest vase-mouth span the lid fits (closed)
-FIT_MAX   = 150.0   # largest vase-mouth span the lid fits (fully open)
-SHOULDER  = 12.0    # rest overhang outside the locating lip (per side)
-Y_OUTER   = 150.0   # fixed depth of the lid (front-to-back)
-MIN_ENGAGE = 28.0   # minimum rail overlap kept when fully open (safety)
+R         = 57.0     # disk radius (lid width = 114 mm; fits 256 mm bed x2)
+T         = 3.0      # plate thickness
+SHOULDER  = 10.0     # rest overhang outside the locating tab (radial)
 
-T         = 3.0     # plate thickness
-LIP_H     = 8.0     # locating-lip height (plugs into the mouth)
-LIP_W     = 2.6     # locating-lip wall thickness
-LIP_SPAN  = 0.62    # locating-lip length as fraction of Y_OUTER
+# Adjustment: the lid is a circle when closed and ovals out as it opens.
+# Usable fit range is bounded at the low end by the slider clearing the base
+# tab; see VERIFY output. Centred to cover a ~115 mm vase.
+FIT_MIN   = 110.0    # smallest vase-mouth span (closed-ish, near-circular)
+FIT_MAX   = 150.0    # largest vase-mouth span (open, oval)
 
-SQUARE    = 11.0    # square stem-hole side
-HOLE_GAP  = 4.5     # wall between holes
-EDGE_MARGIN = 7.0   # hole-free border at front/back edges (clears rails)
-END_MARGIN  = 5.0   # hole-free border at the lip / inner ends
-RAIL_BAND   = 13.0  # solid base width at each edge (structure + rail)
-BASE_WING   = 26.0  # solid base length near the lip (holes live here)
+RIM       = 15.0     # base ring width (structure around the open centre)
+RAIL_OFF  = 28.0     # rail / slot inset from centre (Y = +/- this)
 
-# C-channel edge rails (on top of the base, capture the slider edges)
-WALL      = 2.2     # rail outer-wall thickness (Y)
-LIP_CAP   = 2.2     # how far the rail top-lip overhangs the slider edge (Y)
-CLR       = 0.30    # sliding / capture clearance (Bambu-friendly)
-RAIL_H    = 2 * T + 0.3 + 1.8   # rail height above base top
+LIP_H     = 8.0      # locating-tab height (plugs into the mouth)
+LIP_W     = 2.6      # locating-tab wall thickness (radial)
+TAB_SPAN  = 70.0     # locating-tab arc width (chord, mm)
+
+SQUARE    = 11.0     # square stem-hole side
+HOLE_GAP  = 4.5      # wall between holes
+HOLE_EDGE = 8.0      # keep holes this far inside the disk edge
+LOCK_STRIP = 16.0    # hole-free centre strip for the lock
+
+# Inset T-slot rail cross-section (Y)
+WS        = 9.0      # rail stem width (slot rides on this)
+WC        = 12.4     # rail cap width (overhangs to capture the slider)
+RAIL_H    = 2 * T + 0.3 + 1.8   # rail height above plate top
+CLR       = 0.30     # sliding / capture clearance
 
 # Snap-finger lock
-FINGER_W   = 11.0   # cantilever finger width (Y)
-FINGER_SLOT = 1.4   # gap that frees the finger
-NUB_H      = 2.2    # how far the nub rises into the slider lock hole
-NUB_LEN    = 4.5    # nub length along slide (X)
-LOCK_PITCH = 6.0    # lock-hole spacing (size step)
-LOCK_HOLE  = 5.0    # lock-hole side (Y and X), catches the nub
-LOCK_STRIP = 16.0   # hole-free centre strip reserved for the lock
+FINGER_W   = 11.0
+FINGER_SLOT = 1.4
+NUB_H      = 2.2
+NUB_LEN    = 4.5
+LOCK_PITCH = 6.0
+LOCK_HOLE  = 5.0
 
-ENGINE = "manifold"
+SECTIONS  = 160      # disk smoothness
+ENGINE    = "manifold"
 
 # --------------------------------------------------------------------------
 # Derived
 # --------------------------------------------------------------------------
-HY        = Y_OUTER / 2.0
-TRAVEL    = FIT_MAX - FIT_MIN                 # 60
-# base + slider lengths so closed=FIT_MIN+2*SHOULDER, open=FIT_MAX+2*SHOULDER
-W_CLOSED  = FIT_MIN + 2 * SHOULDER            # 114
-W_OPEN    = FIT_MAX + 2 * SHOULDER            # 174
-SUM_LEN   = W_OPEN + MIN_ENGAGE               # LB + LA  (overlap_open = MIN_ENGAGE)
-# Size the slider so that, fully closed, its inner edge stops just short of the
-# base's locating lip (the lip is the closed end-stop). Base takes the rest.
-LA        = W_CLOSED - (SHOULDER + LIP_W + 0.3)   # slider length
-LB        = SUM_LEN - LA                          # base length
-
-RAIL_Y0   = HY - (WALL + LIP_CAP)             # inner edge of rail block
-SLIDER_HY = RAIL_Y0 + LIP_CAP - CLR           # slider half-width (edge under lip)
-Z_FLOOR   = T                                 # slider rides on base top
-Z_LIP_BOT = 2 * T + CLR                       # underside of capture lip
+CX        = R                      # disk centre x (disk spans x in [0, 2R])
+# fit = offset + 2R - 2*SHOULDER  ->  offset = fit - 2R + 2*SHOULDER
+OFF_MIN   = FIT_MIN - 2 * R + 2 * SHOULDER
+OFF_MAX   = FIT_MAX - 2 * R + 2 * SHOULDER
+Z_FLOOR   = T
+Z_LIP_BOT = 2 * T + CLR
 
 
 def bx(x0, x1, y0, y1, z0, z1):
@@ -97,112 +91,118 @@ def bx(x0, x1, y0, y1, z0, z1):
                    [(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2]))
 
 
-def square_hole_grid(length, half_y, x_lo, x_hi):
-    """Square through-holes over the plate body, clear of edges/lock strip."""
+def disk(cx, r, z0, z1):
+    c = cylinder(radius=r, height=(z1 - z0), sections=SECTIONS,
+                 transform=trimesh.transformations.translation_matrix(
+                     [cx, 0, (z0 + z1) / 2]))
+    return c
+
+
+def clip_to_disk(mesh, cx):
+    return intersection([mesh, disk(cx, R, -LIP_H - 2, T + RAIL_H + 2)],
+                        engine=ENGINE)
+
+
+def hole_grid(cx, x_lo, x_hi, r_keep):
+    """Square through-holes inside the disk, clear of rails / lock strip."""
     cutters = []
     pitch = SQUARE + HOLE_GAP
-    nx = int((x_hi - x_lo) // pitch)
-    ny = int((2 * (half_y - EDGE_MARGIN)) // pitch)
-    x0 = x_lo + ((x_hi - x_lo) - nx * pitch + HOLE_GAP) / 2
-    y0 = -(ny * pitch - HOLE_GAP) / 2
+    y_lim = R - HOLE_EDGE
+    nx = int((x_hi - x_lo) // pitch) + 1
+    ny = int((2 * y_lim) // pitch) + 1
+    x0 = x_lo + (((x_hi - x_lo) - (nx - 1) * pitch - SQUARE) / 2 if nx else 0)
+    y0 = -((ny - 1) * pitch + SQUARE) / 2
     for i in range(nx):
         for j in range(ny):
             xa = x0 + i * pitch
             ya = y0 + j * pitch
-            if xa + SQUARE > x_hi or ya + SQUARE > half_y - EDGE_MARGIN:
+            xc, yc = xa + SQUARE / 2, ya + SQUARE / 2
+            # inside disk (with margin)
+            if (xc - cx) ** 2 + yc ** 2 > r_keep ** 2:
                 continue
-            # skip the central lock strip
-            if not (ya + SQUARE <= -LOCK_STRIP / 2 or ya >= LOCK_STRIP / 2):
+            # not over a rail slot
+            if abs(abs(yc) - RAIL_OFF) < (WC / 2 + 2):
+                continue
+            # not over the lock strip
+            if abs(yc) < LOCK_STRIP / 2:
                 continue
             cutters.append(bx(xa, xa + SQUARE, ya, ya + SQUARE, -1, T + 1))
     return union(cutters, engine=ENGINE) if cutters else None
 
 
-def edge_rails(length, x0):
-    """Two C-channel rails along front & back, from x0..length (on base top)."""
+def rail(cx_inner_dir):
+    """Two inset rails (front & back) as solid slab bars + raised stem + cap."""
     parts = []
+    x0, x1 = CX - R + 3, CX + R - 3        # clipped to disk later
     for s in (+1, -1):
-        y_out = s * HY
-        y_in = s * (HY - WALL)               # outer-wall inner face
-        # outer wall (full height)
-        parts.append(bx(x0, length, min(y_out, y_in), max(y_out, y_in),
-                        T, T + RAIL_H))
-        # top capture lip (overhangs inward by LIP_CAP)
-        y_lipA = s * (HY - WALL)
-        y_lipB = s * (HY - WALL - LIP_CAP)
-        parts.append(bx(x0, length, min(y_lipA, y_lipB), max(y_lipA, y_lipB),
-                        Z_LIP_BOT, T + RAIL_H))
+        yc = s * RAIL_OFF
+        parts.append(bx(x0, x1, yc - WS / 2, yc + WS / 2, 0, T))            # slab bar
+        parts.append(bx(x0, x1, yc - WS / 2, yc + WS / 2, T, Z_LIP_BOT))    # stem
+        parts.append(bx(x0, x1, yc - WC / 2, yc + WC / 2, Z_LIP_BOT, T + RAIL_H))  # cap
     return union(parts, engine=ENGINE)
 
 
+def locating_tab(cx, outer_sign):
+    """Small tab near the disk's outer edge (outer_sign=-1 left, +1 right)."""
+    xe = cx + outer_sign * (R - SHOULDER)          # tab inner face
+    x0, x1 = sorted([xe, xe - outer_sign * LIP_W])
+    return bx(x0, x1, -TAB_SPAN / 2, TAB_SPAN / 2, T, T + LIP_H)
+
+
 def build_base():
-    # slab
-    slab = bx(0, LB, -HY, HY, 0, T)
-    # square holes
-    holes = square_hole_grid(LB, HY, SHOULDER + LIP_W + END_MARGIN, LB - END_MARGIN)
-    if holes is not None:
-        slab = difference([slab, holes], engine=ENGINE)
-    # locating lip at outer end (x small)
-    lip = bx(SHOULDER, SHOULDER + LIP_W, -HY * LIP_SPAN, HY * LIP_SPAN, T, T + LIP_H)
-    # edge rails over the inner portion (slider enters from inner end x=LB)
-    rails = edge_rails(LB, SHOULDER + LIP_W)
-    base = union([slab, lip, rails], engine=ENGINE)
-    # snap-finger: U-slot frees a centre finger pointing toward the inner end,
-    # anchored near mid-length, nub on top near the tip.
-    tip = LB - 6.0
-    root = LB - 6.0 - 34.0
-    # side slots + end slot (full thickness)
-    s_side = FINGER_SLOT
+    slab = disk(CX, R, 0, T)
+    ring = difference([slab, disk(CX, R - RIM, -1, T + 1)], engine=ENGINE)
+    rails = rail(+1)
+    # lock finger along the centre: anchored in the +x rim (root), cantilevers
+    # toward the centre (free tip carries the nub).
+    root = CX + R - 4.0                    # inside the right rim -> stays attached
+    tip = CX - 2.0                         # free end near the centre
+    finger_bar = bx(tip, root, -FINGER_W / 2, FINGER_W / 2, 0, T)
+    nub = bx(tip, tip + NUB_LEN, -LOCK_HOLE * 0.45, LOCK_HOLE * 0.45, T, T + NUB_H)
+    base = union([ring, rails, finger_bar, nub,
+                  locating_tab(CX, -1)], engine=ENGINE)
+    # free the finger with a U-slot (sides stop short of the root + a tip slot)
     cut = union([
-        bx(root, tip + 1, FINGER_W / 2, FINGER_W / 2 + s_side, -1, T + 1),
-        bx(root, tip + 1, -FINGER_W / 2 - s_side, -FINGER_W / 2, -1, T + 1),
-        bx(root - s_side, root, -FINGER_W / 2 - s_side, FINGER_W / 2 + s_side, -1, T + 1),
+        bx(tip - FINGER_SLOT, root - 4, FINGER_W / 2, FINGER_W / 2 + FINGER_SLOT, -1, T + 1),
+        bx(tip - FINGER_SLOT, root - 4, -FINGER_W / 2 - FINGER_SLOT, -FINGER_W / 2, -1, T + 1),
+        bx(tip - FINGER_SLOT, tip, -FINGER_W / 2 - FINGER_SLOT, FINGER_W / 2 + FINGER_SLOT, -1, T + 1),
     ], engine=ENGINE)
     base = difference([base, cut], engine=ENGINE)
-    # nub on the finger tip (ramped on the open side for one-way-easy expand)
-    nub = bx(tip - NUB_LEN, tip, -LOCK_HOLE * 0.45, LOCK_HOLE * 0.45, T, T + NUB_H)
-    base = union([base, nub], engine=ENGINE)
-    # open the centre: two windows flanking the lock strip so the slider's holes
-    # are the only layer over the covered area (and form the bouquet gap when open)
-    x_cut0 = SHOULDER + LIP_W + BASE_WING
-    yc = HY - RAIL_BAND
-    windows = union([
-        bx(x_cut0, LB + 1, LOCK_STRIP / 2, yc, -1, T + 1),
-        bx(x_cut0, LB + 1, -yc, -LOCK_STRIP / 2, -1, T + 1),
-    ], engine=ENGINE)
-    base = difference([base, windows], engine=ENGINE)
-    return base
+    return clip_to_disk(base, CX)
 
 
 def build_slider():
-    slab = bx(0, LA, -SLIDER_HY, SLIDER_HY, 0, T)
-    holes = square_hole_grid(LA, SLIDER_HY, END_MARGIN, LA - SHOULDER - LIP_W - END_MARGIN)
+    slab = disk(CX, R, 0, T)
+    holes = hole_grid(CX, HOLE_EDGE, 2 * R - HOLE_EDGE, R - HOLE_EDGE)
     if holes is not None:
         slab = difference([slab, holes], engine=ENGINE)
-    # locating lip at outer end (x large)
-    x_lip = LA - SHOULDER - LIP_W
-    lip = bx(x_lip, x_lip + LIP_W, -SLIDER_HY * LIP_SPAN, SLIDER_HY * LIP_SPAN,
-             T, T + LIP_H)
-    slab = union([slab, lip], engine=ENGINE)
-    # row of lock holes along the centre line (catch the base nub)
+    # two slots for the base rails (run along x, allow slide travel)
+    slots = []
+    x0, x1 = CX - R + 3, CX + R - 3
+    for s in (+1, -1):
+        yc = s * RAIL_OFF
+        slots.append(bx(x0, x1, yc - (WS / 2 + CLR), yc + (WS / 2 + CLR), -1, T + 1))
+    slab = difference([slab, union(slots, engine=ENGINE)], engine=ENGINE)
+    # row of lock holes along the centre line, spanning the nub's engagement
+    # range across the full travel (nub sits at base x~CX; relative position
+    # nub - offset runs from ~CX-OFF_MAX to ~CX-OFF_MIN).
     cutters = []
-    x = END_MARGIN
-    while x + LOCK_HOLE < LA - SHOULDER - LIP_W - END_MARGIN:
+    x = CX - R + 2
+    x_end = CX + 10
+    while x + LOCK_HOLE < x_end:
         cutters.append(bx(x, x + LOCK_HOLE, -LOCK_HOLE / 2, LOCK_HOLE / 2, -1, T + 1))
         x += LOCK_PITCH
-    if cutters:
-        slab = difference([slab, union(cutters, engine=ENGINE)], engine=ENGINE)
-    return slab
+    slab = difference([slab, union(cutters, engine=ENGINE)], engine=ENGINE)
+    # locating tab on the slider's outer (right) edge
+    slab = union([slab, locating_tab(CX, +1)], engine=ENGINE)
+    return clip_to_disk(slab, CX)
 
 
 def assembly_transforms(open_fraction):
-    """Place base + slider as a mated assembly. 0=closed, 1=open."""
-    overlap = (LB + LA - W_CLOSED) - TRAVEL * open_fraction
-    # base outer end at global x=0, base spans [0, LB]; inner end at LB.
+    """Base fixed; slider rides on top (z=T) shifted right by `offset`."""
+    offset = OFF_MIN + (OFF_MAX - OFF_MIN) * open_fraction
     TF_B = trimesh.transformations.translation_matrix([0, 0, 0])
-    # slider sits on top (z=T), its inner end overlaps base inner end by `overlap`.
-    # slider local x=0 is its inner end -> place at global x = LB - overlap.
-    TF_S = trimesh.transformations.translation_matrix([LB - overlap, 0, T])
+    TF_S = trimesh.transformations.translation_matrix([offset, 0, T])
     return TF_B, TF_S
 
 
@@ -210,8 +210,7 @@ def footprint(base, slider, frac):
     TB, TS = assembly_transforms(frac)
     b = base.copy(); b.apply_transform(TB)
     s = slider.copy(); s.apply_transform(TS)
-    m = trimesh.util.concatenate([b, s])
-    return np.round(m.extents, 1)
+    return np.round(trimesh.util.concatenate([b, s]).extents, 1)
 
 
 def main():
@@ -221,17 +220,22 @@ def main():
     for name, m in [("base", base), ("slider", slider)]:
         print(f"{name:6s} watertight={m.is_watertight} vol>0={m.volume>0} "
               f"bbox={np.round(m.extents,1)}")
+    print("fit range covered: %.0f .. %.0f mm  (offset %.0f .. %.0f)"
+          % (FIT_MIN, FIT_MAX, OFF_MIN, OFF_MAX))
 
     base.export(os.path.join(here, "stl", "vase_lid_base.stl"))
     slider.export(os.path.join(here, "stl", "vase_lid_slider.stl"))
 
-    # print layout: both parts flat, side by side in Y
+    # combined single STL: both parts flat, side by side, not overlapping
     a = base.copy()
-    b = slider.copy(); b.apply_translation([0, Y_OUTER + 14, 0])
-    trimesh.Scene([a, b]).export(os.path.join(here, "vase_lid_plate.3mf"))
+    b = slider.copy(); b.apply_translation([2 * R + 12, 0, 0])
+    full = trimesh.util.concatenate([a, b])
+    full.export(os.path.join(here, "stl", "vase_lid_full.stl"))
 
-    # assembled preview (mid-open)
-    TB, TS = assembly_transforms(0.5)
+    # 3MF print layout (separate objects) + assembled preview
+    trimesh.Scene([base.copy(), b.copy()]).export(
+        os.path.join(here, "vase_lid_plate.3mf"))
+    TB, TS = assembly_transforms(0.25)
     ba = base.copy(); ba.apply_transform(TB)
     sa = slider.copy(); sa.apply_transform(TS)
     trimesh.Scene([ba, sa]).export(os.path.join(here, "vase_lid_assembled.3mf"))
