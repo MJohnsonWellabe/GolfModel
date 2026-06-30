@@ -4,28 +4,28 @@
   "player_name": "Nico Echavarria",
   "wave": "all",
   "rating": {
-    "skill": 0.513,
-    "skill_overall": -0.058,
-    "n_eff": 61.0,
-    "n_course": 1.0,
-    "course_rounds_played": 1
+    "skill": 0.051,
+    "skill_overall": -0.093,
+    "n_eff": 63.1,
+    "n_course": 3.9,
+    "course_rounds_played": 4
   },
   "expected": {
-    "e_score": 69.54,
-    "p10": 64.88,
-    "p50": 69.06,
-    "p90": 74.95,
-    "sd": 3.96
+    "e_score": 69.44,
+    "p10": 64.93,
+    "p50": 68.95,
+    "p90": 74.62,
+    "sd": 3.83
   },
   "line": null,
   "bet": {
     "player_id": "nico_echavarria",
     "player_name": "Nico Echavarria",
     "wave": "all",
-    "e_score": 69.54,
-    "p10": 64.88,
-    "p90": 74.95,
-    "n_eff": 61.0,
+    "e_score": 69.44,
+    "p10": 64.93,
+    "p90": 74.62,
+    "n_eff": 63.1,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,71 +39,83 @@
   },
   "distribution": {
     "counts": [
-      14,
-      89,
-      205,
-      476,
-      765,
-      1115,
-      1281,
-      1301,
-      1131,
-      957,
-      751,
-      589,
-      462,
-      309,
-      220,
-      137,
-      86,
+      2,
+      15,
       52,
-      24,
-      17,
-      8,
+      204,
+      488,
+      848,
+      1158,
+      1389,
+      1256,
+      1112,
+      1001,
+      764,
+      583,
+      411,
+      267,
+      189,
+      131,
+      51,
+      35,
+      22,
+      11,
       6,
-      3,
-      2
+      1,
+      4
     ],
     "edges": [
-      59.64,
+      58.4,
+      59.62,
       60.84,
-      62.05,
-      63.26,
-      64.46,
-      65.67,
-      66.87,
-      68.08,
-      69.29,
-      70.49,
-      71.7,
-      72.9,
-      74.11,
-      75.32,
-      76.52,
-      77.73,
-      78.94,
-      80.14,
-      81.35,
-      82.55,
-      83.76,
-      84.97,
-      86.17,
-      87.38,
-      88.58
+      62.06,
+      63.28,
+      64.5,
+      65.73,
+      66.95,
+      68.17,
+      69.39,
+      70.61,
+      71.83,
+      73.05,
+      74.27,
+      75.49,
+      76.71,
+      77.93,
+      79.15,
+      80.37,
+      81.59,
+      82.81,
+      84.03,
+      85.25,
+      86.47,
+      87.69
     ]
   },
   "recent_rounds": [
     {
       "date": "2026-06-25 04:00:00",
       "course_id": "travelers_championship",
-      "round_num": 1,
-      "to_par": -6.0
+      "round_num": 4,
+      "to_par": -2.0
     },
     {
-      "date": "2026-06-18 04:00:00",
-      "course_id": "u_s_open",
-      "round_num": 4,
-      "to_par": 1.0
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 1,
+      "to_par": -6.0
     },
     {
       "date": "2026-06-18 04:00:00",
@@ -124,22 +136,10 @@
       "to_par": 1.0
     },
     {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 3,
-      "to_par": 3.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 1,
+      "date": "2026-06-18 04:00:00",
+      "course_id": "u_s_open",
+      "round_num": 4,
       "to_par": 1.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 2,
-      "to_par": 3.0
     },
     {
       "date": "2026-06-04 04:00:00",
@@ -148,10 +148,10 @@
       "to_par": -1.0
     },
     {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 4,
-      "to_par": -2.0
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 3,
+      "to_par": 3.0
     }
   ]
 }

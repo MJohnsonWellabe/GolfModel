@@ -4,28 +4,28 @@
   "player_name": "Harris English",
   "wave": "all",
   "rating": {
-    "skill": 1.06,
-    "skill_overall": 0.685,
-    "n_eff": 61.3,
-    "n_course": 1.9,
-    "course_rounds_played": 5
+    "skill": 0.571,
+    "skill_overall": 0.631,
+    "n_eff": 63.4,
+    "n_course": 4.9,
+    "course_rounds_played": 8
   },
   "expected": {
-    "e_score": 68.91,
-    "p10": 65.53,
-    "p50": 68.63,
-    "p90": 72.71,
-    "sd": 2.83
+    "e_score": 68.9,
+    "p10": 65.47,
+    "p50": 68.56,
+    "p90": 72.76,
+    "sd": 2.86
   },
   "line": null,
   "bet": {
     "player_id": "harris_english",
     "player_name": "Harris English",
     "wave": "all",
-    "e_score": 68.91,
-    "p10": 65.53,
-    "p90": 72.71,
-    "n_eff": 61.3,
+    "e_score": 68.9,
+    "p10": 65.47,
+    "p90": 72.76,
+    "n_eff": 63.4,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,60 +39,78 @@
   },
   "distribution": {
     "counts": [
-      2,
-      6,
-      16,
+      7,
+      35,
+      146,
+      363,
+      624,
+      964,
+      1225,
+      1328,
+      1233,
+      1041,
+      840,
+      719,
+      504,
+      356,
+      237,
+      172,
       78,
-      269,
-      571,
-      932,
-      1346,
-      1401,
-      1322,
-      1186,
-      924,
-      659,
-      501,
-      325,
-      198,
-      120,
-      69,
-      45,
-      15,
-      5,
-      6,
-      2,
-      2
+      61,
+      40,
+      14,
+      7,
+      4,
+      1,
+      1
     ],
     "edges": [
-      59.67,
-      60.63,
-      61.6,
-      62.57,
-      63.53,
-      64.5,
-      65.46,
-      66.43,
-      67.39,
+      61.22,
+      62.11,
+      63.0,
+      63.9,
+      64.79,
+      65.68,
+      66.57,
+      67.46,
       68.36,
-      69.32,
-      70.29,
-      71.25,
-      72.22,
-      73.18,
-      74.15,
-      75.11,
-      76.08,
-      77.04,
-      78.01,
-      78.97,
-      79.94,
-      80.9,
-      81.87,
-      82.83
+      69.25,
+      70.14,
+      71.03,
+      71.92,
+      72.82,
+      73.71,
+      74.6,
+      75.49,
+      76.39,
+      77.28,
+      78.17,
+      79.06,
+      79.95,
+      80.85,
+      81.74,
+      82.63
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 2,
+      "to_par": -4.0
+    },
     {
       "date": "2026-06-25 04:00:00",
       "course_id": "travelers_championship",
@@ -114,12 +132,6 @@
     {
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 4,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
       "round_num": 3,
       "to_par": -3.0
     },
@@ -136,22 +148,10 @@
       "to_par": -1.0
     },
     {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 2,
-      "to_par": -3.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
-      "round_num": 1,
-      "to_par": 1.0
-    },
-    {
-      "date": "2026-05-14 04:00:00",
-      "course_id": "pga_championship",
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
       "round_num": 4,
-      "to_par": 0.0
+      "to_par": -3.0
     }
   ]
 }

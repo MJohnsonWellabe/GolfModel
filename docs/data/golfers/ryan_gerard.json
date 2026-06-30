@@ -4,28 +4,28 @@
   "player_name": "Ryan Gerard",
   "wave": "all",
   "rating": {
-    "skill": 0.247,
-    "skill_overall": 0.534,
-    "n_eff": 65.5,
-    "n_course": 1.9,
-    "course_rounds_played": 5
+    "skill": 0.086,
+    "skill_overall": 0.502,
+    "n_eff": 67.5,
+    "n_course": 4.9,
+    "course_rounds_played": 8
   },
   "expected": {
-    "e_score": 69.83,
-    "p10": 65.97,
-    "p50": 69.46,
-    "p90": 74.21,
-    "sd": 3.23
+    "e_score": 69.36,
+    "p10": 65.54,
+    "p50": 68.97,
+    "p90": 73.75,
+    "sd": 3.22
   },
   "line": null,
   "bet": {
     "player_id": "ryan_gerard",
     "player_name": "Ryan Gerard",
     "wave": "all",
-    "e_score": 69.83,
-    "p10": 65.97,
-    "p90": 74.21,
-    "n_eff": 65.5,
+    "e_score": 69.36,
+    "p10": 65.54,
+    "p90": 73.75,
+    "n_eff": 67.5,
     "has_line": false,
     "line": null,
     "side": "",
@@ -39,60 +39,78 @@
   },
   "distribution": {
     "counts": [
-      6,
-      33,
-      143,
-      343,
-      630,
-      949,
-      1242,
-      1329,
-      1211,
-      1042,
-      857,
-      710,
-      505,
-      371,
-      242,
-      170,
-      87,
-      60,
-      40,
-      17,
-      7,
-      3,
       2,
-      1
+      6,
+      21,
+      105,
+      296,
+      650,
+      977,
+      1260,
+      1299,
+      1188,
+      1093,
+      881,
+      706,
+      501,
+      383,
+      260,
+      140,
+      101,
+      62,
+      32,
+      20,
+      10,
+      3,
+      4
     ],
     "edges": [
-      61.17,
-      62.17,
-      63.17,
-      64.18,
-      65.18,
-      66.18,
-      67.19,
-      68.19,
-      69.19,
-      70.2,
-      71.2,
-      72.2,
-      73.2,
-      74.21,
-      75.21,
-      76.21,
-      77.22,
-      78.22,
-      79.22,
-      80.23,
-      81.23,
-      82.23,
-      83.24,
-      84.24,
-      85.24
+      59.59,
+      60.6,
+      61.61,
+      62.62,
+      63.62,
+      64.63,
+      65.64,
+      66.65,
+      67.66,
+      68.66,
+      69.67,
+      70.68,
+      71.69,
+      72.7,
+      73.7,
+      74.71,
+      75.72,
+      76.73,
+      77.73,
+      78.74,
+      79.75,
+      80.76,
+      81.77,
+      82.77,
+      83.78
     ]
   },
   "recent_rounds": [
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 4,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-25 04:00:00",
+      "course_id": "travelers_championship",
+      "round_num": 2,
+      "to_par": -2.0
+    },
     {
       "date": "2026-06-25 04:00:00",
       "course_id": "travelers_championship",
@@ -114,12 +132,6 @@
     {
       "date": "2026-06-04 04:00:00",
       "course_id": "the_memorial_tournament_pres_by_workday",
-      "round_num": 4,
-      "to_par": -4.0
-    },
-    {
-      "date": "2026-06-04 04:00:00",
-      "course_id": "the_memorial_tournament_pres_by_workday",
       "round_num": 3,
       "to_par": 0.0
     },
@@ -136,22 +148,10 @@
       "to_par": -5.0
     },
     {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 3,
-      "to_par": -2.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 1,
-      "to_par": -6.0
-    },
-    {
-      "date": "2026-05-28 04:00:00",
-      "course_id": "charles_schwab_challenge",
-      "round_num": 2,
-      "to_par": -3.0
+      "date": "2026-06-04 04:00:00",
+      "course_id": "the_memorial_tournament_pres_by_workday",
+      "round_num": 4,
+      "to_par": -4.0
     }
   ]
 }
