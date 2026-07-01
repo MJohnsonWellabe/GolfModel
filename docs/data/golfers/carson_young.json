@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "carson_young",
+  "player_name": "Carson Young",
+  "wave": "all",
+  "rating": {
+    "skill": 0.154,
+    "skill_overall": -0.206,
+    "n_eff": 32.8,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.34,
+    "p10": 65.45,
+    "p50": 68.97,
+    "p90": 73.77,
+    "sd": 3.3
+  },
+  "line": null,
+  "bet": {
+    "player_id": "carson_young",
+    "player_name": "Carson Young",
+    "wave": "all",
+    "e_score": 69.34,
+    "p10": 65.45,
+    "p90": 73.77,
+    "n_eff": 32.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      8,
+      16,
+      91,
+      234,
+      517,
+      880,
+      1157,
+      1260,
+      1269,
+      1118,
+      956,
+      752,
+      572,
+      374,
+      285,
+      190,
+      123,
+      77,
+      63,
+      24,
+      17,
+      14,
+      2,
+      1
+    ],
+    "edges": [
+      60.25,
+      61.25,
+      62.26,
+      63.27,
+      64.27,
+      65.28,
+      66.29,
+      67.29,
+      68.3,
+      69.31,
+      70.31,
+      71.32,
+      72.32,
+      73.33,
+      74.34,
+      75.34,
+      76.35,
+      77.36,
+      78.36,
+      79.37,
+      80.38,
+      81.38,
+      82.39,
+      83.39,
+      84.4
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": -1.0
+    }
+  ]
+}

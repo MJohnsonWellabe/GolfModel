@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "kevin_streelman",
+  "player_name": "Kevin Streelman",
+  "wave": "all",
+  "rating": {
+    "skill": -0.275,
+    "skill_overall": -0.275,
+    "n_eff": 29.5,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.79,
+    "p10": 66.23,
+    "p50": 69.43,
+    "p90": 73.82,
+    "sd": 2.97
+  },
+  "line": null,
+  "bet": {
+    "player_id": "kevin_streelman",
+    "player_name": "Kevin Streelman",
+    "wave": "all",
+    "e_score": 69.79,
+    "p10": 66.23,
+    "p90": 73.82,
+    "n_eff": 29.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      28,
+      128,
+      333,
+      594,
+      923,
+      1163,
+      1265,
+      1170,
+      1100,
+      844,
+      751,
+      514,
+      425,
+      276,
+      176,
+      128,
+      79,
+      47,
+      17,
+      13,
+      11,
+      2,
+      3
+    ],
+    "edges": [
+      61.9,
+      62.79,
+      63.69,
+      64.58,
+      65.47,
+      66.36,
+      67.25,
+      68.14,
+      69.03,
+      69.92,
+      70.81,
+      71.7,
+      72.6,
+      73.49,
+      74.38,
+      75.27,
+      76.16,
+      77.05,
+      77.94,
+      78.83,
+      79.72,
+      80.62,
+      81.51,
+      82.4,
+      83.29
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 3,
+      "to_par": 0.0
+    }
+  ]
+}

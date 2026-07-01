@@ -1,0 +1,121 @@
+{
+  "schema": 2,
+  "player_id": "luke_gutschewski",
+  "player_name": "Luke Gutschewski",
+  "wave": "all",
+  "rating": {
+    "skill": 0.088,
+    "skill_overall": 0.088,
+    "n_eff": 1.8,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.45,
+    "p10": 65.82,
+    "p50": 69.08,
+    "p90": 73.59,
+    "sd": 3.11
+  },
+  "line": null,
+  "bet": {
+    "player_id": "luke_gutschewski",
+    "player_name": "Luke Gutschewski",
+    "wave": "all",
+    "e_score": 69.45,
+    "p10": 65.82,
+    "p90": 73.59,
+    "n_eff": 1.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      6,
+      26,
+      156,
+      424,
+      882,
+      1337,
+      1568,
+      1470,
+      1215,
+      975,
+      736,
+      497,
+      320,
+      165,
+      105,
+      68,
+      25,
+      14,
+      5,
+      3,
+      1,
+      0,
+      1
+    ],
+    "edges": [
+      59.45,
+      60.6,
+      61.75,
+      62.89,
+      64.04,
+      65.19,
+      66.34,
+      67.48,
+      68.63,
+      69.78,
+      70.93,
+      72.07,
+      73.22,
+      74.37,
+      75.51,
+      76.66,
+      77.81,
+      78.96,
+      80.1,
+      81.25,
+      82.4,
+      83.54,
+      84.69,
+      85.84,
+      86.99
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 4,
+      "to_par": 3.0
+    }
+  ]
+}

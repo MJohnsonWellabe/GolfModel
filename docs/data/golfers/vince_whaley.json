@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "vince_whaley",
+  "player_name": "Vince Whaley",
+  "wave": "all",
+  "rating": {
+    "skill": 0.213,
+    "skill_overall": 0.109,
+    "n_eff": 52.3,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.28,
+    "p10": 65.76,
+    "p50": 68.96,
+    "p90": 73.27,
+    "sd": 2.95
+  },
+  "line": null,
+  "bet": {
+    "player_id": "vince_whaley",
+    "player_name": "Vince Whaley",
+    "wave": "all",
+    "e_score": 69.28,
+    "p10": 65.76,
+    "p90": 73.27,
+    "n_eff": 52.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      10,
+      48,
+      224,
+      533,
+      918,
+      1320,
+      1413,
+      1445,
+      1147,
+      935,
+      723,
+      465,
+      352,
+      227,
+      109,
+      66,
+      31,
+      21,
+      5,
+      3,
+      2,
+      0,
+      1
+    ],
+    "edges": [
+      60.33,
+      61.36,
+      62.39,
+      63.43,
+      64.46,
+      65.49,
+      66.52,
+      67.55,
+      68.58,
+      69.62,
+      70.65,
+      71.68,
+      72.71,
+      73.74,
+      74.77,
+      75.81,
+      76.84,
+      77.87,
+      78.9,
+      79.93,
+      80.96,
+      82.0,
+      83.03,
+      84.06,
+      85.09
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 3.0
+    }
+  ]
+}

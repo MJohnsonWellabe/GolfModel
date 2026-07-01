@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "robert_streb",
+  "player_name": "Robert Streb",
+  "wave": "all",
+  "rating": {
+    "skill": -0.509,
+    "skill_overall": -0.509,
+    "n_eff": 8.2,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 70.02,
+    "p10": 66.18,
+    "p50": 69.61,
+    "p90": 74.55,
+    "sd": 3.31
+  },
+  "line": null,
+  "bet": {
+    "player_id": "robert_streb",
+    "player_name": "Robert Streb",
+    "wave": "all",
+    "e_score": 70.02,
+    "p10": 66.18,
+    "p90": 74.55,
+    "n_eff": 8.2,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      36,
+      112,
+      317,
+      630,
+      1042,
+      1335,
+      1343,
+      1246,
+      1093,
+      799,
+      649,
+      447,
+      354,
+      223,
+      164,
+      91,
+      44,
+      29,
+      23,
+      9,
+      2,
+      0,
+      2
+    ],
+    "edges": [
+      61.07,
+      62.12,
+      63.17,
+      64.22,
+      65.27,
+      66.32,
+      67.37,
+      68.42,
+      69.47,
+      70.52,
+      71.57,
+      72.62,
+      73.67,
+      74.72,
+      75.77,
+      76.82,
+      77.87,
+      78.92,
+      79.97,
+      81.02,
+      82.07,
+      83.12,
+      84.17,
+      85.22,
+      86.27
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 3,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 4,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": -5.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "s_y_noh",
+  "player_name": "S.Y. Noh",
+  "wave": "all",
+  "rating": {
+    "skill": 0.369,
+    "skill_overall": 0.369,
+    "n_eff": 5.6,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.12,
+    "p10": 65.69,
+    "p50": 68.77,
+    "p90": 73.07,
+    "sd": 2.94
+  },
+  "line": null,
+  "bet": {
+    "player_id": "s_y_noh",
+    "player_name": "S.Y. Noh",
+    "wave": "all",
+    "e_score": 69.12,
+    "p10": 65.69,
+    "p90": 73.07,
+    "n_eff": 5.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      8,
+      33,
+      140,
+      343,
+      750,
+      1125,
+      1367,
+      1376,
+      1232,
+      1064,
+      770,
+      607,
+      432,
+      282,
+      191,
+      106,
+      81,
+      48,
+      20,
+      10,
+      5,
+      5,
+      3
+    ],
+    "edges": [
+      60.2,
+      61.17,
+      62.13,
+      63.09,
+      64.05,
+      65.02,
+      65.98,
+      66.94,
+      67.9,
+      68.87,
+      69.83,
+      70.79,
+      71.75,
+      72.72,
+      73.68,
+      74.64,
+      75.6,
+      76.56,
+      77.53,
+      78.49,
+      79.45,
+      80.41,
+      81.38,
+      82.34,
+      83.3
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "isco_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "isco_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-04-17 04:00:00",
+      "course_id": "corales_puntacana_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    }
+  ]
+}

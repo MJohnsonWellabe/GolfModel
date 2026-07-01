@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "fabi_n_g_mez",
+  "player_name": "Fabi\u00e1n G\u00f3mez",
+  "wave": "all",
+  "rating": {
+    "skill": -0.05,
+    "skill_overall": -0.05,
+    "n_eff": 5.5,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.55,
+    "p10": 66.24,
+    "p50": 69.21,
+    "p90": 73.32,
+    "sd": 2.83
+  },
+  "line": null,
+  "bet": {
+    "player_id": "fabi_n_g_mez",
+    "player_name": "Fabi\u00e1n G\u00f3mez",
+    "wave": "all",
+    "e_score": 69.55,
+    "p10": 66.24,
+    "p90": 73.32,
+    "n_eff": 5.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      5,
+      17,
+      90,
+      259,
+      548,
+      981,
+      1288,
+      1366,
+      1278,
+      1107,
+      945,
+      731,
+      497,
+      324,
+      238,
+      123,
+      94,
+      55,
+      27,
+      15,
+      6,
+      3,
+      2,
+      1
+    ],
+    "edges": [
+      61.48,
+      62.41,
+      63.34,
+      64.27,
+      65.2,
+      66.13,
+      67.06,
+      67.99,
+      68.91,
+      69.84,
+      70.77,
+      71.7,
+      72.63,
+      73.56,
+      74.49,
+      75.42,
+      76.35,
+      77.28,
+      78.21,
+      79.13,
+      80.06,
+      80.99,
+      81.92,
+      82.85,
+      83.78
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "isco_championship",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "isco_championship",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-04-17 04:00:00",
+      "course_id": "corales_puntacana_championship",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2025-04-17 04:00:00",
+      "course_id": "corales_puntacana_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

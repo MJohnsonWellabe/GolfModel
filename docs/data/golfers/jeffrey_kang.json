@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jeffrey_kang",
+  "player_name": "Jeffrey Kang",
+  "wave": "all",
+  "rating": {
+    "skill": -0.705,
+    "skill_overall": -0.705,
+    "n_eff": 22.8,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 70.24,
+    "p10": 66.59,
+    "p50": 69.86,
+    "p90": 74.38,
+    "sd": 3.12
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jeffrey_kang",
+    "player_name": "Jeffrey Kang",
+    "wave": "all",
+    "e_score": 70.24,
+    "p10": 66.59,
+    "p90": 74.38,
+    "n_eff": 22.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      6,
+      29,
+      105,
+      287,
+      576,
+      962,
+      1280,
+      1370,
+      1303,
+      1100,
+      883,
+      688,
+      488,
+      335,
+      244,
+      138,
+      76,
+      53,
+      31,
+      20,
+      14,
+      7,
+      3,
+      2
+    ],
+    "edges": [
+      61.59,
+      62.59,
+      63.59,
+      64.59,
+      65.59,
+      66.59,
+      67.59,
+      68.59,
+      69.59,
+      70.59,
+      71.59,
+      72.59,
+      73.59,
+      74.59,
+      75.59,
+      76.59,
+      77.59,
+      78.6,
+      79.6,
+      80.6,
+      81.6,
+      82.6,
+      83.6,
+      84.6,
+      85.6
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    }
+  ]
+}

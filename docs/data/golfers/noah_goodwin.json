@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "noah_goodwin",
+  "player_name": "Noah Goodwin",
+  "wave": "all",
+  "rating": {
+    "skill": -0.345,
+    "skill_overall": -0.091,
+    "n_eff": 23.6,
+    "n_course": 0.5,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 69.84,
+    "p10": 66.09,
+    "p50": 69.43,
+    "p90": 74.16,
+    "sd": 3.18
+  },
+  "line": null,
+  "bet": {
+    "player_id": "noah_goodwin",
+    "player_name": "Noah Goodwin",
+    "wave": "all",
+    "e_score": 69.84,
+    "p10": 66.09,
+    "p90": 74.16,
+    "n_eff": 23.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      9,
+      39,
+      151,
+      356,
+      719,
+      1047,
+      1218,
+      1356,
+      1162,
+      1022,
+      803,
+      674,
+      481,
+      337,
+      249,
+      151,
+      97,
+      52,
+      35,
+      24,
+      9,
+      5,
+      3,
+      1
+    ],
+    "edges": [
+      61.51,
+      62.49,
+      63.47,
+      64.45,
+      65.43,
+      66.41,
+      67.39,
+      68.37,
+      69.35,
+      70.33,
+      71.31,
+      72.29,
+      73.27,
+      74.25,
+      75.23,
+      76.21,
+      77.19,
+      78.17,
+      79.15,
+      80.13,
+      81.1,
+      82.08,
+      83.06,
+      84.04,
+      85.02
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 3,
+      "to_par": -5.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 4,
+      "to_par": 2.0
+    }
+  ]
+}

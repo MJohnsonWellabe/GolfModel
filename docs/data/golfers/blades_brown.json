@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "blades_brown",
+  "player_name": "Blades Brown",
+  "wave": "all",
+  "rating": {
+    "skill": 0.74,
+    "skill_overall": 0.74,
+    "n_eff": 20.5,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 68.73,
+    "p10": 64.9,
+    "p50": 68.4,
+    "p90": 73.04,
+    "sd": 3.2
+  },
+  "line": null,
+  "bet": {
+    "player_id": "blades_brown",
+    "player_name": "Blades Brown",
+    "wave": "all",
+    "e_score": 68.73,
+    "p10": 64.9,
+    "p90": 73.04,
+    "n_eff": 20.5,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      14,
+      48,
+      158,
+      334,
+      632,
+      900,
+      1049,
+      1225,
+      1167,
+      1027,
+      897,
+      680,
+      568,
+      453,
+      288,
+      204,
+      138,
+      86,
+      62,
+      36,
+      17,
+      8,
+      7
+    ],
+    "edges": [
+      59.61,
+      60.53,
+      61.45,
+      62.37,
+      63.29,
+      64.21,
+      65.13,
+      66.05,
+      66.97,
+      67.89,
+      68.81,
+      69.73,
+      70.64,
+      71.56,
+      72.48,
+      73.4,
+      74.32,
+      75.24,
+      76.16,
+      77.08,
+      78.0,
+      78.92,
+      79.84,
+      80.76,
+      81.68
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 3,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 1,
+      "to_par": -2.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "zach_johnson",
+  "player_name": "Zach Johnson",
+  "wave": "all",
+  "rating": {
+    "skill": -0.006,
+    "skill_overall": -0.064,
+    "n_eff": 15.9,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.54,
+    "p10": 65.92,
+    "p50": 69.24,
+    "p90": 73.72,
+    "sd": 3.05
+  },
+  "line": null,
+  "bet": {
+    "player_id": "zach_johnson",
+    "player_name": "Zach Johnson",
+    "wave": "all",
+    "e_score": 69.54,
+    "p10": 65.92,
+    "p90": 73.72,
+    "n_eff": 15.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      19,
+      62,
+      160,
+      397,
+      676,
+      998,
+      1181,
+      1192,
+      1183,
+      1064,
+      805,
+      668,
+      476,
+      401,
+      260,
+      182,
+      120,
+      73,
+      39,
+      13,
+      14,
+      8,
+      6,
+      3
+    ],
+    "edges": [
+      61.8,
+      62.7,
+      63.6,
+      64.5,
+      65.39,
+      66.29,
+      67.19,
+      68.09,
+      68.99,
+      69.89,
+      70.79,
+      71.69,
+      72.58,
+      73.48,
+      74.38,
+      75.28,
+      76.18,
+      77.08,
+      77.98,
+      78.87,
+      79.77,
+      80.67,
+      81.57,
+      82.47,
+      83.37
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-04-09 04:00:00",
+      "course_id": "masters_tournament",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-01-22 05:00:00",
+      "course_id": "the_american_express",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-01-22 05:00:00",
+      "course_id": "the_american_express",
+      "round_num": 3,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-01-22 05:00:00",
+      "course_id": "the_american_express",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-01-22 05:00:00",
+      "course_id": "the_american_express",
+      "round_num": 1,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-01-15 05:00:00",
+      "course_id": "sony_open_in_hawaii",
+      "round_num": 4,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-01-15 05:00:00",
+      "course_id": "sony_open_in_hawaii",
+      "round_num": 3,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-01-15 05:00:00",
+      "course_id": "sony_open_in_hawaii",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-01-15 05:00:00",
+      "course_id": "sony_open_in_hawaii",
+      "round_num": 1,
+      "to_par": -2.0
+    }
+  ]
+}

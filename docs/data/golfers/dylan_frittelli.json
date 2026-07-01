@@ -1,0 +1,145 @@
+{
+  "schema": 2,
+  "player_id": "dylan_frittelli",
+  "player_name": "Dylan Frittelli",
+  "wave": "all",
+  "rating": {
+    "skill": -0.244,
+    "skill_overall": -0.228,
+    "n_eff": 2.2,
+    "n_course": 0.5,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 69.81,
+    "p10": 65.92,
+    "p50": 69.41,
+    "p90": 74.25,
+    "sd": 3.29
+  },
+  "line": null,
+  "bet": {
+    "player_id": "dylan_frittelli",
+    "player_name": "Dylan Frittelli",
+    "wave": "all",
+    "e_score": 69.81,
+    "p10": 65.92,
+    "p90": 74.25,
+    "n_eff": 2.2,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      8,
+      51,
+      136,
+      419,
+      753,
+      1109,
+      1453,
+      1364,
+      1229,
+      986,
+      774,
+      599,
+      404,
+      287,
+      184,
+      107,
+      69,
+      34,
+      22,
+      5,
+      3,
+      2,
+      1,
+      1
+    ],
+    "edges": [
+      60.96,
+      62.04,
+      63.13,
+      64.22,
+      65.3,
+      66.39,
+      67.47,
+      68.56,
+      69.65,
+      70.73,
+      71.82,
+      72.9,
+      73.99,
+      75.08,
+      76.16,
+      77.25,
+      78.33,
+      79.42,
+      80.51,
+      81.59,
+      82.68,
+      83.76,
+      84.85,
+      85.94,
+      87.02
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": -7.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-07-10 04:00:00",
+      "course_id": "genesis_scottish_open",
+      "round_num": 2,
+      "to_par": 4.0
+    },
+    {
+      "date": "2025-07-03 04:00:00",
+      "course_id": "john_deere_classic",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-07-03 04:00:00",
+      "course_id": "john_deere_classic",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-04-17 04:00:00",
+      "course_id": "corales_puntacana_championship",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-04-17 04:00:00",
+      "course_id": "corales_puntacana_championship",
+      "round_num": 2,
+      "to_par": 4.0
+    }
+  ]
+}

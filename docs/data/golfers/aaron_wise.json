@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "aaron_wise",
+  "player_name": "Aaron Wise",
+  "wave": "all",
+  "rating": {
+    "skill": -0.771,
+    "skill_overall": -0.716,
+    "n_eff": 11.6,
+    "n_course": 0.5,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 70.33,
+    "p10": 66.51,
+    "p50": 69.94,
+    "p90": 74.69,
+    "sd": 3.22
+  },
+  "line": null,
+  "bet": {
+    "player_id": "aaron_wise",
+    "player_name": "Aaron Wise",
+    "wave": "all",
+    "e_score": 70.33,
+    "p10": 66.51,
+    "p90": 74.69,
+    "n_eff": 11.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      16,
+      50,
+      215,
+      484,
+      821,
+      1150,
+      1363,
+      1263,
+      1117,
+      997,
+      782,
+      581,
+      432,
+      267,
+      191,
+      128,
+      60,
+      33,
+      24,
+      11,
+      6,
+      1,
+      4
+    ],
+    "edges": [
+      61.04,
+      62.06,
+      63.09,
+      64.11,
+      65.13,
+      66.16,
+      67.18,
+      68.2,
+      69.23,
+      70.25,
+      71.27,
+      72.3,
+      73.32,
+      74.35,
+      75.37,
+      76.39,
+      77.42,
+      78.44,
+      79.46,
+      80.49,
+      81.51,
+      82.53,
+      83.56,
+      84.58,
+      85.6
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 8.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-03-26 04:00:00",
+      "course_id": "texas_children_s_houston_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-02-26 05:00:00",
+      "course_id": "cognizant_classic_in_the_palm_beaches",
+      "round_num": 2,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-02-26 05:00:00",
+      "course_id": "cognizant_classic_in_the_palm_beaches",
+      "round_num": 1,
+      "to_par": 2.0
+    }
+  ]
+}

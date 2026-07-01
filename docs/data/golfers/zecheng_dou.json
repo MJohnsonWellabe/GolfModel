@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "zecheng_dou",
+  "player_name": "Zecheng Dou",
+  "wave": "all",
+  "rating": {
+    "skill": 0.034,
+    "skill_overall": 0.034,
+    "n_eff": 28.9,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.48,
+    "p10": 66.06,
+    "p50": 69.18,
+    "p90": 73.35,
+    "sd": 2.88
+  },
+  "line": null,
+  "bet": {
+    "player_id": "zecheng_dou",
+    "player_name": "Zecheng Dou",
+    "wave": "all",
+    "e_score": 69.48,
+    "p10": 66.06,
+    "p90": 73.35,
+    "n_eff": 28.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      11,
+      38,
+      124,
+      322,
+      662,
+      969,
+      1208,
+      1288,
+      1233,
+      1085,
+      905,
+      689,
+      480,
+      364,
+      243,
+      159,
+      95,
+      54,
+      34,
+      16,
+      13,
+      5,
+      0,
+      3
+    ],
+    "edges": [
+      61.75,
+      62.64,
+      63.54,
+      64.44,
+      65.33,
+      66.23,
+      67.13,
+      68.02,
+      68.92,
+      69.81,
+      70.71,
+      71.61,
+      72.5,
+      73.4,
+      74.3,
+      75.19,
+      76.09,
+      76.99,
+      77.88,
+      78.78,
+      79.68,
+      80.57,
+      81.47,
+      82.37,
+      83.26
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": -2.0
+    }
+  ]
+}

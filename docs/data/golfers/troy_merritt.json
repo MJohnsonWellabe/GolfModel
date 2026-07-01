@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "troy_merritt",
+  "player_name": "Troy Merritt",
+  "wave": "all",
+  "rating": {
+    "skill": -0.423,
+    "skill_overall": -0.423,
+    "n_eff": 15.9,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.97,
+    "p10": 65.86,
+    "p50": 69.55,
+    "p90": 74.62,
+    "sd": 3.5
+  },
+  "line": null,
+  "bet": {
+    "player_id": "troy_merritt",
+    "player_name": "Troy Merritt",
+    "wave": "all",
+    "e_score": 69.97,
+    "p10": 65.86,
+    "p90": 74.62,
+    "n_eff": 15.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      16,
+      43,
+      223,
+      521,
+      898,
+      1351,
+      1499,
+      1342,
+      1170,
+      953,
+      691,
+      499,
+      328,
+      203,
+      110,
+      60,
+      42,
+      34,
+      11,
+      3,
+      0,
+      1,
+      1,
+      1
+    ],
+    "edges": [
+      60.68,
+      61.89,
+      63.1,
+      64.31,
+      65.53,
+      66.74,
+      67.95,
+      69.16,
+      70.37,
+      71.58,
+      72.8,
+      74.01,
+      75.22,
+      76.43,
+      77.64,
+      78.86,
+      80.07,
+      81.28,
+      82.49,
+      83.7,
+      84.91,
+      86.13,
+      87.34,
+      88.55,
+      89.76
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": 9.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": -1.0
+    }
+  ]
+}

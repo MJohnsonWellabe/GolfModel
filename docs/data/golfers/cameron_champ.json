@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "cameron_champ",
+  "player_name": "Cameron Champ",
+  "wave": "all",
+  "rating": {
+    "skill": 0.153,
+    "skill_overall": -0.043,
+    "n_eff": 15.6,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.35,
+    "p10": 65.44,
+    "p50": 68.94,
+    "p90": 73.78,
+    "sd": 3.29
+  },
+  "line": null,
+  "bet": {
+    "player_id": "cameron_champ",
+    "player_name": "Cameron Champ",
+    "wave": "all",
+    "e_score": 69.35,
+    "p10": 65.44,
+    "p90": 73.78,
+    "n_eff": 15.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      14,
+      54,
+      220,
+      455,
+      810,
+      1082,
+      1320,
+      1310,
+      1191,
+      915,
+      769,
+      609,
+      440,
+      304,
+      178,
+      145,
+      73,
+      55,
+      24,
+      14,
+      10,
+      4,
+      2
+    ],
+    "edges": [
+      59.97,
+      60.99,
+      62.02,
+      63.04,
+      64.06,
+      65.08,
+      66.11,
+      67.13,
+      68.15,
+      69.17,
+      70.19,
+      71.22,
+      72.24,
+      73.26,
+      74.28,
+      75.31,
+      76.33,
+      77.35,
+      78.37,
+      79.39,
+      80.42,
+      81.44,
+      82.46,
+      83.48,
+      84.51
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 4,
+      "to_par": 5.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 3,
+      "to_par": -5.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2025-12-11 05:00:00",
+      "course_id": "pga_tour_q_school_presented_by_korn_ferry",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-11-13 05:00:00",
+      "course_id": "butterfield_bermuda_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "webb_simpson",
+  "player_name": "Webb Simpson",
+  "wave": "all",
+  "rating": {
+    "skill": -0.134,
+    "skill_overall": -0.134,
+    "n_eff": 20.7,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.66,
+    "p10": 66.44,
+    "p50": 69.39,
+    "p90": 73.28,
+    "sd": 2.69
+  },
+  "line": null,
+  "bet": {
+    "player_id": "webb_simpson",
+    "player_name": "Webb Simpson",
+    "wave": "all",
+    "e_score": 69.66,
+    "p10": 66.44,
+    "p90": 73.28,
+    "n_eff": 20.7,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      9,
+      33,
+      93,
+      273,
+      573,
+      867,
+      1157,
+      1271,
+      1211,
+      1158,
+      932,
+      707,
+      602,
+      388,
+      278,
+      161,
+      128,
+      76,
+      34,
+      26,
+      11,
+      9,
+      1,
+      2
+    ],
+    "edges": [
+      62.27,
+      63.1,
+      63.93,
+      64.76,
+      65.59,
+      66.42,
+      67.24,
+      68.07,
+      68.9,
+      69.73,
+      70.56,
+      71.38,
+      72.21,
+      73.04,
+      73.87,
+      74.7,
+      75.53,
+      76.35,
+      77.18,
+      78.01,
+      78.84,
+      79.67,
+      80.5,
+      81.32,
+      82.15
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 2,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 1,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 2,
+      "to_par": 3.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "christiaan_bezuidenhout",
+  "player_name": "Christiaan Bezuidenhout",
+  "wave": "all",
+  "rating": {
+    "skill": 0.426,
+    "skill_overall": 0.538,
+    "n_eff": 53.8,
+    "n_course": 0.5,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 69.1,
+    "p10": 65.9,
+    "p50": 68.81,
+    "p90": 72.73,
+    "sd": 2.67
+  },
+  "line": null,
+  "bet": {
+    "player_id": "christiaan_bezuidenhout",
+    "player_name": "Christiaan Bezuidenhout",
+    "wave": "all",
+    "e_score": 69.1,
+    "p10": 65.9,
+    "p90": 72.73,
+    "n_eff": 53.8,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      5,
+      26,
+      98,
+      284,
+      560,
+      868,
+      1175,
+      1390,
+      1286,
+      1124,
+      982,
+      686,
+      503,
+      393,
+      234,
+      166,
+      110,
+      50,
+      31,
+      14,
+      5,
+      3,
+      5,
+      2
+    ],
+    "edges": [
+      61.59,
+      62.44,
+      63.3,
+      64.15,
+      65.01,
+      65.86,
+      66.72,
+      67.57,
+      68.43,
+      69.28,
+      70.14,
+      71.0,
+      71.85,
+      72.71,
+      73.56,
+      74.42,
+      75.27,
+      76.13,
+      76.98,
+      77.84,
+      78.69,
+      79.55,
+      80.4,
+      81.26,
+      82.11
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -3.0
+    }
+  ]
+}

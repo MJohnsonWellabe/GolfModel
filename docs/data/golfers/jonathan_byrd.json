@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jonathan_byrd",
+  "player_name": "Jonathan Byrd",
+  "wave": "all",
+  "rating": {
+    "skill": -0.188,
+    "skill_overall": -0.188,
+    "n_eff": 12.0,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.71,
+    "p10": 65.93,
+    "p50": 69.36,
+    "p90": 73.99,
+    "sd": 3.19
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jonathan_byrd",
+    "player_name": "Jonathan Byrd",
+    "wave": "all",
+    "e_score": 69.71,
+    "p10": 65.93,
+    "p90": 73.99,
+    "n_eff": 12.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      12,
+      84,
+      302,
+      766,
+      1257,
+      1572,
+      1575,
+      1318,
+      1101,
+      769,
+      516,
+      326,
+      182,
+      112,
+      56,
+      24,
+      15,
+      3,
+      2,
+      2,
+      0,
+      1,
+      1
+    ],
+    "edges": [
+      60.03,
+      61.26,
+      62.48,
+      63.7,
+      64.92,
+      66.14,
+      67.37,
+      68.59,
+      69.81,
+      71.03,
+      72.26,
+      73.48,
+      74.7,
+      75.92,
+      77.14,
+      78.37,
+      79.59,
+      80.81,
+      82.03,
+      83.25,
+      84.48,
+      85.7,
+      86.92,
+      88.14,
+      89.37
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-03-05 05:00:00",
+      "course_id": "puerto_rico_open",
+      "round_num": 1,
+      "to_par": 8.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": -6.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": -3.0
+    }
+  ]
+}

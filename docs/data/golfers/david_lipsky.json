@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "david_lipsky",
+  "player_name": "David Lipsky",
+  "wave": "all",
+  "rating": {
+    "skill": 0.194,
+    "skill_overall": -0.2,
+    "n_eff": 46.1,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.23,
+    "p10": 65.62,
+    "p50": 68.91,
+    "p90": 73.31,
+    "sd": 3.04
+  },
+  "line": null,
+  "bet": {
+    "player_id": "david_lipsky",
+    "player_name": "David Lipsky",
+    "wave": "all",
+    "e_score": 69.23,
+    "p10": 65.62,
+    "p90": 73.31,
+    "n_eff": 46.1,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      6,
+      20,
+      84,
+      310,
+      593,
+      987,
+      1369,
+      1379,
+      1317,
+      1158,
+      886,
+      648,
+      484,
+      316,
+      186,
+      121,
+      65,
+      40,
+      14,
+      5,
+      6,
+      2,
+      2
+    ],
+    "edges": [
+      59.45,
+      60.48,
+      61.51,
+      62.54,
+      63.57,
+      64.61,
+      65.64,
+      66.67,
+      67.7,
+      68.73,
+      69.77,
+      70.8,
+      71.83,
+      72.86,
+      73.89,
+      74.92,
+      75.96,
+      76.99,
+      78.02,
+      79.05,
+      80.08,
+      81.12,
+      82.15,
+      83.18,
+      84.21
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 4.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 4,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 1,
+      "to_par": -4.0
+    }
+  ]
+}

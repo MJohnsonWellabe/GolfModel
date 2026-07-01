@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "jeremy_paul",
+  "player_name": "Jeremy Paul",
+  "wave": "all",
+  "rating": {
+    "skill": -0.325,
+    "skill_overall": -0.517,
+    "n_eff": 31.3,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.84,
+    "p10": 65.86,
+    "p50": 69.42,
+    "p90": 74.39,
+    "sd": 3.37
+  },
+  "line": null,
+  "bet": {
+    "player_id": "jeremy_paul",
+    "player_name": "Jeremy Paul",
+    "wave": "all",
+    "e_score": 69.84,
+    "p10": 65.86,
+    "p90": 74.39,
+    "n_eff": 31.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      9,
+      24,
+      92,
+      220,
+      505,
+      825,
+      1162,
+      1324,
+      1231,
+      1143,
+      893,
+      750,
+      582,
+      428,
+      260,
+      207,
+      155,
+      89,
+      46,
+      24,
+      20,
+      3,
+      5,
+      3
+    ],
+    "edges": [
+      60.54,
+      61.56,
+      62.59,
+      63.61,
+      64.64,
+      65.66,
+      66.68,
+      67.71,
+      68.73,
+      69.76,
+      70.78,
+      71.81,
+      72.83,
+      73.85,
+      74.88,
+      75.9,
+      76.93,
+      77.95,
+      78.97,
+      80.0,
+      81.02,
+      82.05,
+      83.07,
+      84.1,
+      85.12
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": 6.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-03-19 04:00:00",
+      "course_id": "valspar_championship",
+      "round_num": 1,
+      "to_par": 5.0
+    }
+  ]
+}

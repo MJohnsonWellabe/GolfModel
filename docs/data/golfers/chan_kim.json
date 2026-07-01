@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "chan_kim",
+  "player_name": "Chan Kim",
+  "wave": "all",
+  "rating": {
+    "skill": -0.155,
+    "skill_overall": 0.073,
+    "n_eff": 34.9,
+    "n_course": 0.5,
+    "course_rounds_played": 2
+  },
+  "expected": {
+    "e_score": 69.7,
+    "p10": 65.95,
+    "p50": 69.36,
+    "p90": 74.01,
+    "sd": 3.18
+  },
+  "line": null,
+  "bet": {
+    "player_id": "chan_kim",
+    "player_name": "Chan Kim",
+    "wave": "all",
+    "e_score": 69.7,
+    "p10": 65.95,
+    "p90": 74.01,
+    "n_eff": 34.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      6,
+      26,
+      103,
+      291,
+      620,
+      964,
+      1199,
+      1254,
+      1243,
+      1105,
+      921,
+      656,
+      526,
+      389,
+      266,
+      170,
+      103,
+      68,
+      44,
+      19,
+      13,
+      9,
+      3,
+      2
+    ],
+    "edges": [
+      61.1,
+      62.08,
+      63.06,
+      64.04,
+      65.02,
+      66.0,
+      66.98,
+      67.95,
+      68.93,
+      69.91,
+      70.89,
+      71.87,
+      72.85,
+      73.83,
+      74.81,
+      75.78,
+      76.76,
+      77.74,
+      78.72,
+      79.7,
+      80.68,
+      81.66,
+      82.64,
+      83.61,
+      84.59
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -6.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 2,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 1,
+      "to_par": 0.0
+    }
+  ]
+}

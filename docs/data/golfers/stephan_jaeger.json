@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "stephan_jaeger",
+  "player_name": "Stephan Jaeger",
+  "wave": "all",
+  "rating": {
+    "skill": -0.188,
+    "skill_overall": -0.014,
+    "n_eff": 49.3,
+    "n_course": 0.2,
+    "course_rounds_played": 1
+  },
+  "expected": {
+    "e_score": 69.69,
+    "p10": 65.59,
+    "p50": 69.27,
+    "p90": 74.42,
+    "sd": 3.5
+  },
+  "line": null,
+  "bet": {
+    "player_id": "stephan_jaeger",
+    "player_name": "Stephan Jaeger",
+    "wave": "all",
+    "e_score": 69.69,
+    "p10": 65.59,
+    "p90": 74.42,
+    "n_eff": 49.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      10,
+      34,
+      172,
+      425,
+      826,
+      1214,
+      1392,
+      1355,
+      1185,
+      1029,
+      713,
+      572,
+      377,
+      278,
+      186,
+      115,
+      52,
+      24,
+      24,
+      11,
+      2,
+      1,
+      1,
+      2
+    ],
+    "edges": [
+      60.41,
+      61.57,
+      62.72,
+      63.87,
+      65.02,
+      66.18,
+      67.33,
+      68.48,
+      69.64,
+      70.79,
+      71.94,
+      73.09,
+      74.25,
+      75.4,
+      76.55,
+      77.7,
+      78.86,
+      80.01,
+      81.16,
+      82.32,
+      83.47,
+      84.62,
+      85.77,
+      86.93,
+      88.08
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -7.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -7.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 0.0
+    }
+  ]
+}

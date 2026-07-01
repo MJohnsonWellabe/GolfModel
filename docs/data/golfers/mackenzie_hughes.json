@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "mackenzie_hughes",
+  "player_name": "Mackenzie Hughes",
+  "wave": "all",
+  "rating": {
+    "skill": -0.044,
+    "skill_overall": -0.044,
+    "n_eff": 48.1,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 69.59,
+    "p10": 65.97,
+    "p50": 69.24,
+    "p90": 73.74,
+    "sd": 3.05
+  },
+  "line": null,
+  "bet": {
+    "player_id": "mackenzie_hughes",
+    "player_name": "Mackenzie Hughes",
+    "wave": "all",
+    "e_score": 69.59,
+    "p10": 65.97,
+    "p90": 73.74,
+    "n_eff": 48.1,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      2,
+      7,
+      22,
+      96,
+      254,
+      573,
+      899,
+      1136,
+      1259,
+      1256,
+      1093,
+      884,
+      761,
+      578,
+      408,
+      290,
+      179,
+      132,
+      77,
+      49,
+      17,
+      16,
+      4,
+      8
+    ],
+    "edges": [
+      60.35,
+      61.27,
+      62.2,
+      63.13,
+      64.06,
+      64.99,
+      65.91,
+      66.84,
+      67.77,
+      68.7,
+      69.63,
+      70.55,
+      71.48,
+      72.41,
+      73.34,
+      74.27,
+      75.19,
+      76.12,
+      77.05,
+      77.98,
+      78.91,
+      79.83,
+      80.76,
+      81.69,
+      82.62
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -6.0
+    }
+  ]
+}

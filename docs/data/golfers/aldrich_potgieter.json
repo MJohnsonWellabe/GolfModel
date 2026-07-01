@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "aldrich_potgieter",
+  "player_name": "Aldrich Potgieter",
+  "wave": "all",
+  "rating": {
+    "skill": -0.085,
+    "skill_overall": -0.096,
+    "n_eff": 42.2,
+    "n_course": 0.7,
+    "course_rounds_played": 3
+  },
+  "expected": {
+    "e_score": 69.6,
+    "p10": 65.32,
+    "p50": 69.21,
+    "p90": 74.44,
+    "sd": 3.61
+  },
+  "line": null,
+  "bet": {
+    "player_id": "aldrich_potgieter",
+    "player_name": "Aldrich Potgieter",
+    "wave": "all",
+    "e_score": 69.6,
+    "p10": 65.32,
+    "p90": 74.44,
+    "n_eff": 42.2,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      7,
+      24,
+      71,
+      195,
+      432,
+      787,
+      1082,
+      1254,
+      1240,
+      1188,
+      973,
+      801,
+      610,
+      451,
+      330,
+      202,
+      153,
+      88,
+      48,
+      31,
+      9,
+      9,
+      10,
+      5
+    ],
+    "edges": [
+      59.44,
+      60.54,
+      61.63,
+      62.73,
+      63.82,
+      64.92,
+      66.01,
+      67.11,
+      68.2,
+      69.3,
+      70.39,
+      71.49,
+      72.58,
+      73.67,
+      74.77,
+      75.86,
+      76.96,
+      78.05,
+      79.15,
+      80.24,
+      81.34,
+      82.43,
+      83.53,
+      84.62,
+      85.72
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 4,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 3,
+      "to_par": 3.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 3,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "truist_championship",
+      "round_num": 2,
+      "to_par": 2.0
+    }
+  ]
+}

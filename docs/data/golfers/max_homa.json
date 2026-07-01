@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "max_homa",
+  "player_name": "Max Homa",
+  "wave": "all",
+  "rating": {
+    "skill": 0.39,
+    "skill_overall": 0.068,
+    "n_eff": 52.0,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.12,
+    "p10": 65.25,
+    "p50": 68.74,
+    "p90": 73.5,
+    "sd": 3.27
+  },
+  "line": null,
+  "bet": {
+    "player_id": "max_homa",
+    "player_name": "Max Homa",
+    "wave": "all",
+    "e_score": 69.12,
+    "p10": 65.25,
+    "p90": 73.5,
+    "n_eff": 52.0,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      1,
+      20,
+      79,
+      290,
+      673,
+      1079,
+      1469,
+      1524,
+      1357,
+      1103,
+      816,
+      601,
+      380,
+      268,
+      165,
+      76,
+      52,
+      28,
+      8,
+      7,
+      1,
+      1,
+      1,
+      1
+    ],
+    "edges": [
+      59.45,
+      60.63,
+      61.8,
+      62.97,
+      64.15,
+      65.32,
+      66.5,
+      67.67,
+      68.85,
+      70.02,
+      71.2,
+      72.37,
+      73.55,
+      74.72,
+      75.9,
+      77.07,
+      78.25,
+      79.42,
+      80.6,
+      81.77,
+      82.95,
+      84.12,
+      85.3,
+      86.47,
+      87.65
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 4,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 2,
+      "to_par": 7.0
+    },
+    {
+      "date": "2026-05-14 04:00:00",
+      "course_id": "pga_championship",
+      "round_num": 1,
+      "to_par": 5.0
+    }
+  ]
+}

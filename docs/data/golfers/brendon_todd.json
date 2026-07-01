@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "brendon_todd",
+  "player_name": "Brendon Todd",
+  "wave": "all",
+  "rating": {
+    "skill": -1.095,
+    "skill_overall": -1.095,
+    "n_eff": 8.3,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 70.64,
+    "p10": 67.16,
+    "p50": 70.31,
+    "p90": 74.63,
+    "sd": 2.97
+  },
+  "line": null,
+  "bet": {
+    "player_id": "brendon_todd",
+    "player_name": "Brendon Todd",
+    "wave": "all",
+    "e_score": 70.64,
+    "p10": 67.16,
+    "p90": 74.63,
+    "n_eff": 8.3,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      8,
+      39,
+      126,
+      265,
+      591,
+      904,
+      1235,
+      1317,
+      1251,
+      1100,
+      872,
+      719,
+      499,
+      379,
+      257,
+      161,
+      122,
+      69,
+      42,
+      22,
+      12,
+      4,
+      2,
+      4
+    ],
+    "edges": [
+      62.63,
+      63.54,
+      64.46,
+      65.37,
+      66.28,
+      67.19,
+      68.1,
+      69.02,
+      69.93,
+      70.84,
+      71.75,
+      72.67,
+      73.58,
+      74.49,
+      75.4,
+      76.31,
+      77.23,
+      78.14,
+      79.05,
+      79.96,
+      80.88,
+      81.79,
+      82.7,
+      83.61,
+      84.53
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 2,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-04-02 04:00:00",
+      "course_id": "valero_texas_open",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-02-26 05:00:00",
+      "course_id": "cognizant_classic_in_the_palm_beaches",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-02-26 05:00:00",
+      "course_id": "cognizant_classic_in_the_palm_beaches",
+      "round_num": 1,
+      "to_par": 6.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 1,
+      "to_par": 2.0
+    },
+    {
+      "date": "2025-11-20 05:00:00",
+      "course_id": "the_rsm_classic",
+      "round_num": 2,
+      "to_par": 1.0
+    }
+  ]
+}

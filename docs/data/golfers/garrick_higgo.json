@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "garrick_higgo",
+  "player_name": "Garrick Higgo",
+  "wave": "all",
+  "rating": {
+    "skill": 0.121,
+    "skill_overall": -0.08,
+    "n_eff": 43.6,
+    "n_course": 1.0,
+    "course_rounds_played": 4
+  },
+  "expected": {
+    "e_score": 69.37,
+    "p10": 65.06,
+    "p50": 68.96,
+    "p90": 74.29,
+    "sd": 3.64
+  },
+  "line": null,
+  "bet": {
+    "player_id": "garrick_higgo",
+    "player_name": "Garrick Higgo",
+    "wave": "all",
+    "e_score": 69.37,
+    "p10": 65.06,
+    "p90": 74.29,
+    "n_eff": 43.6,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      14,
+      92,
+      330,
+      709,
+      1215,
+      1487,
+      1494,
+      1306,
+      1083,
+      783,
+      561,
+      398,
+      237,
+      123,
+      81,
+      46,
+      19,
+      9,
+      9,
+      3,
+      0,
+      0,
+      0,
+      1
+    ],
+    "edges": [
+      60.04,
+      61.36,
+      62.67,
+      63.99,
+      65.3,
+      66.62,
+      67.93,
+      69.25,
+      70.56,
+      71.88,
+      73.2,
+      74.51,
+      75.83,
+      77.14,
+      78.46,
+      79.77,
+      81.09,
+      82.4,
+      83.72,
+      85.03,
+      86.35,
+      87.67,
+      88.98,
+      90.3,
+      91.61
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 4,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 3,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": -5.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 3,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": -4.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": -2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 4,
+      "to_par": -8.0
+    }
+  ]
+}

@@ -1,0 +1,157 @@
+{
+  "schema": 2,
+  "player_id": "christo_lamprecht",
+  "player_name": "Christo Lamprecht",
+  "wave": "all",
+  "rating": {
+    "skill": -1.024,
+    "skill_overall": -1.024,
+    "n_eff": 22.9,
+    "n_course": 0.0,
+    "course_rounds_played": 0
+  },
+  "expected": {
+    "e_score": 70.53,
+    "p10": 66.85,
+    "p50": 70.17,
+    "p90": 74.74,
+    "sd": 3.12
+  },
+  "line": null,
+  "bet": {
+    "player_id": "christo_lamprecht",
+    "player_name": "Christo Lamprecht",
+    "wave": "all",
+    "e_score": 70.53,
+    "p10": 66.85,
+    "p90": 74.74,
+    "n_eff": 22.9,
+    "has_line": false,
+    "line": null,
+    "side": "",
+    "price": null,
+    "model_prob": null,
+    "novig_prob": null,
+    "edge": null,
+    "ev_per_unit": null,
+    "kelly": null,
+    "actionable": false
+  },
+  "distribution": {
+    "counts": [
+      4,
+      33,
+      157,
+      366,
+      690,
+      1147,
+      1373,
+      1412,
+      1288,
+      1029,
+      786,
+      600,
+      427,
+      272,
+      179,
+      104,
+      62,
+      34,
+      20,
+      8,
+      6,
+      2,
+      0,
+      1
+    ],
+    "edges": [
+      61.95,
+      63.0,
+      64.04,
+      65.09,
+      66.13,
+      67.17,
+      68.22,
+      69.26,
+      70.31,
+      71.35,
+      72.4,
+      73.44,
+      74.48,
+      75.53,
+      76.57,
+      77.62,
+      78.66,
+      79.71,
+      80.75,
+      81.8,
+      82.84,
+      83.88,
+      84.93,
+      85.97,
+      87.02
+    ]
+  },
+  "recent_rounds": [
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 2,
+      "to_par": 5.0
+    },
+    {
+      "date": "2026-06-11 04:00:00",
+      "course_id": "rbc_canadian_open",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-28 04:00:00",
+      "course_id": "charles_schwab_challenge",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 2,
+      "to_par": 2.0
+    },
+    {
+      "date": "2026-05-21 04:00:00",
+      "course_id": "the_cj_cup_byron_nelson",
+      "round_num": 1,
+      "to_par": 0.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 2,
+      "to_par": 1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 1,
+      "to_par": -1.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 3,
+      "to_par": -3.0
+    },
+    {
+      "date": "2026-05-07 04:00:00",
+      "course_id": "oneflight_myrtle_beach_classic",
+      "round_num": 4,
+      "to_par": 0.0
+    }
+  ]
+}
