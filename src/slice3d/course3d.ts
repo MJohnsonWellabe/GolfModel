@@ -295,25 +295,50 @@ export function buildCourse(
     for (const cl of clouds) cl.position.x += dt * 6;
   });
 
-  // -------------------------------------------------------------- mountains
-  const ridgeMat = mat(scene, 'ridge', shade(theme.skyTop, 1.1), { emissive: shade(theme.skyTop, 0.55) });
+  // ------------------------------------------------------------ backdrop
   const peakDist = 2500;
-  for (let i = -3; i <= 3; i++) {
-    const m = MeshBuilder.CreateCylinder(
-      `ridge${i}`,
-      { diameterTop: 0, diameterBottom: 700 + Math.abs(i) * 160, height: 260 + ((i * 37) % 90), tessellation: 5 },
-      scene
-    );
-    m.material = ridgeMat;
-    m.position = w2b(hole.pin.x + i * 620 + 140, hole.pin.y - peakDist - Math.abs(i) * 240, 90);
+  if (theme.backdrop === 'sea') {
+    // Links course: a broad sea plane meeting the sky at a low horizon,
+    // with animated sparkle instead of a mountain range
+    const sea = MeshBuilder.CreateGround('sea', { width: 14000, height: 8000, subdivisions: 1 }, scene);
+    sea.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, -8);
+    const seaMat = new StandardMaterial('seaMat', scene);
+    seaMat.diffuseColor = c3(theme.water);
+    seaMat.emissiveColor = c3(shade(theme.waterDeep, 0.7));
+    seaMat.specularColor = new Color3(0.5, 0.6, 0.7);
+    seaMat.specularPower = 64;
+    sea.material = seaMat;
+    sea.applyFog = true;
+    // Low sandy dune line so the course doesn't end in a hard edge
+    const duneMat = mat(scene, 'dune', theme.sand, { emissive: shade(theme.sand, 0.6) });
+    for (let i = -4; i <= 4; i++) {
+      const d = MeshBuilder.CreateCylinder(
+        `dune${i}`,
+        { diameterTop: 0, diameterBottom: 900 + Math.abs(i) * 120, height: 90 + ((i * 29) % 40), tessellation: 5 },
+        scene
+      );
+      d.material = duneMat;
+      d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
+    }
+  } else {
+    // Championship parkland: layered ridge line + a Fuji-like feature peak
+    const ridgeMat = mat(scene, 'ridge', shade(theme.skyTop, 1.1), { emissive: shade(theme.skyTop, 0.55) });
+    for (let i = -3; i <= 3; i++) {
+      const m = MeshBuilder.CreateCylinder(
+        `ridge${i}`,
+        { diameterTop: 0, diameterBottom: 700 + Math.abs(i) * 160, height: 260 + ((i * 37) % 90), tessellation: 5 },
+        scene
+      );
+      m.material = ridgeMat;
+      m.position = w2b(hole.pin.x + i * 620 + 140, hole.pin.y - peakDist - Math.abs(i) * 240, 90);
+    }
+    const peak = MeshBuilder.CreateCylinder('peak', { diameterTop: 0, diameterBottom: 1750, height: 680, tessellation: 7 }, scene);
+    peak.material = mat(scene, 'peakMat', shade(theme.skyTop, 0.52), { emissive: shade(theme.skyTop, 0.24) });
+    peak.position = w2b(hole.pin.x + 380, hole.pin.y - peakDist - 780, 210);
+    const cap = MeshBuilder.CreateCylinder('peakCap', { diameterTop: 0, diameterBottom: 800, height: 315, tessellation: 7 }, scene);
+    cap.material = mat(scene, 'capMat', 0xf4f8fb, { emissive: 0xdfe9f0 });
+    cap.position = peak.position.add(new Vector3(0, 335, 0));
   }
-  // Feature peak: broad Fuji-like cone with a generous snow cap
-  const peak = MeshBuilder.CreateCylinder('peak', { diameterTop: 0, diameterBottom: 1750, height: 680, tessellation: 7 }, scene);
-  peak.material = mat(scene, 'peakMat', shade(theme.skyTop, 0.52), { emissive: shade(theme.skyTop, 0.24) });
-  peak.position = w2b(hole.pin.x + 380, hole.pin.y - peakDist - 780, 210);
-  const cap = MeshBuilder.CreateCylinder('peakCap', { diameterTop: 0, diameterBottom: 800, height: 315, tessellation: 7 }, scene);
-  cap.material = mat(scene, 'capMat', 0xf4f8fb, { emissive: 0xdfe9f0 });
-  cap.position = peak.position.add(new Vector3(0, 335, 0));
 
   // ------------------------------------------------------------------ trees
   const trunkProto = MeshBuilder.CreateCylinder('trunkP', { diameter: 2.6, height: 9, tessellation: 6 }, scene);

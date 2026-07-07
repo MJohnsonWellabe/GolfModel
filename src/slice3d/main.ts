@@ -310,6 +310,8 @@ class HoleScene {
       `<div class="hole-no">HOLE ${h.number}</div>` +
       `<div class="hole-facts">PAR ${h.par} · ${yards} yds</div>` +
       `<div class="hole-course">${round.course.name}</div>`;
+    const badge = document.getElementById('badge');
+    if (badge) badge.innerHTML = `${round.course.name}<br />${h.name ?? 'Hole ' + h.number}`;
     bannerEl.style.opacity = '1';
     // Start above the green looking down the fairway toward the tee
     const toTee = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
