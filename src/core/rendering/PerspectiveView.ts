@@ -55,6 +55,7 @@ const SKY_HORIZON_DEFAULT = 430;
 export class PerspectiveView {
   readonly root: Phaser.GameObjects.Container;
   private skyG: Phaser.GameObjects.Graphics;
+  private cloudG: Phaser.GameObjects.Graphics;
   private groundG: Phaser.GameObjects.Graphics;
   private animG: Phaser.GameObjects.Graphics;
   private golferG: Phaser.GameObjects.Graphics;
@@ -76,6 +77,7 @@ export class PerspectiveView {
     private theme: CourseTheme = DEFAULT_THEME
   ) {
     this.skyG = scene.add.graphics();
+    this.cloudG = scene.add.graphics();
     this.groundG = scene.add.graphics();
     this.animG = scene.add.graphics();
     this.golferG = scene.add.graphics();
@@ -83,6 +85,7 @@ export class PerspectiveView {
     const vignetteG = scene.add.graphics();
     this.root = scene.add.container(0, 0, [
       this.skyG,
+      this.cloudG,
       this.groundG,
       this.animG,
       this.golferG,
@@ -102,7 +105,33 @@ export class PerspectiveView {
     this.collectTrees();
     this.collectSparkles();
     this.drawSky();
+    this.drawClouds();
     this.drawVignette(vignetteG);
+  }
+
+  /**
+   * Clouds drawn twice (one screen apart) into their own layer; sliding the
+   * layer with wrap-around in updateDynamic makes them drift for free.
+   */
+  private drawClouds(): void {
+    const g = this.cloudG;
+    g.clear();
+    for (const dx of [0, GAME_WIDTH]) {
+      for (const [cx, cy, w] of [
+        [140, 110, 130],
+        [340, 180, 100],
+        [620, 230, 120],
+        [90, 260, 90]
+      ]) {
+        const x = cx + dx;
+        g.fillStyle(0xe9f3f8, 0.7);
+        g.fillEllipse(x + 6, cy + 8, w, w * 0.3);
+        g.fillStyle(0xffffff, 0.92);
+        g.fillEllipse(x, cy, w, w * 0.32);
+        g.fillEllipse(x + w * 0.25, cy - w * 0.12, w * 0.6, w * 0.24);
+        g.fillEllipse(x - w * 0.28, cy - w * 0.06, w * 0.5, w * 0.2);
+      }
+    }
   }
 
   /** Soft edge darkening, drawn once — pulls the eye to the center. */
@@ -221,20 +250,7 @@ export class PerspectiveView {
     g.fillStyle(0xffffff, 0.9);
     g.fillCircle(t.sunX - 6, t.sunY - 8, 26);
 
-    // Clouds: soft two-tone puffs
-    for (const [cx, cy, w] of [
-      [140, 110, 130],
-      [340, 180, 100],
-      [620, 230, 120],
-      [90, 260, 90]
-    ]) {
-      g.fillStyle(0xe9f3f8, 0.7);
-      g.fillEllipse(cx + 6, cy + 8, w, w * 0.3);
-      g.fillStyle(0xffffff, 0.92);
-      g.fillEllipse(cx, cy, w, w * 0.32);
-      g.fillEllipse(cx + w * 0.25, cy - w * 0.12, w * 0.6, w * 0.24);
-      g.fillEllipse(cx - w * 0.28, cy - w * 0.06, w * 0.5, w * 0.2);
-    }
+    // Clouds live on their own layer (drawClouds) so they can drift
 
     // Distant tree line on the horizon (two depths for parallax feel)
     const far = shade(t.treeCanopy, 0.72);
@@ -602,6 +618,8 @@ export class PerspectiveView {
   updateDynamic(state: DynamicState): void {
     const g = this.animG;
     const proj = this.proj;
+    // Clouds drift slowly with wrap-around
+    this.cloudG.x = -((state.timeSec * 5) % GAME_WIDTH);
     g.clear();
 
     // Aim marker (projected ring)
