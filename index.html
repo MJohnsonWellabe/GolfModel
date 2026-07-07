@@ -92,11 +92,11 @@
       }
       #prompt {
         position: fixed;
-        bottom: 118px;
+        bottom: 158px;
         left: 0;
         right: 0;
         text-align: center;
-        font-size: 17px;
+        font-size: 16px;
         color: #eef5ea;
         text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
         pointer-events: none;
@@ -128,6 +128,68 @@
         border-radius: 3px;
         margin-left: -3px;
         box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.8);
+        z-index: 6;
+      }
+      #meter .lockMark {
+        position: absolute;
+        top: -6px;
+        bottom: -6px;
+        width: 4px;
+        margin-left: -2px;
+        background: #47b6ff;
+        border-radius: 2px;
+        box-shadow: 0 0 6px 1px rgba(71, 182, 255, 0.9);
+        z-index: 5;
+      }
+      #clubBar {
+        position: fixed;
+        left: 10px;
+        bottom: 30px;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 14px;
+        padding: 5px 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+      }
+      #clubBar .clubBtn {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        border: none;
+        background: rgba(255, 255, 255, 0.12);
+        color: #fff;
+        font-size: 15px;
+      }
+      #clubBar .clubBtn:active {
+        background: rgba(255, 255, 255, 0.28);
+      }
+      #clubName {
+        min-width: 58px;
+        text-align: center;
+        color: #ffd54f;
+        font-size: 16px;
+        font-weight: 800;
+      }
+      #aerialBtn {
+        position: fixed;
+        right: 10px;
+        bottom: 30px;
+        display: none;
+        padding: 9px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        color: #eaf3e6;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+      }
+      #aerialBtn.on {
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #3a2b06;
       }
       #swingBtn {
         position: fixed;
@@ -322,6 +384,12 @@
     <div id="banner"></div>
     <div id="summary" class="panel"></div>
     <div id="meter"></div>
+    <div id="clubBar">
+      <button id="prevClub" class="clubBtn">◀</button>
+      <span id="clubName">Driver</span>
+      <button id="nextClub" class="clubBtn">▶</button>
+    </div>
+    <button id="aerialBtn">AERIAL</button>
     <button id="swingBtn">SWING</button>
     <div id="setup">
       <div id="setupInner">

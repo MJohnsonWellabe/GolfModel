@@ -4,11 +4,13 @@ import {
   DynamicTexture,
   Engine,
   FreeCamera,
+  Mesh,
   MeshBuilder,
   ParticleSystem,
   Scene,
   StandardMaterial,
   TrailMesh,
+  TransformNode,
   Vector3
 } from '@babylonjs/core';
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
@@ -40,6 +42,9 @@ const summaryEl = document.getElementById('summary')!;
 const meterEl = document.getElementById('meter')!;
 const meter = new DomMeter(meterEl);
 const swingBtn = document.getElementById('swingBtn')!;
+const clubBar = document.getElementById('clubBar')!;
+const clubName = document.getElementById('clubName')!;
+const aerialBtn = document.getElementById('aerialBtn')!;
 
 function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
@@ -160,6 +165,10 @@ class HoleScene {
   private wind: Wind;
   private puff: ParticleSystem;
   private shakeT = 0;
+  private aimRoot!: TransformNode;
+  private aimDots: Mesh[] = [];
+  private aimRing!: Mesh;
+  private aerial = false;
   private flight: {
     outcome: ShotOutcome;
     progress: number;
@@ -201,6 +210,26 @@ class HoleScene {
     this.ballShadow.material = this.bsMat;
 
     this.puff = this.makePuff();
+
+    // Aim guide: a row of ground dots from the ball toward the aim point,
+    // capped by a target ring — the shot line you're setting up
+    const aimMat = new StandardMaterial('aimMat', this.scene);
+    aimMat.diffuseColor = new Color3(1, 1, 1);
+    aimMat.emissiveColor = new Color3(0.9, 0.9, 0.7);
+    aimMat.disableLighting = true;
+    this.aimRoot = new TransformNode('aimRoot', this.scene);
+    for (let i = 0; i < 10; i++) {
+      const dot = MeshBuilder.CreateDisc(`aimDot${i}`, { radius: 0.55, tessellation: 12 }, this.scene);
+      dot.rotation.x = Math.PI / 2;
+      dot.material = aimMat;
+      dot.parent = this.aimRoot;
+      this.aimDots.push(dot);
+    }
+    this.aimRing = MeshBuilder.CreateTorus('aimRing', { diameter: 6, thickness: 0.7, tessellation: 24 }, this.scene);
+    this.aimRing.rotation.x = Math.PI / 2;
+    this.aimRing.material = aimMat;
+    this.aimRing.parent = this.aimRoot;
+    this.aimRoot.setEnabled(false);
 
     this.camera = new FreeCamera('cam', new Vector3(0, 8, 0), this.scene);
     this.camera.minZ = 0.5;
@@ -270,8 +299,24 @@ class HoleScene {
     const f = this.fwd3(this.aim.yaw);
     const base = w2b(this.state.ballPos.x, this.state.ballPos.y, 0);
     const putt = this.aim.isPutting;
-    this.camTarget.pos = base.subtract(f.scale(putt ? 11 : 24)).add(new Vector3(0, putt ? 4.5 : 11, 0));
-    this.camTarget.look = base.add(f.scale(putt ? 24 : 60)).add(new Vector3(0, putt ? 1 : 3, 0));
+    if (this.aerial && !putt) {
+      // Overhead planning view framing the whole ball→pin corridor so the
+      // fairway, green and hazards all read from above
+      const mx = (this.state.ballPos.x + this.hole.pin.x) / 2;
+      const my = (this.state.ballPos.y + this.hole.pin.y) / 2;
+      const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
+      const height = Math.min(760, Math.max(240, span * 0.75));
+      const mid = w2b(mx, my, 0);
+      // Nudge the eye slightly toward the ball so "up" on screen is downrange
+      const toPin = this.fwd3(this.aim.yaw);
+      this.camTarget.pos = mid.subtract(toPin.scale(span * 0.18)).add(new Vector3(0, height, 0.01));
+      this.camTarget.look = mid;
+      this.camTarget.k = 4;
+      return;
+    }
+    // Higher, more pitched-down vantage so the fairway and green read clearly
+    this.camTarget.pos = base.subtract(f.scale(putt ? 11 : 30)).add(new Vector3(0, putt ? 4.5 : 22, 0));
+    this.camTarget.look = base.add(f.scale(putt ? 24 : 72)).add(new Vector3(0, putt ? 1 : 1, 0));
     this.camTarget.k = 4;
   }
 
@@ -302,7 +347,7 @@ class HoleScene {
 
   // ---------------------------------------------------------------- intro
 
-  /** EG-style hole intro: banner + a glide from above the green back to the tee. */
+  /** Broadcast-style hole flyover: tee → sweep the hole → settle at the tee. */
   private playIntro(): void {
     const h = this.hole;
     const yards = Math.round(Math.hypot(h.pin.x - h.tee.x, h.pin.y - h.tee.y) / PX_PER_YARD);
@@ -313,21 +358,40 @@ class HoleScene {
     const badge = document.getElementById('badge');
     if (badge) badge.innerHTML = `${round.course.name}<br />${h.name ?? 'Hole ' + h.number}`;
     bannerEl.style.opacity = '1';
-    // Start above the green looking down the fairway toward the tee
-    const toTee = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
-    const f = this.fwd3(toTee);
-    this.camera.position = w2b(h.pin.x, h.pin.y, 60).subtract(f.scale(40));
-    this.camera.setTarget(w2b(h.tee.x, h.tee.y, 0));
-    // Glide target: the tee-shot setup framing
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
-    this.setCamSetup();
-    this.camTarget.k = 0.9; // slow cinematic ease
+
+    const toGreen = Math.atan2(h.pin.y - h.tee.y, h.pin.x - h.tee.x);
+    const g = this.fwd3(toGreen);
+    // Start low behind the tee looking down the hole toward the green
+    this.camera.position = w2b(h.tee.x, h.tee.y, 14).subtract(g.scale(24));
+    this.camera.setTarget(w2b(h.pin.x, h.pin.y, 0));
+
+    // Waypoint 1: rise and glide out over the fairway toward the green
+    const midX = (h.tee.x + h.pin.x) / 2;
+    const midY = (h.tee.y + h.pin.y) / 2;
+    this.camTarget.pos = w2b(midX, midY, 90).subtract(g.scale(30));
+    this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
+    this.camTarget.k = 1.1;
+
+    // Waypoint 2: drift over the green looking down at the pin
+    setTimeout(() => {
+      if (this.disposed) return;
+      this.camTarget.pos = w2b(h.pin.x, h.pin.y, 70).subtract(g.scale(24));
+      this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
+      this.camTarget.k = 1.2;
+    }, 1500);
+
+    // Waypoint 3: swing back to the tee-shot framing and hand over control
     setTimeout(() => {
       if (this.disposed) return;
       bannerEl.style.opacity = '0';
-      this.beginTurn();
-    }, 3200);
+      this.setCamSetup();
+      this.camTarget.k = 1.4;
+      setTimeout(() => {
+        if (!this.disposed) this.beginTurn();
+      }, 900);
+    }, 3000);
   }
 
   // ---------------------------------------------------------------- turns
@@ -345,16 +409,74 @@ class HoleScene {
     this.updateHud();
     promptEl.textContent = this.aim.isPutting
       ? 'Read the roll — tap SWING to putt'
-      : 'Drag to aim — tap SWING to start the meter';
+      : 'Drag to aim — tap SWING';
+    this.updateAimVisuals();
+    if (this.ai) {
+      // AI turn: no player meter, no aim guide
+      meter.hide();
+      meterEl.style.display = 'none';
+      this.aimRoot.setEnabled(false);
+      clubBar.style.display = 'none';
+      aerialBtn.style.display = 'none';
+      this.aiTurn();
+      return;
+    }
+    // Human turn: arm the meter and leave it on screen showing the target
     meter.arm({
       stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting
     });
-    meter.hide();
-    meterEl.style.display = 'none';
+    meterEl.style.display = 'block';
+    clubBar.style.display = 'flex';
+    aerialBtn.style.display = 'block';
+    this.refreshClubBar();
+  }
 
-    if (this.ai) this.aiTurn();
+  /** Redraw the ground aim guide from the current aim + preview. */
+  private updateAimVisuals(): void {
+    if (this.state.phase !== 'aiming' || this.ai) {
+      this.aimRoot.setEnabled(false);
+      return;
+    }
+    this.aimRoot.setEnabled(true);
+    this.aim.computePreview(this.ctx(), this.wind);
+    const path = this.aim.previewPath;
+    const target = path && path.length ? path[path.length - 1] : this.aim.aimPoint(this.state.ballPos);
+    // Dots march from the ball to the landing/aim point along the ground
+    const bx = this.state.ballPos.x;
+    const by = this.state.ballPos.y;
+    this.aimDots.forEach((dot, i) => {
+      const f = (i + 1) / (this.aimDots.length + 1);
+      dot.position = w2b(bx + (target.x - bx) * f, by + (target.y - by) * f, 0.12);
+    });
+    this.aimRing.position = w2b(target.x, target.y, 0.12);
+  }
+
+  private cycleClub(dir: number): void {
+    if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
+    this.aim.cycleClub(dir, this.ctx());
+    this.puttGrid.setEnabled(this.aim.isPutting);
+    meter.arm({
+      stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
+      powerTarget: this.aim.barPowerTarget(this.ctx()),
+      isPutt: this.aim.isPutting
+    });
+    meterEl.style.display = 'block';
+    this.updateAimVisuals();
+    this.updateHud();
+    this.refreshClubBar();
+  }
+
+  private refreshClubBar(): void {
+    clubName.textContent = this.aim.club.name;
+  }
+
+  private toggleAerial(): void {
+    if (this.state.phase !== 'aiming' || this.ai) return;
+    this.aerial = !this.aerial;
+    aerialBtn.classList.toggle('on', this.aerial);
+    this.setCamSetup();
   }
 
   /** AI opponent: pick a shot with AIController and play it (no meter). */
@@ -410,6 +532,11 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
+    this.aimRoot.setEnabled(false);
+    this.aerial = false;
+    aerialBtn.classList.remove('on');
+    clubBar.style.display = 'none';
+    aerialBtn.style.display = 'none';
     const club = this.aim.club;
     // The meter reports bar units; the AI already reports physics power.
     const converted: SwingResult = powerIsPhysics
@@ -531,6 +658,7 @@ class HoleScene {
       this.aim.yaw += dx * 0.0035;
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
       this.setCamSetup();
+      this.updateAimVisuals();
       this.updateHud();
     };
     this.onPointerUp = (): void => {
@@ -539,6 +667,13 @@ class HoleScene {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
+
+    this.onPrevClub = () => this.cycleClub(-1);
+    this.onNextClub = () => this.cycleClub(1);
+    this.onAerial = () => this.toggleAerial();
+    document.getElementById('prevClub')!.addEventListener('pointerdown', this.onPrevClub);
+    document.getElementById('nextClub')!.addEventListener('pointerdown', this.onNextClub);
+    aerialBtn.addEventListener('pointerdown', this.onAerial);
 
     meter.onComplete = (result) => this.executeShot(result);
     meter.onBand = (kind, band) => {
@@ -552,6 +687,9 @@ class HoleScene {
   private onPointerDown!: (e: PointerEvent) => void;
   private onPointerMove!: (e: PointerEvent) => void;
   private onPointerUp!: () => void;
+  private onPrevClub!: () => void;
+  private onNextClub!: () => void;
+  private onAerial!: () => void;
 
   // ----------------------------------------------------------------- loop
 
@@ -628,8 +766,13 @@ class HoleScene {
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     canvas.removeEventListener('pointerup', this.onPointerUp);
+    document.getElementById('prevClub')!.removeEventListener('pointerdown', this.onPrevClub);
+    document.getElementById('nextClub')!.removeEventListener('pointerdown', this.onNextClub);
+    aerialBtn.removeEventListener('pointerdown', this.onAerial);
     meter.onComplete = null;
     meter.hide();
+    clubBar.style.display = 'none';
+    aerialBtn.style.display = 'none';
     this.scene.dispose();
   }
 }
@@ -715,7 +858,10 @@ function exposeDebug(): void {
         mode: round.mode,
         activePlayer: round.activePlayer,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
-        skipIntro: () => current?.beginTurn()
+        skipIntro: () => {
+          bannerEl.style.opacity = '0';
+          current?.beginTurn();
+        }
       }
     : null;
 }

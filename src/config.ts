@@ -29,7 +29,12 @@ export const SWING = {
   /** Good band half-width as a fraction of meter width. */
   goodBand: 0.11,
   /** Multiplier applied to the perfect band while on fire. */
-  firePerfectMult: 1.4
+  firePerfectMult: 1.4,
+  /** Bar position a full-carry shot's target sits at, leaving room above it
+   * for an overswing zone (so max-power shots can be missed on both sides). */
+  fullPowerMark: 0.85,
+  /** Physics power lost per bar-unit the cursor stops past the target (overswing). */
+  overswingPenalty: 1.0
 } as const;
 
 export const PHYSICS = {

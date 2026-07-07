@@ -8,19 +8,26 @@ const ACCURACY_TARGET = 0.08;
 export interface MeterContext {
   /** Governing accuracy stat 0..100 (widens the perfect band). */
   stat: number;
-  /** Where the power target line sits (0..1 of the bar). */
+  /** Intended power as a physics fraction (non-putt) or bar fraction (putt). */
   powerTarget: number;
   isPutt: boolean;
 }
 
 /**
- * DOM implementation of the classic 3-click meter for the 3D slice —
- * identical band math and sweep timing to the 2D game's SwingMeter
- * (`SWING` tuning in config.ts), rendered with plain HTML/CSS.
+ * DOM 3-click meter for the 3D game. Same sweep timing and band math as the
+ * 2D SwingMeter, but with a "full power" mark short of the bar end so a
+ * max-distance shot has an overswing zone beyond its target: stopping past
+ * the target loses distance just like stopping short. The bar stays visible
+ * (showing the target) as soon as it's armed, before the first tap.
+ *
+ * For non-putts the meter emits a physics power fraction directly. For putts
+ * it emits a bar fraction that AimControl.barToPhysicsPower scales to the
+ * green — putts keep their existing feel with no overswing zone.
  */
 export class DomMeter {
   private el: HTMLElement;
   private cursorEl: HTMLElement;
+  private markerEl: HTMLElement;
   private state: 'hidden' | 'idle' | 'power' | 'accuracy' | 'done' = 'hidden';
   private cursor = 0;
   private dirSign = 1;
@@ -37,6 +44,9 @@ export class DomMeter {
     this.el = container;
     this.cursorEl = document.createElement('div');
     this.cursorEl.className = 'cursor';
+    this.markerEl = document.createElement('div');
+    this.markerEl.className = 'lockMark';
+    this.markerEl.style.display = 'none';
   }
 
   get isArmed(): boolean {
@@ -45,6 +55,11 @@ export class DomMeter {
 
   get isActive(): boolean {
     return this.state === 'power' || this.state === 'accuracy';
+  }
+
+  /** Where the power target sits on the bar (0..1). */
+  private targetBar(): number {
+    return this.ctx.isPutt ? this.ctx.powerTarget : this.ctx.powerTarget * SWING.fullPowerMark;
   }
 
   private perfectHalf(): number {
@@ -64,6 +79,7 @@ export class DomMeter {
     this.state = 'idle';
     this.cursor = 0;
     this.dirSign = 1;
+    this.markerEl.style.display = 'none';
     this.renderZones();
     this.el.style.display = 'block';
     this.cursorEl.style.left = '0%';
@@ -85,7 +101,10 @@ export class DomMeter {
         return true;
       case 'power': {
         this.lockedPower = this.cursor;
-        this.lockedPowerBand = this.bandFor(this.cursor, this.ctx.powerTarget);
+        this.lockedPowerBand = this.bandFor(this.cursor, this.targetBar());
+        // Leave a marker where the power was locked so the player can read it
+        this.markerEl.style.left = `${this.cursor * 100}%`;
+        this.markerEl.style.display = 'block';
         this.onBand?.('power', this.lockedPowerBand);
         this.state = 'accuracy';
         this.dirSign = -1;
@@ -106,6 +125,25 @@ export class DomMeter {
     return 'miss';
   }
 
+  /** Physics power (non-putt) or bar fraction (putt) for the locked cursor. */
+  private deliveredPower(): number {
+    const t = this.targetBar();
+    const c = this.lockedPower;
+    if (this.ctx.isPutt) {
+      if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
+      return clamp(c, 0.03, 1);
+    }
+    // Non-putt: powerTarget is the intended physics fraction; the bar target
+    // sits at powerTarget * fullPowerMark.
+    if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
+    if (c <= t) {
+      // Short of the target — proportionally weaker
+      return clamp(c / SWING.fullPowerMark, 0.1, 1.08);
+    }
+    // Past the target — overswing bleeds distance back off
+    return clamp(this.ctx.powerTarget - SWING.overswingPenalty * (c - t), 0.1, 1.08);
+  }
+
   private lockAccuracy(cursor: number, autoMiss: boolean): void {
     let band = this.bandFor(cursor, ACCURACY_TARGET);
     let offset = clamp((cursor - ACCURACY_TARGET) / 0.5, -1, 1);
@@ -117,13 +155,7 @@ export class DomMeter {
     if (band === 'miss') offset = clamp(offset * 1.5, -1, 1);
     this.onBand?.('accuracy', band);
 
-    let power: number;
-    if (this.lockedPowerBand === 'perfect') {
-      power = this.ctx.powerTarget;
-    } else {
-      const minPower = this.ctx.isPutt ? 0.03 : 0.15;
-      power = clamp(this.lockedPower, minPower, 1.0);
-    }
+    let power = this.deliveredPower();
     if (band === 'miss') power *= 0.82 + Math.random() * 0.12;
 
     this.state = 'done';
@@ -160,26 +192,40 @@ export class DomMeter {
 
   private renderZones(): void {
     this.el.innerHTML = '';
-    const zone = (center: number, half: number, color: string, z: number): void => {
+    const zone = (left: number, width: number, color: string, z: number): void => {
       const d = document.createElement('div');
       d.className = 'zone';
-      d.style.left = `${(center - half) * 100}%`;
-      d.style.width = `${half * 2 * 100}%`;
+      d.style.left = `${left * 100}%`;
+      d.style.width = `${width * 100}%`;
       d.style.background = color;
       d.style.zIndex = String(z);
       this.el.appendChild(d);
     };
-    for (const target of [this.ctx.powerTarget, ACCURACY_TARGET]) {
-      zone(target, SWING.goodBand, 'rgba(201,162,39,0.55)', 1);
-      zone(target, this.perfectHalf(), '#43d05c', 2);
-      const line = document.createElement('div');
-      line.className = 'zone';
-      line.style.left = `${target * 100}%`;
-      line.style.width = '2px';
-      line.style.background = '#fff';
-      line.style.zIndex = '3';
-      this.el.appendChild(line);
+    const band = (center: number, half: number, color: string, z: number): void =>
+      zone(center - half, half * 2, color, z);
+    const line = (at: number, color: string): void => {
+      const l = document.createElement('div');
+      l.className = 'zone';
+      l.style.left = `${at * 100}%`;
+      l.style.width = '2px';
+      l.style.background = color;
+      l.style.zIndex = '4';
+      this.el.appendChild(l);
+    };
+    const pTarget = this.targetBar();
+    // Overswing danger zone above the power target (non-putts only)
+    if (!this.ctx.isPutt && pTarget < 1) {
+      zone(pTarget + SWING.goodBand, 1 - (pTarget + SWING.goodBand), 'rgba(196,58,58,0.4)', 1);
     }
+    band(pTarget, SWING.goodBand, 'rgba(201,162,39,0.55)', 2);
+    band(pTarget, this.perfectHalf(), '#43d05c', 3);
+    line(pTarget, '#fff');
+    // Accuracy target
+    band(ACCURACY_TARGET, SWING.goodBand, 'rgba(201,162,39,0.4)', 2);
+    band(ACCURACY_TARGET, this.perfectHalf(), '#43d05c', 3);
+    line(ACCURACY_TARGET, '#fff');
+
+    this.el.appendChild(this.markerEl);
     this.el.appendChild(this.cursorEl);
   }
 }
