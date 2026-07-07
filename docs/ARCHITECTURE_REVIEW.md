@@ -18,6 +18,7 @@ that feed Phase 1B and beyond.
 | Backend | Firebase Realtime Database over plain REST (shared leaderboard only) |
 | Deploy | GitHub Actions → GitHub Pages (`.github/workflows/deploy.yml`, build in `dist/`) |
 | Tests | vitest unit tests over the pure gameplay logic (`tests/`) |
+| Audio | Synthesized WAVs, regenerable via `node scripts/generate-sfx.mjs` |
 
 ---
 
@@ -35,9 +36,13 @@ src/
     rendering/
       Projection.ts        Ground-plane ("mode-7") perspective projection
       PerspectiveView.ts   Behind-the-player shot view (sky, ground, trees,
-                           buildings, green grid, golfer, flag, balls, trails)
+                           buildings, green grid, golfer, flag, balls, trails,
+                           particles) with adaptive ground-repaint pacing
+      CameraDirector.ts    Cinematic camera: eased setup framing, flight
+                           chase cam, landing cam
       OverheadCourse.ts    Top-down course drawing (also the physics world)
-    audio/Sfx.ts       Best-effort SFX playback (assets are silent stubs)
+      Theme.ts             Per-course palette/sun/haze (JSON `theme` block)
+    audio/Sfx.ts       SFX playback, per-club impact mapping, ambience loop
   systems/
     PhysicsEngine.ts   Shot simulation: flight, wind, bounce, roll, hazards, cup
     SwingMeter.ts      3-click swing meter UI + band math
@@ -98,17 +103,29 @@ trees by depth, extrudes building footprints into boxes, and draws the
 putting grid + break chevrons through the same projection. Everything is
 procedural `Phaser.GameObjects.Graphics` — zero texture assets.
 
-Implications for Phase 1B (graphics):
+Phase 1B additions:
 
-- The projection layer is exactly the seam needed for a **ball-follow flight
-  camera**: `PerspCamera` is plain data (position/yaw/height/focal), so
-  animating it per-frame during flight is cheap and safe.
-- Because ground rendering is a full redraw per camera move
-  (`redrawGround`), heavier art must either keep draw counts modest, cache to
-  textures (`RenderTexture`), or move layers to generated bitmaps.
-- The overhead and perspective views duplicate *styling* (colors, hazards)
-  but share the geometry from course JSON — visual upgrades should keep both
-  in sync or intentionally restyle the overhead as a "course map".
+- **CameraDirector** animates `PerspCamera` per frame: eased setup framing
+  between turns, a chase cam trailing the airborne ball (rising with its
+  height), and a landing cam that watches the rollout. Putts keep the fixed
+  intimate framing.
+- **Adaptive ground repaint** (`PerspectiveView.applyCamera`): the projection
+  updates every frame (balls/overlays never lag) while the ground repaints as
+  often as its measured cost allows — every frame on GPUs, paced on weak
+  software renderers. This is the key mobile-performance safety valve.
+- **Theme system** (`core/rendering/Theme.ts`): course JSON may carry a
+  `theme` block ("#rrggbb" strings) overriding the Augusta default — sky,
+  sun position, turf/water/sand/tree palette, haze. Legends Links uses a
+  cool links theme. One sun direction per course drives every shadow.
+- **Living world**: drifting cloud layer, water glints, world-anchored mow
+  stripes and grass flecks, tree species variety, detailed buildings,
+  posed swing animation, and world-space debris particles.
+- **Audio pipeline**: `scripts/generate-sfx.mjs` synthesizes all WAVs
+  deterministically (the project owns its audio); `Sfx.ts` maps clubs to
+  impact sounds and loops the ambience. Swap files in `assets/sfx/` to
+  re-skin audio without code changes.
+- `main.ts` exposes `window.__johnsonsGolf` for the Playwright verification
+  scripts (state-driven drives that play real swings).
 
 ---
 

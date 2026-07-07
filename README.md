@@ -36,7 +36,14 @@ npm run dev     # dev server with hot reload (http://localhost:5173)
 npm test        # vitest unit tests (physics, scoring, turns, ...)
 npm run build   # type-check + production build into dist/
 npm run preview # serve the production build locally
+
+node scripts/generate-sfx.mjs   # re-synthesize the sound effects (assets/sfx)
 ```
+
+Course look & feel is data-driven: each course JSON may include a `theme`
+block (sky, sun, turf/water/sand palette, haze) — see
+`src/core/rendering/Theme.ts`. Amen Corner uses the Augusta default;
+Legends Links ships a cooler links theme.
 
 ## Deployment
 
@@ -53,13 +60,14 @@ vite.config.ts          Vite build → dist/, relative base for Pages
 src/main.ts             Phaser bootstrap
 src/config.ts           All gameplay tuning constants
 src/scenes/             Title, GolferSelect, ModeSelect, CourseSelect, Game, Results, Records
-src/core/               Types, cross-scene state, input (aim control),
-                        rendering (mode-7 projection, shot + overhead views), audio
+src/core/               Types, cross-scene state, input (aim control), audio,
+                        rendering (mode-7 projection, camera director, themes,
+                        shot + overhead views)
 src/systems/            PhysicsEngine, SwingMeter, TurnManager, AIController, FireSystem, Scoring
 src/ui/                 Buttons, avatars, in-round HUD
 src/firebase/           Round history + shared leaderboard (RTDB REST)
 src/data/               Golfers, opponents, clubs, course JSONs
-assets/                 UI/sprite SVGs and SFX stubs (Vite public dir)
+assets/                 UI/sprite SVGs and synthesized SFX (Vite public dir)
 tests/                  vitest unit tests
 docs/                   Design documentation (vision, GDD, art, architecture, roadmap...)
 ```

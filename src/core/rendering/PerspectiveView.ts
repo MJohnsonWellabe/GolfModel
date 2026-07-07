@@ -209,6 +209,10 @@ export class PerspectiveView {
         }
       }
     }
+    // Cap the per-frame projection cost on holes with big water
+    while (this.sparkles.length > 70) {
+      this.sparkles = this.sparkles.filter((_, i) => i % 2 === 0);
+    }
   }
 
   /**
