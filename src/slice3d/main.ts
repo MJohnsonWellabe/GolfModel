@@ -829,14 +829,20 @@ function showSummary(): void {
     totals.map((t) => `<td>${t} (${parLabel(t)})</td>`).join('') +
     `</tr>`;
   let headline = 'Round complete';
+  let teamRow = '';
   if (round.mode === '1v1') {
     const me = totals[0];
     const them = totals[1];
     headline = me < them ? 'You win! 🏆' : me > them ? `${round.players[1].golfer.name} wins` : 'Tied match';
+  } else if (round.mode === 'scramble') {
+    // Better ball: the team takes the lower score on each hole
+    const team = holes.reduce((sum, _h, i) => sum + Math.min(round.players[0].scores[i], round.players[1].scores[i]), 0);
+    headline = `Team ${parLabel(team)}`;
+    teamRow = `<tr class="totrow"><td colspan="${2 + round.players.length}">Best ball: <b>${team}</b> (${parLabel(team)})</td></tr>`;
   }
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
-    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}</table>` +
+    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
     `<button id="againBtn">Menu</button>`;
   summaryEl.style.display = 'block';
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
