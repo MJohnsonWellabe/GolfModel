@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
+import { safePlay } from '../core/audio/Sfx';
 import { GolferLook } from '../core/types';
 
 export interface ButtonOptions {
@@ -41,6 +42,7 @@ export function makeButton(
   container.setInteractive({ useHandCursor: true });
   container.on('pointerdown', () => {
     scene.tweens.add({ targets: container, scale: 0.95, duration: 60, yoyo: true });
+    safePlay(scene, 'ui');
     onTap();
   });
   return container;

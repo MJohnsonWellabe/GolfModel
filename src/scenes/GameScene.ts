@@ -6,7 +6,7 @@ import { CameraDirector } from '../core/rendering/CameraDirector';
 import { drawOverheadCourse } from '../core/rendering/OverheadCourse';
 import { resolveTheme } from '../core/rendering/Theme';
 import { PerspectiveView, TrailDot, ViewParticle } from '../core/rendering/PerspectiveView';
-import { safePlay } from '../core/audio/Sfx';
+import { impactKey, safePlay, startAmbience } from '../core/audio/Sfx';
 import {
   Band,
   ClubSpec,
@@ -184,6 +184,7 @@ export class GameScene extends Phaser.Scene {
     this.input.on('pointermove', (p: Phaser.Input.Pointer) => this.onPointerMove(p));
     this.input.on('pointerup', () => this.aim.endDrag());
 
+    startAmbience(this);
     this.applyViewMode();
     this.updateHud();
     this.hud.showHoleBanner(this.hole);
@@ -623,8 +624,9 @@ export class GameScene extends Phaser.Scene {
     p.strokes += 1;
     if (outcome.waterPenalty) p.strokes += 1;
 
-    // Swing animation, then launch
-    this.persp.swing(() => safePlay(this, 'swing'));
+    // Swing animation: whoosh through the downswing, crack at contact
+    if (club.id !== 'putter') safePlay(this, 'swing');
+    this.persp.swing(() => safePlay(this, impactKey(club.id)));
     this.time.delayedCall(320, () => {
       this.trail = [];
       if (!outcome.holed || outcome.path.length > 6) {
@@ -668,6 +670,9 @@ export class GameScene extends Phaser.Scene {
         p.holed = true;
         this.emitBurst(this.hole.pin, 0xffe28a, 12, 70, 160, 2.6);
         safePlay(this, 'hole');
+        if (p.strokes < this.hole.par) {
+          this.time.delayedCall(450, () => safePlay(this, 'chime'));
+        }
         this.hud.showFeedback(
           `${p.golfer.name}: ${scoreName(p.strokes, this.hole.par)}`,
           '#ffd54f',
