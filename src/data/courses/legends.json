@@ -20,7 +20,9 @@
     "treeCanopyLight": "#3d6b40",
     "treeTrunk": "#6b5340",
     "haze": "#e4ecea",
-    "hazeStrength": 0.7
+    "hazeStrength": 0.7,
+    "backdrop": "sea",
+    "blossomChance": 0
   },
   "holes": [
     {

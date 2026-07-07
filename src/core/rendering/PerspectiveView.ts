@@ -59,6 +59,8 @@ export class PerspectiveView {
   readonly root: Phaser.GameObjects.Container;
   private skyG: Phaser.GameObjects.Graphics;
   private cloudG: Phaser.GameObjects.Graphics;
+  private backdropG: Phaser.GameObjects.Graphics;
+  private treelineG: Phaser.GameObjects.Graphics;
   private ground: GroundMesh;
   private groundG: Phaser.GameObjects.Graphics;
   private animG: Phaser.GameObjects.Graphics;
@@ -85,6 +87,8 @@ export class PerspectiveView {
   ) {
     this.skyG = scene.add.graphics();
     this.cloudG = scene.add.graphics();
+    this.backdropG = scene.add.graphics();
+    this.treelineG = scene.add.graphics();
     this.ground = new GroundMesh(scene, groundTextureKey, hole.world.width, hole.world.height);
     this.groundG = scene.add.graphics();
     this.animG = scene.add.graphics();
@@ -94,6 +98,8 @@ export class PerspectiveView {
     this.root = scene.add.container(0, 0, [
       this.skyG,
       this.cloudG,
+      this.backdropG,
+      this.treelineG,
       this.ground.mesh,
       this.groundG,
       this.animG,
@@ -115,6 +121,8 @@ export class PerspectiveView {
     this.collectSparkles();
     this.drawSky();
     this.drawClouds();
+    this.drawBackdrop();
+    this.drawTreeline();
     this.drawVignette(vignetteG);
   }
 
@@ -159,7 +167,7 @@ export class PerspectiveView {
   }
 
   private collectTrees(): void {
-    this.trees = collectTreeBlobs(this.hole);
+    this.trees = collectTreeBlobs(this.hole, this.theme.blossomChance);
   }
 
   /** Stable in-water points that glint in updateDynamic. */
@@ -243,24 +251,91 @@ export class PerspectiveView {
 
     // Clouds live on their own layer (drawClouds) so they can drift
 
-    // Distant tree line on the horizon (two depths for parallax feel)
-    const far = shade(t.treeCanopy, 0.72);
-    g.fillStyle(far, 1);
-    for (let x = -10; x < GAME_WIDTH + 10; x += 34) {
-      const r = 12 + this.hash(x, 5) * 18;
-      g.fillCircle(x, H - 20, r);
-    }
-    g.fillStyle(shade(t.treeCanopy, 0.9), 1);
-    g.fillRect(0, H - 22, GAME_WIDTH, 22);
-    for (let x = 0; x < GAME_WIDTH; x += 26) {
-      const r = 10 + this.hash(x, 1) * 16;
-      g.fillCircle(x, H - 22, r);
-    }
+  }
 
-    // Atmospheric haze above the horizon
-    const hz = this.theme.hazeStrength;
-    g.fillGradientStyle(t.haze, t.haze, t.haze, t.haze, 0, 0, 0.62 * hz, 0.62 * hz);
-    g.fillRect(0, H - 80, GAME_WIDTH, 54);
+  /**
+   * Horizon scenery on its own layer: mountain ridges (with one snow-capped
+   * peak) or a sea horizon with dunes. Drawn twice for wrap-around — the
+   * layer slides with camera yaw for a gentle parallax.
+   */
+  private drawBackdrop(): void {
+    const g = this.backdropG;
+    const t = this.theme;
+    const H = SKY_HORIZON_DEFAULT + 10;
+    g.clear();
+    for (const dx of [0, GAME_WIDTH]) {
+      if (t.backdrop === 'sea') {
+        // Sea band up to the horizon with a sun glitter path + far dunes
+        g.fillGradientStyle(shade(t.water, 1.25), shade(t.water, 1.25), t.water, t.water, 1);
+        g.fillRect(dx, H - 46, GAME_WIDTH, 30);
+        g.fillStyle(0xffffff, 0.25);
+        for (let x = 0; x < GAME_WIDTH; x += 18) {
+          if (this.hash(x, 9) > 0.5) g.fillRect(dx + x, H - 44 + this.hash(x, 3) * 24, 9, 1.5);
+        }
+        g.fillStyle(shade(t.sand, 0.92), 1);
+        for (let x = -20; x < GAME_WIDTH + 20; x += 90) {
+          const w2 = 70 + this.hash(x, 11) * 60;
+          const hh = 7 + this.hash(x, 13) * 8;
+          g.fillEllipse(dx + x, H - 15, w2, hh * 2);
+        }
+      } else {
+        // Far ridge: cool atmospheric blue
+        const farC = shade(t.skyTop, 1.18);
+        g.fillStyle(farC, 0.85);
+        for (let x = -30; x < GAME_WIDTH + 30; x += 46) {
+          const hh = 34 + this.hash(x, 21) * 40;
+          g.fillTriangle(dx + x - 60, H - 16, dx + x, H - 16 - hh, dx + x + 60, H - 16);
+        }
+        // Snow-capped feature peak
+        const px = 430;
+        const peakH = 120;
+        const mid = shade(t.skyTop, 0.92);
+        g.fillStyle(mid, 0.95);
+        g.fillTriangle(dx + px - 130, H - 14, dx + px, H - 14 - peakH, dx + px + 130, H - 14);
+        g.fillStyle(0x000000, 0.08);
+        g.fillTriangle(dx + px, H - 14 - peakH, dx + px + 130, H - 14, dx + px + 40, H - 14);
+        g.fillStyle(0xffffff, 0.95);
+        g.fillTriangle(dx + px - 34, H - 14 - peakH + 32, dx + px, H - 14 - peakH, dx + px + 34, H - 14 - peakH + 32);
+        // Near ridge: darker rolling hills
+        const nearC = shade(t.treeCanopy, 1.6);
+        g.fillStyle(nearC, 0.9);
+        for (let x = -40; x < GAME_WIDTH + 40; x += 64) {
+          const hh = 16 + this.hash(x, 31) * 22;
+          g.fillEllipse(dx + x, H - 8, 150, hh * 2);
+        }
+      }
+    }
+  }
+
+  /** Distant treeline + horizon haze, parallaxing slightly faster than the peaks. */
+  private drawTreeline(): void {
+    const g = this.treelineG;
+    const t = this.theme;
+    const H = SKY_HORIZON_DEFAULT + 10;
+    g.clear();
+    for (const dx of [0, GAME_WIDTH]) {
+      const far = shade(t.treeCanopy, 0.72);
+      g.fillStyle(far, 1);
+      for (let x = -10; x < GAME_WIDTH + 10; x += 34) {
+        const r = 12 + this.hash(x, 5) * 18;
+        g.fillCircle(dx + x, H - 20, r);
+      }
+      g.fillStyle(shade(t.treeCanopy, 0.9), 1);
+      g.fillRect(dx, H - 22, GAME_WIDTH, 22);
+      for (let x = 0; x < GAME_WIDTH; x += 26) {
+        const r = 10 + this.hash(x, 1) * 16;
+        g.fillCircle(dx + x, H - 22, r);
+        if (t.blossomChance > 0 && this.hash(x, 41) < t.blossomChance * 0.8) {
+          g.fillStyle(0xe8a8c8, 0.9);
+          g.fillCircle(dx + x + 6, H - 26, r * 0.55);
+          g.fillStyle(shade(t.treeCanopy, 0.9), 1);
+        }
+      }
+      // Atmospheric haze above the horizon
+      const hz = t.hazeStrength;
+      g.fillGradientStyle(t.haze, t.haze, t.haze, t.haze, 0, 0, 0.62 * hz, 0.62 * hz);
+      g.fillRect(dx, H - 80, GAME_WIDTH, 54);
+    }
   }
 
   // ---------------------------------------------------------------- ground
@@ -332,6 +407,17 @@ export class PerspectiveView {
         g.fillStyle(canopyLight, 1);
         g.fillCircle(sp.x - r * 0.5, cy - r * 0.72, r * 0.42);
         g.fillCircle(sp.x + r * 0.2, cy - r * 1.05, r * 0.4);
+      } else if (t.kind === 3) {
+        // Blossom tree: rosy layered canopy with bright highlights
+        const rose = shade(0xd98bb4, t.tint);
+        const roseLight = shade(0xefb6d2, t.tint);
+        g.fillStyle(rose, 1);
+        g.fillCircle(sp.x, cy - r * 0.6, r);
+        g.fillCircle(sp.x - r * 0.5, cy - r * 0.4, r * 0.6);
+        g.fillCircle(sp.x + r * 0.5, cy - r * 0.45, r * 0.58);
+        g.fillStyle(roseLight, 1);
+        g.fillCircle(sp.x - r * 0.25, cy - r * 0.8, r * 0.55);
+        g.fillCircle(sp.x + r * 0.3, cy - r * 0.72, r * 0.35);
       } else {
         // Round oak: layered lobes
         g.fillStyle(canopy, 1);
@@ -493,8 +579,11 @@ export class PerspectiveView {
   updateDynamic(state: DynamicState): void {
     const g = this.animG;
     const proj = this.proj;
-    // Clouds drift slowly with wrap-around
+    // Clouds drift slowly; scenery layers parallax with camera yaw
     this.cloudG.x = -((state.timeSec * 5) % GAME_WIDTH);
+    const turn = ((proj.cam.yaw % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    this.backdropG.x = -((turn / (Math.PI * 2)) * GAME_WIDTH * 0.6) % GAME_WIDTH;
+    this.treelineG.x = -((turn / (Math.PI * 2)) * GAME_WIDTH) % GAME_WIDTH;
     g.clear();
 
     // Aim marker (projected ring)

@@ -34,6 +34,10 @@ export interface CourseTheme {
   /** Atmospheric haze tint + strength (0..1) near the horizon. */
   haze: number;
   hazeStrength: number;
+  /** Horizon scenery: layered mountain ridges or a sea horizon with dunes. */
+  backdrop: 'peaks' | 'sea';
+  /** Fraction of trees that bloom pink (azaleas/cherries). */
+  blossomChance: number;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -58,7 +62,9 @@ export const DEFAULT_THEME: CourseTheme = {
   treeCanopyLight: 0x2b6b34,
   treeTrunk: 0x5a4632,
   haze: 0xdcecf4,
-  hazeStrength: 0.5
+  hazeStrength: 0.5,
+  backdrop: 'peaks',
+  blossomChance: 0.22
 };
 
 /** Multiply a color's RGB by `f` (>1 lightens toward white, <1 darkens). */
@@ -84,8 +90,16 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   for (const key of Object.keys(t) as Array<keyof CourseTheme>) {
     if (!(key in spec)) continue;
     const v = spec[key];
-    if (key === 'sunX' || key === 'sunY' || key === 'shadowAngle' || key === 'hazeStrength') {
+    if (
+      key === 'sunX' ||
+      key === 'sunY' ||
+      key === 'shadowAngle' ||
+      key === 'hazeStrength' ||
+      key === 'blossomChance'
+    ) {
       if (typeof v === 'number') t[key] = v;
+    } else if (key === 'backdrop') {
+      if (v === 'peaks' || v === 'sea') t.backdrop = v;
     } else {
       t[key] = parseColor(v, t[key]);
     }

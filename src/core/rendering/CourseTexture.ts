@@ -24,7 +24,7 @@ export function blobHash(x: number, y: number): number {
 }
 
 /** The tree positions for a hole — one source for billboards AND baked shadows. */
-export function collectTreeBlobs(hole: HoleData): TreeBlob[] {
+export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] {
   const blobs: TreeBlob[] = [];
   for (const hz of hole.hazards) {
     if (hz.type !== 'trees') continue;
@@ -39,11 +39,12 @@ export function collectTreeBlobs(hole: HoleData): TreeBlob[] {
         const jx = xx + (blobHash(xx, yy) - 0.5) * 36;
         const jy = yy + (blobHash(yy, xx) - 0.5) * 36;
         if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+        const k = blobHash(xx + 31, yy + 17);
         blobs.push({
           x: jx,
           y: jy,
           r: 15 + blobHash(xx + 7, yy + 3) * 12,
-          kind: Math.floor(blobHash(xx + 31, yy + 17) * 3),
+          kind: k < blossomChance ? 3 : Math.floor((k - blossomChance) / (1 - blossomChance) * 3),
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32
         });
       }
