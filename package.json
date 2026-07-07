@@ -1,0 +1,9 @@
+{
+  "name": "johnsons-golf",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Johnson's Golf — a golf game",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {}
+}
