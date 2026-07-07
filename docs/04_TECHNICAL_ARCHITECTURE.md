@@ -57,7 +57,9 @@ Backend
 
 Deployment
 
-- GitHub Pages (current)
+- GitHub Pages, published by GitHub Actions (current)
+  - `.github/workflows/deploy.yml` tests, builds (`dist/`), and deploys on push
+  - The build is never committed; `docs/` holds design documentation
 - Future custom domain
 
 ---
