@@ -25,6 +25,7 @@ import { SwingMeter } from '../systems/SwingMeter';
 import { TurnManager } from '../systems/TurnManager';
 import { GameHud } from '../ui/GameHud';
 import { angleTo, clamp, dist } from '../utils/Geometry';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 interface PlayerRt {
   golfer: Golfer;
@@ -119,8 +120,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     if (!state.golfer || !state.course || !state.scoring) {
-      this.scene.start('TitleScene');
+      fadeToScene(this, 'TitleScene');
       return;
     }
     this.hole = state.course.holes[state.holeIndex];
@@ -740,7 +742,7 @@ export class GameScene extends Phaser.Scene {
     const lastHole = state.holeIndex >= state.course!.holes.length - 1;
     this.hud.showHoleComplete(this.hole.number, lines, lastHole, () => {
       if (lastHole) {
-        this.scene.start('ResultsScene');
+        fadeToScene(this, 'ResultsScene');
       } else {
         state.holeIndex += 1;
         this.scene.restart();

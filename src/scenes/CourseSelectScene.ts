@@ -5,6 +5,7 @@ import { CourseData } from '../core/types';
 import { makeTitle } from '../ui/Ui';
 import amenCorner from '../data/courses/amenCorner.json';
 import legends from '../data/courses/legends.json';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 export class CourseSelectScene extends Phaser.Scene {
   constructor() {
@@ -12,6 +13,7 @@ export class CourseSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     const cx = GAME_WIDTH / 2;
     this.add.rectangle(cx, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, COLORS.rough);
     makeTitle(this, cx, 120, 'SELECT COURSE', 50);
@@ -100,7 +102,7 @@ export class CourseSelectScene extends Phaser.Scene {
     card.on('pointerdown', () => {
       state.course = course;
       state.startRound();
-      this.scene.start('GameScene');
+      fadeToScene(this, 'GameScene');
     });
   }
 }

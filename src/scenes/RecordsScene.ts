@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { bestRounds, fetchAllRounds, RoundRecord } from '../firebase/History';
 import { GameMode } from '../core/types';
 import { makeButton, makeTitle } from '../ui/Ui';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 const COURSES = ['Amen Corner', 'Legends Links'];
 const MODES: Array<{ mode: GameMode; label: string }> = [
@@ -24,6 +25,7 @@ export class RecordsScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     this.loaded = false;
     this.rounds = [];
     this.courseIdx = 0;
@@ -44,7 +46,7 @@ export class RecordsScene extends Phaser.Scene {
     this.styleCourseButtons();
 
     makeButton(this, cx, GAME_HEIGHT - 90, 320, 76, 'BACK', () => {
-      this.scene.start('TitleScene');
+      fadeToScene(this, 'TitleScene');
     });
 
     this.renderList();

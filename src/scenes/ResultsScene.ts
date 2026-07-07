@@ -10,6 +10,7 @@ import {
 } from '../firebase/History';
 import { formatToPar } from '../systems/Scoring';
 import { makeButton, makeTitle } from '../ui/Ui';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 export class ResultsScene extends Phaser.Scene {
   private newRecord = false;
@@ -19,11 +20,12 @@ export class ResultsScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     const cx = GAME_WIDTH / 2;
     this.add.rectangle(cx, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, COLORS.rough);
 
     if (!state.scoring || !state.course || !state.golfer) {
-      this.scene.start('TitleScene');
+      fadeToScene(this, 'TitleScene');
       return;
     }
 
@@ -100,13 +102,13 @@ export class ResultsScene extends Phaser.Scene {
     });
     makeButton(this, cx, 872, 360, 84, 'PLAY AGAIN', () => {
       state.startRound();
-      this.scene.start('GameScene');
+      fadeToScene(this, 'GameScene');
     });
     makeButton(this, cx - 100, 984, 320, 84, 'MAIN MENU', () => {
-      this.scene.start('TitleScene');
+      fadeToScene(this, 'TitleScene');
     });
     makeButton(this, cx + 210, 984, 220, 84, 'RECORDS', () => {
-      this.scene.start('RecordsScene');
+      fadeToScene(this, 'RecordsScene');
     }, { fill: 0x11431f, fontSize: 26 });
 
     this.persistRound();

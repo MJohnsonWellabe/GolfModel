@@ -4,6 +4,7 @@ import { state } from '../core/GameState';
 import { Golfer, overallRating } from '../core/types';
 import { drawAvatar, drawRatingBadge, makeTitle } from '../ui/Ui';
 import { GOLFERS } from '../data/golfers';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 const STAT_LABELS: Array<{ key: keyof Golfer['stats']; label: string }> = [
   { key: 'drivingPower', label: 'PWR' },
@@ -32,6 +33,7 @@ export class GolferSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     const cx = GAME_WIDTH / 2;
     const bg = this.add.graphics();
     bg.fillGradientStyle(0x1c4a28, 0x1c4a28, 0x123018, 0x123018, 1);
@@ -167,7 +169,7 @@ export class GolferSelectScene extends Phaser.Scene {
         scale: 0.96,
         duration: 70,
         yoyo: true,
-        onComplete: () => this.scene.start('ModeSelectScene')
+        onComplete: () => fadeToScene(this, 'ModeSelectScene')
       });
     });
     return card;

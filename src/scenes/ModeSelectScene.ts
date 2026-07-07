@@ -4,6 +4,7 @@ import { state } from '../core/GameState';
 import { GameMode, Golfer, overallRating } from '../core/types';
 import { drawAvatar, makeButton, makeTitle } from '../ui/Ui';
 import { OPPONENTS } from '../data/opponents';
+import { fadeIn, fadeToScene } from '../ui/Transitions';
 
 const MODES: Array<{ mode: GameMode; label: string; blurb: string }> = [
   { mode: 'solo', label: 'SOLO', blurb: 'Stroke play — 3 holes, just you and the course' },
@@ -20,6 +21,7 @@ export class ModeSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    fadeIn(this);
     this.opponentUi = [];
     const cx = GAME_WIDTH / 2;
     this.add.rectangle(cx, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, COLORS.rough);
@@ -44,7 +46,7 @@ export class ModeSelectScene extends Phaser.Scene {
     if (mode === 'solo') {
       state.mode = 'solo';
       state.opponent = null;
-      this.scene.start('CourseSelectScene');
+      fadeToScene(this, 'CourseSelectScene');
       return;
     }
     this.pendingMode = mode;
@@ -104,7 +106,7 @@ export class ModeSelectScene extends Phaser.Scene {
     chip.on('pointerdown', () => {
       state.mode = this.pendingMode;
       state.opponent = opp;
-      this.scene.start('CourseSelectScene');
+      fadeToScene(this, 'CourseSelectScene');
     });
     return chip;
   }
