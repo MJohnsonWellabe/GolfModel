@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../../config';
+import { GAME_HEIGHT, GAME_WIDTH } from '../../config';
+import { CourseTheme, DEFAULT_THEME, shade } from './Theme';
 import { pointInPolygon } from '../../utils/Geometry';
 import { drawDino, drawHeart, drawPikachu } from '../../ui/Ui';
 import { Projection, PerspCamera, ScreenPoint } from './Projection';
@@ -63,18 +64,24 @@ export class PerspectiveView {
   /** Scratch list for depth-sorted tree drawing (reused every repaint). */
   private treeDraw: Array<{ t: TreeBlob; p: ScreenPoint }> = [];
 
-  constructor(private scene: Phaser.Scene, private hole: HoleData) {
+  constructor(
+    private scene: Phaser.Scene,
+    private hole: HoleData,
+    private theme: CourseTheme = DEFAULT_THEME
+  ) {
     this.skyG = scene.add.graphics();
     this.groundG = scene.add.graphics();
     this.animG = scene.add.graphics();
     this.golferG = scene.add.graphics();
     this.clubG = scene.add.graphics();
+    const vignetteG = scene.add.graphics();
     this.root = scene.add.container(0, 0, [
       this.skyG,
       this.groundG,
       this.animG,
       this.golferG,
-      this.clubG
+      this.clubG,
+      vignetteG
     ]);
     this.root.setDepth(10);
     this.proj = new Projection({
@@ -88,6 +95,16 @@ export class PerspectiveView {
     });
     this.collectTrees();
     this.drawSky();
+    this.drawVignette(vignetteG);
+  }
+
+  /** Soft edge darkening, drawn once — pulls the eye to the center. */
+  private drawVignette(g: Phaser.GameObjects.Graphics): void {
+    const w = 110;
+    g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.12, 0, 0.12, 0);
+    g.fillRect(0, 0, w, GAME_HEIGHT);
+    g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.12, 0, 0.12);
+    g.fillRect(GAME_WIDTH - w, 0, w, GAME_HEIGHT);
   }
 
   /** Deterministic 0..1 jitter (stable across redraws). */
@@ -148,36 +165,59 @@ export class PerspectiveView {
 
   private drawSky(): void {
     const g = this.skyG;
+    const t = this.theme;
     const H = SKY_HORIZON_DEFAULT + 10;
     g.clear();
-    g.fillGradientStyle(0x5aa7dd, 0x5aa7dd, 0xbfe3f2, 0xbfe3f2, 1);
-    g.fillRect(0, 0, GAME_WIDTH, H);
-    // Sun + glow
+    // Two-band gradient reads as a deeper sky dome than a single ramp
+    const mid = shade(t.skyTop, 1.35);
+    g.fillGradientStyle(t.skyTop, t.skyTop, mid, mid, 1);
+    g.fillRect(0, 0, GAME_WIDTH, H * 0.55);
+    g.fillGradientStyle(mid, mid, t.skyBottom, t.skyBottom, 1);
+    g.fillRect(0, H * 0.55 - 1, GAME_WIDTH, H * 0.45 + 1);
+
+    // Sun: layered bloom
+    g.fillStyle(0xfff3c4, 0.18);
+    g.fillCircle(t.sunX, t.sunY, 110);
     g.fillStyle(0xfff3c4, 0.35);
-    g.fillCircle(560, 120, 70);
+    g.fillCircle(t.sunX, t.sunY, 70);
     g.fillStyle(0xfff8dc, 1);
-    g.fillCircle(560, 120, 38);
-    // Clouds
-    g.fillStyle(0xffffff, 0.85);
+    g.fillCircle(t.sunX, t.sunY, 38);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(t.sunX - 6, t.sunY - 8, 26);
+
+    // Clouds: soft two-tone puffs
     for (const [cx, cy, w] of [
       [140, 110, 130],
       [340, 180, 100],
       [620, 230, 120],
       [90, 260, 90]
     ]) {
+      g.fillStyle(0xe9f3f8, 0.7);
+      g.fillEllipse(cx + 6, cy + 8, w, w * 0.3);
+      g.fillStyle(0xffffff, 0.92);
       g.fillEllipse(cx, cy, w, w * 0.32);
       g.fillEllipse(cx + w * 0.25, cy - w * 0.12, w * 0.6, w * 0.24);
+      g.fillEllipse(cx - w * 0.28, cy - w * 0.06, w * 0.5, w * 0.2);
     }
-    // Distant tree line on the horizon
-    g.fillStyle(0x16381d, 1);
-    g.fillRect(0, H - 26, GAME_WIDTH, 26);
+
+    // Distant tree line on the horizon (two depths for parallax feel)
+    const far = shade(t.treeCanopy, 0.72);
+    g.fillStyle(far, 1);
+    for (let x = -10; x < GAME_WIDTH + 10; x += 34) {
+      const r = 12 + this.hash(x, 5) * 18;
+      g.fillCircle(x, H - 20, r);
+    }
+    g.fillStyle(shade(t.treeCanopy, 0.9), 1);
+    g.fillRect(0, H - 22, GAME_WIDTH, 22);
     for (let x = 0; x < GAME_WIDTH; x += 26) {
       const r = 10 + this.hash(x, 1) * 16;
-      g.fillCircle(x, H - 26, r);
+      g.fillCircle(x, H - 22, r);
     }
-    // Haze above the horizon
-    g.fillGradientStyle(0xffffff, 0xffffff, 0xffffff, 0xffffff, 0, 0, 0.28, 0.28);
-    g.fillRect(0, H - 70, GAME_WIDTH, 44);
+
+    // Atmospheric haze above the horizon
+    const hz = this.theme.hazeStrength;
+    g.fillGradientStyle(t.haze, t.haze, t.haze, t.haze, 0, 0, 0.62 * hz, 0.62 * hz);
+    g.fillRect(0, H - 80, GAME_WIDTH, 54);
   }
 
   // ---------------------------------------------------------------- ground
@@ -202,46 +242,84 @@ export class PerspectiveView {
     const g = this.groundG;
     const proj = this.proj;
     const cam = proj.cam;
+    const t = this.theme;
     const H = cam.horizonY;
     g.clear();
 
     // Base ground: distance-shaded rough
-    g.fillGradientStyle(0x24512b, 0x24512b, 0x2f6b36, 0x2f6b36, 1);
+    const roughFar = shade(t.roughDark, 0.92);
+    g.fillGradientStyle(roughFar, roughFar, t.rough, t.rough, 1);
     g.fillRect(0, H, GAME_WIDTH, GAME_HEIGHT - H);
 
-    // Receding mow bands (world-depth stripes projected to screen rows)
-    g.fillStyle(0x000000, 0.05);
-    const stripe = 70;
-    for (let dNear = 8; dNear < 2600; dNear += stripe * 2) {
-      const yNear = H + (cam.height * cam.focal) / dNear;
-      const yFar = H + (cam.height * cam.focal) / (dNear + stripe);
-      if (yNear - yFar < 0.8 || yFar > GAME_HEIGHT) {
+    // Receding mow bands (world-depth stripes projected to screen rows).
+    // Fairway/green fills below are slightly transparent so these bands
+    // ghost through as mowing stripes on every surface.
+    // Mow stripes: bands of world distance anchored to the world (phase
+    // follows the camera's position along its heading), so they hold still
+    // while the camera glides. ~20yd wavelength reads like real mowing.
+    const stripe = 42;
+    const along = cam.x * Math.cos(cam.yaw) + cam.y * Math.sin(cam.yaw);
+    const phase = ((along % (stripe * 2)) + stripe * 2) % (stripe * 2);
+    for (let dNear = 6 - phase; dNear < 2600; dNear += stripe * 2) {
+      const dA = Math.max(6, dNear);
+      const dB = dNear + stripe;
+      if (dB <= 6) continue;
+      const yNear = H + (cam.height * cam.focal) / dA;
+      const yFar = H + (cam.height * cam.focal) / dB;
+      if (yNear - yFar < 0.8) {
         if (yFar < H + 2) break;
         continue;
       }
-      g.fillRect(0, yFar, GAME_WIDTH, yNear - yFar);
+      if (yFar > GAME_HEIGHT) continue;
+      g.fillStyle(0x000000, 0.09);
+      g.fillRect(0, yFar, GAME_WIDTH, Math.min(yNear, GAME_HEIGHT + 40) - yFar);
+      // Sun-catching counter-stripe just beyond each dark band
+      const yFar2 = H + (cam.height * cam.focal) / (dB + stripe);
+      if (yFar - yFar2 >= 0.8 && yFar2 <= GAME_HEIGHT) {
+        g.fillStyle(0xffffff, 0.05);
+        g.fillRect(0, yFar2, GAME_WIDTH, yFar - yFar2);
+      }
     }
 
-    // Fairways
+    // Near-field grass flecks, anchored to the world so they hold still
+    // while the camera glides (sparse — texture, not noise)
+    const step = 56;
+    const cx0 = Math.round(cam.x / step) * step;
+    const cy0 = Math.round(cam.y / step) * step;
+    for (let wy = cy0 - 420; wy <= cy0 + 420; wy += step) {
+      for (let wx = cx0 - 420; wx <= cx0 + 420; wx += step) {
+        const h = this.hash(wx, wy);
+        if (h < 0.45) continue;
+        const p = proj.toScreen(wx + (h - 0.5) * 40, wy + (this.hash(wy, wx) - 0.5) * 40);
+        if (!p || p.d > 520 || p.y > GAME_HEIGHT) continue;
+        const len = Math.max(3, 9 * p.scale * (0.5 + h * 0.5));
+        g.fillStyle(h > 0.72 ? 0xd9ecb8 : 0x0a2410, h > 0.72 ? 0.1 : 0.13);
+        g.fillRect(p.x, p.y - len, Math.max(2, p.scale * 0.6), len);
+      }
+    }
+
+    // Fairways (slightly transparent: mow bands show through)
     for (const poly of this.hole.fairway) {
-      this.fillProjected(g, proj.projectPolygon(poly), COLORS.fairway, 1, 0x2a6130);
+      this.fillProjected(g, proj.projectPolygon(poly), t.fairway, 0.88, t.fairwayDark);
     }
 
     // Water first, so an island green paints on top of it
     for (const hz of this.hole.hazards) {
       if (hz.type === 'water') {
-        this.fillProjected(g, proj.projectPolygon(hz.polygon), COLORS.water, 1, 0x2c5a86);
+        this.fillProjected(g, proj.projectPolygon(hz.polygon), t.water, 1, t.waterDeep);
       }
     }
 
-    // Fringe + green
-    this.fillProjected(g, proj.projectEllipse(this.hole.green, 20), COLORS.fringe);
-    this.fillProjected(g, proj.projectEllipse(this.hole.green, 0), COLORS.green, 1, 0x4aa554);
+    // Fringe ring + green with a soft crown highlight
+    this.fillProjected(g, proj.projectEllipse(this.hole.green, 20), t.fringe, 0.96);
+    this.fillProjected(g, proj.projectEllipse(this.hole.green, 0), t.green, 0.95, shade(t.green, 0.72));
+    const crown = Math.min(this.hole.green.rx, this.hole.green.ry) * 0.38;
+    this.fillProjected(g, proj.projectEllipse(this.hole.green, -crown), t.greenLight, 0.5);
 
     // Bunkers
     for (const hz of this.hole.hazards) {
       if (hz.type === 'bunker') {
-        this.fillProjected(g, proj.projectPolygon(hz.polygon), COLORS.sand, 1, 0xb3a06a);
+        this.fillProjected(g, proj.projectPolygon(hz.polygon), t.sand, 1, t.sandDark);
       }
     }
 
@@ -266,19 +344,28 @@ export class PerspectiveView {
       const trunkH = 26 * sp.scale;
       if (r < 3.2) {
         // Distant trees: a single canopy blob is indistinguishable and cheap
-        g.fillStyle(0x1e4c26, 1);
+        g.fillStyle(this.theme.treeCanopy, 1);
         g.fillCircle(sp.x, sp.y - trunkH - r * 0.6, r);
         continue;
       }
       g.fillStyle(0x000000, 0.18);
       g.fillEllipse(sp.x + r * 0.3, sp.y + 2, r * 1.6, r * 0.4);
-      g.fillStyle(0x5a4632, 1);
+      g.fillStyle(this.theme.treeTrunk, 1);
       g.fillRect(sp.x - 1.5 * sp.scale, sp.y - trunkH, 3 * sp.scale, trunkH);
-      g.fillStyle(0x1e4c26, 1);
+      g.fillStyle(this.theme.treeCanopy, 1);
       g.fillCircle(sp.x, sp.y - trunkH - r * 0.6, r);
-      g.fillStyle(0x2b6b34, 1);
+      g.fillStyle(this.theme.treeCanopyLight, 1);
       g.fillCircle(sp.x - r * 0.3, sp.y - trunkH - r * 0.75, r * 0.62);
     }
+
+    // Ground-side atmospheric haze: the far course melts into the sky
+    const t2 = this.theme;
+    const hazeH = 46;
+    g.fillGradientStyle(
+      t2.haze, t2.haze, t2.haze, t2.haze,
+      0.5 * t2.hazeStrength, 0.5 * t2.hazeStrength, 0, 0
+    );
+    g.fillRect(0, H, GAME_WIDTH, hazeH);
   }
 
   /** Project a building footprint at ground + roof height and draw the box. */

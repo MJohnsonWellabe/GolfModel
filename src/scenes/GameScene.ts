@@ -4,6 +4,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { state } from '../core/GameState';
 import { CameraDirector } from '../core/rendering/CameraDirector';
 import { drawOverheadCourse } from '../core/rendering/OverheadCourse';
+import { resolveTheme } from '../core/rendering/Theme';
 import { PerspectiveView, TrailDot } from '../core/rendering/PerspectiveView';
 import { safePlay } from '../core/audio/Sfx';
 import {
@@ -121,11 +122,12 @@ export class GameScene extends Phaser.Scene {
     this.worldLayer = this.add.container(0, 0);
     this.uiLayer = this.add.container(0, 0).setDepth(100);
 
+    const theme = resolveTheme(state.course);
     const courseG = this.add.graphics();
     this.worldLayer.add(courseG);
-    drawOverheadCourse(courseG, this.hole);
+    drawOverheadCourse(courseG, this.hole, theme);
     this.setupPlayers();
-    this.persp = new PerspectiveView(this, this.hole);
+    this.persp = new PerspectiveView(this, this.hole, theme);
     this.camera = new CameraDirector();
     // Frame the tee shot behind the banner while the hole loads in
     this.camera.setSetupTarget(

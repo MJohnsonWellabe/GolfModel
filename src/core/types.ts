@@ -133,6 +133,8 @@ export interface HoleData {
 export interface CourseData {
   name: string;
   holes: HoleData[];
+  /** Optional per-course art overrides — see core/rendering/Theme.ts. */
+  theme?: Record<string, string | number>;
 }
 
 export interface Wind {

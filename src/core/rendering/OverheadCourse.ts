@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
-import { COLORS } from '../../config';
 import { pointInPolygon } from '../../utils/Geometry';
 import { HoleData, Point, Polygon } from '../types';
+import { CourseTheme, DEFAULT_THEME, shade } from './Theme';
 
 function polyCentroid(poly: Polygon): Point {
   let x = 0;
@@ -23,21 +23,25 @@ function hash(x: number, y: number): number {
  * Draw the overhead planning view of a hole into `g` (world space).
  * This is also the world the ball sprites live in during play.
  */
-export function drawOverheadCourse(g: Phaser.GameObjects.Graphics, hole: HoleData): void {
+export function drawOverheadCourse(
+  g: Phaser.GameObjects.Graphics,
+  hole: HoleData,
+  t: CourseTheme = DEFAULT_THEME
+): void {
   const { width: w, height: h } = hole.world;
 
-  g.fillStyle(COLORS.roughDark, 1);
+  g.fillStyle(t.roughDark, 1);
   g.fillRect(-800, -800, w + 1600, h + 1600);
-  g.fillStyle(COLORS.rough, 0.75);
+  g.fillStyle(t.rough, 0.75);
   for (let y = -800; y < h + 800; y += 130) {
     g.fillRect(-800, y, w + 1600, 65);
   }
 
   for (const poly of hole.fairway) {
     const pts = poly.map(([x, y]) => new Phaser.Geom.Point(x, y));
-    g.lineStyle(10, 0x2a6130, 1);
+    g.lineStyle(10, t.fairwayDark, 1);
     g.strokePoints(pts, true, true);
-    g.fillStyle(COLORS.fairway, 1);
+    g.fillStyle(t.fairway, 1);
     g.fillPoints(pts, true);
   }
 
@@ -46,29 +50,33 @@ export function drawOverheadCourse(g: Phaser.GameObjects.Graphics, hole: HoleDat
     if (hz.type !== 'water') continue;
     const pts = hz.polygon.map(([x, y]) => new Phaser.Geom.Point(x, y));
     const c = polyCentroid(hz.polygon);
-    g.fillStyle(0x2c5a86, 1);
+    g.fillStyle(t.waterDeep, 1);
     g.fillPoints(pts, true);
     const inner = hz.polygon.map(([x, y]) => [
       x + (c.x - x) * 0.12,
       y + (c.y - y) * 0.12 + 3
     ]);
-    g.fillStyle(COLORS.water, 1);
+    g.fillStyle(t.water, 1);
     g.fillPoints(inner.map(([x, y]) => new Phaser.Geom.Point(x, y)), true);
   }
 
   const green = hole.green;
-  g.fillStyle(COLORS.fringe, 1);
+  g.fillStyle(t.fringe, 1);
   g.fillEllipse(green.cx, green.cy, (green.rx + 20) * 2, (green.ry + 20) * 2);
-  g.fillStyle(COLORS.green, 1);
+  g.fillStyle(t.green, 1);
   g.fillEllipse(green.cx, green.cy, green.rx * 2, green.ry * 2);
+  g.fillStyle(t.greenLight, 0.55);
+  g.fillEllipse(green.cx, green.cy, green.rx * 1.25, green.ry * 1.25);
 
   for (const hz of hole.hazards) {
     const pts = hz.polygon.map(([x, y]) => new Phaser.Geom.Point(x, y));
     if (hz.type === 'water') {
       continue; // drawn above
     } else if (hz.type === 'bunker') {
-      g.fillStyle(0xcbb87c, 1);
+      g.fillStyle(t.sand, 1);
       g.fillPoints(pts, true);
+      g.lineStyle(3, shade(t.sandDark, 0.9), 0.9);
+      g.strokePoints(pts, true, true);
     } else if (hz.type === 'building') {
       g.fillStyle(0x8a8378, 1);
       g.fillPoints(pts, true);
