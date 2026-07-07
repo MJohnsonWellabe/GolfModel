@@ -1,4 +1,6 @@
-import Phaser from 'phaser';
+// Type-only: a value import would drag the whole Phaser bundle into this
+// chunk, which the Babylon slice page also loads for renderCourseCanvas.
+import type Phaser from 'phaser';
 import { PhysicsEngine } from '../../systems/PhysicsEngine';
 import { pointInPolygon } from '../../utils/Geometry';
 import { HoleData, Surface } from '../types';
@@ -78,26 +80,21 @@ const SURFACE_ID: Record<Surface, number> = {
 };
 
 /**
- * Bake the hole into a grass texture: per-texel surface classification with
+ * Render the hole into a grass canvas: per-texel surface classification with
  * real grain, mow stripes along the hole axis, darkened surface edges, and
- * sun-consistent baked shadows for trees and buildings. One texture powers
- * both the perspective ground mesh and the overhead view.
- *
- * Returns the texture key (cached — repeat calls for the same hole are free).
+ * sun-consistent baked shadows for trees and buildings. Engine-agnostic —
+ * the Phaser game registers it as a texture and the Babylon slice samples
+ * it as a terrain albedo.
  */
-export function bakeCourseTexture(
-  scene: Phaser.Scene,
-  courseName: string,
+export function renderCourseCanvas(
   hole: HoleData,
   theme: CourseTheme,
-  engine: PhysicsEngine
-): string {
-  const key = `course-${courseName}-${hole.number}`;
-  if (scene.textures.exists(key)) return key;
-
+  engine: PhysicsEngine,
+  scale = 1
+): HTMLCanvasElement {
   const pad = TEXTURE_PAD;
-  const w = hole.world.width + pad * 2;
-  const h = hole.world.height + pad * 2;
+  const w = Math.round((hole.world.width + pad * 2) * scale);
+  const h = Math.round((hole.world.height + pad * 2) * scale);
 
   // Coarse classification grid (2 world px per cell) — the expensive pass
   const step = 2;
@@ -144,9 +141,9 @@ export function bakeCourseTexture(
   const data = img.data;
 
   for (let py = 0; py < h; py++) {
-    const wy = py - pad;
+    const wy = py / scale - pad;
     for (let px = 0; px < w; px++) {
-      const wx = px - pad;
+      const wx = px / scale - pad;
       // Jittered class lookup = organic (dithered) surface edges
       const jx = wx + (texelHash(px + 7, py) - 0.5) * 3;
       const jy = wy + (texelHash(px, py + 7) - 0.5) * 3;
@@ -178,7 +175,13 @@ export function bakeCourseTexture(
   ctx.fillStyle = 'rgba(10, 24, 12, 0.30)';
   for (const t of collectTreeBlobs(hole)) {
     ctx.beginPath();
-    ctx.ellipse(t.x + pad + lean * t.r * 0.75, t.y + pad + 2, t.r * 1.15, t.r * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(
+      (t.x + pad + lean * t.r * 0.75) * scale,
+      (t.y + pad + 2) * scale,
+      t.r * 1.15 * scale,
+      t.r * 0.5 * scale,
+      0, 0, Math.PI * 2
+    );
     ctx.fill();
   }
   ctx.fillStyle = 'rgba(10, 24, 12, 0.28)';
@@ -186,8 +189,8 @@ export function bakeCourseTexture(
     if (hz.type !== 'building') continue;
     ctx.beginPath();
     hz.polygon.forEach(([x, y], i) => {
-      const sx = x + pad + lean * 12;
-      const sy = y + pad + 6;
+      const sx = (x + pad + lean * 12) * scale;
+      const sy = (y + pad + 6) * scale;
       if (i === 0) ctx.moveTo(sx, sy);
       else ctx.lineTo(sx, sy);
     });
@@ -195,7 +198,23 @@ export function bakeCourseTexture(
     ctx.fill();
   }
 
-  const tex = scene.textures.addCanvas(key, canvas);
-  tex?.setFilter(Phaser.Textures.FilterMode.LINEAR);
+  return canvas;
+}
+
+/**
+ * Register the rendered course canvas as a Phaser texture.
+ * Returns the texture key (cached — repeat calls for the same hole are free).
+ */
+export function bakeCourseTexture(
+  scene: Phaser.Scene,
+  courseName: string,
+  hole: HoleData,
+  theme: CourseTheme,
+  engine: PhysicsEngine
+): string {
+  const key = `course-${courseName}-${hole.number}`;
+  if (scene.textures.exists(key)) return key;
+  const tex = scene.textures.addCanvas(key, renderCourseCanvas(hole, theme, engine));
+  tex?.setFilter(1 as Phaser.Textures.FilterMode); // FilterMode.LINEAR
   return key;
 }

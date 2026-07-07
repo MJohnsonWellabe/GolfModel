@@ -10,6 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@babylonjs/core": "^9.15.0",
     "phaser": "^3.80.1"
   },
   "devDependencies": {

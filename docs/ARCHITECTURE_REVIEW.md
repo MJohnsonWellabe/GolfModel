@@ -246,3 +246,26 @@ when UI churn slows down after Phase 1B.
 5. Keep every visual upgrade behind the existing seams: `PerspectiveView`
    internals may change freely; `Projection`'s interface and the course JSON
    schema should stay stable until Phase 2 extends them deliberately.
+
+---
+
+# 3D evaluation slice (decision gate)
+
+`slice3d.html` (`src/slice3d/`) is a **Babylon.js vertical slice** built to
+judge a true-3D presentation path: one hole (Amen Corner 11 — White Dogwood)
+and one character (Zac), playable end-to-end on the live deploy at
+`/slice3d.html`. It is an evaluation artifact, not shipped game UI — nothing
+links to it from the 2D game.
+
+The slice reuses the engine-agnostic core unchanged: `PhysicsEngine`,
+`AimControl`, `FLIGHT` pacing, the course JSON, `Theme`, and the course
+texture bake (`renderCourseCanvas`, extracted from the Phaser wrapper with
+behavior identical for the 2D game). Terrain elevation is cosmetic-only and
+confined to unplayable areas so the flat 2D physics always matches the
+visible ground; backdrop tree bands are scenery-only and never placed on a
+playable surface.
+
+**Decision**: if the 3D look is approved, plan a scene-by-scene Babylon port
+(game stays playable throughout); otherwise delete `src/slice3d/` +
+`slice3d.html` and continue the 2D presentation track. Either way the
+gameplay core is unaffected.

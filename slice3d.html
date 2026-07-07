@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0b3d1f" />
+    <title>Johnson's Golf — 3D Slice</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: #0b3d1f;
+        overflow: hidden;
+        touch-action: none;
+        font-family: Arial, Helvetica, sans-serif;
+        -webkit-user-select: none;
+        user-select: none;
+      }
+      #scene {
+        width: 100%;
+        height: 100%;
+        display: block;
+        outline: none;
+      }
+      .panel {
+        position: fixed;
+        background: rgba(8, 36, 15, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        border-radius: 14px;
+        color: #f2f7f0;
+        padding: 10px 14px;
+        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+      }
+      #hud {
+        top: max(10px, env(safe-area-inset-top));
+        left: 10px;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+      #hud b {
+        color: #ffd54f;
+        font-size: 19px;
+      }
+      #badge {
+        top: max(10px, env(safe-area-inset-top));
+        right: 10px;
+        font-size: 13px;
+        color: #9fbf9a;
+        text-align: right;
+      }
+      #msg {
+        position: fixed;
+        top: 34%;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 34px;
+        font-weight: 800;
+        color: #fff;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
+      #prompt {
+        position: fixed;
+        bottom: 178px;
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 17px;
+        color: #eef5ea;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+        pointer-events: none;
+      }
+      #meter {
+        position: fixed;
+        left: 5%;
+        right: 5%;
+        bottom: 110px;
+        height: 34px;
+        background: rgba(10, 14, 12, 0.92);
+        border: 2px solid rgba(255, 255, 255, 0.25);
+        border-radius: 10px;
+        overflow: hidden;
+        display: none;
+      }
+      #meter .zone {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+      }
+      #meter .cursor {
+        position: absolute;
+        top: -4px;
+        bottom: -4px;
+        width: 5px;
+        background: #fff;
+        border-radius: 2px;
+        margin-left: -2.5px;
+      }
+      #swingBtn {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        width: 84px;
+        height: 84px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.7);
+        background: radial-gradient(circle at 50% 35%, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+      }
+      #swingBtn:active {
+        transform: translateX(-50%) scale(0.94);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="scene"></canvas>
+    <div id="hud" class="panel"></div>
+    <div id="badge" class="panel">3D slice preview<br />White Dogwood — Amen Corner 11</div>
+    <div id="prompt"></div>
+    <div id="msg"></div>
+    <div id="meter"></div>
+    <button id="swingBtn">SWING</button>
+    <script type="module" src="/src/slice3d/main.ts"></script>
+  </body>
+</html>
