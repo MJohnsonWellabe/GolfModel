@@ -49,10 +49,10 @@ export const PHYSICS = {
   treeHeight: 55,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
-  /** Cup capture radius, world px (an arcade-generous ~2.5 yd). */
-  cupRadius: 5,
+  /** Cup capture radius, world px (~1.5 yd — forgiving but not a magnet). */
+  cupRadius: 3,
   /** Max roll speed (px/s) at which the cup can capture the ball — faster lips out. */
-  cupCaptureSpeed: 35,
+  cupCaptureSpeed: 22,
   /** Ground roll friction (px/s²) per surface. */
   friction: {
     tee: 500,

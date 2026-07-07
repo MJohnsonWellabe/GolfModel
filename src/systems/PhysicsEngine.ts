@@ -192,6 +192,13 @@ export class PhysicsEngine {
           // Landing
           z = 0;
           const surf = this.surfaceAt(x, y);
+          // A ball landing in water is wet immediately — a fast splash can
+          // bounce clear of the pond in one step before the roll check runs.
+          if (surf === 'water') {
+            waterPenalty = true;
+            path.push({ x, y, z: 0 });
+            break;
+          }
           const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin);
           vx *= keep;
           vy *= keep;

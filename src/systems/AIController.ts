@@ -134,7 +134,11 @@ export class AIController {
     const { distance, accuracy } = statsForClub(club, this.golfer, this.fire.statBoost);
     const carry = effectiveCarryYards(club, this.golfer, this.fire.statBoost, lie);
     const neededYds = dist(ballPos, aimPoint) / PX_PER_YARD;
-    const targetPower = clamp(neededYds / carry, 0.35, 1.0);
+    // The 0.35 floor keeps full swings from dribbling, but a putter carries
+    // ~40yd, so a 20ft putt only needs ~0.16 power — floor it far lower or the
+    // AI rams every putt yards past the hole.
+    const minPower = club.id === 'putter' ? 0.04 : 0.35;
+    const targetPower = clamp(neededYds / carry, minPower, 1.0);
 
     const powerBand = this.sampleBand(distance);
     const accuracyBand = this.sampleBand(accuracy);
@@ -142,9 +146,16 @@ export class AIController {
     // Even "perfect" AI swings carry a little dispersion — a perfect meter
     // click for the player is deterministic, but the AI shouldn't be a robot
     // that holes out from the fairway every time.
-    let power = clamp(targetPower * (1 + gaussian(0, 0.035)), 0.2, 1.08);
-    if (powerBand === 'good') power = clamp(targetPower * (1 + gaussian(0, 0.07)), 0.2, 1.08);
-    if (powerBand === 'miss') power = clamp(targetPower * (1 + gaussian(0, 0.15)), 0.2, 1.08);
+    // Putts need to reach very low power for short distances; tighten the
+    // AI's putt dispersion too so it lags close instead of blasting past.
+    const isPutt = club.id === 'putter';
+    const floor = isPutt ? 0.03 : 0.2;
+    const perfectSd = isPutt ? 0.02 : 0.035;
+    const goodSd = isPutt ? 0.05 : 0.07;
+    const missSd = isPutt ? 0.11 : 0.15;
+    let power = clamp(targetPower * (1 + gaussian(0, perfectSd)), floor, 1.08);
+    if (powerBand === 'good') power = clamp(targetPower * (1 + gaussian(0, goodSd)), floor, 1.08);
+    if (powerBand === 'miss') power = clamp(targetPower * (1 + gaussian(0, missSd)), floor, 1.08);
 
     let accOffset = clamp(gaussian(0, 0.15), -1, 1);
     if (accuracyBand === 'good') accOffset = clamp(gaussian(0, 0.3), -1, 1);
