@@ -1,8 +1,11 @@
 import {
   Color3,
+  Color4,
+  DynamicTexture,
   Engine,
   FreeCamera,
   MeshBuilder,
+  ParticleSystem,
   Scene,
   StandardMaterial,
   TrailMesh,
@@ -33,15 +36,62 @@ const wind = { angle: 0, speed: 0 }; // stillness keeps the slice readable
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true });
 const scene = new Scene(engine3d);
-const { shadows } = buildCourse(scene, hole, theme, engine2d);
+const { shadows, pin, puttGrid } = buildCourse(scene, hole, theme, engine2d);
 const golfer = new Golfer3D(scene, golferData.look, shadows);
 
-const ball = MeshBuilder.CreateSphere('ball', { diameter: 1.3, segments: 12 }, scene);
+const BALL_REST = 0.5; // rest height of the ball center above the turf
+const ball = MeshBuilder.CreateSphere('ball', { diameter: 1.0, segments: 12 }, scene);
 const ballMat = new StandardMaterial('ballMat', scene);
 ballMat.diffuseColor = new Color3(0.97, 0.97, 0.95);
 ballMat.specularColor = new Color3(0.5, 0.5, 0.5);
 ball.material = ballMat;
 shadows.addShadowCaster(ball);
+// Soft blob shadow keeps the ball grounded, especially mid-flight where the
+// directional shadow map is too coarse to read
+const ballShadow = MeshBuilder.CreateDisc('ballShadow', { radius: 0.62, tessellation: 16 }, scene);
+ballShadow.rotation.x = Math.PI / 2;
+const bsMat = new StandardMaterial('bsMat', scene);
+bsMat.diffuseColor = new Color3(0, 0, 0);
+bsMat.emissiveColor = new Color3(0, 0, 0);
+bsMat.disableLighting = true;
+bsMat.alpha = 0.3;
+ballShadow.material = bsMat;
+
+// Landing puff: a short burst of soft motes where the ball touches down
+const puffTex = new DynamicTexture('puffTex', { width: 32, height: 32 }, scene, true);
+const pfx = puffTex.getContext() as CanvasRenderingContext2D;
+const pg = pfx.createRadialGradient(16, 16, 1, 16, 16, 15);
+pg.addColorStop(0, 'rgba(255,255,250,0.9)');
+pg.addColorStop(1, 'rgba(255,255,250,0)');
+pfx.fillStyle = pg;
+pfx.fillRect(0, 0, 32, 32);
+puffTex.update(false);
+puffTex.hasAlpha = true;
+const puff = new ParticleSystem('puff', 30, scene);
+puff.particleTexture = puffTex;
+puff.emitter = new Vector3(0, -100, 0);
+puff.minSize = 0.5;
+puff.maxSize = 1.1;
+puff.minLifeTime = 0.25;
+puff.maxLifeTime = 0.55;
+puff.emitRate = 0;
+puff.manualEmitCount = 0;
+puff.direction1 = new Vector3(-1.6, 1.2, -1.6);
+puff.direction2 = new Vector3(1.6, 2.6, 1.6);
+puff.gravity = new Vector3(0, -4, 0);
+puff.color1 = new Color4(1, 1, 0.98, 0.7);
+puff.color2 = new Color4(0.94, 0.98, 0.9, 0.55);
+puff.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+puff.start();
+function landingPuff(x: number, y: number, sandy: boolean): void {
+  (puff.emitter as Vector3).copyFrom(w2b(x, y, 0.5));
+  const c = sandy ? new Color4(0.93, 0.86, 0.66, 0.85) : new Color4(1, 1, 0.98, 0.7);
+  puff.color1 = c;
+  puff.color2 = new Color4(c.r, c.g, c.b, 0.45);
+  puff.manualEmitCount = 14;
+}
+
+let shakeT = 0; // impact camera shake timer
 
 const camera = new FreeCamera('cam', new Vector3(0, 8, 0), scene);
 camera.minZ = 0.5;
@@ -139,10 +189,12 @@ function updateHud(): void {
   const toPin = engine2d.yardsToPin(st.ballPos);
   const club = aim.club;
   const carry = Math.round(aim.maxCarryPx(ctx()) / PX_PER_YARD);
+  const range = club.id === 'putter' ? `${Math.round(toPin * 3)} ft` : `${carry} yd`;
+  const toPinLabel = st.lie === 'green' ? `${Math.round(toPin * 3)} ft` : `${Math.round(toPin)} yd`;
   hudEl.innerHTML =
-    `<b>${club.name}</b> ~${club.id === 'putter' ? Math.round(toPin * 3) + 'ft' : carry + 'y'}<br />` +
-    `To pin: ${st.lie === 'green' ? Math.round(toPin * 3) + ' ft' : Math.round(toPin) + ' yds'}<br />` +
-    `Lie: ${st.lie} &nbsp;•&nbsp; Strokes: ${st.strokes}`;
+    `<div class="row"><span class="chip club">${club.name}</span><span class="chip">${range}</span></div>` +
+    `<div class="row"><span class="chip pin">⛳ ${toPinLabel}</span><span class="chip">${st.lie}</span>` +
+    `<span class="chip">Stroke ${st.strokes}</span></div>`;
 }
 
 function beginTurn(): void {
@@ -151,7 +203,11 @@ function beginTurn(): void {
   aim.resetAim(ctx());
   golfer.placeAt(st.ballPos.x, st.ballPos.y, aim.yaw);
   golfer.setPose(0);
-  ball.position = w2b(st.ballPos.x, st.ballPos.y, 0.65);
+  golfer.aiming = true;
+  ball.position = w2b(st.ballPos.x, st.ballPos.y, BALL_REST);
+  // On the green: pull the pin and lay the reading grid over the surface
+  for (const p of pin) p.setEnabled(!aim.isPutting);
+  puttGrid.setEnabled(aim.isPutting);
   setCamSetup();
   updateHud();
   promptEl.textContent = aim.isPutting
@@ -240,6 +296,7 @@ function executeShot(swing: SwingResult): void {
     }
     flight = { outcome, progress: 0, landIdx, dir: aim.yaw, isPutt: club.id === 'putter', landed: false, trail };
     st.phase = 'flying';
+    if (club.id !== 'putter') shakeT = 0.18;
   });
 }
 
@@ -250,6 +307,7 @@ function afterShot(outcome: ShotOutcome): void {
     // Drop the ball into the cup rather than leaving it beside the pole
     ball.position = w2b(hole.pin.x, hole.pin.y, -0.35);
     play('hole');
+    golfer.react('celebrate');
     showMsg(scoreName(st.strokes, hole.par), 2200);
     if (st.strokes < hole.par) setTimeout(() => play('chime'), 450);
     st.phase = 'done';
@@ -264,6 +322,7 @@ function afterShot(outcome: ShotOutcome): void {
   if (outcome.waterPenalty) {
     play('splash');
     showMsg('SPLASH! +1 penalty', 1400);
+    golfer.react('deject');
   }
   setTimeout(beginTurn, 700);
 }
@@ -274,6 +333,7 @@ swingBtn.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   startAmbience();
   if (st.phase !== 'aiming') return;
+  promptEl.textContent = ''; // meter takes the prompt's screen space
   document.getElementById('meter')!.style.display = 'block';
   if (!meter.isArmed) {
     meter.arm({
@@ -323,21 +383,40 @@ scene.onBeforeRenderObservable.add(() => {
       afterShot(outcome);
     } else {
       const p = path[i];
-      ball.position = w2b(p.x, p.y, p.z + 0.65);
+      ball.position = w2b(p.x, p.y, p.z + BALL_REST);
       if (!flight.landed && p.z <= 0.01 && i > 4) {
         flight.landed = true;
-        if (!flight.isPutt) setCamLanding({ x: p.x, y: p.y }, flight.dir);
+        if (!flight.isPutt) {
+          setCamLanding({ x: p.x, y: p.y }, flight.dir);
+          landingPuff(p.x, p.y, engine2d.surfaceAt(p.x, p.y) === 'sand');
+        }
       } else if (!flight.landed && !flight.isPutt) {
         setCamFlight(p, flight.dir);
       }
     }
   }
 
+  // Blob shadow tracks the ball's ground point, spreading and fading with height
+  const hgt = Math.max(0, ball.position.y - BALL_REST);
+  ballShadow.position.set(ball.position.x, 0.07, ball.position.z);
+  const spread = 1 + Math.min(2.2, hgt * 0.014);
+  ballShadow.scaling.set(spread, spread, spread);
+  bsMat.alpha = 0.3 / (1 + hgt * 0.02);
+
   // Smooth the camera toward its target
   const k = 1 - Math.exp(-dt * camTarget.k);
   camera.position = Vector3.Lerp(camera.position, camTarget.pos, k);
   const look = camera.getTarget().clone();
   camera.setTarget(Vector3.Lerp(look, camTarget.look, k));
+
+  // Brief impact shake — a decaying jitter right after the strike
+  if (shakeT > 0) {
+    shakeT = Math.max(0, shakeT - dt);
+    const a = (shakeT / 0.18) * 0.28;
+    camera.position.addInPlace(
+      new Vector3((Math.random() - 0.5) * a, (Math.random() - 0.5) * a * 0.6, (Math.random() - 0.5) * a)
+    );
+  }
 });
 
 engine3d.runRenderLoop(() => scene.render());
@@ -352,5 +431,11 @@ camera.setTarget(camTarget.look);
   meter,
   aim,
   state: st,
-  scene
+  scene,
+  /** Test hook: place the ball anywhere and start a fresh turn there. */
+  dropAt(x: number, y: number): void {
+    st.ballPos = { x, y };
+    st.lie = engine2d.surfaceAt(x, y);
+    beginTurn();
+  }
 };

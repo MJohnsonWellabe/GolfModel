@@ -6,6 +6,7 @@ import {
   HemisphericLight,
   Mesh,
   MeshBuilder,
+  ParticleSystem,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -46,6 +47,10 @@ function smoothNoise(x: number, y: number): number {
 export interface Course3D {
   sun: DirectionalLight;
   shadows: ShadowGenerator;
+  /** Flagstick meshes — hidden while putting, like the pulled pin in EG. */
+  pin: Mesh[];
+  /** Translucent contour grid over the green, shown only while putting. */
+  puttGrid: Mesh;
 }
 
 /**
@@ -66,7 +71,7 @@ export function buildCourse(
 
   // ----------------------------------------------------------- lights & fog
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
-  hemi.intensity = 0.55;
+  hemi.intensity = 0.62;
   hemi.groundColor = c3(shade(theme.rough, 0.9));
   const sunFromRight = theme.sunX > 360;
   const sun = new DirectionalLight(
@@ -74,7 +79,7 @@ export function buildCourse(
     new Vector3(sunFromRight ? -0.45 : 0.45, -1, -0.35).normalize(),
     scene
   );
-  sun.intensity = 0.72;
+  sun.intensity = 0.78;
   sun.position = w2b(hole.tee.x, hole.tee.y - 400, 600);
   const shadows = new ShadowGenerator(1024, sun);
   shadows.usePercentageCloserFiltering = true;
@@ -93,15 +98,15 @@ export function buildCourse(
   );
   ground.position = new Vector3(w / 2, 0, -h / 2);
   const heightAt = (wx: number, wy: number): number => {
-    // Cosmetic elevation only where a ball can't play from
-    let roughFrac = 0;
-    for (const [dx, dy] of [[0, 0], [40, 0], [-40, 0], [0, 40], [0, -40]]) {
-      const s = engine.surfaceAt(wx + dx, wy + dy);
-      if (s === 'rough' || s === 'trees') roughFrac += 0.2;
-    }
-    const inWorld = wx > -30 && wx < w + 30 && wy > -30 && wy < h + 30;
-    const base = inWorld ? 0 : 5 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5;
-    return base + roughFrac * (2.5 + smoothNoise(wx, wy) * 2.2);
+    // The playable interior stays perfectly flat so the 2D physics ball
+    // always sits on the visible turf; scenery mounds ramp up smoothly
+    // beyond the world edge only.
+    const dx = Math.max(-30 - wx, wx - (w + 30), 0);
+    const dy = Math.max(-30 - wy, wy - (h + 30), 0);
+    const out = Math.hypot(dx, dy);
+    if (out <= 0) return 0;
+    const t = Math.min(1, out / 140);
+    return t * (6 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5 + smoothNoise(wx, wy) * 2.2);
   };
   ground.updateMeshPositions((positions) => {
     for (let i = 0; i < positions.length; i += 3) {
@@ -112,7 +117,7 @@ export function buildCourse(
   }, true);
   ground.receiveShadows = true;
 
-  const courseCanvas = renderCourseCanvas(hole, theme, engine, 1.5);
+  const courseCanvas = renderCourseCanvas(hole, theme, engine, 2);
   const courseTex = new DynamicTexture(
     'course',
     { width: courseCanvas.width, height: courseCanvas.height },
@@ -126,6 +131,31 @@ export function buildCourse(
   const groundMat = new StandardMaterial('groundMat', scene);
   groundMat.diffuseTexture = courseTex;
   groundMat.specularColor = new Color3(0.02, 0.03, 0.02);
+  // Tiling neutral-noise detail map keeps near-field turf crisp where the
+  // baked albedo alone would blur under magnification
+  const detailCanvas = document.createElement('canvas');
+  detailCanvas.width = detailCanvas.height = 128;
+  const dctx = detailCanvas.getContext('2d')!;
+  const img = dctx.createImageData(128, 128);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const px = (i / 4) % 128;
+    const py = Math.floor(i / 4 / 128);
+    // Mean ~128 so the detail modulates without darkening the albedo
+    const n = 122 + smoothNoise(px * 7.3, py * 7.3) * 16 + ((px * 374761393 + py * 668265263) % 29) * 0.45;
+    img.data[i] = img.data[i + 1] = img.data[i + 2] = n;
+    img.data[i + 3] = 255;
+  }
+  dctx.putImageData(img, 0, 0);
+  const detailTex = new DynamicTexture('turfDetail', { width: 128, height: 128 }, scene, true);
+  detailTex.getContext().drawImage(detailCanvas, 0, 0);
+  detailTex.update(false);
+  detailTex.wrapU = Texture.WRAP_ADDRESSMODE;
+  detailTex.wrapV = Texture.WRAP_ADDRESSMODE;
+  detailTex.uScale = 110;
+  detailTex.vScale = 110;
+  groundMat.detailMap.texture = detailTex;
+  groundMat.detailMap.isEnabled = true;
+  groundMat.detailMap.diffuseBlendLevel = 0.24;
   ground.material = groundMat;
 
   // ------------------------------------------------------------------ water
@@ -155,9 +185,31 @@ export function buildCourse(
     wm.specularColor = new Color3(0.6, 0.7, 0.8);
     wm.specularPower = 96;
     wm.alpha = 0.82;
+    // Drifting sparkle highlights sell the "small waves" the art bible asks for
+    const sparkTex = new DynamicTexture('waterSpark', { width: 128, height: 128 }, scene, true);
+    const sctx2 = sparkTex.getContext() as CanvasRenderingContext2D;
+    sctx2.fillStyle = '#0b0e10';
+    sctx2.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 26; i++) {
+      const sx = (i * 47) % 128;
+      const sy = (i * 83 + 31) % 128;
+      const gl = sctx2.createRadialGradient(sx, sy, 0, sx, sy, 5);
+      gl.addColorStop(0, 'rgba(235,246,255,0.9)');
+      gl.addColorStop(1, 'rgba(235,246,255,0)');
+      sctx2.fillStyle = gl;
+      sctx2.fillRect(sx - 6, sy - 6, 12, 12);
+    }
+    sparkTex.update(false);
+    sparkTex.wrapU = Texture.WRAP_ADDRESSMODE;
+    sparkTex.wrapV = Texture.WRAP_ADDRESSMODE;
+    sparkTex.uScale = 4;
+    sparkTex.vScale = 4;
+    wm.emissiveTexture = sparkTex;
     waterMesh.material = wm;
     scene.onBeforeRenderObservable.add(() => {
       const t = performance.now() / 1000;
+      sparkTex.uOffset = t * 0.015;
+      sparkTex.vOffset = Math.sin(t * 0.35) * 0.03;
       wm.emissiveColor = c3(shade(theme.waterDeep, 0.5 + Math.sin(t * 1.3) * 0.08));
     });
   }
@@ -255,13 +307,13 @@ export function buildCourse(
     m.material = ridgeMat;
     m.position = w2b(hole.pin.x + i * 620 + 140, hole.pin.y - peakDist - Math.abs(i) * 240, 90);
   }
-  // Feature peak with a snow cap
-  const peak = MeshBuilder.CreateCylinder('peak', { diameterTop: 0, diameterBottom: 1250, height: 620, tessellation: 6 }, scene);
-  peak.material = mat(scene, 'peakMat', shade(theme.skyTop, 0.85), { emissive: shade(theme.skyTop, 0.4) });
-  peak.position = w2b(hole.pin.x + 420, hole.pin.y - peakDist - 700, 200);
-  const cap = MeshBuilder.CreateCylinder('peakCap', { diameterTop: 0, diameterBottom: 560, height: 280, tessellation: 6 }, scene);
+  // Feature peak: broad Fuji-like cone with a generous snow cap
+  const peak = MeshBuilder.CreateCylinder('peak', { diameterTop: 0, diameterBottom: 1750, height: 680, tessellation: 7 }, scene);
+  peak.material = mat(scene, 'peakMat', shade(theme.skyTop, 0.52), { emissive: shade(theme.skyTop, 0.24) });
+  peak.position = w2b(hole.pin.x + 380, hole.pin.y - peakDist - 780, 210);
+  const cap = MeshBuilder.CreateCylinder('peakCap', { diameterTop: 0, diameterBottom: 800, height: 315, tessellation: 7 }, scene);
   cap.material = mat(scene, 'capMat', 0xf4f8fb, { emissive: 0xdfe9f0 });
-  cap.position = peak.position.add(new Vector3(0, 320, 0));
+  cap.position = peak.position.add(new Vector3(0, 335, 0));
 
   // ------------------------------------------------------------------ trees
   const trunkProto = MeshBuilder.CreateCylinder('trunkP', { diameter: 2.6, height: 9, tessellation: 6 }, scene);
@@ -339,14 +391,14 @@ export function buildCourse(
   }
 
   // -------------------------------------------------------------------- pin
-  const pole = MeshBuilder.CreateCylinder('pole', { diameter: 0.5, height: 9, tessellation: 8 }, scene);
+  const pole = MeshBuilder.CreateCylinder('pole', { diameter: 0.55, height: 12, tessellation: 8 }, scene);
   pole.material = mat(scene, 'poleMat', 0xf5f5f0, { emissive: 0x555550 });
-  pole.position = w2b(hole.pin.x, hole.pin.y, 4.5);
-  const flag = MeshBuilder.CreatePlane('flag', { width: 4.6, height: 2.8 }, scene);
+  pole.position = w2b(hole.pin.x, hole.pin.y, 6);
+  const flag = MeshBuilder.CreatePlane('flag', { width: 5.4, height: 3.2 }, scene);
   const flagMat = mat(scene, 'flagMat', 0xd23c3c, { emissive: 0x7c1f1f, spec: 0.1 });
   flagMat.backFaceCulling = false;
   flag.material = flagMat;
-  flag.position = w2b(hole.pin.x + 2.3, hole.pin.y, 7.4);
+  flag.position = w2b(hole.pin.x + 2.7, hole.pin.y, 10.2);
   scene.onBeforeRenderObservable.add(() => {
     const t = performance.now() / 1000;
     flag.rotation.y = Math.sin(t * 3.1) * 0.28;
@@ -361,5 +413,96 @@ export function buildCourse(
   cup.material = mat(scene, 'cupMat', 0x0c2410, { emissive: 0x081a0b });
   cup.position = w2b(hole.pin.x, hole.pin.y, 0.06);
 
-  return { sun, shadows };
+  // ----------------------------------------------------------------- petals
+  // A sparse drift of blossom petals around the camera keeps the air alive
+  const petalTex = new DynamicTexture('petalTex', { width: 32, height: 32 }, scene, true);
+  const ptx = petalTex.getContext() as CanvasRenderingContext2D;
+  ptx.clearRect(0, 0, 32, 32);
+  ptx.fillStyle = 'rgba(246,190,214,0.95)';
+  ptx.beginPath();
+  ptx.ellipse(16, 16, 10, 6, 0.6, 0, Math.PI * 2);
+  ptx.fill();
+  ptx.fillStyle = 'rgba(255,226,238,0.9)';
+  ptx.beginPath();
+  ptx.ellipse(13, 13, 4, 2.5, 0.6, 0, Math.PI * 2);
+  ptx.fill();
+  petalTex.update(false);
+  petalTex.hasAlpha = true;
+  const petals = new ParticleSystem('petals', 36, scene);
+  petals.particleTexture = petalTex;
+  petals.emitter = w2b(hole.tee.x, hole.tee.y - 60, 24);
+  petals.minEmitBox = new Vector3(-80, -6, -80);
+  petals.maxEmitBox = new Vector3(80, 26, 80);
+  petals.minSize = 0.5;
+  petals.maxSize = 1.0;
+  petals.minLifeTime = 7;
+  petals.maxLifeTime = 12;
+  petals.emitRate = 2.5;
+  petals.gravity = new Vector3(0, -0.55, 0);
+  petals.direction1 = new Vector3(-2.2, -0.4, -1.2);
+  petals.direction2 = new Vector3(2.2, -1.1, 1.2);
+  petals.minAngularSpeed = -2.2;
+  petals.maxAngularSpeed = 2.2;
+  petals.blendMode = ParticleSystem.BLENDMODE_STANDARD;
+  petals.start();
+  scene.onBeforeRenderObservable.add(() => {
+    const cam = scene.activeCamera;
+    if (!cam) return;
+    const fwd = cam.getDirection(Vector3.Forward());
+    (petals.emitter as Vector3).copyFrom(cam.position.add(fwd.scale(55)));
+    (petals.emitter as Vector3).y = Math.max(20, cam.position.y + 14);
+  });
+
+  // ------------------------------------------------------------- putt grid
+  // EG-signature reading aid: a soft white grid clipped to the green ellipse
+  const g = hole.green;
+  const gridW = g.rx * 2 + 12;
+  const gridH = g.ry * 2 + 12;
+  const texW = 1024;
+  const texH = Math.max(256, Math.round((texW * gridH) / gridW));
+  const gridTex = new DynamicTexture('puttGridTex', { width: texW, height: texH }, scene, true);
+  const gtx = gridTex.getContext() as CanvasRenderingContext2D;
+  gtx.clearRect(0, 0, texW, texH);
+  gtx.save();
+  gtx.beginPath();
+  gtx.ellipse(texW / 2, texH / 2, (g.rx / gridW) * 2 * texW * 0.5, (g.ry / gridH) * 2 * texH * 0.5, 0, 0, Math.PI * 2);
+  gtx.clip();
+  gtx.strokeStyle = 'rgba(255,255,255,0.42)';
+  gtx.lineWidth = 1.5;
+  const stepPx = (4 / gridW) * texW; // one cell ≈ 2 yards
+  for (let x = 0; x <= texW; x += stepPx) {
+    gtx.beginPath();
+    gtx.moveTo(x, 0);
+    gtx.lineTo(x, texH);
+    gtx.stroke();
+  }
+  for (let y = 0; y <= texH; y += stepPx) {
+    gtx.beginPath();
+    gtx.moveTo(0, y);
+    gtx.lineTo(texW, y);
+    gtx.stroke();
+  }
+  gtx.restore();
+  gridTex.update(false);
+  gridTex.hasAlpha = true;
+  const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 1 }, scene);
+  puttGrid.position = new Vector3(g.cx, 0.14, -g.cy);
+  const gridMat = new StandardMaterial('puttGridMat', scene);
+  gridMat.emissiveTexture = gridTex;
+  gridMat.opacityTexture = gridTex;
+  gridMat.disableLighting = true;
+  gridMat.alpha = 0.45;
+  puttGrid.material = gridMat;
+  puttGrid.setEnabled(false);
+  // White ring marks the open cup while the pin is pulled
+  const cupRing = MeshBuilder.CreateTorus('cupRing', { diameter: 3.1, thickness: 0.2, tessellation: 24 }, scene);
+  const cupRingM = new StandardMaterial('cupRingM', scene);
+  cupRingM.emissiveColor = new Color3(0.95, 0.98, 0.95);
+  cupRingM.disableLighting = true;
+  cupRing.material = cupRingM;
+  cupRing.scaling.y = 0.05; // squashed flat: reads as painted on the green
+  cupRing.parent = puttGrid;
+  cupRing.position = new Vector3(hole.pin.x - g.cx, -0.02, -(hole.pin.y - g.cy));
+
+  return { sun, shadows, pin: [pole, flag], puttGrid };
 }

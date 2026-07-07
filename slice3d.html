@@ -20,7 +20,7 @@
         background: #0b3d1f;
         overflow: hidden;
         touch-action: none;
-        font-family: Arial, Helvetica, sans-serif;
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
         -webkit-user-select: none;
         user-select: none;
       }
@@ -32,27 +32,47 @@
       }
       .panel {
         position: fixed;
-        background: rgba(8, 36, 15, 0.85);
-        border: 1px solid rgba(255, 255, 255, 0.22);
-        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 16px;
         color: #f2f7f0;
-        padding: 10px 14px;
-        box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+        padding: 9px 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       }
       #hud {
         top: max(10px, env(safe-area-inset-top));
         left: 10px;
-        font-size: 15px;
-        line-height: 1.45;
       }
-      #hud b {
-        color: #ffd54f;
-        font-size: 19px;
+      #hud .row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 3px 0;
+      }
+      #hud .chip {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 999px;
+        padding: 3px 10px;
+        font-size: 13.5px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      #hud .chip.club {
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #3a2b06;
+        font-size: 16px;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+        border-color: rgba(255, 255, 255, 0.45);
+      }
+      #hud .chip.pin {
+        color: #cde8c8;
       }
       #badge {
         top: max(10px, env(safe-area-inset-top));
         right: 10px;
-        font-size: 13px;
+        font-size: 12.5px;
         color: #9fbf9a;
         text-align: right;
       }
@@ -72,7 +92,7 @@
       }
       #prompt {
         position: fixed;
-        bottom: 178px;
+        bottom: 118px;
         left: 0;
         right: 0;
         text-align: center;
@@ -86,12 +106,13 @@
         left: 5%;
         right: 5%;
         bottom: 110px;
-        height: 34px;
-        background: rgba(10, 14, 12, 0.92);
-        border: 2px solid rgba(255, 255, 255, 0.25);
-        border-radius: 10px;
+        height: 36px;
+        background: linear-gradient(180deg, rgba(6, 10, 8, 0.95), rgba(18, 26, 20, 0.92));
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 999px;
         overflow: hidden;
         display: none;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 2px 4px rgba(0, 0, 0, 0.5);
       }
       #meter .zone {
         position: absolute;
@@ -102,10 +123,11 @@
         position: absolute;
         top: -4px;
         bottom: -4px;
-        width: 5px;
+        width: 6px;
         background: #fff;
-        border-radius: 2px;
-        margin-left: -2.5px;
+        border-radius: 3px;
+        margin-left: -3px;
+        box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.8);
       }
       #swingBtn {
         position: fixed;
