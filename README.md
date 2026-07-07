@@ -1,11 +1,18 @@
 # Johnson's Golf
 
-Johnson's Golf: a mobile-first, browser-based golf game built with **Phaser 3 + TypeScript + Vite**.
-Behind-the-player shot presentation with an overhead planning view, in the spirit of classic Tiger Woods and Hot Shots Golf.
+Johnson's Golf: a mobile-first, browser-based golf game in the spirit of
+Everybody's Golf / Hot Shots Golf and classic Tiger Woods.
 
-Two 3-hole courses — Amen Corner (Augusta's holes 11–13) and Legends Links (island green,
-the Road Hole, an ocean finish) — with a classic 3-click swing meter, wind, lies, club
-selection and a "catch fire" streak system.
+The game ships in **true 3D** (Babylon.js) at the root URL — pick a course,
+mode and golfer, then play a full round with real camera work, a putting
+read grid and per-hole wind. The original **2D presentation** (Phaser) is
+kept playable at [`/classic.html`](classic.html) as a lightweight fallback.
+Both share one engine-agnostic gameplay core (physics, aiming, scoring,
+AI, courses).
+
+Two 3-hole courses — Amen Corner (Augusta's holes 11–13) and Legends Links
+(island green, the Road Hole, an ocean finish) — with a classic 3-click
+swing meter, wind, lies, club selection and a "catch fire" streak system.
 
 The project's vision, design, and roadmap live in [`docs/`](docs/) — start with
 [`docs/01_PROJECT_VISION.md`](docs/01_PROJECT_VISION.md). The current-state technical

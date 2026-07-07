@@ -269,3 +269,32 @@ playable surface.
 (game stays playable throughout); otherwise delete `src/slice3d/` +
 `slice3d.html` and continue the 2D presentation track. Either way the
 gameplay core is unaffected.
+
+---
+
+# 3D game promoted to primary (decision resolved)
+
+The Babylon.js evaluation slice was approved and iterated into a full game,
+then promoted to the primary experience:
+
+- **`/` (index.html)** now serves the 3D game (`src/slice3d/`): a setup menu
+  (course / mode / golfer), full solo and 1v1-vs-AI rounds over
+  `RULES.holesPerRound` holes, EG-style hole intros, a broadcast scorecard,
+  per-hole wind, an approach descent camera, a putting read grid with
+  slope-driven break flow, and both courses (Amen Corner parkland, Legends
+  Links with a sea backdrop).
+- **`/classic.html`** keeps the original 2D Phaser game playable.
+- **`/slice3d.html`** is now a redirect to `/` so the evaluation-era bookmark
+  still works.
+
+Architecture unchanged where it matters: both front-ends consume the same
+engine-agnostic core (`PhysicsEngine`, `AimControl`, `AIController`,
+`FireSystem`, `Scoring`, course JSON, `Theme`, `CourseTexture`). The 3D
+front-end (`src/slice3d/`) is structured as a `HoleScene` per hole (own
+Babylon scene, disposed between holes) orchestrated by a round controller in
+`main.ts`. `04_TECHNICAL_ARCHITECTURE.md` documents the shared core; the 3D
+front-end is an additive presentation layer over it.
+
+Still open (tracked for later phases): scramble mode in 3D, a modeled glTF
+character to reach full Hot Shots fidelity (the `@babylonjs/loaders` seam is
+the intended path), and Phase 2 gameplay balance.
