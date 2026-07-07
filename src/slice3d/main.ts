@@ -14,9 +14,13 @@ import {
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { resolveTheme } from '../core/rendering/Theme';
-import { CourseData, Golfer, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { CourseData, GameMode, Golfer, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { GOLFERS } from '../data/golfers';
 import amenCorner from '../data/courses/amenCorner.json';
+import legends from '../data/courses/legends.json';
+import { AIController } from '../systems/AIController';
+import { FireSystem } from '../systems/FireSystem';
+import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
@@ -72,13 +76,28 @@ function startAmbience(): void {
 
 // ------------------------------------------------------------ round state
 
-interface RoundState {
-  course: CourseData;
-  holeIdx: number;
+interface Participant {
+  golfer: Golfer;
+  isAI: boolean;
   /** Strokes per completed hole. */
   scores: number[];
-  golfer: Golfer;
 }
+
+interface RoundState {
+  course: CourseData;
+  mode: GameMode;
+  holeIdx: number;
+  players: Participant[];
+  /** Which participant is currently playing the active hole. */
+  activePlayer: number;
+  /** Wind per hole index — generated once so 1v1 players share conditions. */
+  holeWinds: Wind[];
+}
+
+const COURSES: Record<string, CourseData> = {
+  amen: amenCorner as CourseData,
+  legends: legends as CourseData
+};
 
 interface HoleState {
   ballPos: { x: number; y: number };
@@ -90,16 +109,34 @@ interface HoleState {
 }
 
 const round: RoundState = {
-  course: amenCorner as CourseData,
+  course: COURSES.amen,
+  mode: 'solo',
   holeIdx: 0,
-  scores: [],
-  golfer: GOLFERS[0]
+  players: [{ golfer: GOLFERS[0], isAI: false, scores: [] }],
+  activePlayer: 0,
+  holeWinds: []
 };
 
-/** Score vs par across completed holes, formatted like a broadcast card. */
-function scoreToPar(): string {
+/** Wind for a hole, generated once and shared across players (same roll as 2D). */
+function windForHole(idx: number): Wind {
+  if (!round.holeWinds[idx]) {
+    round.holeWinds[idx] = {
+      angle: Math.random() * Math.PI * 2,
+      speed: Math.round(2 + Math.random() * (PHYSICS.maxWind - 2))
+    };
+  }
+  return round.holeWinds[idx];
+}
+
+/** The participant playing the active hole. */
+function active(): Participant {
+  return round.players[round.activePlayer];
+}
+
+/** Score vs par across a participant's completed holes, broadcast style. */
+function scoreToPar(p: Participant): string {
   let diff = 0;
-  round.scores.forEach((s, i) => (diff += s - round.course.holes[i].par));
+  p.scores.forEach((s, i) => (diff += s - round.course.holes[i].par));
   return diff === 0 ? 'E' : diff > 0 ? `+${diff}` : `${diff}`;
 }
 
@@ -133,20 +170,19 @@ class HoleScene {
     trail: TrailMesh | null;
   } | null = null;
   private disposed = false;
+  private ai: AIController | null = null;
   private static BALL_REST = 0.5;
 
   constructor(private onHoleComplete: (strokes: number) => void) {
     this.scene = new Scene(engine3d);
     this.engine2d = new PhysicsEngine(this.hole);
     this.aim = new AimControl(this.hole, this.engine2d);
-    // Fresh conditions on every hole, same roll as the 2D game
-    this.wind = {
-      angle: Math.random() * Math.PI * 2,
-      speed: Math.round(2 + Math.random() * (PHYSICS.maxWind - 2))
-    };
+    // Shared per-hole conditions (fair across 1v1 players)
+    this.wind = windForHole(round.holeIdx);
+    if (active().isAI) this.ai = new AIController(active().golfer, new FireSystem());
     const { shadows, puttGrid } = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
     this.puttGrid = puttGrid;
-    this.golfer = new Golfer3D(this.scene, round.golfer.look, shadows);
+    this.golfer = new Golfer3D(this.scene, active().golfer.look, shadows);
 
     this.ball = MeshBuilder.CreateSphere('ball', { diameter: 1.0, segments: 12 }, this.scene);
     const ballMat = new StandardMaterial('ballMat', this.scene);
@@ -178,7 +214,7 @@ class HoleScene {
       strokes: 0,
       phase: 'intro',
       holeIdx: round.holeIdx,
-      scores: round.scores
+      scores: active().scores
     };
 
     this.wireInput();
@@ -221,7 +257,7 @@ class HoleScene {
   }
 
   private ctx(): ShotContext {
-    return { ball: this.state.ballPos, lie: this.state.lie, golfer: round.golfer, fireBoost: 0 };
+    return { ball: this.state.ballPos, lie: this.state.lie, golfer: active().golfer, fireBoost: 0 };
   }
 
   private fwd3(yaw: number): Vector3 {
@@ -309,12 +345,31 @@ class HoleScene {
       ? 'Read the roll — tap SWING to putt'
       : 'Drag to aim — tap SWING to start the meter';
     meter.arm({
-      stat: statsForClub(this.aim.club, round.golfer, 0).accuracy,
+      stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting
     });
     meter.hide();
     meterEl.style.display = 'none';
+
+    if (this.ai) this.aiTurn();
+  }
+
+  /** AI opponent: pick a shot with AIController and play it (no meter). */
+  private aiTurn(): void {
+    promptEl.textContent = `${active().golfer.name} is playing…`;
+    const decision = this.ai!.decide(this.state.ballPos, this.state.lie, this.wind, this.hole);
+    this.aim.setClubById(decision.club.id);
+    this.aim.yaw = decision.aimAngle;
+    this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
+    this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
+    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.setCamSetup();
+    this.updateHud();
+    setTimeout(() => {
+      if (this.disposed || this.state.phase !== 'aiming') return;
+      this.executeShot(decision.swing, true);
+    }, 1100);
   }
 
   private updateHud(): void {
@@ -329,7 +384,10 @@ class HoleScene {
       `<div class="row"><span class="chip club">${club.name}</span><span class="chip">${distLabel}</span>` +
       `<span class="chip wind"><span class="arrow" style="transform:rotate(${rel}rad)">➤</span> ${this.wind.speed}</span></div>` +
       `<div class="row"><span class="chip pin">⛳ ${pinLabel}</span><span class="chip">${this.state.lie}</span>` +
-      `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar()}</span></div>`;
+      `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(active())}</span></div>` +
+      (round.mode === '1v1'
+        ? `<div class="row"><span class="chip player">${active().golfer.name}${active().isAI ? ' (AI)' : ''}</span></div>`
+        : '');
   }
 
   // ---------------------------------------------------------------- shots
@@ -348,16 +406,19 @@ class HoleScene {
     return FLIGHT.airTimescale + (FLIGHT.greenApproachTimescale - FLIGHT.airTimescale) * t;
   }
 
-  executeShot(swing: SwingResult): void {
+  executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
     const club = this.aim.club;
-    const converted: SwingResult = { ...swing, power: this.aim.barToPhysicsPower(swing.power, this.ctx()) };
+    // The meter reports bar units; the AI already reports physics power.
+    const converted: SwingResult = powerIsPhysics
+      ? swing
+      : { ...swing, power: this.aim.barToPhysicsPower(swing.power, this.ctx()) };
     const outcome = this.engine2d.simulate({
       origin: this.state.ballPos,
       aimAngle: this.aim.yaw,
       swing: converted,
       club,
-      golfer: round.golfer,
+      golfer: active().golfer,
       fireBoost: 0,
       lie: this.state.lie,
       wind: this.wind,
@@ -447,7 +508,7 @@ class HoleScene {
       meterEl.style.display = 'block';
       if (!meter.isArmed) {
         meter.arm({
-          stat: statsForClub(this.aim.club, round.golfer, 0).accuracy,
+          stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
           powerTarget: this.aim.barPowerTarget(this.ctx()),
           isPutt: this.aim.isPutting
         });
@@ -574,13 +635,22 @@ class HoleScene {
 // -------------------------------------------------------- round orchestration
 
 let current: HoleScene | null = null;
+const holesThisRound = (): number => Math.min(RULES.holesPerRound, round.course.holes.length);
 
+/** Play the active participant's ball on the current hole. */
 function playHole(): void {
   current?.dispose();
   current = new HoleScene((strokes) => {
-    round.scores[round.holeIdx] = strokes;
+    active().scores[round.holeIdx] = strokes;
+    // In 1v1 both players finish the hole before advancing
+    if (round.activePlayer < round.players.length - 1) {
+      round.activePlayer += 1;
+      playHole();
+      return;
+    }
+    round.activePlayer = 0;
     round.holeIdx += 1;
-    if (round.holeIdx < Math.min(RULES.holesPerRound, round.course.holes.length)) {
+    if (round.holeIdx < holesThisRound()) {
       playHole();
     } else {
       showSummary();
@@ -592,25 +662,40 @@ function playHole(): void {
 function showSummary(): void {
   current?.dispose();
   current = null;
-  const holes = round.course.holes.slice(0, round.scores.length);
+  const holes = round.course.holes.slice(0, holesThisRound());
   const totalPar = holes.reduce((a, h) => a + h.par, 0);
-  const total = round.scores.reduce((a, s) => a + s, 0);
+  const parLabel = (total: number): string => {
+    const d = total - totalPar;
+    return d === 0 ? 'Even' : d > 0 ? `+${d}` : `${d}`;
+  };
+  const headCols = round.players.map((p) => `<th>${p.golfer.name}${p.isAI ? ' (AI)' : ''}</th>`).join('');
   const rows = holes
-    .map((h, i) => `<tr><td>H${h.number}</td><td>Par ${h.par}</td><td>${round.scores[i]}</td></tr>`)
+    .map(
+      (h, i) =>
+        `<tr><td>H${h.number}</td><td>${h.par}</td>` +
+        round.players.map((p) => `<td>${p.scores[i] ?? '-'}</td>`).join('') +
+        `</tr>`
+    )
     .join('');
-  const diff = total - totalPar;
-  const diffLabel = diff === 0 ? 'Even par' : diff > 0 ? `+${diff}` : `${diff}`;
+  const totals = round.players.map((p) => p.scores.reduce((a, s) => a + s, 0));
+  const totalRow =
+    `<tr class="totrow"><td>Total</td><td>${totalPar}</td>` +
+    totals.map((t) => `<td>${t} (${parLabel(t)})</td>`).join('') +
+    `</tr>`;
+  let headline = 'Round complete';
+  if (round.mode === '1v1') {
+    const me = totals[0];
+    const them = totals[1];
+    headline = me < them ? 'You win! 🏆' : me > them ? `${round.players[1].golfer.name} wins` : 'Tied match';
+  }
   summaryEl.innerHTML =
-    `<h2>Round complete</h2>` +
-    `<table>${rows}</table>` +
-    `<div class="total">${total} strokes · ${diffLabel}</div>` +
-    `<button id="againBtn">Play again</button>`;
+    `<h2>${headline}</h2>` +
+    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}</table>` +
+    `<button id="againBtn">Menu</button>`;
   summaryEl.style.display = 'block';
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
-    round.holeIdx = 0;
-    round.scores = [];
-    playHole();
+    showSetup();
   });
 }
 
@@ -625,10 +710,100 @@ function exposeDebug(): void {
         aim: current.aim,
         state: current.state,
         scene: current.scene,
+        mode: round.mode,
+        activePlayer: round.activePlayer,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         skipIntro: () => current?.beginTurn()
       }
     : null;
 }
 
-playHole();
+// ------------------------------------------------------------- setup menu
+
+const setupEl = document.getElementById('setup')!;
+const sel = { course: 'amen', mode: 'solo' as GameMode, golfer: 0, opponent: 1 };
+
+function buildSetup(): void {
+  const courseRow = document.getElementById('pickCourse')!;
+  courseRow.innerHTML = Object.entries(COURSES)
+    .map(
+      ([key, c]) =>
+        `<div class="pick${sel.course === key ? ' sel' : ''}" data-course="${key}">${c.name}` +
+        `<span class="sub">${Math.min(RULES.holesPerRound, c.holes.length)} holes</span></div>`
+    )
+    .join('');
+  const modeRow = document.getElementById('pickMode')!;
+  const modes: Array<[GameMode, string, string]> = [
+    ['solo', 'Solo', 'Play your own round'],
+    ['1v1', '1v1 vs AI', 'Match play a rival']
+  ];
+  modeRow.innerHTML = modes
+    .map(
+      ([m, label, sub]) =>
+        `<div class="pick${sel.mode === m ? ' sel' : ''}" data-mode="${m}">${label}<span class="sub">${sub}</span></div>`
+    )
+    .join('');
+  const golferRow = document.getElementById('pickGolfer')!;
+  golferRow.innerHTML = GOLFERS.map(
+    (g, i) =>
+      `<div class="pick${sel.golfer === i ? ' sel' : ''}" data-golfer="${i}">${g.name}` +
+      `<span class="sub">PWR ${g.stats.drivingPower} · PUT ${g.stats.putting}</span></div>`
+  ).join('');
+
+  courseRow.querySelectorAll('.pick').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.course = (el as HTMLElement).dataset.course!;
+      buildSetup();
+    })
+  );
+  modeRow.querySelectorAll('.pick').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.mode = (el as HTMLElement).dataset.mode as GameMode;
+      buildSetup();
+    })
+  );
+  golferRow.querySelectorAll('.pick').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.golfer = Number((el as HTMLElement).dataset.golfer);
+      buildSetup();
+    })
+  );
+}
+
+function showSetup(): void {
+  setupEl.style.display = 'flex';
+  buildSetup();
+}
+
+function startRound(): void {
+  round.course = COURSES[sel.course];
+  round.mode = sel.mode;
+  round.holeIdx = 0;
+  round.activePlayer = 0;
+  round.holeWinds = [];
+  const me: Participant = { golfer: GOLFERS[sel.golfer], isAI: false, scores: [] };
+  if (sel.mode === '1v1') {
+    // Rival = a different golfer than the player picked
+    const rivalIdx = sel.golfer === 0 ? 1 : 0;
+    round.players = [me, { golfer: GOLFERS[rivalIdx], isAI: true, scores: [] }];
+  } else {
+    round.players = [me];
+  }
+  setupEl.style.display = 'none';
+  playHole();
+}
+
+document.getElementById('startBtn')!.addEventListener('pointerdown', startRound);
+showSetup();
+
+// Test hook: let Playwright configure + start a round without menu taps
+(window as unknown as { __startRound: unknown }).__startRound = (opts?: {
+  course?: string;
+  mode?: GameMode;
+  golfer?: number;
+}) => {
+  if (opts?.course) sel.course = opts.course;
+  if (opts?.mode) sel.mode = opts.mode;
+  if (opts?.golfer !== undefined) sel.golfer = opts.golfer;
+  startRound();
+};

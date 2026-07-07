@@ -231,6 +231,86 @@
         font-size: 17px;
         font-weight: 800;
       }
+      #setup {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        overflow-y: auto;
+      }
+      #setupInner {
+        width: min(92%, 420px);
+        padding: 24px 20px;
+        text-align: center;
+      }
+      #title {
+        font-size: 40px;
+        font-weight: 900;
+        color: #fff;
+        letter-spacing: 0.5px;
+        text-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
+      }
+      #subtitle {
+        font-size: 14px;
+        color: #a8c8a2;
+        margin: 6px 0 22px;
+      }
+      .pickGroup {
+        margin-bottom: 18px;
+        text-align: left;
+      }
+      .pickLabel {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        color: #7fbf8c;
+        margin-bottom: 8px;
+      }
+      .pickRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .pick {
+        flex: 1 1 auto;
+        min-width: 84px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+        color: #eaf3e6;
+        font-size: 14.5px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .pick .sub {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 500;
+        color: #9fb89a;
+        margin-top: 2px;
+      }
+      .pick.sel {
+        border-color: #ffd54f;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.24), rgba(255, 213, 79, 0.1));
+        color: #fff;
+      }
+      #startBtn {
+        width: 100%;
+        margin-top: 8px;
+        padding: 15px;
+        border-radius: 14px;
+        border: none;
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      }
     </style>
   </head>
   <body>
@@ -243,6 +323,25 @@
     <div id="summary" class="panel"></div>
     <div id="meter"></div>
     <button id="swingBtn">SWING</button>
+    <div id="setup">
+      <div id="setupInner">
+        <div id="title">Johnson's Golf</div>
+        <div id="subtitle">3D — Everybody's Golf feel, in your browser</div>
+        <div class="pickGroup">
+          <div class="pickLabel">Course</div>
+          <div id="pickCourse" class="pickRow"></div>
+        </div>
+        <div class="pickGroup">
+          <div class="pickLabel">Mode</div>
+          <div id="pickMode" class="pickRow"></div>
+        </div>
+        <div class="pickGroup">
+          <div class="pickLabel">Golfer</div>
+          <div id="pickGolfer" class="pickRow"></div>
+        </div>
+        <button id="startBtn">Start round</button>
+      </div>
+    </div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>
 </html>
