@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH } from '../../config';
+import { collectTreeBlobs, TreeBlob } from './CourseTexture';
+import { GroundMesh } from './GroundMesh';
 import { CourseTheme, DEFAULT_THEME, shade } from './Theme';
 import { pointInPolygon } from '../../utils/Geometry';
 import { drawDino, drawHeart, drawPikachu } from '../../ui/Ui';
@@ -46,16 +48,6 @@ export interface DynamicState {
   timeSec: number;
 }
 
-interface TreeBlob {
-  x: number;
-  y: number;
-  r: number;
-  /** 0 = round oak, 1 = tall poplar, 2 = wide double-crown. */
-  kind: number;
-  /** Per-tree canopy tint multiplier (0.82..1.14). */
-  tint: number;
-}
-
 const SKY_HORIZON_DEFAULT = 430;
 
 /**
@@ -67,6 +59,7 @@ export class PerspectiveView {
   readonly root: Phaser.GameObjects.Container;
   private skyG: Phaser.GameObjects.Graphics;
   private cloudG: Phaser.GameObjects.Graphics;
+  private ground: GroundMesh;
   private groundG: Phaser.GameObjects.Graphics;
   private animG: Phaser.GameObjects.Graphics;
   private golferG: Phaser.GameObjects.Graphics;
@@ -87,10 +80,12 @@ export class PerspectiveView {
   constructor(
     private scene: Phaser.Scene,
     private hole: HoleData,
+    groundTextureKey: string,
     private theme: CourseTheme = DEFAULT_THEME
   ) {
     this.skyG = scene.add.graphics();
     this.cloudG = scene.add.graphics();
+    this.ground = new GroundMesh(scene, groundTextureKey, hole.world.width, hole.world.height);
     this.groundG = scene.add.graphics();
     this.animG = scene.add.graphics();
     this.golferG = scene.add.graphics();
@@ -99,6 +94,7 @@ export class PerspectiveView {
     this.root = scene.add.container(0, 0, [
       this.skyG,
       this.cloudG,
+      this.ground.mesh,
       this.groundG,
       this.animG,
       this.golferG,
@@ -163,31 +159,7 @@ export class PerspectiveView {
   }
 
   private collectTrees(): void {
-    for (const hz of this.hole.hazards) {
-      if (hz.type !== 'trees') continue;
-      const xs = hz.polygon.map((p) => p[0]);
-      const ys = hz.polygon.map((p) => p[1]);
-      const minX = Math.min(...xs);
-      const maxX = Math.max(...xs);
-      const minY = Math.min(...ys);
-      const maxY = Math.max(...ys);
-      for (let yy = minY; yy < maxY; yy += 52) {
-        for (let xx = minX; xx < maxX; xx += 52) {
-          const jx = xx + (this.hash(xx, yy) - 0.5) * 36;
-          const jy = yy + (this.hash(yy, xx) - 0.5) * 36;
-          if (!pointInPolygon(jx, jy, hz.polygon)) continue;
-          const h1 = this.hash(xx + 7, yy + 3);
-          const h2 = this.hash(xx + 31, yy + 17);
-          this.trees.push({
-            x: jx,
-            y: jy,
-            r: 15 + h1 * 12,
-            kind: Math.floor(h2 * 3),
-            tint: 0.82 + this.hash(xx + 3, yy + 11) * 0.32
-          });
-        }
-      }
-    }
+    this.trees = collectTreeBlobs(this.hole);
   }
 
   /** Stable in-water points that glint in updateDynamic. */
@@ -225,6 +197,8 @@ export class PerspectiveView {
   applyCamera(cam: PerspCamera, showGrid: boolean): void {
     this.proj = new Projection({ ...cam });
     this.showGrid = showGrid;
+    // The textured ground reprojects every camera move — it IS the ground
+    this.ground.update(this.proj);
     const now = performance.now();
     const budget = Math.min(120, this.redrawCostEma * 1.5);
     if (now - this.lastGroundAt >= budget) {
@@ -291,129 +265,21 @@ export class PerspectiveView {
 
   // ---------------------------------------------------------------- ground
 
-  private fillProjected(
-    g: Phaser.GameObjects.Graphics,
-    pts: Array<{ x: number; y: number }> | null,
-    color: number,
-    alpha = 1,
-    outline?: number
-  ): void {
-    if (!pts) return;
-    g.fillStyle(color, alpha);
-    g.fillPoints(pts.map((p) => new Phaser.Geom.Point(p.x, p.y)), true);
-    if (outline !== undefined) {
-      g.lineStyle(2, outline, 0.7);
-      g.strokePoints(pts.map((p) => new Phaser.Geom.Point(p.x, p.y)), true, true);
-    }
-  }
-
   private redrawGround(): void {
     const g = this.groundG;
     const proj = this.proj;
     const cam = proj.cam;
-    const t = this.theme;
     const H = cam.horizonY;
     g.clear();
 
-    // Base ground: distance-shaded rough
-    const roughFar = shade(t.roughDark, 0.92);
-    g.fillGradientStyle(roughFar, roughFar, t.rough, t.rough, 1);
-    g.fillRect(0, H, GAME_WIDTH, GAME_HEIGHT - H);
-
-    // Receding mow bands (world-depth stripes projected to screen rows).
-    // Fairway/green fills below are slightly transparent so these bands
-    // ghost through as mowing stripes on every surface.
-    // Mow stripes: bands of world distance anchored to the world (phase
-    // follows the camera's position along its heading), so they hold still
-    // while the camera glides. ~20yd wavelength reads like real mowing.
-    const stripe = 42;
-    const along = cam.x * Math.cos(cam.yaw) + cam.y * Math.sin(cam.yaw);
-    const phase = ((along % (stripe * 2)) + stripe * 2) % (stripe * 2);
-    for (let dNear = 6 - phase; dNear < 2600; dNear += stripe * 2) {
-      const dA = Math.max(6, dNear);
-      const dB = dNear + stripe;
-      if (dB <= 6) continue;
-      const yNear = H + (cam.height * cam.focal) / dA;
-      const yFar = H + (cam.height * cam.focal) / dB;
-      if (yNear - yFar < 0.8) {
-        if (yFar < H + 2) break;
-        continue;
-      }
-      if (yFar > GAME_HEIGHT) continue;
-      g.fillStyle(0x000000, 0.09);
-      g.fillRect(0, yFar, GAME_WIDTH, Math.min(yNear, GAME_HEIGHT + 40) - yFar);
-      // Sun-catching counter-stripe just beyond each dark band
-      const yFar2 = H + (cam.height * cam.focal) / (dB + stripe);
-      if (yFar - yFar2 >= 0.8 && yFar2 <= GAME_HEIGHT) {
-        g.fillStyle(0xffffff, 0.05);
-        g.fillRect(0, yFar2, GAME_WIDTH, yFar - yFar2);
-      }
-    }
-
-    // Near-field grass flecks, anchored to the world so they hold still
-    // while the camera glides (sparse — texture, not noise)
-    const step = 56;
-    const cx0 = Math.round(cam.x / step) * step;
-    const cy0 = Math.round(cam.y / step) * step;
-    for (let wy = cy0 - 420; wy <= cy0 + 420; wy += step) {
-      for (let wx = cx0 - 420; wx <= cx0 + 420; wx += step) {
-        const h = this.hash(wx, wy);
-        if (h < 0.45) continue;
-        const p = proj.toScreen(wx + (h - 0.5) * 40, wy + (this.hash(wy, wx) - 0.5) * 40);
-        if (!p || p.d > 520 || p.y > GAME_HEIGHT) continue;
-        const len = Math.max(3, 9 * p.scale * (0.5 + h * 0.5));
-        g.fillStyle(h > 0.72 ? 0xd9ecb8 : 0x0a2410, h > 0.72 ? 0.1 : 0.13);
-        g.fillRect(p.x, p.y - len, Math.max(2, p.scale * 0.6), len);
-      }
-    }
-
-    // Fairways (slightly transparent: mow bands show through)
-    for (const poly of this.hole.fairway) {
-      this.fillProjected(g, proj.projectPolygon(poly), t.fairway, 0.88, t.fairwayDark);
-    }
-
-    // Water first, so an island green paints on top of it.
-    // Shore ring -> body -> deeper center reads as real depth.
-    for (const hz of this.hole.hazards) {
-      if (hz.type !== 'water') continue;
-      const shore = proj.projectPolygon(hz.polygon);
-      if (!shore) continue;
-      g.lineStyle(5, shade(t.sand, 1.05), 0.5);
-      g.strokePoints(shore.map((p) => new Phaser.Geom.Point(p.x, p.y)), true, true);
-      this.fillProjected(g, shore, t.water, 1);
-      const cxy = hz.polygon.reduce(
-        (a, [x, y]) => [a[0] + x / hz.polygon.length, a[1] + y / hz.polygon.length],
-        [0, 0]
-      );
-      const inner = hz.polygon.map(([x, y]) => [
-        x + (cxy[0] - x) * 0.3,
-        y + (cxy[1] - y) * 0.3
-      ]);
-      this.fillProjected(g, proj.projectPolygon(inner), t.waterDeep, 0.85);
-    }
-
-    // Fringe ring + green with a soft crown highlight
-    this.fillProjected(g, proj.projectEllipse(this.hole.green, 20), t.fringe, 0.96);
-    this.fillProjected(g, proj.projectEllipse(this.hole.green, 0), t.green, 0.95, shade(t.green, 0.72));
-    const crown = Math.min(this.hole.green.rx, this.hole.green.ry) * 0.38;
-    this.fillProjected(g, proj.projectEllipse(this.hole.green, -crown), t.greenLight, 0.5);
-
-    // Bunkers: lip shadow behind, sand body, sun-bleached center
-    for (const hz of this.hole.hazards) {
-      if (hz.type !== 'bunker') continue;
-      const lip = hz.polygon.map(([x, y]) => [x - 3, y - 3]);
-      this.fillProjected(g, proj.projectPolygon(lip), shade(t.sandDark, 0.72), 0.85);
-      this.fillProjected(g, proj.projectPolygon(hz.polygon), t.sand, 1, t.sandDark);
-      const cxy = hz.polygon.reduce(
-        (a, [x, y]) => [a[0] + x / hz.polygon.length, a[1] + y / hz.polygon.length],
-        [0, 0]
-      );
-      const inner = hz.polygon.map(([x, y]) => [
-        x + (cxy[0] - x) * 0.35,
-        y + (cxy[1] - y) * 0.35
-      ]);
-      this.fillProjected(g, proj.projectPolygon(inner), shade(t.sand, 1.12), 0.75);
-    }
+    // Ground-side atmospheric haze sits directly on the mesh so the far
+    // course melts into the sky — drawn FIRST so trees stay crisp above it
+    const th = this.theme;
+    g.fillGradientStyle(
+      th.haze, th.haze, th.haze, th.haze,
+      0.5 * th.hazeStrength, 0.5 * th.hazeStrength, 0, 0
+    );
+    g.fillRect(0, H, GAME_WIDTH, 46);
 
     // Putting grid + break arrows
     if (this.showGrid) this.drawGreenGrid(g);
@@ -477,14 +343,6 @@ export class PerspectiveView {
       }
     }
 
-    // Ground-side atmospheric haze: the far course melts into the sky
-    const t2 = this.theme;
-    const hazeH = 46;
-    g.fillGradientStyle(
-      t2.haze, t2.haze, t2.haze, t2.haze,
-      0.5 * t2.hazeStrength, 0.5 * t2.hazeStrength, 0, 0
-    );
-    g.fillRect(0, H, GAME_WIDTH, hazeH);
   }
 
   /** Project a building footprint at ground + roof height and draw the box. */

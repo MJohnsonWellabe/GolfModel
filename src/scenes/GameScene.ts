@@ -3,6 +3,7 @@ import { FLIGHT, GAME_HEIGHT, GAME_WIDTH, PHYSICS, PX_PER_YARD } from '../config
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { state } from '../core/GameState';
 import { CameraDirector } from '../core/rendering/CameraDirector';
+import { bakeCourseTexture, TEXTURE_PAD } from '../core/rendering/CourseTexture';
 import { drawOverheadCourse } from '../core/rendering/OverheadCourse';
 import { resolveTheme } from '../core/rendering/Theme';
 import { PerspectiveView, TrailDot, ViewParticle } from '../core/rendering/PerspectiveView';
@@ -142,11 +143,15 @@ export class GameScene extends Phaser.Scene {
     this.uiLayer = this.add.container(0, 0).setDepth(100);
 
     const theme = resolveTheme(state.course);
+    const groundKey = bakeCourseTexture(this, state.course.name, this.hole, theme, this.engine);
+    // Overhead planning view: the baked texture plus vector markers on top
+    const overheadImg = this.add.image(-TEXTURE_PAD, -TEXTURE_PAD, groundKey).setOrigin(0);
+    this.worldLayer.add(overheadImg);
     const courseG = this.add.graphics();
     this.worldLayer.add(courseG);
-    drawOverheadCourse(courseG, this.hole, theme);
+    drawOverheadCourse(courseG, this.hole, theme, true);
     this.setupPlayers();
-    this.persp = new PerspectiveView(this, this.hole, theme);
+    this.persp = new PerspectiveView(this, this.hole, groundKey, theme);
     this.camera = new CameraDirector();
     // Frame the tee shot behind the banner while the hole loads in
     this.camera.setSetupTarget(

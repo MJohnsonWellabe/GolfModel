@@ -26,53 +26,57 @@ function hash(x: number, y: number): number {
 export function drawOverheadCourse(
   g: Phaser.GameObjects.Graphics,
   hole: HoleData,
-  t: CourseTheme = DEFAULT_THEME
+  t: CourseTheme = DEFAULT_THEME,
+  markersOnly = false
 ): void {
   const { width: w, height: h } = hole.world;
 
-  g.fillStyle(t.roughDark, 1);
-  g.fillRect(-800, -800, w + 1600, h + 1600);
-  g.fillStyle(t.rough, 0.75);
-  for (let y = -800; y < h + 800; y += 130) {
-    g.fillRect(-800, y, w + 1600, 65);
-  }
+  if (!markersOnly) {
+    g.fillStyle(t.roughDark, 1);
+    g.fillRect(-800, -800, w + 1600, h + 1600);
+    g.fillStyle(t.rough, 0.75);
+    for (let y = -800; y < h + 800; y += 130) {
+      g.fillRect(-800, y, w + 1600, 65);
+    }
 
-  for (const poly of hole.fairway) {
-    const pts = poly.map(([x, y]) => new Phaser.Geom.Point(x, y));
-    g.lineStyle(10, t.fairwayDark, 1);
-    g.strokePoints(pts, true, true);
-    g.fillStyle(t.fairway, 1);
-    g.fillPoints(pts, true);
-  }
+    for (const poly of hole.fairway) {
+      const pts = poly.map(([x, y]) => new Phaser.Geom.Point(x, y));
+      g.lineStyle(10, t.fairwayDark, 1);
+      g.strokePoints(pts, true, true);
+      g.fillStyle(t.fairway, 1);
+      g.fillPoints(pts, true);
+    }
 
-  // Water first so an island green paints over it
-  for (const hz of hole.hazards) {
-    if (hz.type !== 'water') continue;
-    const pts = hz.polygon.map(([x, y]) => new Phaser.Geom.Point(x, y));
-    const c = polyCentroid(hz.polygon);
-    g.fillStyle(t.waterDeep, 1);
-    g.fillPoints(pts, true);
-    const inner = hz.polygon.map(([x, y]) => [
-      x + (c.x - x) * 0.12,
-      y + (c.y - y) * 0.12 + 3
-    ]);
-    g.fillStyle(t.water, 1);
-    g.fillPoints(inner.map(([x, y]) => new Phaser.Geom.Point(x, y)), true);
-  }
+    // Water first so an island green paints over it
+    for (const hz of hole.hazards) {
+      if (hz.type !== 'water') continue;
+      const pts = hz.polygon.map(([x, y]) => new Phaser.Geom.Point(x, y));
+      const c = polyCentroid(hz.polygon);
+      g.fillStyle(t.waterDeep, 1);
+      g.fillPoints(pts, true);
+      const inner = hz.polygon.map(([x, y]) => [
+        x + (c.x - x) * 0.12,
+        y + (c.y - y) * 0.12 + 3
+      ]);
+      g.fillStyle(t.water, 1);
+      g.fillPoints(inner.map(([x, y]) => new Phaser.Geom.Point(x, y)), true);
+    }
 
-  const green = hole.green;
-  g.fillStyle(t.fringe, 1);
-  g.fillEllipse(green.cx, green.cy, (green.rx + 20) * 2, (green.ry + 20) * 2);
-  g.fillStyle(t.green, 1);
-  g.fillEllipse(green.cx, green.cy, green.rx * 2, green.ry * 2);
-  g.fillStyle(t.greenLight, 0.55);
-  g.fillEllipse(green.cx, green.cy, green.rx * 1.25, green.ry * 1.25);
+    const green = hole.green;
+    g.fillStyle(t.fringe, 1);
+    g.fillEllipse(green.cx, green.cy, (green.rx + 20) * 2, (green.ry + 20) * 2);
+    g.fillStyle(t.green, 1);
+    g.fillEllipse(green.cx, green.cy, green.rx * 2, green.ry * 2);
+    g.fillStyle(t.greenLight, 0.55);
+    g.fillEllipse(green.cx, green.cy, green.rx * 1.25, green.ry * 1.25);
+  }
 
   for (const hz of hole.hazards) {
     const pts = hz.polygon.map(([x, y]) => new Phaser.Geom.Point(x, y));
     if (hz.type === 'water') {
-      continue; // drawn above
+      continue; // baked or drawn above
     } else if (hz.type === 'bunker') {
+      if (markersOnly) continue; // baked into the course texture
       g.fillStyle(t.sand, 1);
       g.fillPoints(pts, true);
       g.lineStyle(3, shade(t.sandDark, 0.9), 0.9);
