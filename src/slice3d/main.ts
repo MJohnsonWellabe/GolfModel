@@ -36,7 +36,7 @@ const wind = { angle: 0, speed: 0 }; // stillness keeps the slice readable
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
 const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true });
 const scene = new Scene(engine3d);
-const { shadows, pin, puttGrid } = buildCourse(scene, hole, theme, engine2d);
+const { shadows, puttGrid } = buildCourse(scene, hole, theme, engine2d);
 const golfer = new Golfer3D(scene, golferData.look, shadows);
 
 const BALL_REST = 0.5; // rest height of the ball center above the turf
@@ -184,6 +184,14 @@ function setCamLanding(p: { x: number; y: number }, dir: number): void {
   camTarget.look = pos3;
   camTarget.k = 4;
 }
+/** Green approaches: 3/4 aerial view that frames the green as a target. */
+function setCamDescent(land: { x: number; y: number }, dir: number): void {
+  const f = fwd3(dir);
+  const pos3 = w2b(land.x, land.y, 0);
+  camTarget.pos = pos3.subtract(f.scale(30)).add(new Vector3(0, 27, 0));
+  camTarget.look = pos3.add(f.scale(5));
+  camTarget.k = 5;
+}
 
 function updateHud(): void {
   const toPin = engine2d.yardsToPin(st.ballPos);
@@ -205,8 +213,7 @@ function beginTurn(): void {
   golfer.setPose(0);
   golfer.aiming = true;
   ball.position = w2b(st.ballPos.x, st.ballPos.y, BALL_REST);
-  // On the green: pull the pin and lay the reading grid over the surface
-  for (const p of pin) p.setEnabled(!aim.isPutting);
+  // On the green: lay the reading grid over the surface (pin stays in)
   puttGrid.setEnabled(aim.isPutting);
   setCamSetup();
   updateHud();
@@ -286,12 +293,12 @@ function executeShot(swing: SwingResult): void {
     const trail =
       club.id === 'putter'
         ? null
-        : new TrailMesh('trail', ball, scene, 0.22, 46, true);
+        : new TrailMesh('trail', ball, scene, 0.12, 46, true);
     if (trail) {
       const tm = new StandardMaterial('trailMat', scene);
       tm.emissiveColor = new Color3(1, 1, 1);
       tm.diffuseColor = new Color3(1, 1, 1);
-      tm.alpha = 0.5;
+      tm.alpha = 0.35;
       trail.material = tm;
     }
     flight = { outcome, progress: 0, landIdx, dir: aim.yaw, isPutt: club.id === 'putter', landed: false, trail };
@@ -391,7 +398,15 @@ scene.onBeforeRenderObservable.add(() => {
           landingPuff(p.x, p.y, engine2d.surfaceAt(p.x, p.y) === 'sand');
         }
       } else if (!flight.landed && !flight.isPutt) {
-        setCamFlight(p, flight.dir);
+        const o = flight.outcome;
+        const greenFinish = o.holed || o.surface === 'green' || o.surface === 'fringe';
+        const frac = flight.landIdx > 0 ? flight.progress / flight.landIdx : 1;
+        if (greenFinish && frac > 0.6) {
+          const land = path[flight.landIdx];
+          setCamDescent({ x: land.x, y: land.y }, flight.dir);
+        } else {
+          setCamFlight(p, flight.dir);
+        }
       }
     }
   }

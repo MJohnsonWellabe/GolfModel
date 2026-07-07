@@ -494,6 +494,44 @@ export function buildCourse(
   gridMat.alpha = 0.45;
   puttGrid.material = gridMat;
   puttGrid.setEnabled(false);
+
+  // Break flow: crawling dots drifting downhill (speed ∝ slope strength) so
+  // the break direction reads at a glance, like EG's putting aid
+  const flowTex = new DynamicTexture('flowTex', { width: 64, height: 64 }, scene, true);
+  const ftx = flowTex.getContext() as CanvasRenderingContext2D;
+  ftx.clearRect(0, 0, 64, 64);
+  for (const [fx, fy] of [[16, 18], [48, 44], [36, 6]]) {
+    const fg = ftx.createRadialGradient(fx, fy, 0, fx, fy, 4.5);
+    fg.addColorStop(0, 'rgba(255,255,255,0.95)');
+    fg.addColorStop(1, 'rgba(255,255,255,0)');
+    ftx.fillStyle = fg;
+    ftx.fillRect(fx - 6, fy - 6, 12, 12);
+  }
+  flowTex.update(false);
+  flowTex.hasAlpha = true;
+  flowTex.wrapU = Texture.WRAP_ADDRESSMODE;
+  flowTex.wrapV = Texture.WRAP_ADDRESSMODE;
+  flowTex.uScale = (g.rx * 2 + 6) / 15;
+  flowTex.vScale = (g.ry * 2 + 6) / 15;
+  const flow = MeshBuilder.CreateDisc('puttFlow', { radius: 1, tessellation: 40 }, scene);
+  flow.rotation.x = Math.PI / 2;
+  flow.scaling = new Vector3(g.rx + 3, g.ry + 3, 1);
+  flow.position = new Vector3(0, 0.05, 0);
+  const flowMat = new StandardMaterial('puttFlowMat', scene);
+  flowMat.emissiveTexture = flowTex;
+  flowMat.opacityTexture = flowTex;
+  flowMat.disableLighting = true;
+  flowMat.alpha = 0.6;
+  flow.material = flowMat;
+  flow.parent = puttGrid;
+  const slope = hole.slope;
+  scene.onBeforeRenderObservable.add(() => {
+    if (!flow.isEnabled()) return;
+    const fdt = scene.getEngine().getDeltaTime() / 1000;
+    const rate = 0.28 * (0.35 + slope.strength) * fdt;
+    flowTex.uOffset -= Math.cos(slope.angle) * rate;
+    flowTex.vOffset += Math.sin(slope.angle) * rate;
+  });
   // White ring marks the open cup while the pin is pulled
   const cupRing = MeshBuilder.CreateTorus('cupRing', { diameter: 3.1, thickness: 0.2, tessellation: 24 }, scene);
   const cupRingM = new StandardMaterial('cupRingM', scene);
