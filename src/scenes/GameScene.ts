@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH, PHYSICS, PX_PER_YARD } from '../config';
+import { FLIGHT, GAME_HEIGHT, GAME_WIDTH, PHYSICS, PX_PER_YARD } from '../config';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { state } from '../core/GameState';
 import { CameraDirector } from '../core/rendering/CameraDirector';
@@ -63,6 +63,8 @@ interface ShotAnim {
   dir: number;
   /** Putts keep the intimate setup camera instead of the chase cam. */
   isPutt: boolean;
+  /** Path index where the ball first touches down (end of the airborne arc). */
+  landIdx: number;
   onDone: () => void;
 }
 
@@ -632,6 +634,13 @@ export class GameScene extends Phaser.Scene {
       if (!outcome.holed || outcome.path.length > 6) {
         this.emitBurst(p.ball, this.surfaceChipColor(p.lie), 8, 60, club.launchAngle > 0 ? 130 : 30);
       }
+      let landIdx = outcome.path.length - 1;
+      for (let i = 5; i < outcome.path.length; i++) {
+        if (outcome.path[i].z <= 0.001) {
+          landIdx = i;
+          break;
+        }
+      }
       const anim: ShotAnim = {
         path: outcome.path,
         progress: 0,
@@ -641,6 +650,7 @@ export class GameScene extends Phaser.Scene {
         pos: outcome.path[0],
         dir: aimAngle,
         isPutt: club.launchAngle <= 0,
+        landIdx,
         onDone: () => this.afterShot(p, idx, outcome, ignited)
       };
       this.anim = anim;
@@ -773,6 +783,23 @@ export class GameScene extends Phaser.Scene {
     return this.viewScratch;
   }
 
+  /**
+   * Playback speed for the current animation frame (see FLIGHT in config):
+   * cinematic half speed in the air, easing to ~1/4 speed while dropping
+   * onto the green, gentler rollout speeds, real-time putts.
+   */
+  private flightTimescale(a: ShotAnim): number {
+    if (a.isPutt) return FLIGHT.puttTimescale;
+    const greenFinish =
+      a.outcome.holed || a.outcome.surface === 'green' || a.outcome.surface === 'fringe';
+    if (a.landed) return greenFinish ? FLIGHT.greenRollTimescale : FLIGHT.rollTimescale;
+    if (!greenFinish) return FLIGHT.airTimescale;
+    const frac = a.landIdx > 0 ? a.progress / a.landIdx : 1;
+    if (frac <= FLIGHT.approachRampFrac) return FLIGHT.airTimescale;
+    const t = Math.min(1, (frac - FLIGHT.approachRampFrac) / (1 - FLIGHT.approachRampFrac));
+    return FLIGHT.airTimescale + (FLIGHT.greenApproachTimescale - FLIGHT.airTimescale) * t;
+  }
+
   // ---------------------------------------------------------------- update
 
   update(time: number, delta: number): void {
@@ -781,7 +808,7 @@ export class GameScene extends Phaser.Scene {
     // Advance flight animation
     if (this.anim) {
       const a = this.anim;
-      a.progress += (delta / 1000) * 60 * 0.9;
+      a.progress += (delta / 1000) * 60 * this.flightTimescale(a);
       const i = Math.floor(a.progress);
       if (i >= a.path.length) {
         const done = a.onDone;

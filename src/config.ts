@@ -99,6 +99,27 @@ export const PHYSICS = {
   } as Record<string, number>
 } as const;
 
+/**
+ * Playback speed of the shot animation, as a fraction of simulated time.
+ * The physics path is unchanged — these only control how fast it plays back.
+ * Slow, readable ball flight also creates the input window for the future
+ * swipe-spin system (Phase 4).
+ */
+export const FLIGHT = {
+  /** Airborne playback speed for full shots. */
+  airTimescale: 0.5,
+  /** Extra slow-down while the ball drops onto the green. */
+  greenApproachTimescale: 0.28,
+  /** Fraction of the airborne path where the green-approach slow-down begins. */
+  approachRampFrac: 0.65,
+  /** Rollout speed after landing (non-green finishes). */
+  rollTimescale: 0.5,
+  /** Rollout speed when settling on the green. */
+  greenRollTimescale: 0.35,
+  /** Putts keep near-real-time pacing so they never crawl. */
+  puttTimescale: 0.9
+} as const;
+
 export const FIRE = {
   /** Consecutive all-perfect swings needed to catch fire. */
   streakToIgnite: 2,
