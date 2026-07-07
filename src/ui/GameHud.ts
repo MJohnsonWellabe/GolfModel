@@ -52,9 +52,12 @@ export class GameHud {
     const panel = (px: number, py: number, pw: number, ph: number): void => {
       g.fillStyle(0x000000, 0.25);
       g.fillRoundedRect(px + 3, py + 4, pw, ph, 16);
-      g.fillStyle(COLORS.uiPanel, 0.88);
+      g.fillStyle(COLORS.uiPanel, 0.9);
       g.fillRoundedRect(px, py, pw, ph, 16);
-      g.lineStyle(2, 0xffffff, 0.18);
+      // Top sheen for a subtle glassy read
+      g.fillStyle(0xffffff, 0.07);
+      g.fillRoundedRect(px + 2, py + 2, pw - 4, ph * 0.42, { tl: 14, tr: 14, bl: 0, br: 0 });
+      g.lineStyle(2, 0xffffff, 0.22);
       g.strokeRoundedRect(px, py, pw, ph, 16);
     };
     panel(14, 14, 226, 178);

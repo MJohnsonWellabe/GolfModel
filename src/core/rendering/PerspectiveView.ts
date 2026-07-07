@@ -41,6 +41,8 @@ export interface ViewParticle {
 
 export interface DynamicState {
   aimPoint: Point | null;
+  /** Preformatted distance label shown at the aim marker (e.g. "212y"). */
+  aimLabel: string | null;
   previewPath: TrajectoryPoint[] | null;
   balls: ViewBall[];
   trail: TrailDot[];
@@ -66,6 +68,7 @@ export class PerspectiveView {
   private animG: Phaser.GameObjects.Graphics;
   private golferG: Phaser.GameObjects.Graphics;
   private clubG: Phaser.GameObjects.Graphics;
+  private aimText: Phaser.GameObjects.Text;
   private trees: TreeBlob[] = [];
   private proj: Projection;
   private showGrid = false;
@@ -94,6 +97,17 @@ export class PerspectiveView {
     this.animG = scene.add.graphics();
     this.golferG = scene.add.graphics();
     this.clubG = scene.add.graphics();
+    this.aimText = scene.add
+      .text(0, 0, '', {
+        fontFamily: 'Arial Black, Arial, sans-serif',
+        fontSize: '24px',
+        color: '#ffd54f',
+        fontStyle: 'bold',
+        stroke: '#0b3d1f',
+        strokeThickness: 5
+      })
+      .setOrigin(0.5, 1)
+      .setVisible(false);
     const vignetteG = scene.add.graphics();
     this.root = scene.add.container(0, 0, [
       this.skyG,
@@ -105,6 +119,7 @@ export class PerspectiveView {
       this.animG,
       this.golferG,
       this.clubG,
+      this.aimText,
       vignetteG
     ]);
     this.root.setDepth(10);
@@ -586,17 +601,29 @@ export class PerspectiveView {
     this.treelineG.x = -((turn / (Math.PI * 2)) * GAME_WIDTH) % GAME_WIDTH;
     g.clear();
 
-    // Aim marker (projected ring)
+    // Aim marker: ring on the turf, bobbing chevron, distance label
+    let labelPlaced = false;
     if (state.aimPoint) {
       const p = proj.toScreen(state.aimPoint.x, state.aimPoint.y);
       if (p) {
         const rx = Math.max(6, 14 * p.scale);
         g.lineStyle(3, 0xffd54f, 0.95);
         g.strokeEllipse(p.x, p.y, rx * 2, rx * 0.8);
-        g.fillStyle(0xffd54f, 0.9);
-        g.fillCircle(p.x, p.y, 3);
+        g.lineStyle(2, 0xffffff, 0.5);
+        g.strokeEllipse(p.x, p.y, rx * 1.2, rx * 0.48);
+        const bob = Math.sin(state.timeSec * 4) * 3;
+        const cy2 = p.y - 20 - bob;
+        g.fillStyle(0xffd54f, 1);
+        g.fillTriangle(p.x - 9, cy2 - 12, p.x + 9, cy2 - 12, p.x, cy2);
+        g.lineStyle(2, 0x0b3d1f, 0.8);
+        g.strokeTriangle(p.x - 9, cy2 - 12, p.x + 9, cy2 - 12, p.x, cy2);
+        if (state.aimLabel) {
+          this.aimText.setText(state.aimLabel).setPosition(p.x, cy2 - 16).setVisible(true);
+          labelPlaced = true;
+        }
       }
     }
+    if (!labelPlaced) this.aimText.setVisible(false);
 
     // Preview arc dots
     if (state.previewPath) {

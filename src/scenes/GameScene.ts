@@ -896,8 +896,14 @@ export class GameScene extends Phaser.Scene {
           }
           return { x: pl.ball.x, y: pl.ball.y, z: 0, color: pl.golfer.color };
         });
+      const aiming = !this.busy && !this.players[this.currentIdx].isAI;
       this.persp.updateDynamic({
         aimPoint: this.busy ? null : this.aim.aimPoint(this.players[this.currentIdx].ball),
+        aimLabel: aiming
+          ? this.aim.isPutting
+            ? `${Math.round((this.aim.distPx / PX_PER_YARD) * 3)}ft`
+            : `${Math.round(this.aim.distPx / PX_PER_YARD)}y`
+          : null,
         previewPath: this.busy ? null : this.aim.previewPath,
         balls,
         trail: this.trail,

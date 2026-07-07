@@ -127,6 +127,25 @@ Phase 1B additions:
 - `main.ts` exposes `window.__johnsonsGolf` for the Playwright verification
   scripts (state-driven drives that play real swings).
 
+Graphics 2.0 (post-1B, after playtest feedback):
+
+- **Baked course textures** (`core/rendering/CourseTexture.ts`): each hole
+  bakes to a canvas texture at load — per-texel surface classification with
+  grain noise, soft mow stripes along the hole axis, dithered organic edges,
+  water ripple banding, and sun-consistent baked tree/building shadows.
+- **Mesh ground** (`core/rendering/GroundMesh.ts`): the perspective ground is
+  a frustum-shaped ortho Mesh whose vertices are placed by the game's own
+  `Projection` every frame — textured terrain that never lags the camera and
+  stays perfectly aligned with billboards/balls. The AERIAL view reuses the
+  same texture as a course map.
+- **Horizon scenery**: per-theme parallax backdrop layers (mountain ridges +
+  snow-capped peak, or sea horizon + dunes) plus blossom trees via the
+  theme's `blossomChance`.
+- **Character 2.0**: outlined, cel-shaded chibi golfer (pose-driven swing
+  retained), shaded club and glinting ball.
+- **Shot pacing** (`FLIGHT` in config): flight plays at half speed, easing to
+  ~0.28x while dropping onto a green — the input window for Phase 4 spin.
+
 ---
 
 # Firebase usage (today)
