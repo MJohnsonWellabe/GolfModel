@@ -8,7 +8,7 @@ import { GameScene } from './scenes/GameScene';
 import { RecordsScene } from './scenes/RecordsScene';
 import { ResultsScene } from './scenes/ResultsScene';
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
   backgroundColor: COLORS.rough,
@@ -31,3 +31,7 @@ new Phaser.Game({
     RecordsScene
   ]
 });
+
+// Debug/automation handle (Phaser exposes no global registry of its own).
+// Used by the Playwright verification scripts to assert on live game state.
+(window as unknown as { __johnsonsGolf: Phaser.Game }).__johnsonsGolf = game;

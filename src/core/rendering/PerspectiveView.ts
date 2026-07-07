@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../../config';
 import { pointInPolygon } from '../../utils/Geometry';
 import { drawDino, drawHeart, drawPikachu } from '../../ui/Ui';
-import { Projection, PerspCamera } from './Projection';
+import { Projection, PerspCamera, ScreenPoint } from './Projection';
 import {
   GolferLook,
   HoleData,
@@ -57,6 +57,11 @@ export class PerspectiveView {
   private trees: TreeBlob[] = [];
   private proj: Projection;
   private showGrid = false;
+  /** Adaptive ground-repaint pacing (see applyCamera). */
+  private lastGroundAt = -Infinity;
+  private redrawCostEma = 4;
+  /** Scratch list for depth-sorted tree drawing (reused every repaint). */
+  private treeDraw: Array<{ t: TreeBlob; p: ScreenPoint }> = [];
 
   constructor(private scene: Phaser.Scene, private hole: HoleData) {
     this.skyG = scene.add.graphics();
@@ -111,30 +116,24 @@ export class PerspectiveView {
     }
   }
 
-  /** Position the camera behind `ball` looking along `yaw`. */
-  setCamera(ball: Point, yaw: number, putting: boolean): void {
-    const cam: PerspCamera = putting
-      ? {
-          x: ball.x - Math.cos(yaw) * 26,
-          y: ball.y - Math.sin(yaw) * 26,
-          yaw,
-          height: 22,
-          focal: 620,
-          horizonY: 400,
-          centerX: GAME_WIDTH / 2
-        }
-      : {
-          x: ball.x - Math.cos(yaw) * 50,
-          y: ball.y - Math.sin(yaw) * 50,
-          yaw,
-          height: 40,
-          focal: 520,
-          horizonY: SKY_HORIZON_DEFAULT,
-          centerX: GAME_WIDTH / 2
-        };
-    this.proj = new Projection(cam);
-    this.showGrid = putting;
-    this.redrawGround();
+  /**
+   * Apply a camera (from CameraDirector). The projection updates immediately
+   * (balls, trails and overlays never lag), but the ground repaint is
+   * adaptive: devices that can afford a repaint every frame get one, slower
+   * devices repaint as often as their measured repaint cost allows. This
+   * keeps input and ball motion at full frame rate everywhere.
+   */
+  applyCamera(cam: PerspCamera, showGrid: boolean): void {
+    this.proj = new Projection({ ...cam });
+    this.showGrid = showGrid;
+    const now = performance.now();
+    const budget = Math.min(120, this.redrawCostEma * 1.5);
+    if (now - this.lastGroundAt >= budget) {
+      this.redrawGround();
+      const cost = performance.now() - now;
+      this.redrawCostEma = this.redrawCostEma * 0.8 + cost * 0.2;
+      this.lastGroundAt = now;
+    }
   }
 
   get projection(): Projection {
@@ -254,16 +253,23 @@ export class PerspectiveView {
       if (hz.type === 'building') this.drawBuilding(g, hz.polygon);
     }
 
-    // Trees: billboards sorted far -> near
-    const drawn = this.trees
-      .map((t) => ({ t, p: proj.toScreen(t.x, t.y) }))
-      .filter((e) => e.p !== null && e.p.d < 2400)
-      .sort((a, b) => b.p!.d - a.p!.d);
-    for (const { t, p } of drawn) {
-      const sp = p!;
+    // Trees: billboards sorted far -> near (scratch array reused per frame)
+    this.treeDraw.length = 0;
+    for (const t of this.trees) {
+      const p = proj.toScreen(t.x, t.y);
+      if (p !== null && p.d < 2400) this.treeDraw.push({ t, p });
+    }
+    this.treeDraw.sort((a, b) => b.p.d - a.p.d);
+    for (const { t, p: sp } of this.treeDraw) {
       const r = t.r * sp.scale;
       if (r < 1.2) continue;
       const trunkH = 26 * sp.scale;
+      if (r < 3.2) {
+        // Distant trees: a single canopy blob is indistinguishable and cheap
+        g.fillStyle(0x1e4c26, 1);
+        g.fillCircle(sp.x, sp.y - trunkH - r * 0.6, r);
+        continue;
+      }
       g.fillStyle(0x000000, 0.18);
       g.fillEllipse(sp.x + r * 0.3, sp.y + 2, r * 1.6, r * 0.4);
       g.fillStyle(0x5a4632, 1);

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_HEIGHT, GAME_WIDTH, PHYSICS, PX_PER_YARD } from '../config';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { state } from '../core/GameState';
+import { CameraDirector } from '../core/rendering/CameraDirector';
 import { drawOverheadCourse } from '../core/rendering/OverheadCourse';
 import { PerspectiveView, TrailDot } from '../core/rendering/PerspectiveView';
 import { safePlay } from '../core/audio/Sfx';
@@ -22,7 +23,7 @@ import { scoreName } from '../systems/Scoring';
 import { SwingMeter } from '../systems/SwingMeter';
 import { TurnManager } from '../systems/TurnManager';
 import { GameHud } from '../ui/GameHud';
-import { clamp, dist } from '../utils/Geometry';
+import { angleTo, clamp, dist } from '../utils/Geometry';
 
 interface PlayerRt {
   golfer: Golfer;
@@ -43,6 +44,10 @@ interface ShotAnim {
   landed: boolean;
   /** Live ball position while animating (world). */
   pos: TrajectoryPoint;
+  /** Launch direction — the chase/landing cameras look along it. */
+  dir: number;
+  /** Putts keep the intimate setup camera instead of the chase cam. */
+  isPutt: boolean;
   onDone: () => void;
 }
 
@@ -85,6 +90,8 @@ export class GameScene extends Phaser.Scene {
   private uiLayer!: Phaser.GameObjects.Container;
   private uiCam!: Phaser.Cameras.Scene2D.Camera;
   private persp!: PerspectiveView;
+  private camera!: CameraDirector;
+  private gridVisible = false;
   private viewMode: ViewMode = 'persp';
   private aimGraphics!: Phaser.GameObjects.Graphics;
   private busy = true;
@@ -119,6 +126,13 @@ export class GameScene extends Phaser.Scene {
     drawOverheadCourse(courseG, this.hole);
     this.setupPlayers();
     this.persp = new PerspectiveView(this, this.hole);
+    this.camera = new CameraDirector();
+    // Frame the tee shot behind the banner while the hole loads in
+    this.camera.setSetupTarget(
+      this.hole.tee,
+      angleTo(this.hole.tee, this.hole.pin),
+      false
+    );
     this.setupCameras();
     this.hud = new GameHud(this, this.uiLayer, {
       onPrevClub: () => this.cycleClub(-1),
@@ -392,7 +406,8 @@ export class GameScene extends Phaser.Scene {
   /** Recompute preview + perspective camera + overlays for the current aim. */
   private refreshShotView(): void {
     const p = this.players[this.currentIdx];
-    this.persp.setCamera(p.ball, this.aim.yaw, this.aim.isPutting);
+    this.gridVisible = this.aim.isPutting;
+    this.camera.setSetupTarget(p.ball, this.aim.yaw, this.aim.isPutting);
     this.aim.computePreview(this.ctx(), state.wind);
     if (this.viewMode === 'overhead') this.drawTopDownAim();
     this.updateWindHud();
@@ -515,7 +530,8 @@ export class GameScene extends Phaser.Scene {
     this.aim.yaw = decision.aimAngle;
     this.aim.distPx = dist(p.ball, decision.aimPoint);
     this.hud.setTurnText(`${p.golfer.name} · ${decision.club.name}`);
-    this.persp.setCamera(p.ball, this.aim.yaw, decision.club.id === 'putter');
+    this.gridVisible = decision.club.id === 'putter';
+    this.camera.setSetupTarget(p.ball, this.aim.yaw, this.gridVisible);
     this.aim.previewPath = null;
     this.updateHud();
     this.executeShot(p, this.currentIdx, decision.swing, decision.aimAngle, decision.club);
@@ -556,15 +572,24 @@ export class GameScene extends Phaser.Scene {
     this.persp.swing(() => safePlay(this, 'swing'));
     this.time.delayedCall(320, () => {
       this.trail = [];
-      this.anim = {
+      const anim: ShotAnim = {
         path: outcome.path,
         progress: 0,
         player: p,
         outcome,
         landed: false,
         pos: outcome.path[0],
+        dir: aimAngle,
+        isPutt: club.launchAngle <= 0,
         onDone: () => this.afterShot(p, idx, outcome, ignited)
       };
+      this.anim = anim;
+      // The chase cam takes over — hide the screen-fixed golfer figure
+      if (!anim.isPutt) {
+        this.time.delayedCall(300, () => {
+          if (this.anim === anim) this.persp.drawGolfer(null);
+        });
+      }
     });
   }
 
@@ -696,6 +721,9 @@ export class GameScene extends Phaser.Scene {
           a.landed = true;
           const carryPx = dist({ x: a.path[0].x, y: a.path[0].y }, { x: pt.x, y: pt.y });
           if (carryPx > 480) this.uiCam.shake(140, 0.004);
+          if (!a.isPutt) this.camera.setLandingTarget({ x: pt.x, y: pt.y }, a.dir);
+        } else if (!a.landed && !a.isPutt) {
+          this.camera.setFlightTarget(pt, a.dir);
         }
       }
     }
@@ -703,6 +731,12 @@ export class GameScene extends Phaser.Scene {
     // Age out trail dots
     for (const t of this.trail) t.age += delta / 700;
     this.trail = this.trail.filter((t) => t.age < 1);
+
+    // Camera smoothing — the ground only redraws while the camera moves
+    if (this.camera) {
+      const { cam, moved } = this.camera.tick(delta);
+      if (moved) this.persp.applyCamera(cam, this.gridVisible);
+    }
 
     // Perspective frame
     if (this.persp && this.viewMode === 'persp') {
