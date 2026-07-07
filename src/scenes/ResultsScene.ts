@@ -7,9 +7,9 @@ import {
   makeRoundId,
   RoundRecord,
   saveRound
-} from '../core/History';
-import { formatToPar } from '../core/Scoring';
-import { makeButton, makeTitle } from '../core/Ui';
+} from '../firebase/History';
+import { formatToPar } from '../systems/Scoring';
+import { makeButton, makeTitle } from '../ui/Ui';
 
 export class ResultsScene extends Phaser.Scene {
   private newRecord = false;

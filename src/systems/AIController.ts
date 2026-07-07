@@ -1,7 +1,7 @@
 import { PHYSICS, PX_PER_YARD } from '../config';
 import { CLUBS, clubById } from '../data/clubs';
 import { FireSystem } from './FireSystem';
-import { angleTo, clamp, dist, gaussian } from './Geometry';
+import { angleTo, clamp, dist, gaussian } from '../utils/Geometry';
 import { effectiveCarryYards, statsForClub } from './PhysicsEngine';
 import {
   Band,
@@ -12,7 +12,7 @@ import {
   Surface,
   SwingResult,
   Wind
-} from './types';
+} from '../core/types';
 
 export interface AIDecision {
   club: ClubSpec;

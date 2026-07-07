@@ -1,5 +1,5 @@
-import { FireSystem } from './FireSystem';
-import { Scoring } from './Scoring';
+import { FireSystem } from '../systems/FireSystem';
+import { Scoring } from '../systems/Scoring';
 import { CourseData, GameMode, Golfer, Point, Surface, Wind } from './types';
 
 /**

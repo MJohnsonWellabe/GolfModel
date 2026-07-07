@@ -1,5 +1,5 @@
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
-import { clamp, dist, gaussian, pointInEllipse, pointInPolygon } from './Geometry';
+import { clamp, dist, gaussian, pointInEllipse, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
   Golfer,
@@ -10,7 +10,7 @@ import {
   SwingResult,
   TrajectoryPoint,
   Wind
-} from './types';
+} from '../core/types';
 
 /** Fringe ring width around the green, world px. */
 const FRINGE_MARGIN = 20;

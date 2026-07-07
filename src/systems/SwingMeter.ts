@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SWING } from '../config';
-import { clamp } from './Geometry';
-import { Band, SwingResult } from './types';
+import { clamp } from '../utils/Geometry';
+import { Band, SwingResult } from '../core/types';
 
 /** Cursor position (0..1 fraction of meter width) of the fixed accuracy line. */
 const ACCURACY_TARGET = 0.08;

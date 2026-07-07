@@ -1,5 +1,5 @@
 import { FIRE, SWING } from '../config';
-import { SwingResult } from './types';
+import { SwingResult } from '../core/types';
 
 /**
  * "Catch fire" streak system, shared by the player and the AI.

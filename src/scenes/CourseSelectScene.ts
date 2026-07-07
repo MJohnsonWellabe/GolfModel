@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config';
 import { state } from '../core/GameState';
 import { CourseData } from '../core/types';
-import { makeTitle } from '../core/Ui';
+import { makeTitle } from '../ui/Ui';
 import amenCorner from '../data/courses/amenCorner.json';
 import legends from '../data/courses/legends.json';
 

@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
-import { bestRounds, fetchAllRounds, RoundRecord } from '../core/History';
+import { bestRounds, fetchAllRounds, RoundRecord } from '../firebase/History';
 import { GameMode } from '../core/types';
-import { makeButton, makeTitle } from '../core/Ui';
+import { makeButton, makeTitle } from '../ui/Ui';
 
 const COURSES = ['Amen Corner', 'Legends Links'];
 const MODES: Array<{ mode: GameMode; label: string }> = [

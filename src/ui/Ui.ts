@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { COLORS } from '../config';
-import { GolferLook } from './types';
+import { GolferLook } from '../core/types';
 
 export interface ButtonOptions {
   fontSize?: number;

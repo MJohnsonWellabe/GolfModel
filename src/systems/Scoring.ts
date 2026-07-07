@@ -1,4 +1,4 @@
-import { CourseData, GameMode } from './types';
+import { CourseData, GameMode } from '../core/types';
 
 export const SCORE_NAMES: Record<number, string> = {
   [-3]: 'Albatross!',

@@ -1,4 +1,4 @@
-import { EllipseArea, Point, Polygon } from './types';
+import { EllipseArea, Point, Polygon } from '../core/types';
 
 /** Ray-casting point-in-polygon test. */
 export function pointInPolygon(x: number, y: number, poly: Polygon): boolean {

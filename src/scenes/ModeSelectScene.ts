@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config';
 import { state } from '../core/GameState';
 import { GameMode, Golfer, overallRating } from '../core/types';
-import { drawAvatar, makeButton, makeTitle } from '../core/Ui';
+import { drawAvatar, makeButton, makeTitle } from '../ui/Ui';
 import { OPPONENTS } from '../data/opponents';
 
 const MODES: Array<{ mode: GameMode; label: string; blurb: string }> = [

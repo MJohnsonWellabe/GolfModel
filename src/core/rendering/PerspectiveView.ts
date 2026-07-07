@@ -1,14 +1,14 @@
 import Phaser from 'phaser';
-import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../config';
-import { pointInPolygon } from './Geometry';
-import { drawDino, drawHeart, drawPikachu } from './Ui';
+import { COLORS, GAME_HEIGHT, GAME_WIDTH } from '../../config';
+import { pointInPolygon } from '../../utils/Geometry';
+import { drawDino, drawHeart, drawPikachu } from '../../ui/Ui';
 import { Projection, PerspCamera } from './Projection';
 import {
   GolferLook,
   HoleData,
   Point,
   TrajectoryPoint
-} from './types';
+} from '../types';
 
 export interface ViewBall {
   x: number;

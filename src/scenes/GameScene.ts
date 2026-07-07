@@ -7,14 +7,14 @@ import {
   PX_PER_YARD,
   RULES
 } from '../config';
-import { AIController } from '../core/AIController';
+import { AIController } from '../systems/AIController';
 import { state } from '../core/GameState';
-import { angleTo, clamp, dist, pointInPolygon } from '../core/Geometry';
-import { PerspectiveView, TrailDot } from '../core/PerspectiveView';
-import { effectiveCarryYards, PhysicsEngine, statsForClub } from '../core/PhysicsEngine';
-import { scoreName } from '../core/Scoring';
-import { safePlay } from '../core/Sfx';
-import { SwingMeter } from '../core/SwingMeter';
+import { angleTo, clamp, dist, pointInPolygon } from '../utils/Geometry';
+import { PerspectiveView, TrailDot } from '../core/rendering/PerspectiveView';
+import { effectiveCarryYards, PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
+import { scoreName } from '../systems/Scoring';
+import { safePlay } from '../core/audio/Sfx';
+import { SwingMeter } from '../systems/SwingMeter';
 import {
   Band,
   ClubSpec,
@@ -27,7 +27,7 @@ import {
   SwingResult,
   TrajectoryPoint
 } from '../core/types';
-import { makeButton } from '../core/Ui';
+import { makeButton } from '../ui/Ui';
 import { CLUBS } from '../data/clubs';
 
 interface PlayerRt {

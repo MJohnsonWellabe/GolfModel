@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { state } from '../core/GameState';
 import { Golfer, overallRating } from '../core/types';
-import { drawAvatar, drawRatingBadge, makeTitle } from '../core/Ui';
+import { drawAvatar, drawRatingBadge, makeTitle } from '../ui/Ui';
 import { GOLFERS } from '../data/golfers';
 
 const STAT_LABELS: Array<{ key: keyof Golfer['stats']; label: string }> = [

@@ -1,5 +1,5 @@
 import { LEADERBOARD_URL } from '../config';
-import { GameMode } from './types';
+import { GameMode } from '../core/types';
 
 /** One finished round, as stored locally and on the shared leaderboard. */
 export interface RoundRecord {

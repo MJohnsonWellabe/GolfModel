@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config';
-import { preloadSfx } from '../core/Sfx';
-import { makeButton, makeTitle } from '../core/Ui';
+import { preloadSfx } from '../core/audio/Sfx';
+import { makeButton, makeTitle } from '../ui/Ui';
 
 export class TitleScene extends Phaser.Scene {
   constructor() {

@@ -1,4 +1,4 @@
-import { EllipseArea, Point, Polygon } from './types';
+import { EllipseArea, Point, Polygon } from '../types';
 
 /** Minimum camera-space depth — geometry closer than this gets clipped. */
 const NEAR = 6;
