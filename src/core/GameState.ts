@@ -1,6 +1,6 @@
 import { FireSystem } from '../systems/FireSystem';
 import { Scoring } from '../systems/Scoring';
-import { CourseData, GameMode, Golfer, Point, Surface, Wind } from './types';
+import { CourseData, GameMode, Golfer, Wind } from './types';
 
 /**
  * Global game state, carried across scenes.
@@ -15,12 +15,7 @@ export class GameState {
   scoring: Scoring | null = null;
   /** Fire state per player index (0 = human, 1 = AI). */
   fire: FireSystem[] = [];
-  /** Convenience mirror of the human player's streak, for HUD display. */
-  streak = 0;
-  ballPosition: Point = { x: 0, y: 0 };
-  lie: Surface = 'tee';
   wind: Wind = { angle: 0, speed: 0 };
-  club = 'driver';
   /** Guards against saving the same finished round to history twice. */
   roundSaved = false;
 
@@ -40,7 +35,6 @@ export class GameState {
     this.holeIndex = 0;
     this.scoring = new Scoring(this.mode, this.course, this.scoringRows);
     this.fire = Array.from({ length: this.playerCount }, () => new FireSystem());
-    this.streak = 0;
     this.roundSaved = false;
   }
 }
