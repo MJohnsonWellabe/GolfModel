@@ -5,7 +5,7 @@ import { state } from '../core/GameState';
 import { CameraDirector } from '../core/rendering/CameraDirector';
 import { drawOverheadCourse } from '../core/rendering/OverheadCourse';
 import { resolveTheme } from '../core/rendering/Theme';
-import { PerspectiveView, TrailDot } from '../core/rendering/PerspectiveView';
+import { PerspectiveView, TrailDot, ViewParticle } from '../core/rendering/PerspectiveView';
 import { safePlay } from '../core/audio/Sfx';
 import {
   Band,
@@ -35,6 +35,19 @@ interface PlayerRt {
   lie: Surface;
   sprite: Phaser.GameObjects.Arc;
   shadow: Phaser.GameObjects.Ellipse;
+}
+
+interface Particle {
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  age: number;
+  life: number;
+  color: number;
+  size: number;
 }
 
 interface ShotAnim {
@@ -98,6 +111,7 @@ export class GameScene extends Phaser.Scene {
   private busy = true;
   private anim: ShotAnim | null = null;
   private trail: TrailDot[] = [];
+  private particles: Particle[] = [];
   private baseZoom = 0.8;
 
   constructor() {
@@ -116,6 +130,7 @@ export class GameScene extends Phaser.Scene {
     this.players = [];
     this.anim = null;
     this.trail = [];
+    this.particles = [];
     this.busy = true;
     this.viewMode = 'persp';
 
@@ -300,6 +315,41 @@ export class GameScene extends Phaser.Scene {
           ? state.wind.angle - this.aim.yaw - Math.PI / 2
           : state.wind.angle
     });
+  }
+
+  /** Burst of world-space debris (grass chips, sand, spray). */
+  private emitBurst(
+    at: Point,
+    color: number,
+    n: number,
+    speed: number,
+    up: number,
+    size = 2.4
+  ): void {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = speed * (0.4 + Math.random() * 0.6);
+      this.particles.push({
+        x: at.x,
+        y: at.y,
+        z: 1,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        vz: up * (0.55 + Math.random() * 0.45),
+        age: 0,
+        life: 0.45 + Math.random() * 0.35,
+        color,
+        size
+      });
+    }
+  }
+
+  /** Debris color for the surface being struck. */
+  private surfaceChipColor(surface: Surface): number {
+    if (surface === 'sand') return 0xe8d9a0;
+    if (surface === 'water') return 0xbfe8ff;
+    if (surface === 'green' || surface === 'fringe') return 0x9fd489;
+    return 0x33652f;
   }
 
   // ---------------------------------------------------------------- turns
@@ -511,6 +561,7 @@ export class GameScene extends Phaser.Scene {
   private onBandLocked(kind: 'power' | 'accuracy', band: Band): void {
     const msg = band === 'perfect' ? 'PERFECT!' : band === 'good' ? 'Good' : 'Miss!';
     const color = band === 'perfect' ? '#43d05c' : band === 'good' ? '#ffd54f' : '#ff6659';
+    if (band === 'perfect') this.uiCam.flash(110, 130, 235, 150);
     this.hud.showFeedback(kind === 'power' ? `Power: ${msg}` : `Accuracy: ${msg}`, color, 450);
   }
 
@@ -574,6 +625,9 @@ export class GameScene extends Phaser.Scene {
     this.persp.swing(() => safePlay(this, 'swing'));
     this.time.delayedCall(320, () => {
       this.trail = [];
+      if (!outcome.holed || outcome.path.length > 6) {
+        this.emitBurst(p.ball, this.surfaceChipColor(p.lie), 8, 60, club.launchAngle > 0 ? 130 : 30);
+      }
       const anim: ShotAnim = {
         path: outcome.path,
         progress: 0,
@@ -610,6 +664,7 @@ export class GameScene extends Phaser.Scene {
         wait = 1200;
       } else {
         p.holed = true;
+        this.emitBurst(this.hole.pin, 0xffe28a, 12, 70, 160, 2.6);
         safePlay(this, 'hole');
         this.hud.showFeedback(
           `${p.golfer.name}: ${scoreName(p.strokes, this.hole.par)}`,
@@ -620,6 +675,8 @@ export class GameScene extends Phaser.Scene {
       }
     } else if (outcome.waterPenalty) {
       safePlay(this, 'splash');
+      const entry = outcome.path[Math.max(0, outcome.path.length - 2)];
+      this.emitBurst({ x: entry.x, y: entry.y }, 0xbfe8ff, 16, 90, 190, 3);
       this.hud.showFeedback('SPLASH! +1 penalty', '#7ec8e3', 1200);
       wait = 1400;
     } else if (outcome.hitTrees) {
@@ -691,6 +748,24 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  private viewScratch: ViewParticle[] = [];
+
+  /** Map live particles to the renderer's shape (scratch array reused). */
+  private viewParticles(): ViewParticle[] {
+    this.viewScratch.length = 0;
+    for (const pc of this.particles) {
+      this.viewScratch.push({
+        x: pc.x,
+        y: pc.y,
+        z: pc.z,
+        age01: pc.age / pc.life,
+        color: pc.color,
+        size: pc.size
+      });
+    }
+    return this.viewScratch;
+  }
+
   // ---------------------------------------------------------------- update
 
   update(time: number, delta: number): void {
@@ -724,6 +799,16 @@ export class GameScene extends Phaser.Scene {
           const carryPx = dist({ x: a.path[0].x, y: a.path[0].y }, { x: pt.x, y: pt.y });
           if (carryPx > 480) this.uiCam.shake(140, 0.004);
           if (!a.isPutt) this.camera.setLandingTarget({ x: pt.x, y: pt.y }, a.dir);
+          const surf = this.engine.surfaceAt(pt.x, pt.y);
+          const big = surf === 'sand' || surf === 'water';
+          this.emitBurst(
+            { x: pt.x, y: pt.y },
+            this.surfaceChipColor(surf),
+            big ? 14 : 7,
+            big ? 80 : 50,
+            big ? 150 : 90,
+            surf === 'water' ? 3 : 2.2
+          );
         } else if (!a.landed && !a.isPutt) {
           this.camera.setFlightTarget(pt, a.dir);
         }
@@ -733,6 +818,23 @@ export class GameScene extends Phaser.Scene {
     // Age out trail dots
     for (const t of this.trail) t.age += delta / 700;
     this.trail = this.trail.filter((t) => t.age < 1);
+
+    // Particle physics: simple ballistic debris that settles and fades
+    const dt = delta / 1000;
+    for (const pc of this.particles) {
+      pc.vz -= 600 * dt;
+      pc.z += pc.vz * dt;
+      if (pc.z <= 0) {
+        pc.z = 0;
+        pc.vz = 0;
+        pc.vx *= 0.6;
+        pc.vy *= 0.6;
+      }
+      pc.x += pc.vx * dt;
+      pc.y += pc.vy * dt;
+      pc.age += dt;
+    }
+    this.particles = this.particles.filter((pc) => pc.age < pc.life);
 
     // Camera smoothing — the ground only redraws while the camera moves
     if (this.camera) {
@@ -760,6 +862,7 @@ export class GameScene extends Phaser.Scene {
         previewPath: this.busy ? null : this.aim.previewPath,
         balls,
         trail: this.trail,
+        particles: this.viewParticles(),
         timeSec: time / 1000
       });
     }

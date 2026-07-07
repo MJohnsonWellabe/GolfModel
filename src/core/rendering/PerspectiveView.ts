@@ -27,11 +27,22 @@ export interface TrailDot {
   onFire: boolean;
 }
 
+export interface ViewParticle {
+  x: number;
+  y: number;
+  z: number;
+  /** 0 = fresh, 1 = expired. */
+  age01: number;
+  color: number;
+  size: number;
+}
+
 export interface DynamicState {
   aimPoint: Point | null;
   previewPath: TrajectoryPoint[] | null;
   balls: ViewBall[];
   trail: TrailDot[];
+  particles: ViewParticle[];
   timeSec: number;
 }
 
@@ -70,6 +81,8 @@ export class PerspectiveView {
   private treeDraw: Array<{ t: TreeBlob; p: ScreenPoint }> = [];
   /** Stable world points inside water hazards that glint over time. */
   private sparkles: Array<{ x: number; y: number; seed: number }> = [];
+  /** Last golfer drawn — swing() redraws them through the pose sweep. */
+  private lastLook: GolferLook | null = null;
 
   constructor(
     private scene: Phaser.Scene,
@@ -677,13 +690,26 @@ export class PerspectiveView {
       g.fillTriangle(top.x, top.y, top.x + fw, top.y + fh * 0.4 + wave, top.x, top.y + fh);
     }
 
-    // Ball trail
+    // Ball trail (fire mode gets a hot yellow core inside the orange)
     for (const t of state.trail) {
       const p = proj.toScreen(t.x, t.y, t.z);
       if (!p) continue;
       const alpha = (1 - t.age) * (t.onFire ? 0.85 : 0.55);
+      const r = Math.max(2, 3 * Math.min(p.scale, 2)) * (1 - t.age * 0.5);
       g.fillStyle(t.onFire ? 0xff7b2e : 0xffffff, alpha);
-      g.fillCircle(p.x, p.y, Math.max(2, 3 * Math.min(p.scale, 2)) * (1 - t.age * 0.5));
+      g.fillCircle(p.x, p.y, r);
+      if (t.onFire) {
+        g.fillStyle(0xffd54a, alpha);
+        g.fillCircle(p.x, p.y, r * 0.5);
+      }
+    }
+
+    // Impact/landing/splash particles
+    for (const pc of state.particles) {
+      const p = proj.toScreen(pc.x, pc.y, pc.z);
+      if (!p) continue;
+      g.fillStyle(pc.color, (1 - pc.age01) * 0.9);
+      g.fillCircle(p.x, p.y, Math.max(1.5, pc.size * Math.min(p.scale, 2)) * (1 - pc.age01 * 0.4));
     }
 
     // Balls (current player's ball is the closest to the camera)
@@ -703,10 +729,16 @@ export class PerspectiveView {
 
   // ---------------------------------------------------------------- golfer
 
-  /** Back-view golfer at the bottom of the frame. Pass null to hide. */
-  drawGolfer(look: GolferLook | null): void {
+  /**
+   * Back-view golfer at the bottom of the frame. Pass null to hide.
+   * `pose` sweeps the swing: -1 top of backswing, 0 address/impact,
+   * +1 balanced follow-through (arms + club rotate around the shoulders,
+   * body leans through the shot).
+   */
+  drawGolfer(look: GolferLook | null, pose = 0): void {
     const g = this.golferG;
     const c = this.clubG;
+    this.lastLook = look;
     g.clear();
     c.clear();
     if (!look) return;
@@ -715,6 +747,7 @@ export class PerspectiveView {
     const headR = look.child ? 20 : 21; // ...with proportionally bigger heads
     const bx = GAME_WIDTH / 2 - 86; // golfer stands left of the ball line
     const by = GAME_HEIGHT - 402; // feet
+    const lean = pose * 7 * s; // weight shifts toward the target
     // Shadow
     g.fillStyle(0x000000, 0.25);
     g.fillEllipse(bx + 12 * s, by + 6, 120 * s, 24 * s);
@@ -769,16 +802,23 @@ export class PerspectiveView {
       drawHeart(g, bx, by - 112 * s, 20 * s);
     }
 
-    // Arms reaching toward the ball
+    // Arms: one assembly rotating around the shoulders with the swing pose
+    const shX = bx - 10 * s + lean;
+    const shY = by - 136 * s;
+    const theta = pose < 0 ? pose * 2.1 : pose * 3.3;
+    const armAng = 0.64 + theta;
+    const armR = 77 * s;
+    const gripX = shX + Math.cos(armAng) * armR;
+    const gripY = shY + Math.sin(armAng) * armR;
     g.lineStyle(13 * s, look.dress ? look.skin : look.shirt, 1);
     g.beginPath();
-    g.moveTo(bx - 24 * s, by - 138 * s);
-    g.lineTo(bx + 44 * s, by - 96 * s);
+    g.moveTo(shX - 14 * s, shY - 2 * s);
+    g.lineTo(shX + (gripX - shX) * 0.62, shY + (gripY - shY) * 0.62);
     g.strokePath();
     g.lineStyle(11 * s, look.skin, 1);
     g.beginPath();
-    g.moveTo(bx + 30 * s, by - 106 * s);
-    g.lineTo(bx + 52 * s, by - 90 * s);
+    g.moveTo(shX + (gripX - shX) * 0.55, shY + (gripY - shY) * 0.55);
+    g.lineTo(gripX, gripY);
     g.strokePath();
 
     // Head + hair/hat (back view)
@@ -823,8 +863,8 @@ export class PerspectiveView {
       }
     }
 
-    // Club: shaft from hands down to the ball position
-    c.setPosition(bx + 52 * s, by - 90 * s); // grip point
+    // Club: shaft from the hands, rotating with the swing pose
+    c.setPosition(gripX, gripY);
     c.lineStyle(4, 0x777d86, 1);
     c.beginPath();
     c.moveTo(0, 0);
@@ -832,35 +872,34 @@ export class PerspectiveView {
     c.strokePath();
     c.fillStyle(0x50565e, 1);
     c.fillEllipse(60 + (1 - s) * 30, 88 + (1 - s) * 46, 18, 9);
-    c.setRotation(0);
+    c.setRotation(theta);
   }
 
-  /** Quick backswing + follow-through animation on shot. */
-  swing(onDone?: () => void): void {
-    this.clubG.setRotation(0);
-    this.scene.tweens.add({
-      targets: this.clubG,
-      rotation: -2.4,
-      duration: 260,
-      ease: 'Sine.easeIn',
-      onComplete: () => {
-        this.scene.tweens.add({
-          targets: this.clubG,
-          rotation: 0.7,
-          duration: 130,
-          ease: 'Sine.easeIn',
-          onComplete: () => {
-            onDone?.();
-            this.scene.tweens.add({
-              targets: this.clubG,
-              rotation: 0,
-              duration: 250,
-              delay: 350
-            });
-          }
-        });
-      }
-    });
+  /** Full posed swing: backswing, strike (onImpact), follow-through. */
+  swing(onImpact?: () => void): void {
+    const pose = (v: number): void => this.drawGolfer(this.lastLook, v);
+    const run = (
+      from: number,
+      to: number,
+      duration: number,
+      ease: string,
+      onComplete?: () => void
+    ): void => {
+      this.scene.tweens.addCounter({
+        from,
+        to,
+        duration,
+        ease,
+        onUpdate: (tw) => pose(tw.getValue() ?? 0),
+        onComplete
+      });
+    };
+    run(0, -1, 260, 'Sine.easeOut', () =>
+      run(-1, 0.18, 130, 'Sine.easeIn', () => {
+        onImpact?.();
+        run(0.18, 1, 300, 'Sine.easeOut');
+      })
+    );
   }
 
   destroy(): void {
