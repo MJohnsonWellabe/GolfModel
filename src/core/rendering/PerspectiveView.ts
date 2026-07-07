@@ -668,13 +668,24 @@ export class PerspectiveView {
       const ground = proj.toScreen(b.x, b.y);
       if (!ground) continue;
       const p = proj.toScreen(b.x, b.y, b.z)!;
-      const r = Math.min(Math.max(1.5 * ground.scale, 2.5), 10);
+      const r = Math.min(Math.max(1.8 * ground.scale, 3), 13);
+      const bx = p.x;
+      const byy = p.y - r * 0.6;
       g.fillStyle(0x000000, 0.3);
-      g.fillEllipse(ground.x, ground.y, r * 1.6, r * 0.5);
+      g.fillEllipse(ground.x, ground.y, r * 1.7, r * 0.5);
+      // Shaded sphere with a specular glint and a dimple hint
+      g.fillStyle(0xd9dde2, 1);
+      g.fillCircle(bx, byy, r);
       g.fillStyle(0xffffff, 1);
-      g.fillCircle(p.x, p.y - r * 0.6, r);
-      g.lineStyle(Math.max(1.5, r * 0.28), b.color, 1);
-      g.strokeCircle(p.x, p.y - r * 0.6, r);
+      g.fillCircle(bx - r * 0.2, byy - r * 0.22, r * 0.78);
+      if (r > 5) {
+        g.fillStyle(0xffffff, 0.95);
+        g.fillCircle(bx - r * 0.38, byy - r * 0.4, r * 0.22);
+        g.fillStyle(0xc7cdd4, 0.6);
+        g.fillCircle(bx + r * 0.3, byy + r * 0.28, r * 0.16);
+      }
+      g.lineStyle(Math.max(1.5, r * 0.22), b.color, 1);
+      g.strokeCircle(bx, byy, r);
     }
   }
 
@@ -694,137 +705,254 @@ export class PerspectiveView {
     c.clear();
     if (!look) return;
 
-    const s = look.child ? 0.72 : 1; // kids are smaller...
-    const headR = look.child ? 20 : 21; // ...with proportionally bigger heads
-    const bx = GAME_WIDTH / 2 - 86; // golfer stands left of the ball line
-    const by = GAME_HEIGHT - 402; // feet
-    const lean = pose * 7 * s; // weight shifts toward the target
-    // Shadow
-    g.fillStyle(0x000000, 0.25);
-    g.fillEllipse(bx + 12 * s, by + 6, 120 * s, 24 * s);
+    // Chibi proportions: big head, compact rounded body, larger on screen
+    const s = (look.child ? 0.8 : 1) * 1.3;
+    const headR = (look.child ? 26 : 25) * (s / 1.3);
+    const bx = GAME_WIDTH / 2 - 96; // golfer stands left of the ball line
+    const by = GAME_HEIGHT - 396; // feet
+    const lean = pose * 8 * s;
+    const OUT = 0x2b241f; // outline ink
+    const lw = Math.max(2.5, 3 * s);
+    const skinShade = shade(look.skin, 0.82);
+    const shirtShade = shade(look.shirt, 0.74);
+    const pants = look.dress ? look.skin : 0xe8e2d2;
+    const pantsShade = shade(pants, 0.8);
 
-    // Legs
-    g.fillStyle(look.dress ? look.skin : 0xdcd7c8, 1);
-    g.fillRoundedRect(bx - 26 * s, by - 78 * s, 22 * s, 78 * s, 8 * s);
-    g.fillRoundedRect(bx + 6 * s, by - 78 * s, 22 * s, 78 * s, 8 * s);
-    // Shoes
-    g.fillStyle(look.dress ? 0xffffff : 0x3a332c, 1);
-    g.fillRoundedRect(bx - 30 * s, by - 8 * s, 30 * s, 12 * s, 5 * s);
-    g.fillRoundedRect(bx + 2 * s, by - 8 * s, 30 * s, 12 * s, 5 * s);
+    // Ground contact shadow
+    g.fillStyle(0x000000, 0.28);
+    g.fillEllipse(bx + 14 * s, by + 7, 138 * s, 26 * s);
 
-    // Torso (back view): polo or flared dress
+    const outlineRect = (x: number, y: number, w: number, h: number, r: number): void => {
+      g.lineStyle(lw, OUT, 1);
+      g.strokeRoundedRect(x, y, w, h, r);
+    };
+
+    // Legs (slight athletic stance), socks + chunky shoes like the refs
+    const legW = 24 * s;
+    const legH = 62 * s;
+    const legY = by - legH;
+    for (const [lx, isNear] of [
+      [bx - 30 * s, false],
+      [bx + 7 * s, true]
+    ] as Array<[number, boolean]>) {
+      g.fillStyle(isNear ? pants : pantsShade, 1);
+      g.fillRoundedRect(lx, legY, legW, legH, 9 * s);
+      outlineRect(lx, legY, legW, legH, 9 * s);
+      // Sock band
+      g.fillStyle(0xffffff, 1);
+      g.fillRect(lx + 2, by - 16 * s, legW - 4, 8 * s);
+      // Shoe: chunky with a pale sole
+      g.fillStyle(look.dress ? 0xe23d5a : 0x37423c, 1);
+      g.fillRoundedRect(lx - 5 * s, by - 9 * s, legW + 12 * s, 13 * s, 6 * s);
+      g.fillStyle(0xf5f5f0, 1);
+      g.fillRoundedRect(lx - 5 * s, by + 0.5 * s, legW + 12 * s, 4 * s, 2 * s);
+      outlineRect(lx - 5 * s, by - 9 * s, legW + 12 * s, 13.5 * s, 6 * s);
+    }
+
+    // Torso: rounded polo (or flared dress), cel-shaded on the off-sun side
+    const torsoTop = by - 150 * s;
+    const torsoH = 78 * s;
+    const tx = bx + lean * 0.5;
     if (look.dress) {
       g.fillStyle(look.shirt, 1);
       g.fillPoints(
         [
-          new Phaser.Geom.Point(bx - 22 * s, by - 152 * s),
-          new Phaser.Geom.Point(bx + 24 * s, by - 152 * s),
-          new Phaser.Geom.Point(bx + 44 * s, by - 56 * s),
-          new Phaser.Geom.Point(bx - 42 * s, by - 56 * s)
+          new Phaser.Geom.Point(tx - 24 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 26 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 48 * s, by - 52 * s),
+          new Phaser.Geom.Point(tx - 46 * s, by - 52 * s)
         ],
         true
       );
-      g.fillStyle(0x000000, 0.08);
+      g.fillStyle(shirtShade, 1);
       g.fillPoints(
         [
-          new Phaser.Geom.Point(bx + 6 * s, by - 152 * s),
-          new Phaser.Geom.Point(bx + 24 * s, by - 152 * s),
-          new Phaser.Geom.Point(bx + 44 * s, by - 56 * s),
-          new Phaser.Geom.Point(bx + 12 * s, by - 56 * s)
+          new Phaser.Geom.Point(tx + 8 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 26 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 48 * s, by - 52 * s),
+          new Phaser.Geom.Point(tx + 14 * s, by - 52 * s)
         ],
         true
       );
-      // Sash bow at the back
-      g.fillStyle(0xffffff, 0.9);
-      g.fillCircle(bx, by - 118 * s, 6 * s);
-      g.fillTriangle(bx, by - 118 * s, bx - 14 * s, by - 128 * s, bx - 12 * s, by - 106 * s);
-      g.fillTriangle(bx, by - 118 * s, bx + 14 * s, by - 128 * s, bx + 12 * s, by - 106 * s);
+      g.lineStyle(lw, OUT, 1);
+      g.strokePoints(
+        [
+          new Phaser.Geom.Point(tx - 24 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 26 * s, torsoTop),
+          new Phaser.Geom.Point(tx + 48 * s, by - 52 * s),
+          new Phaser.Geom.Point(tx - 46 * s, by - 52 * s)
+        ],
+        true,
+        true
+      );
+      // Sash bow
+      g.fillStyle(0xffffff, 0.95);
+      g.fillCircle(tx, by - 116 * s, 6.5 * s);
+      g.fillTriangle(tx, by - 116 * s, tx - 15 * s, by - 127 * s, tx - 13 * s, by - 104 * s);
+      g.fillTriangle(tx, by - 116 * s, tx + 15 * s, by - 127 * s, tx + 13 * s, by - 104 * s);
     } else {
       g.fillStyle(look.shirt, 1);
-      g.fillRoundedRect(bx - 34 * s, by - 152 * s, 70 * s, 84 * s, 16 * s);
-      g.fillStyle(0x000000, 0.12);
-      g.fillRoundedRect(bx + 12 * s, by - 152 * s, 24 * s, 84 * s, 12 * s);
+      g.fillRoundedRect(tx - 38 * s, torsoTop, 78 * s, torsoH, 20 * s);
+      g.fillStyle(shirtShade, 1);
+      g.fillRoundedRect(tx + 14 * s, torsoTop, 26 * s, torsoH, 13 * s);
+      // Shorts under the polo
+      g.fillStyle(shade(pants, 0.94), 1);
+      g.fillRoundedRect(tx - 34 * s, torsoTop + torsoH - 6 * s, 70 * s, 22 * s, 9 * s);
+      g.lineStyle(lw, OUT, 1);
+      g.strokeRoundedRect(tx - 34 * s, torsoTop + torsoH - 6 * s, 70 * s, 22 * s, 9 * s);
+      outlineRect(tx - 38 * s, torsoTop, 78 * s, torsoH, 20 * s);
+      // Collar
+      g.fillStyle(0xffffff, 0.95);
+      g.fillRoundedRect(tx - 14 * s, torsoTop - 2, 28 * s, 9 * s, 4 * s);
     }
     if (look.motif === 'dino') {
-      drawDino(g, bx, by - 112 * s, 24 * s, 0x1f5e28);
+      drawDino(g, tx, by - 108 * s, 25 * s, 0x1f5e28);
     } else if (look.motif === 'pikachu') {
-      drawPikachu(g, bx, by - 110 * s, 22 * s);
+      drawPikachu(g, tx, by - 106 * s, 23 * s);
     } else if (look.motif === 'heart') {
-      drawHeart(g, bx, by - 112 * s, 20 * s);
+      drawHeart(g, tx, by - 108 * s, 21 * s);
     }
 
-    // Arms: one assembly rotating around the shoulders with the swing pose
-    const shX = bx - 10 * s + lean;
-    const shY = by - 136 * s;
+    // Arms: shoulder assembly rotating with the swing pose (elbow bend)
+    const shX = bx - 8 * s + lean;
+    const shY = by - 134 * s;
     const theta = pose < 0 ? pose * 2.1 : pose * 3.3;
     const armAng = 0.64 + theta;
-    const armR = 77 * s;
+    const armR = 84 * s;
     const gripX = shX + Math.cos(armAng) * armR;
     const gripY = shY + Math.sin(armAng) * armR;
-    g.lineStyle(13 * s, look.dress ? look.skin : look.shirt, 1);
+    // Elbow bows outward, perpendicular to the arm line
+    const ex = shX + Math.cos(armAng) * armR * 0.5 + Math.cos(armAng - Math.PI / 2) * 10 * s;
+    const ey = shY + Math.sin(armAng) * armR * 0.5 + Math.sin(armAng - Math.PI / 2) * 10 * s;
+    g.lineStyle(15 * s, OUT, 1);
     g.beginPath();
-    g.moveTo(shX - 14 * s, shY - 2 * s);
-    g.lineTo(shX + (gripX - shX) * 0.62, shY + (gripY - shY) * 0.62);
-    g.strokePath();
-    g.lineStyle(11 * s, look.skin, 1);
-    g.beginPath();
-    g.moveTo(shX + (gripX - shX) * 0.55, shY + (gripY - shY) * 0.55);
+    g.moveTo(shX - 12 * s, shY);
+    g.lineTo(ex, ey);
     g.lineTo(gripX, gripY);
     g.strokePath();
+    g.lineStyle(11 * s, look.dress ? look.skin : look.shirt, 1);
+    g.beginPath();
+    g.moveTo(shX - 12 * s, shY);
+    g.lineTo(ex, ey);
+    g.strokePath();
+    g.lineStyle(9.5 * s, look.skin, 1);
+    g.beginPath();
+    g.moveTo(ex, ey);
+    g.lineTo(gripX, gripY);
+    g.strokePath();
+    // Hands
+    g.fillStyle(look.skin, 1);
+    g.fillCircle(gripX, gripY, 7.5 * s);
+    g.lineStyle(2.5, OUT, 1);
+    g.strokeCircle(gripX, gripY, 7.5 * s);
 
-    // Head + hair/hat (back view)
-    const hy = by - 152 * s - headR * 0.95;
+    // Head: big and round with ears, cel-shaded, outlined
+    const hx = bx + lean * 0.7;
+    const hy = torsoTop - headR * 0.92;
     if (look.longHair && look.hair !== null) {
-      // Hair falling down the back, drawn behind/around the head
       g.fillStyle(look.hair, 1);
-      g.fillRoundedRect(bx - headR * 0.95, hy - headR * 0.4, headR * 1.9, 152 * s * 0.62, headR * 0.7);
+      g.fillRoundedRect(hx - headR * 0.95, hy - headR * 0.4, headR * 1.9, 118 * s * 0.62, headR * 0.7);
+      g.lineStyle(lw, OUT, 1);
+      g.strokeRoundedRect(hx - headR * 0.95, hy - headR * 0.4, headR * 1.9, 118 * s * 0.62, headR * 0.7);
       if (look.hairStreak !== undefined) {
         g.fillStyle(look.hairStreak, 1);
-        g.fillRoundedRect(bx - headR * 0.55, hy - headR * 0.1, headR * 0.32, 152 * s * 0.56, headR * 0.16);
+        g.fillRoundedRect(hx - headR * 0.55, hy - headR * 0.1, headR * 0.32, 118 * s * 0.56, headR * 0.16);
       }
     }
+    // Ears
     g.fillStyle(look.skin, 1);
-    g.fillCircle(bx, hy, headR);
+    g.fillCircle(hx - headR * 0.98, hy + headR * 0.12, headR * 0.18);
+    g.fillCircle(hx + headR * 0.98, hy + headR * 0.12, headR * 0.18);
+    g.lineStyle(2.5, OUT, 1);
+    g.strokeCircle(hx - headR * 0.98, hy + headR * 0.12, headR * 0.18);
+    g.strokeCircle(hx + headR * 0.98, hy + headR * 0.12, headR * 0.18);
+    // Skull
+    g.fillStyle(look.skin, 1);
+    g.fillCircle(hx, hy, headR);
+    g.fillStyle(skinShade, 1);
+    const clip = headR * 0.55;
+    g.slice(hx, hy, headR, -Math.PI * 0.35, Math.PI * 0.35, false);
+    g.fillPath();
+    g.fillStyle(look.skin, 1);
+    g.fillCircle(hx - clip * 0.35, hy, headR * 0.82);
+    g.lineStyle(lw, OUT, 1);
+    g.strokeCircle(hx, hy, headR);
+
     if (look.hat !== null) {
       if (look.hatSecondary !== undefined) {
-        // Two-tone Pokéball-style cap (back view: secondary color dominant)
         g.fillStyle(look.hatSecondary, 1);
-        g.slice(bx, hy - 2, headR + 0.5, Math.PI, Math.PI * 1.5, false);
+        g.slice(hx, hy - 2, headR + 1, Math.PI, Math.PI * 1.5, false);
         g.fillPath();
         g.fillStyle(look.hat, 1);
-        g.slice(bx, hy - 2, headR + 0.5, Math.PI * 1.5, Math.PI * 2, false);
+        g.slice(hx, hy - 2, headR + 1, Math.PI * 1.5, Math.PI * 2, false);
         g.fillPath();
         g.fillStyle(0xffffff, 1);
-        g.fillCircle(bx, hy - 2 - (headR + 0.5) * 0.82, (headR + 0.5) * 0.14);
-        g.fillStyle(look.hat, 1);
+        g.fillCircle(hx, hy - 2 - (headR + 1) * 0.82, (headR + 1) * 0.15);
       } else {
         g.fillStyle(look.hat, 1);
-        g.slice(bx, hy - 2, headR + 0.5, Math.PI, Math.PI * 2, false);
+        g.slice(hx, hy - 2, headR + 1, Math.PI, Math.PI * 2, false);
+        g.fillPath();
+        g.fillStyle(shade(look.hat, 0.8), 1);
+        g.slice(hx, hy - 2, headR + 1, Math.PI * 1.7, Math.PI * 2, false);
         g.fillPath();
       }
-      g.fillRoundedRect(bx - headR - 1, hy - 4, headR * 2 + 2, 7, 3);
+      g.lineStyle(lw, OUT, 1);
+      g.beginPath();
+      g.arc(hx, hy - 2, headR + 1, Math.PI, Math.PI * 2);
+      g.strokePath();
+      // Brim + button
+      g.fillStyle(look.hat, 1);
+      g.fillRoundedRect(hx - headR - 4, hy - 4.5, headR * 2 + 8, 8, 4);
+      g.lineStyle(2.5, OUT, 1);
+      g.strokeRoundedRect(hx - headR - 4, hy - 4.5, headR * 2 + 8, 8, 4);
+      g.fillStyle(shade(look.hat, 0.75), 1);
+      g.fillCircle(hx, hy - headR - 1, 3.5);
     } else if (look.hair !== null) {
-      // Back of the head is all hair
       g.fillStyle(look.hair, 1);
       if (look.longHair) {
-        g.fillCircle(bx, hy - headR * 0.08, headR * 0.98);
+        g.fillCircle(hx, hy - headR * 0.08, headR * 0.99);
+        g.fillStyle(shade(look.hair, 1.25), 1);
+        g.fillEllipse(hx - headR * 0.3, hy - headR * 0.55, headR * 0.7, headR * 0.3);
       } else {
-        g.slice(bx, hy - 3, headR, Math.PI * 0.95, Math.PI * 2.05, false);
+        g.slice(hx, hy - 3, headR + 0.5, Math.PI * 0.95, Math.PI * 2.05, false);
         g.fillPath();
+        g.fillStyle(shade(look.hair, 1.2), 1);
+        g.fillEllipse(hx - headR * 0.3, hy - headR * 0.62, headR * 0.6, headR * 0.24);
       }
+      g.lineStyle(2.5, OUT, 1);
+      g.beginPath();
+      g.arc(hx, hy - 3, headR + 0.5, Math.PI * 0.95, Math.PI * 2.05);
+      g.strokePath();
     }
 
-    // Club: shaft from the hands, rotating with the swing pose
+    // Club: dark outline shaft, steel core, black grip, bladed head
+    const clubLen = { x: 58 + (1 - s / 1.3) * 30, y: 88 + (1 - s / 1.3) * 46 };
     c.setPosition(gripX, gripY);
-    c.lineStyle(4, 0x777d86, 1);
+    c.lineStyle(6, OUT, 1);
     c.beginPath();
     c.moveTo(0, 0);
-    c.lineTo(56 + (1 - s) * 30, 84 + (1 - s) * 46);
+    c.lineTo(clubLen.x, clubLen.y);
     c.strokePath();
-    c.fillStyle(0x50565e, 1);
-    c.fillEllipse(60 + (1 - s) * 30, 88 + (1 - s) * 46, 18, 9);
+    c.lineStyle(3, 0xb9c2cc, 1);
+    c.beginPath();
+    c.moveTo(2, 3);
+    c.lineTo(clubLen.x, clubLen.y);
+    c.strokePath();
+    c.lineStyle(7, 0x22201d, 1);
+    c.beginPath();
+    c.moveTo(0, 0);
+    c.lineTo(clubLen.x * 0.22, clubLen.y * 0.22);
+    c.strokePath();
+    // Head: angled blade with a bright top edge
+    c.fillStyle(0x4b525c, 1);
+    c.fillEllipse(clubLen.x + 6, clubLen.y + 3, 24, 11);
+    c.fillStyle(0x9aa6b2, 1);
+    c.fillEllipse(clubLen.x + 4, clubLen.y + 0.5, 18, 5);
+    c.lineStyle(2.5, OUT, 1);
+    c.strokeEllipse(clubLen.x + 6, clubLen.y + 3, 24, 11);
     c.setRotation(theta);
   }
+
 
   /** Full posed swing: backswing, strike (onImpact), follow-through. */
   swing(onImpact?: () => void): void {

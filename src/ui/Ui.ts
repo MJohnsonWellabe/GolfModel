@@ -258,11 +258,16 @@ export function drawAvatar(
     drawHeart(g, cx, cy + r * 0.74, r * 0.3);
   }
 
-  // Head
+  // Head (outlined + softly shaded like the in-game character)
   g.fillStyle(look.skin, 1);
   g.fillCircle(cx - headR * 0.98, headY + headR * 0.15, headR * 0.16); // ears
   g.fillCircle(cx + headR * 0.98, headY + headR * 0.15, headR * 0.16);
   g.fillCircle(cx, headY, headR);
+  g.fillStyle(0x000000, 0.08);
+  g.slice(cx, headY, headR, -Math.PI * 0.35, Math.PI * 0.35, false);
+  g.fillPath();
+  g.lineStyle(Math.max(2, r * 0.045), 0x2b241f, 0.9);
+  g.strokeCircle(cx, headY, headR);
 
   // Long hair framing the face
   if (look.longHair && look.hair !== null) {
