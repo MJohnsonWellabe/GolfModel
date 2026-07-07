@@ -18,6 +18,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { resolveTheme } from '../core/rendering/Theme';
 import { CourseData, GameMode, Golfer, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { GOLFERS } from '../data/golfers';
+import { OPPONENTS } from '../data/opponents';
 import amenCorner from '../data/courses/amenCorner.json';
 import legends from '../data/courses/legends.json';
 import { AIController } from '../systems/AIController';
@@ -869,7 +870,80 @@ function exposeDebug(): void {
 // ------------------------------------------------------------- setup menu
 
 const setupEl = document.getElementById('setup')!;
-const sel = { course: 'amen', mode: 'solo' as GameMode, golfer: 0, opponent: 1 };
+const sel = { course: 'amen', mode: 'solo' as GameMode, golfer: 0, opponent: 0 };
+
+/** A small chibi-face avatar built from a golfer's look colors. */
+function golferPortrait(look: (typeof GOLFERS)[number]['look']): string {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const c = cv.getContext('2d')!;
+  const hex = (n: number): string => `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
+  // Shoulders / shirt
+  c.fillStyle = hex(look.shirt);
+  c.beginPath();
+  c.arc(32, 62, 24, Math.PI, 0);
+  c.fill();
+  // Head
+  c.fillStyle = hex(look.skin);
+  c.beginPath();
+  c.arc(32, 30, 20, 0, Math.PI * 2);
+  c.fill();
+  // Hair or cap
+  if (look.hat !== null) {
+    c.fillStyle = hex(look.hat);
+    c.beginPath();
+    c.arc(32, 26, 20, Math.PI, 0);
+    c.fill();
+    c.fillRect(30, 12, 22, 8); // bill
+  } else if (look.hair !== null) {
+    c.fillStyle = hex(look.hair);
+    c.beginPath();
+    c.arc(32, 24, 20, Math.PI * 1.05, Math.PI * 1.95);
+    c.fill();
+  }
+  // Eyes + smile
+  c.fillStyle = '#2e2419';
+  c.beginPath();
+  c.ellipse(25, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
+  c.ellipse(39, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#2e2419';
+  c.lineWidth = 2;
+  c.beginPath();
+  c.arc(32, 36, 7, 0.15 * Math.PI, 0.85 * Math.PI);
+  c.stroke();
+  return cv.toDataURL();
+}
+
+const STAT_KEYS: Array<[keyof (typeof GOLFERS)[number]['stats'], string]> = [
+  ['drivingPower', 'PWR'],
+  ['drivingAccuracy', 'ACC'],
+  ['approach', 'APP'],
+  ['chipping', 'CHP'],
+  ['putting', 'PUT']
+];
+
+function statBars(g: { stats: (typeof GOLFERS)[number]['stats'] }): string {
+  return (
+    `<div class="stats">` +
+    STAT_KEYS.map(
+      ([k, label]) =>
+        `<div class="stat"><span class="sl">${label}</span>` +
+        `<span class="sbar"><i style="width:${g.stats[k]}%"></i></span>` +
+        `<span class="sv">${g.stats[k]}</span></div>`
+    ).join('') +
+    `</div>`
+  );
+}
+
+function golferCard(g: (typeof GOLFERS)[number], selected: boolean, attr: string): string {
+  return (
+    `<div class="gcard${selected ? ' sel' : ''}" ${attr}>` +
+    `<img class="portrait" src="${golferPortrait(g.look)}" alt="" />` +
+    `<div class="ginfo"><div class="gname">${g.name}</div>${statBars(g)}</div>` +
+    `</div>`
+  );
+}
 
 function buildSetup(): void {
   const courseRow = document.getElementById('pickCourse')!;
@@ -883,7 +957,8 @@ function buildSetup(): void {
   const modeRow = document.getElementById('pickMode')!;
   const modes: Array<[GameMode, string, string]> = [
     ['solo', 'Solo', 'Play your own round'],
-    ['1v1', '1v1 vs AI', 'Match play a rival']
+    ['1v1', '1v1 vs AI', 'Alternate-shot match'],
+    ['scramble', 'Scramble', 'Team best-ball with a partner']
   ];
   modeRow.innerHTML = modes
     .map(
@@ -892,11 +967,27 @@ function buildSetup(): void {
     )
     .join('');
   const golferRow = document.getElementById('pickGolfer')!;
-  golferRow.innerHTML = GOLFERS.map(
-    (g, i) =>
-      `<div class="pick${sel.golfer === i ? ' sel' : ''}" data-golfer="${i}">${g.name}` +
-      `<span class="sub">PWR ${g.stats.drivingPower} · PUT ${g.stats.putting}</span></div>`
-  ).join('');
+  golferRow.innerHTML = GOLFERS.map((g, i) => golferCard(g, sel.golfer === i, `data-golfer="${i}"`)).join('');
+
+  // Opponent / partner picker (legends), only for head-to-head modes
+  const oppGroup = document.getElementById('oppGroup')!;
+  const oppLabel = document.getElementById('oppLabel')!;
+  if (sel.mode === 'solo') {
+    oppGroup.style.display = 'none';
+  } else {
+    oppGroup.style.display = 'block';
+    oppLabel.textContent = sel.mode === 'scramble' ? 'Partner' : 'Opponent';
+    const oppRow = document.getElementById('pickOpponent')!;
+    oppRow.innerHTML = OPPONENTS.map((g, i) =>
+      golferCard(g, sel.opponent === i, `data-opp="${i}"`)
+    ).join('');
+    oppRow.querySelectorAll('.gcard').forEach((el) =>
+      el.addEventListener('pointerdown', () => {
+        sel.opponent = Number((el as HTMLElement).dataset.opp);
+        buildSetup();
+      })
+    );
+  }
 
   courseRow.querySelectorAll('.pick').forEach((el) =>
     el.addEventListener('pointerdown', () => {
@@ -910,7 +1001,7 @@ function buildSetup(): void {
       buildSetup();
     })
   );
-  golferRow.querySelectorAll('.pick').forEach((el) =>
+  golferRow.querySelectorAll('.gcard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.golfer = Number((el as HTMLElement).dataset.golfer);
       buildSetup();
@@ -930,12 +1021,11 @@ function startRound(): void {
   round.activePlayer = 0;
   round.holeWinds = [];
   const me: Participant = { golfer: GOLFERS[sel.golfer], isAI: false, scores: [] };
-  if (sel.mode === '1v1') {
-    // Rival = a different golfer than the player picked
-    const rivalIdx = sel.golfer === 0 ? 1 : 0;
-    round.players = [me, { golfer: GOLFERS[rivalIdx], isAI: true, scores: [] }];
-  } else {
+  if (sel.mode === 'solo') {
     round.players = [me];
+  } else {
+    // 1v1 or scramble: the chosen legend is the rival/partner
+    round.players = [me, { golfer: OPPONENTS[sel.opponent], isAI: true, scores: [] }];
   }
   setupEl.style.display = 'none';
   playHole();
@@ -949,9 +1039,11 @@ showSetup();
   course?: string;
   mode?: GameMode;
   golfer?: number;
+  opponent?: number;
 }) => {
   if (opts?.course) sel.course = opts.course;
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.golfer !== undefined) sel.golfer = opts.golfer;
+  if (opts?.opponent !== undefined) sel.opponent = opts.opponent;
   startRound();
 };

@@ -360,6 +360,74 @@
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.24), rgba(255, 213, 79, 0.1));
         color: #fff;
       }
+      .pickRow.cards {
+        flex-direction: column;
+        gap: 7px;
+      }
+      .gcard {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 10px;
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.14);
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .gcard.sel {
+        border-color: #ffd54f;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 213, 79, 0.08));
+      }
+      .gcard .portrait {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        background: #12331d;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        flex: 0 0 auto;
+      }
+      .gcard .ginfo {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .gcard .gname {
+        font-size: 15px;
+        font-weight: 800;
+        color: #fff;
+        margin-bottom: 3px;
+      }
+      .gcard .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 2px 10px;
+      }
+      .gcard .stat {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        color: #b9cdb4;
+      }
+      .gcard .stat .sl {
+        width: 24px;
+      }
+      .gcard .stat .sbar {
+        flex: 1 1 auto;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.14);
+        overflow: hidden;
+      }
+      .gcard .stat .sbar i {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #4a8f5f, #7 fd48c);
+        background: linear-gradient(90deg, #4a8f5f, #7fd48c);
+      }
+      .gcard .stat .sv {
+        width: 18px;
+        text-align: right;
+        color: #eef5ea;
+      }
       #startBtn {
         width: 100%;
         margin-top: 8px;
@@ -405,7 +473,11 @@
         </div>
         <div class="pickGroup">
           <div class="pickLabel">Golfer</div>
-          <div id="pickGolfer" class="pickRow"></div>
+          <div id="pickGolfer" class="pickRow cards"></div>
+        </div>
+        <div class="pickGroup" id="oppGroup" style="display: none">
+          <div class="pickLabel" id="oppLabel">Opponent</div>
+          <div id="pickOpponent" class="pickRow cards"></div>
         </div>
         <button id="startBtn">Start round</button>
       </div>
