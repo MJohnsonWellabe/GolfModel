@@ -39,6 +39,10 @@ interface TreeBlob {
   x: number;
   y: number;
   r: number;
+  /** 0 = round oak, 1 = tall poplar, 2 = wide double-crown. */
+  kind: number;
+  /** Per-tree canopy tint multiplier (0.82..1.14). */
+  tint: number;
 }
 
 const SKY_HORIZON_DEFAULT = 430;
@@ -63,6 +67,8 @@ export class PerspectiveView {
   private redrawCostEma = 4;
   /** Scratch list for depth-sorted tree drawing (reused every repaint). */
   private treeDraw: Array<{ t: TreeBlob; p: ScreenPoint }> = [];
+  /** Stable world points inside water hazards that glint over time. */
+  private sparkles: Array<{ x: number; y: number; seed: number }> = [];
 
   constructor(
     private scene: Phaser.Scene,
@@ -94,6 +100,7 @@ export class PerspectiveView {
       centerX: GAME_WIDTH / 2
     });
     this.collectTrees();
+    this.collectSparkles();
     this.drawSky();
     this.drawVignette(vignetteG);
   }
@@ -127,7 +134,36 @@ export class PerspectiveView {
           const jx = xx + (this.hash(xx, yy) - 0.5) * 36;
           const jy = yy + (this.hash(yy, xx) - 0.5) * 36;
           if (!pointInPolygon(jx, jy, hz.polygon)) continue;
-          this.trees.push({ x: jx, y: jy, r: 15 + this.hash(xx + 7, yy + 3) * 12 });
+          const h1 = this.hash(xx + 7, yy + 3);
+          const h2 = this.hash(xx + 31, yy + 17);
+          this.trees.push({
+            x: jx,
+            y: jy,
+            r: 15 + h1 * 12,
+            kind: Math.floor(h2 * 3),
+            tint: 0.82 + this.hash(xx + 3, yy + 11) * 0.32
+          });
+        }
+      }
+    }
+  }
+
+  /** Stable in-water points that glint in updateDynamic. */
+  private collectSparkles(): void {
+    for (const hz of this.hole.hazards) {
+      if (hz.type !== 'water') continue;
+      const xs = hz.polygon.map((p) => p[0]);
+      const ys = hz.polygon.map((p) => p[1]);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      for (let yy = minY; yy < maxY; yy += 42) {
+        for (let xx = minX; xx < maxX; xx += 42) {
+          const jx = xx + (this.hash(xx, yy + 9) - 0.5) * 30;
+          const jy = yy + (this.hash(yy + 9, xx) - 0.5) * 30;
+          if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+          this.sparkles.push({ x: jx, y: jy, seed: this.hash(xx, yy) * Math.PI * 2 });
         }
       }
     }
@@ -303,11 +339,24 @@ export class PerspectiveView {
       this.fillProjected(g, proj.projectPolygon(poly), t.fairway, 0.88, t.fairwayDark);
     }
 
-    // Water first, so an island green paints on top of it
+    // Water first, so an island green paints on top of it.
+    // Shore ring -> body -> deeper center reads as real depth.
     for (const hz of this.hole.hazards) {
-      if (hz.type === 'water') {
-        this.fillProjected(g, proj.projectPolygon(hz.polygon), t.water, 1, t.waterDeep);
-      }
+      if (hz.type !== 'water') continue;
+      const shore = proj.projectPolygon(hz.polygon);
+      if (!shore) continue;
+      g.lineStyle(5, shade(t.sand, 1.05), 0.5);
+      g.strokePoints(shore.map((p) => new Phaser.Geom.Point(p.x, p.y)), true, true);
+      this.fillProjected(g, shore, t.water, 1);
+      const cxy = hz.polygon.reduce(
+        (a, [x, y]) => [a[0] + x / hz.polygon.length, a[1] + y / hz.polygon.length],
+        [0, 0]
+      );
+      const inner = hz.polygon.map(([x, y]) => [
+        x + (cxy[0] - x) * 0.3,
+        y + (cxy[1] - y) * 0.3
+      ]);
+      this.fillProjected(g, proj.projectPolygon(inner), t.waterDeep, 0.85);
     }
 
     // Fringe ring + green with a soft crown highlight
@@ -316,11 +365,21 @@ export class PerspectiveView {
     const crown = Math.min(this.hole.green.rx, this.hole.green.ry) * 0.38;
     this.fillProjected(g, proj.projectEllipse(this.hole.green, -crown), t.greenLight, 0.5);
 
-    // Bunkers
+    // Bunkers: lip shadow behind, sand body, sun-bleached center
     for (const hz of this.hole.hazards) {
-      if (hz.type === 'bunker') {
-        this.fillProjected(g, proj.projectPolygon(hz.polygon), t.sand, 1, t.sandDark);
-      }
+      if (hz.type !== 'bunker') continue;
+      const lip = hz.polygon.map(([x, y]) => [x - 3, y - 3]);
+      this.fillProjected(g, proj.projectPolygon(lip), shade(t.sandDark, 0.72), 0.85);
+      this.fillProjected(g, proj.projectPolygon(hz.polygon), t.sand, 1, t.sandDark);
+      const cxy = hz.polygon.reduce(
+        (a, [x, y]) => [a[0] + x / hz.polygon.length, a[1] + y / hz.polygon.length],
+        [0, 0]
+      );
+      const inner = hz.polygon.map(([x, y]) => [
+        x + (cxy[0] - x) * 0.35,
+        y + (cxy[1] - y) * 0.35
+      ]);
+      this.fillProjected(g, proj.projectPolygon(inner), shade(t.sand, 1.12), 0.75);
     }
 
     // Putting grid + break arrows
@@ -338,24 +397,51 @@ export class PerspectiveView {
       if (p !== null && p.d < 2400) this.treeDraw.push({ t, p });
     }
     this.treeDraw.sort((a, b) => b.p.d - a.p.d);
+    // Shadows stretch away from the sun's side of the screen
+    const shadowLean = this.theme.sunX > GAME_WIDTH / 2 ? -1 : 1;
     for (const { t, p: sp } of this.treeDraw) {
       const r = t.r * sp.scale;
       if (r < 1.2) continue;
-      const trunkH = 26 * sp.scale;
+      const trunkH = (t.kind === 1 ? 34 : 26) * sp.scale;
+      const canopy = shade(this.theme.treeCanopy, t.tint);
+      const canopyLight = shade(this.theme.treeCanopyLight, t.tint);
       if (r < 3.2) {
         // Distant trees: a single canopy blob is indistinguishable and cheap
-        g.fillStyle(this.theme.treeCanopy, 1);
+        g.fillStyle(canopy, 1);
         g.fillCircle(sp.x, sp.y - trunkH - r * 0.6, r);
         continue;
       }
-      g.fillStyle(0x000000, 0.18);
-      g.fillEllipse(sp.x + r * 0.3, sp.y + 2, r * 1.6, r * 0.4);
+      // Directional ground shadow
+      g.fillStyle(0x000000, 0.16);
+      g.fillEllipse(sp.x + shadowLean * r * 0.75, sp.y + 2, r * 1.9, r * 0.42);
+      // Trunk
       g.fillStyle(this.theme.treeTrunk, 1);
       g.fillRect(sp.x - 1.5 * sp.scale, sp.y - trunkH, 3 * sp.scale, trunkH);
-      g.fillStyle(this.theme.treeCanopy, 1);
-      g.fillCircle(sp.x, sp.y - trunkH - r * 0.6, r);
-      g.fillStyle(this.theme.treeCanopyLight, 1);
-      g.fillCircle(sp.x - r * 0.3, sp.y - trunkH - r * 0.75, r * 0.62);
+      const cy = sp.y - trunkH;
+      if (t.kind === 1) {
+        // Tall poplar: stacked narrow ovals
+        g.fillStyle(canopy, 1);
+        g.fillEllipse(sp.x, cy - r * 1.05, r * 1.1, r * 2.3);
+        g.fillStyle(canopyLight, 1);
+        g.fillEllipse(sp.x - r * 0.2, cy - r * 1.25, r * 0.6, r * 1.5);
+      } else if (t.kind === 2) {
+        // Wide double-crown
+        g.fillStyle(canopy, 1);
+        g.fillCircle(sp.x - r * 0.45, cy - r * 0.5, r * 0.78);
+        g.fillCircle(sp.x + r * 0.45, cy - r * 0.62, r * 0.82);
+        g.fillCircle(sp.x, cy - r * 0.95, r * 0.7);
+        g.fillStyle(canopyLight, 1);
+        g.fillCircle(sp.x - r * 0.5, cy - r * 0.72, r * 0.42);
+        g.fillCircle(sp.x + r * 0.2, cy - r * 1.05, r * 0.4);
+      } else {
+        // Round oak: layered lobes
+        g.fillStyle(canopy, 1);
+        g.fillCircle(sp.x, cy - r * 0.6, r);
+        g.fillCircle(sp.x - r * 0.55, cy - r * 0.35, r * 0.62);
+        g.fillCircle(sp.x + r * 0.55, cy - r * 0.4, r * 0.6);
+        g.fillStyle(canopyLight, 1);
+        g.fillCircle(sp.x - r * 0.3, cy - r * 0.78, r * 0.6);
+      }
     }
 
     // Ground-side atmospheric haze: the far course melts into the sky
@@ -382,13 +468,16 @@ export class PerspectiveView {
       base.push({ x: b.x, y: b.y });
       top.push({ x: t.x, y: t.y });
     }
-    // Ground shadow
+    // Ground shadow, stretched away from the sun
+    const lean = this.theme.sunX > GAME_WIDTH / 2 ? -10 : 10;
     g.fillStyle(0x000000, 0.2);
-    g.fillPoints(base.map((p) => new Phaser.Geom.Point(p.x + 6, p.y + 3)), true);
-    // Walls (each footprint edge extruded upward)
+    g.fillPoints(base.map((p) => new Phaser.Geom.Point(p.x + lean, p.y + 4)), true);
+    // Walls (each footprint edge extruded upward), lit by facing
     for (let i = 0; i < base.length; i++) {
       const j = (i + 1) % base.length;
-      g.fillStyle(i % 2 === 0 ? 0x9a9184 : 0x847c70, 1);
+      const facing = i % 2 === 0 ? 1.0 : 0.82;
+      const wall = shade(0x9a8f7d, facing);
+      g.fillStyle(wall, 1);
       g.fillPoints(
         [
           new Phaser.Geom.Point(base[i].x, base[i].y),
@@ -398,10 +487,45 @@ export class PerspectiveView {
         ],
         true
       );
+      // Windows: two floors of panes lerped along the wall face
+      const wallW = Math.hypot(base[j].x - base[i].x, base[j].y - base[i].y);
+      const cols = Math.min(8, Math.floor(wallW / 26));
+      if (cols >= 2) {
+        g.fillStyle(0x333c46, 0.9);
+        for (let c = 0; c < cols; c++) {
+          const u = (c + 0.5) / cols;
+          for (const vfrac of [0.32, 0.68]) {
+            const bx = base[i].x + (base[j].x - base[i].x) * u;
+            const by = base[i].y + (base[j].y - base[i].y) * u;
+            const tx = top[i].x + (top[j].x - top[i].x) * u;
+            const ty = top[i].y + (top[j].y - top[i].y) * u;
+            const wx = bx + (tx - bx) * vfrac;
+            const wy = by + (ty - by) * vfrac;
+            const paneW = Math.max(2, (wallW / cols) * 0.36);
+            const paneH = Math.max(2.5, Math.abs(ty - by) * 0.16);
+            g.fillRect(wx - paneW / 2, wy - paneH / 2, paneW, paneH);
+          }
+        }
+      }
     }
-    // Roof
-    g.fillStyle(0x5f5b52, 1);
+    // Roof: sun-lit slope + shaded slope split along the ridge
+    const rc = top.reduce(
+      (a, pnt) => ({ x: a.x + pnt.x / top.length, y: a.y + pnt.y / top.length }),
+      { x: 0, y: 0 }
+    );
+    g.fillStyle(0x6e6557, 1);
     g.fillPoints(top.map((p) => new Phaser.Geom.Point(p.x, p.y)), true);
+    if (top.length >= 4) {
+      g.fillStyle(0x584f44, 1);
+      g.fillPoints(
+        [
+          new Phaser.Geom.Point(top[0].x, top[0].y),
+          new Phaser.Geom.Point(top[1].x, top[1].y),
+          new Phaser.Geom.Point(rc.x, rc.y)
+        ],
+        true
+      );
+    }
     g.lineStyle(2, 0x3f3c36, 1);
     g.strokePoints(top.map((p) => new Phaser.Geom.Point(p.x, p.y)), true, true);
   }
@@ -502,6 +626,16 @@ export class PerspectiveView {
         g.fillStyle(0xffffff, 0.8 - frac * 0.35);
         g.fillCircle(p.x, p.y, Math.max(2, 3.5 * Math.min(p.scale, 1.6)));
       }
+    }
+
+    // Water glints: stable points, alpha rides a slow sine per point
+    for (const spk of this.sparkles) {
+      const p = proj.toScreen(spk.x, spk.y);
+      if (!p || p.d > 1400) continue;
+      const tw = (Math.sin(state.timeSec * 2.2 + spk.seed) + 1) / 2;
+      if (tw < 0.55) continue;
+      g.fillStyle(0xffffff, (tw - 0.55) * 0.9);
+      g.fillRect(p.x, p.y, Math.max(1.5, 3 * p.scale), Math.max(1, p.scale * 0.6));
     }
 
     // Flag (waving)
