@@ -200,7 +200,8 @@ describe('effectiveCarryYards', () => {
     const fromFairway = effectiveCarryYards(iron, GOLFER, 0, 'fairway');
     const fromRough = effectiveCarryYards(iron, GOLFER, 0, 'rough');
     const fromSand = effectiveCarryYards(iron, GOLFER, 0, 'sand');
-    expect(fromFairway).toBeCloseTo(160 * (0.9 + 0.8 * 0.2));
+    // statMult = 0.149 + (approach/100) * 1.036 (GDD-wide power spread)
+    expect(fromFairway).toBeCloseTo(160 * (0.149 + 0.8 * 1.036));
     expect(fromRough).toBeCloseTo(fromFairway * 0.8);
     expect(fromSand).toBeCloseTo(fromFairway * 0.6);
   });

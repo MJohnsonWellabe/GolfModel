@@ -67,7 +67,10 @@ export function effectiveCarryYards(
   lie: Surface
 ): number {
   const { distance } = statsForClub(club, golfer, fireBoost);
-  const statMult = 0.9 + (distance / 100) * 0.2;
+  // Wide power spread per the GDD: a 75-power golfer carries the driver
+  // ~250yd, a 100-power golfer ~320yd (base 270). Players should immediately
+  // feel the difference between golfers. statMult = 0.149 + power/100 * 1.036.
+  const statMult = 0.149 + (distance / 100) * 1.036;
   const lieMult = PHYSICS.lieDistance[lie] ?? 1;
   return club.baseDistance * statMult * lieMult;
 }
