@@ -1,9 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output (published to GitHub Pages by CI, never committed)
 dist/
-build/
 
 # Environment
 .env

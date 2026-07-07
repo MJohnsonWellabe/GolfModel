@@ -1,9 +1,18 @@
 {
   "name": "johnsons-golf",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Johnson's Golf — a golf game",
-  "scripts": {},
-  "dependencies": {},
-  "devDependencies": {}
+  "version": "1.0.0",
+  "description": "Johnson's Golf — mobile browser golf game (Phaser 3 + TypeScript) featuring Amen Corner",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "phaser": "^3.80.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5",
+    "vite": "^5.2.11"
+  }
 }
