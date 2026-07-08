@@ -18,3 +18,7 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Playwright artifacts (screenshots in tests/visual/__shots__ ARE committed)
+test-results/
+playwright-report/

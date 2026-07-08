@@ -15,6 +15,7 @@ import {
   Vector3,
   VertexData
 } from '@babylonjs/core';
+import { animTime, isFrozen } from '../core/debugFlags';
 import { blobHash, collectTreeBlobs, inTeePad, renderCourseCanvas, TEXTURE_PAD, TreeBlob } from '../core/rendering/CourseTexture';
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { PhysicsEngine } from '../systems/PhysicsEngine';
@@ -217,7 +218,7 @@ export function buildCourse(
     wm.emissiveTexture = sparkTex;
     waterMesh.material = wm;
     scene.onBeforeRenderObservable.add(() => {
-      const t = performance.now() / 1000;
+      const t = animTime();
       sparkTex.uOffset = t * 0.015;
       sparkTex.vOffset = Math.sin(t * 0.35) * 0.03;
       wm.emissiveColor = c3(shade(theme.waterDeep, 0.5 + Math.sin(t * 1.3) * 0.08));
@@ -301,6 +302,7 @@ export function buildCourse(
     clouds.push(cl);
   }
   scene.onBeforeRenderObservable.add(() => {
+    if (isFrozen()) return;
     const dt = scene.getEngine().getDeltaTime() / 1000;
     for (const cl of clouds) cl.position.x += dt * 6;
   });
@@ -454,7 +456,7 @@ export function buildCourse(
   flag.material = flagMat;
   flag.position = w2b(hole.pin.x + 2.7, hole.pin.y, 10.2);
   scene.onBeforeRenderObservable.add(() => {
-    const t = performance.now() / 1000;
+    const t = animTime();
     flag.rotation.y = Math.sin(t * 3.1) * 0.28;
     flag.rotation.z = Math.sin(t * 5.3) * 0.06;
   });
@@ -498,7 +500,7 @@ export function buildCourse(
   petals.minAngularSpeed = -2.2;
   petals.maxAngularSpeed = 2.2;
   petals.blendMode = ParticleSystem.BLENDMODE_STANDARD;
-  petals.start();
+  if (!isFrozen()) petals.start();
   scene.onBeforeRenderObservable.add(() => {
     const cam = scene.activeCamera;
     if (!cam) return;
@@ -582,7 +584,7 @@ export function buildCourse(
   flow.parent = puttGrid;
   const slope = hole.slope;
   scene.onBeforeRenderObservable.add(() => {
-    if (!flow.isEnabled()) return;
+    if (!flow.isEnabled() || isFrozen()) return;
     const fdt = scene.getEngine().getDeltaTime() / 1000;
     const rate = 0.28 * (0.35 + slope.strength) * fdt;
     flowTex.uOffset -= Math.cos(slope.angle) * rate;

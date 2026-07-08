@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 
 // base './' makes all asset URLs relative so the build works when served
@@ -10,6 +11,11 @@ import { resolve } from 'node:path';
 export default defineConfig({
   base: './',
   publicDir: 'assets',
+  // Vitest collects unit tests only — tests/visual/*.spec.ts belong to the
+  // Playwright screenshot harness (`npm run shots`), not the unit runner.
+  test: {
+    include: ['tests/**/*.test.ts']
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true,

@@ -14,6 +14,7 @@ import {
   Vector3
 } from '@babylonjs/core';
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
+import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { resolveTheme } from '../core/rendering/Theme';
 import { CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
@@ -193,6 +194,8 @@ class HoleScene {
     trail: TrailMesh | null;
   } | null = null;
   private disposed = false;
+  /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
+  private introTimers: ReturnType<typeof setTimeout>[] = [];
   private static BALL_REST = 0.5;
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
@@ -438,23 +441,69 @@ class HoleScene {
     this.camTarget.k = 1.1;
 
     // Waypoint 2: drift over the green looking down at the pin
-    setTimeout(() => {
-      if (this.disposed) return;
-      this.camTarget.pos = w2b(h.pin.x, h.pin.y, 70).subtract(g.scale(24));
-      this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
-      this.camTarget.k = 1.2;
-    }, 1500);
+    this.introTimers.push(
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.camTarget.pos = w2b(h.pin.x, h.pin.y, 70).subtract(g.scale(24));
+        this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
+        this.camTarget.k = 1.2;
+      }, 1500)
+    );
 
     // Waypoint 3: swing back to the tee-shot framing and hand over control
-    setTimeout(() => {
-      if (this.disposed) return;
-      bannerEl.style.opacity = '0';
-      this.setCamSetup();
-      this.camTarget.k = 1.4;
+    this.introTimers.push(
       setTimeout(() => {
-        if (!this.disposed) this.beginTurn();
-      }, 900);
-    }, 3000);
+        if (this.disposed) return;
+        bannerEl.style.opacity = '0';
+        this.setCamSetup();
+        this.camTarget.k = 1.4;
+        this.introTimers.push(
+          setTimeout(() => {
+            if (!this.disposed) this.beginTurn();
+          }, 900)
+        );
+      }, 3000)
+    );
+  }
+
+  /** Cancel the intro flyover and hand control over immediately. */
+  skipIntro(): void {
+    this.introTimers.forEach((t) => clearTimeout(t));
+    this.introTimers = [];
+    bannerEl.style.opacity = '0';
+    this.beginTurn();
+  }
+
+  /**
+   * Screenshot-harness pose: put the hole into one of four fixed, reproducible
+   * framings and snap the camera there (no lerp). See core/debugFlags.ts.
+   */
+  enterShotPose(cam: ShotCam): void {
+    this.skipIntro();
+    const h = this.hole;
+    if (cam === 'green') {
+      // Putting framing: ball on the green a comfortable putt from the cup
+      const ang = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
+      this.dropAt(h.pin.x + Math.cos(ang) * 22, h.pin.y + Math.sin(ang) * 22);
+    } else if (cam === 'approach') {
+      // Approach framing: ball in the fairway ~150yd out, descent cam on the green
+      const ang = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
+      this.dropAt(h.pin.x + Math.cos(ang) * 300, h.pin.y + Math.sin(ang) * 300);
+      const dir = Math.atan2(h.pin.y - this.state.ballPos.y, h.pin.x - this.state.ballPos.x);
+      this.setCamDescent({ x: h.pin.x, y: h.pin.y }, dir);
+    } else if (cam === 'aerial') {
+      this.aerial = true;
+      this.setCamSetup();
+    }
+    // 'tee' keeps the default post-intro framing from beginTurn/dropAt.
+    this.camera.position.copyFrom(this.camTarget.pos);
+    this.camera.setTarget(this.camTarget.look.clone());
+    if (isFrozen()) {
+      // Hold character idle animation still for pixel-stable captures
+      void this.bodiesReady.then(() => {
+        this.scene.animationGroups.forEach((g) => g.pause());
+      });
+    }
   }
 
   // ---------------------------------------------------------------- turns
@@ -1036,10 +1085,7 @@ function exposeDebug(): void {
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
-        skipIntro: () => {
-          bannerEl.style.opacity = '0';
-          current?.beginTurn();
-        }
+        skipIntro: () => current?.skipIntro()
       }
     : null;
 }
@@ -1204,7 +1250,39 @@ nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < 2) goStep(sel.step + 1);
   else startRound();
 });
-showSetup();
+
+/**
+ * Screenshot-harness boot (`?hole=N&cam=…&freeze=1`): skip the wizard, load
+ * the requested hole in a fixed pose with fixed wind, and raise __shotReady
+ * once the scene (course, character, textures) is fully renderable.
+ */
+function startShotCapture(): void {
+  round.course = COURSES.wildwood;
+  round.mode = 'solo';
+  round.holeIdx = Math.min((SHOT.hole ?? 1) - 1, round.course.holes.length - 1);
+  round.activePlayer = 0;
+  // Fixed wind so the HUD chip (and any wind-driven visuals) never varies
+  round.holeWinds = round.course.holes.map(() => ({ angle: 0.9, speed: 8 }));
+  round.players = [
+    { golfer: assembleGolfer('Shot', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }
+  ];
+  setupEl.style.display = 'none';
+  playHole();
+  const scene = current!;
+  scene.enterShotPose(SHOT.cam);
+  void Promise.all([
+    scene.bodiesReady,
+    new Promise((resolve) => scene.scene.executeWhenReady(() => resolve(null)))
+  ]).then(() => {
+    // Settle window for async prop glbs (trees/grass) instancing in
+    setTimeout(() => {
+      (window as unknown as { __shotReady: boolean }).__shotReady = true;
+    }, 1500);
+  });
+}
+
+if (SHOT.hole) startShotCapture();
+else showSetup();
 
 // Test hook: let Playwright configure + start a round without menu taps
 (window as unknown as { __startRound: unknown }).__startRound = (opts?: {

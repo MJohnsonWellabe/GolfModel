@@ -7,13 +7,15 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "shots": "playwright test -c playwright.config.ts"
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",
     "@babylonjs/loaders": "^9.15.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vitest": "^4.1.10"
