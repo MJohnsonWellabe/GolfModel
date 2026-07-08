@@ -100,6 +100,8 @@ export interface EllipseArea {
   cy: number;
   rx: number;
   ry: number;
+  /** Optional rotation (radians) — angled ovals for organic green shapes. */
+  rot?: number;
 }
 
 export type Polygon = number[][];

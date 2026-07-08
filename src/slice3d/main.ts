@@ -514,7 +514,14 @@ class HoleScene {
     this.aimRoot.setEnabled(true);
     this.aim.computePreview(this.ctx(), this.wind);
     const path = this.aim.previewPath;
-    const target = path && path.length ? path[path.length - 1] : this.aim.aimPoint(this.state.ballPos);
+    // Putts: show the straight aim/pace line to your chosen spot — read the
+    // break yourself. (The preview holes out in simulation, which would snap
+    // the marker onto the cup.) Full shots keep the predicted-landing marker.
+    const target = this.aim.isPutting
+      ? this.aim.aimPoint(this.state.ballPos)
+      : path && path.length
+        ? path[path.length - 1]
+        : this.aim.aimPoint(this.state.ballPos);
     // The aerial planning camera sits 240–760 units overhead, where the small
     // ground dots vanish — enlarge them (in place) so the aim line still reads.
     const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
@@ -740,20 +747,28 @@ class HoleScene {
     this.onPointerDown = (e: PointerEvent): void => {
       startAmbience();
       if (this.state.phase !== 'aiming' || meter.isActive) return;
-      this.dragX = e.clientX;
+      this.aim.beginDrag({ x: e.clientX, y: e.clientY });
     };
     this.onPointerMove = (e: PointerEvent): void => {
-      if (this.dragX === null || this.state.phase !== 'aiming' || meter.isActive) return;
-      const dx = e.clientX - this.dragX;
-      this.dragX = e.clientX;
-      this.aim.yaw += dx * 0.0035;
+      if (!this.aim.isDragging || this.state.phase !== 'aiming' || meter.isActive) return;
+      // Horizontal rotates the aim; vertical moves it nearer/farther.
+      if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
       this.setCamSetup();
       this.updateAimVisuals();
       this.updateHud();
+      // Distance changed → the meter's power target moved; re-arm so the target
+      // line (and putt scaling) track the new aim.
+      if (meter.isArmed) {
+        meter.arm({
+          stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
+          powerTarget: this.aim.barPowerTarget(this.ctx()),
+          isPutt: this.aim.isPutting
+        });
+      }
     };
     this.onPointerUp = (): void => {
-      this.dragX = null;
+      this.aim.endDrag();
     };
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
@@ -773,7 +788,6 @@ class HoleScene {
     };
   }
 
-  private dragX: number | null = null;
   private onSwingTap!: (e: Event) => void;
   private onPointerDown!: (e: PointerEvent) => void;
   private onPointerMove!: (e: PointerEvent) => void;

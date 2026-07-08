@@ -15,7 +15,7 @@ import {
   Vector3,
   VertexData
 } from '@babylonjs/core';
-import { blobHash, collectTreeBlobs, renderCourseCanvas, TEXTURE_PAD, TreeBlob } from '../core/rendering/CourseTexture';
+import { blobHash, collectTreeBlobs, inTeePad, renderCourseCanvas, TEXTURE_PAD, TreeBlob } from '../core/rendering/CourseTexture';
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
@@ -425,6 +425,8 @@ export function buildCourse(
         const surf = engine.surfaceAt(xx, yy);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
+        // Keep tall grass off the mown tee pad (it reads as short, clean turf).
+        if (inTeePad(hole, xx, yy)) continue;
         const jx = xx + (hash2(xx, yy) - 0.5) * 26;
         const jy = yy + (hash2(yy + 5, xx) - 0.5) * 26;
         if (engine.surfaceAt(jx, jy) !== surf) continue;
@@ -539,6 +541,8 @@ export function buildCourse(
   gridTex.hasAlpha = true;
   const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 1 }, scene);
   puttGrid.position = new Vector3(g.cx, 0.14, -g.cy);
+  // Match an angled (kidney/oval) green so the clipped grid tracks its shape.
+  if (g.rot) puttGrid.rotation.y = g.rot;
   const gridMat = new StandardMaterial('puttGridMat', scene);
   gridMat.emissiveTexture = gridTex;
   gridMat.opacityTexture = gridTex;

@@ -3,6 +3,7 @@ import {
   Color3,
   Mesh,
   MeshBuilder,
+  Quaternion,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -71,6 +72,12 @@ export class Golfer3D {
   private inst: CharacterInstance | null = null;
   private modelPivot: TransformNode | null = null;
   private idleAnim: AnimationGroup | null = null;
+  // The skeleton 'root' bone is rotated by the pack's Idle/Run/etc. clips, which
+  // would swing the whole body off the ball line (and differently per character).
+  // We pin it to its rest transform every frame except during Win/Sad reactions.
+  private rootBone: TransformNode | null = null;
+  private rootBoneRestRot: Quaternion | null = null;
+  private rootBoneRestPos: Vector3 | null = null;
 
   constructor(scene: Scene, shadows: ShadowGenerator, character?: string, look?: GolferLook) {
     this.root = new TransformNode('golfer', scene);
@@ -91,6 +98,14 @@ export class Golfer3D {
           inst.root.parent = this.modelPivot!;
           inst.root.rotation.y = MODEL_FACING;
           inst.root.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
+          // Capture the 'root' bone's rest transform so we can keep the golfer
+          // squarely facing the ball regardless of what the clips do to it.
+          this.rootBone = inst.bones.get('root') ?? null;
+          if (this.rootBone) {
+            this.rootBoneRestRot =
+              this.rootBone.rotationQuaternion?.clone() ?? Quaternion.FromEulerVector(this.rootBone.rotation);
+            this.rootBoneRestPos = this.rootBone.position.clone();
+          }
           this.idleAnim = inst.anims.get('Idle') ?? null;
           this.idleAnim?.start(true, 1.0);
           this.applyModelPose(0);
@@ -110,6 +125,13 @@ export class Golfer3D {
     scene.onBeforeRenderObservable.add(() => {
       const dt = scene.getEngine().getDeltaTime() / 1000;
       this.idleTime += dt;
+      // Pin the skeleton root to rest (runs after the animation step, so it
+      // overrides the clip) — keeps every character facing the ball through
+      // idle and the swing. Reactions are allowed their full motion.
+      if (this.reactionT < 0 && this.rootBone && this.rootBoneRestRot && this.rootBoneRestPos) {
+        this.rootBone.rotationQuaternion = this.rootBoneRestRot.clone();
+        this.rootBone.position.copyFrom(this.rootBoneRestPos);
+      }
       if (this.reactionT >= 0) {
         this.reactionT += dt;
         this.applyReaction();

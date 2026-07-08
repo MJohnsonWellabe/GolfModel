@@ -16,6 +16,26 @@ export interface TreeBlob {
   tint: number;
 }
 
+/** Half-size (world px) of the square tee pad baked around each tee marker. */
+export const TEE_HALF = 42;
+
+/**
+ * True when (x,y) lies on the hole's tee pad — a square patch aligned to the
+ * tee→pin axis, centred just behind the tee marker so the ball rests at its
+ * front edge. Shared by the texture bake (paints the pad) and the 3D ground
+ * scatter (keeps tall grass off it) so both agree on the shape.
+ */
+export function inTeePad(hole: HoleData, x: number, y: number): boolean {
+  const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+  const ax = Math.cos(axis);
+  const ay = Math.sin(axis);
+  const cx = hole.tee.x - ax * TEE_HALF * 0.55;
+  const cy = hole.tee.y - ay * TEE_HALF * 0.55;
+  const along = (x - cx) * ax + (y - cy) * ay;
+  const perp = -(x - cx) * ay + (y - cy) * ax;
+  return Math.abs(along) <= TEE_HALF && Math.abs(perp) <= TEE_HALF;
+}
+
 /** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
 export function blobHash(x: number, y: number): number {
   const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
@@ -112,6 +132,8 @@ export function renderCourseCanvas(
   // Per-surface base color as [r,g,b]. Green uses the BRIGHT tone as its base
   // so putting surfaces clearly read as the lightest, shortest grass.
   const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  // Index 7 = tee box: a mown pad, lighter than rough (close to fairway but a
+  // touch brighter) so it clearly reads as the lightest cut off the fairway.
   const palette: Array<[number, number, number]> = [
     rgb(theme.rough),
     rgb(theme.fairway),
@@ -119,7 +141,8 @@ export function renderCourseCanvas(
     rgb(theme.fringe),
     rgb(theme.sand),
     rgb(theme.water),
-    rgb(shade(theme.rough, 0.8)) // under trees
+    rgb(shade(theme.rough, 0.8)), // under trees
+    rgb(shade(theme.fairway, 1.1)) // tee box — light, short, clean
   ];
   // Mow-band alternate tone per surface — the stripe lerps base↔alt for a real
   // two-tone mow pattern (the dark/light theme fields were previously unused).
@@ -131,17 +154,24 @@ export function renderCourseCanvas(
     rgb(shade(theme.fringe, 0.88)), // 3 fringe
     null,
     null,
-    null
+    null,
+    rgb(theme.fairway) // 7 tee — light base ↔ fairway for tight cross-stripes
   ];
-  const stripeLen = [92, 42, 34, 42, 0, 0, 0]; // rough broad; green tightest
-  const stripeAmt = [0.16, 0.34, 0.3, 0.28, 0, 0, 0]; // base↔alt blend strength
-  // Noise strength per surface — rough much grainier (long grass), green smooth.
-  const noiseAmp = [36, 18, 7, 13, 12, 8, 30];
+  const stripeLen = [92, 42, 34, 42, 0, 0, 0, 26]; // rough broad; green/tee tightest
+  const stripeAmt = [0.16, 0.34, 0.3, 0.28, 0, 0, 0, 0.24]; // base↔alt blend strength
+  // Noise strength per surface — rough much grainier (long grass), green/tee smooth.
+  const noiseAmp = [36, 18, 7, 13, 12, 8, 30, 8];
 
-  // Mow stripes run along the tee->pin axis
+  // Mow stripes: greens/fringe run along the tee->pin axis; the FAIRWAY is
+  // mown on a diagonal (45° to the axis) for the classic striped look.
   const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
   const ax = Math.cos(axis);
   const ay = Math.sin(axis);
+  const dax = Math.cos(axis + Math.PI / 4);
+  const day = Math.sin(axis + Math.PI / 4);
+  // Tee-pad centre (see inTeePad) precomputed so the hot texel loop stays cheap.
+  const tcx = hole.tee.x - ax * TEE_HALF * 0.55;
+  const tcy = hole.tee.y - ay * TEE_HALF * 0.55;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -154,16 +184,35 @@ export function renderCourseCanvas(
     const wy = py / scale - pad;
     for (let px = 0; px < w; px++) {
       const wx = px / scale - pad;
-      // Jittered class lookup = organic (dithered) surface edges
-      const jx = wx + (texelHash(px + 7, py) - 0.5) * 3;
-      const jy = wy + (texelHash(px, py + 7) - 0.5) * 3;
-      const cls = classAt(jx, jy);
+      // Displace the class lookup by a SMOOTH low-frequency wobble (organic,
+      // gently curved surface edges — soft-rounded fairways rather than hard
+      // rectangles) plus a little white-noise grain to keep the boundary from
+      // reading as a clean sine. Texture-only: gameplay polygons stay crisp.
+      const wobX =
+        Math.sin(wx * 0.019 + wy * 0.011) * 5 +
+        Math.sin(wy * 0.034 - wx * 0.014) * 3 +
+        (texelHash(px + 7, py) - 0.5) * 3;
+      const wobY =
+        Math.sin(wy * 0.018 - wx * 0.010) * 5 +
+        Math.sin(wx * 0.032 + wy * 0.015) * 3 +
+        (texelHash(px, py + 7) - 0.5) * 3;
+      const jx = wx + wobX;
+      const jy = wy + wobY;
+      let cls = classAt(jx, jy);
+      // Tee pad overrides ground surfaces only (never sand/water/trees/green),
+      // tested on crisp (un-jittered) coords for a sharp square edge.
+      if (cls === 0 || cls === 1) {
+        const along = (wx - tcx) * ax + (wy - tcy) * ay;
+        const perp = -(wx - tcx) * ay + (wy - tcy) * ax;
+        if (Math.abs(along) <= TEE_HALF && Math.abs(perp) <= TEE_HALF) cls = 7;
+      }
       let [r, g, b] = palette[cls];
 
       // Two-tone mow bands: lerp base→alt across the stripe (real color shift).
       const alt = stripeAlt[cls];
       if (alt) {
-        const along = wx * ax + wy * ay;
+        // Fairway (cls 1) stripes diagonally; greens/fringe along the axis.
+        const along = cls === 1 ? wx * dax + wy * day : wx * ax + wy * ay;
         const t = ((Math.sin((along / stripeLen[cls]) * Math.PI) + 1) / 2) * stripeAmt[cls];
         r += (alt[0] - r) * t;
         g += (alt[1] - g) * t;

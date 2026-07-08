@@ -32,7 +32,7 @@
       "yardage": 395,
       "world": { "width": 900, "height": 1200 },
       "tee": { "x": 450, "y": 1040 },
-      "green": { "cx": 450, "cy": 252, "rx": 78, "ry": 56 },
+      "green": { "cx": 450, "cy": 252, "rx": 90, "ry": 58, "rot": 0.55 },
       "slope": { "angle": 1.8, "strength": 0.3 },
       "pin": { "x": 450, "y": 250 },
       "fairway": [
@@ -54,7 +54,7 @@
       "yardage": 170,
       "world": { "width": 900, "height": 1000 },
       "tee": { "x": 450, "y": 820 },
-      "green": { "cx": 450, "cy": 474, "rx": 66, "ry": 50 },
+      "green": { "cx": 450, "cy": 474, "rx": 78, "ry": 50, "rot": -0.7 },
       "slope": { "angle": 2.6, "strength": 0.35 },
       "pin": { "x": 455, "y": 470 },
       "fairway": [
@@ -76,7 +76,7 @@
       "yardage": 560,
       "world": { "width": 1000, "height": 1500 },
       "tee": { "x": 640, "y": 1400 },
-      "green": { "cx": 425, "cy": 275, "rx": 82, "ry": 60 },
+      "green": { "cx": 425, "cy": 275, "rx": 96, "ry": 60, "rot": 0.4 },
       "slope": { "angle": 3.6, "strength": 0.4 },
       "pin": { "x": 420, "y": 272 },
       "fairway": [

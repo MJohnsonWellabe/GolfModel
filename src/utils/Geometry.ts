@@ -22,10 +22,18 @@ export function pointInEllipse(
   e: EllipseArea,
   margin = 0
 ): boolean {
-  const rx = e.rx + margin;
-  const ry = e.ry + margin;
-  const dx = (x - e.cx) / rx;
-  const dy = (y - e.cy) / ry;
+  let px = x - e.cx;
+  let py = y - e.cy;
+  // Optional rotation lets greens be angled ovals (organic, non-circular).
+  if (e.rot) {
+    const c = Math.cos(-e.rot);
+    const s = Math.sin(-e.rot);
+    const rx0 = px * c - py * s;
+    py = px * s + py * c;
+    px = rx0;
+  }
+  const dx = px / (e.rx + margin);
+  const dy = py / (e.ry + margin);
   return dx * dx + dy * dy <= 1;
 }
 
