@@ -26,9 +26,11 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 
 /** Overall golfer size multiplier (applied to the root, scaling body + club). */
 const GOLFER_SCALE = 1.4;
-/** Pack models face the camera by default; turn them to address the ball
- * (the golfer root faces yaw+π after placeAt, like the procedural body). */
-const MODEL_FACING = Math.PI;
+/** Heading applied to the imported model so it addresses the ball, matching the
+ * procedural body (whose root faces yaw+π after placeAt). Driven through the
+ * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
+ * the root node, which makes a plain `rotation.y` assignment a silent no-op. */
+const MODEL_FACING = 0;
 /** How hard the whole model body coils through the swing (feet planted look
  * is approximate at gameplay distance — matches the shipped knight/ninja). */
 const MODEL_TURN = 0.5;
@@ -96,7 +98,10 @@ export class Golfer3D {
         .then((inst) => {
           this.inst = inst;
           inst.root.parent = this.modelPivot!;
-          inst.root.rotation.y = MODEL_FACING;
+          // Drive heading through the quaternion: the glTF loader sets a
+          // handedness rotationQuaternion on the root, so `rotation.y` is
+          // ignored. Overriding it squares the model up to the ball.
+          inst.root.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), MODEL_FACING);
           inst.root.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
           // Capture the 'root' bone's rest transform so we can keep the golfer
           // squarely facing the ball regardless of what the clips do to it.
