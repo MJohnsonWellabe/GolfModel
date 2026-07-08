@@ -16,8 +16,8 @@ export interface TreeBlob {
   tint: number;
 }
 
-/** Half-size (world px) of the square tee pad baked around each tee marker. */
-export const TEE_HALF = 42;
+/** Half-size (world px) of the mown apron baked under the built tee platform. */
+export const TEE_HALF = 26;
 
 /**
  * True when (x,y) lies on the hole's tee pad — a square patch aligned to the
@@ -133,15 +133,15 @@ export function renderCourseCanvas(
   // so putting surfaces clearly read as the lightest, shortest grass.
   const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
   // Per-surface base color. Green uses the BRIGHT tone so putting surfaces read
-  // as the lightest, shortest grass. Index 3 (fringe) is deliberately a DARK
-  // collar — darker than both green and fairway — so it frames the green with
-  // contrast instead of haloing it. Index 7 is the tee pad: distinctly lighter
-  // than fairway so it reads as a clean mown box.
+  // as the lightest, shortest grass. Index 3 (fringe) uses the theme's own
+  // fringe hue — a value BETWEEN fairway and green — so the collar separates
+  // both in color and in a grayscale readability test. Index 7 is the tee pad:
+  // distinctly lighter than fairway so it reads as a clean mown box.
   const palette: Array<[number, number, number]> = [
     rgb(theme.rough),
     rgb(theme.fairway),
     rgb(theme.greenLight),
-    rgb(shade(theme.green, 0.62)), // green collar — dark ring that frames the green
+    rgb(theme.fringe),
     rgb(theme.sand),
     rgb(theme.water),
     rgb(shade(theme.rough, 0.8)), // under trees
@@ -233,6 +233,18 @@ export function renderCourseCanvas(
   ctx.putImageData(img, 0, 0);
 
   // Baked ground shadows (sun-consistent): trees, then buildings
+  bakeGroundShadows(ctx, hole, theme, pad, scale);
+
+  return canvas;
+}
+
+function bakeGroundShadows(
+  ctx: CanvasRenderingContext2D,
+  hole: HoleData,
+  theme: CourseTheme,
+  pad: number,
+  scale: number
+): void {
   const lean = theme.sunX > 360 ? -1 : 1;
   ctx.fillStyle = 'rgba(10, 24, 12, 0.30)';
   for (const t of collectTreeBlobs(hole)) {
@@ -259,6 +271,71 @@ export function renderCourseCanvas(
     ctx.closePath();
     ctx.fill();
   }
+}
 
-  return canvas;
+/**
+ * High-resolution albedo patch for the raised green-complex mesh: green top,
+ * fringe collar skirt, axis mow stripes and fine grain — baked at several
+ * times the terrain texture's density so putting close-ups stay crisp.
+ * The canvas covers the green ellipse + fringe + a small apron, axis-aligned
+ * to the world (the mesh UVs map world position → patch position linearly).
+ */
+export function renderGreenPatch(
+  hole: HoleData,
+  theme: CourseTheme,
+  engine: PhysicsEngine,
+  margin: number,
+  scale = 6
+): { canvas: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } {
+  const g = hole.green;
+  const reach = Math.max(g.rx, g.ry) + margin + 10;
+  const x0 = g.cx - reach;
+  const y0 = g.cy - reach;
+  const wWorld = reach * 2;
+  const w = Math.round(wWorld * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = w;
+  const ctx = canvas.getContext('2d')!;
+  const img = ctx.createImageData(w, w);
+  const data = img.data;
+
+  const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  const cols: Record<string, [number, number, number]> = {
+    green: rgb(theme.greenLight),
+    fringe: rgb(theme.fringe),
+    sand: rgb(theme.sand),
+    fairway: rgb(theme.fairway),
+    rough: rgb(theme.rough),
+    tee: rgb(theme.fairway),
+    water: rgb(theme.water),
+    trees: rgb(shade(theme.rough, 0.8))
+  };
+  const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+  const ax = Math.cos(axis);
+  const ay = Math.sin(axis);
+
+  for (let py = 0; py < w; py++) {
+    const wy = y0 + py / scale;
+    for (let px = 0; px < w; px++) {
+      const wx = x0 + px / scale;
+      const surf = engine.surfaceAt(wx, wy);
+      const [r, gr, b] = cols[surf] ?? cols.rough;
+      let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : surf === 'fringe' ? 0.11 : 0.14);
+      if (surf === 'green') {
+        // Tight, subtle mow stripes along the play axis
+        const along = wx * ax + wy * ay;
+        light *= 1 + Math.sin((along / 30) * Math.PI) * 0.075;
+      }
+      // Crisp darker rim right at the green/fringe boundary anchors the collar
+      if (surf === 'fringe' && engine.surfaceAt(wx + 1.2, wy) !== 'fringe') light *= 0.88;
+      const i = (py * w + px) * 4;
+      data[i] = Math.min(255, r * light);
+      data[i + 1] = Math.min(255, gr * light);
+      data[i + 2] = Math.min(255, b * light);
+      data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return { canvas, x0, y0, w: wWorld, h: wWorld };
 }

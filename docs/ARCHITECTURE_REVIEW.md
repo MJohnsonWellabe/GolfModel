@@ -8,6 +8,41 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08 (later): Graphics Stage 0 + Stage A — course readability overhaul
+
+The course-presentation redo planned in `11_ROADMAP_CHECKIN_2026-07-08.md`
+landed its first two stages (this supersedes the "flat painted course" parts
+of everything below):
+
+- **Screenshot harness (Stage 0):** `?hole=N&cam=tee|aerial|approach|green&freeze=1`
+  debug boot + Playwright contact sheet (`npm run shots` → 3 holes × 4 cams
+  into `tests/visual/__shots__/`), judged against `docs/visual-bar.md`.
+- **Course schema v2 (`src/data/courseLoader.ts`):** fairways are authored as
+  centerline+width ribbons and compiled at load (Catmull-Rom → normal offset)
+  into the same runtime polygons physics/bake always used. v1 polygons still
+  load. All three Wildwood holes re-authored per `10_COURSE_DESIGN_BIBLE.md`
+  (H1 welcoming dogleg, H2 water-carry par 3, H3 double-bend par 5 with a
+  reach-in-two water line).
+- **Built geometry, not paint:** raised green-complex mesh with fringe skirt
+  and a 6× high-res texture patch (`renderGreenPatch`); tee platform with
+  markers; bunker lip tubes. `Course3D.groundHeightAt(x,y)` is the cosmetic
+  height seam ball/golfer/aim visuals sit on — Stage B swaps a real
+  heightfield in behind it. Physics still flat and untouched.
+- **Palette split by hue** (olive rough / emerald fairway / own-color fringe /
+  light green), fringe widened to 32px so it survives mipping; flag scales
+  with camera distance (min screen size); pulsing green target ring in aim
+  views.
+- **Bug found by the harness:** the baked albedo uploaded to the ground was
+  vertically FLIPPED — invisible on the old symmetric rectangles, glaring on
+  organic holes. Fixed at the DynamicTexture upload.
+- **Grass F pack integrated** (asset-packs/grass-f, converted with npm
+  `fbx2gltf` — no Blender in this container): four unlit crossed-card tufts
+  drive fairway/rough scatter; flowers unlit; blocky nature-pack grass slabs
+  retired from scatter.
+
+Still open in the graphics track: Stage B (heightfield elevation + physics),
+Stage C (turf detail normals, water shader, baked AO, sand ripples).
+
 # Update — 2026-07-08: identity rework + purchased assets integrated
 
 A ground-up front-end rework landed on top of the foundation below. The parts

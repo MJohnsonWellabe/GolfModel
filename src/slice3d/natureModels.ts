@@ -28,7 +28,10 @@ const c3 = (hex: number): Color3 =>
 export const TREE_KEYS = ['tree_a', 'tree_b', 'tree_c', 'tree_d'] as const;
 export const STONE_KEYS = ['stone_a', 'stone_b', 'stone_c'] as const;
 export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
-export const GRASS_KEYS = ['grass_a', 'grass_b'] as const;
+/** grass_c–f = the purchased Grass F tuft pack (asset-packs/grass-f): crossed
+ *  unlit cards that read as soft tufts. The Fantastic Nature grass_a/b clumps
+ *  are chunky slabs at turf scale, so ground scatter no longer uses them. */
+export const GRASS_KEYS = ['grass_c', 'grass_d', 'grass_e', 'grass_f'] as const;
 export const FLOWER_KEYS = ['flower_a'] as const;
 const ALL_KEYS = [...TREE_KEYS, ...STONE_KEYS, ...BUSH_KEYS, ...GRASS_KEYS, ...FLOWER_KEYS];
 
@@ -63,10 +66,16 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
   const barkMat = flat(scene, 'natBark', palette.bark);
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
-  const grassMat = flat(scene, 'natGrass', palette.grass);
+  // Grass tufts and flowers are crossed flat cards — lit shading turns the
+  // back-facing half black, so render them unlit in flat palette colors.
+  const grassMat = unlit(scene, 'natGrass', palette.grass);
+  const flowerMat = unlit(scene, 'natFlower', 0xe8a8c8);
   const stoneMat = flat(scene, 'natStone', palette.stone);
 
-  const pickMat = (slot: string): StandardMaterial => {
+  const pickMat = (slot: string, key: string): StandardMaterial => {
+    // Card-style props pick by prop key first (their slots are generic)
+    if (key.startsWith('grass')) return grassMat;
+    if (key.startsWith('flower')) return flowerMat;
     const n = slot.toLowerCase();
     if (n.includes('wood')) return barkMat;
     if (n.includes('grass')) return grassMat;
@@ -92,7 +101,7 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
       // avoids the multi-material instancing path.
       const byMat = new Map<string, Mesh[]>();
       raw.forEach((mm) => {
-        const mat = pickMat(mm.material?.name ?? '');
+        const mat = pickMat(mm.material?.name ?? '', key);
         mm.material = mat;
         const g = byMat.get(mat.name);
         if (g) g.push(mm);
@@ -122,10 +131,24 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
   return out;
 }
 
+function unlit(scene: Scene, name: string, color: number): StandardMaterial {
+  const mt = new StandardMaterial(name, scene);
+  mt.diffuseColor = new Color3(0, 0, 0);
+  mt.specularColor = new Color3(0, 0, 0);
+  mt.emissiveColor = c3(color);
+  mt.disableLighting = true;
+  mt.backFaceCulling = false;
+  return mt;
+}
+
 function flat(scene: Scene, name: string, color: number): StandardMaterial {
   const mt = new StandardMaterial(name, scene);
   mt.diffuseColor = c3(color);
   mt.specularColor = new Color3(0.02, 0.02, 0.02);
+  // Self-lit lift: flipped-winding normals + hemisphere shading can drive
+  // these flat props nearly black (they read as dark litter on the turf), so
+  // keep a fraction of the base hue emissive — stylized, never fully dark.
+  mt.emissiveColor = c3(color).scale(0.22);
   // Baking the glTF handedness-flip transform into the vertices inverts
   // triangle winding, so render both sides rather than culling the (now
   // back-facing) front faces — cheap and fine for these stylized props.

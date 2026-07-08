@@ -16,18 +16,26 @@ import {
   VertexData
 } from '@babylonjs/core';
 import { animTime, isFrozen } from '../core/debugFlags';
-import { blobHash, collectTreeBlobs, inTeePad, renderCourseCanvas, TEXTURE_PAD, TreeBlob } from '../core/rendering/CourseTexture';
+import {
+  blobHash,
+  collectTreeBlobs,
+  inTeePad,
+  renderCourseCanvas,
+  renderGreenPatch,
+  TEXTURE_PAD,
+  TreeBlob
+} from '../core/rendering/CourseTexture';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { PhysicsEngine } from '../systems/PhysicsEngine';
+import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
 import {
   BUSH_KEYS,
+  FLOWER_KEYS,
   GRASS_KEYS,
   hash2,
   loadNaturePrototypes,
   NaturePalette,
   NatureProto,
-  STONE_KEYS,
   TREE_KEYS
 } from './natureModels';
 
@@ -62,6 +70,64 @@ export interface Course3D {
   pin: Mesh[];
   /** Translucent contour grid over the green, shown only while putting. */
   puttGrid: Mesh;
+  /** Soft highlight ring around the green complex, shown while aiming full shots. */
+  greenRing: Mesh;
+  /**
+   * Cosmetic ground height (world units) at a world point — the raised green
+   * plateau and tee platform. Physics stays flat; ball/golfer/aim visuals add
+   * this so they sit on the built surfaces. Stage B replaces the flat interior
+   * with a real heightfield behind this same seam.
+   */
+  groundHeightAt: (x: number, y: number) => number;
+}
+
+/** Visual raise of the green plateau and the tee platform top (world units). */
+const GREEN_RAISE = 0.55;
+const TEE_TOP = 1.15;
+
+/** Ellipse "radius factor" — <=1 inside, grows outward; rotation-aware. */
+function ellipseFactor(x: number, y: number, g: HoleData['green'], margin = 0): number {
+  let px = x - g.cx;
+  let py = y - g.cy;
+  if (g.rot) {
+    const c = Math.cos(-g.rot);
+    const s = Math.sin(-g.rot);
+    const rx0 = px * c - py * s;
+    py = px * s + py * c;
+    px = rx0;
+  }
+  const dx = px / (g.rx + margin);
+  const dy = py / (g.ry + margin);
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+/** Green plateau lift profile shared by the plateau mesh and groundHeightAt. */
+function greenLift(x: number, y: number, hole: HoleData): number {
+  const f = ellipseFactor(x, y, hole.green);
+  if (f <= 1) return GREEN_RAISE;
+  // Approximate world distance beyond the green edge, smooth over the fringe
+  const beyond = (f - 1) * Math.min(hole.green.rx, hole.green.ry);
+  const s = Math.min(1, beyond / FRINGE_MARGIN);
+  const t = 1 - s * s * (3 - 2 * s); // smoothstep down
+  return GREEN_RAISE * t;
+}
+
+/** Tee platform placement shared by the platform meshes and groundHeightAt. */
+function teePlatform(hole: HoleData): { cx: number; cy: number; ax: number; ay: number; w: number; d: number } {
+  const w = (hole.teeBox?.w ?? 26) * 0.68;
+  const d = (hole.teeBox?.d ?? 18) * 0.68;
+  const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+  const ax = Math.cos(axis);
+  const ay = Math.sin(axis);
+  // Ball rests near the front edge of the pad
+  return { cx: hole.tee.x - ax * d * 0.22, cy: hole.tee.y - ay * d * 0.22, ax, ay, w, d };
+}
+
+function onTeePlatform(x: number, y: number, hole: HoleData): boolean {
+  const p = teePlatform(hole);
+  const along = (x - p.cx) * p.ax + (y - p.cy) * p.ay;
+  const perp = -(x - p.cx) * p.ay + (y - p.cy) * p.ax;
+  return Math.abs(along) <= p.d / 2 && Math.abs(perp) <= p.w / 2;
 }
 
 /**
@@ -135,7 +201,18 @@ export function buildCourse(
     scene,
     true
   );
-  courseTex.getContext().drawImage(courseCanvas, 0, 0);
+  {
+    // Babylon's ground UVs run v toward -z (increasing world y), while the
+    // canvas paints world y downward — draw flipped so the albedo lands
+    // exactly where surfaceAt() classified it. (Asymmetric holes made the
+    // old un-flipped upload obvious: greens/bunkers painted mirror-image.)
+    const c2 = courseTex.getContext() as CanvasRenderingContext2D;
+    c2.save();
+    c2.translate(0, courseCanvas.height);
+    c2.scale(1, -1);
+    c2.drawImage(courseCanvas, 0, 0);
+    c2.restore();
+  }
   courseTex.update(false);
   courseTex.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
   courseTex.anisotropicFilteringLevel = 8;
@@ -168,6 +245,128 @@ export function buildCourse(
   groundMat.detailMap.isEnabled = true;
   groundMat.detailMap.diffuseBlendLevel = 0.24;
   ground.material = groundMat;
+
+  // ----------------------------------------------------- green complex mesh
+  // The putting surface is BUILT, not painted: a gently raised plateau with a
+  // fringe-collar skirt, wearing its own high-resolution texture patch so the
+  // green stays crisp at putting-camera distance. Physics remains flat — the
+  // ball/golfer add groundHeightAt() when rendered.
+  {
+    const g = hole.green;
+    const ANG = 56;
+    // Ring radii factors: flat top out to the green edge, then skirt rings
+    // stepping across the fringe down to ground level (slightly below to tuck)
+    const topT = [0, 0.45, 0.8, 1];
+    const skirtS = [0.18, 0.45, 0.72, 1, 1.18];
+    const patch = renderGreenPatch(hole, theme, engine, FRINGE_MARGIN + 8, 6);
+    const positions: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+    const pushVert = (wx: number, wy: number, hgt: number): void => {
+      positions.push(wx, hgt, -wy);
+      uvs.push((wx - patch.x0) / patch.w, 1 - (wy - patch.y0) / patch.h);
+    };
+    const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
+      const lx = Math.cos(theta) * rxx;
+      const ly = Math.sin(theta) * ryy;
+      const c = Math.cos(g.rot ?? 0);
+      const s = Math.sin(g.rot ?? 0);
+      return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
+    };
+    // Center vertex + top rings at full raise
+    pushVert(g.cx, g.cy, GREEN_RAISE);
+    const rings: Array<{ rx: number; ry: number; h: number }> = [];
+    for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
+    for (const s of skirtS) {
+      const beyond = s * FRINGE_MARGIN;
+      const tt = Math.min(1, s);
+      const fall = 1 - tt * tt * (3 - 2 * tt);
+      rings.push({
+        rx: g.rx + beyond,
+        ry: g.ry + beyond,
+        h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
+      });
+    }
+    rings.forEach((ring) => {
+      for (let a = 0; a < ANG; a++) {
+        const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
+        pushVert(wx, wy, ring.h);
+      }
+    });
+    // Fan from center to ring 0
+    for (let a = 0; a < ANG; a++) indices.push(0, 1 + ((a + 1) % ANG), 1 + a);
+    // Ring-to-ring quads
+    for (let r = 0; r < rings.length - 1; r++) {
+      const base0 = 1 + r * ANG;
+      const base1 = 1 + (r + 1) * ANG;
+      for (let a = 0; a < ANG; a++) {
+        const a2 = (a + 1) % ANG;
+        indices.push(base0 + a, base1 + a2, base1 + a);
+        indices.push(base0 + a, base0 + a2, base1 + a2);
+      }
+    }
+    const greenMesh = new Mesh('greenComplex', scene);
+    const vd = new VertexData();
+    vd.positions = positions;
+    vd.uvs = uvs;
+    vd.indices = indices;
+    const normals: number[] = [];
+    VertexData.ComputeNormals(positions, indices, normals);
+    vd.normals = normals;
+    vd.applyToMesh(greenMesh);
+    const patchTex = new DynamicTexture('greenPatch', { width: patch.canvas.width, height: patch.canvas.height }, scene, true);
+    patchTex.getContext().drawImage(patch.canvas, 0, 0);
+    patchTex.update(false);
+    patchTex.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
+    patchTex.anisotropicFilteringLevel = 8;
+    const gm = new StandardMaterial('greenComplexMat', scene);
+    gm.diffuseTexture = patchTex;
+    gm.specularColor = new Color3(0.02, 0.03, 0.02);
+    greenMesh.material = gm;
+    greenMesh.receiveShadows = true;
+  }
+
+  // ----------------------------------------------------------- tee platform
+  {
+    const p = teePlatform(hole);
+    // Babylon Y-rotation for a world-space axis direction (w2b flips world y)
+    const rotY = Math.atan2(p.ay, p.ax);
+    const base = MeshBuilder.CreateBox('teeBase', { width: p.w, depth: p.d, height: TEE_TOP - 0.22 }, scene);
+    base.material = mat(scene, 'teeBaseMat', shade(theme.fairway, 0.5));
+    base.position = w2b(p.cx, p.cy, (TEE_TOP - 0.22) / 2);
+    base.rotation.y = rotY;
+    const top = MeshBuilder.CreateBox('teeTop', { width: p.w + 1.2, depth: p.d + 1.2, height: 0.24 }, scene);
+    top.material = mat(scene, 'teeTopMat', shade(theme.fairway, 1.12));
+    top.position = w2b(p.cx, p.cy, TEE_TOP - 0.12);
+    top.rotation.y = rotY;
+    top.receiveShadows = true;
+    shadows.addShadowCaster(base);
+    // Tee markers at the front corners of the pad
+    const markerMat = mat(scene, 'teeMarkerMat', 0xf2efe4, { emissive: 0x4a4638, spec: 0.2 });
+    for (const side of [-1, 1]) {
+      const mx = hole.tee.x - p.ay * side * (p.w / 2 - 2.4);
+      const my = hole.tee.y + p.ax * side * (p.w / 2 - 2.4);
+      const marker = MeshBuilder.CreateSphere(`teeMarker${side}`, { diameter: 1.5, segments: 10 }, scene);
+      marker.material = markerMat;
+      marker.position = w2b(mx, my, TEE_TOP + 0.5);
+      shadows.addShadowCaster(marker);
+    }
+  }
+
+  // ------------------------------------------------------------ bunker lips
+  // Raised sand lips trace each bunker outline so traps read as dug features,
+  // not painted patches (full dished terrain arrives with the heightfield).
+  {
+    const lipMat = mat(scene, 'bunkerLip', shade(theme.sand, 1.12), { spec: 0.05 });
+    let bi = 0;
+    for (const hz of hole.hazards) {
+      if (hz.type !== 'bunker') continue;
+      const path = [...hz.polygon, hz.polygon[0]].map(([x, y]) => w2b(x, y, 0.18));
+      const lip = MeshBuilder.CreateTube(`bunkerLip${bi++}`, { path, radius: 1.0, tessellation: 8 }, scene);
+      lip.material = lipMat;
+      lip.receiveShadows = true;
+    }
+  }
 
   // ------------------------------------------------------------------ water
   for (const hz of hole.hazards) {
@@ -362,17 +561,17 @@ export function buildCourse(
     bark: theme.treeTrunk,
     foliage: theme.treeCanopy,
     foliageLight: theme.treeCanopyLight,
-    grass: shade(theme.rough, 1.4),
-    stone: 0x9d9a90
+    grass: shade(theme.rough, 1.1),
+    stone: 0x7e7c72
   };
   const treeRoot = new TransformNode('nature', scene);
   void loadNaturePrototypes(scene, natPalette).then((protos) => {
     const pick = (keys: readonly string[]): NatureProto[] =>
       keys.map((k) => protos.get(k)).filter((p): p is NatureProto => !!p);
     const trees = pick(TREE_KEYS);
-    const stones = pick(STONE_KEYS);
     const bushes = pick(BUSH_KEYS);
     const grasses = pick(GRASS_KEYS);
+    const flowers = pick(FLOWER_KEYS);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
     // into the course texture (collectTreeBlobs), and adding the native-scale
     // prototypes as shadow casters would blow up the directional light's
@@ -435,39 +634,69 @@ export function buildCourse(
         const roll = hash2(xx + 91, yy + 47);
         if (surf === 'fairway') {
           // Short, dense mown tufts (kept low so they never block the ball read).
-          if (roll < 0.5) place(grasses, jx, jy, 1.4 + hash2(jx, jy) * 0.9, 3);
+          if (roll < 0.62) place(grasses, jx, jy, 1.3 + hash2(jx, jy) * 0.9, 3);
         } else {
-          // Longer rough grass, plus the occasional bush/stone.
-          if (roll < 0.4) place(grasses, jx, jy, 4.2 + hash2(jx, jy) * 2.6, 3);
-          else if (roll < 0.46) place(bushes, jx, jy, 5.5 + hash2(jy, jx) * 2.5, 7);
-          else if (roll < 0.495) place(stones, jx, jy, 3.2 + hash2(jx + 1, jy) * 4.0, 11);
+          // Longer rough grass, plus the occasional bush/stone/flower.
+          if (roll < 0.5) place(grasses, jx, jy, 4.0 + hash2(jx, jy) * 2.6, 3);
+          else if (roll < 0.55) place(bushes, jx, jy, 4.6 + hash2(jy, jx) * 2.2, 7);
+          else if (roll < 0.59) place(flowers, jx, jy, 2.6 + hash2(jx + 3, jy) * 1.4, 13);
         }
       }
     }
   });
 
   // -------------------------------------------------------------------- pin
+  // The pin lives on a root node that scales with camera distance (with a
+  // minimum on-screen size), so the flag stays findable even on a 560yd tee
+  // shot — the Tiger-Woods-style "always visible target".
+  const pinBaseH = greenLift(hole.pin.x, hole.pin.y, hole);
+  const pinRoot = new TransformNode('pinRoot', scene);
+  pinRoot.position = w2b(hole.pin.x, hole.pin.y, pinBaseH);
   const pole = MeshBuilder.CreateCylinder('pole', { diameter: 0.55, height: 12, tessellation: 8 }, scene);
   pole.material = mat(scene, 'poleMat', 0xf5f5f0, { emissive: 0x555550 });
-  pole.position = w2b(hole.pin.x, hole.pin.y, 6);
+  pole.position = new Vector3(0, 6, 0);
+  pole.parent = pinRoot;
   const flag = MeshBuilder.CreatePlane('flag', { width: 5.4, height: 3.2 }, scene);
   const flagMat = mat(scene, 'flagMat', 0xd23c3c, { emissive: 0x7c1f1f, spec: 0.1 });
   flagMat.backFaceCulling = false;
   flag.material = flagMat;
-  flag.position = w2b(hole.pin.x + 2.7, hole.pin.y, 10.2);
+  flag.position = new Vector3(2.7, 10.2, 0);
+  flag.parent = pinRoot;
   scene.onBeforeRenderObservable.add(() => {
     const t = animTime();
     flag.rotation.y = Math.sin(t * 3.1) * 0.28;
     flag.rotation.z = Math.sin(t * 5.3) * 0.06;
+    const cam = scene.activeCamera;
+    if (cam) {
+      const d = Vector3.Distance(cam.position, pinRoot.position);
+      pinRoot.scaling.setAll(Math.min(4.6, Math.max(1, d / 240)));
+    }
   });
   shadows.addShadowCaster(pole);
   shadows.addShadowCaster(flag);
 
-  // Cup: small dark disc at the pin
+  // Cup: small dark disc at the pin, sitting on the green plateau
   const cup = MeshBuilder.CreateDisc('cup', { radius: 1.15, tessellation: 20 }, scene);
   cup.rotation.x = Math.PI / 2;
   cup.material = mat(scene, 'cupMat', 0x0c2410, { emissive: 0x081a0b });
-  cup.position = w2b(hole.pin.x, hole.pin.y, 0.06);
+  cup.position = w2b(hole.pin.x, hole.pin.y, pinBaseH + 0.06);
+
+  // Aim-mode highlight: a soft ring around the whole green complex so the
+  // target reads from any distance in the setup/aerial views.
+  const greenRing = MeshBuilder.CreateTorus('greenRing', { diameter: 2, thickness: 0.055, tessellation: 64 }, scene);
+  greenRing.scaling = new Vector3(hole.green.rx + FRINGE_MARGIN + 9, 18, hole.green.ry + FRINGE_MARGIN + 9);
+  if (hole.green.rot) greenRing.rotation.y = hole.green.rot;
+  greenRing.position = w2b(hole.green.cx, hole.green.cy, GREEN_RAISE + 0.4);
+  const ringMat = new StandardMaterial('greenRingMat', scene);
+  ringMat.emissiveColor = new Color3(1, 0.93, 0.55);
+  ringMat.disableLighting = true;
+  ringMat.alpha = 0.5;
+  greenRing.material = ringMat;
+  scene.onBeforeRenderObservable.add(() => {
+    if (!greenRing.isEnabled()) return;
+    ringMat.alpha = 0.38 + 0.16 * Math.sin(animTime() * 2.2);
+  });
+  greenRing.setEnabled(false);
 
   // ----------------------------------------------------------------- petals
   // A sparse drift of blossom petals around the camera keeps the air alive
@@ -542,7 +771,7 @@ export function buildCourse(
   gridTex.update(false);
   gridTex.hasAlpha = true;
   const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 1 }, scene);
-  puttGrid.position = new Vector3(g.cx, 0.14, -g.cy);
+  puttGrid.position = new Vector3(g.cx, GREEN_RAISE + 0.14, -g.cy);
   // Match an angled (kidney/oval) green so the clipped grid tracks its shape.
   if (g.rot) puttGrid.rotation.y = g.rot;
   const gridMat = new StandardMaterial('puttGridMat', scene);
@@ -600,5 +829,13 @@ export function buildCourse(
   cupRing.parent = puttGrid;
   cupRing.position = new Vector3(hole.pin.x - g.cx, -0.02, -(hole.pin.y - g.cy));
 
-  return { sun, shadows, pin: [pole, flag], puttGrid };
+  return {
+    sun,
+    shadows,
+    pin: [pole, flag],
+    puttGrid,
+    greenRing,
+    groundHeightAt: (x: number, y: number): number =>
+      onTeePlatform(x, y, hole) ? TEE_TOP : Math.max(greenLift(x, y, hole), heightAt(x, y))
+  };
 }

@@ -21,6 +21,7 @@ import { CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wi
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
+import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AIController } from '../systems/AIController';
@@ -105,7 +106,7 @@ interface RoundState {
 }
 
 const COURSES: Record<string, CourseData> = {
-  wildwood: wildwood as CourseData
+  wildwood: loadCourse(wildwood as unknown as CourseAuthoring)
 };
 
 interface HoleState {
@@ -172,6 +173,7 @@ class HoleScene {
   private get ai(): AIController | null {
     return this.ais[this.turnIdx];
   }
+  private course3d!: ReturnType<typeof buildCourse>;
   private ballShadow;
   private bsMat: StandardMaterial;
   private camera: FreeCamera;
@@ -204,7 +206,8 @@ class HoleScene {
     this.aim = new AimControl(this.hole, this.engine2d);
     // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
-    const { shadows, puttGrid } = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
+    this.course3d = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
+    const { shadows, puttGrid } = this.course3d;
     this.puttGrid = puttGrid;
 
     // One golfer, ball and (for AI) brain per competitor. In solo that's one;
@@ -303,7 +306,7 @@ class HoleScene {
   }
 
   private landingPuff(x: number, y: number, sandy: boolean): void {
-    (this.puff.emitter as Vector3).copyFrom(w2b(x, y, 0.5));
+    (this.puff.emitter as Vector3).copyFrom(w2b(x, y, 0.5 + this.gh(x, y)));
     const c = sandy ? new Color4(0.93, 0.86, 0.66, 0.85) : new Color4(1, 1, 0.98, 0.7);
     this.puff.color1 = c;
     this.puff.color2 = new Color4(c.r, c.g, c.b, 0.45);
@@ -317,6 +320,11 @@ class HoleScene {
   /** The competitor whose turn it is. */
   private curPart(): Participant {
     return this.comps[this.turnIdx].part;
+  }
+
+  /** Cosmetic ground height (green plateau / tee platform) under a world point. */
+  private gh(x: number, y: number): number {
+    return this.course3d.groundHeightAt(x, y);
   }
 
   /** A competitor is finished on the hole when holed or at the stroke cap. */
@@ -347,8 +355,9 @@ class HoleScene {
     // Show only the active golfer; park each ball at its stored lie
     this.golfers.forEach((g, i) => g.root.setEnabled(i === this.turnIdx));
     this.balls.forEach((b, i) => {
-      b.position = w2b(this.comps[i].ball.x, this.comps[i].ball.y, HoleScene.BALL_REST);
-      b.setEnabled(!this.comps[i].holed);
+      const c = this.comps[i];
+      b.position = w2b(c.ball.x, c.ball.y, HoleScene.BALL_REST + this.gh(c.ball.x, c.ball.y));
+      b.setEnabled(!c.holed);
     });
     this.syncStateFromComp();
     return true;
@@ -486,11 +495,15 @@ class HoleScene {
       const ang = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
       this.dropAt(h.pin.x + Math.cos(ang) * 22, h.pin.y + Math.sin(ang) * 22);
     } else if (cam === 'approach') {
-      // Approach framing: ball in the fairway ~150yd out, descent cam on the green
+      // Approach framing: ball in the fairway ~150yd out, then a raised 3/4
+      // view that frames the whole green complex as the target
       const ang = Math.atan2(h.tee.y - h.pin.y, h.tee.x - h.pin.x);
       this.dropAt(h.pin.x + Math.cos(ang) * 300, h.pin.y + Math.sin(ang) * 300);
       const dir = Math.atan2(h.pin.y - this.state.ballPos.y, h.pin.x - this.state.ballPos.x);
-      this.setCamDescent({ x: h.pin.x, y: h.pin.y }, dir);
+      const f = this.fwd3(dir);
+      const pin3 = w2b(h.pin.x, h.pin.y, 0);
+      this.camTarget.pos = pin3.subtract(f.scale(130)).add(new Vector3(0, 62, 0));
+      this.camTarget.look = pin3;
     } else if (cam === 'aerial') {
       this.aerial = true;
       this.setCamSetup();
@@ -521,11 +534,13 @@ class HoleScene {
     }
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
-    this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
+    const bp = this.state.ballPos;
+    this.golfer.placeAt(bp.x, bp.y, this.aim.yaw, this.gh(bp.x, bp.y));
     this.golfer.setPose(0);
     this.golfer.aiming = true;
-    this.ball.position = w2b(this.state.ballPos.x, this.state.ballPos.y, HoleScene.BALL_REST);
+    this.ball.position = w2b(bp.x, bp.y, HoleScene.BALL_REST + this.gh(bp.x, bp.y));
     this.puttGrid.setEnabled(this.aim.isPutting);
+    this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
     promptEl.textContent = this.aim.isPutting
@@ -580,10 +595,12 @@ class HoleScene {
     const by = this.state.ballPos.y;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
-      dot.position = w2b(bx + (target.x - bx) * f, by + (target.y - by) * f, 0.12);
+      const dx = bx + (target.x - bx) * f;
+      const dy = by + (target.y - by) * f;
+      dot.position = w2b(dx, dy, 0.12 + this.gh(dx, dy));
       dot.scaling.setAll(dotScale);
     });
-    this.aimRing.position = w2b(target.x, target.y, 0.12);
+    this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
     this.aimRing.scaling.setAll(dotScale);
   }
 
@@ -591,6 +608,7 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
     this.aim.cycleClub(dir, this.ctx());
     this.puttGrid.setEnabled(this.aim.isPutting);
+    this.course3d.greenRing.setEnabled(!this.aim.isPutting);
     meter.arm({
       stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
@@ -621,7 +639,7 @@ class HoleScene {
     this.aim.setClubById(decision.club.id);
     this.aim.yaw = decision.aimAngle;
     this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
-    this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
+    this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
@@ -668,6 +686,7 @@ class HoleScene {
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
     this.aimRoot.setEnabled(false);
+    this.course3d.greenRing.setEnabled(false);
     this.aerial = false;
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
@@ -802,7 +821,7 @@ class HoleScene {
       if (!this.aim.isDragging || this.state.phase !== 'aiming' || meter.isActive) return;
       // Horizontal rotates the aim; vertical moves it nearer/farther.
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
-      this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
+      this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
       this.setCamSetup();
       this.updateAimVisuals();
       this.updateHud();
@@ -861,7 +880,7 @@ class HoleScene {
         this.afterShot(outcome);
       } else {
         const p = path[i];
-        this.ball.position = w2b(p.x, p.y, p.z + HoleScene.BALL_REST);
+        this.ball.position = w2b(p.x, p.y, p.z + HoleScene.BALL_REST + this.gh(p.x, p.y));
         if (!this.flight.landed && p.z <= 0.01 && i > 4) {
           this.flight.landed = true;
           if (!this.flight.isPutt) {
@@ -882,9 +901,10 @@ class HoleScene {
       }
     }
 
-    // Blob shadow tracks the ball's ground point
-    const hgt = Math.max(0, this.ball.position.y - HoleScene.BALL_REST);
-    this.ballShadow.position.set(this.ball.position.x, 0.07, this.ball.position.z);
+    // Blob shadow tracks the ball's ground point (on the local built surface)
+    const groundH = this.gh(this.ball.position.x, -this.ball.position.z);
+    const hgt = Math.max(0, this.ball.position.y - HoleScene.BALL_REST - groundH);
+    this.ballShadow.position.set(this.ball.position.x, groundH + 0.07, this.ball.position.z);
     const spread = 1 + Math.min(2.2, hgt * 0.014);
     this.ballShadow.scaling.set(spread, spread, spread);
     this.bsMat.alpha = 0.3 / (1 + hgt * 0.02);

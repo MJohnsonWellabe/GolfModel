@@ -12,8 +12,9 @@ import {
   Wind
 } from '../core/types';
 
-/** Fringe ring width around the green, world px. */
-const FRINGE_MARGIN = 20;
+/** Fringe ring width around the green, world px. Wide enough that the mown
+ *  collar still reads at gameplay camera distance (survives mip averaging). */
+export const FRINGE_MARGIN = 32;
 
 export interface ShotParams {
   origin: Point;

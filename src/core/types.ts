@@ -126,6 +126,8 @@ export interface HoleData {
   yardage: number;
   world: { width: number; height: number };
   tee: Point;
+  /** Footprint (world px) of the built tee platform; default when omitted. */
+  teeBox?: { w: number; d: number };
   green: EllipseArea;
   /** Break on the putting surface. */
   slope: GreenSlope;

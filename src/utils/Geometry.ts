@@ -58,3 +58,66 @@ export function gaussian(mean = 0, sigma = 1): number {
 export function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
+
+/**
+ * Catmull-Rom sample an open polyline of k-dimensional points (endpoints
+ * duplicated so the curve passes through them). Returns the interpolated
+ * points including both endpoints. Used by the course loader to turn a
+ * fairway centerline + widths into a smooth organic ribbon.
+ */
+export function catmullRom(points: number[][], samplesPerSeg = 8): number[][] {
+  if (points.length < 2) return points.map((p) => [...p]);
+  const dims = points[0].length;
+  const at = (i: number): number[] => points[Math.max(0, Math.min(points.length - 1, i))];
+  const out: number[][] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const p0 = at(i - 1);
+    const p1 = at(i);
+    const p2 = at(i + 1);
+    const p3 = at(i + 2);
+    const last = i === points.length - 2;
+    const steps = last ? samplesPerSeg + 1 : samplesPerSeg; // include final endpoint once
+    for (let s = 0; s < steps; s++) {
+      const t = s / samplesPerSeg;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const pt: number[] = new Array(dims);
+      for (let d = 0; d < dims; d++) {
+        pt[d] =
+          0.5 *
+          (2 * p1[d] +
+            (-p0[d] + p2[d]) * t +
+            (2 * p0[d] - 5 * p1[d] + 4 * p2[d] - p3[d]) * t2 +
+            (-p0[d] + 3 * p1[d] - 3 * p2[d] + p3[d]) * t3);
+      }
+      out.push(pt);
+    }
+  }
+  return out;
+}
+
+/**
+ * Offset an open polyline by per-point half-widths on both sides and join
+ * the two edges into one closed polygon (a ribbon). Normals average the
+ * adjacent segment directions so joints stay smooth.
+ */
+export function offsetPolyline(line: Point[], halfWidths: number[]): Polygon {
+  const n = line.length;
+  if (n < 2) return [];
+  const left: number[][] = [];
+  const right: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = line[Math.max(0, i - 1)];
+    const next = line[Math.min(n - 1, i + 1)];
+    const dx = next.x - prev.x;
+    const dy = next.y - prev.y;
+    const len = Math.hypot(dx, dy) || 1;
+    // Unit normal (left of travel direction)
+    const nx = -dy / len;
+    const ny = dx / len;
+    const hw = halfWidths[Math.min(i, halfWidths.length - 1)];
+    left.push([line[i].x + nx * hw, line[i].y + ny * hw]);
+    right.push([line[i].x - nx * hw, line[i].y - ny * hw]);
+  }
+  return [...left, ...right.reverse()];
+}

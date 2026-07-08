@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "fbx2gltf": "^0.9.7-p1",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vitest": "^4.1.10"
