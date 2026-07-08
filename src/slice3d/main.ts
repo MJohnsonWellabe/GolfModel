@@ -134,11 +134,6 @@ function windForHole(idx: number): Wind {
   return round.holeWinds[idx];
 }
 
-/** The participant playing the active hole. */
-function active(): Participant {
-  return round.players[round.activePlayer];
-}
-
 /** Score vs par across a participant's completed holes, broadcast style. */
 function scoreToPar(p: Participant): string {
   let diff = 0;
@@ -156,8 +151,21 @@ class HoleScene {
   private engine2d: PhysicsEngine;
   private hole = round.course.holes[round.holeIdx];
   private theme = resolveTheme(round.course);
-  private golfer: Golfer3D;
-  private ball;
+  private golfers: Golfer3D[] = [];
+  private balls: Mesh[] = [];
+  private ais: (AIController | null)[] = [];
+  /** Per-competitor state for this hole (1 for solo, 2 for 1v1/scramble). */
+  private comps: Array<{ ball: { x: number; y: number }; lie: HoleState['lie']; strokes: number; holed: boolean; part: Participant }> = [];
+  private turnIdx = 0;
+  private get golfer(): Golfer3D {
+    return this.golfers[this.turnIdx];
+  }
+  private get ball(): Mesh {
+    return this.balls[this.turnIdx];
+  }
+  private get ai(): AIController | null {
+    return this.ais[this.turnIdx];
+  }
   private ballShadow;
   private bsMat: StandardMaterial;
   private camera: FreeCamera;
@@ -180,26 +188,33 @@ class HoleScene {
     trail: TrailMesh | null;
   } | null = null;
   private disposed = false;
-  private ai: AIController | null = null;
   private static BALL_REST = 0.5;
 
-  constructor(private onHoleComplete: (strokes: number) => void) {
+  constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
     this.engine2d = new PhysicsEngine(this.hole);
     this.aim = new AimControl(this.hole, this.engine2d);
-    // Shared per-hole conditions (fair across 1v1 players)
+    // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
-    if (active().isAI) this.ai = new AIController(active().golfer, new FireSystem());
     const { shadows, puttGrid } = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
     this.puttGrid = puttGrid;
-    this.golfer = new Golfer3D(this.scene, active().golfer.look, shadows);
 
-    this.ball = MeshBuilder.CreateSphere('ball', { diameter: 1.0, segments: 12 }, this.scene);
-    const ballMat = new StandardMaterial('ballMat', this.scene);
-    ballMat.diffuseColor = new Color3(0.97, 0.97, 0.95);
-    ballMat.specularColor = new Color3(0.5, 0.5, 0.5);
-    this.ball.material = ballMat;
-    shadows.addShadowCaster(this.ball);
+    // One golfer, ball and (for AI) brain per competitor. In solo that's one;
+    // in 1v1/scramble the two play the hole with alternating turns.
+    round.players.forEach((part, i) => {
+      const g = new Golfer3D(this.scene, part.golfer.look, shadows);
+      g.root.setEnabled(false);
+      this.golfers.push(g);
+      const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
+      const bm = new StandardMaterial(`ballMat${i}`, this.scene);
+      bm.diffuseColor = new Color3(0.97, 0.97, 0.95);
+      bm.specularColor = new Color3(0.5, 0.5, 0.5);
+      b.material = bm;
+      shadows.addShadowCaster(b);
+      this.balls.push(b);
+      this.ais.push(part.isAI ? new AIController(part.golfer, new FireSystem()) : null);
+      this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, part });
+    });
 
     this.ballShadow = MeshBuilder.CreateDisc('ballShadow', { radius: 0.7, tessellation: 16 }, this.scene);
     this.ballShadow.rotation.x = Math.PI / 2;
@@ -244,7 +259,7 @@ class HoleScene {
       strokes: 0,
       phase: 'intro',
       holeIdx: round.holeIdx,
-      scores: active().scores
+      scores: this.curPart().scores
     };
 
     this.wireInput();
@@ -287,7 +302,47 @@ class HoleScene {
   }
 
   private ctx(): ShotContext {
-    return { ball: this.state.ballPos, lie: this.state.lie, golfer: active().golfer, fireBoost: 0 };
+    return { ball: this.state.ballPos, lie: this.state.lie, golfer: this.curPart().golfer, fireBoost: 0 };
+  }
+
+  /** The competitor whose turn it is. */
+  private curPart(): Participant {
+    return this.comps[this.turnIdx].part;
+  }
+
+  /** A competitor is finished on the hole when holed or at the stroke cap. */
+  private compDone(c: (typeof this.comps)[number]): boolean {
+    return c.holed || c.strokes >= RULES.maxStrokes;
+  }
+
+  /** Copy the current competitor's stored ball/lie/strokes into this.state. */
+  private syncStateFromComp(): void {
+    const c = this.comps[this.turnIdx];
+    this.state.ballPos = { ...c.ball };
+    this.state.lie = c.lie;
+    this.state.strokes = c.strokes;
+  }
+
+  /**
+   * Choose who plays next: the unfinished competitor farthest from the pin
+   * (the standard "away plays first" rule, which naturally alternates in a
+   * 1v1). Returns false when every competitor has finished the hole.
+   */
+  private advanceTurn(): boolean {
+    const live = this.comps
+      .map((c, i) => ({ c, i }))
+      .filter(({ c }) => !this.compDone(c));
+    if (!live.length) return false;
+    live.sort((a, b) => this.engine2d.yardsToPin(b.c.ball) - this.engine2d.yardsToPin(a.c.ball));
+    this.turnIdx = live[0].i;
+    // Show only the active golfer; park each ball at its stored lie
+    this.golfers.forEach((g, i) => g.root.setEnabled(i === this.turnIdx));
+    this.balls.forEach((b, i) => {
+      b.position = w2b(this.comps[i].ball.x, this.comps[i].ball.y, HoleScene.BALL_REST);
+      b.setEnabled(!this.comps[i].holed);
+    });
+    this.syncStateFromComp();
+    return true;
   }
 
   private fwd3(yaw: number): Vector3 {
@@ -398,7 +453,16 @@ class HoleScene {
   // ---------------------------------------------------------------- turns
 
   beginTurn(): void {
+    // Pick who's away and sync their stored ball/lie into play. If everyone
+    // has finished, the hole is over.
+    if (!this.advanceTurn()) {
+      this.finishHole();
+      return;
+    }
     this.state.phase = 'aiming';
+    if (round.mode !== 'solo') {
+      showMsg(`${this.curPart().golfer.name} to play`, 900);
+    }
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
     this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
@@ -424,7 +488,7 @@ class HoleScene {
     }
     // Human turn: arm the meter and leave it on screen showing the target
     meter.arm({
-      stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
+      stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting
     });
@@ -459,7 +523,7 @@ class HoleScene {
     this.aim.cycleClub(dir, this.ctx());
     this.puttGrid.setEnabled(this.aim.isPutting);
     meter.arm({
-      stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
+      stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting
     });
@@ -482,7 +546,7 @@ class HoleScene {
 
   /** AI opponent: pick a shot with AIController and play it (no meter). */
   private aiTurn(): void {
-    promptEl.textContent = `${active().golfer.name} is playing…`;
+    promptEl.textContent = `${this.curPart().golfer.name} is playing…`;
     const decision = this.ai!.decide(this.state.ballPos, this.state.lie, this.wind, this.hole);
     this.aim.setClubById(decision.club.id);
     this.aim.yaw = decision.aimAngle;
@@ -509,9 +573,9 @@ class HoleScene {
       `<div class="row"><span class="chip club">${club.name}</span><span class="chip">${distLabel}</span>` +
       `<span class="chip wind"><span class="arrow" style="transform:rotate(${rel}rad)">➤</span> ${this.wind.speed}</span></div>` +
       `<div class="row"><span class="chip pin">⛳ ${pinLabel}</span><span class="chip">${this.state.lie}</span>` +
-      `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(active())}</span></div>` +
-      (round.mode === '1v1'
-        ? `<div class="row"><span class="chip player">${active().golfer.name}${active().isAI ? ' (AI)' : ''}</span></div>`
+      `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(this.curPart())}</span></div>` +
+      (round.mode !== 'solo'
+        ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
         : '');
   }
 
@@ -548,7 +612,7 @@ class HoleScene {
       aimAngle: this.aim.yaw,
       swing: converted,
       club,
-      golfer: active().golfer,
+      golfer: this.curPart().golfer,
       fireBoost: 0,
       lie: this.state.lie,
       wind: this.wind,
@@ -601,30 +665,42 @@ class HoleScene {
   private afterShot(outcome: ShotOutcome): void {
     this.state.ballPos = { ...outcome.finalPos };
     this.state.lie = outcome.surface;
+    // Persist this shot's result back onto the competitor who played it
+    const c = this.comps[this.turnIdx];
+    c.ball = { ...outcome.finalPos };
+    c.lie = outcome.surface;
+    c.strokes = this.state.strokes;
+
     if (outcome.holed) {
       play('hole');
-      showMsg(scoreName(this.state.strokes, this.hole.par), 2200);
+      c.holed = true;
+      showMsg(`${this.curPart().golfer.name}: ${scoreName(this.state.strokes, this.hole.par)}`, 2200);
       if (this.state.strokes < this.hole.par) setTimeout(() => play('chime'), 450);
       this.golfer.react('celebrate');
-      this.state.phase = 'done';
-      setTimeout(() => this.onHoleComplete(this.state.strokes), 2600);
-      return;
-    }
-    if (outcome.waterPenalty) {
+    } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
       this.golfer.react('deject');
     }
-    // Pick up at the stroke cap so a rough hole ends like the 2D game
-    if (this.state.strokes >= RULES.maxStrokes) {
+    if (this.state.strokes >= RULES.maxStrokes && !c.holed) {
       showMsg(`Pick up — max ${RULES.maxStrokes}`, 1600);
-      this.state.phase = 'done';
-      setTimeout(() => this.onHoleComplete(this.state.strokes), 1800);
-      return;
     }
+
+    // Hole over when every competitor has holed / picked up; otherwise the
+    // away player plays next (which alternates naturally in a 1v1).
+    const allDone = this.comps.every((cc) => this.compDone(cc));
+    const delay = outcome.holed ? 2400 : 700;
+    this.state.phase = allDone ? 'done' : this.state.phase;
     setTimeout(() => {
-      if (!this.disposed) this.beginTurn();
-    }, 700);
+      if (this.disposed) return;
+      if (allDone) this.finishHole();
+      else this.beginTurn();
+    }, delay);
+  }
+
+  private finishHole(): void {
+    this.state.phase = 'done';
+    this.onHoleComplete(this.comps.map((c) => c.strokes));
   }
 
   // ---------------------------------------------------------------- input
@@ -638,7 +714,7 @@ class HoleScene {
       meterEl.style.display = 'block';
       if (!meter.isArmed) {
         meter.arm({
-          stat: statsForClub(this.aim.club, active().golfer, 0).accuracy,
+          stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
           powerTarget: this.aim.barPowerTarget(this.ctx()),
           isPutt: this.aim.isPutting
         });
@@ -754,10 +830,13 @@ class HoleScene {
     this.scene.render();
   }
 
-  /** Test hook: place the ball anywhere and start a fresh turn there. */
+  /** Test hook: place the current competitor's ball anywhere and re-tee. */
   dropAt(x: number, y: number): void {
-    this.state.ballPos = { x, y };
-    this.state.lie = this.engine2d.surfaceAt(x, y);
+    const c = this.comps[this.turnIdx];
+    c.ball = { x, y };
+    c.lie = this.engine2d.surfaceAt(x, y);
+    c.holed = false;
+    c.strokes = 0;
     this.beginTurn();
   }
 
@@ -783,18 +862,14 @@ class HoleScene {
 let current: HoleScene | null = null;
 const holesThisRound = (): number => Math.min(RULES.holesPerRound, round.course.holes.length);
 
-/** Play the active participant's ball on the current hole. */
+/** Play one hole. Every competitor plays it in a single scene (alternating
+ *  turns for 1v1/scramble); the callback returns each competitor's strokes. */
 function playHole(): void {
   current?.dispose();
-  current = new HoleScene((strokes) => {
-    active().scores[round.holeIdx] = strokes;
-    // In 1v1 both players finish the hole before advancing
-    if (round.activePlayer < round.players.length - 1) {
-      round.activePlayer += 1;
-      playHole();
-      return;
-    }
-    round.activePlayer = 0;
+  current = new HoleScene((scores) => {
+    round.players.forEach((p, i) => {
+      p.scores[round.holeIdx] = scores[i] ?? 0;
+    });
     round.holeIdx += 1;
     if (round.holeIdx < holesThisRound()) {
       playHole();
@@ -863,7 +938,6 @@ function exposeDebug(): void {
         state: current.state,
         scene: current.scene,
         mode: round.mode,
-        activePlayer: round.activePlayer,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         skipIntro: () => {
           bannerEl.style.opacity = '0';
