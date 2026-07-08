@@ -353,14 +353,25 @@ export class PhysicsEngine {
         z += vz * dt;
 
         const ground = this.groundAt(x, y);
-        // Tree canopy collision on the way down (or flying low)
+        // Tree collision: a ball descending into the canopy — or a genuine low
+        // liner (still under the trunk band while climbing) — that is inside a
+        // tree polygon gets stopped. A high drive clearing an edge treeline is
+        // above the liner band by then, so it sails over untouched (preserves
+        // Wildwood's balance). Impact kills vertical carry and cuts horizontal
+        // speed to a small, capped fraction of the impact speed.
+        // Tree collision on the way down: a ball descending into the canopy
+        // inside a tree polygon is stopped — vertical carry killed and
+        // horizontal speed cut to a small, capped fraction of impact speed, so
+        // a drive into a mid-fairway tree drops near it instead of sailing on.
         if (z > ground && z - ground < PHYSICS.treeHeight && vz < 0 && this.inTrees(x, y)) {
           hitTrees = true;
           z = ground;
+          vz = 0;
           const speed = Math.hypot(vx, vy);
           if (speed > 0) {
-            vx = (vx / speed) * 40;
-            vy = (vy / speed) * 40;
+            const out = Math.min(speed * PHYSICS.treeDamp, PHYSICS.treeKillSpeed);
+            vx = (vx / speed) * out;
+            vy = (vy / speed) * out;
           }
           rolling = true;
         } else if (z <= ground) {

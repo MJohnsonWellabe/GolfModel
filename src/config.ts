@@ -86,6 +86,10 @@ export const PHYSICS = {
   windRefHeight: 45,
   /** Height (world px) below which tree polygons block ball flight. */
   treeHeight: 55,
+  /** A ball that strikes a tree keeps this fraction of its impact speed… */
+  treeDamp: 0.35,
+  /** …capped here (world px/s) — a fast liner drops dead, a slow one dribbles. */
+  treeKillSpeed: 30,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
   /** Cup capture radius, world px (0.45yd — Appendix A make-rate pass). */
