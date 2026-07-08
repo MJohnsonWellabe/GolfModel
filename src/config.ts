@@ -11,6 +11,20 @@ export const GAME_HEIGHT = 1280;
  */
 export const LEADERBOARD_URL = 'https://golfgame-9c11e-default-rtdb.firebaseio.com';
 
+/**
+ * Firebase web-app config (Phase 5 accounts & cloud saves). These values are
+ * PUBLIC identifiers (security lives in the database rules) — paste them from
+ * the Firebase console per docs/FIREBASE_SETUP.md. Empty apiKey = the whole
+ * auth/cloud-save layer stays dormant and the game runs local-only.
+ */
+export const FIREBASE = {
+  apiKey: '',
+  authDomain: '',
+  projectId: 'golfgame-9c11e',
+  appId: '',
+  databaseURL: LEADERBOARD_URL
+} as const;
+
 /** World pixels per yard — every distance in the game maps through this. */
 export const PX_PER_YARD = 2.0;
 

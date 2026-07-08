@@ -25,6 +25,8 @@ import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { cloudSyncProfile } from '../firebase/FirebaseClient';
+import { loadProfile, PlayerProfile, saveProfile } from '../profile/Profile';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
@@ -1327,13 +1329,23 @@ const stepBodyEl = document.getElementById('stepBody')!;
 const backBtn = document.getElementById('backBtn') as HTMLButtonElement;
 const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
 
-/** The setup choices, built up across the wizard steps. */
+/** Persistent player profile — selections, currency, progression, stats. */
+const profile: PlayerProfile = loadProfile();
+// Fire-and-forget cloud sync (no-op until Firebase is configured; see
+// docs/FIREBASE_SETUP.md). Merged result is re-persisted locally.
+void cloudSyncProfile(profile).then((merged) => {
+  Object.assign(profile, merged);
+  saveProfile(profile);
+});
+
+/** The setup choices, prefilled from the profile so returning players jump
+ *  straight to "Tee off". */
 const sel = {
   step: 0,
   mode: 'solo' as GameMode,
-  name: '',
-  character: CHARACTERS[0].key as CharacterKey,
-  archetype: ARCHETYPES[0].id as ArchetypeId,
+  name: profile.name,
+  character: (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey),
+  archetype: (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId),
   opponentId: OPPONENTS[1].id
 };
 
@@ -1528,6 +1540,11 @@ function startRound(): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  // Remember the selections for next launch (and cloud, when configured)
+  profile.name = sel.name;
+  profile.character = sel.character;
+  profile.archetype = sel.archetype;
+  saveProfile(profile);
   const golfer = assembleGolfer(sel.name, sel.character, sel.archetype);
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {

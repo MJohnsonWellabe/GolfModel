@@ -1,0 +1,175 @@
+import { ArchetypeId } from '../data/archetypes';
+import { CharacterKey } from '../data/characters';
+
+/**
+ * The player's persistent identity: selections, currency, progression and
+ * career stats. Guest-first (docs 08: "Guest Mode should always be the
+ * default experience") — stored locally from first launch, synced to the
+ * cloud once Firebase auth is configured (firebase/FirebaseClient.ts).
+ * Phases 6 (progression) and 7 (store) read and write this object.
+ */
+
+export type CosmeticKind = 'character' | 'ball' | 'trail';
+
+export interface CareerStats {
+  rounds: number;
+  holesPlayed: number;
+  totalStrokes: number;
+  birdies: number;
+  eagles: number;
+  holeInOnes: number;
+  fairwaysHit: number;
+  greensInRegulation: number;
+  puttsMade: number;
+  bestRoundToPar: number | null;
+  longestDriveYds: number;
+  longestPuttFt: number;
+}
+
+export interface PlayerProfile {
+  v: 1;
+  /** Guest id (crypto-random); replaced by the auth uid after linking. */
+  id: string;
+  name: string;
+  character: CharacterKey;
+  archetype: ArchetypeId;
+  coins: number;
+  xp: number;
+  level: number;
+  cosmetics: {
+    owned: string[];
+    equipped: Partial<Record<CosmeticKind, string>>;
+  };
+  /** Club-family upgrade tiers purchased (docs 08 §Club Upgrades). */
+  clubUpgrades: Record<string, number>;
+  achievements: string[];
+  stats: CareerStats;
+  settings: { sound: number; ambience: number; reducedMotion: boolean };
+  updatedAt: number;
+}
+
+const KEY = 'johnsons-golf-profile-v1';
+
+/** Injectable storage so tests (and headless sims) run without a DOM. */
+export interface KVStorage {
+  getItem(k: string): string | null;
+  setItem(k: string, v: string): void;
+}
+
+function defaultStorage(): KVStorage | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+export function emptyCareerStats(): CareerStats {
+  return {
+    rounds: 0,
+    holesPlayed: 0,
+    totalStrokes: 0,
+    birdies: 0,
+    eagles: 0,
+    holeInOnes: 0,
+    fairwaysHit: 0,
+    greensInRegulation: 0,
+    puttsMade: 0,
+    bestRoundToPar: null,
+    longestDriveYds: 0,
+    longestPuttFt: 0
+  };
+}
+
+export function defaultProfile(now = 0): PlayerProfile {
+  const rnd =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Math.floor(Math.random() * 1e9)}`;
+  return {
+    v: 1,
+    id: `guest-${rnd}`,
+    name: '',
+    character: 'chip',
+    archetype: 'bigHitter',
+    coins: 0,
+    xp: 0,
+    level: 1,
+    cosmetics: { owned: [], equipped: {} },
+    clubUpgrades: {},
+    achievements: [],
+    stats: emptyCareerStats(),
+    settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
+    updatedAt: now
+  };
+}
+
+export function loadProfile(storage: KVStorage | null = defaultStorage()): PlayerProfile {
+  if (!storage) return defaultProfile();
+  try {
+    const raw = storage.getItem(KEY);
+    if (!raw) return defaultProfile();
+    const parsed = JSON.parse(raw) as Partial<PlayerProfile>;
+    // Forward-compatible migrate: fill anything missing from the default
+    const base = defaultProfile();
+    return {
+      ...base,
+      ...parsed,
+      v: 1,
+      cosmetics: { ...base.cosmetics, ...(parsed.cosmetics ?? {}) },
+      clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
+      achievements: [...(parsed.achievements ?? [])],
+      stats: { ...base.stats, ...(parsed.stats ?? {}) },
+      settings: { ...base.settings, ...(parsed.settings ?? {}) }
+    };
+  } catch {
+    return defaultProfile();
+  }
+}
+
+export function saveProfile(profile: PlayerProfile, storage: KVStorage | null = defaultStorage(), now?: number): void {
+  if (!storage) return;
+  profile.updatedAt = now ?? Date.now();
+  try {
+    storage.setItem(KEY, JSON.stringify(profile));
+  } catch {
+    // Quota/private-mode failures are non-fatal — play continues in memory
+  }
+}
+
+/**
+ * Merge a local and a cloud copy of the same player. Progress is never lost:
+ * currency/xp take the max, collections union, career counters take the max
+ * (they only ever grow), preferences follow the most recently updated copy.
+ */
+export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile {
+  const newer = a.updatedAt >= b.updatedAt ? a : b;
+  const stats: CareerStats = { ...emptyCareerStats() };
+  (Object.keys(stats) as Array<keyof CareerStats>).forEach((k) => {
+    if (k === 'bestRoundToPar') {
+      const vals = [a.stats.bestRoundToPar, b.stats.bestRoundToPar].filter((v): v is number => v !== null);
+      stats.bestRoundToPar = vals.length ? Math.min(...vals) : null;
+    } else {
+      (stats[k] as number) = Math.max(a.stats[k] as number, b.stats[k] as number);
+    }
+  });
+  return {
+    ...newer,
+    coins: Math.max(a.coins, b.coins),
+    xp: Math.max(a.xp, b.xp),
+    level: Math.max(a.level, b.level),
+    cosmetics: {
+      owned: [...new Set([...a.cosmetics.owned, ...b.cosmetics.owned])],
+      equipped: newer.cosmetics.equipped
+    },
+    clubUpgrades: Object.fromEntries(
+      [...new Set([...Object.keys(a.clubUpgrades), ...Object.keys(b.clubUpgrades)])].map((k) => [
+        k,
+        Math.max(a.clubUpgrades[k] ?? 0, b.clubUpgrades[k] ?? 0)
+      ])
+    ),
+    achievements: [...new Set([...a.achievements, ...b.achievements])],
+    stats,
+    updatedAt: Math.max(a.updatedAt, b.updatedAt)
+  };
+}

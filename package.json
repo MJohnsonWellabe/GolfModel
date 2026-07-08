@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",
-    "@babylonjs/loaders": "^9.15.0"
+    "@babylonjs/loaders": "^9.15.0",
+    "firebase": "^12.15.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
