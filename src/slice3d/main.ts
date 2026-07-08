@@ -16,11 +16,11 @@ import {
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { resolveTheme } from '../core/rendering/Theme';
-import { CourseData, GameMode, Golfer, ShotOutcome, SwingResult, Wind } from '../core/types';
-import { GOLFERS } from '../data/golfers';
-import { OPPONENTS } from '../data/opponents';
-import amenCorner from '../data/courses/amenCorner.json';
-import legends from '../data/courses/legends.json';
+import { CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { assembleGolfer } from '../data/golfers';
+import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
+import { CHARACTERS, CharacterKey } from '../data/characters';
+import wildwood from '../data/courses/wildwood.json';
 import { AIController } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
 import { dist } from '../utils/Geometry';
@@ -33,7 +33,9 @@ import { DomMeter } from './meter3d';
 // ------------------------------------------------------------------- boot
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true });
+// preserveDrawingBuffer keeps the last frame readable for screenshots/share
+// captures (and reliable headless verification) at negligible cost here.
+const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true, preserveDrawingBuffer: true });
 
 const hudEl = document.getElementById('hud')!;
 const msgEl = document.getElementById('msg')!;
@@ -101,8 +103,7 @@ interface RoundState {
 }
 
 const COURSES: Record<string, CourseData> = {
-  amen: amenCorner as CourseData,
-  legends: legends as CourseData
+  wildwood: wildwood as CourseData
 };
 
 interface HoleState {
@@ -115,10 +116,10 @@ interface HoleState {
 }
 
 const round: RoundState = {
-  course: COURSES.amen,
+  course: COURSES.wildwood,
   mode: 'solo',
   holeIdx: 0,
-  players: [{ golfer: GOLFERS[0], isAI: false, scores: [] }],
+  players: [{ golfer: assembleGolfer('Player', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }],
   activePlayer: 0,
   holeWinds: []
 };
@@ -205,7 +206,7 @@ class HoleScene {
     // One golfer, ball and (for AI) brain per competitor. In solo that's one;
     // in 1v1/scramble the two play the hole with alternating turns.
     round.players.forEach((part, i) => {
-      const g = new Golfer3D(this.scene, part.golfer.look, shadows, part.golfer.model3d);
+      const g = new Golfer3D(this.scene, shadows, part.golfer.character, part.golfer.look);
       g.root.setEnabled(false);
       this.golfers.push(g);
       const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
@@ -834,6 +835,14 @@ class HoleScene {
     this.scene.render();
   }
 
+  /** Test hooks: drive the active golfer's swing pose / full swing directly. */
+  poseActive(p: number): void {
+    this.golfer.setPose(p);
+  }
+  swingActive(): void {
+    this.golfer.swing();
+  }
+
   /** Test hook: place the current competitor's ball anywhere and re-tee. */
   dropAt(x: number, y: number): void {
     const c = this.comps[this.turnIdx];
@@ -944,6 +953,8 @@ function exposeDebug(): void {
         mode: round.mode,
         bodiesReady: current.bodiesReady,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
+        poseActive: (p: number) => current?.poseActive(p),
+        swingActive: () => current?.swingActive(),
         skipIntro: () => {
           bannerEl.style.opacity = '0';
           current?.beginTurn();
@@ -955,52 +966,22 @@ function exposeDebug(): void {
 // ------------------------------------------------------------- setup menu
 
 const setupEl = document.getElementById('setup')!;
-const sel = { course: 'amen', mode: 'solo' as GameMode, golfer: 0, opponent: 0 };
+const stepsEl = document.getElementById('steps')!;
+const stepBodyEl = document.getElementById('stepBody')!;
+const backBtn = document.getElementById('backBtn') as HTMLButtonElement;
+const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
 
-/** A small chibi-face avatar built from a golfer's look colors. */
-function golferPortrait(look: (typeof GOLFERS)[number]['look']): string {
-  const cv = document.createElement('canvas');
-  cv.width = cv.height = 64;
-  const c = cv.getContext('2d')!;
-  const hex = (n: number): string => `#${(n & 0xffffff).toString(16).padStart(6, '0')}`;
-  // Shoulders / shirt
-  c.fillStyle = hex(look.shirt);
-  c.beginPath();
-  c.arc(32, 62, 24, Math.PI, 0);
-  c.fill();
-  // Head
-  c.fillStyle = hex(look.skin);
-  c.beginPath();
-  c.arc(32, 30, 20, 0, Math.PI * 2);
-  c.fill();
-  // Hair or cap
-  if (look.hat !== null) {
-    c.fillStyle = hex(look.hat);
-    c.beginPath();
-    c.arc(32, 26, 20, Math.PI, 0);
-    c.fill();
-    c.fillRect(30, 12, 22, 8); // bill
-  } else if (look.hair !== null) {
-    c.fillStyle = hex(look.hair);
-    c.beginPath();
-    c.arc(32, 24, 20, Math.PI * 1.05, Math.PI * 1.95);
-    c.fill();
-  }
-  // Eyes + smile
-  c.fillStyle = '#2e2419';
-  c.beginPath();
-  c.ellipse(25, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
-  c.ellipse(39, 30, 2.4, 3.4, 0, 0, Math.PI * 2);
-  c.fill();
-  c.strokeStyle = '#2e2419';
-  c.lineWidth = 2;
-  c.beginPath();
-  c.arc(32, 36, 7, 0.15 * Math.PI, 0.85 * Math.PI);
-  c.stroke();
-  return cv.toDataURL();
-}
+/** The three setup choices, built up across the wizard steps. */
+const sel = {
+  step: 0,
+  name: '',
+  character: CHARACTERS[0].key as CharacterKey,
+  archetype: ARCHETYPES[0].id as ArchetypeId
+};
 
-const STAT_KEYS: Array<[keyof (typeof GOLFERS)[number]['stats'], string]> = [
+const STEP_LABELS = ['Name', 'Character', 'Style'];
+
+const STAT_KEYS: Array<[StatKey, string]> = [
   ['drivingPower', 'PWR'],
   ['drivingAccuracy', 'ACC'],
   ['approach', 'APP'],
@@ -1008,127 +989,148 @@ const STAT_KEYS: Array<[keyof (typeof GOLFERS)[number]['stats'], string]> = [
   ['putting', 'PUT']
 ];
 
-function statBars(g: { stats: (typeof GOLFERS)[number]['stats'] }): string {
+function ovr(s: GolferStats): number {
+  return Math.round((s.drivingPower + s.drivingAccuracy + s.approach + s.chipping + s.putting) / 5);
+}
+
+function statBars(stats: GolferStats, signature?: StatKey): string {
   return (
     `<div class="stats">` +
     STAT_KEYS.map(
       ([k, label]) =>
-        `<div class="stat"><span class="sl">${label}</span>` +
-        `<span class="sbar"><i style="width:${g.stats[k]}%"></i></span>` +
-        `<span class="sv">${g.stats[k]}</span></div>`
+        `<div class="stat${k === signature ? ' sig' : ''}"><span class="sl">${label}</span>` +
+        `<span class="sbar"><i style="width:${stats[k]}%"></i></span>` +
+        `<span class="sv">${stats[k]}</span></div>`
     ).join('') +
     `</div>`
   );
 }
 
-function golferCard(g: (typeof GOLFERS)[number], selected: boolean, attr: string): string {
-  return (
-    `<div class="gcard${selected ? ' sel' : ''}" ${attr}>` +
-    `<img class="portrait" src="${golferPortrait(g.look)}" alt="" />` +
-    `<div class="ginfo"><div class="gname">${g.name}</div>${statBars(g)}</div>` +
-    `</div>`
+function renderSteps(): void {
+  stepsEl.innerHTML = STEP_LABELS.map(
+    (label, i) =>
+      `<div class="sdot${i === sel.step ? ' on' : i < sel.step ? ' done' : ''}">` +
+      `<span class="num">${i < sel.step ? '✓' : i + 1}</span>${label}</div>`
+  ).join('');
+}
+
+function renderName(): void {
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Who's playing?</div>` +
+    `<div class="stepHint">Enter your name for the scorecard.</div>` +
+    `<input id="nameInput" type="text" maxlength="16" placeholder="Your name"
+       autocomplete="off" autocapitalize="words" value="${escapeHtml(sel.name)}" />`;
+  const input = document.getElementById('nameInput') as HTMLInputElement;
+  input.addEventListener('input', () => {
+    sel.name = input.value;
+    updateNav();
+  });
+  input.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter' && sel.name.trim()) goStep(1);
+  });
+  setTimeout(() => input.focus(), 30);
+}
+
+function renderCharacter(): void {
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Pick your character</div>` +
+    `<div class="stepHint">Just for looks — any character plays any style.</div>` +
+    `<div class="charGrid">` +
+    CHARACTERS.map(
+      (ch) =>
+        `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
+        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
+        `<div class="cn">${ch.name}</div></div>`
+    ).join('') +
+    `</div>`;
+  stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
+      renderCharacter();
+    })
   );
 }
 
-function buildSetup(): void {
-  const courseRow = document.getElementById('pickCourse')!;
-  courseRow.innerHTML = Object.entries(COURSES)
-    .map(
-      ([key, c]) =>
-        `<div class="pick${sel.course === key ? ' sel' : ''}" data-course="${key}">${c.name}` +
-        `<span class="sub">${Math.min(RULES.holesPerRound, c.holes.length)} holes</span></div>`
-    )
-    .join('');
-  const modeRow = document.getElementById('pickMode')!;
-  const modes: Array<[GameMode, string, string]> = [
-    ['solo', 'Solo', 'Play your own round'],
-    ['1v1', '1v1 vs AI', 'Alternate-shot match'],
-    ['scramble', 'Scramble', 'Team best-ball with a partner']
-  ];
-  modeRow.innerHTML = modes
-    .map(
-      ([m, label, sub]) =>
-        `<div class="pick${sel.mode === m ? ' sel' : ''}" data-mode="${m}">${label}<span class="sub">${sub}</span></div>`
-    )
-    .join('');
-  const golferRow = document.getElementById('pickGolfer')!;
-  golferRow.innerHTML = GOLFERS.map((g, i) => golferCard(g, sel.golfer === i, `data-golfer="${i}"`)).join('');
+function renderArchetype(): void {
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Choose your style</div>` +
+    `<div class="stepHint">Each is elite in one area, solid everywhere else.</div>` +
+    `<div class="archGrid">` +
+    ARCHETYPES.map((a) => {
+      const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
+      return (
+        `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
+        `<div class="ahead"><span class="an">${a.name}</span>` +
+        `<span class="atag">${a.tagline}</span>` +
+        `<span class="aovr">OVR ${ovr(a.stats)}</span></div>` +
+        statBars(a.stats, a.signature) +
+        `</div>`
+      );
+    }).join('') +
+    `</div>`;
+  stepBodyEl.querySelectorAll('.archCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.archetype = (el as HTMLElement).dataset.arch as ArchetypeId;
+      renderArchetype();
+    })
+  );
+}
 
-  // Opponent / partner picker (legends), only for head-to-head modes
-  const oppGroup = document.getElementById('oppGroup')!;
-  const oppLabel = document.getElementById('oppLabel')!;
-  if (sel.mode === 'solo') {
-    oppGroup.style.display = 'none';
-  } else {
-    oppGroup.style.display = 'block';
-    oppLabel.textContent = sel.mode === 'scramble' ? 'Partner' : 'Opponent';
-    const oppRow = document.getElementById('pickOpponent')!;
-    oppRow.innerHTML = OPPONENTS.map((g, i) =>
-      golferCard(g, sel.opponent === i, `data-opp="${i}"`)
-    ).join('');
-    oppRow.querySelectorAll('.gcard').forEach((el) =>
-      el.addEventListener('pointerdown', () => {
-        sel.opponent = Number((el as HTMLElement).dataset.opp);
-        buildSetup();
-      })
-    );
-  }
+function renderStepBody(): void {
+  if (sel.step === 0) renderName();
+  else if (sel.step === 1) renderCharacter();
+  else renderArchetype();
+}
 
-  courseRow.querySelectorAll('.pick').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
-      sel.course = (el as HTMLElement).dataset.course!;
-      buildSetup();
-    })
-  );
-  modeRow.querySelectorAll('.pick').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
-      sel.mode = (el as HTMLElement).dataset.mode as GameMode;
-      buildSetup();
-    })
-  );
-  golferRow.querySelectorAll('.gcard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
-      sel.golfer = Number((el as HTMLElement).dataset.golfer);
-      buildSetup();
-    })
-  );
+function updateNav(): void {
+  backBtn.style.visibility = sel.step === 0 ? 'hidden' : 'visible';
+  nextBtn.textContent = sel.step === 2 ? 'Tee off' : 'Next';
+  nextBtn.disabled = sel.step === 0 && sel.name.trim().length === 0;
+}
+
+function goStep(n: number): void {
+  sel.step = Math.max(0, Math.min(2, n));
+  renderSteps();
+  renderStepBody();
+  updateNav();
 }
 
 function showSetup(): void {
   setupEl.style.display = 'flex';
-  buildSetup();
+  goStep(0);
 }
 
 function startRound(): void {
-  round.course = COURSES[sel.course];
-  round.mode = sel.mode;
+  round.course = COURSES.wildwood;
+  round.mode = 'solo';
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
-  const me: Participant = { golfer: GOLFERS[sel.golfer], isAI: false, scores: [] };
-  if (sel.mode === 'solo') {
-    round.players = [me];
-  } else {
-    // 1v1 or scramble: the chosen legend is the rival/partner
-    round.players = [me, { golfer: OPPONENTS[sel.opponent], isAI: true, scores: [] }];
-  }
+  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype);
+  round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
   playHole();
 }
 
-document.getElementById('startBtn')!.addEventListener('pointerdown', startRound);
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
+nextBtn.addEventListener('pointerdown', () => {
+  if (sel.step < 2) goStep(sel.step + 1);
+  else startRound();
+});
 showSetup();
 
 // Test hook: let Playwright configure + start a round without menu taps
 (window as unknown as { __startRound: unknown }).__startRound = (opts?: {
-  course?: string;
-  mode?: GameMode;
-  golfer?: number;
-  opponent?: number;
+  name?: string;
+  character?: CharacterKey;
+  archetype?: ArchetypeId;
 }) => {
-  if (opts?.course) sel.course = opts.course;
-  if (opts?.mode) sel.mode = opts.mode;
-  if (opts?.golfer !== undefined) sel.golfer = opts.golfer;
-  if (opts?.opponent !== undefined) sel.opponent = opts.opponent;
+  if (opts?.name !== undefined) sel.name = opts.name;
+  if (opts?.character) sel.character = opts.character;
+  if (opts?.archetype) sel.archetype = opts.archetype;
   startRound();
 };

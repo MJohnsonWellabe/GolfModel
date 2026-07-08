@@ -296,7 +296,9 @@
       #setup {
         position: fixed;
         inset: 0;
-        background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
+        background:
+          radial-gradient(120% 80% at 50% -10%, rgba(120, 200, 140, 0.16), transparent 60%),
+          linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -304,149 +306,254 @@
         overflow-y: auto;
       }
       #setupInner {
-        width: min(92%, 420px);
-        padding: 24px 20px;
+        width: min(94%, 440px);
+        padding: 22px 20px 26px;
         text-align: center;
       }
       #title {
-        font-size: 40px;
+        font-size: 38px;
         font-weight: 900;
         color: #fff;
         letter-spacing: 0.5px;
         text-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
       }
       #subtitle {
-        font-size: 14px;
-        color: #a8c8a2;
-        margin: 6px 0 22px;
-      }
-      .pickGroup {
-        margin-bottom: 18px;
-        text-align: left;
-      }
-      .pickLabel {
         font-size: 13px;
+        color: #a8c8a2;
+        margin: 5px 0 18px;
         text-transform: uppercase;
         letter-spacing: 2px;
-        color: #7fbf8c;
-        margin-bottom: 8px;
       }
-      .pickRow {
+      /* Step indicator */
+      #steps {
         display: flex;
-        flex-wrap: wrap;
+        justify-content: center;
         gap: 8px;
+        margin-bottom: 20px;
       }
-      .pick {
-        flex: 1 1 auto;
-        min-width: 84px;
-        padding: 10px 12px;
-        border-radius: 12px;
-        border: 2px solid rgba(255, 255, 255, 0.16);
-        background: rgba(255, 255, 255, 0.06);
-        color: #eaf3e6;
-        font-size: 14.5px;
-        font-weight: 700;
-        text-align: center;
-      }
-      .pick .sub {
-        display: block;
-        font-size: 11.5px;
-        font-weight: 500;
-        color: #9fb89a;
-        margin-top: 2px;
-      }
-      .pick.sel {
-        border-color: #ffd54f;
-        background: linear-gradient(180deg, rgba(255, 213, 79, 0.24), rgba(255, 213, 79, 0.1));
-        color: #fff;
-      }
-      .pickRow.cards {
-        flex-direction: column;
-        gap: 7px;
-      }
-      .gcard {
+      #steps .sdot {
         display: flex;
         align-items: center;
-        gap: 10px;
-        padding: 7px 10px;
-        border-radius: 12px;
-        border: 2px solid rgba(255, 255, 255, 0.14);
-        background: rgba(255, 255, 255, 0.05);
+        gap: 7px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #6f9578;
       }
-      .gcard.sel {
-        border-color: #ffd54f;
-        background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 213, 79, 0.08));
-      }
-      .gcard .portrait {
-        width: 44px;
-        height: 44px;
+      #steps .sdot .num {
+        width: 22px;
+        height: 22px;
         border-radius: 50%;
-        background: #12331d;
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        flex: 0 0 auto;
+        display: grid;
+        place-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        font-size: 12px;
       }
-      .gcard .ginfo {
-        flex: 1 1 auto;
-        min-width: 0;
+      #steps .sdot.on {
+        color: #ffd54f;
       }
-      .gcard .gname {
-        font-size: 15px;
+      #steps .sdot.on .num {
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #3a2b06;
+        border-color: rgba(255, 255, 255, 0.5);
+      }
+      #steps .sdot.done .num {
+        background: #2f6b41;
+        color: #cdeccb;
+      }
+      #stepBody {
+        min-height: 296px;
+        text-align: left;
+      }
+      .stepTitle {
+        font-size: 19px;
         font-weight: 800;
         color: #fff;
-        margin-bottom: 3px;
+        margin-bottom: 4px;
       }
-      .gcard .stats {
+      .stepHint {
+        font-size: 13px;
+        color: #9fb89a;
+        margin-bottom: 16px;
+      }
+      /* Name step */
+      #nameInput {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 16px 18px;
+        margin-top: 30px;
+        border-radius: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.07);
+        color: #fff;
+        font-size: 22px;
+        font-weight: 700;
+        text-align: center;
+        font-family: inherit;
+        outline: none;
+      }
+      #nameInput:focus {
+        border-color: #ffd54f;
+        background: rgba(255, 213, 79, 0.08);
+      }
+      #nameInput::placeholder {
+        color: #6f9578;
+      }
+      /* Character step */
+      .charGrid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 2px 10px;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
       }
-      .gcard .stat {
+      .charCard {
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 6px 4px 5px;
+        text-align: center;
+        cursor: pointer;
+        transition: transform 0.08s, border-color 0.08s;
+      }
+      .charCard img {
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: contain;
+        border-radius: 9px;
+        background: linear-gradient(180deg, #123f24, #0b2c17);
+        display: block;
+      }
+      .charCard .cn {
+        font-size: 11px;
+        font-weight: 700;
+        color: #cfe3ca;
+        margin-top: 3px;
+      }
+      .charCard.sel {
+        border-color: #ffd54f;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.2), rgba(255, 213, 79, 0.06));
+        transform: translateY(-2px);
+      }
+      .charCard.sel .cn {
+        color: #fff;
+      }
+      /* Archetype step */
+      .archGrid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .archCard {
+        border-radius: 13px;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 10px 12px;
+        cursor: pointer;
+      }
+      .archCard.sel {
+        border-color: var(--accent, #ffd54f);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+      }
+      .archCard .ahead {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        margin-bottom: 7px;
+      }
+      .archCard .an {
+        font-size: 16px;
+        font-weight: 800;
+        color: #fff;
+      }
+      .archCard .atag {
+        font-size: 11.5px;
+        color: #9fb89a;
+        flex: 1 1 auto;
+      }
+      .archCard .aovr {
+        font-size: 11px;
+        font-weight: 800;
+        color: #3a2b06;
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        border-radius: 999px;
+        padding: 1px 8px;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 3px 10px;
+      }
+      .stat {
         display: flex;
         align-items: center;
         gap: 5px;
-        font-size: 10.5px;
+        font-size: 10px;
         color: #b9cdb4;
       }
-      .gcard .stat .sl {
-        width: 24px;
+      .stat .sl {
+        width: 22px;
+        font-weight: 700;
       }
-      .gcard .stat .sbar {
+      .stat .sbar {
         flex: 1 1 auto;
         height: 5px;
         border-radius: 3px;
         background: rgba(255, 255, 255, 0.14);
         overflow: hidden;
       }
-      .gcard .stat .sbar i {
+      .stat .sbar i {
         display: block;
         height: 100%;
-        background: linear-gradient(90deg, #4a8f5f, #7 fd48c);
         background: linear-gradient(90deg, #4a8f5f, #7fd48c);
       }
-      .gcard .stat .sv {
+      .stat.sig .sl {
+        color: #ffd54f;
+      }
+      .stat.sig .sbar i {
+        background: linear-gradient(90deg, #eab63a, #ffe08a);
+      }
+      .stat .sv {
         width: 18px;
         text-align: right;
         color: #eef5ea;
+        font-variant-numeric: tabular-nums;
       }
-      #startBtn {
-        width: 100%;
-        margin-top: 8px;
-        padding: 15px;
+      /* Nav */
+      #navRow {
+        display: flex;
+        gap: 10px;
+        margin-top: 18px;
+      }
+      #navRow button {
+        flex: 1 1 auto;
+        padding: 14px;
         border-radius: 14px;
         border: none;
-        background: linear-gradient(180deg, #35a558, #1e7a3c);
-        color: #fff;
-        font-size: 19px;
+        font-size: 17px;
         font-weight: 800;
         letter-spacing: 0.5px;
+      }
+      #backBtn {
+        flex: 0 0 34%;
+        background: rgba(255, 255, 255, 0.09);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #dbe8d6;
+      }
+      #nextBtn {
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
         box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      }
+      #nextBtn:disabled {
+        opacity: 0.5;
       }
     </style>
   </head>
   <body>
     <canvas id="scene"></canvas>
     <div id="hud" class="panel"></div>
-    <div id="badge" class="panel">Johnson's Golf<br />Amen Corner 11</div>
+    <div id="badge" class="panel">Johnson's Golf<br />Wildwood Glen</div>
     <div id="prompt"></div>
     <div id="msg"></div>
     <div id="banner"></div>
@@ -462,24 +569,13 @@
     <div id="setup">
       <div id="setupInner">
         <div id="title">Johnson's Golf</div>
-        <div id="subtitle">3D — Everybody's Golf feel, in your browser</div>
-        <div class="pickGroup">
-          <div class="pickLabel">Course</div>
-          <div id="pickCourse" class="pickRow"></div>
+        <div id="subtitle">Wildwood Glen</div>
+        <div id="steps"></div>
+        <div id="stepBody"></div>
+        <div id="navRow">
+          <button id="backBtn">Back</button>
+          <button id="nextBtn">Next</button>
         </div>
-        <div class="pickGroup">
-          <div class="pickLabel">Mode</div>
-          <div id="pickMode" class="pickRow"></div>
-        </div>
-        <div class="pickGroup">
-          <div class="pickLabel">Golfer</div>
-          <div id="pickGolfer" class="pickRow cards"></div>
-        </div>
-        <div class="pickGroup" id="oppGroup" style="display: none">
-          <div class="pickLabel" id="oppLabel">Opponent</div>
-          <div id="pickOpponent" class="pickRow cards"></div>
-        </div>
-        <button id="startBtn">Start round</button>
       </div>
     </div>
     <script type="module" src="/src/slice3d/main.ts"></script>

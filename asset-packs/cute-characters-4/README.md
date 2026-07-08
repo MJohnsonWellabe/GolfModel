@@ -30,7 +30,23 @@ cleanly and matched across formats:
   (the listing's "Dance" appears to be `Song Jump`)
 - `fbx_for_Mixamo` correctly ships with the rig only, zero baked actions
 
-`Win` and `Sad` are strong candidates to drive the existing
-`Golfer3D.react('celebrate' | 'deject')` reactions once this pack is wired
-in — that integration work, plus picking which characters map to which
-golfers, is intentionally **not done yet**.
+## Integration (2026-07-08)
+
+This pack is now the game's character roster. Ten curated characters from the
+glb zip (this zip stays here as the full source of truth) are committed under
+`assets/models/characters/` with friendly keys — `chip, dez, rio, kuro, beat`
+(from `m_1,m_2,m_5,m_9,m_12`) and `rose, sunny, lily, jade, nova` (from
+`f_2,f_5,f_7,f_11,f_12`) — and picked on the setup screen (`src/data/characters.ts`).
+
+`src/slice3d/characterModels.ts` now instantiates a per-character rig
+(`instantiateModelsToScene`), and `src/slice3d/golfer3d.ts`:
+
+- loops the **Idle** clip for the stance, and plays **Win** / **Sad** for
+  `react('celebrate' | 'deject')` (the earmarked reactions);
+- drives the golf swing with a club rig in the golfer's own frame plus a body
+  turn, since the pack ships no swing clip.
+
+Character choice is purely cosmetic — decoupled from the gameplay **archetype**
+(`src/data/archetypes.ts`), which supplies the stat profile. The old
+hardcoded roster (Zac/Matt/… and the single-file `chibi_characters.glb`) is
+retired.

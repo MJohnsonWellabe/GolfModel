@@ -49,7 +49,22 @@ slots, and UVs:
 All static meshes — no armatures, no animation clips, as expected for
 environment props.
 
-This pack is a strong candidate for replacing the course's current
-primitive trees/rocks (see `docs/04_TECHNICAL_ARCHITECTURE.md` terrain
-section) — that integration work, texturing, and picking which props to use
-per course theme is intentionally **not done yet**.
+## Integration (2026-07-08)
+
+A curated subset is now wired into the 3D game (this zip stays here as the
+full source of truth). Converted FBX→glb offline via the headless-Blender
+pipeline and committed under `assets/models/nature/`:
+
+- **Trees** `tree_a..d` (SM_ENV_TREE v1/v2/v3), **stones** `stone_a..c`,
+  **bushes** `bush_a/b`, **grass** `grass_a/b`, **flower** `flower_a`.
+- Conversion strips lower LODs + collision hulls to a single mesh per prop.
+- No textures ship in the pack, so `src/slice3d/natureModels.ts` recolors each
+  material *slot* (`M_wood*`→bark, `M_plants`→foliage, `M_stone`→rock,
+  `M_PLANT_grass`→grass) into flat stylized materials tuned to the course theme,
+  merges per material, and instances them.
+- `src/slice3d/course3d.ts` replaced the old procedural cylinder/sphere trees
+  with instances of these props at the same `collectTreeBlobs()` positions,
+  plus scattered stones/grass/bushes across the rough.
+
+Still available but unused: the Unity-oriented export, the camping props, and
+the remaining tree/plant/stone variants — candidates for future courses.

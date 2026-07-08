@@ -1,6 +1,3 @@
-// Type-only: a value import would drag the whole Phaser bundle into this
-// chunk, which the Babylon slice page also loads for renderCourseCanvas.
-import type Phaser from 'phaser';
 import { PhysicsEngine } from '../../systems/PhysicsEngine';
 import { pointInPolygon } from '../../utils/Geometry';
 import { HoleData, Surface } from '../types';
@@ -83,8 +80,7 @@ const SURFACE_ID: Record<Surface, number> = {
  * Render the hole into a grass canvas: per-texel surface classification with
  * real grain, mow stripes along the hole axis, darkened surface edges, and
  * sun-consistent baked shadows for trees and buildings. Engine-agnostic —
- * the Phaser game registers it as a texture and the Babylon slice samples
- * it as a terrain albedo.
+ * the Babylon course renderer uploads it as a terrain albedo (course3d.ts).
  */
 export function renderCourseCanvas(
   hole: HoleData,
@@ -199,22 +195,4 @@ export function renderCourseCanvas(
   }
 
   return canvas;
-}
-
-/**
- * Register the rendered course canvas as a Phaser texture.
- * Returns the texture key (cached — repeat calls for the same hole are free).
- */
-export function bakeCourseTexture(
-  scene: Phaser.Scene,
-  courseName: string,
-  hole: HoleData,
-  theme: CourseTheme,
-  engine: PhysicsEngine
-): string {
-  const key = `course-${courseName}-${hole.number}`;
-  if (scene.textures.exists(key)) return key;
-  const tex = scene.textures.addCanvas(key, renderCourseCanvas(hole, theme, engine));
-  tex?.setFilter(1 as Phaser.Textures.FilterMode); // FilterMode.LINEAR
-  return key;
 }

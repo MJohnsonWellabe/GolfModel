@@ -39,11 +39,13 @@ export interface Golfer {
   name: string;
   /** Accent color used for ball marker, UI card and icon. */
   color: number;
-  look: GolferLook;
   stats: GolferStats;
-  /** 3D game only: swap the procedural body for a loaded character model.
-   * Left undefined for everyone else — the 2D game never reads this. */
-  model3d?: 'knight' | 'ninja';
+  /** Cosmetic 3D avatar key (see data/characters.ts). Drives which rigged
+   * character model the golfer wears; independent of stats. */
+  character?: string;
+  /** Optional stylized look for the procedural fallback body (used only when
+   * no character model is set or a model fails to load). */
+  look?: GolferLook;
 }
 
 /** Overall rating shown on select screens — mean of the five stats. */

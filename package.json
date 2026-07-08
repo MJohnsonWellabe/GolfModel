@@ -1,7 +1,7 @@
 {
   "name": "johnsons-golf",
   "version": "1.0.0",
-  "description": "Johnson's Golf — mobile browser golf game (Phaser 3 + TypeScript) featuring Amen Corner",
+  "description": "Johnson's Golf — mobile browser golf game (Babylon.js 3D + TypeScript)",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,8 +11,7 @@
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",
-    "@babylonjs/loaders": "^9.15.0",
-    "phaser": "^3.80.1"
+    "@babylonjs/loaders": "^9.15.0"
   },
   "devDependencies": {
     "typescript": "^5.4.5",

@@ -1,114 +1,101 @@
 import '@babylonjs/loaders/glTF';
 import {
+  AnimationGroup,
   AssetContainer,
   LoadAssetContainerAsync,
-  Mesh,
-  Quaternion,
   Scene,
   TransformNode,
   Vector3
 } from '@babylonjs/core';
+import { characterByKey } from '../data/characters';
 
 /**
- * Downloaded chibi character pack (Blender → glTF, no armature/animations —
- * see docs/ARCHITECTURE_REVIEW.md). Of the five bodies inside, only two are
- * fully assembled (body + face + hair + full outfit all sharing one baked
- * transform) — a "Knight" and a "Ninja". Everything else in the pack has
- * hair/clothing baked at mismatched positions (the export lost its rig) and
- * isn't safely reassemblable without the source .blend file, so it's unused.
+ * Loader for the rigged chibi character pack ("Cute Characters 4"). Unlike the
+ * old single-file pack, each character is its own self-contained glb (body +
+ * embedded texture + a 64-bone Rigify skeleton + seven baked clips: A-pose,
+ * Idle, Run, Sad, Song Jump, Walk, Win). We only use Idle (stance), Win
+ * (celebrate) and Sad (deject) in-game; the golf swing itself is driven
+ * procedurally on the skeleton (see golfer3d.ts), since the pack has no swing
+ * clip.
+ *
+ * A container is cached per (scene, character) so repeated golfers on one hole
+ * share the download, while a fresh hole (new Babylon scene) reloads cleanly —
+ * containers are scene-bound, so caching across scenes would dangle once a
+ * hole is disposed.
  */
-export type CharacterModelKey = 'knight' | 'ninja';
 
-// Relative (no leading slash) — same convention as the sfx paths in main.ts.
-// A leading slash resolves against the domain root, which 404s once the
-// game is deployed under the GitHub Pages project subpath (/GolfModel/).
-const MODEL_URL = 'models/chibi_characters.glb';
+/** Target standing height in world units — matches the procedural golfer's
+ * deliberately oversized ~5.2-unit ("~2.6yd") stylized scale. */
+const TARGET_HEIGHT = 5.2;
 
-/** Node names sharing one consistent baked transform in the source file. */
-const GROUP_NODES: Record<CharacterModelKey, string[]> = {
-  knight: [
-    'amorarm.001',
-    'amorplastron.001',
-    'amorshoulders',
-    'armorceinturethighs.001',
-    'armorhelmet.001',
-    'armorknees.001',
-    'armorlegs.001',
-    'armorshoe.001',
-    'armorskirt.001',
-    'armorthights.001',
-    'ceinture.001',
-    'character_low.001',
-    'eyelashes.001',
-    'eyes.001',
-    'hairtailknight.001',
-    'tooth.001'
-  ],
-  ninja: [
-    'character_low.002',
-    'eyelashes.002',
-    'eyes.002',
-    'hairtail.001',
-    'ninjassuit.001',
-    'ninjassuitmask.001',
-    'ninjassuitshoe.001',
-    'ninjassuitthigh.001',
-    'short.002',
-    'tooth.002'
-  ]
-};
+const cache = new WeakMap<Scene, Map<string, Promise<AssetContainer>>>();
 
-/** Both bodies bake to ~2.1 world units tall pre-scale; the procedural
- * golfer targets ~5.2 units ("oversized at ~2.6yd" — see golfer3d.ts), so
- * one shared multiplier brings either body up to that same stylized size. */
-const TARGET_SCALE = 2.48;
-
-let containerPromise: Promise<AssetContainer> | null = null;
-
-/** Load the pack once per page session; every clone reuses this container. */
-function loadContainer(scene: Scene): Promise<AssetContainer> {
-  if (!containerPromise) {
-    containerPromise = LoadAssetContainerAsync(MODEL_URL, scene).then((container) => {
-      container.addAllToScene();
-      // The master copies sit at the pack's original (unrelated) layout
-      // positions — hide them; only clones we spawn per-golfer should render.
-      container.meshes.forEach((m) => m.setEnabled(false));
-      return container;
-    });
+function containerFor(scene: Scene, key: string, file: string): Promise<AssetContainer> {
+  let perScene = cache.get(scene);
+  if (!perScene) {
+    perScene = new Map();
+    cache.set(scene, perScene);
   }
-  return containerPromise;
+  let p = perScene.get(key);
+  if (!p) {
+    p = LoadAssetContainerAsync(file, scene);
+    perScene.set(key, p);
+  }
+  return p;
+}
+
+export interface CharacterInstance {
+  /** Scaled, floor-rested (feet at y=0), X/Z-centered avatar root. */
+  root: TransformNode;
+  /** Animation clips by name (already stopped; caller starts what it needs). */
+  anims: Map<string, AnimationGroup>;
+  /** Skeleton bone → linked transform node, keyed by bone name, for the
+   * procedural swing (rotate these to pose the rig). */
+  bones: Map<string, TransformNode>;
 }
 
 /**
- * Clone one character body out of the shared pack and return it parented
- * under a fresh, correctly-scaled TransformNode ready to attach under a
- * Golfer3D's root. Resolves once the (session-cached) asset has loaded.
+ * Instantiate one character avatar into the scene. Each call produces an
+ * independent copy — its own skeleton and its own animation-group instances —
+ * so two golfers never share a pose.
  */
-export async function cloneCharacterBody(scene: Scene, key: CharacterModelKey): Promise<TransformNode> {
-  const container = await loadContainer(scene);
-  const names = GROUP_NODES[key];
-  const wrapper = new TransformNode(`bodyModel-${key}`, scene);
-  wrapper.scaling = new Vector3(TARGET_SCALE, TARGET_SCALE, TARGET_SCALE);
+export async function instantiateCharacter(scene: Scene, key: string): Promise<CharacterInstance> {
+  const def = characterByKey(key);
+  if (!def) throw new Error(`Unknown character "${key}"`);
+  const container = await containerFor(scene, def.key, def.file);
+  // Each call clones an independent copy — its own skeleton + animation-group
+  // instances — so two golfers never share a pose.
+  const inst = container.instantiateModelsToScene(undefined, false, { doNotInstantiate: true });
+  const root = inst.rootNodes[0] as TransformNode;
 
-  for (const name of names) {
-    const master = container.meshes.find((m) => m.name === name) as Mesh | undefined;
-    if (!master) continue; // defensive — never expected once verified
-    const clone = master.clone(`${name}-${key}`, null, false) as Mesh;
-    clone.setEnabled(true);
-    clone.position = Vector3.Zero();
-    clone.rotationQuaternion = Quaternion.Identity();
-    clone.scaling = Vector3.One();
-    clone.parent = wrapper;
-  }
+  const anims = new Map<string, AnimationGroup>();
+  inst.animationGroups.forEach((ag) => {
+    ag.stop();
+    anims.set(ag.name, ag);
+  });
 
-  // Recenter on X/Z and rest the feet at y=0, independent of this pack's own
-  // arbitrary per-character proportions/origins.
-  wrapper.computeWorldMatrix(true);
-  const { min, max } = wrapper.getHierarchyBoundingVectors(true);
-  wrapper.position.x -= (min.x + max.x) / 2;
-  wrapper.position.y -= min.y;
-  wrapper.position.z -= (min.z + max.z) / 2;
-  wrapper.computeWorldMatrix(true);
+  const bones = new Map<string, TransformNode>();
+  inst.skeletons.forEach((sk) =>
+    sk.bones.forEach((b) => {
+      const tn = b.getTransformNode();
+      if (tn) bones.set(b.name, tn as TransformNode);
+    })
+  );
 
-  return wrapper;
+  // Normalize scale + origin independent of the pack's per-character export:
+  // scale so the model stands TARGET_HEIGHT tall, then rest feet on y=0 and
+  // center on X/Z so placeAt() positions it like the procedural golfer.
+  root.computeWorldMatrix(true);
+  let bounds = root.getHierarchyBoundingVectors(true);
+  const rawHeight = bounds.max.y - bounds.min.y || 1;
+  const s = TARGET_HEIGHT / rawHeight;
+  root.scaling = new Vector3(s, s, s);
+  root.computeWorldMatrix(true);
+  bounds = root.getHierarchyBoundingVectors(true);
+  root.position.x -= (bounds.min.x + bounds.max.x) / 2;
+  root.position.y -= bounds.min.y;
+  root.position.z -= (bounds.min.z + bounds.max.z) / 2;
+  root.computeWorldMatrix(true);
+
+  return { root, anims, bones };
 }

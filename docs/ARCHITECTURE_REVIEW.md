@@ -8,6 +8,43 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: identity rework + purchased assets integrated
+
+A ground-up front-end rework landed on top of the foundation below. The parts
+of this document that describe the old roster, the two original courses, and
+the 2D game are superseded by the following; the engine-agnostic core
+(`PhysicsEngine`, `AimControl`, `AIController`, `FireSystem`, `Scoring`,
+`Theme`, `CourseTexture`) is unchanged.
+
+- **Golfer identity is now assembled, not hardcoded** (advances roadmap
+  Phase 3). A runtime golfer = a typed **name** + a cosmetic **character**
+  avatar (`src/data/characters.ts`) + a gameplay **archetype**
+  (`src/data/archetypes.ts`), combined by `assembleGolfer()` in
+  `src/data/golfers.ts`. `Golfer.stats` stays the sole seam physics reads, so
+  no gameplay code branches on the choice. Five archetypes (Big Hitter,
+  Sniper, Iron Maiden, Short-Game Maestro, Putt King), each elite in one stat
+  and ~87 OVR, hit the Appendix-A 250→320yd power spread. Covered by
+  `tests/archetypes.test.ts`.
+- **Purchased asset packs are integrated** (previously stored inert in
+  `asset-packs/`). Ten rigged chibi characters (Cute Characters 4) load per
+  golfer via `src/slice3d/characterModels.ts` (Idle stance, Win/Sad
+  reactions; swing driven by a club rig in the golfer frame). Nature-pack
+  props (trees/stones/plants) load via `src/slice3d/natureModels.ts` and
+  replace the procedural trees in `src/slice3d/course3d.ts`. Offline FBX→glb
+  conversion uses headless Blender; recoloring is by material slot since the
+  nature pack ships no textures.
+- **New menu**: a 3-step name → character → archetype wizard (`index.html` +
+  `src/slice3d/main.ts`), solo-only for now.
+- **New course** `src/data/courses/wildwood.json` (Wildwood Glen, parkland
+  theme); the original Amen Corner + Legends courses were removed.
+- **The 2D "classic" front end was retired**: `classic.html`, `src/main.ts`,
+  `src/scenes/*`, `src/ui/*`, the Phaser-only rendering/audio/meter modules and
+  the `phaser` dependency are gone. The Babylon 3D game is the sole build entry.
+- **Still deferred**: additional holes/courses, re-surfacing 1v1/scramble with
+  archetype+character AI opponents, and Phase 4 spin/strike-location.
+
+---
+
 # Snapshot
 
 | | |

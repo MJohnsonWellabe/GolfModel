@@ -19,6 +19,16 @@ import { blobHash, collectTreeBlobs, renderCourseCanvas, TEXTURE_PAD, TreeBlob }
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
+import {
+  BUSH_KEYS,
+  GRASS_KEYS,
+  hash2,
+  loadNaturePrototypes,
+  NaturePalette,
+  NatureProto,
+  STONE_KEYS,
+  TREE_KEYS
+} from './natureModels';
 
 /** 2D world (x, y) + height h → Babylon (y-up, world y becomes -z). */
 export function w2b(x: number, y: number, h = 0): Vector3 {
@@ -341,79 +351,88 @@ export function buildCourse(
   }
 
   // ------------------------------------------------------------------ trees
-  const trunkProto = MeshBuilder.CreateCylinder('trunkP', { diameter: 2.6, height: 9, tessellation: 6 }, scene);
-  trunkProto.material = mat(scene, 'trunkMat', theme.treeTrunk);
-  trunkProto.position.y = -800; // parked prototype; instances render on their own
-  const canopyMats = {
-    dark: mat(scene, 'canDark', shade(theme.treeCanopy, 0.9)),
-    mid: mat(scene, 'canMid', theme.treeCanopyLight),
-    light: mat(scene, 'canLight', shade(theme.treeCanopyLight, 1.18)),
-    blossom: mat(scene, 'canBlossom', 0xdd96bd),
-    blossomLight: mat(scene, 'canBlossomL', 0xefb6d2)
+  // Real prop meshes from the purchased Fantastic Nature pack replace the old
+  // procedural cylinders/spheres. Loading is async (glb), so instances plant a
+  // moment after the hole builds — like the character models. Positions come
+  // from the same collectTreeBlobs() the baked texture drops shadows for, so
+  // trunks land on their shadows.
+  const natPalette: NaturePalette = {
+    bark: theme.treeTrunk,
+    foliage: theme.treeCanopy,
+    foliageLight: theme.treeCanopyLight,
+    grass: shade(theme.rough, 1.4),
+    stone: 0x9d9a90
   };
-  const canopyProtos: Record<string, Mesh> = {};
-  for (const [k, m] of Object.entries(canopyMats)) {
-    const p = MeshBuilder.CreateSphere(`can-${k}`, { diameter: 16, segments: 5 }, scene);
-    p.material = m;
-    p.position.y = -800; // parked prototype
-    canopyProtos[k] = p;
-  }
-  const treeRoot = new TransformNode('trees', scene);
-  const plant = (b: TreeBlob): void => {
-    const r = b.r * 0.7;
-    const trunkH = b.kind === 1 ? r * 1.7 : r * 1.1;
-    const base = w2b(b.x, b.y, heightAt(b.x, b.y));
-    const trunk = trunkProto.createInstance(`t${b.x}`);
-    trunk.scaling = new Vector3(r / 9, trunkH / 9, r / 9);
-    trunk.position = base.add(new Vector3(0, trunkH / 2, 0));
-    trunk.parent = treeRoot;
-    const isBlossom = b.kind === 3;
-    const mainKey = isBlossom ? 'blossom' : b.tint > 1 ? 'light' : b.tint > 0.92 ? 'mid' : 'dark';
-    const hiKey = isBlossom ? 'blossomLight' : 'light';
-    const lobes: Array<[number, number, number, number]> =
-      b.kind === 1
-        ? [[0, trunkH + r * 0.9, 0, r * 0.66], [0, trunkH + r * 1.5, 0, r * 0.5]]
-        : b.kind === 2
-          ? [[-r * 0.5, trunkH + r * 0.55, 0, r * 0.62], [r * 0.5, trunkH + r * 0.6, 0, r * 0.66], [0, trunkH + r * 1.0, 0, r * 0.58]]
-          : [[0, trunkH + r * 0.7, 0, r * 0.8], [-r * 0.45, trunkH + r * 0.5, r * 0.2, r * 0.5], [r * 0.4, trunkH + r * 0.95, -r * 0.15, r * 0.45]];
-    lobes.forEach(([ox, oy, oz, lr], li) => {
-      const key = li === lobes.length - 1 ? hiKey : mainKey;
-      const inst = canopyProtos[key].createInstance(`c${b.x}-${li}`);
-      inst.scaling = new Vector3((lr * 2) / 16, (lr * 1.7) / 16, (lr * 2) / 16);
-      inst.position = base.add(new Vector3(ox, oy, -oz));
-      inst.parent = treeRoot;
-    });
-  };
-  for (const b of collectTreeBlobs(hole, theme.blossomChance)) plant(b);
+  const treeRoot = new TransformNode('nature', scene);
+  void loadNaturePrototypes(scene, natPalette).then((protos) => {
+    const pick = (keys: readonly string[]): NatureProto[] =>
+      keys.map((k) => protos.get(k)).filter((p): p is NatureProto => !!p);
+    const trees = pick(TREE_KEYS);
+    const stones = pick(STONE_KEYS);
+    const bushes = pick(BUSH_KEYS);
+    const grasses = pick(GRASS_KEYS);
+    // Trees do NOT cast dynamic shadows: their drop shadows are already baked
+    // into the course texture (collectTreeBlobs), and adding the native-scale
+    // prototypes as shadow casters would blow up the directional light's
+    // shadow-map frustum and darken the whole (shadow-receiving) terrain.
 
-  // Backdrop woods (scenery only — never on a playable surface, so the 2D
-  // physics and course data stay untouched): an azalea-heavy wall behind the
-  // green and deep tree bands along both outer margins, like the references.
-  const bands = [
-    { x0: 40, x1: 860, y0: -190, y1: 180, step: 58, blossom: Math.max(theme.blossomChance, 0.35) },
-    { x0: -180, x1: 160, y0: 140, y1: h + 80, step: 72, blossom: theme.blossomChance },
-    { x0: 740, x1: 1080, y0: 140, y1: h + 80, step: 72, blossom: theme.blossomChance }
-  ];
-  for (const band of bands) {
-    for (let yy = band.y0; yy < band.y1; yy += band.step) {
-      for (let xx = band.x0; xx < band.x1; xx += band.step) {
-        if (blobHash(xx + 13, yy + 29) < 0.25) continue; // organic gaps
-        const jx = xx + (blobHash(xx, yy) - 0.5) * 44;
-        const jy = yy + (blobHash(yy, xx) - 0.5) * 44;
-        const s = engine.surfaceAt(jx, jy);
-        if (s === 'green' || s === 'fringe' || s === 'fairway' || s === 'sand' || s === 'water') continue;
-        if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 130) continue;
-        const k = blobHash(xx + 31, yy + 17);
-        plant({
-          x: jx,
-          y: jy,
-          r: 15 + blobHash(xx + 7, yy + 3) * 12,
-          kind: k < band.blossom ? 3 : Math.floor(((k - band.blossom) / (1 - band.blossom)) * 3),
-          tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32
-        });
+    let n = 0;
+    const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0): void => {
+      if (!set.length) return;
+      const proto = set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length];
+      const s = targetH / proto.height;
+      const pos = w2b(x, y, heightAt(x, y));
+      const rotY = hash2(y, x) * Math.PI * 2;
+      // Instance every material part of the prop with one shared transform.
+      for (const part of proto.parts) {
+        const inst = part.createInstance(`nat${n++}`);
+        inst.scaling = new Vector3(s, s, s);
+        inst.position = pos;
+        inst.rotation = new Vector3(0, rotY, 0);
+        inst.parent = treeRoot;
+      }
+    };
+    const plantTree = (b: TreeBlob): void => place(trees, b.x, b.y, Math.max(24, b.r * 2.0));
+
+    for (const b of collectTreeBlobs(hole, theme.blossomChance)) plantTree(b);
+
+    // Backdrop woods (scenery only — never on a playable surface): a wall of
+    // trees behind the green and deep bands down both outer margins.
+    const bands = [
+      { x0: 40, x1: 860, y0: -190, y1: 180, step: 60 },
+      { x0: -180, x1: 160, y0: 140, y1: h + 80, step: 74 },
+      { x0: 740, x1: 1080, y0: 140, y1: h + 80, step: 74 }
+    ];
+    for (const band of bands) {
+      for (let yy = band.y0; yy < band.y1; yy += band.step) {
+        for (let xx = band.x0; xx < band.x1; xx += band.step) {
+          if (blobHash(xx + 13, yy + 29) < 0.25) continue; // organic gaps
+          const jx = xx + (blobHash(xx, yy) - 0.5) * 44;
+          const jy = yy + (blobHash(yy, xx) - 0.5) * 44;
+          const s = engine.surfaceAt(jx, jy);
+          if (s === 'green' || s === 'fringe' || s === 'fairway' || s === 'sand' || s === 'water') continue;
+          if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 130) continue;
+          plantTree({ x: jx, y: jy, r: 15 + blobHash(xx + 7, yy + 3) * 12, kind: 0, tint: 1 });
+        }
       }
     }
-  }
+
+    // Ground detail: grass tufts, occasional stones and bushes scattered across
+    // the rough only, so the play corridor and hazards stay clean.
+    for (let yy = 0; yy < h; yy += 40) {
+      for (let xx = 0; xx < w; xx += 40) {
+        if (engine.surfaceAt(xx, yy) !== 'rough') continue;
+        if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 120) continue;
+        const jx = xx + (hash2(xx, yy) - 0.5) * 30;
+        const jy = yy + (hash2(yy + 5, xx) - 0.5) * 30;
+        if (engine.surfaceAt(jx, jy) !== 'rough') continue;
+        const roll = hash2(xx + 91, yy + 47);
+        if (roll < 0.34) place(grasses, jx, jy, 3.4 + hash2(jx, jy) * 2.2, 3);
+        else if (roll < 0.4) place(bushes, jx, jy, 5.5 + hash2(jy, jx) * 2.5, 7);
+        else if (roll < 0.435) place(stones, jx, jy, 3.2 + hash2(jx + 1, jy) * 4.0, 11);
+      }
+    }
+  });
 
   // -------------------------------------------------------------------- pin
   const pole = MeshBuilder.CreateCylinder('pole', { diameter: 0.55, height: 12, tessellation: 8 }, scene);
