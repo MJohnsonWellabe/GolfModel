@@ -8,6 +8,30 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: Phase 8 — async tournaments + ace challenge
+
+Two online modes over the same open-rules RTDB as the leaderboard, no server
+(`src/firebase/Tournaments.ts`, REST mirroring `History.ts`):
+
+- **Async tournaments.** A creator PUTs `/tournaments/{code}` with a shared
+  RNG **seed**; `windForHole` seeds off it (`mulberry32(seed*1000 + idx)`) so
+  every entrant plays identical wind. The shareable code is `JG-XXXXXX` from an
+  unambiguous alphabet; a `?t=CODE` link boots straight into the join screen.
+  Rounds run solo under the tournament seed and submit one entry at the summary
+  (`submitEntry`, first-write-wins), then render live standings (lowest total,
+  earliest-submission tiebreak). Entries are sanity-checked client-side
+  (`isPlausibleEntry`). Honest anti-tamper caveat: open rules make results
+  friends-only until the Phase 5 auth rules land (documented in the file
+  header + `docs/FIREBASE_SETUP.md`).
+- **Ace challenge.** A new menu mode tees off Wildwood's par 3 on repeat; a
+  `HoleScene` `onFirstShot` hook ends each attempt the instant the tee shot
+  settles and reports whether it holed. Aces bump `stats.holeInOnes` and post
+  to an all-time `/aces` board (`submitAces`/`fetchAces`, most aces first).
+
+The UI degrades honestly when no RTDB is configured (an offline notice rather
+than an error). 5 tournament unit tests + Playwright overlay/create/ace-boot
+smokes. `RoundState` gained `seed?` + `tournament?` context.
+
 # Update — 2026-07-08: Phase 7 — store & customization (gold only)
 
 `src/data/storeCatalog.ts` + `src/systems/StoreEngine.ts` (pure buy/equip,

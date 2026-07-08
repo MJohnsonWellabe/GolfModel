@@ -815,7 +815,9 @@
       }
       /* Records overlay */
       #records,
-      #store {
+      #store,
+      #tournaments,
+      #aces {
         position: fixed;
         inset: 0;
         background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
@@ -824,6 +826,91 @@
         justify-content: center;
         z-index: 25;
         overflow-y: auto;
+      }
+      /* Tournaments + Ace challenge overlays (Phase 8) */
+      .tourAction {
+        display: block;
+        width: 100%;
+        margin: 10px 0;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: #2f9e57;
+        color: #fff;
+        font-weight: 800;
+        font-size: 15px;
+        cursor: pointer;
+      }
+      .tourJoin {
+        display: flex;
+        gap: 8px;
+        margin: 4px 0 8px;
+      }
+      .tourJoin input {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 11px;
+        border-radius: 10px;
+        border: 2px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+        font-size: 15px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+      }
+      .tourJoin button {
+        padding: 0 16px;
+        border: none;
+        border-radius: 10px;
+        background: #1f7a41;
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .tourBody {
+        margin: 6px 0;
+      }
+      .tourCode {
+        font-size: 30px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        color: #ffe28a;
+        text-align: center;
+        margin: 8px 0 4px;
+      }
+      .tourShare {
+        font-size: 12px;
+        color: #cfe6d2;
+        word-break: break-all;
+        background: rgba(0, 0, 0, 0.25);
+        padding: 8px;
+        border-radius: 8px;
+        margin: 6px 0;
+      }
+      .tourHeadRow {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #8fb598;
+        margin: 14px 0 6px;
+        text-align: left;
+      }
+      .tourResult {
+        margin: 10px 0;
+        text-align: left;
+      }
+      .recRow.you {
+        background: rgba(255, 226, 138, 0.14);
+        border-radius: 8px;
+      }
+      .aceTally {
+        font-size: 18px;
+        color: #eef5ea;
+        margin: 8px 0 4px;
+      }
+      .aceTally b {
+        color: #ffe28a;
       }
       .menuLinks {
         display: flex;
@@ -1040,11 +1127,15 @@
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
+          <button id="tournyLink" class="recordsLink">🏁 Tournaments</button>
+          <button id="aceLink" class="recordsLink">🎯 Ace Challenge</button>
         </div>
       </div>
     </div>
     <div id="records"></div>
     <div id="store"></div>
+    <div id="tournaments"></div>
+    <div id="aces"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>
 </html>

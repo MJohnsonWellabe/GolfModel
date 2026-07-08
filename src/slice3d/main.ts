@@ -26,7 +26,21 @@ import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
-import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import {
+  createTournament,
+  fetchTournament,
+  submitEntry,
+  submitAces,
+  fetchAces,
+  makeTournamentCode,
+  tournamentStandings,
+  isEnded,
+  isPlausibleEntry,
+  Tournament,
+  TournamentEntry
+} from '../firebase/Tournaments';
+import { mulberry32 } from '../utils/Random';
 import { cloudSyncProfile } from '../firebase/FirebaseClient';
 import { loadProfile, PlayerProfile, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
@@ -124,6 +138,11 @@ interface RoundState {
   activePlayer: number;
   /** Wind per hole index — generated once so 1v1 players share conditions. */
   holeWinds: Wind[];
+  /** Shared RNG seed for tournament rounds → identical conditions for every
+   *  entrant (undefined for casual rounds, which roll fresh wind). */
+  seed?: number;
+  /** Active tournament this round counts toward (submits an entry at the end). */
+  tournament?: { code: string; name: string } | null;
 }
 
 const COURSES: Record<string, CourseData> = {
@@ -180,12 +199,15 @@ function todayKey(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-/** Wind for a hole, generated once and shared across players (same roll as 2D). */
+/** Wind for a hole, generated once and shared across players (same roll as 2D).
+ *  Tournament rounds seed the roll off the shared tournament seed so every
+ *  entrant plays identical conditions (Phase 8). */
 function windForHole(idx: number): Wind {
   if (!round.holeWinds[idx]) {
+    const rng = round.seed !== undefined ? mulberry32(round.seed * 1000 + idx) : Math.random;
     round.holeWinds[idx] = {
-      angle: Math.random() * Math.PI * 2,
-      speed: Math.round(2 + Math.random() * (PHYSICS.maxWind - 2))
+      angle: rng() * Math.PI * 2,
+      speed: Math.round(2 + rng() * (PHYSICS.maxWind - 2))
     };
   }
   return round.holeWinds[idx];
@@ -276,7 +298,12 @@ class HoleScene {
   private introTimers: ReturnType<typeof setTimeout>[] = [];
   private static BALL_REST = 0.5;
 
-  constructor(private onHoleComplete: (scores: number[]) => void) {
+  constructor(
+    private onHoleComplete: (scores: number[]) => void,
+    /** Ace-challenge hook: when set, the attempt ends the instant the tee shot
+     *  comes to rest and reports whether it was holed (Phase 8). */
+    private onFirstShot?: (holed: boolean) => void
+  ) {
     this.scene = new Scene(engine3d);
     this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole));
     // Aim/preview run on a flat, no-slope engine so the aim line never
@@ -1004,6 +1031,17 @@ class HoleScene {
       this.golfer.react('deject');
     }
 
+    // Ace challenge: one tee shot per attempt — report the result and end the
+    // attempt as soon as the ball settles, holed or not (Phase 8).
+    if (this.onFirstShot) {
+      this.state.phase = 'done';
+      const holed = outcome.holed;
+      setTimeout(() => {
+        if (!this.disposed) this.onFirstShot!(holed);
+      }, holed ? 2400 : 900);
+      return;
+    }
+
     // Hole over when every competitor has holed / picked up; otherwise the
     // away player plays next (which alternates naturally in a 1v1).
     const allDone = this.comps.every((cc) => this.compDone(cc));
@@ -1463,15 +1501,20 @@ function showSummary(): void {
     saveProfile(profile);
   });
 
+  const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
     `<div id="recBanner" class="recBanner"></div>` +
     `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    tourBlock +
     rewardStripHtml(events) +
     `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
     `<button id="profBtn" class="ghostBtn">Profile</button>` +
     `<button id="againBtn">Menu</button></div>`;
   summaryEl.style.display = 'block';
+  // Tournament: submit this round as the player's entry (first score stands)
+  // and show the live standings (Phase 8).
+  if (round.tournament) void submitTournamentRound(round.tournament.code, record, holes.length);
   document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
@@ -1649,6 +1692,281 @@ async function renderRecords(): Promise<void> {
   }
   const foot = document.getElementById('recFoot');
   if (foot) foot.textContent = shared ? '🌐 Shared leaderboard' : '📱 This device only';
+}
+
+// ------------------------------------------------ Phase 8: tournaments + aces
+
+/** The par-3 the ace challenge is played on (Wildwood's Cedar Carry). */
+const ACE_HOLE_IDX = round.course.holes.findIndex((h) => h.par === 3);
+
+function tournamentsEl(): HTMLElement {
+  return document.getElementById('tournaments')!;
+}
+function acesEl(): HTMLElement {
+  return document.getElementById('aces')!;
+}
+function closeOverlay(el: HTMLElement): void {
+  el.style.display = 'none';
+}
+
+/** Tournament hub: create a new one or join by code. `preCode` boots straight
+ *  into a shared `?t=CODE` link. */
+function renderTournaments(preCode?: string): void {
+  const el = tournamentsEl();
+  el.style.display = 'flex';
+  if (!isShared()) {
+    el.innerHTML =
+      `<div class="recInner"><h2>Tournaments</h2>` +
+      `<div class="recEmpty">Tournaments play over the shared leaderboard, which isn't configured on this build yet. ` +
+      `See docs/FIREBASE_SETUP.md to connect one.</div>` +
+      `<button id="tourBack">Back</button></div>`;
+    document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
+    return;
+  }
+  el.innerHTML =
+    `<div class="recInner"><h2>🏁 Tournaments</h2>` +
+    `<div class="recSub">Everyone plays identical wind & pins. Lowest total wins.</div>` +
+    `<button id="tourCreate" class="tourAction">➕ Create a tournament</button>` +
+    `<div class="tourJoin"><input id="tourCode" type="text" maxlength="9" placeholder="JG-XXXXXX" ` +
+    `autocomplete="off" autocapitalize="characters" value="${preCode ? escapeHtml(preCode) : ''}" />` +
+    `<button id="tourJoinBtn">Join</button></div>` +
+    `<div id="tourBody" class="tourBody"></div>` +
+    `<button id="tourBack">Back</button></div>`;
+  document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
+  document.getElementById('tourCreate')!.addEventListener('pointerdown', () => createTournamentFlow());
+  const codeInput = document.getElementById('tourCode') as HTMLInputElement;
+  const join = (): void => {
+    const code = codeInput.value.trim().toUpperCase();
+    if (code) void openTournament(code);
+  };
+  document.getElementById('tourJoinBtn')!.addEventListener('pointerdown', join);
+  codeInput.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') join();
+  });
+  if (preCode) void openTournament(preCode.toUpperCase());
+}
+
+/** Create a 7-day tournament, PUT it, and surface the shareable code. */
+async function createTournamentFlow(): Promise<void> {
+  const body = document.getElementById('tourBody');
+  if (body) body.innerHTML = `<div class="recEmpty">Creating…</div>`;
+  const now = Date.now();
+  const meta: Tournament = {
+    code: makeTournamentCode(),
+    name: `${(profile.name || 'Player')}'s Cup`,
+    course: round.course.name,
+    holes: holesThisRound(),
+    createdBy: { id: profile.id, name: profile.name || 'Player' },
+    createdAt: now,
+    endsAt: now + 7 * 24 * 60 * 60 * 1000,
+    seed: Math.floor(Math.random() * 1e9)
+  };
+  const ok = await createTournament(meta);
+  if (!body) return;
+  if (!ok) {
+    body.innerHTML = `<div class="recEmpty">Couldn't create the tournament — check your connection.</div>`;
+    return;
+  }
+  const shareUrl = `${location.origin}${location.pathname}?t=${meta.code}`;
+  body.innerHTML =
+    `<div class="tourCode">${meta.code}</div>` +
+    `<div class="recSub">Share this link — friends who open it join automatically.</div>` +
+    `<div class="tourShare">${escapeHtml(shareUrl)}</div>` +
+    `<button id="tourPlay" class="tourAction">Play my round →</button>`;
+  document.getElementById('tourPlay')!.addEventListener('pointerdown', () => startTournamentRound(meta));
+}
+
+/** Fetch a tournament and show its standings + a Play button. */
+async function openTournament(code: string): Promise<void> {
+  const body = document.getElementById('tourBody');
+  if (body) body.innerHTML = `<div class="recEmpty">Loading ${escapeHtml(code)}…</div>`;
+  const data = await fetchTournament(code);
+  if (!body) return;
+  if (!data) {
+    body.innerHTML = `<div class="recEmpty">No tournament found for ${escapeHtml(code)}.</div>`;
+    return;
+  }
+  const standings = tournamentStandings(data.entries);
+  const alreadyEntered = data.entries.some((e) => e.playerId === profile.id);
+  const ended = isEnded(data.meta, Date.now());
+  const myRank = standings.findIndex((e) => e.playerId === profile.id) + 1;
+  const playBtn = !ended && !alreadyEntered ? `<button id="tourPlay" class="tourAction">Play my round →</button>` : '';
+  const note = ended ? `<div class="recSub">This tournament has ended.</div>` : alreadyEntered ? `<div class="recSub">You've already posted a score.</div>` : '';
+  body.innerHTML = renderStandingsHtml(data.meta, standings, myRank) + note + playBtn;
+  const pb = document.getElementById('tourPlay');
+  if (pb) pb.addEventListener('pointerdown', () => startTournamentRound(data.meta));
+}
+
+function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myRank: number): string {
+  const rows = standings.length
+    ? standings
+        .slice(0, 10)
+        .map((e, i) => {
+          const sign = e.toPar === 0 ? 'E' : e.toPar > 0 ? `+${e.toPar}` : `${e.toPar}`;
+          const you = e.playerId === profile.id ? ' you' : '';
+          const rank = i === 0 ? '🏆' : `${i + 1}.`;
+          return (
+            `<div class="recRow${you}"><span class="recRk">${rank}</span>` +
+            `<span class="recNm">${escapeHtml(e.name)}</span>` +
+            `<span class="recTot">${e.total} (${sign})</span></div>`
+          );
+        })
+        .join('')
+    : `<div class="recEmpty">No scores yet — be the first!</div>`;
+  const status = isEnded(meta, Date.now()) ? 'Final' : 'In progress';
+  const rank = myRank > 0 ? ` · You: ${myRank}/${standings.length}` : '';
+  return `<div class="tourHeadRow">🏁 ${escapeHtml(meta.name)} — ${status}${rank}</div>${rows}`;
+}
+
+/** Start a solo round under a tournament's shared seed (Phase 8). */
+function startTournamentRound(meta: Tournament): void {
+  round.course = COURSES.wildwood;
+  round.mode = 'solo';
+  round.holeIdx = 0;
+  round.activePlayer = 0;
+  round.holeWinds = [];
+  round.seed = meta.seed;
+  round.tournament = { code: meta.code, name: meta.name };
+  shotAcc = freshShotAcc();
+  const golfer = assembleGolfer(profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  round.players = [{ golfer, isAI: false, scores: [] }];
+  closeOverlay(tournamentsEl());
+  setupEl.style.display = 'none';
+  playHole();
+}
+
+/** Submit the finished round as a tournament entry and show live standings. */
+async function submitTournamentRound(code: string, record: RoundRecord, holeCount: number): Promise<void> {
+  const el = document.getElementById('tourResult');
+  const entry: TournamentEntry = {
+    playerId: profile.id,
+    name: profile.name || 'Player',
+    golferId: record.golferId,
+    total: record.total,
+    toPar: record.toPar,
+    holes: record.holes.slice(0, holeCount),
+    submittedAt: Date.now()
+  };
+  if (!isShared()) {
+    if (el) el.textContent = 'Tournament scores need an online connection.';
+    return;
+  }
+  if (!isPlausibleEntry(entry, holeCount, RULES.maxStrokes)) {
+    if (el) el.textContent = 'Score could not be submitted.';
+    return;
+  }
+  await submitEntry(code, entry);
+  const data = await fetchTournament(code);
+  if (!el) return;
+  if (!data) {
+    el.textContent = 'Standings unavailable right now.';
+    return;
+  }
+  const standings = tournamentStandings(data.entries);
+  const myRank = standings.findIndex((e) => e.playerId === profile.id) + 1;
+  el.innerHTML = renderStandingsHtml(data.meta, standings, myRank);
+}
+
+// ----- Ace challenge: tee off a par 3 on repeat, chase all-time hole-in-ones.
+
+let acesSession: { attempts: number; aces: number } | null = null;
+
+async function renderAcesMenu(): Promise<void> {
+  const el = acesEl();
+  el.style.display = 'flex';
+  el.innerHTML =
+    `<div class="recInner"><h2>🎯 Ace Challenge</h2>` +
+    `<div class="recSub">Tee off ${round.course.holes[ACE_HOLE_IDX]?.name ?? 'a par 3'} again and again. ` +
+    `Every hole-in-one counts toward the all-time board.</div>` +
+    `<button id="aceStart" class="tourAction">Start teeing off →</button>` +
+    `<div class="tourHeadRow">All-time aces</div>` +
+    `<div id="aceBoard" class="recList">${isShared() ? 'Loading…' : '📱 Connect online to compete on the global board.'}</div>` +
+    `<button id="aceBack">Back</button></div>`;
+  document.getElementById('aceBack')!.addEventListener('pointerdown', () => closeOverlay(el));
+  document.getElementById('aceStart')!.addEventListener('pointerdown', () => startAces());
+  if (isShared()) {
+    const recs = await fetchAces();
+    const board = document.getElementById('aceBoard');
+    if (board) {
+      board.innerHTML = recs.length
+        ? recs
+            .slice(0, 10)
+            .map((r, i) => {
+              const you = r.playerId === profile.id ? ' you' : '';
+              const rank = i === 0 ? '🏆' : `${i + 1}.`;
+              return `<div class="recRow${you}"><span class="recRk">${rank}</span><span class="recNm">${escapeHtml(r.name)}</span><span class="recTot">${r.aces} 🕳️</span></div>`;
+            })
+            .join('')
+        : `<div class="recEmpty">No aces recorded yet — go make history.</div>`;
+    }
+  }
+}
+
+function startAces(): void {
+  if (ACE_HOLE_IDX < 0) return;
+  acesSession = { attempts: 0, aces: 0 };
+  round.course = COURSES.wildwood;
+  round.mode = 'solo';
+  round.holeIdx = ACE_HOLE_IDX;
+  round.activePlayer = 0;
+  round.holeWinds = [];
+  round.seed = undefined;
+  round.tournament = null;
+  shotAcc = freshShotAcc();
+  const golfer = assembleGolfer(profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  round.players = [{ golfer, isAI: false, scores: [] }];
+  closeOverlay(acesEl());
+  setupEl.style.display = 'none';
+  playAceAttempt();
+}
+
+function playAceAttempt(): void {
+  current?.dispose();
+  // Fresh wind each attempt for variety.
+  round.holeWinds = [];
+  current = new HoleScene(
+    () => undefined,
+    (holed) => {
+      if (!acesSession) return;
+      acesSession.attempts++;
+      if (holed) {
+        acesSession.aces++;
+        profile.stats.holeInOnes++;
+        saveProfile(profile);
+      }
+      showAceInterstitial(holed);
+    }
+  );
+  exposeDebug();
+}
+
+function showAceInterstitial(holed: boolean): void {
+  const s = acesSession!;
+  summaryEl.innerHTML =
+    `<h2>${holed ? '🕳️ ACE! 🎉' : 'No luck that time'}</h2>` +
+    `<div class="aceTally">Attempts: <b>${s.attempts}</b> · Aces: <b>${s.aces}</b></div>` +
+    `<div class="btnRow"><button id="aceAgain">Tee off again</button>` +
+    `<button id="aceDone" class="ghostBtn">Done</button></div>`;
+  summaryEl.style.display = 'block';
+  document.getElementById('aceAgain')!.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    playAceAttempt();
+  });
+  document.getElementById('aceDone')!.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    void endAces();
+  });
+}
+
+async function endAces(): Promise<void> {
+  const s = acesSession;
+  acesSession = null;
+  current?.dispose();
+  current = null;
+  if (s && s.aces > 0 && isShared()) {
+    await submitAces({ playerId: profile.id, name: profile.name || 'Player', aces: profile.stats.holeInOnes, updatedAt: Date.now() });
+  }
+  void renderAcesMenu();
 }
 
 engine3d.runRenderLoop(() => current?.render());
@@ -1909,6 +2227,8 @@ function startRound(): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  round.seed = undefined;
+  round.tournament = null;
   shotAcc = freshShotAcc();
   // Remember the selections for next launch (and cloud, when configured)
   profile.name = sel.name;
@@ -1932,6 +2252,8 @@ function escapeHtml(s: string): string {
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
+document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
+document.getElementById('aceLink')!.addEventListener('pointerdown', () => void renderAcesMenu());
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
@@ -1969,7 +2291,16 @@ function startShotCapture(): void {
 }
 
 if (SHOT.hole) startShotCapture();
-else showSetup();
+else {
+  showSetup();
+  // A shared ?t=CODE link boots straight into the tournament's join screen.
+  try {
+    const tcode = new URLSearchParams(window.location.search).get('t');
+    if (tcode) renderTournaments(tcode.toUpperCase());
+  } catch {
+    /* no query string (e.g. non-browser test host) */
+  }
+}
 
 // Test hook: let Playwright configure + start a round without menu taps
 (window as unknown as { __startRound: unknown }).__startRound = (opts?: {
@@ -1985,4 +2316,10 @@ else showSetup();
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
   startRound();
+};
+
+// Test hook: boot the ace challenge (Phase 8) without menu taps.
+(window as unknown as { __startAces: unknown }).__startAces = () => {
+  setupEl.style.display = 'none';
+  startAces();
 };

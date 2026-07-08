@@ -32,3 +32,14 @@ test('scramble round boots with a partner', async ({ page }) => {
   await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 20_000 });
   expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('scramble');
 });
+
+test('ace challenge boots on the par 3', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startAces);
+  await page.evaluate(() => (window as any).__startAces());
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  await page.evaluate(() => (window as any).__slice3d.skipIntro());
+  await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 20_000 });
+  // Cedar Carry (Wildwood's par 3) is hole index 1.
+  expect(await page.evaluate(() => (window as any).__slice3d.state.holeIdx)).toBe(1);
+});
