@@ -502,8 +502,8 @@ class HoleScene {
       this.dropAt(h.pin.x + Math.cos(ang) * 300, h.pin.y + Math.sin(ang) * 300);
       const dir = Math.atan2(h.pin.y - this.state.ballPos.y, h.pin.x - this.state.ballPos.x);
       const f = this.fwd3(dir);
-      const pin3 = w2b(h.pin.x, h.pin.y, 0);
-      this.camTarget.pos = pin3.subtract(f.scale(130)).add(new Vector3(0, 62, 0));
+      const pin3 = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
+      this.camTarget.pos = pin3.subtract(f.scale(210)).add(new Vector3(0, 100, 0));
       this.camTarget.look = pin3;
     } else if (cam === 'aerial') {
       this.aerial = true;

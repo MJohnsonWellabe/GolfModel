@@ -63,6 +63,66 @@ function smoothNoise(x: number, y: number): number {
   );
 }
 
+/** Procedural tiling normal map: fine turf grain that responds to the sun. */
+function makeTurfNormalTexture(scene: Scene): DynamicTexture {
+  const size = 128;
+  const heightAtPx = (x: number, y: number): number =>
+    Math.sin(x * 0.55 + Math.sin(y * 0.41) * 2.2) * 0.5 +
+    Math.sin(y * 0.62 - Math.sin(x * 0.37) * 1.8) * 0.35 +
+    Math.sin((x + y) * 0.23) * 0.15;
+  const tex = new DynamicTexture('turfNormal', { width: size, height: size }, scene, true);
+  const ctx = tex.getContext() as CanvasRenderingContext2D;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = heightAtPx(x - 1, y) - heightAtPx(x + 1, y);
+      const ny = heightAtPx(x, y - 1) - heightAtPx(x, y + 1);
+      const len = Math.hypot(nx, ny, 2);
+      const i = (y * size + x) * 4;
+      img.data[i] = 128 + (nx / len) * 110;
+      img.data[i + 1] = 128 + (ny / len) * 110;
+      img.data[i + 2] = 128 + (2 / len) * 110;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  tex.update(false);
+  tex.wrapU = Texture.WRAP_ADDRESSMODE;
+  tex.wrapV = Texture.WRAP_ADDRESSMODE;
+  return tex;
+}
+
+/** Procedural tiling normal map for water wavelets (scrolled every frame). */
+function makeWaterNormalTexture(scene: Scene): DynamicTexture {
+  const size = 128;
+  const heightAtPx = (x: number, y: number): number =>
+    Math.sin(x * 0.35 + Math.sin(y * 0.3) * 2.6) * 0.6 +
+    Math.sin((x * 0.5 - y * 0.42) * 0.7) * 0.4 +
+    Math.sin((x + y * 1.7) * 0.21) * 0.3;
+  const tex = new DynamicTexture('waterNormal', { width: size, height: size }, scene, true);
+  const ctx = tex.getContext() as CanvasRenderingContext2D;
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const nx = heightAtPx(x - 1, y) - heightAtPx(x + 1, y);
+      const ny = heightAtPx(x, y - 1) - heightAtPx(x, y + 1);
+      const len = Math.hypot(nx, ny, 1.2);
+      const i = (y * size + x) * 4;
+      img.data[i] = 128 + (nx / len) * 120;
+      img.data[i + 1] = 128 + (ny / len) * 120;
+      img.data[i + 2] = 128 + (1.2 / len) * 120;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  tex.update(false);
+  tex.wrapU = Texture.WRAP_ADDRESSMODE;
+  tex.wrapV = Texture.WRAP_ADDRESSMODE;
+  tex.uScale = 3;
+  tex.vScale = 3;
+  return tex;
+}
+
 export interface Course3D {
   sun: DirectionalLight;
   shadows: ShadowGenerator;
@@ -245,6 +305,13 @@ export function buildCourse(
   groundMat.detailMap.texture = detailTex;
   groundMat.detailMap.isEnabled = true;
   groundMat.detailMap.diffuseBlendLevel = 0.24;
+  // Fine turf-grain normal map: near-field grass responds to the sun instead
+  // of reading as a flat albedo (art bible: "nothing should appear flat")
+  const turfNormal = makeTurfNormalTexture(scene);
+  turfNormal.uScale = 90;
+  turfNormal.vScale = 90;
+  turfNormal.level = 0.55;
+  groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
 
   // ----------------------------------------------------- green complex mesh
@@ -323,6 +390,11 @@ export function buildCourse(
     const gm = new StandardMaterial('greenComplexMat', scene);
     gm.diffuseTexture = patchTex;
     gm.specularColor = new Color3(0.02, 0.03, 0.02);
+    const greenNormal = makeTurfNormalTexture(scene);
+    greenNormal.uScale = 26;
+    greenNormal.vScale = 26;
+    greenNormal.level = 0.45; // mown-smooth: subtler grain than the ground
+    gm.bumpTexture = greenNormal;
     greenMesh.material = gm;
     greenMesh.receiveShadows = true;
   }
@@ -373,59 +445,73 @@ export function buildCourse(
   }
 
   // ------------------------------------------------------------------ water
+  // Art bible: water should be "one of the prettiest parts of every course" —
+  // depth-tinted toward the middle, soft shore blend, animated wavelets
+  // (scrolling normal map), and a fresnel sky sheen. All StandardMaterial +
+  // vertex colors: no RTT reflections, mobile-safe.
+  const waterNormalTex = makeWaterNormalTexture(scene);
+  let wi = 0;
   for (const hz of hole.hazards) {
     if (hz.type !== 'water') continue;
-    // Triangle fan from the centroid (pond polygons are convex enough)
     const level = hz.level ?? 0.35;
     const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
     const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
+    // Fan: deep center + shore ring + a mid ring for the depth gradient
     const positions: number[] = [cx, level, -cy];
-    const indices: number[] = [];
-    hz.polygon.forEach(([x, y]) => positions.push(x, level, -y));
-    for (let i = 1; i <= hz.polygon.length; i++) {
-      const j = i === hz.polygon.length ? 1 : i + 1;
-      indices.push(0, j, i);
+    const colors: number[] = [];
+    const uvs: number[] = [cx / 90, cy / 90];
+    const deep = c3(theme.waterDeep);
+    const shore = c3(shade(theme.water, 1.35));
+    colors.push(deep.r, deep.g, deep.b, 0.94);
+    const ring = hz.polygon;
+    const n = ring.length;
+    for (const [x, y] of ring) {
+      // mid ring vertex (60% toward shore): main body color
+      const mx = cx + (x - cx) * 0.6;
+      const my = cy + (y - cy) * 0.6;
+      positions.push(mx, level, -my);
+      uvs.push(mx / 90, my / 90);
+      const body = c3(theme.water);
+      colors.push(body.r, body.g, body.b, 0.88);
     }
-    const waterMesh = new Mesh('water', scene);
+    for (const [x, y] of ring) {
+      positions.push(x, level, -y);
+      uvs.push(x / 90, y / 90);
+      colors.push(shore.r, shore.g, shore.b, 0.45); // soft shore fade
+    }
+    const indices: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const i2 = (i + 1) % n;
+      // center fan to mid ring
+      indices.push(0, 1 + i2, 1 + i);
+      // mid ring to shore ring quads
+      indices.push(1 + i, 1 + n + i2, 1 + n + i);
+      indices.push(1 + i, 1 + i2, 1 + n + i2);
+    }
+    const waterMesh = new Mesh(`water${wi++}`, scene);
     const vd = new VertexData();
     vd.positions = positions;
     vd.indices = indices;
+    vd.uvs = uvs;
+    vd.colors = colors;
     const normals: number[] = [];
     VertexData.ComputeNormals(positions, indices, normals);
     vd.normals = normals;
     vd.applyToMesh(waterMesh);
-    const wm = new StandardMaterial('waterMat', scene);
-    wm.diffuseColor = c3(theme.water);
-    wm.emissiveColor = c3(shade(theme.waterDeep, 0.55));
-    wm.specularColor = new Color3(0.6, 0.7, 0.8);
-    wm.specularPower = 96;
-    wm.alpha = 0.82;
-    // Drifting sparkle highlights sell the "small waves" the art bible asks for
-    const sparkTex = new DynamicTexture('waterSpark', { width: 128, height: 128 }, scene, true);
-    const sctx2 = sparkTex.getContext() as CanvasRenderingContext2D;
-    sctx2.fillStyle = '#0b0e10';
-    sctx2.fillRect(0, 0, 128, 128);
-    for (let i = 0; i < 26; i++) {
-      const sx = (i * 47) % 128;
-      const sy = (i * 83 + 31) % 128;
-      const gl = sctx2.createRadialGradient(sx, sy, 0, sx, sy, 5);
-      gl.addColorStop(0, 'rgba(235,246,255,0.9)');
-      gl.addColorStop(1, 'rgba(235,246,255,0)');
-      sctx2.fillStyle = gl;
-      sctx2.fillRect(sx - 6, sy - 6, 12, 12);
-    }
-    sparkTex.update(false);
-    sparkTex.wrapU = Texture.WRAP_ADDRESSMODE;
-    sparkTex.wrapV = Texture.WRAP_ADDRESSMODE;
-    sparkTex.uScale = 4;
-    sparkTex.vScale = 4;
-    wm.emissiveTexture = sparkTex;
+    waterMesh.hasVertexAlpha = true;
+    const wm = new StandardMaterial(`waterMat${wi}`, scene);
+    wm.diffuseColor = new Color3(1, 1, 1); // vertex colors carry the tint
+    wm.emissiveColor = c3(shade(theme.waterDeep, 0.45));
+    wm.specularColor = new Color3(0.75, 0.85, 0.95);
+    wm.specularPower = 110;
+    wm.alpha = 0.95;
+    wm.bumpTexture = waterNormalTex;
     waterMesh.material = wm;
     scene.onBeforeRenderObservable.add(() => {
       const t = animTime();
-      sparkTex.uOffset = t * 0.015;
-      sparkTex.vOffset = Math.sin(t * 0.35) * 0.03;
-      wm.emissiveColor = c3(shade(theme.waterDeep, 0.5 + Math.sin(t * 1.3) * 0.08));
+      waterNormalTex.uOffset = t * 0.018;
+      waterNormalTex.vOffset = t * 0.011 + Math.sin(t * 0.4) * 0.02;
+      wm.emissiveColor = c3(shade(theme.waterDeep, 0.42 + Math.sin(t * 1.3) * 0.06));
     });
   }
 

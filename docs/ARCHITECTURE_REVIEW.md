@@ -40,8 +40,22 @@ of everything below):
   drive fairway/rough scatter; flowers unlit; blocky nature-pack grass slabs
   retired from scatter.
 
-Still open in the graphics track: Stage B (heightfield elevation + physics),
-Stage C (turf detail normals, water shader, baked AO, sand ripples).
+**Stage B (elevation) also landed:** `src/systems/HeightField.ts` compiles
+authored per-hole `elevation` control points (domes/plateaus) into a sampled
+grid; `PhysicsEngine` optionally takes it — terrain-aware landing, gradient
+rollout everywhere, `slopeAccelAlong` putt pacing — with the null path
+bit-identical to the flat engine (regression-gated by the original tests).
+Ground mesh, green complex, tee platform, putt grid (now conforming),
+cameras and placement all sample the same field. All three holes authored
+with elevation (elevated H2 tee, H3 downhill drive + two-tier green).
+
+**Stage C (materials) also landed:** depth-tinted vertex-color water with
+scrolling procedural normal wavelets and shore fade; tiling turf-grain
+normal maps on ground and green (subtler on the mown green); baked contact
+AO seams around bunkers/ponds; raked sand ripples.
+
+The graphics track (Stages 0–C) from the check-in doc is complete; further
+course-visual work belongs to Phase 9 polish.
 
 # Update — 2026-07-08: identity rework + purchased assets integrated
 

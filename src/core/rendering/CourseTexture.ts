@@ -222,6 +222,8 @@ export function renderCourseCanvas(
       if (classAt(wx + 3, wy) !== cls || classAt(wx, wy + 3) !== cls) light *= 0.82;
       // Water: subtle horizontal banding reads as ripples
       if (cls === 5) light *= 1 + Math.sin(wy * 0.18) * 0.045;
+      // Sand: raked ripple lines (art bible: "small ripples, color variation")
+      if (cls === 4) light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
 
       const i = (py * w + px) * 4;
       data[i] = Math.min(255, r * light);
@@ -231,6 +233,26 @@ export function renderCourseCanvas(
     }
   }
   ctx.putImageData(img, 0, 0);
+
+  // Baked contact AO: a soft dark seam around dug features (bunkers, ponds)
+  // grounds them in the turf instead of reading as painted patches.
+  ctx.save();
+  ctx.filter = 'blur(5px)';
+  ctx.strokeStyle = 'rgba(8, 22, 10, 0.34)';
+  ctx.lineWidth = 8 * scale;
+  for (const hz of hole.hazards) {
+    if (hz.type !== 'bunker' && hz.type !== 'water') continue;
+    ctx.beginPath();
+    hz.polygon.forEach(([x, y], i) => {
+      const sx = (x + pad) * scale;
+      const sy = (y + pad) * scale;
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    });
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
 
   // Baked ground shadows (sun-consistent): trees, then buildings
   bakeGroundShadows(ctx, hole, theme, pad, scale);
