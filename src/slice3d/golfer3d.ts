@@ -45,10 +45,12 @@ export class Golfer3D {
   aiming = false;
   private reactionT = -1;
   private reactionKind: 'celebrate' | 'deject' = 'celebrate';
-  /** Set when this golfer's body is a loaded model rather than primitives —
-   * drives a stronger single-rigid-body twist instead of the multi-part
-   * procedural turn, since a static mesh has no per-limb articulation. */
-  private readonly modelBacked: boolean;
+  /** True while this golfer's body is a loaded model rather than primitives
+   * — drives a stronger single-rigid-body twist instead of the multi-part
+   * procedural turn, since a static mesh has no per-limb articulation.
+   * Flips back to false if the model ever fails to load (see the fallback
+   * in the constructor) so the twist and arms revert to the procedural feel. */
+  private modelBacked: boolean;
 
   constructor(scene: Scene, look: GolferLook, shadows: ShadowGenerator, modelKey?: CharacterModelKey) {
     this.root = new TransformNode('golfer', scene);
@@ -82,16 +84,10 @@ export class Golfer3D {
     this.head.scaling = new Vector3(0.94, 0.94, 0.94);
     this.head.parent = this.root;
 
-    if (modelKey) {
-      this.ready = cloneCharacterBody(scene, modelKey).then((body) => {
-        // Undo the torso pivot's own offset so the model's recentered feet
-        // (y=0 locally) land at ground level, not at chest height.
-        body.position = new Vector3(0, -this.torso.position.y, 0);
-        body.parent = this.torso;
-        body.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
-      });
-    } else {
-      this.ready = Promise.resolve();
+    // Procedural body builder — used directly for primitive golfers, and as
+    // a fallback if a model-backed golfer's asset ever fails to load, so a
+    // golfer is never left invisible.
+    const buildProceduralBody = (): void => {
       // Legs: bare (5-inch shorts) with socks + chunky shoes
       for (const side of [-1, 1]) {
         const leg = cast(MeshBuilder.CreateCapsule('leg', { radius: 0.27, height: 1.5, tessellation: 8 }, scene));
@@ -196,6 +192,28 @@ export class Golfer3D {
         hairTop.position = new Vector3(0, 0.15, -0.06);
         hairTop.parent = this.head;
       }
+    };
+
+    if (modelKey) {
+      this.ready = cloneCharacterBody(scene, modelKey)
+        .then((body) => {
+          // Undo the torso pivot's own offset so the model's recentered
+          // feet (y=0 locally) land at ground level, not at chest height.
+          body.position = new Vector3(0, -this.torso.position.y, 0);
+          body.parent = this.torso;
+          body.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
+        })
+        .catch((err) => {
+          // Never leave a golfer invisible — fall back to the primitive body
+          // (and arms, since the model-backed branch skipped them).
+          console.error(`[Golfer3D] failed to load model "${modelKey}", using procedural body:`, err);
+          this.modelBacked = false;
+          buildProceduralBody();
+          buildProceduralArms();
+        });
+    } else {
+      this.ready = Promise.resolve();
+      buildProceduralBody();
     }
 
     // Shoulder pivot with both arms meeting at the grip, plus the club on a
@@ -205,7 +223,7 @@ export class Golfer3D {
     this.shoulderPivot = new TransformNode('shoulders', scene);
     this.shoulderPivot.position = new Vector3(0, 3.2, 0);
     this.shoulderPivot.parent = this.root;
-    if (!this.modelBacked) {
+    const buildProceduralArms = (): void => {
       const armM = m(scene, 'arm', look.shirt);
       for (const side of [-1, 1]) {
         const sleeve = MeshBuilder.CreateCylinder('sleeve', { diameter: 0.5, height: 0.5, tessellation: 8 }, scene);
@@ -220,7 +238,8 @@ export class Golfer3D {
         arm.rotation = new Vector3(0.35, 0, side * -0.34);
         arm.parent = this.shoulderPivot;
       }
-    }
+    };
+    if (!this.modelBacked) buildProceduralArms();
     // Grip hands: white glove (lead) over a bare trail hand
     const gloveHand = MeshBuilder.CreateSphere('glove', { diameter: 0.5, segments: 8 }, scene);
     gloveHand.material = gloveM;

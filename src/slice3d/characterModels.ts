@@ -19,7 +19,10 @@ import {
  */
 export type CharacterModelKey = 'knight' | 'ninja';
 
-const MODEL_URL = '/models/chibi_characters.glb';
+// Relative (no leading slash) — same convention as the sfx paths in main.ts.
+// A leading slash resolves against the domain root, which 404s once the
+// game is deployed under the GitHub Pages project subpath (/GolfModel/).
+const MODEL_URL = 'models/chibi_characters.glb';
 
 /** Node names sharing one consistent baked transform in the source file. */
 const GROUP_NODES: Record<CharacterModelKey, string[]> = {
