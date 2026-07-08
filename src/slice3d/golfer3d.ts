@@ -23,6 +23,8 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
   return mt;
 }
 
+/** Overall golfer size multiplier (applied to the root, scaling body + club). */
+const GOLFER_SCALE = 1.4;
 /** Pack models face the camera by default; turn them to address the ball
  * (the golfer root faces yaw+π after placeAt, like the procedural body). */
 const MODEL_FACING = Math.PI;
@@ -72,6 +74,9 @@ export class Golfer3D {
 
   constructor(scene: Scene, shadows: ShadowGenerator, character?: string, look?: GolferLook) {
     this.root = new TransformNode('golfer', scene);
+    // Scale the whole golfer (body model + club rig, both children of root) so
+    // they grow together and read clearly at the gameplay camera distance.
+    this.root.scaling = new Vector3(GOLFER_SCALE, GOLFER_SCALE, GOLFER_SCALE);
     this.modelBacked = character !== undefined;
 
     if (character) {
@@ -306,8 +311,10 @@ export class Golfer3D {
 
   /** Place the golfer beside the ball, facing along the 2D aim yaw. */
   placeAt(ballX: number, ballY: number, yaw: number, groundH = 0): void {
-    const leftX = Math.cos(yaw + Math.PI / 2) * 2.2;
-    const leftY = Math.sin(yaw + Math.PI / 2) * 2.2;
+    // Stand a step left of the ball; offset widened for the larger golfer so
+    // the (now bigger) body doesn't overlap the ball at address.
+    const leftX = Math.cos(yaw + Math.PI / 2) * 2.9;
+    const leftY = Math.sin(yaw + Math.PI / 2) * 2.9;
     this.root.position = w2b(ballX - leftX, ballY - leftY, groundH);
     this.root.rotation.y = yaw + Math.PI;
   }

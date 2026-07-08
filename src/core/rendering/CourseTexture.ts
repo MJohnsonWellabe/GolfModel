@@ -109,25 +109,39 @@ export function renderCourseCanvas(
     return grid[gy * gw + gx];
   };
 
-  // Per-surface palettes as [r,g,b]
+  // Per-surface base color as [r,g,b]. Green uses the BRIGHT tone as its base
+  // so putting surfaces clearly read as the lightest, shortest grass.
   const rgb = (c: number): [number, number, number] => [(c >> 16) & 255, (c >> 8) & 255, c & 255];
   const palette: Array<[number, number, number]> = [
     rgb(theme.rough),
     rgb(theme.fairway),
-    rgb(theme.green),
+    rgb(theme.greenLight),
     rgb(theme.fringe),
     rgb(theme.sand),
     rgb(theme.water),
     rgb(shade(theme.rough, 0.8)) // under trees
   ];
-  // Noise strength per surface (water calm, sand soft, grass grainy)
-  const noiseAmp = [26, 18, 10, 14, 12, 8, 30];
+  // Mow-band alternate tone per surface — the stripe lerps base↔alt for a real
+  // two-tone mow pattern (the dark/light theme fields were previously unused).
+  // null = no stripes (sand/water/trees).
+  const stripeAlt: Array<[number, number, number] | null> = [
+    rgb(theme.roughDark), // 0 rough  — broad, faint banding
+    rgb(theme.fairwayDark), // 1 fairway — clear mow stripes
+    rgb(theme.green), // 2 green   — bright base ↔ mid green
+    rgb(shade(theme.fringe, 0.88)), // 3 fringe
+    null,
+    null,
+    null
+  ];
+  const stripeLen = [92, 42, 34, 42, 0, 0, 0]; // rough broad; green tightest
+  const stripeAmt = [0.16, 0.34, 0.3, 0.28, 0, 0, 0]; // base↔alt blend strength
+  // Noise strength per surface — rough much grainier (long grass), green smooth.
+  const noiseAmp = [36, 18, 7, 13, 12, 8, 30];
 
   // Mow stripes run along the tee->pin axis
   const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
   const ax = Math.cos(axis);
   const ay = Math.sin(axis);
-  const STRIPE = 42;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -144,16 +158,21 @@ export function renderCourseCanvas(
       const jx = wx + (texelHash(px + 7, py) - 0.5) * 3;
       const jy = wy + (texelHash(px, py + 7) - 0.5) * 3;
       const cls = classAt(jx, jy);
-      const [r, g, b] = palette[cls];
+      let [r, g, b] = palette[cls];
+
+      // Two-tone mow bands: lerp base→alt across the stripe (real color shift).
+      const alt = stripeAlt[cls];
+      if (alt) {
+        const along = wx * ax + wy * ay;
+        const t = ((Math.sin((along / stripeLen[cls]) * Math.PI) + 1) / 2) * stripeAmt[cls];
+        r += (alt[0] - r) * t;
+        g += (alt[1] - g) * t;
+        b += (alt[2] - b) * t;
+      }
 
       let light = 1 + (grain(px, py) - 0.5) * (noiseAmp[cls] / 128);
-      // Stripes on mown surfaces (fairway, green, fringe)
-      if (cls === 1 || cls === 2 || cls === 3) {
-        const along = wx * ax + wy * ay;
-        light *= 1 + Math.sin((along / STRIPE) * Math.PI) * 0.04;
-      }
-      // Edge darkening where the surface changes just ahead
-      if (classAt(wx + 3, wy) !== cls || classAt(wx, wy + 3) !== cls) light *= 0.86;
+      // Edge darkening where the surface changes just ahead (crisper boundaries)
+      if (classAt(wx + 3, wy) !== cls || classAt(wx, wy + 3) !== cls) light *= 0.82;
       // Water: subtle horizontal banding reads as ripples
       if (cls === 5) light *= 1 + Math.sin(wy * 0.18) * 0.045;
 

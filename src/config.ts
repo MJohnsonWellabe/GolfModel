@@ -24,8 +24,9 @@ export const SWING = {
   sweepStatBonusMs: 150,
   /** The accuracy return sweep runs at this fraction of the power sweep speed. */
   accuracySweepMult: 0.85,
-  /** Perfect band half-width as a fraction of meter width, before stat/fire scaling. */
-  perfectBand: 0.022,
+  /** Perfect band half-width as a fraction of meter width, before stat/fire scaling.
+   *  Tightened for the GDD "birdies earned, not expected" difficulty pass. */
+  perfectBand: 0.016,
   /** Good band half-width as a fraction of meter width. */
   goodBand: 0.11,
   /** Multiplier applied to the perfect band while on fire. */
@@ -43,21 +44,30 @@ export const PHYSICS = {
   /** Simulation timestep, seconds. */
   dt: 1 / 60,
   /** Wind acceleration (px/s²) per mph of wind speed, applied while airborne. */
-  windAccelPerMph: 8.0,
+  windAccelPerMph: 9.0,
   /** Downhill acceleration (px/s²) at slope strength 1.0 while rolling on the green. */
   slopeAccel: 55,
-  /** Max wind speed, mph. */
-  maxWind: 16,
+  /** Max wind speed, mph (GDD: ~20mph should change club selection). */
+  maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */
   maxErrorDeg: 13,
+  /** Residual directional dispersion (degrees, 1σ) even on a PERFECT accuracy
+   *  click, by club family — per the GDD, a perfect swing should not guarantee
+   *  perfect positioning. Scaled down as the golfer's accuracy stat rises. */
+  perfectDispersionDeg: {
+    wood: 1.0,
+    iron: 0.8,
+    wedge: 0.6,
+    putter: 0.12
+  } as Record<string, number>,
   /** Height (world px) below which tree polygons block ball flight. */
   treeHeight: 55,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
-  /** Cup capture radius, world px (~1.5 yd — forgiving but not a magnet). */
-  cupRadius: 3,
+  /** Cup capture radius, world px (~1.2 yd — tighter for the difficulty pass). */
+  cupRadius: 2.4,
   /** Max roll speed (px/s) at which the cup can capture the ball — faster lips out. */
-  cupCaptureSpeed: 22,
+  cupCaptureSpeed: 18,
   /** Ground roll friction (px/s²) per surface. */
   friction: {
     tee: 500,
@@ -65,7 +75,7 @@ export const PHYSICS = {
     rough: 900,
     sand: 1800,
     fringe: 420,
-    green: 190,
+    green: 150,
     water: 99999,
     trees: 1100
   } as Record<string, number>,
@@ -84,8 +94,8 @@ export const PHYSICS = {
   lieDistance: {
     tee: 1.0,
     fairway: 1.0,
-    rough: 0.8,
-    sand: 0.6,
+    rough: 0.75,
+    sand: 0.55,
     fringe: 0.95,
     green: 1.0,
     water: 1.0,
@@ -95,8 +105,8 @@ export const PHYSICS = {
   lieError: {
     tee: 0,
     fairway: 0,
-    rough: 2.5,
-    sand: 4,
+    rough: 3.5,
+    sand: 5,
     fringe: 0.5,
     green: 0,
     water: 0,

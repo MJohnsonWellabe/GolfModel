@@ -417,19 +417,27 @@ export function buildCourse(
       }
     }
 
-    // Ground detail: grass tufts, occasional stones and bushes scattered across
-    // the rough only, so the play corridor and hazards stay clean.
-    for (let yy = 0; yy < h; yy += 40) {
-      for (let xx = 0; xx < w; xx += 40) {
-        if (engine.surfaceAt(xx, yy) !== 'rough') continue;
-        if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 120) continue;
-        const jx = xx + (hash2(xx, yy) - 0.5) * 30;
-        const jy = yy + (hash2(yy + 5, xx) - 0.5) * 30;
-        if (engine.surfaceAt(jx, jy) !== 'rough') continue;
+    // Ground detail encodes grass LENGTH by surface: tall, sparse tufts +
+    // stones/bushes on the rough; short, dense tufts on the fairway; nothing on
+    // the green (mown smooth) — so fairway/rough/green read differently up close.
+    for (let yy = 0; yy < h; yy += 34) {
+      for (let xx = 0; xx < w; xx += 34) {
+        const surf = engine.surfaceAt(xx, yy);
+        if (surf !== 'rough' && surf !== 'fairway') continue;
+        if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
+        const jx = xx + (hash2(xx, yy) - 0.5) * 26;
+        const jy = yy + (hash2(yy + 5, xx) - 0.5) * 26;
+        if (engine.surfaceAt(jx, jy) !== surf) continue;
         const roll = hash2(xx + 91, yy + 47);
-        if (roll < 0.34) place(grasses, jx, jy, 3.4 + hash2(jx, jy) * 2.2, 3);
-        else if (roll < 0.4) place(bushes, jx, jy, 5.5 + hash2(jy, jx) * 2.5, 7);
-        else if (roll < 0.435) place(stones, jx, jy, 3.2 + hash2(jx + 1, jy) * 4.0, 11);
+        if (surf === 'fairway') {
+          // Short, dense mown tufts (kept low so they never block the ball read).
+          if (roll < 0.5) place(grasses, jx, jy, 1.4 + hash2(jx, jy) * 0.9, 3);
+        } else {
+          // Longer rough grass, plus the occasional bush/stone.
+          if (roll < 0.4) place(grasses, jx, jy, 4.2 + hash2(jx, jy) * 2.6, 3);
+          else if (roll < 0.46) place(bushes, jx, jy, 5.5 + hash2(jy, jx) * 2.5, 7);
+          else if (roll < 0.495) place(stones, jx, jy, 3.2 + hash2(jx + 1, jy) * 4.0, 11);
+        }
       }
     }
   });

@@ -21,6 +21,7 @@ import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import wildwood from '../data/courses/wildwood.json';
+import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AIController } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
 import { dist } from '../utils/Geometry';
@@ -375,9 +376,10 @@ class HoleScene {
       this.camTarget.k = 4;
       return;
     }
-    // Higher, more pitched-down vantage so the fairway and green read clearly
-    this.camTarget.pos = base.subtract(f.scale(putt ? 11 : 30)).add(new Vector3(0, putt ? 4.5 : 22, 0));
-    this.camTarget.look = base.add(f.scale(putt ? 24 : 72)).add(new Vector3(0, putt ? 1 : 1, 0));
+    // Pitched-down vantage; pulled in a touch from behind/above the golfer so
+    // the (larger) golfer reads clearly while the fairway still shows.
+    this.camTarget.pos = base.subtract(f.scale(putt ? 11 : 26)).add(new Vector3(0, putt ? 4.5 : 18, 0));
+    this.camTarget.look = base.add(f.scale(putt ? 24 : 70)).add(new Vector3(0, putt ? 1 : 1, 0));
     this.camTarget.k = 4;
   }
 
@@ -513,14 +515,20 @@ class HoleScene {
     this.aim.computePreview(this.ctx(), this.wind);
     const path = this.aim.previewPath;
     const target = path && path.length ? path[path.length - 1] : this.aim.aimPoint(this.state.ballPos);
+    // The aerial planning camera sits 240–760 units overhead, where the small
+    // ground dots vanish — enlarge them (in place) so the aim line still reads.
+    const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
+    const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
     // Dots march from the ball to the landing/aim point along the ground
     const bx = this.state.ballPos.x;
     const by = this.state.ballPos.y;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
       dot.position = w2b(bx + (target.x - bx) * f, by + (target.y - by) * f, 0.12);
+      dot.scaling.setAll(dotScale);
     });
     this.aimRing.position = w2b(target.x, target.y, 0.12);
+    this.aimRing.scaling.setAll(dotScale);
   }
 
   private cycleClub(dir: number): void {
@@ -547,6 +555,7 @@ class HoleScene {
     this.aerial = !this.aerial;
     aerialBtn.classList.toggle('on', this.aerial);
     this.setCamSetup();
+    this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }
 
   /** AI opponent: pick a shot with AIController and play it (no meter). */
@@ -928,15 +937,73 @@ function showSummary(): void {
     headline = `Team ${parLabel(team)}`;
     teamRow = `<tr class="totrow"><td colspan="${2 + round.players.length}">Best ball: <b>${team}</b> (${parLabel(team)})</td></tr>`;
   }
+  // Persist the round (local + shared leaderboard) — the human is player 0.
+  const me = round.players[0];
+  const record: RoundRecord = {
+    id: makeRoundId(),
+    d: Date.now(),
+    course: round.course.name,
+    mode: round.mode,
+    names: round.players.map((p) => p.golfer.name).join(' & '),
+    golferId: me.golfer.id,
+    total: totals[0],
+    toPar: totals[0] - totalPar,
+    holes: me.scores.slice(0, holes.length)
+  };
+  saveRound(record);
+
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
+    `<div id="recBanner" class="recBanner"></div>` +
     `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
-    `<button id="againBtn">Menu</button>`;
+    `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
+    `<button id="againBtn">Menu</button></div>`;
   summaryEl.style.display = 'block';
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
     showSetup();
   });
+  document.getElementById('recBtn')!.addEventListener('pointerdown', () => renderRecords());
+  // A new course record is confirmed against the merged (local+shared) list.
+  fetchAllRounds().then(({ rounds }) => {
+    const banner = document.getElementById('recBanner');
+    if (banner && isNewRecord(rounds, record)) banner.textContent = '🏆 New course record!';
+  });
+}
+
+/** Records / leaderboard overlay: top rounds for the current course + mode. */
+async function renderRecords(): Promise<void> {
+  recordsEl.style.display = 'flex';
+  recordsEl.innerHTML =
+    `<div class="recInner"><h2>Records</h2>` +
+    `<div class="recSub">${round.course.name}</div>` +
+    `<div id="recList" class="recList">Loading…</div>` +
+    `<div id="recFoot" class="recFoot"></div>` +
+    `<button id="recBack">Back</button></div>`;
+  document.getElementById('recBack')!.addEventListener('pointerdown', () => {
+    recordsEl.style.display = 'none';
+  });
+  const { rounds, shared } = await fetchAllRounds();
+  const best = bestRounds(rounds, round.course.name, round.mode, 5);
+  const listEl = document.getElementById('recList');
+  if (listEl) {
+    listEl.innerHTML = best.length
+      ? best
+          .map((r, i) => {
+            const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
+            const rank = i === 0 ? '🏆' : `${i + 1}.`;
+            return (
+              `<div class="recRow"><span class="recRk">${rank}</span>` +
+              `<span class="recNm">${r.names}</span>` +
+              `<span class="recTot">${r.total} (${sign})</span>` +
+              `<span class="recHoles">${r.holes.join('-')}</span></div>`
+            );
+          })
+          .join('')
+      : `<div class="recEmpty">No rounds yet — play one!</div>`;
+  }
+  const foot = document.getElementById('recFoot');
+  if (foot) foot.textContent = shared ? '🌐 Shared leaderboard' : '📱 This device only';
 }
 
 engine3d.runRenderLoop(() => current?.render());
@@ -966,6 +1033,7 @@ function exposeDebug(): void {
 // ------------------------------------------------------------- setup menu
 
 const setupEl = document.getElementById('setup')!;
+const recordsEl = document.getElementById('records')!;
 const stepsEl = document.getElementById('steps')!;
 const stepBodyEl = document.getElementById('stepBody')!;
 const backBtn = document.getElementById('backBtn') as HTMLButtonElement;
@@ -1116,6 +1184,7 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
+document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < 2) goStep(sel.step + 1);

@@ -63,7 +63,9 @@ export class DomMeter {
   }
 
   private perfectHalf(): number {
-    const statFactor = 0.85 + (this.ctx.stat / 100) * 0.3;
+    // Flatter stat scaling so even elite golfers keep a demanding perfect zone
+    // (0.9 at stat 0 → 1.1 at stat 100) — part of the difficulty pass.
+    const statFactor = 0.9 + (this.ctx.stat / 100) * 0.2;
     return SWING.perfectBand * statFactor;
   }
 

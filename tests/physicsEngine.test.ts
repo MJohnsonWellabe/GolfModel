@@ -194,16 +194,58 @@ describe('simulate', () => {
   });
 });
 
+describe('perfect-click residual dispersion (difficulty pass)', () => {
+  // Open hole, no hazards near the landing zone, so spread isn't clamped.
+  const OPEN: HoleData = {
+    ...HOLE,
+    green: { cx: 1000, cy: 100, rx: 60, ry: 60 },
+    pin: { x: 1000, y: 100 },
+    fairway: [[[600, 0], [1400, 0], [1400, 1900], [600, 1900]]],
+    hazards: []
+  };
+  const openEngine = new PhysicsEngine(OPEN);
+
+  const spread = (clubId: string, power: number): number => {
+    const club = clubById(clubId);
+    const xs: number[] = [];
+    for (let i = 0; i < 200; i++) {
+      const o = openEngine.simulate({
+        origin: { x: 1000, y: 1800 },
+        aimAngle: -Math.PI / 2,
+        swing: PERFECT(power),
+        club,
+        golfer: GOLFER,
+        fireBoost: 0,
+        lie: 'tee',
+        wind: NO_WIND,
+        hole: OPEN
+        // no preview → residual dispersion applies
+      });
+      xs.push(o.finalPos.x);
+    }
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    return Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
+  };
+
+  it('a perfect driver no longer flies dead straight', () => {
+    expect(spread('driver', 0.7)).toBeGreaterThan(1); // >1px lateral scatter
+  });
+
+  it('a perfect wedge disperses less (in absolute terms) than a perfect driver', () => {
+    expect(spread('pw', 0.7)).toBeLessThan(spread('driver', 0.7));
+  });
+});
+
 describe('effectiveCarryYards', () => {
   it('scales with the governing stat and the lie', () => {
     const iron = clubById('7i');
     const fromFairway = effectiveCarryYards(iron, GOLFER, 0, 'fairway');
     const fromRough = effectiveCarryYards(iron, GOLFER, 0, 'rough');
     const fromSand = effectiveCarryYards(iron, GOLFER, 0, 'sand');
-    // statMult = 0.149 + (approach/100) * 1.036 (GDD-wide power spread)
-    expect(fromFairway).toBeCloseTo(160 * (0.149 + 0.8 * 1.036));
-    expect(fromRough).toBeCloseTo(fromFairway * 0.8);
-    expect(fromSand).toBeCloseTo(fromFairway * 0.6);
+    // statMult = 0.259 + (approach/100) * 0.926 (GDD Appendix A carry table)
+    expect(fromFairway).toBeCloseTo(160 * (0.259 + 0.8 * 0.926));
+    expect(fromRough).toBeCloseTo(fromFairway * 0.75);
+    expect(fromSand).toBeCloseTo(fromFairway * 0.55);
   });
 
   it('fire boost raises the effective stat', () => {

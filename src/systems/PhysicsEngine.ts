@@ -59,6 +59,14 @@ export function statsForClub(
   };
 }
 
+/** Club family key for per-club dispersion tuning (PHYSICS.perfectDispersionDeg). */
+function clubFamily(club: ClubSpec): string {
+  if (club.id === 'putter') return 'putter';
+  if (club.id === 'pw' || club.id === 'sw') return 'wedge';
+  if (club.id === 'driver' || club.id === '3w' || club.id === '5w') return 'wood';
+  return 'iron';
+}
+
 /** Effective full-power carry (yards) for a club/golfer/lie combination. */
 export function effectiveCarryYards(
   club: ClubSpec,
@@ -67,10 +75,10 @@ export function effectiveCarryYards(
   lie: Surface
 ): number {
   const { distance } = statsForClub(club, golfer, fireBoost);
-  // Wide power spread per the GDD: a 75-power golfer carries the driver
-  // ~250yd, a 100-power golfer ~320yd (base 270). Players should immediately
-  // feel the difference between golfers. statMult = 0.149 + power/100 * 1.036.
-  const statMult = 0.149 + (distance / 100) * 1.036;
+  // GDD Appendix A driver carry table (base 270): power 70→245yd, 85→~283,
+  // 100→320. statMult = 0.259 + power/100 * 0.926 fits those anchors, so the
+  // full power spread lands on the documented targets.
+  const statMult = 0.259 + (distance / 100) * 0.926;
   const lieMult = PHYSICS.lieDistance[lie] ?? 1;
   return club.baseDistance * statMult * lieMult;
 }
@@ -127,9 +135,14 @@ export class PhysicsEngine {
 
     // Direction -----------------------------------------------------------
     const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
-    const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 3 : PHYSICS.maxErrorDeg;
+    const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 2.4 : PHYSICS.maxErrorDeg;
     const lieNoise = params.preview ? 0 : gaussian(0, PHYSICS.lieError[lie] ?? 0);
-    const errorDeg = swing.accuracy * maxErr * errFactor + lieNoise;
+    // Residual dispersion even on a perfect (accuracy===0) click — a perfect
+    // swing shouldn't guarantee a perfect line (GDD §864). Tightens as the
+    // governing accuracy stat rises; skipped in preview so the aim line is exact.
+    const residualSigma = (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) * (1.3 - accuracy / 200);
+    const residual = params.preview ? 0 : gaussian(0, Math.max(0, residualSigma));
+    const errorDeg = swing.accuracy * maxErr * errFactor + lieNoise + residual;
     const dir = aimAngle + (errorDeg * Math.PI) / 180;
 
     const path: TrajectoryPoint[] = [{ x: origin.x, y: origin.y, z: 0 }];
