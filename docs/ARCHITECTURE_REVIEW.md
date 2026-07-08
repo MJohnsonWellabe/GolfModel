@@ -298,3 +298,38 @@ front-end is an additive presentation layer over it.
 Still open (tracked for later phases): scramble mode in 3D, a modeled glTF
 character to reach full Hot Shots fidelity (the `@babylonjs/loaders` seam is
 the intended path), and Phase 2 gameplay balance.
+
+---
+
+# First modeled glTF character (Zac, Matt)
+
+The `@babylonjs/loaders` seam mentioned above is now used for real. Matt
+supplied a downloaded chibi character pack (`assets/models/chibi_characters.glb`,
+14MB, Blender → glTF). Inspection of the file found 5 candidate bodies but
+only 2 fully assembled (body + face + hair + outfit all sharing one baked
+transform): a **Knight** and a **Ninja** — the other 3 have hair/clothing
+baked at mismatched positions (the export lost its rig) and aren't safely
+reassemblable without the source `.blend` file.
+
+- `src/slice3d/characterModels.ts` loads the pack **once** per session
+  (`LoadAssetContainerAsync`, cached), then `cloneCharacterBody()` clones just
+  the named nodes for a given body, recenters them (feet at y=0, X/Z
+  centered) via `getHierarchyBoundingVectors`, and scales to the game's
+  existing stylized character height.
+- `Golfer.model3d?: 'knight' | 'ninja'` (in `core/types.ts`, engine-agnostic
+  — the 2D game never reads it) opts a golfer into a model body. Set on
+  **Zac → knight** and **Matt → ninja** in `data/golfers.ts`; every other
+  golfer is untouched.
+- `Golfer3D` branches in its constructor: model-backed golfers skip the
+  procedural head/torso/leg primitives and parent the cloned body under the
+  existing `torso` pivot instead. **Known limitation**: the pack has no
+  skeleton/animations, so there's no per-limb swing articulation — the torso
+  pivot's Y-rotation (already used for the procedural weight-transfer turn)
+  is amplified for model-backed golfers into a whole-rigid-body twist, while
+  the fully-procedural club/hand rig (unaffected, not part of the pack)
+  keeps swinging normally underneath. The model's own baked arm pose stays
+  wherever the source mesh was posed (not gripping the club).
+
+Verified: both bodies render correctly (textures, shadows, grounded) and
+play a full hole with zero page errors; an untouched procedural golfer
+(Jeff) regression-checked unchanged.

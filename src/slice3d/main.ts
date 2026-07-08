@@ -148,6 +148,9 @@ class HoleScene {
   readonly scene: Scene;
   readonly state: HoleState;
   readonly aim: AimControl;
+  /** Resolves once every competitor's body (model-backed or procedural) has
+   * finished loading — mainly for deterministic test/verification waits. */
+  readonly bodiesReady: Promise<void>;
   private engine2d: PhysicsEngine;
   private hole = round.course.holes[round.holeIdx];
   private theme = resolveTheme(round.course);
@@ -202,7 +205,7 @@ class HoleScene {
     // One golfer, ball and (for AI) brain per competitor. In solo that's one;
     // in 1v1/scramble the two play the hole with alternating turns.
     round.players.forEach((part, i) => {
-      const g = new Golfer3D(this.scene, part.golfer.look, shadows);
+      const g = new Golfer3D(this.scene, part.golfer.look, shadows, part.golfer.model3d);
       g.root.setEnabled(false);
       this.golfers.push(g);
       const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
@@ -215,6 +218,7 @@ class HoleScene {
       this.ais.push(part.isAI ? new AIController(part.golfer, new FireSystem()) : null);
       this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, part });
     });
+    this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => undefined);
 
     this.ballShadow = MeshBuilder.CreateDisc('ballShadow', { radius: 0.7, tessellation: 16 }, this.scene);
     this.ballShadow.rotation.x = Math.PI / 2;
@@ -938,6 +942,7 @@ function exposeDebug(): void {
         state: current.state,
         scene: current.scene,
         mode: round.mode,
+        bodiesReady: current.bodiesReady,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         skipIntro: () => {
           bannerEl.style.opacity = '0';

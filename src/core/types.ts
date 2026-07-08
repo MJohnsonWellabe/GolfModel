@@ -41,6 +41,9 @@ export interface Golfer {
   color: number;
   look: GolferLook;
   stats: GolferStats;
+  /** 3D game only: swap the procedural body for a loaded character model.
+   * Left undefined for everyone else — the 2D game never reads this. */
+  model3d?: 'knight' | 'ninja';
 }
 
 /** Overall rating shown on select screens — mean of the five stats. */

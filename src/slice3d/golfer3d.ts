@@ -9,6 +9,7 @@ import {
   Vector3
 } from '@babylonjs/core';
 import { GolferLook } from '../core/types';
+import { CharacterModelKey, cloneCharacterBody } from './characterModels';
 import { w2b } from './course3d';
 
 const c3 = (hex: number): Color3 =>
@@ -31,11 +32,12 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
  */
 export class Golfer3D {
   readonly root: TransformNode;
+  /** Resolves once any async body asset (model-backed golfers) has loaded. */
+  readonly ready: Promise<void>;
   private shoulderPivot: TransformNode;
   private wristPivot: TransformNode;
-  private torso: Mesh;
+  private torso: TransformNode;
   private head: TransformNode;
-  private headBall: Mesh;
   private hips: TransformNode;
   private idleTime = 0;
   private swinging = false;
@@ -43,9 +45,14 @@ export class Golfer3D {
   aiming = false;
   private reactionT = -1;
   private reactionKind: 'celebrate' | 'deject' = 'celebrate';
+  /** Set when this golfer's body is a loaded model rather than primitives —
+   * drives a stronger single-rigid-body twist instead of the multi-part
+   * procedural turn, since a static mesh has no per-limb articulation. */
+  private readonly modelBacked: boolean;
 
-  constructor(scene: Scene, look: GolferLook, shadows: ShadowGenerator) {
+  constructor(scene: Scene, look: GolferLook, shadows: ShadowGenerator, modelKey?: CharacterModelKey) {
     this.root = new TransformNode('golfer', scene);
+    this.modelBacked = modelKey !== undefined;
 
     const skin = m(scene, 'skin', look.skin);
     const shirt = m(scene, 'shirt', look.shirt);
@@ -62,136 +69,157 @@ export class Golfer3D {
       return mesh;
     };
 
-    // Legs: bare (5-inch shorts) with socks + chunky shoes
     this.hips = new TransformNode('hips', scene);
     this.hips.parent = this.root;
-    for (const side of [-1, 1]) {
-      const leg = cast(MeshBuilder.CreateCapsule('leg', { radius: 0.27, height: 1.5, tessellation: 8 }, scene));
-      leg.material = skin;
-      leg.position = new Vector3(side * 0.42, 0.95, 0);
-      leg.parent = this.hips;
-      const sock = MeshBuilder.CreateCylinder('sock', { diameter: 0.56, height: 0.34, tessellation: 8 }, scene);
-      sock.material = sockM;
-      sock.position = new Vector3(side * 0.42, 0.42, 0);
-      sock.parent = this.hips;
-      const shoe = cast(MeshBuilder.CreateBox('shoe', { width: 0.62, height: 0.32, depth: 1.05 }, scene));
-      shoe.material = shoeM;
-      shoe.position = new Vector3(side * 0.42, 0.16, 0.18);
-      shoe.parent = this.hips;
-    }
-
-    // Torso: capsule polo + collar, shorts with belt
-    this.torso = cast(MeshBuilder.CreateCapsule('torso', { radius: 0.72, height: 2.2, tessellation: 10 }, scene));
-    this.torso.material = shirt;
+    // Torso pivot: for procedural golfers this carries the capsule visual;
+    // for model-backed golfers it carries the whole loaded body instead, so
+    // the same rotation that turns the procedural torso also turns the model.
+    this.torso = new TransformNode('torso', scene);
     this.torso.position = new Vector3(0, 2.42, 0);
-    this.torso.scaling = new Vector3(1, 1, 0.82);
     this.torso.parent = this.root;
-    const collar = MeshBuilder.CreateCylinder('collar', { diameter: 1.02, height: 0.2, tessellation: 10 }, scene);
-    collar.material = m(scene, 'collarM', 0xf5f2ea);
-    collar.position = new Vector3(0, 3.38, 0);
-    collar.parent = this.root;
-    const shorts = cast(MeshBuilder.CreateCylinder('shorts', {
-      diameterTop: 1.44, diameterBottom: 1.52, height: 0.78, tessellation: 10
-    }, scene));
-    shorts.material = shortsM;
-    shorts.position = new Vector3(0, 1.55, 0);
-    shorts.parent = this.root;
-    const belt = MeshBuilder.CreateCylinder('belt', { diameter: 1.48, height: 0.14, tessellation: 10 }, scene);
-    belt.material = m(scene, 'beltM', 0x24303c);
-    belt.position = new Vector3(0, 1.98, 0);
-    belt.parent = this.root;
-
-    // Head node (rotates as one) with face built from small crisp meshes —
-    // reads cleanly at gameplay distance without any UV work
     this.head = new TransformNode('headN', scene);
     this.head.position = new Vector3(0, 4.15, 0);
     this.head.scaling = new Vector3(0.94, 0.94, 0.94);
     this.head.parent = this.root;
-    this.headBall = cast(MeshBuilder.CreateSphere('head', { diameter: 1.9, segments: 12 }, scene));
-    this.headBall.material = skin;
-    this.headBall.parent = this.head;
-    // Ears
-    for (const side of [-1, 1]) {
-      const ear = MeshBuilder.CreateSphere('ear', { diameter: 0.3, segments: 6 }, scene);
-      ear.material = skin;
-      ear.position = new Vector3(side * 0.93, -0.02, 0);
-      ear.scaling = new Vector3(0.5, 1, 0.8);
-      ear.parent = this.head;
-    }
-    // Eyes: tall dark ovals, EG style
-    for (const side of [-1, 1]) {
-      const eye = MeshBuilder.CreateSphere('eye', { diameter: 0.27, segments: 8 }, scene);
-      eye.material = darkM;
-      eye.position = new Vector3(side * 0.31, 0.08, 0.85);
-      eye.scaling = new Vector3(0.8, 1.5, 0.4);
-      eye.parent = this.head;
-      const brow = MeshBuilder.CreateBox('brow', { width: 0.3, height: 0.07, depth: 0.06 }, scene);
-      brow.material = hairM;
-      brow.position = new Vector3(side * 0.3, 0.4, 0.85);
-      brow.rotation = new Vector3(-0.25, 0, side * -0.1);
-      brow.parent = this.head;
-    }
-    // Nose + easy smile
-    const nose = MeshBuilder.CreateSphere('nose', { diameter: 0.18, segments: 6 }, scene);
-    nose.material = skin;
-    nose.position = new Vector3(0, -0.08, 0.94);
-    nose.scaling = new Vector3(0.9, 0.8, 0.9);
-    nose.parent = this.head;
-    const mouth = MeshBuilder.CreateBox('mouth', { width: 0.3, height: 0.055, depth: 0.05 }, scene);
-    mouth.material = darkM;
-    mouth.position = new Vector3(0, -0.36, 0.87);
-    mouth.rotation.x = -0.35;
-    mouth.parent = this.head;
 
-    // Hair: short crop at the back of the skull only (no chin-strap read)
-    const hairBack = MeshBuilder.CreateSphere('hairBack', { diameter: 1.96, segments: 10, slice: 0.42 }, scene);
-    hairBack.material = hairM;
-    hairBack.rotation.x = Math.PI * 0.78; // tips the cap of the sphere to the lower back
-    hairBack.position = new Vector3(0, 0.12, -0.16);
-    hairBack.parent = this.head;
-    if (hatM) {
-      const dome = MeshBuilder.CreateSphere('hatDome', { diameter: 2.04, segments: 10, slice: 0.55 }, scene);
-      dome.material = hatM;
-      dome.position = new Vector3(0, 0.14, 0);
-      dome.scaling = new Vector3(1, 0.92, 1);
-      dome.parent = this.head;
-      const button = MeshBuilder.CreateSphere('hatBtn', { diameter: 0.18, segments: 6 }, scene);
-      button.material = hatM;
-      button.position = new Vector3(0, 1.06, 0);
-      button.parent = this.head;
-      // Bill: flat disc tucked under the dome edge, kept high so it never
-      // shades the eyes out of view
-      const brim = MeshBuilder.CreateCylinder('brim', { diameter: 1.05, height: 0.13, tessellation: 12 }, scene);
-      brim.material = hatM;
-      brim.position = new Vector3(0, 0.4, 0.8);
-      brim.scaling = new Vector3(1, 1, 1.15);
-      brim.rotation.x = 0.1;
-      brim.parent = this.head;
+    if (modelKey) {
+      this.ready = cloneCharacterBody(scene, modelKey).then((body) => {
+        // Undo the torso pivot's own offset so the model's recentered feet
+        // (y=0 locally) land at ground level, not at chest height.
+        body.position = new Vector3(0, -this.torso.position.y, 0);
+        body.parent = this.torso;
+        body.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
+      });
     } else {
-      const hairTop = MeshBuilder.CreateSphere('hairTop', { diameter: 2.0, segments: 10, slice: 0.55 }, scene);
-      hairTop.material = hairM;
-      hairTop.position = new Vector3(0, 0.15, -0.06);
-      hairTop.parent = this.head;
+      this.ready = Promise.resolve();
+      // Legs: bare (5-inch shorts) with socks + chunky shoes
+      for (const side of [-1, 1]) {
+        const leg = cast(MeshBuilder.CreateCapsule('leg', { radius: 0.27, height: 1.5, tessellation: 8 }, scene));
+        leg.material = skin;
+        leg.position = new Vector3(side * 0.42, 0.95, 0);
+        leg.parent = this.hips;
+        const sock = MeshBuilder.CreateCylinder('sock', { diameter: 0.56, height: 0.34, tessellation: 8 }, scene);
+        sock.material = sockM;
+        sock.position = new Vector3(side * 0.42, 0.42, 0);
+        sock.parent = this.hips;
+        const shoe = cast(MeshBuilder.CreateBox('shoe', { width: 0.62, height: 0.32, depth: 1.05 }, scene));
+        shoe.material = shoeM;
+        shoe.position = new Vector3(side * 0.42, 0.16, 0.18);
+        shoe.parent = this.hips;
+      }
+
+      // Torso: capsule polo + collar, shorts with belt
+      const torsoMesh = cast(MeshBuilder.CreateCapsule('torsoMesh', { radius: 0.72, height: 2.2, tessellation: 10 }, scene));
+      torsoMesh.material = shirt;
+      torsoMesh.scaling = new Vector3(1, 1, 0.82);
+      torsoMesh.parent = this.torso;
+      const collar = MeshBuilder.CreateCylinder('collar', { diameter: 1.02, height: 0.2, tessellation: 10 }, scene);
+      collar.material = m(scene, 'collarM', 0xf5f2ea);
+      collar.position = new Vector3(0, 3.38, 0);
+      collar.parent = this.root;
+      const shorts = cast(MeshBuilder.CreateCylinder('shorts', {
+        diameterTop: 1.44, diameterBottom: 1.52, height: 0.78, tessellation: 10
+      }, scene));
+      shorts.material = shortsM;
+      shorts.position = new Vector3(0, 1.55, 0);
+      shorts.parent = this.root;
+      const belt = MeshBuilder.CreateCylinder('belt', { diameter: 1.48, height: 0.14, tessellation: 10 }, scene);
+      belt.material = m(scene, 'beltM', 0x24303c);
+      belt.position = new Vector3(0, 1.98, 0);
+      belt.parent = this.root;
+
+      // Head: face built from small crisp meshes — reads cleanly at gameplay
+      // distance without any UV work
+      const headBall = cast(MeshBuilder.CreateSphere('head', { diameter: 1.9, segments: 12 }, scene));
+      headBall.material = skin;
+      headBall.parent = this.head;
+      // Ears
+      for (const side of [-1, 1]) {
+        const ear = MeshBuilder.CreateSphere('ear', { diameter: 0.3, segments: 6 }, scene);
+        ear.material = skin;
+        ear.position = new Vector3(side * 0.93, -0.02, 0);
+        ear.scaling = new Vector3(0.5, 1, 0.8);
+        ear.parent = this.head;
+      }
+      // Eyes: tall dark ovals, EG style
+      for (const side of [-1, 1]) {
+        const eye = MeshBuilder.CreateSphere('eye', { diameter: 0.27, segments: 8 }, scene);
+        eye.material = darkM;
+        eye.position = new Vector3(side * 0.31, 0.08, 0.85);
+        eye.scaling = new Vector3(0.8, 1.5, 0.4);
+        eye.parent = this.head;
+        const brow = MeshBuilder.CreateBox('brow', { width: 0.3, height: 0.07, depth: 0.06 }, scene);
+        brow.material = hairM;
+        brow.position = new Vector3(side * 0.3, 0.4, 0.85);
+        brow.rotation = new Vector3(-0.25, 0, side * -0.1);
+        brow.parent = this.head;
+      }
+      // Nose + easy smile
+      const nose = MeshBuilder.CreateSphere('nose', { diameter: 0.18, segments: 6 }, scene);
+      nose.material = skin;
+      nose.position = new Vector3(0, -0.08, 0.94);
+      nose.scaling = new Vector3(0.9, 0.8, 0.9);
+      nose.parent = this.head;
+      const mouth = MeshBuilder.CreateBox('mouth', { width: 0.3, height: 0.055, depth: 0.05 }, scene);
+      mouth.material = darkM;
+      mouth.position = new Vector3(0, -0.36, 0.87);
+      mouth.rotation.x = -0.35;
+      mouth.parent = this.head;
+
+      // Hair: short crop at the back of the skull only (no chin-strap read)
+      const hairBack = MeshBuilder.CreateSphere('hairBack', { diameter: 1.96, segments: 10, slice: 0.42 }, scene);
+      hairBack.material = hairM;
+      hairBack.rotation.x = Math.PI * 0.78; // tips the cap of the sphere to the lower back
+      hairBack.position = new Vector3(0, 0.12, -0.16);
+      hairBack.parent = this.head;
+      if (hatM) {
+        const dome = MeshBuilder.CreateSphere('hatDome', { diameter: 2.04, segments: 10, slice: 0.55 }, scene);
+        dome.material = hatM;
+        dome.position = new Vector3(0, 0.14, 0);
+        dome.scaling = new Vector3(1, 0.92, 1);
+        dome.parent = this.head;
+        const button = MeshBuilder.CreateSphere('hatBtn', { diameter: 0.18, segments: 6 }, scene);
+        button.material = hatM;
+        button.position = new Vector3(0, 1.06, 0);
+        button.parent = this.head;
+        // Bill: flat disc tucked under the dome edge, kept high so it never
+        // shades the eyes out of view
+        const brim = MeshBuilder.CreateCylinder('brim', { diameter: 1.05, height: 0.13, tessellation: 12 }, scene);
+        brim.material = hatM;
+        brim.position = new Vector3(0, 0.4, 0.8);
+        brim.scaling = new Vector3(1, 1, 1.15);
+        brim.rotation.x = 0.1;
+        brim.parent = this.head;
+      } else {
+        const hairTop = MeshBuilder.CreateSphere('hairTop', { diameter: 2.0, segments: 10, slice: 0.55 }, scene);
+        hairTop.material = hairM;
+        hairTop.position = new Vector3(0, 0.15, -0.06);
+        hairTop.parent = this.head;
+      }
     }
 
     // Shoulder pivot with both arms meeting at the grip, plus the club on a
-    // wrist pivot so it lags naturally through the swing
+    // wrist pivot so it lags naturally through the swing. Kept for every
+    // golfer — model-backed bodies have no rig, so this procedural rig is
+    // what actually animates the swing (the club and grip, not the limbs).
     this.shoulderPivot = new TransformNode('shoulders', scene);
     this.shoulderPivot.position = new Vector3(0, 3.2, 0);
     this.shoulderPivot.parent = this.root;
-    const armM = m(scene, 'arm', look.shirt);
-    for (const side of [-1, 1]) {
-      const sleeve = MeshBuilder.CreateCylinder('sleeve', { diameter: 0.5, height: 0.5, tessellation: 8 }, scene);
-      sleeve.material = armM;
-      sleeve.position = new Vector3(side * 0.62, -0.2, 0.12);
-      sleeve.rotation = new Vector3(0.3, 0, side * -0.3);
-      sleeve.parent = this.shoulderPivot;
-      const arm = cast(MeshBuilder.CreateCapsule('arm', { radius: 0.19, height: 2.0, tessellation: 8 }, scene));
-      arm.material = skin;
-      // Arms angle inward from each shoulder toward the shared grip point
-      arm.position = new Vector3(side * 0.38, -0.95, 0.32);
-      arm.rotation = new Vector3(0.35, 0, side * -0.34);
-      arm.parent = this.shoulderPivot;
+    if (!this.modelBacked) {
+      const armM = m(scene, 'arm', look.shirt);
+      for (const side of [-1, 1]) {
+        const sleeve = MeshBuilder.CreateCylinder('sleeve', { diameter: 0.5, height: 0.5, tessellation: 8 }, scene);
+        sleeve.material = armM;
+        sleeve.position = new Vector3(side * 0.62, -0.2, 0.12);
+        sleeve.rotation = new Vector3(0.3, 0, side * -0.3);
+        sleeve.parent = this.shoulderPivot;
+        const arm = cast(MeshBuilder.CreateCapsule('arm', { radius: 0.19, height: 2.0, tessellation: 8 }, scene));
+        arm.material = skin;
+        // Arms angle inward from each shoulder toward the shared grip point
+        arm.position = new Vector3(side * 0.38, -0.95, 0.32);
+        arm.rotation = new Vector3(0.35, 0, side * -0.34);
+        arm.parent = this.shoulderPivot;
+      }
     }
     // Grip hands: white glove (lead) over a bare trail hand
     const gloveHand = MeshBuilder.CreateSphere('glove', { diameter: 0.5, segments: 8 }, scene);
@@ -257,8 +285,10 @@ export class Golfer3D {
     // Wrist lag: the club cocks harder than the arms on the way back and
     // releases through impact — the detail that makes swings look real
     this.wristPivot.rotation.x = pose < 0 ? -pose * 0.55 : -pose * 0.2;
-    // Shoulder/hip turn sells the weight transfer
-    this.torso.rotation.y = -theta * 0.28;
+    // Shoulder/hip turn sells the weight transfer. Model-backed bodies have
+    // no per-limb rig, so the torso pivot (which carries the whole model)
+    // gets a bigger single-rigid-body twist to carry more of the visual read.
+    this.torso.rotation.y = -theta * (this.modelBacked ? 0.55 : 0.28);
     this.hips.rotation.y = -theta * 0.12;
     this.head.rotation.y = -theta * 0.1;
     // Eyes stay down on the ball through the strike

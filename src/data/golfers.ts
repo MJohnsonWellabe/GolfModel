@@ -8,6 +8,8 @@ export const GOLFERS: Golfer[] = [
     color: 0xe05353,
     // Late 30s, buff, short hair, polo, 5-inch shorts, white hat.
     look: { skin: 0xf0c8a0, shirt: 0xe05353, hat: 0xf5f5f0, hair: 0x5a4632 },
+    // 3D game: armored "Knight" body from the chibi character pack.
+    model3d: 'knight',
     stats: {
       drivingPower: 90,
       drivingAccuracy: 75,
@@ -22,6 +24,8 @@ export const GOLFERS: Golfer[] = [
     color: 0x4d8fe0,
     // Late 30s, athletic, bald, blue polo, light blue hat, white pants.
     look: { skin: 0xf0c8a0, shirt: 0x2f6bb0, hat: 0x9ec7f0, hair: null },
+    // 3D game: "Ninja" body from the chibi character pack.
+    model3d: 'ninja',
     stats: {
       drivingPower: 91,
       drivingAccuracy: 80,
