@@ -31,6 +31,8 @@ import { cloudSyncProfile } from '../firebase/FirebaseClient';
 import { loadProfile, PlayerProfile, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
+import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
+import { STORE_CATALOG, StoreItem } from '../data/storeCatalog';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
@@ -65,6 +67,11 @@ const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
 const aimReadoutEl = document.getElementById('aimReadout')!;
+
+/** RGB hex → Babylon Color3. */
+function c3(hex: number): Color3 {
+  return new Color3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
+}
 
 function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
@@ -293,7 +300,8 @@ class HoleScene {
       this.golfers.push(g);
       const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
       const bm = new StandardMaterial(`ballMat${i}`, this.scene);
-      bm.diffuseColor = new Color3(0.97, 0.97, 0.95);
+      // The human player's ball wears the equipped tint (Phase 7 store).
+      bm.diffuseColor = part.isAI ? new Color3(0.97, 0.97, 0.95) : c3(equippedColor(profile, 'ball', 0xf7f7f2));
       bm.specularColor = new Color3(0.5, 0.5, 0.5);
       b.material = bm;
       shadows.addShadowCaster(b);
@@ -934,9 +942,11 @@ class HoleScene {
       const trail = club.id === 'putter' ? null : new TrailMesh('trail', this.ball, this.scene, 0.12, 46, true);
       if (trail) {
         const tmat = new StandardMaterial('trailMat', this.scene);
-        // On-fire shots streak orange — the streak reward reads mid-flight
+        // On-fire shots streak orange; otherwise the human's equipped trail
+        // tint (AI keeps plain white). Phase 6 fire + Phase 7 store.
         const onFire = this.fires[this.turnIdx].isOnFire;
-        tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : new Color3(1, 1, 1);
+        const tint = this.comps[this.turnIdx].isAI ? 0xffffff : equippedColor(profile, 'trail', 0xffffff);
+        tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : c3(tint);
         tmat.diffuseColor = tmat.emissiveColor;
         tmat.alpha = onFire ? 0.55 : 0.35;
         trail.material = tmat;
@@ -1554,6 +1564,58 @@ function statCell(value: number | string, label: string): string {
   return `<div><b>${value}</b><span>${label}</span></div>`;
 }
 
+const storeEl = document.getElementById('store')!;
+
+/** Store overlay (Phase 7): buy/equip cosmetics + club upgrades with coins. */
+function renderStore(): void {
+  const p = profile;
+  const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
+  const card = (item: StoreItem): string => {
+    const owned = isOwned(p, item);
+    const equipped = (item.kind === 'ball' || item.kind === 'trail') && p.cosmetics.equipped[item.kind] === item.id;
+    const affordable = canBuy(p, item).ok;
+    const cls = equipped ? 'equipped' : owned ? 'owned' : affordable ? '' : 'locked';
+    const swatch =
+      item.color !== undefined ? `<div class="swatch" style="background:${hex(item.color)}"></div>` : `<div class="swatch" style="background:#2b6b41">⬆️</div>`;
+    const label = item.kind === 'character' ? `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />` : swatch;
+    const price = equipped ? 'Equipped' : owned ? (item.kind === 'ball' || item.kind === 'trail' ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
+    return `<div class="storeCard ${cls}" data-item="${item.id}">${label}<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`;
+  };
+  const section = (title: string, kind: StoreItem['kind']): string =>
+    `<div class="storeTab">${title}</div><div class="storeGrid">${STORE_CATALOG.filter((i) => i.kind === kind).map(card).join('')}</div>`;
+  storeEl.style.display = 'flex';
+  storeEl.innerHTML =
+    `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
+    `<div class="storeScroll">` +
+    section('Characters', 'character') +
+    section('Ball Colors', 'ball') +
+    section('Ball Trails', 'trail') +
+    section('Club Upgrades', 'clubUpgrade') +
+    `</div><button id="storeBack">Back</button></div>`;
+  storeEl.querySelectorAll('.storeCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      const id = (el as HTMLElement).dataset.item!;
+      const item = STORE_CATALOG.find((i) => i.id === id)!;
+      if (isOwned(p, item)) {
+        if (item.kind === 'ball' || item.kind === 'trail') equip(p, id);
+      } else {
+        const r = buyItem(p, id);
+        if (!r.ok) {
+          showMsg(r.reason, 1200);
+          return;
+        }
+      }
+      saveProfile(p);
+      void cloudSyncProfile(p).then((m) => {
+        Object.assign(p, m);
+        saveProfile(p);
+      });
+      renderStore();
+    })
+  );
+  document.getElementById('storeBack')!.addEventListener('pointerdown', () => (storeEl.style.display = 'none'));
+}
+
 /** Records / leaderboard overlay: top rounds for the current course + mode. */
 async function renderRecords(): Promise<void> {
   recordsEl.style.display = 'flex';
@@ -1753,16 +1815,21 @@ function renderName(): void {
 }
 
 function renderCharacter(): void {
+  // Only characters you own appear here; the rest are store unlocks.
+  const owned = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
+  if (!owned.some((c) => c.key === sel.character)) sel.character = owned[0].key;
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Pick your character</div>` +
-    `<div class="stepHint">Just for looks — any character plays any style.</div>` +
+    `<div class="stepHint">Just for looks — unlock more in the Store.</div>` +
     `<div class="charGrid">` +
-    CHARACTERS.map(
-      (ch) =>
-        `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
-        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
-        `<div class="cn">${ch.name}</div></div>`
-    ).join('') +
+    owned
+      .map(
+        (ch) =>
+          `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
+          `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
+          `<div class="cn">${ch.name}</div></div>`
+      )
+      .join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
@@ -1848,7 +1915,7 @@ function startRound(): void {
   profile.character = sel.character;
   profile.archetype = sel.archetype;
   saveProfile(profile);
-  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype);
+  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades);
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {
     const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
@@ -1863,6 +1930,8 @@ function escapeHtml(s: string): string {
 }
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
+document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
+document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);

@@ -8,6 +8,18 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: Phase 7 — store & customization (gold only)
+
+`src/data/storeCatalog.ts` + `src/systems/StoreEngine.ts` (pure buy/equip,
+coins never negative, tier-ordered club upgrades). 28 purchasable items using
+only owned assets: 6 unlockable characters (the existing rigged roster — four
+are free, the rest cost coins), 8 procedural ball tints, 5 trail tints, and 8
+club-upgrade tiers (+3/+6 per family via `applyClubUpgrades` in
+`assembleGolfer`, capped at 100 — the only sanctioned gameplay effect). The
+wizard shows only owned characters; the equipped ball/trail tints render in
+game; the store overlay is reachable from the menu. Profiles carry the
+cosmetics + upgrades and cloud-sync. 8 store tests.
+
 # Update — 2026-07-08: Phase 6 — progression
 
 XP, coins, levels, achievements, career stats and daily challenges, all from

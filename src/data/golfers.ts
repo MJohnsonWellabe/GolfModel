@@ -1,6 +1,7 @@
 import { Golfer } from '../core/types';
 import { ArchetypeId, archetypeById } from './archetypes';
 import { CharacterKey } from './characters';
+import { applyClubUpgrades } from './storeCatalog';
 
 /**
  * A golfer's identity is assembled at runtime from three independent choices
@@ -10,13 +11,19 @@ import { CharacterKey } from './characters';
  * play as any archetype) and leaves `Golfer.stats` as the single seam the
  * physics engine reads.
  */
-export function assembleGolfer(name: string, character: CharacterKey, archetype: ArchetypeId): Golfer {
+export function assembleGolfer(
+  name: string,
+  character: CharacterKey,
+  archetype: ArchetypeId,
+  /** Purchased club upgrades (family → tier); each tier adds +3, capped 100. */
+  clubUpgrades: Record<string, number> = {}
+): Golfer {
   const arch = archetypeById(archetype);
   return {
     id: `${character}-${archetype}`,
     name: name.trim() || 'Player',
     color: arch.color,
     character,
-    stats: { ...arch.stats }
+    stats: applyClubUpgrades(arch.stats, clubUpgrades)
   };
 }

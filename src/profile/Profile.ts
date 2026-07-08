@@ -1,5 +1,6 @@
 import { ArchetypeId } from '../data/archetypes';
 import { CharacterKey } from '../data/characters';
+import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 
 /**
  * The player's persistent identity: selections, currency, progression and
@@ -111,7 +112,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     coins: 0,
     xp: 0,
     level: 1,
-    cosmetics: { owned: [], equipped: {} },
+    cosmetics: { owned: [...DEFAULT_OWNED], equipped: { ...DEFAULT_EQUIPPED } },
     clubUpgrades: {},
     achievements: [],
     stats: emptyCareerStats(),
@@ -135,7 +136,11 @@ export function loadProfile(storage: KVStorage | null = defaultStorage()): Playe
       ...base,
       ...parsed,
       v: 1,
-      cosmetics: { ...base.cosmetics, ...(parsed.cosmetics ?? {}) },
+      cosmetics: {
+        // Always keep the default-owned items, even for older saves.
+        owned: [...new Set([...base.cosmetics.owned, ...(parsed.cosmetics?.owned ?? [])])],
+        equipped: { ...base.cosmetics.equipped, ...(parsed.cosmetics?.equipped ?? {}) }
+      },
       clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
       achievements: [...(parsed.achievements ?? [])],
       stats: { ...base.stats, ...(parsed.stats ?? {}) },

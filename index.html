@@ -814,7 +814,8 @@
         display: none;
       }
       /* Records overlay */
-      #records {
+      #records,
+      #store {
         position: fixed;
         inset: 0;
         background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
@@ -823,6 +824,102 @@
         justify-content: center;
         z-index: 25;
         overflow-y: auto;
+      }
+      .menuLinks {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      /* Store overlay (Phase 7) */
+      .storeInner {
+        width: min(96%, 560px);
+        max-height: 94vh;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .storeInner h2 {
+        margin: 0;
+        font-size: 26px;
+        color: #fff;
+        flex: 0 0 auto;
+      }
+      .storeCoins {
+        color: #ffe28a;
+        font-weight: 800;
+        margin: 2px 0 12px;
+        flex: 0 0 auto;
+      }
+      .storeScroll {
+        flex: 1 1 auto;
+        overflow-y: auto;
+      }
+      .storeTab {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #8fb598;
+        margin: 14px 0 8px;
+        text-align: left;
+      }
+      .storeGrid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+      }
+      .storeCard {
+        border-radius: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.12);
+        background: rgba(255, 255, 255, 0.05);
+        padding: 10px 6px;
+        text-align: center;
+        cursor: pointer;
+      }
+      .storeCard .swatch {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        margin: 0 auto 6px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+      }
+      .storeCard .sName {
+        font-size: 12px;
+        font-weight: 700;
+        color: #eef5ea;
+      }
+      .storeCard .sPrice {
+        font-size: 12px;
+        color: #ffe28a;
+        font-weight: 800;
+        margin-top: 2px;
+      }
+      .storeCard.owned {
+        border-color: #2f8f5b;
+      }
+      .storeCard.owned .sPrice {
+        color: #7fdca0;
+      }
+      .storeCard.equipped {
+        border-color: #ffd54f;
+        background: rgba(255, 213, 79, 0.12);
+      }
+      .storeCard.locked {
+        opacity: 0.55;
+      }
+      #storeBack {
+        flex: 0 0 auto;
+        margin-top: 14px;
+        width: 100%;
+        padding: 14px;
+        border-radius: 14px;
+        border: none;
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
       }
       .recInner {
         width: min(96%, 520px);
@@ -939,10 +1036,15 @@
           <button id="backBtn">Back</button>
           <button id="nextBtn">Next</button>
         </div>
-        <button id="recordsLink" class="recordsLink">🏆 Records</button>
+        <div class="menuLinks">
+          <button id="recordsLink" class="recordsLink">🏆 Records</button>
+          <button id="storeLink" class="recordsLink">🛍️ Store</button>
+          <button id="profileLink" class="recordsLink">👤 Profile</button>
+        </div>
       </div>
     </div>
     <div id="records"></div>
+    <div id="store"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>
 </html>
