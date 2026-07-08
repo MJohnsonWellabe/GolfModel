@@ -15,6 +15,8 @@ export interface ShotParams {
   /** 1-based hole number to load directly (undefined = normal boot). */
   hole?: number;
   cam: ShotCam;
+  /** Course id to load for the capture (undefined = default course). */
+  course?: string;
   /** Freeze all ambient animation (flag wave, clouds, water sparkle, petals). */
   freeze: boolean;
 }
@@ -26,6 +28,7 @@ function parse(): ShotParams {
   return {
     hole: holeRaw ? Math.max(1, parseInt(holeRaw, 10) || 1) : undefined,
     cam: cam === 'aerial' || cam === 'approach' || cam === 'green' ? cam : 'tee',
+    course: q.get('course') || undefined,
     freeze: q.get('freeze') === '1'
   };
 }

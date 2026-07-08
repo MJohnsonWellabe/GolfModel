@@ -26,6 +26,8 @@ import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
+import sablebay from '../data/courses/sablebay.json';
+import timberline from '../data/courses/timberline.json';
 import { bestRounds, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -146,8 +148,22 @@ interface RoundState {
 }
 
 const COURSES: Record<string, CourseData> = {
-  wildwood: loadCourse(wildwood as unknown as CourseAuthoring)
+  wildwood: loadCourse(wildwood as unknown as CourseAuthoring),
+  sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
+  timberline: loadCourse(timberline as unknown as CourseAuthoring)
 };
+
+/** Course roster for the picker (id → display + one-line character). */
+const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · a gentle, welcoming opener', icon: '🌳' },
+  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water in play on every hole, island par 3', icon: '🌊' },
+  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight, tree-lined and demanding', icon: '🌲' }
+];
+
+/** Resolve a course by its display name (tournament entries carry the name). */
+function courseIdByName(name: string): string {
+  return COURSE_LIST.find((c) => COURSES[c.id]?.name === name)?.id ?? 'wildwood';
+}
 
 interface HoleState {
   ballPos: { x: number; y: number };
@@ -1751,11 +1767,12 @@ async function createTournamentFlow(): Promise<void> {
   const body = document.getElementById('tourBody');
   if (body) body.innerHTML = `<div class="recEmpty">Creating…</div>`;
   const now = Date.now();
+  const course = COURSES[sel.courseId] ?? COURSES.wildwood;
   const meta: Tournament = {
     code: makeTournamentCode(),
     name: `${(profile.name || 'Player')}'s Cup`,
-    course: round.course.name,
-    holes: holesThisRound(),
+    course: course.name,
+    holes: Math.min(RULES.holesPerRound, course.holes.length),
     createdBy: { id: profile.id, name: profile.name || 'Player' },
     createdAt: now,
     endsAt: now + 7 * 24 * 60 * 60 * 1000,
@@ -1820,7 +1837,7 @@ function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myR
 
 /** Start a solo round under a tournament's shared seed (Phase 8). */
 function startTournamentRound(meta: Tournament): void {
-  round.course = COURSES.wildwood;
+  round.course = COURSES[courseIdByName(meta.course)];
   round.mode = 'solo';
   round.holeIdx = 0;
   round.activePlayer = 0;
@@ -2013,6 +2030,7 @@ void cloudSyncProfile(profile).then((merged) => {
 const sel = {
   step: 0,
   mode: 'solo' as GameMode,
+  courseId: 'wildwood',
   name: profile.name,
   character: (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey),
   archetype: (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId),
@@ -2022,8 +2040,8 @@ const sel = {
 /** Solo rounds skip the rival step; 1v1/scramble add it at the end. */
 function stepLabels(): string[] {
   return sel.mode === 'solo'
-    ? ['Mode', 'Name', 'Character', 'Style']
-    : ['Mode', 'Name', 'Character', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
+    ? ['Mode', 'Course', 'Name', 'Character', 'Style']
+    : ['Mode', 'Course', 'Name', 'Character', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
 }
 
 const STAT_KEYS: Array<[StatKey, string]> = [
@@ -2084,6 +2102,31 @@ function renderMode(): void {
       renderSteps();
       renderMode();
       updateNav();
+    })
+  );
+}
+
+function renderCourse(): void {
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Choose your course</div>` +
+    `<div class="modeGrid">` +
+    COURSE_LIST.map((c) => {
+      const holes = COURSES[c.id].holes.length;
+      const par = COURSES[c.id].holes.slice(0, Math.min(RULES.holesPerRound, holes)).reduce((a, h) => a + h.par, 0);
+      return (
+        `<div class="archCard modeCard${sel.courseId === c.id ? ' sel' : ''}" data-course="${c.id}">` +
+        `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
+        `<span class="atag">Par ${par}</span></div>` +
+        `<div class="stepHint" style="margin:6px 0 0">${c.tag}</div></div>`
+      );
+    }).join('') +
+    `</div>`;
+  stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.courseId = (el as HTMLElement).dataset.course!;
+      const sub = document.getElementById('subtitle');
+      if (sub) sub.textContent = COURSES[sel.courseId].name;
+      renderCourse();
     })
   );
 }
@@ -2185,6 +2228,7 @@ function renderArchetype(): void {
 function renderStepBody(): void {
   const label = stepLabels()[sel.step];
   if (label === 'Mode') renderMode();
+  else if (label === 'Course') renderCourse();
   else if (label === 'Name') renderName();
   else if (label === 'Character') renderCharacter();
   else if (label === 'Style') renderArchetype();
@@ -2222,7 +2266,7 @@ function updateDailyBanner(): void {
 }
 
 function startRound(): void {
-  round.course = COURSES.wildwood;
+  round.course = COURSES[sel.courseId] ?? COURSES.wildwood;
   round.mode = sel.mode;
   round.holeIdx = 0;
   round.activePlayer = 0;
@@ -2266,7 +2310,7 @@ nextBtn.addEventListener('pointerdown', () => {
  * once the scene (course, character, textures) is fully renderable.
  */
 function startShotCapture(): void {
-  round.course = COURSES.wildwood;
+  round.course = (SHOT.course && COURSES[SHOT.course]) || COURSES.wildwood;
   round.mode = 'solo';
   round.holeIdx = Math.min((SHOT.hole ?? 1) - 1, round.course.holes.length - 1);
   round.activePlayer = 0;
@@ -2309,12 +2353,14 @@ else {
   archetype?: ArchetypeId;
   mode?: GameMode;
   opponentId?: string;
+  courseId?: string;
 }) => {
   if (opts?.name !== undefined) sel.name = opts.name;
   if (opts?.character) sel.character = opts.character;
   if (opts?.archetype) sel.archetype = opts.archetype;
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
+  if (opts?.courseId && COURSES[opts.courseId]) sel.courseId = opts.courseId;
   startRound();
 };
 

@@ -8,6 +8,26 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: Phase 9 — two new courses + tree collision
+
+- **Tree collision** now stops a ball descending into a canopy inside a tree
+  polygon: vertical carry killed, horizontal speed cut to a small capped
+  fraction of impact (`PHYSICS.treeDamp`/`treeKillSpeed`). Kept descending-only
+  so high shots still clear edge treelines and Wildwood's Appendix A balance is
+  unchanged. `tests/simulation/trees.test.ts` proves a drive into a fairway
+  tree finishes well short of the same shot on open ground.
+- **Two new courses**, authored in schema v2 (`src/data/courses/`):
+  **Sable Bay** (sea backdrop, water in play on all three holes, an island-green
+  par 3 — the green ellipse reads as land before water in `surfaceAt`, giving a
+  natural island with a fringe collar) and **Timberline** (forest, tight
+  tree-lined corridors, a tree stand in the middle of the fairway on Pine Alley).
+  Both registered in `COURSES`; a new **Course** wizard step (`COURSE_LIST`,
+  `renderCourse`) picks among the three, and tournaments resolve their course by
+  name (`courseIdByName`). The shot harness gained a `?course=` param.
+  `tests/simulation/newCourses.test.ts` simulates 120 rounds on each to assert
+  every hole holes out and scores land in a sane band; Playwright boots all
+  three courses crash-free.
+
 # Update — 2026-07-08: Phase 8 — async tournaments + ace challenge
 
 Two online modes over the same open-rules RTDB as the leaderboard, no server
