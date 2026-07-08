@@ -21,6 +21,11 @@ export interface CareerStats {
   fairwaysHit: number;
   greensInRegulation: number;
   puttsMade: number;
+  pars: number;
+  bogeys: number;
+  chipIns: number;
+  tournamentWins: number;
+  wins: number;
   bestRoundToPar: number | null;
   longestDriveYds: number;
   longestPuttFt: number;
@@ -44,6 +49,12 @@ export interface PlayerProfile {
   clubUpgrades: Record<string, number>;
   achievements: string[];
   stats: CareerStats;
+  /** Daily-challenge state (see systems/ProgressionEngine + data/progression). */
+  daily: { date: string; challengeId: string; done: boolean };
+  /** Consecutive days a daily challenge was completed. */
+  dailyStreak: number;
+  /** YYYY-MM-DD of the last completed daily challenge. */
+  lastDailyDate: string;
   settings: { sound: number; ambience: number; reducedMotion: boolean };
   updatedAt: number;
 }
@@ -75,6 +86,11 @@ export function emptyCareerStats(): CareerStats {
     fairwaysHit: 0,
     greensInRegulation: 0,
     puttsMade: 0,
+    pars: 0,
+    bogeys: 0,
+    chipIns: 0,
+    tournamentWins: 0,
+    wins: 0,
     bestRoundToPar: null,
     longestDriveYds: 0,
     longestPuttFt: 0
@@ -99,6 +115,9 @@ export function defaultProfile(now = 0): PlayerProfile {
     clubUpgrades: {},
     achievements: [],
     stats: emptyCareerStats(),
+    daily: { date: '', challengeId: '', done: false },
+    dailyStreak: 0,
+    lastDailyDate: '',
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
     updatedAt: now
   };
@@ -120,6 +139,7 @@ export function loadProfile(storage: KVStorage | null = defaultStorage()): Playe
       clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
       achievements: [...(parsed.achievements ?? [])],
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
+      daily: { ...base.daily, ...(parsed.daily ?? {}) },
       settings: { ...base.settings, ...(parsed.settings ?? {}) }
     };
   } catch {

@@ -416,10 +416,137 @@
       /* Fixed (non-scrolling) chrome around the scrollable step body (FB8) */
       #title,
       #subtitle,
+      #dailyBanner,
       #steps,
       #navRow,
       .recordsLink {
         flex: 0 0 auto;
+      }
+      /* Daily challenge banner (Phase 6) */
+      #dailyBanner {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        justify-content: center;
+        margin: 0 0 14px;
+        padding: 8px 12px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.14), rgba(255, 213, 79, 0.05));
+        border: 1px solid rgba(255, 213, 79, 0.28);
+      }
+      #dailyBanner:empty {
+        display: none;
+      }
+      #dailyBanner .dcLabel {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        color: #ffd54f;
+      }
+      #dailyBanner .dcName {
+        font-size: 13px;
+        font-weight: 700;
+        color: #eef5ea;
+      }
+      /* Post-round reward strip + level/achievement lines (Phase 6) */
+      .rewardStrip {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin: 14px 0 6px;
+      }
+      .rewardStrip .rw {
+        padding: 6px 14px;
+        border-radius: 999px;
+        font-weight: 800;
+        font-size: 15px;
+      }
+      .rewardStrip .xp {
+        background: rgba(90, 160, 255, 0.2);
+        color: #bcd8ff;
+      }
+      .rewardStrip .coin {
+        background: rgba(255, 213, 79, 0.2);
+        color: #ffe28a;
+      }
+      .rwLine {
+        font-size: 13px;
+        margin: 4px 0;
+        color: #dce7d6;
+      }
+      .rwLine.level {
+        color: #ffd54f;
+        font-weight: 800;
+      }
+      /* Profile overlay (Phase 6) */
+      .profLvl {
+        font-weight: 800;
+        color: #ffe28a;
+        margin: 2px 0 8px;
+      }
+      .xpBar {
+        height: 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.12);
+        overflow: hidden;
+        margin-bottom: 14px;
+      }
+      .xpBar i {
+        display: block;
+        height: 100%;
+        background: linear-gradient(90deg, #5aa0ff, #8ec5ff);
+      }
+      .profStats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      .profStats div {
+        background: rgba(255, 255, 255, 0.06);
+        border-radius: 10px;
+        padding: 8px 4px;
+        text-align: center;
+      }
+      .profStats b {
+        display: block;
+        font-size: 18px;
+        color: #fff;
+      }
+      .profStats span {
+        font-size: 10px;
+        color: #9fb89a;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .achList {
+        text-align: left;
+        max-height: 34vh;
+        overflow-y: auto;
+        margin-bottom: 14px;
+      }
+      .achRow {
+        padding: 7px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        font-size: 13px;
+        color: #7f9a82;
+      }
+      .achRow.got {
+        color: #eef5ea;
+      }
+      .achRow span {
+        color: #8fb598;
+        font-size: 11px;
+      }
+      #profBack {
+        width: 100%;
+        padding: 14px;
+        border-radius: 14px;
+        border: none;
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 17px;
+        font-weight: 800;
       }
       /* Step indicator */
       #steps {
@@ -805,6 +932,7 @@
       <div id="setupInner">
         <div id="title">Johnson's Golf</div>
         <div id="subtitle">Wildwood Glen</div>
+        <div id="dailyBanner"></div>
         <div id="steps"></div>
         <div id="stepBody"></div>
         <div id="navRow">

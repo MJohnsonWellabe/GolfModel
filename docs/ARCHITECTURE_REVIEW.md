@@ -8,6 +8,19 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: Phase 6 — progression
+
+XP, coins, levels, achievements, career stats and daily challenges, all from
+`docs/08`. `src/data/progression.ts` holds the config tables (reward values,
+quadratic level curve, 8 achievements, 7 daily challenges) and
+`src/systems/ProgressionEngine.ts` is the pure `applyRound(profile, stats)` —
+never imported by physics or the AI (XP must not affect gameplay). The live
+game accumulates the human's shot stats during play (`accumulateShotStats`),
+derives the score-based stats at the summary, and shows an XP/coins/level/
+achievement reward strip; a profile overlay renders the level ring + career
+stats + achievements, and the menu shows today's daily challenge and streak.
+Progression persists in `PlayerProfile` and cloud-syncs (Phase 5). 10 tests.
+
 # Update — 2026-07-08: Playtest feedback pass (FB1–FB8)
 
 Matt's hands-on feedback, applied on top of Phases 0–5:

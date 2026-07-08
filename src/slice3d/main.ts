@@ -20,7 +20,7 @@ import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -29,6 +29,8 @@ import wildwood from '../data/courses/wildwood.json';
 import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { cloudSyncProfile } from '../firebase/FirebaseClient';
 import { loadProfile, PlayerProfile, saveProfile } from '../profile/Profile';
+import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
+import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
@@ -138,6 +140,38 @@ const round: RoundState = {
   activePlayer: 0,
   holeWinds: []
 };
+
+/** Shot-based round stats accumulated for the HUMAN player during play
+ *  (score-based stats are derived at the summary). Feeds ProgressionEngine. */
+interface ShotAcc {
+  fairwaysHit: number;
+  fairwaysPossible: number;
+  gir: number;
+  puttsMade: number;
+  longestDriveYds: number;
+  longestPuttMadeFt: number;
+  chipIns: number;
+  girHoles: Set<number>;
+}
+function freshShotAcc(): ShotAcc {
+  return {
+    fairwaysHit: 0,
+    fairwaysPossible: 0,
+    gir: 0,
+    puttsMade: 0,
+    longestDriveYds: 0,
+    longestPuttMadeFt: 0,
+    chipIns: 0,
+    girHoles: new Set()
+  };
+}
+let shotAcc: ShotAcc = freshShotAcc();
+
+/** Today's day key (YYYY-MM-DD) for the daily challenge. */
+function todayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 /** Wind for a hole, generated once and shared across players (same roll as 2D). */
 function windForHole(idx: number): Wind {
@@ -930,6 +964,8 @@ class HoleScene {
     }
     const origin = { ...this.state.ballPos };
     const club = this.aim.club;
+    const preLie = this.state.lie;
+    if (!this.comps[this.turnIdx].isAI) this.accumulateShotStats(origin, preLie, club, outcome);
     this.state.ballPos = { ...outcome.finalPos };
     this.state.lie = outcome.surface;
     // Persist this shot's result back onto the competitor who played it
@@ -968,6 +1004,37 @@ class HoleScene {
       if (allDone) this.finishHole();
       else this.beginTurn();
     }, delay);
+  }
+
+  /** Accumulate the human's shot-based round stats for progression (Phase 6). */
+  private accumulateShotStats(
+    origin: { x: number; y: number },
+    preLie: HoleState['lie'],
+    club: ClubSpec,
+    outcome: ShotOutcome
+  ): void {
+    const teeShot = dist(origin, this.hole.tee) < 3;
+    if (teeShot && this.hole.par >= 4) {
+      shotAcc.fairwaysPossible++;
+      if (['fairway', 'green', 'fringe'].includes(outcome.surface)) shotAcc.fairwaysHit++;
+    }
+    if (teeShot && (club.id === 'driver' || club.id === '3w' || club.id === '5w')) {
+      shotAcc.longestDriveYds = Math.max(shotAcc.longestDriveYds, dist(origin, outcome.finalPos) / PX_PER_YARD);
+    }
+    // Green in regulation: reached the green with (par − 2) strokes or fewer
+    if (
+      (outcome.surface === 'green' || outcome.holed) &&
+      this.state.strokes <= this.hole.par - 2 &&
+      !shotAcc.girHoles.has(this.hole.number)
+    ) {
+      shotAcc.girHoles.add(this.hole.number);
+      shotAcc.gir++;
+    }
+    if (outcome.holed && club.id === 'putter') {
+      shotAcc.puttsMade++;
+      shotAcc.longestPuttMadeFt = Math.max(shotAcc.longestPuttMadeFt, (dist(origin, this.hole.pin) / PX_PER_YARD) * 3);
+    }
+    if (outcome.holed && club.id !== 'putter' && preLie !== 'green') shotAcc.chipIns++;
   }
 
   /** Per-hole reaction from the score vs par (FB7). */
@@ -1377,13 +1444,25 @@ function showSummary(): void {
   };
   saveRound(record);
 
+  // Progression: build the round stats, award XP/coins/achievements/daily.
+  const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
+  const events = applyRound(profile, rstats, todayKey());
+  saveProfile(profile);
+  void cloudSyncProfile(profile).then((merged) => {
+    Object.assign(profile, merged);
+    saveProfile(profile);
+  });
+
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
     `<div id="recBanner" class="recBanner"></div>` +
     `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    rewardStripHtml(events) +
     `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
+    `<button id="profBtn" class="ghostBtn">Profile</button>` +
     `<button id="againBtn">Menu</button></div>`;
   summaryEl.style.display = 'block';
+  document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
     showSetup();
@@ -1394,6 +1473,85 @@ function showSummary(): void {
     const banner = document.getElementById('recBanner');
     if (banner && isNewRecord(rounds, record)) banner.textContent = '🏆 New course record!';
   });
+}
+
+/** Build the human player's round stats for progression (score + shot data). */
+function buildRoundStats(holes: HoleData[], scores: number[], totals: number[], totalPar: number): RoundStats {
+  const r = emptyRoundStats();
+  let strokes = 0;
+  holes.forEach((h, i) => {
+    const s = scores[i] ?? h.par;
+    strokes += s;
+    const d = s - h.par;
+    if (s === 1) r.holeInOnes++;
+    else if (d <= -2) r.eagles++;
+    else if (d === -1) r.birdies++;
+    else if (d === 0) r.pars++;
+    else r.bogeys++;
+  });
+  r.strokes = strokes;
+  r.toPar = totals[0] - totalPar;
+  r.fairwaysHit = shotAcc.fairwaysHit;
+  r.fairwaysPossible = shotAcc.fairwaysPossible;
+  r.greensInRegulation = shotAcc.gir;
+  r.puttsMade = shotAcc.puttsMade;
+  r.longestDriveYds = Math.round(shotAcc.longestDriveYds);
+  r.longestPuttMadeFt = Math.round(shotAcc.longestPuttMadeFt);
+  r.chipIns = shotAcc.chipIns;
+  r.won = round.mode === '1v1' && totals.length > 1 && totals[0] < totals[1];
+  return r;
+}
+
+/** The XP/coins/daily/achievement/level rewards strip for the summary. */
+function rewardStripHtml(events: RewardEvent[]): string {
+  const sum = (k: 'xp' | 'coins'): number =>
+    events.filter((e): e is Extract<RewardEvent, { kind: 'xp' | 'coins' }> => e.kind === k).reduce((a, e) => a + e.amount, 0);
+  let html =
+    `<div class="rewardStrip"><span class="rw xp">+${sum('xp')} XP</span>` +
+    `<span class="rw coin">+${sum('coins')} 🪙</span></div>`;
+  const levels = events.filter((e) => e.kind === 'levelUp');
+  if (levels.length) html += `<div class="rwLine level">⭐ Level ${(levels[levels.length - 1] as { level: number }).level}!</div>`;
+  const daily = events.find((e) => e.kind === 'daily') as { name: string; streak: number } | undefined;
+  if (daily) html += `<div class="rwLine daily">✅ Daily done: ${daily.name} · 🔥 ${daily.streak}-day streak</div>`;
+  for (const a of events.filter((e): e is Extract<RewardEvent, { kind: 'achievement' }> => e.kind === 'achievement')) {
+    html += `<div class="rwLine ach">🏅 ${a.name} — ${a.desc}</div>`;
+  }
+  return html;
+}
+
+/** Profile overlay: level ring, career stats and achievements (Phase 6). */
+function renderProfile(): void {
+  const p = profile;
+  const s = p.stats;
+  const cur = xpForLevel(p.level);
+  const next = xpForLevel(p.level + 1);
+  const pct = next > cur ? Math.round(((p.xp - cur) / (next - cur)) * 100) : 100;
+  recordsEl.style.display = 'flex';
+  recordsEl.innerHTML =
+    `<div class="recInner"><h2>${escapeHtml(p.name || 'Golfer')}</h2>` +
+    `<div class="profLvl">Level ${p.level} · ${p.coins} 🪙 · ${p.xp} XP</div>` +
+    `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
+    `<div class="profStats">` +
+    statCell(s.rounds, 'Rounds') +
+    statCell(s.birdies, 'Birdies') +
+    statCell(s.eagles, 'Eagles') +
+    statCell(s.holeInOnes, 'Aces') +
+    statCell(s.bestRoundToPar === null ? '—' : s.bestRoundToPar, 'Best') +
+    statCell(Math.round(s.longestDriveYds), 'Long drive') +
+    statCell(s.chipIns, 'Chip-ins') +
+    statCell(s.wins, 'Wins') +
+    `</div>` +
+    `<div class="achList">` +
+    ACHIEVEMENTS.map((a) => {
+      const got = p.achievements.includes(a.id);
+      return `<div class="achRow${got ? ' got' : ''}">${got ? '🏅' : '🔒'} <b>${a.name}</b> <span>${a.desc}</span></div>`;
+    }).join('') +
+    `</div><button id="profBack">Back</button></div>`;
+  document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
+}
+
+function statCell(value: number | string, label: string): string {
+  return `<div><b>${value}</b><span>${label}</span></div>`;
 }
 
 /** Records / leaderboard overlay: top rounds for the current course + mode. */
@@ -1663,7 +1821,19 @@ function goStep(n: number): void {
 
 function showSetup(): void {
   setupEl.style.display = 'flex';
+  updateDailyBanner();
   goStep(0);
+}
+
+/** Today's daily challenge + streak, shown on the menu (Phase 6). */
+function updateDailyBanner(): void {
+  const el = document.getElementById('dailyBanner');
+  if (!el) return;
+  const key = todayKey();
+  const ch = dailyChallengeFor(key);
+  const doneToday = profile.daily.date === key && profile.daily.done;
+  const streak = profile.dailyStreak > 0 ? ` · 🔥 ${profile.dailyStreak}` : '';
+  el.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${ch.name}</span>`;
 }
 
 function startRound(): void {
@@ -1672,6 +1842,7 @@ function startRound(): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  shotAcc = freshShotAcc();
   // Remember the selections for next launch (and cloud, when configured)
   profile.name = sel.name;
   profile.character = sel.character;
