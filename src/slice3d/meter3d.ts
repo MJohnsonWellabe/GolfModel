@@ -11,6 +11,8 @@ export interface MeterContext {
   /** Intended power as a physics fraction (non-putt) or bar fraction (putt). */
   powerTarget: number;
   isPutt: boolean;
+  /** Extra perfect-band multiplier (fire system); defaults to 1. */
+  perfectMult?: number;
 }
 
 /**
@@ -63,10 +65,12 @@ export class DomMeter {
   }
 
   private perfectHalf(): number {
-    // Flatter stat scaling so even elite golfers keep a demanding perfect zone
-    // (0.9 at stat 0 → 1.1 at stat 100) — part of the difficulty pass.
-    const statFactor = 0.9 + (this.ctx.stat / 100) * 0.2;
-    return SWING.perfectBand * statFactor;
+    // Appendix A perfect-zone scaling: a real spread across the stat range
+    // (Very Small at low stats → Very Large at 100) on a ^1.5 curve, still
+    // comfortably under the GDD's 10%-of-meter ceiling even on fire.
+    const t = Math.pow(clamp(this.ctx.stat, 0, 100) / 100, 1.5);
+    const half = SWING.perfectBandMin + t * (SWING.perfectBandMax - SWING.perfectBandMin);
+    return half * (this.ctx.perfectMult ?? 1);
   }
 
   private sweepSpeed(): number {

@@ -1,6 +1,7 @@
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
-import { clamp, dist, gaussian, pointInEllipse, pointInPolygon } from '../utils/Geometry';
+import { gaussianOf, Rng } from '../utils/Random';
+import { clamp, dist, pointInEllipse, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
   Golfer,
@@ -93,7 +94,9 @@ export class PhysicsEngine {
    */
   constructor(
     private readonly hole: HoleData,
-    private readonly hf: HeightField | null = null
+    private readonly hf: HeightField | null = null,
+    /** Uniform random source — inject a seeded rng for deterministic sims. */
+    private readonly rng: Rng = Math.random
   ) {}
 
   /** Terrain height under a world point (0 on flat/legacy holes). */
@@ -190,17 +193,37 @@ export class PhysicsEngine {
 
     // Distance ------------------------------------------------------------
     const carryYds = effectiveCarryYards(club, golfer, fireBoost, lie) * swing.power;
-    const carryPx = Math.max(4, carryYds * PX_PER_YARD);
+    // Putts must be strokeable down to tap-in range — the general 4px floor
+    // would force a 3ft putt to sail the cup at lip-out speed.
+    let carryPx = Math.max(club.id === 'putter' ? 1 : 4, carryYds * PX_PER_YARD);
+    // Putt pace noise: even a perfect stroke has human pace variance — this
+    // (with the tight cup) produces the Appendix A make-rate curve. Grows
+    // superlinearly with length: lag pace is the hard part of long putts.
+    if (club.id === 'putter' && !params.preview) {
+      const paceMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 1.7 : 2.9;
+      const sigmaPx = PHYSICS.puttPaceNoise * carryPx * (1 + carryPx / PHYSICS.puttPaceGrowPx) * paceMult;
+      carryPx = Math.max(2, carryPx + gaussianOf(this.rng, 0, sigmaPx));
+    } else if (!params.preview) {
+      // Full-shot distance control: delicate part-swings (chips) carry more
+      // relative depth noise than committed full swings — this is what makes
+      // chip-ins special (GDD 40%/15%/6%) and caps approach proximity.
+      const qMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 2 : 3.2;
+      const frac = 0.05 * (1.25 - Math.min(1, swing.power) * 0.85);
+      carryPx *= Math.max(0.4, 1 + gaussianOf(this.rng, 0, frac * qMult));
+    }
 
     // Direction -----------------------------------------------------------
     const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
     const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 2.4 : PHYSICS.maxErrorDeg;
-    const lieNoise = params.preview ? 0 : gaussian(0, PHYSICS.lieError[lie] ?? 0);
+    const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, PHYSICS.lieError[lie] ?? 0);
     // Residual dispersion even on a perfect (accuracy===0) click — a perfect
-    // swing shouldn't guarantee a perfect line (GDD §864). Tightens as the
-    // governing accuracy stat rises; skipped in preview so the aim line is exact.
-    const residualSigma = (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) * (1.3 - accuracy / 200);
-    const residual = params.preview ? 0 : gaussian(0, Math.max(0, residualSigma));
+    // swing shouldn't guarantee a perfect line (GDD §864); ×2/×4 on good/miss
+    // swings per the Appendix A dispersion table. Tightens as the governing
+    // accuracy stat rises; skipped in preview so the aim line is exact.
+    const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2 : 4;
+    const residualSigma =
+      (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) * (1.3 - accuracy / 200) * qualityMult;
+    const residual = params.preview ? 0 : gaussianOf(this.rng, 0, Math.max(0, residualSigma));
     const errorDeg = swing.accuracy * maxErr * errFactor + lieNoise + residual;
     const dir = aimAngle + (errorDeg * Math.PI) / 180;
 
@@ -223,10 +246,13 @@ export class PhysicsEngine {
     let hitTrees = false;
     let waterPenalty = false;
     let holed = false;
+    let lipped = false;
 
     if (club.launchAngle <= 0) {
-      // Putter: pure roll. Speed chosen so friction on green stops it at carryPx.
-      const v0 = Math.sqrt(2 * PHYSICS.friction.green * carryPx);
+      // Putter: pure roll. Speed chosen so friction on green stops it at
+      // carryPx. The half-kick term compensates the discrete integrator's
+      // systematic v0·dt/2 shortfall (decelerate-then-move Euler ordering).
+      const v0 = Math.sqrt(2 * PHYSICS.friction.green * carryPx) + (PHYSICS.friction.green * PHYSICS.dt) / 2;
       vx = Math.cos(dir) * v0;
       vy = Math.sin(dir) * v0;
       vz = 0;
@@ -245,9 +271,12 @@ export class PhysicsEngine {
     const maxSteps = 60 * 25;
     for (let step = 0; step < maxSteps; step++) {
       if (!rolling) {
-        // Airborne phase
-        vx += windAx * dt;
-        vy += windAy * dt;
+        // Airborne phase — wind bites harder the higher the ball flies
+        // (GDD §Wind: "Lower shots reduce wind influence")
+        const aboveGround = z - this.groundAt(x, y);
+        const wScale = 0.25 + 0.85 * clamp(aboveGround / PHYSICS.windRefHeight, 0, 1.3);
+        vx += windAx * wScale * dt;
+        vy += windAy * wScale * dt;
         vz -= g * dt;
         x += vx * dt;
         y += vy * dt;
@@ -300,7 +329,31 @@ export class PhysicsEngine {
         path.push({ x, y, z: 0 });
         break;
       }
-      if (speed <= 6) break;
+      // Lip-out: a touch too firm OVER the cup catches the rim and deflects.
+      // (Only inside the cup radius — a wider band would eat dying putts
+      // before they could reach the capture check.)
+      if (
+        !lipped &&
+        dPin < PHYSICS.cupRadius &&
+        speed >= PHYSICS.cupCaptureSpeed &&
+        speed < PHYSICS.cupLipSpeed
+      ) {
+        lipped = true;
+        const deflect = 0.5 + (params.preview ? 0.5 : this.rng()) * 0.35; // ~30-50°
+        const cs = Math.cos(deflect);
+        const sn = Math.sin(deflect);
+        const nvx = vx * cs - vy * sn;
+        const nvy = vx * sn + vy * cs;
+        vx = nvx * 0.42;
+        vy = nvy * 0.42;
+        // The rim throws the ball clear of the hole — it must not dribble
+        // back into the capture zone after horseshoeing out.
+        const outSpeed = Math.hypot(vx, vy) || 1;
+        x = hole.pin.x + (vx / outSpeed) * PHYSICS.cupRadius * 1.6;
+        y = hole.pin.y + (vy / outSpeed) * PHYSICS.cupRadius * 1.6;
+        path.push({ x, y, z: 0 });
+      }
+      if (speed <= PHYSICS.rollStopSpeed) break;
       const decel = PHYSICS.friction[surf] ?? 400;
       const newSpeed = Math.max(0, speed - decel * dt);
       vx = (vx / speed) * newSpeed;

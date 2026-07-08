@@ -24,11 +24,14 @@ export const SWING = {
   sweepStatBonusMs: 150,
   /** The accuracy return sweep runs at this fraction of the power sweep speed. */
   accuracySweepMult: 0.85,
-  /** Perfect band half-width as a fraction of meter width, before stat/fire scaling.
-   *  Tightened for the GDD "birdies earned, not expected" difficulty pass. */
-  perfectBand: 0.016,
-  /** Good band half-width as a fraction of meter width. */
-  goodBand: 0.11,
+  /** Perfect band half-width range (fraction of meter width): scales with the
+   *  governing stat on a ^1.5 curve — GDD Appendix A "perfect zone scaling"
+   *  (Very Small at 60 → Very Large at 100, never above ~10% of the meter). */
+  perfectBandMin: 0.008,
+  perfectBandMax: 0.026,
+  /** Good band half-width as a fraction of meter width (drives the GDD
+   *  missed-swing fairway rates). */
+  goodBand: 0.09,
   /** Multiplier applied to the perfect band while on fire. */
   firePerfectMult: 1.4,
   /** Bar position a full-carry shot's target sits at, leaving room above it
@@ -56,21 +59,39 @@ export const PHYSICS = {
   maxErrorDeg: 13,
   /** Residual directional dispersion (degrees, 1σ) even on a PERFECT accuracy
    *  click, by club family — per the GDD, a perfect swing should not guarantee
-   *  perfect positioning. Scaled down as the golfer's accuracy stat rises. */
+   *  perfect positioning (driver 8–15yd off line at full carry). Scaled down
+   *  as the golfer's accuracy stat rises and ×2/×4 on good/missed swings. */
   perfectDispersionDeg: {
-    wood: 1.0,
-    iron: 0.8,
-    wedge: 0.6,
-    putter: 0.12
+    wood: 1.35,
+    iron: 1.0,
+    wedge: 0.85,
+    putter: 0.9
   } as Record<string, number>,
+  /** Airborne wind scaling: full effect at/above this height (world px),
+   *  fading toward the ground — low flight cuts through wind (GDD §Wind). */
+  windRefHeight: 45,
   /** Height (world px) below which tree polygons block ball flight. */
   treeHeight: 55,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
-  /** Cup capture radius, world px (~1.2 yd — tighter for the difficulty pass). */
-  cupRadius: 2.4,
-  /** Max roll speed (px/s) at which the cup can capture the ball — faster lips out. */
-  cupCaptureSpeed: 18,
+  /** Cup capture radius, world px (0.45yd — Appendix A make-rate pass). */
+  cupRadius: 0.9,
+  /** Max roll speed (px/s) at which the cup can capture the ball. A putt
+   *  dying at the hole crosses the capture radius at ~16px/s (√(2μr)), so
+   *  this must stay above that or perfect-pace putts would never drop; 22
+   *  also swallows balls rolling ≤ ~0.7px past (calibrated vs Appendix A). */
+  cupCaptureSpeed: 22,
+  /** Lip-out: OVER the cup at speeds between cupCaptureSpeed and cupLipSpeed
+   *  the ball catches the rim and deflects instead of dropping. */
+  cupLipSpeed: 27,
+  /** Rolling stops below this speed (px/s). Low enough that the discarded
+   *  tail (<0.01px) never biases putt pace. */
+  rollStopSpeed: 1,
+  /** Putt pace noise on a perfect stroke: 1σ = puttPaceNoise · roll ·
+   *  (1 + roll/puttPaceGrowPx) px — superlinear so long putts get harder,
+   *  producing the Appendix A make-rate curve. */
+  puttPaceNoise: 0.1,
+  puttPaceGrowPx: 21,
   /** Ground roll friction (px/s²) per surface. */
   friction: {
     tee: 500,

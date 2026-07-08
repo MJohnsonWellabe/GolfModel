@@ -1190,3 +1190,30 @@ Instead they should think:
 "I hit that too hard."
 
 That feeling is the foundation of Johnson's Golf.
+
+---
+
+# Appendix A Calibration Note (Phase 2, 2026-07-08)
+
+Phase 2 implemented Appendix A via seeded Monte-Carlo suites
+(`tests/simulation/`). The putting make-rate table and the shot-dispersion
+table are honored as written — they are the moment-to-moment feel. Three
+places the tables over-constrain each other, resolved as follows:
+
+1. **Fairway accuracy vs dispersion.** A driver whose p90 miss is ≤15yd puts
+   ~97% of perfect drives inside a 30yd corridor, not 85%. Dispersion wins;
+   perfect-swing fairway rates run ~93-99% and missed-swing rates ~40-60%.
+2. **Scoring tiers vs putting.** With 10ft putts at 68% and Bible-compliant
+   hole design, the excellent tier calibrates to ≈ −0.8 per 3 holes rather
+   than −2 (a −2 average requires ~6ft proximity, which the dispersion table
+   forbids). Tier ORDER, spacing (~0.7/tier), and "−3 is an accomplishment"
+   are preserved: casual ≈ +1.3 · returning ≈ +0.5 · good ≈ −0.3 ·
+   excellent ≈ −0.8.
+3. **Chip-ins.** Laser-aimed test chips hole above the 40/15/6 curve because
+   lateral error barely matters at the tight cup; in play, aim/read error
+   restores most of the gap. Revisit in the Phase 9 final balance pass.
+
+Also fixed while calibrating: the rolling integrator's systematic v0·dt/2
+shortfall (putts died ~1px short of intent — masked for years by the old
+2.4px cup); lip-outs now eject clear of the hole; full shots gained
+power-scaled depth noise (delicate part-swings ~6%, committed swings ~2%).
