@@ -5,6 +5,7 @@ import {
   loadProfile,
   mergeProfiles,
   PlayerProfile,
+  resetProfileRecords,
   saveProfile
 } from '../src/profile/Profile';
 
@@ -96,5 +97,34 @@ describe('mergeProfiles — progress is never lost', () => {
     expect(m.name).toBe('New Name');
     expect(m.settings.reducedMotion).toBe(true);
     expect(m.updatedAt).toBe(200);
+  });
+});
+
+describe('resetProfileRecords', () => {
+  it('clears stats/achievements/xp/daily but keeps coins, cosmetics and name', () => {
+    const p = defaultProfile();
+    p.name = 'Matt';
+    p.coins = 640;
+    p.xp = 3200;
+    p.level = 7;
+    p.stats.birdies = 22;
+    p.stats.holeInOnes = 3;
+    p.achievements = ['first-birdie', 'first-eagle'];
+    p.cosmetics.owned.push('char_nova');
+    p.clubUpgrades = { driver: 2 };
+    p.dailyStreak = 5;
+    resetProfileRecords(p, 999);
+    expect(p.stats.birdies).toBe(0);
+    expect(p.stats.holeInOnes).toBe(0);
+    expect(p.achievements).toEqual([]);
+    expect(p.xp).toBe(0);
+    expect(p.level).toBe(1);
+    expect(p.dailyStreak).toBe(0);
+    // Purchases + identity survive a records reset.
+    expect(p.coins).toBe(640);
+    expect(p.name).toBe('Matt');
+    expect(p.cosmetics.owned).toContain('char_nova');
+    expect(p.clubUpgrades).toEqual({ driver: 2 });
+    expect(p.updatedAt).toBe(999);
   });
 });

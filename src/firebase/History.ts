@@ -58,6 +58,16 @@ function saveLocal(rounds: RoundRecord[]): void {
   }
 }
 
+/** Wipe this device's local round history (Reset Records). Shared-leaderboard
+ *  entries live server-side and are not touched — the caller warns about that. */
+export function clearLocalHistory(): void {
+  try {
+    localStorage.removeItem(LOCAL_KEY);
+  } catch {
+    // Ignore — nothing persisted to clear.
+  }
+}
+
 /** Persist a finished round locally and (fire-and-forget) to the leaderboard. */
 export function saveRound(round: RoundRecord): void {
   const rounds = loadLocal();

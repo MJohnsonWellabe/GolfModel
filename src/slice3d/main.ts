@@ -28,7 +28,7 @@ import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
-import { bestRounds, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
   fetchTournament,
@@ -44,7 +44,7 @@ import {
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
 import { cloudSyncProfile } from '../firebase/FirebaseClient';
-import { loadProfile, PlayerProfile, saveProfile } from '../profile/Profile';
+import { loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -1387,10 +1387,13 @@ class HoleScene {
     this.camera.setTarget(Vector3.Lerp(look, this.camTarget.look, k));
     if (this.shakeT > 0) {
       this.shakeT -= dt;
-      const amp = 0.3 * Math.max(0, this.shakeT) / 0.18;
-      this.camera.position.addInPlace(
-        new Vector3((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp)
-      );
+      // Reduced-motion players keep the slow-mo drama but not the camera rumble.
+      if (!profile.settings.reducedMotion) {
+        const amp = 0.3 * Math.max(0, this.shakeT) / 0.18;
+        this.camera.position.addInPlace(
+          new Vector3((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp)
+        );
+      }
     }
   }
 
@@ -1615,8 +1618,47 @@ function renderProfile(): void {
       const got = p.achievements.includes(a.id);
       return `<div class="achRow${got ? ' got' : ''}">${got ? '🏅' : '🔒'} <b>${a.name}</b> <span>${a.desc}</span></div>`;
     }).join('') +
-    `</div><button id="profBack">Back</button></div>`;
+    `</div>` +
+    `<div class="profSettings">` +
+    `<label class="setRow"><span>Reduced motion</span>` +
+    `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+    `<div id="resetZone" class="resetZone">` +
+    `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
+    `</div>` +
+    `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
+  document.getElementById('setReducedMotion')!.addEventListener('change', (e) => {
+    p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
+    saveProfile(p);
+  });
+  document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
+}
+
+/** Two-step Reset Records: the button swaps to an explicit confirm/cancel so a
+ *  destructive wipe can't happen on a single tap (FB — reset records). */
+function confirmResetRecords(): void {
+  const zone = document.getElementById('resetZone');
+  if (!zone) return;
+  const sharedNote = isShared()
+    ? ` Scores already posted to the shared leaderboard stay there.`
+    : '';
+  zone.innerHTML =
+    `<div class="resetWarn">Clear career stats, achievements, XP and local scores? ` +
+    `Coins and unlocked items are kept.${sharedNote}</div>` +
+    `<div class="btnRow"><button id="resetYes" class="dangerBtn">Yes, reset</button>` +
+    `<button id="resetNo" class="ghostBtn">Cancel</button></div>`;
+  document.getElementById('resetNo')!.addEventListener('pointerdown', () => renderProfile());
+  document.getElementById('resetYes')!.addEventListener('pointerdown', () => {
+    resetProfileRecords(profile, Date.now());
+    saveProfile(profile);
+    clearLocalHistory();
+    void cloudSyncProfile(profile).then((merged) => {
+      Object.assign(profile, merged);
+      saveProfile(profile);
+    });
+    renderProfile();
+    updateDailyBanner();
+  });
 }
 
 function statCell(value: number | string, label: string): string {

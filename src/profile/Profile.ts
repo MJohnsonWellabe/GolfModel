@@ -124,6 +124,24 @@ export function defaultProfile(now = 0): PlayerProfile {
   };
 }
 
+/**
+ * Reset the player's *records* to a clean slate: career stats, achievements,
+ * XP/level, and daily-challenge progress. Coins and owned/equipped cosmetics
+ * are deliberately preserved — a reset clears accomplishments, not purchases.
+ * Returns the same object (mutated) for convenience.
+ */
+export function resetProfileRecords(profile: PlayerProfile, now = 0): PlayerProfile {
+  profile.stats = emptyCareerStats();
+  profile.achievements = [];
+  profile.xp = 0;
+  profile.level = 1;
+  profile.daily = { date: '', challengeId: '', done: false };
+  profile.dailyStreak = 0;
+  profile.lastDailyDate = '';
+  profile.updatedAt = now;
+  return profile;
+}
+
 export function loadProfile(storage: KVStorage | null = defaultStorage()): PlayerProfile {
   if (!storage) return defaultProfile();
   try {
