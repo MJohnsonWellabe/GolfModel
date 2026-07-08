@@ -96,8 +96,15 @@ export const PHYSICS = {
    *  also swallows balls rolling ≤ ~0.7px past (calibrated vs Appendix A). */
   cupCaptureSpeed: 22,
   /** Lip-out: OVER the cup at speeds between cupCaptureSpeed and cupLipSpeed
-   *  the ball catches the rim and deflects instead of dropping. */
-  cupLipSpeed: 27,
+   *  the ball catches the rim and deflects instead of dropping. Narrow band
+   *  so lip-outs are the occasional heartbreak, not routine (FB2). */
+  cupLipSpeed: 25,
+  /** Gimme: on a short putt, a slow ball near the cup drops even off-center —
+   *  makes tap-ins reliable (FB2). Gated on the putt starting within
+   *  gimmeShortPuttPx of the cup so long lag putts aren't gifted. */
+  gimmeRadiusMult: 2.1,
+  gimmeSpeed: 9,
+  gimmeShortPuttPx: 2.5,
   /** Rolling stops below this speed (px/s). Low enough that the discarded
    *  tail (<0.01px) never biases putt pace. */
   rollStopSpeed: 1,
@@ -112,7 +119,7 @@ export const PHYSICS = {
     fairway: 500,
     rough: 900,
     sand: 1800,
-    fringe: 420,
+    fringe: 300,
     green: 150,
     water: 99999,
     trees: 1100
@@ -183,18 +190,19 @@ export const PHYSICS = {
  * swipe-spin system (Phase 4).
  */
 export const FLIGHT = {
-  /** Airborne playback speed for full shots. */
-  airTimescale: 0.5,
+  /** Airborne playback speed for full shots — slowed ~2× so the in-flight
+   *  spin swipe has a usable window (FB1). */
+  airTimescale: 0.26,
   /** Extra slow-down while the ball drops onto the green. */
-  greenApproachTimescale: 0.28,
+  greenApproachTimescale: 0.15,
   /** Fraction of the airborne path where the green-approach slow-down begins. */
-  approachRampFrac: 0.65,
+  approachRampFrac: 0.6,
   /** Rollout speed after landing (non-green finishes). */
-  rollTimescale: 0.5,
+  rollTimescale: 0.45,
   /** Rollout speed when settling on the green. */
-  greenRollTimescale: 0.35,
-  /** Putts keep near-real-time pacing so they never crawl. */
-  puttTimescale: 0.9
+  greenRollTimescale: 0.32,
+  /** Putts pace a touch slower than real time so the roll reads. */
+  puttTimescale: 0.8
 } as const;
 
 export const FIRE = {

@@ -114,6 +114,24 @@
         display: none;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45), inset 0 2px 4px rgba(0, 0, 0, 0.5);
       }
+      /* On fire: the bar glows and pulses orange (FB6) */
+      #meter.onFire {
+        border-color: #ff9a3c;
+        box-shadow: 0 0 16px 3px rgba(255, 122, 26, 0.85), 0 0 34px 8px rgba(255, 80, 0, 0.5),
+          inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        background: linear-gradient(180deg, rgba(40, 14, 4, 0.95), rgba(60, 20, 6, 0.92));
+        animation: meterFire 0.5s ease-in-out infinite alternate;
+      }
+      @keyframes meterFire {
+        from {
+          box-shadow: 0 0 14px 2px rgba(255, 122, 26, 0.7), 0 0 30px 6px rgba(255, 80, 0, 0.4),
+            inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        to {
+          box-shadow: 0 0 22px 5px rgba(255, 150, 40, 0.95), 0 0 44px 12px rgba(255, 90, 0, 0.6),
+            inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+      }
       #meter .zone {
         position: absolute;
         top: 0;
@@ -224,15 +242,37 @@
         transform: translate(-50%, -50%);
         pointer-events: none;
       }
-      #trajBtn {
-        padding: 5px 10px;
-        border-radius: 10px;
-        border: 1px solid rgba(255, 255, 255, 0.25);
-        background: rgba(12, 41, 20, 0.85);
-        color: #ffd54f;
-        font-size: 11px;
+      #strikeHint {
+        font-size: 10px;
         font-weight: 800;
-        letter-spacing: 0.06em;
+        letter-spacing: 0.1em;
+        color: #cfe6cf;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+      }
+      /* Aim-point readout: distance + elevation change (FB2/FB4) */
+      #aimReadout {
+        position: absolute;
+        z-index: 6;
+        display: none;
+        transform: translate(-50%, -140%);
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        padding: 4px 9px;
+        border-radius: 10px;
+        background: rgba(12, 30, 18, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #f2f7f0;
+        font-size: 13px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        pointer-events: none;
+        white-space: nowrap;
+      }
+      #aimReadout .elev {
+        font-size: 11px;
+        font-weight: 700;
+        color: #ffd54f;
       }
       #swingBtn {
         position: fixed;
@@ -352,6 +392,12 @@
         width: min(96%, 560px);
         padding: 22px 20px 26px;
         text-align: center;
+        /* Column layout so the step body scrolls internally and the nav row
+           (Next/Tee off) is always visible (FB8). */
+        display: flex;
+        flex-direction: column;
+        max-height: 94vh;
+        box-sizing: border-box;
       }
       #title {
         font-size: 38px;
@@ -366,6 +412,14 @@
         margin: 5px 0 18px;
         text-transform: uppercase;
         letter-spacing: 2px;
+      }
+      /* Fixed (non-scrolling) chrome around the scrollable step body (FB8) */
+      #title,
+      #subtitle,
+      #steps,
+      #navRow,
+      .recordsLink {
+        flex: 0 0 auto;
       }
       /* Step indicator */
       #steps {
@@ -407,8 +461,12 @@
         color: #cdeccb;
       }
       #stepBody {
-        min-height: 340px;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        min-height: 120px;
         text-align: left;
+        /* Room so the scroll shadow doesn't clip selected cards */
+        padding: 2px;
       }
       .stepTitle {
         font-size: 19px;
@@ -737,9 +795,10 @@
       <button id="nextClub" class="clubBtn">▶</button>
     </div>
     <div id="shotShape">
+      <div id="strikeHint">SHAPE</div>
       <div id="strikePad"><div id="strikeDot"></div></div>
-      <button id="trajBtn">NORM</button>
     </div>
+    <div id="aimReadout"></div>
     <button id="aerialBtn">AERIAL</button>
     <button id="swingBtn">SWING</button>
     <div id="setup">

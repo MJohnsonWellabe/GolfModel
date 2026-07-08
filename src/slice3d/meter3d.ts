@@ -13,6 +13,8 @@ export interface MeterContext {
   isPutt: boolean;
   /** Extra perfect-band multiplier (fire system); defaults to 1. */
   perfectMult?: number;
+  /** Difficulty multiplier from lie + club (<1 shrinks the zone); default 1. */
+  difficultyMult?: number;
 }
 
 /**
@@ -70,7 +72,8 @@ export class DomMeter {
     // comfortably under the GDD's 10%-of-meter ceiling even on fire.
     const t = Math.pow(clamp(this.ctx.stat, 0, 100) / 100, 1.5);
     const half = SWING.perfectBandMin + t * (SWING.perfectBandMax - SWING.perfectBandMin);
-    return half * (this.ctx.perfectMult ?? 1);
+    // Harder lies + longer clubs shrink the zone (FB5); fire widens it.
+    return half * (this.ctx.perfectMult ?? 1) * (this.ctx.difficultyMult ?? 1);
   }
 
   private sweepSpeed(): number {

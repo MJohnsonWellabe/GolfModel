@@ -157,24 +157,35 @@ describe('StrikeControl', () => {
     const s = new StrikeControl();
     s.setFromOffset(15, 15, 30); // right + down half-radius
     expect(s.x).toBeCloseTo(0.5, 5);
-    expect(s.y).toBeCloseTo(-0.5, 5); // screen down = below center = backspin
+    expect(s.y).toBeCloseTo(-0.5, 5); // screen down = below center
     s.setFromOffset(90, 0, 30); // beyond the rim clamps to the circle
     expect(s.x).toBeCloseTo(1, 5);
   });
 
-  it('trajectory presets and strike height combine into launchMult', () => {
+  it('right strike draws (curves left = negative side), left strike fades', () => {
     const s = new StrikeControl();
-    expect(s.launchMult).toBe(1);
-    s.cycleTrajectory(); // high
-    expect(s.launchMult).toBeCloseTo(1.25);
-    s.setSpin({ side: 0, top: -1 }); // bottom strike launches higher still
-    expect(s.launchMult).toBeCloseTo(1.25 * 1.18);
+    s.x = 1; // full right
+    expect(s.shapeSpin.side).toBeLessThan(0); // draw
+    s.x = -1; // full left
+    expect(s.shapeSpin.side).toBeGreaterThan(0); // fade
+    s.x = 0;
+    expect(s.shapeSpin.side).toBe(0);
+    expect(s.shapeSpin.top).toBe(0); // dot never sets top spin
   });
 
-  it('edge strikes raise the risk multiplier', () => {
+  it('strike height sets launch: bottom higher, top lower', () => {
+    const s = new StrikeControl();
+    expect(s.launchMult).toBe(1);
+    s.y = -1; // bottom strike
+    expect(s.launchMult).toBeGreaterThan(1);
+    s.y = 1; // top strike
+    expect(s.launchMult).toBeLessThan(1);
+  });
+
+  it('extreme strikes raise the risk multiplier', () => {
     const s = new StrikeControl();
     expect(s.riskMult).toBe(1);
-    s.setSpin({ side: 0.9, top: 0 });
-    expect(s.riskMult).toBe(1.5);
+    s.x = 1;
+    expect(s.riskMult).toBeGreaterThan(1);
   });
 });

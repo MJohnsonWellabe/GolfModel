@@ -7,9 +7,9 @@ import {
   Golfer,
   HoleData,
   Point,
+  SpinState,
   Surface,
-  TrajectoryPoint,
-  Wind
+  TrajectoryPoint
 } from '../types';
 
 /** Everything about the hitter that club/aim decisions depend on. */
@@ -155,8 +155,14 @@ export class AimControl {
     if (idx >= 0) this.clubIdx = idx;
   }
 
-  /** Deterministic dry-run of a perfect swing at the aim point. */
-  computePreview(ctx: ShotContext, wind: Wind): void {
+  /**
+   * Deterministic dry-run of a perfect swing at the aim point, showing the
+   * chosen shot SHAPE. Runs on a flat, windless engine (the caller passes a
+   * no-slope preview engine) so the aim line NEVER accounts for wind or
+   * slope — the player must estimate hold-off themselves. The shape spin
+   * curves the line so you can aim the draw/fade where you want it.
+   */
+  computePreview(ctx: ShotContext, shape: SpinState = { side: 0, top: 0 }, launchMult = 1): void {
     const powerTarget = this.barToPhysicsPower(this.barPowerTarget(ctx), ctx);
     const outcome = this.engine.simulate({
       origin: ctx.ball,
@@ -171,9 +177,11 @@ export class AimControl {
       golfer: ctx.golfer,
       fireBoost: ctx.fireBoost,
       lie: ctx.lie,
-      wind,
+      wind: { angle: 0, speed: 0 },
       hole: this.hole,
-      preview: true
+      preview: true,
+      spin: shape,
+      launchMult
     });
     this.previewPath = outcome.path;
   }

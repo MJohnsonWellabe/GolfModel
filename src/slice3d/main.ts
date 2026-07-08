@@ -4,6 +4,7 @@ import {
   DynamicTexture,
   Engine,
   FreeCamera,
+  Matrix,
   Mesh,
   MeshBuilder,
   ParticleSystem,
@@ -11,14 +12,15 @@ import {
   StandardMaterial,
   TrailMesh,
   TransformNode,
-  Vector3
+  Vector3,
+  Viewport
 } from '@babylonjs/core';
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { resolveTheme } from '../core/rendering/Theme';
-import { CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -60,11 +62,7 @@ const aerialBtn = document.getElementById('aerialBtn')!;
 const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
-const trajBtn = document.getElementById('trajBtn') as HTMLButtonElement;
-
-function clampSpin(v: number): number {
-  return Math.max(-1, Math.min(1, v));
-}
+const aimReadoutEl = document.getElementById('aimReadout')!;
 
 function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
@@ -170,6 +168,8 @@ class HoleScene {
    * finished loading — mainly for deterministic test/verification waits. */
   readonly bodiesReady: Promise<void>;
   private engine2d: PhysicsEngine;
+  /** Flat, no-slope, windless engine that backs the aim preview (FB1). */
+  private previewEngine: PhysicsEngine;
   private hole = round.course.holes[round.holeIdx];
   private theme = resolveTheme(round.course);
   private golfers: Golfer3D[] = [];
@@ -210,8 +210,10 @@ class HoleScene {
   private aimRoot!: TransformNode;
   private aimDots: Mesh[] = [];
   private aimRing!: Mesh;
+  /** World point the aim-distance/elevation readout floats over (FB2/FB4). */
+  private aimReadoutWorld: { x: number; y: number } | null = null;
   private aerial = false;
-  /** Pre-shot shaping (strike dot + trajectory preset), per turn. */
+  /** Pre-shot shot SHAPE (strike dot), per turn. */
   private strike = new StrikeControl();
   private strikeDragging = false;
   /** Mid-flight swipe-spin state (Phase 4 aerial spin). */
@@ -236,7 +238,11 @@ class HoleScene {
   constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
     this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole));
-    this.aim = new AimControl(this.hole, this.engine2d);
+    // Aim/preview run on a flat, no-slope engine so the aim line never
+    // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
+    // real shot uses engine2d (terrain + wind).
+    this.previewEngine = new PhysicsEngine({ ...this.hole, slope: { angle: 0, strength: 0 } }, null);
+    this.aim = new AimControl(this.hole, this.previewEngine);
     // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
     this.course3d = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
@@ -369,9 +375,30 @@ class HoleScene {
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
-      perfectMult: fire.perfectZoneMultiplier
+      perfectMult: fire.perfectZoneMultiplier,
+      difficultyMult: this.swingDifficulty()
     });
     meterEl.style.display = 'block';
+    meterEl.classList.toggle('onFire', fire.isOnFire);
+  }
+
+  /**
+   * Perfect-zone difficulty from the lie and the club (FB5): bad lies are
+   * harder, and longer clubs are harder to strike cleanly — EXCEPT off the
+   * tee, where a teed driver is no harder than any other tee shot.
+   */
+  private swingDifficulty(): number {
+    if (this.aim.isPutting) return 1;
+    const lie = this.state.lie;
+    let d = lie === 'sand' ? 0.62 : lie === 'trees' ? 0.68 : lie === 'rough' ? 0.8 : lie === 'fringe' ? 0.92 : 1;
+    if (lie !== 'tee') {
+      // Longer clubs shrink the zone; wedges are the most forgiving.
+      const byClub: Record<string, number> = {
+        driver: 0.68, '3w': 0.74, '5w': 0.8, '3i': 0.82, '4h': 0.85, '5i': 0.88, '7i': 0.93, '9i': 0.97, pw: 1, sw: 1
+      };
+      d *= byClub[this.aim.club.id] ?? 1;
+    }
+    return d;
   }
 
   /** The competitor whose turn it is. */
@@ -435,16 +462,18 @@ class HoleScene {
     const base = w2b(this.state.ballPos.x, this.state.ballPos.y, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     const putt = this.aim.isPutting;
     if (this.aerial && !putt) {
-      // Overhead planning view framing the whole ball→pin corridor so the
-      // fairway, green and hazards all read from above
+      // Overhead planning view that ALWAYS frames the whole ball→pin corridor
+      // (FB3): height scales with the span with no upper cap so the green is
+      // in frame even on the longest holes. With the ~1.05 vertical fov the
+      // ground coverage ≈ height, so height ≈ span·1.25 fits both ends + margin.
       const mx = (this.state.ballPos.x + this.hole.pin.x) / 2;
       const my = (this.state.ballPos.y + this.hole.pin.y) / 2;
       const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
-      const height = Math.min(760, Math.max(240, span * 0.75));
+      const height = Math.max(300, span * 1.25);
       const mid = w2b(mx, my, 0);
-      // Nudge the eye slightly toward the ball so "up" on screen is downrange
+      // Aim the eye straight down the corridor from just behind the ball end.
       const toPin = this.fwd3(this.aim.yaw);
-      this.camTarget.pos = mid.subtract(toPin.scale(span * 0.18)).add(new Vector3(0, height, 0.01));
+      this.camTarget.pos = mid.subtract(toPin.scale(span * 0.08)).add(new Vector3(0, height, 0.01));
       this.camTarget.look = mid;
       this.camTarget.k = 4;
       return;
@@ -497,42 +526,33 @@ class HoleScene {
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
 
+    // A clean flyover that travels from the TEE to the GREEN (FB3).
     const toGreen = Math.atan2(h.pin.y - h.tee.y, h.pin.x - h.tee.x);
     const g = this.fwd3(toGreen);
-    // Start low behind the tee looking down the hole toward the green
-    this.camera.position = w2b(h.tee.x, h.tee.y, 14 + this.gh(h.tee.x, h.tee.y)).subtract(g.scale(24));
-    this.camera.setTarget(w2b(h.pin.x, h.pin.y, 0));
+    const teeH = this.gh(h.tee.x, h.tee.y);
+    // Start low, right behind the tee, looking down the hole.
+    this.camera.position = w2b(h.tee.x, h.tee.y, 18 + teeH).subtract(g.scale(30));
+    this.camera.setTarget(w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y)));
 
-    // Waypoint 1: rise and glide out over the fairway toward the green
-    const midX = (h.tee.x + h.pin.x) / 2;
-    const midY = (h.tee.y + h.pin.y) / 2;
-    this.camTarget.pos = w2b(midX, midY, 90).subtract(g.scale(30));
-    this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
-    this.camTarget.k = 1.1;
+    // Waypoint 1: glide the length of the hole and settle over the green,
+    // looking down at the pin.
+    this.camTarget.pos = w2b(h.pin.x, h.pin.y, 78).subtract(g.scale(30));
+    this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
+    this.camTarget.k = 1.0;
 
-    // Waypoint 2: drift over the green looking down at the pin
-    this.introTimers.push(
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.camTarget.pos = w2b(h.pin.x, h.pin.y, 70).subtract(g.scale(24));
-        this.camTarget.look = w2b(h.pin.x, h.pin.y, 0);
-        this.camTarget.k = 1.2;
-      }, 1500)
-    );
-
-    // Waypoint 3: swing back to the tee-shot framing and hand over control
+    // Waypoint 2: pull back to the tee-shot framing and hand over control.
     this.introTimers.push(
       setTimeout(() => {
         if (this.disposed) return;
         bannerEl.style.opacity = '0';
         this.setCamSetup();
-        this.camTarget.k = 1.4;
+        this.camTarget.k = 1.3;
         this.introTimers.push(
           setTimeout(() => {
             if (!this.disposed) this.beginTurn();
           }, 900)
         );
-      }, 3000)
+      }, 2600)
     );
   }
 
@@ -637,11 +657,10 @@ class HoleScene {
     this.refreshClubBar();
   }
 
-  /** Show/refresh the strike pad + trajectory preset for the current turn. */
+  /** Show/refresh the strike pad for the current turn. */
   private updateStrikeUI(): void {
     const show = this.state.phase === 'aiming' && !this.ai && !this.aim.isPutting;
     shotShapeEl.style.display = show ? 'flex' : 'none';
-    trajBtn.textContent = this.strike.trajectory === 'normal' ? 'NORM' : this.strike.trajectory.toUpperCase();
     strikeDotEl.style.left = `${50 + this.strike.x * 38}%`;
     strikeDotEl.style.top = `${50 - this.strike.y * 38}%`;
   }
@@ -653,32 +672,63 @@ class HoleScene {
       return;
     }
     this.aimRoot.setEnabled(true);
-    this.aim.computePreview(this.ctx(), this.wind);
+    // Preview shows the chosen SHAPE (curved draw/fade), on a flat windless
+    // engine — the line never reveals wind/slope (FB1).
+    this.aim.computePreview(this.ctx(), this.strike.shapeSpin, this.strike.launchMult);
     const path = this.aim.previewPath;
-    // Putts: show the straight aim/pace line to your chosen spot — read the
-    // break yourself. (The preview holes out in simulation, which would snap
-    // the marker onto the cup.) Full shots keep the predicted-landing marker.
+    const bx = this.state.ballPos.x;
+    const by = this.state.ballPos.y;
+    const span = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
+    const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
+    // Full shots: sample the curved flight path so the dots trace the shape.
+    // Putts: a straight aim/pace line to the chosen spot (read break yourself).
     const target = this.aim.isPutting
       ? this.aim.aimPoint(this.state.ballPos)
       : path && path.length
         ? path[path.length - 1]
         : this.aim.aimPoint(this.state.ballPos);
-    // The aerial planning camera sits 240–760 units overhead, where the small
-    // ground dots vanish — enlarge them (in place) so the aim line still reads.
-    const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
-    const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
-    // Dots march from the ball to the landing/aim point along the ground
-    const bx = this.state.ballPos.x;
-    const by = this.state.ballPos.y;
+    const curved = !this.aim.isPutting && path && path.length > 4;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
-      const dx = bx + (target.x - bx) * f;
-      const dy = by + (target.y - by) * f;
+      let dx: number;
+      let dy: number;
+      if (curved) {
+        const p = path![Math.min(path!.length - 1, Math.round(f * (path!.length - 1)))];
+        dx = p.x;
+        dy = p.y;
+      } else {
+        dx = bx + (target.x - bx) * f;
+        dy = by + (target.y - by) * f;
+      }
       dot.position = w2b(dx, dy, 0.12 + this.gh(dx, dy));
       dot.scaling.setAll(dotScale);
     });
     this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
     this.aimRing.scaling.setAll(dotScale);
+    this.updateAimReadout(target);
+  }
+
+  /**
+   * Tiger-style readout floating at the aim point: distance to the target
+   * plus the elevation change (up/down arrow, in/ft) — the terrain info the
+   * aim line deliberately hides, so the player can judge pace/club (FB2/FB4).
+   */
+  private updateAimReadout(target: { x: number; y: number }): void {
+    const bx = this.state.ballPos.x;
+    const by = this.state.ballPos.y;
+    const yd = Math.hypot(target.x - bx, target.y - by) / PX_PER_YARD;
+    const distLabel = this.aim.isPutting ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`;
+    // Elevation from the real terrain (world units → feet: 1 unit = 1.5 ft)
+    const elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;
+    let elevLabel = '';
+    if (Math.abs(elevFt) >= 0.5) {
+      const mag = Math.abs(elevFt);
+      const amount = mag < 1 ? `${Math.round(mag * 12)}"` : `${mag.toFixed(1)} ft`;
+      elevLabel = `<span class="elev">${elevFt > 0 ? '▲' : '▼'} ${amount}</span>`;
+    }
+    aimReadoutEl.innerHTML = `<span>${distLabel}</span>${elevLabel}`;
+    this.aimReadoutWorld = { x: target.x, y: target.y };
+    aimReadoutEl.style.display = 'flex';
   }
 
   private cycleClub(dir: number): void {
@@ -749,10 +799,27 @@ class HoleScene {
   private flightTimescale(): number {
     const fl = this.flight;
     if (!fl) return 1;
-    if (fl.isPutt) return FLIGHT.puttTimescale;
     const o = fl.outcome;
+    // Dramatic slow-mo as a hole-out / ace approaches from distance: the last
+    // stretch toward the cup crawls (and the screen shakes, see tick) — the
+    // Tiger-Woods "is it going in?!" beat (FB6).
+    const holingOut = o.holed && fl.landIdx > 20;
+    if (fl.isPutt) {
+      // Putts crawl as they near the cup so the read pays off (FB2)
+      const p = fl.outcome.path[Math.min(Math.floor(fl.progress), fl.outcome.path.length - 1)];
+      const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
+      if (dCup < 14) return FLIGHT.puttTimescale * (holingOut ? 0.28 : 0.5);
+      return FLIGHT.puttTimescale;
+    }
     const greenFinish = o.holed || o.surface === 'green' || o.surface === 'fringe';
-    if (fl.landed) return greenFinish ? FLIGHT.greenRollTimescale : FLIGHT.rollTimescale;
+    if (fl.landed) {
+      if (holingOut) {
+        const p = fl.outcome.path[Math.min(Math.floor(fl.progress), fl.outcome.path.length - 1)];
+        const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
+        if (dCup < 20) return FLIGHT.greenRollTimescale * 0.35; // creeping to the cup
+      }
+      return greenFinish ? FLIGHT.greenRollTimescale : FLIGHT.rollTimescale;
+    }
     if (!greenFinish) return FLIGHT.airTimescale;
     const frac = fl.landIdx > 0 ? fl.progress / fl.landIdx : 1;
     if (frac <= FLIGHT.approachRampFrac) return FLIGHT.airTimescale;
@@ -769,6 +836,8 @@ class HoleScene {
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
     shotShapeEl.style.display = 'none';
+    aimReadoutEl.style.display = 'none';
+    this.aimReadoutWorld = null;
     const club = this.aim.club;
     const fire = this.fires[this.turnIdx];
     // The meter reports bar units; the AI already reports physics power.
@@ -776,14 +845,15 @@ class HoleScene {
       ? swing
       : { ...swing, power: this.aim.barToPhysicsPower(swing.power, this.ctx()) };
     // Shot shaping applies to full shots only; resolve + integrate separately
-    // so mid-flight swipes can re-shape the same resolved launch. The AI's
-    // spin comes from its decision, never the player's sticky widget state.
+    // so mid-flight swipes can re-shape the same resolved launch. The player's
+    // pre-shot spin is the strike SHAPE (a fixed draw/fade); more spin is
+    // added in-flight by swiping. The AI's spin comes from its decision.
     const shaping = !this.aim.isPutting;
     const spin = !shaping
       ? { side: 0, top: 0 }
       : this.ai
         ? { ...(this.aiSpin ?? { side: 0, top: 0 }) }
-        : { ...this.strike.spin };
+        : { ...this.strike.shapeSpin };
     const launchMult = !shaping ? 1 : this.ai ? 1 - spin.top * 0.18 : this.strike.launchMult;
     const launch = this.engine2d.resolveLaunch({
       origin: this.state.ballPos,
@@ -858,6 +928,8 @@ class HoleScene {
       this.afterScrambleShot(outcome);
       return;
     }
+    const origin = { ...this.state.ballPos };
+    const club = this.aim.club;
     this.state.ballPos = { ...outcome.finalPos };
     this.state.lie = outcome.surface;
     // Persist this shot's result back onto the competitor who played it
@@ -871,14 +943,19 @@ class HoleScene {
       c.holed = true;
       showMsg(`${this.curPart().golfer.name}: ${scoreName(this.state.strokes, this.hole.par)}`, 2200);
       if (this.state.strokes < this.hole.par) setTimeout(() => play('chime'), 450);
-      this.golfer.react(this.state.strokes <= this.hole.par - 2 ? 'epic' : 'celebrate');
+      // Per-hole reaction reflects the SCORE: happy at par or better, sad
+      // over par (FB7). Eagles+ get the big Song Jump.
+      this.golfer.react(this.holeReaction(this.state.strokes));
     } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
       this.golfer.react('deject');
+    } else if (!c.isAI) {
+      this.showShotReadout(origin, outcome, club);
     }
     if (this.state.strokes >= RULES.maxStrokes && !c.holed) {
       showMsg(`Pick up — max ${RULES.maxStrokes}`, 1600);
+      this.golfer.react('deject');
     }
 
     // Hole over when every competitor has holed / picked up; otherwise the
@@ -891,6 +968,34 @@ class HoleScene {
       if (allDone) this.finishHole();
       else this.beginTurn();
     }, delay);
+  }
+
+  /** Per-hole reaction from the score vs par (FB7). */
+  private holeReaction(strokes: number): 'epic' | 'celebrate' | 'deject' {
+    if (strokes <= this.hole.par - 2) return 'epic';
+    if (strokes <= this.hole.par) return 'celebrate';
+    return 'deject';
+  }
+
+  /**
+   * Post-shot popup (FB4): a drive shows carry yards; an approach shows how
+   * far it finished from the hole; a shot on/near the green shows feet to the
+   * cup. Shown briefly for the human player's non-holed, dry shots.
+   */
+  private showShotReadout(origin: { x: number; y: number }, outcome: ShotOutcome, club: ClubSpec): void {
+    const carryYd = Math.round(dist(origin, outcome.finalPos) / PX_PER_YARD);
+    const toPinYd = this.engine2d.yardsToPin(outcome.finalPos);
+    const onGreen = outcome.surface === 'green' || outcome.surface === 'fringe';
+    const isDrive = (club.id === 'driver' || club.id === '3w' || club.id === '5w') && origin && this.state.strokes === 1;
+    let msg: string;
+    if (onGreen) {
+      msg = `${Math.round(toPinYd * 3)} ft from the hole`;
+    } else if (isDrive) {
+      msg = `${carryYd} yd drive`;
+    } else {
+      msg = toPinYd < 30 ? `${Math.round(toPinYd * 3)} ft to the hole` : `${Math.round(toPinYd)} yd to the hole`;
+    }
+    showMsg(msg, 1600);
   }
 
   /** Scramble: collect both teammates' attempts, keep the better ball. */
@@ -919,7 +1024,7 @@ class HoleScene {
     if (chosen.holed) {
       play('hole');
       showMsg(`Team: ${scoreName(this.tm.teamStrokes, this.hole.par)}!`, 2200);
-      this.golfers[chooserIdx].react(this.tm.teamStrokes <= this.hole.par - 2 ? 'epic' : 'celebrate');
+      this.golfers[chooserIdx].react(this.holeReaction(this.tm.teamStrokes));
     } else {
       showMsg(`Using ${this.comps[chooserIdx].part.golfer.name}'s ball`, 1300);
     }
@@ -1012,13 +1117,6 @@ class HoleScene {
     strikePadEl.addEventListener('pointerdown', this.onStrikeDown);
     window.addEventListener('pointermove', this.onStrikeMove);
     window.addEventListener('pointerup', this.onStrikeUp);
-    this.onTraj = (e: Event) => {
-      e.stopPropagation();
-      this.strike.cycleTrajectory();
-      this.updateStrikeUI();
-      this.updateAimVisuals();
-    };
-    trajBtn.addEventListener('pointerdown', this.onTraj);
   }
 
   private moveStrike(e: PointerEvent): void {
@@ -1037,11 +1135,12 @@ class HoleScene {
     const dx = e.clientX - this.swipeLast.x;
     const dy = e.clientY - this.swipeLast.y;
     this.swipeLast = { x: e.clientX, y: e.clientY };
-    // Swipe sideways = curve; swipe down = backspin, up = topspin. Less
-    // remaining flight = less remaining authority (naturally, via physics).
+    // Swipe sideways = curve; swipe down = backspin, up = topspin. UNCAPPED —
+    // keep swiping for more spin (FB1). Remaining-flight authority tapers
+    // naturally because fewer steps remain to curve the ball.
     const ns = {
-      side: clampSpin(fl.spin.side + dx * 0.006),
-      top: clampSpin(fl.spin.top - dy * 0.006)
+      side: fl.spin.side + dx * 0.006,
+      top: fl.spin.top - dy * 0.006
     };
     if (ns.side === fl.spin.side && ns.top === fl.spin.top) return;
     fl.spin = ns;
@@ -1069,12 +1168,32 @@ class HoleScene {
   private onStrikeDown!: (e: PointerEvent) => void;
   private onStrikeMove!: (e: PointerEvent) => void;
   private onStrikeUp!: () => void;
-  private onTraj!: (e: Event) => void;
 
   // ----------------------------------------------------------------- loop
 
   private tick(): void {
     const dt = engine3d.getDeltaTime() / 1000;
+
+    // Float the aim readout over its world anchor (projected each frame so it
+    // tracks the smoothing camera).
+    if (this.aimReadoutWorld && this.state.phase === 'aiming' && !this.ai) {
+      const wp = w2b(this.aimReadoutWorld.x, this.aimReadoutWorld.y, this.gh(this.aimReadoutWorld.x, this.aimReadoutWorld.y) + 4);
+      const s = Vector3.Project(
+        wp,
+        Matrix.Identity(),
+        this.scene.getTransformMatrix(),
+        new Viewport(0, 0, engine3d.getRenderWidth(), engine3d.getRenderHeight())
+      );
+      const w = engine3d.getRenderWidth();
+      const h = engine3d.getRenderHeight();
+      if (s.z > 0 && s.z < 1 && s.x > 0 && s.x < w && s.y > 0 && s.y < h) {
+        aimReadoutEl.style.display = 'flex';
+        aimReadoutEl.style.left = `${(s.x / w) * 100}%`;
+        aimReadoutEl.style.top = `${(s.y / h) * 100}%`;
+      } else {
+        aimReadoutEl.style.display = 'none';
+      }
+    }
 
     if (this.flight) {
       this.flight.progress += dt * 60 * this.flightTimescale();
@@ -1088,6 +1207,20 @@ class HoleScene {
       } else {
         const p = path[i];
         this.ball.position = w2b(p.x, p.y, p.z + HoleScene.BALL_REST + this.gh(p.x, p.y));
+        const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
+        // Putts: zoom the camera in tight as the ball nears the cup (FB2).
+        if (this.flight.isPutt && dCup < 46) {
+          const f = this.fwd3(this.flight.dir);
+          const pos3 = w2b(p.x, p.y, this.gh(p.x, p.y));
+          this.camTarget.pos = pos3.subtract(f.scale(8)).add(new Vector3(0, 5.5, 0));
+          this.camTarget.look = w2b(this.hole.pin.x, this.hole.pin.y, this.gh(this.hole.pin.x, this.hole.pin.y));
+          this.camTarget.k = 6;
+        }
+        // Building drama: as a hole-out/ace from distance creeps to the cup,
+        // rumble the camera (FB6). Refreshed each frame → continuous shake.
+        if (this.flight.outcome.holed && this.flight.landIdx > 20 && dCup < 26) {
+          this.shakeT = Math.max(this.shakeT, 0.14);
+        }
         if (!this.flight.landed && p.z <= 0.01 && i > 4) {
           this.flight.landed = true;
           if (!this.flight.isPutt) {
@@ -1164,7 +1297,6 @@ class HoleScene {
     strikePadEl.removeEventListener('pointerdown', this.onStrikeDown);
     window.removeEventListener('pointermove', this.onStrikeMove);
     window.removeEventListener('pointerup', this.onStrikeUp);
-    trajBtn.removeEventListener('pointerdown', this.onTraj);
     meter.onComplete = null;
     meter.hide();
     clubBar.style.display = 'none';

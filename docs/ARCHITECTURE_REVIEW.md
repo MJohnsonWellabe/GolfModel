@@ -8,6 +8,34 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-08: Playtest feedback pass (FB1–FB8)
+
+Matt's hands-on feedback, applied on top of Phases 0–5:
+- **Shot shaping = SHAPE, not spin.** The strike dot is now a deterministic
+  pre-shot draw/fade + launch height (`StrikeControl`); the LOW/NORM/HIGH
+  toggle is gone. The aim dots curve to show the shape and run on a flat,
+  windless preview engine, so the aim line never reveals wind or slope — you
+  estimate hold-off. In-flight swipe is the (now uncapped) spin. Flight
+  playback slowed ~2× so the swipe window is usable.
+- **Putting** shifts difficulty off RNG onto slope/pace: the meter no longer
+  auto-compensates slope (flat preview engine), a Tiger-style readout floats
+  at the aim point (distance + up/down elevation in ft/in), tap-ins get a
+  short-range gimme, fringe rolls ~2× (not 2.8×) green friction, lip-outs are
+  rarer, and the ball crawls + the camera zooms as it nears the cup. Appendix
+  A make-rate tests still pass.
+- **Cameras:** aerial always frames the whole ball→green corridor (height
+  scales with span, no cap); the intro flyover is a clean tee→green glide.
+- **Feedback:** post-shot popup (drive carry / distance-to-hole), flaming
+  meter bar while on fire, screen shake + slow-mo as a hole-out/ace nears the
+  cup, and per-hole character reactions keyed to the hole score (happy at
+  par-or-better, sad worse).
+- **Difficulty:** the meter's perfect zone shrinks on bad lies and with
+  longer clubs (except off the tee).
+- **Setup UX:** the wizard's step body scrolls internally so the Next/Tee-off
+  button is always visible.
+
+---
+
 # Update — 2026-07-08 (later): Graphics Stage 0 + Stage A — course readability overhaul
 
 The course-presentation redo planned in `11_ROADMAP_CHECKIN_2026-07-08.md`

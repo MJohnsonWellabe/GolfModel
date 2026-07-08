@@ -304,6 +304,8 @@ export class PhysicsEngine {
     let waterPenalty = false;
     let holed = false;
     let lipped = false;
+    // Short putt = started within ~5ft of the cup (gimme range, FB2).
+    const shortPuttOrigin = Math.hypot(origin.x - hole.pin.x, origin.y - hole.pin.y) < PHYSICS.gimmeShortPuttPx;
 
     if (club.launchAngle <= 0) {
       // Putter: pure roll. Speed chosen so friction on green stops it at
@@ -401,6 +403,22 @@ export class PhysicsEngine {
       const speed = Math.hypot(vx, vy);
       const dPin = Math.hypot(x - hole.pin.x, y - hole.pin.y);
       if (dPin < PHYSICS.cupRadius && speed < PHYSICS.cupCaptureSpeed) {
+        holed = true;
+        x = hole.pin.x;
+        y = hole.pin.y;
+        path.push({ x, y, z: 0 });
+        break;
+      }
+      // Gimme: on a SHORT putt (started near the cup), a slow ball trickling
+      // by the hole falls in — tap-ins are automatic (FB2). Gated on the
+      // putt's origin so a well-lagged long putt dying near the cup is NOT
+      // gifted; only genuine short putts get the forgiveness.
+      if (
+        club.launchAngle <= 0 &&
+        shortPuttOrigin &&
+        dPin < PHYSICS.cupRadius * PHYSICS.gimmeRadiusMult &&
+        speed < PHYSICS.gimmeSpeed
+      ) {
         holed = true;
         x = hole.pin.x;
         y = hole.pin.y;

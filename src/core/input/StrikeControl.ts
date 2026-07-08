@@ -1,44 +1,49 @@
 import { SpinState } from '../types';
 import { clamp } from '../../utils/Geometry';
 
-export type Trajectory = 'low' | 'normal' | 'high';
-
-const TRAJ_LAUNCH: Record<Trajectory, number> = { low: 0.72, normal: 1, high: 1.25 };
+/** Max deterministic side curve from a full left/right strike. */
+const SHAPE_STRENGTH = 0.75;
+/** Launch-angle swing from a full top/bottom strike. */
+const LAUNCH_STRENGTH = 0.24;
 
 /**
- * Pre-shot shot-shaping state (Phase 4): where on the ball face the strike
- * lands (a draggable dot) and the trajectory preset.
+ * Pre-shot shot SHAPE, set by where the strike lands on the ball face
+ * (a draggable dot). This is a fixed, predictable curve — NOT the in-flight
+ * spin (that comes from swiping during flight, `main.ts applySwipeSpin`).
  *
- *  - dot left/right → draw/fade side spin
- *  - dot up (above center) → topspin: lower launch, runs out
- *  - dot down (below center) → backspin: higher launch, bites on the green
- *  - extreme positions widen dispersion (risk for reward)
+ *  - dot RIGHT of center → draw (ball flies right-to-left)
+ *  - dot LEFT  of center → fade (ball flies left-to-right)
+ *  - dot BELOW center     → higher launch (steeper, stops faster)
+ *  - dot ABOVE center     → lower launch (flatter, runs out)
  *
- * Pure logic — the scene renders the widget and feeds drags in.
+ * The shape is applied to the whole flight and shown in the aim dots, so you
+ * aim the curve where you want it. Pure logic — the scene renders the widget.
  */
 export class StrikeControl {
   /** Dot position on the ball face, both -1..1 (y+ = above center). */
   x = 0;
   y = 0;
-  trajectory: Trajectory = 'normal';
 
-  get spin(): SpinState {
-    return { side: this.x, top: this.y };
+  /** Deterministic pre-shot curve. Right strike (x>0) draws (curves left =
+   *  negative side); left strike fades (positive side). No top spin here —
+   *  trajectory height comes from `launchMult`; bite/run spin is in-flight. */
+  get shapeSpin(): SpinState {
+    return { side: -this.x * SHAPE_STRENGTH || 0, top: 0 };
   }
 
-  /** Launch-angle multiplier: preset × strike height. */
+  /** Launch-angle multiplier from strike height (bottom = higher). */
   get launchMult(): number {
-    return TRAJ_LAUNCH[this.trajectory] * (1 - this.y * 0.18);
+    return 1 - this.y * LAUNCH_STRENGTH;
   }
 
-  /** Dispersion multiplier — pushing the strike to the edges adds risk. */
+  /** Dispersion multiplier — extreme shapes are slightly harder to strike. */
   get riskMult(): number {
     const m = Math.max(Math.abs(this.x), Math.abs(this.y));
-    return m > 0.7 ? 1.5 : 1 + m * 0.35;
+    return 1 + Math.max(0, m - 0.6) * 0.9;
   }
 
   get isNeutral(): boolean {
-    return this.x === 0 && this.y === 0 && this.trajectory === 'normal';
+    return this.x === 0 && this.y === 0;
   }
 
   /** Place the dot from a pointer position relative to the widget center. */
@@ -51,17 +56,7 @@ export class StrikeControl {
     this.y = clamp(ny * s, -1, 1);
   }
 
-  setSpin(spin: SpinState): void {
-    this.x = clamp(spin.side, -1, 1);
-    this.y = clamp(spin.top, -1, 1);
-  }
-
-  cycleTrajectory(): Trajectory {
-    this.trajectory = this.trajectory === 'normal' ? 'high' : this.trajectory === 'high' ? 'low' : 'normal';
-    return this.trajectory;
-  }
-
-  /** Reset the strike dot (trajectory preset is sticky between shots). */
+  /** Reset the strike dot between shots. */
   resetDot(): void {
     this.x = 0;
     this.y = 0;
