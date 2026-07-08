@@ -57,6 +57,24 @@ AO seams around bunkers/ponds; raked sand ripples.
 The graphics track (Stages 0–C) from the check-in doc is complete; further
 course-visual work belongs to Phase 9 polish.
 
+**Phase 2 (balance) landed:** seedable RNG + `RoundSimulator` headless round
+player; the GDD Appendix A putting/dispersion tables are hit exactly (30
+seeded Monte-Carlo tests in `tests/simulation/`); scoring tiers are
+monotonic (+1.3/+0.5/−0.3/−0.8) with documented deviations where the GDD's
+tables over-constrain each other (see the Appendix A calibration note in
+`02_GAME_DESIGN_DOCUMENT.md`). Wind now scales with flight altitude; the
+rolling integrator's systematic 1px putt shortfall was found and fixed.
+
+**Phase 3 (identity + multiplayer) landed:** the formerly-unreachable
+competitive layer is live — the wizard gained Mode and Rival/Partner steps
+(solo / 1v1 / true scramble via `TurnManager`, replacing the inline turn
+logic), the fire system now applies to the player (stat boost, wider
+perfect band, orange trail, ON FIRE banner), and four AI opponents with
+distinct personalities (`data/opponents.ts`: aggression/layup/pin-hunting
+drive different lines through the same holes) at GDD difficulty tiers.
+Eagles trigger the pack's Song Jump celebration. `opponents.ts`,
+`TurnManager` and the `Scoring`-adjacent tests all guard live code now.
+
 # Update — 2026-07-08: identity rework + purchased assets integrated
 
 A ground-up front-end rework landed on top of the foundation below. The parts

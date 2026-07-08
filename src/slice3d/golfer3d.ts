@@ -403,14 +403,19 @@ export class Golfer3D {
 
   // --------------------------------------------------------------- reactions
 
-  /** Big-moment reaction: Win clip / arms-up hop (celebrate) or Sad / slump. */
-  react(kind: 'celebrate' | 'deject'): void {
-    this.reactionKind = kind;
+  /** Big-moment reaction: Win clip / arms-up hop (celebrate), Sad / slump
+   *  (deject), or the pack's Song Jump for eagles+ (epic). */
+  react(kind: 'celebrate' | 'deject' | 'epic'): void {
+    this.reactionKind = kind === 'epic' ? 'celebrate' : kind;
     this.reactionT = 0;
     if (this.modelBacked) {
       this.idleAnim?.stop();
       this.setPose(0);
-      this.inst?.anims.get(kind === 'celebrate' ? 'Win' : 'Sad')?.start(false, 1.0);
+      const clip =
+        kind === 'epic'
+          ? this.inst?.anims.get('Song Jump') ?? this.inst?.anims.get('Win')
+          : this.inst?.anims.get(kind === 'celebrate' ? 'Win' : 'Sad');
+      clip?.start(false, 1.0);
     }
   }
 
@@ -421,6 +426,7 @@ export class Golfer3D {
       if (this.modelBacked) {
         this.inst?.anims.get('Win')?.stop();
         this.inst?.anims.get('Sad')?.stop();
+        this.inst?.anims.get('Song Jump')?.stop();
         this.setPose(0);
         this.idleAnim?.start(true, 1.0);
         if (this.modelPivot) this.modelPivot.position.y = 0;

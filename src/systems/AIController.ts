@@ -22,6 +22,18 @@ export interface AIDecision {
   swing: SwingResult;
 }
 
+/** How an AI attacks holes (all 0..1). See data/opponents.ts. */
+export interface AIPersonality {
+  /** Willingness to attempt shots at the edge of (or beyond) its range. */
+  aggression: number;
+  /** Preference for laying back short of trouble instead of pressing. */
+  layupBias: number;
+  /** Aim at the pin vs the fat of the green on approaches. */
+  pinHunting: number;
+}
+
+export const BALANCED_PERSONALITY: AIPersonality = { aggression: 0.5, layupBias: 0.5, pinHunting: 0.5 };
+
 /**
  * AI shot planning: pick a target, pick a club, then produce a simulated
  * swing-meter result whose quality is driven by the golfer's stats (plus
@@ -38,7 +50,9 @@ export class AIController {
       slopeAccelAlong?(from: Point, yaw: number, distPx: number): number;
     } | null = null,
     /** Uniform random source — inject a seeded rng for deterministic sims. */
-    private readonly rng: Rng = Math.random
+    private readonly rng: Rng = Math.random,
+    /** How this AI attacks holes; balanced when unspecified. */
+    private readonly personality: AIPersonality = BALANCED_PERSONALITY
   ) {}
 
   decide(ballPos: Point, lie: Surface, wind: Wind, hole: HoleData): AIDecision {
@@ -81,7 +95,18 @@ export class AIController {
       this.fire.statBoost,
       lie
     );
-    if (remainingYds <= maxCarry + 10) return pin;
+    // Aggression extends (or shrinks) how far out this AI will "go for it":
+    // a gambler attempts the green from 30yd beyond its rated carry, a
+    // conservative player only when comfortably in range.
+    const reachBonus = -14 + this.personality.aggression * 48;
+    if (remainingYds <= maxCarry + reachBonus) {
+      // Pin hunters fire at the flag; others play toward the green center
+      const safety = Math.max(0, 0.5 - this.personality.pinHunting) * 1.4;
+      return {
+        x: pin.x + (hole.green.cx - pin.x) * safety,
+        y: pin.y + (hole.green.cy - pin.y) * safety
+      };
+    }
 
     // Pin out of reach: advance along the authored fairway route
     // (aiTargets tee→green, then the pin), stretching PAST the farthest
@@ -89,7 +114,9 @@ export class AIController {
     // 290yd hitter and a 310yd hitter both drive to their own distance
     // instead of snapping to the same waypoint.
     const route = [...hole.aiTargets, pin];
-    const reachPx = maxCarry * PX_PER_YARD * 0.97;
+    // Layup bias throttles how much of the full carry a layup uses —
+    // conservative players leave a comfortable full-wedge number.
+    const reachPx = maxCarry * PX_PER_YARD * (1.015 - this.personality.layupBias * 0.09);
     let idx = -1;
     for (let i = 0; i < route.length; i++) {
       const toT = dist(ballPos, route[i]);

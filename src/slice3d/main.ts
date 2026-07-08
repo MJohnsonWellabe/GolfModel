@@ -24,9 +24,11 @@ import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
-import { AIController } from '../systems/AIController';
+import { AIOpponent, OPPONENTS } from '../data/opponents';
+import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
 import { buildHeightField } from '../systems/HeightField';
+import { TurnManager } from '../systems/TurnManager';
 import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
@@ -163,8 +165,19 @@ class HoleScene {
   private balls: Mesh[] = [];
   private ais: (AIController | null)[] = [];
   /** Per-competitor state for this hole (1 for solo, 2 for 1v1/scramble). */
-  private comps: Array<{ ball: { x: number; y: number }; lie: HoleState['lie']; strokes: number; holed: boolean; part: Participant }> = [];
+  private comps: Array<{
+    ball: { x: number; y: number };
+    lie: HoleState['lie'];
+    strokes: number;
+    holed: boolean;
+    isAI: boolean;
+    part: Participant;
+  }> = [];
   private turnIdx = 0;
+  /** Turn order + scramble team state (systems/TurnManager). */
+  private tm: TurnManager;
+  /** One fire streak per competitor — the AI's brain shares its instance. */
+  private fires: FireSystem[] = [];
   private get golfer(): Golfer3D {
     return this.golfers[this.turnIdx];
   }
@@ -211,8 +224,10 @@ class HoleScene {
     const { shadows, puttGrid } = this.course3d;
     this.puttGrid = puttGrid;
 
-    // One golfer, ball and (for AI) brain per competitor. In solo that's one;
-    // in 1v1/scramble the two play the hole with alternating turns.
+    this.tm = new TurnManager(round.mode, this.hole.pin, this.hole.tee);
+
+    // One golfer, ball, fire streak and (for AI) brain per competitor. In
+    // solo that's one; in 1v1/scramble two play the hole together.
     round.players.forEach((part, i) => {
       const g = new Golfer3D(this.scene, shadows, part.golfer.character, part.golfer.look);
       g.root.setEnabled(false);
@@ -224,8 +239,13 @@ class HoleScene {
       b.material = bm;
       shadows.addShadowCaster(b);
       this.balls.push(b);
-      this.ais.push(part.isAI ? new AIController(part.golfer, new FireSystem(), this.engine2d) : null);
-      this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, part });
+      const fire = new FireSystem();
+      this.fires.push(fire);
+      const personality = (part.golfer as AIOpponent).personality ?? BALANCED_PERSONALITY;
+      this.ais.push(
+        part.isAI ? new AIController(part.golfer, fire, this.engine2d, undefined, personality) : null
+      );
+      this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, isAI: part.isAI, part });
     });
     this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => undefined);
 
@@ -315,7 +335,24 @@ class HoleScene {
   }
 
   private ctx(): ShotContext {
-    return { ball: this.state.ballPos, lie: this.state.lie, golfer: this.curPart().golfer, fireBoost: 0 };
+    return {
+      ball: this.state.ballPos,
+      lie: this.state.lie,
+      golfer: this.curPart().golfer,
+      fireBoost: this.fires[this.turnIdx].statBoost
+    };
+  }
+
+  /** Arm (or re-arm) the swing meter for the current aim/club/fire state. */
+  private armMeter(): void {
+    const fire = this.fires[this.turnIdx];
+    meter.arm({
+      stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
+      powerTarget: this.aim.barPowerTarget(this.ctx()),
+      isPutt: this.aim.isPutting,
+      perfectMult: fire.perfectZoneMultiplier
+    });
+    meterEl.style.display = 'block';
   }
 
   /** The competitor whose turn it is. */
@@ -342,26 +379,30 @@ class HoleScene {
   }
 
   /**
-   * Choose who plays next: the unfinished competitor farthest from the pin
-   * (the standard "away plays first" rule, which naturally alternates in a
-   * 1v1). Returns false when every competitor has finished the hole.
+   * Choose who plays next via TurnManager ("away plays first" with
+   * hysteresis, stroke-cap pickups). Returns false when the hole is over.
    */
   private advanceTurn(): boolean {
-    const live = this.comps
-      .map((c, i) => ({ c, i }))
-      .filter(({ c }) => !this.compDone(c));
-    if (!live.length) return false;
-    live.sort((a, b) => this.engine2d.yardsToPin(b.c.ball) - this.engine2d.yardsToPin(a.c.ball));
-    this.turnIdx = live[0].i;
-    // Show only the active golfer; park each ball at its stored lie
+    const picked = this.tm.applyPickups(this.comps);
+    if (round.mode !== 'solo') {
+      picked.forEach((i) => showMsg(`${this.comps[i].part.golfer.name} picks up`, 1200));
+    }
+    const idx = this.tm.nextPlayer(this.comps);
+    if (idx === null) return false;
+    this.turnIdx = idx;
+    this.showActiveCompetitor();
+    this.syncStateFromComp();
+    return true;
+  }
+
+  /** Show only the active golfer; park each ball at its stored lie. */
+  private showActiveCompetitor(): void {
     this.golfers.forEach((g, i) => g.root.setEnabled(i === this.turnIdx));
     this.balls.forEach((b, i) => {
       const c = this.comps[i];
       b.position = w2b(c.ball.x, c.ball.y, HoleScene.BALL_REST + this.gh(c.ball.x, c.ball.y));
-      b.setEnabled(!c.holed);
+      b.setEnabled(!c.holed && (!this.tm.isScramble || i === this.turnIdx));
     });
-    this.syncStateFromComp();
-    return true;
   }
 
   private fwd3(yaw: number): Vector3 {
@@ -523,14 +564,25 @@ class HoleScene {
   // ---------------------------------------------------------------- turns
 
   beginTurn(): void {
-    // Pick who's away and sync their stored ball/lie into play. If everyone
-    // has finished, the hole is over.
-    if (!this.advanceTurn()) {
+    if (this.tm.isScramble) {
+      // Scramble: both teammates attempt from the shared team ball; the
+      // better result becomes the new team ball (TurnManager owns the state).
+      if (this.tm.scrambleFinished) {
+        this.finishHole();
+        return;
+      }
+      this.turnIdx = this.tm.beginScrambleShot(this.comps);
+      this.showActiveCompetitor();
+      this.syncStateFromComp();
+      this.state.strokes = this.tm.teamStrokes;
+      showMsg(`${this.curPart().golfer.name} plays the team ball`, 1000);
+    } else if (!this.advanceTurn()) {
+      // Stroke play: pick who's away; if everyone has finished, hole's over.
       this.finishHole();
       return;
     }
     this.state.phase = 'aiming';
-    if (round.mode !== 'solo') {
+    if (round.mode === '1v1') {
       showMsg(`${this.curPart().golfer.name} to play`, 900);
     }
     this.aim.autoSelectClub(this.ctx());
@@ -559,12 +611,7 @@ class HoleScene {
       return;
     }
     // Human turn: arm the meter and leave it on screen showing the target
-    meter.arm({
-      stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
-      powerTarget: this.aim.barPowerTarget(this.ctx()),
-      isPutt: this.aim.isPutting
-    });
-    meterEl.style.display = 'block';
+    this.armMeter();
     clubBar.style.display = 'flex';
     aerialBtn.style.display = 'block';
     this.refreshClubBar();
@@ -610,12 +657,7 @@ class HoleScene {
     this.aim.cycleClub(dir, this.ctx());
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.course3d.greenRing.setEnabled(!this.aim.isPutting);
-    meter.arm({
-      stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
-      powerTarget: this.aim.barPowerTarget(this.ctx()),
-      isPutt: this.aim.isPutting
-    });
-    meterEl.style.display = 'block';
+    this.armMeter();
     this.updateAimVisuals();
     this.updateHud();
     this.refreshClubBar();
@@ -693,6 +735,7 @@ class HoleScene {
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
     const club = this.aim.club;
+    const fire = this.fires[this.turnIdx];
     // The meter reports bar units; the AI already reports physics power.
     const converted: SwingResult = powerIsPhysics
       ? swing
@@ -703,11 +746,16 @@ class HoleScene {
       swing: converted,
       club,
       golfer: this.curPart().golfer,
-      fireBoost: 0,
+      fireBoost: fire.statBoost,
       lie: this.state.lie,
       wind: this.wind,
       hole: this.hole
     });
+    // Feed the streak AFTER the shot resolves with the pre-shot boost
+    if (fire.recordSwing(converted)) {
+      showMsg(`🔥 ${this.curPart().golfer.name} is ON FIRE!`, 1600);
+      play('fire');
+    }
     this.state.strokes += 1 + (outcome.waterPenalty ? 1 : 0);
     this.updateHud();
 
@@ -732,11 +780,13 @@ class HoleScene {
       }
       const trail = club.id === 'putter' ? null : new TrailMesh('trail', this.ball, this.scene, 0.12, 46, true);
       if (trail) {
-        const tm = new StandardMaterial('trailMat', this.scene);
-        tm.emissiveColor = new Color3(1, 1, 1);
-        tm.diffuseColor = new Color3(1, 1, 1);
-        tm.alpha = 0.35;
-        trail.material = tm;
+        const tmat = new StandardMaterial('trailMat', this.scene);
+        // On-fire shots streak orange — the streak reward reads mid-flight
+        const onFire = this.fires[this.turnIdx].isOnFire;
+        tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : new Color3(1, 1, 1);
+        tmat.diffuseColor = tmat.emissiveColor;
+        tmat.alpha = onFire ? 0.55 : 0.35;
+        trail.material = tmat;
       }
       this.flight = {
         outcome,
@@ -753,6 +803,10 @@ class HoleScene {
   }
 
   private afterShot(outcome: ShotOutcome): void {
+    if (this.tm.isScramble) {
+      this.afterScrambleShot(outcome);
+      return;
+    }
     this.state.ballPos = { ...outcome.finalPos };
     this.state.lie = outcome.surface;
     // Persist this shot's result back onto the competitor who played it
@@ -766,7 +820,7 @@ class HoleScene {
       c.holed = true;
       showMsg(`${this.curPart().golfer.name}: ${scoreName(this.state.strokes, this.hole.par)}`, 2200);
       if (this.state.strokes < this.hole.par) setTimeout(() => play('chime'), 450);
-      this.golfer.react('celebrate');
+      this.golfer.react(this.state.strokes <= this.hole.par - 2 ? 'epic' : 'celebrate');
     } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
@@ -788,9 +842,48 @@ class HoleScene {
     }, delay);
   }
 
+  /** Scramble: collect both teammates' attempts, keep the better ball. */
+  private afterScrambleShot(outcome: ShotOutcome): void {
+    if (outcome.waterPenalty) {
+      play('splash');
+      showMsg(`${this.curPart().golfer.name} finds water`, 1200);
+    }
+    const bothIn = this.tm.recordScrambleOutcome(outcome);
+    if (!bothIn) {
+      // Teammate 2 plays from the same team ball
+      setTimeout(() => {
+        if (!this.disposed) this.beginTurn();
+      }, outcome.holed ? 1600 : 800);
+      return;
+    }
+    const { chooserIdx, chosen } = this.tm.resolveScramble(this.comps);
+    this.comps.forEach((c) => {
+      c.lie = this.tm.teamLie;
+      c.strokes = this.tm.teamStrokes;
+      c.holed = this.tm.teamHoled;
+    });
+    this.state.ballPos = { ...this.tm.teamBall };
+    this.state.lie = this.tm.teamLie;
+    this.state.strokes = this.tm.teamStrokes;
+    if (chosen.holed) {
+      play('hole');
+      showMsg(`Team: ${scoreName(this.tm.teamStrokes, this.hole.par)}!`, 2200);
+      this.golfers[chooserIdx].react(this.tm.teamStrokes <= this.hole.par - 2 ? 'epic' : 'celebrate');
+    } else {
+      showMsg(`Using ${this.comps[chooserIdx].part.golfer.name}'s ball`, 1300);
+    }
+    setTimeout(() => {
+      if (this.disposed) return;
+      if (this.tm.scrambleFinished) this.finishHole();
+      else this.beginTurn();
+    }, chosen.holed ? 2400 : 1000);
+  }
+
   private finishHole(): void {
     this.state.phase = 'done';
-    this.onHoleComplete(this.comps.map((c) => c.strokes));
+    this.onHoleComplete(
+      this.comps.map((c) => (this.tm.isScramble ? this.tm.teamStrokes : c.strokes))
+    );
   }
 
   // ---------------------------------------------------------------- input
@@ -801,14 +894,8 @@ class HoleScene {
       startAmbience();
       if (this.state.phase !== 'aiming') return;
       promptEl.textContent = '';
+      if (!meter.isArmed) this.armMeter();
       meterEl.style.display = 'block';
-      if (!meter.isArmed) {
-        meter.arm({
-          stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
-          powerTarget: this.aim.barPowerTarget(this.ctx()),
-          isPutt: this.aim.isPutting
-        });
-      }
       meter.handleTap();
     };
     swingBtn.addEventListener('pointerdown', this.onSwingTap);
@@ -828,13 +915,7 @@ class HoleScene {
       this.updateHud();
       // Distance changed → the meter's power target moved; re-arm so the target
       // line (and putt scaling) track the new aim.
-      if (meter.isArmed) {
-        meter.arm({
-          stat: statsForClub(this.aim.club, this.curPart().golfer, 0).accuracy,
-          powerTarget: this.aim.barPowerTarget(this.ctx()),
-          isPutt: this.aim.isPutting
-        });
-      }
+      if (meter.isArmed) this.armMeter();
     };
     this.onPointerUp = (): void => {
       this.aim.endDrag();
@@ -1010,16 +1091,14 @@ function showSummary(): void {
     totals.map((t) => `<td>${t} (${parLabel(t)})</td>`).join('') +
     `</tr>`;
   let headline = 'Round complete';
-  let teamRow = '';
+  const teamRow = '';
   if (round.mode === '1v1') {
     const me = totals[0];
     const them = totals[1];
     headline = me < them ? 'You win! 🏆' : me > them ? `${round.players[1].golfer.name} wins` : 'Tied match';
   } else if (round.mode === 'scramble') {
-    // Better ball: the team takes the lower score on each hole
-    const team = holes.reduce((sum, _h, i) => sum + Math.min(round.players[0].scores[i], round.players[1].scores[i]), 0);
-    headline = `Team ${parLabel(team)}`;
-    teamRow = `<tr class="totrow"><td colspan="${2 + round.players.length}">Best ball: <b>${team}</b> (${parLabel(team)})</td></tr>`;
+    // True scramble: both columns already carry the shared team score
+    headline = `Team ${parLabel(totals[0])} 🤝`;
   }
   // Persist the round (local + shared leaderboard) — the human is player 0.
   const me = round.players[0];
@@ -1120,15 +1199,22 @@ const stepBodyEl = document.getElementById('stepBody')!;
 const backBtn = document.getElementById('backBtn') as HTMLButtonElement;
 const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
 
-/** The three setup choices, built up across the wizard steps. */
+/** The setup choices, built up across the wizard steps. */
 const sel = {
   step: 0,
+  mode: 'solo' as GameMode,
   name: '',
   character: CHARACTERS[0].key as CharacterKey,
-  archetype: ARCHETYPES[0].id as ArchetypeId
+  archetype: ARCHETYPES[0].id as ArchetypeId,
+  opponentId: OPPONENTS[1].id
 };
 
-const STEP_LABELS = ['Name', 'Character', 'Style'];
+/** Solo rounds skip the rival step; 1v1/scramble add it at the end. */
+function stepLabels(): string[] {
+  return sel.mode === 'solo'
+    ? ['Mode', 'Name', 'Character', 'Style']
+    : ['Mode', 'Name', 'Character', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
+}
 
 const STAT_KEYS: Array<[StatKey, string]> = [
   ['drivingPower', 'PWR'],
@@ -1156,11 +1242,67 @@ function statBars(stats: GolferStats, signature?: StatKey): string {
 }
 
 function renderSteps(): void {
-  stepsEl.innerHTML = STEP_LABELS.map(
-    (label, i) =>
-      `<div class="sdot${i === sel.step ? ' on' : i < sel.step ? ' done' : ''}">` +
-      `<span class="num">${i < sel.step ? '✓' : i + 1}</span>${label}</div>`
-  ).join('');
+  stepsEl.innerHTML = stepLabels()
+    .map(
+      (label, i) =>
+        `<div class="sdot${i === sel.step ? ' on' : i < sel.step ? ' done' : ''}">` +
+        `<span class="num">${i < sel.step ? '✓' : i + 1}</span>${label}</div>`
+    )
+    .join('');
+}
+
+const MODES: Array<{ id: GameMode; name: string; desc: string; icon: string }> = [
+  { id: 'solo', name: 'Solo Round', desc: 'Three holes, you against the course.', icon: '⛳' },
+  { id: '1v1', name: '1 vs 1', desc: 'Match an AI rival, lowest total wins.', icon: '⚔️' },
+  { id: 'scramble', name: 'Scramble', desc: 'Team up with an AI partner — best ball counts.', icon: '🤝' }
+];
+
+function renderMode(): void {
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">How do you want to play?</div>` +
+    `<div class="modeGrid">` +
+    MODES.map(
+      (m) =>
+        `<div class="archCard modeCard${sel.mode === m.id ? ' sel' : ''}" data-mode="${m.id}">` +
+        `<div class="ahead"><span class="an">${m.icon} ${m.name}</span></div>` +
+        `<div class="stepHint" style="margin:6px 0 0">${m.desc}</div></div>`
+    ).join('') +
+    `</div>`;
+  stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.mode = (el as HTMLElement).dataset.mode as GameMode;
+      renderSteps();
+      renderMode();
+      updateNav();
+    })
+  );
+}
+
+function renderOpponent(): void {
+  const role = sel.mode === '1v1' ? 'rival' : 'partner';
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Choose your ${role}</div>` +
+    `<div class="stepHint">Each attacks the course differently.</div>` +
+    `<div class="archGrid">` +
+    OPPONENTS.map((o) => {
+      const hx = `#${(o.color & 0xffffff).toString(16).padStart(6, '0')}`;
+      return (
+        `<div class="archCard oppCard${sel.opponentId === o.id ? ' sel' : ''}" data-opp="${o.id}" style="--accent:${hx}">` +
+        `<div class="ahead"><span class="an">${o.name}</span>` +
+        `<span class="atag">${o.difficulty}</span>` +
+        `<span class="aovr">OVR ${ovr(o.stats)}</span></div>` +
+        `<div class="stepHint" style="margin:4px 0 6px">${o.tagline}</div>` +
+        statBars(o.stats) +
+        `</div>`
+      );
+    }).join('') +
+    `</div>`;
+  stepBodyEl.querySelectorAll('.oppCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      sel.opponentId = (el as HTMLElement).dataset.opp!;
+      renderOpponent();
+    })
+  );
 }
 
 function renderName(): void {
@@ -1175,7 +1317,7 @@ function renderName(): void {
     updateNav();
   });
   input.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter' && sel.name.trim()) goStep(1);
+    if ((e as KeyboardEvent).key === 'Enter' && sel.name.trim()) goStep(sel.step + 1);
   });
   setTimeout(() => input.focus(), 30);
 }
@@ -1226,19 +1368,22 @@ function renderArchetype(): void {
 }
 
 function renderStepBody(): void {
-  if (sel.step === 0) renderName();
-  else if (sel.step === 1) renderCharacter();
-  else renderArchetype();
+  const label = stepLabels()[sel.step];
+  if (label === 'Mode') renderMode();
+  else if (label === 'Name') renderName();
+  else if (label === 'Character') renderCharacter();
+  else if (label === 'Style') renderArchetype();
+  else renderOpponent();
 }
 
 function updateNav(): void {
   backBtn.style.visibility = sel.step === 0 ? 'hidden' : 'visible';
-  nextBtn.textContent = sel.step === 2 ? 'Tee off' : 'Next';
-  nextBtn.disabled = sel.step === 0 && sel.name.trim().length === 0;
+  nextBtn.textContent = sel.step === stepLabels().length - 1 ? 'Tee off' : 'Next';
+  nextBtn.disabled = stepLabels()[sel.step] === 'Name' && sel.name.trim().length === 0;
 }
 
 function goStep(n: number): void {
-  sel.step = Math.max(0, Math.min(2, n));
+  sel.step = Math.max(0, Math.min(stepLabels().length - 1, n));
   renderSteps();
   renderStepBody();
   updateNav();
@@ -1251,12 +1396,16 @@ function showSetup(): void {
 
 function startRound(): void {
   round.course = COURSES.wildwood;
-  round.mode = 'solo';
+  round.mode = sel.mode;
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
   const golfer = assembleGolfer(sel.name, sel.character, sel.archetype);
   round.players = [{ golfer, isAI: false, scores: [] }];
+  if (round.mode !== 'solo') {
+    const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
+    round.players.push({ golfer: opp, isAI: true, scores: [] });
+  }
   setupEl.style.display = 'none';
   playHole();
 }
@@ -1268,7 +1417,7 @@ function escapeHtml(s: string): string {
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
-  if (sel.step < 2) goStep(sel.step + 1);
+  if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
   else startRound();
 });
 
@@ -1310,9 +1459,13 @@ else showSetup();
   name?: string;
   character?: CharacterKey;
   archetype?: ArchetypeId;
+  mode?: GameMode;
+  opponentId?: string;
 }) => {
   if (opts?.name !== undefined) sel.name = opts.name;
   if (opts?.character) sel.character = opts.character;
   if (opts?.archetype) sel.archetype = opts.archetype;
+  if (opts?.mode) sel.mode = opts.mode;
+  if (opts?.opponentId) sel.opponentId = opts.opponentId;
   startRound();
 };
