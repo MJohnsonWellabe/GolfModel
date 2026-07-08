@@ -191,6 +191,49 @@
         background: linear-gradient(180deg, #ffd54f, #eab63a);
         color: #3a2b06;
       }
+      /* Shot shaping: strike-position pad + trajectory preset (Phase 4) */
+      #shotShape {
+        position: absolute;
+        left: 12px;
+        bottom: 150px;
+        z-index: 6;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+      }
+      #strikePad {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 35% 30%, #ffffff, #cfd6cf 65%, #9aa39a);
+        border: 2px solid rgba(255, 255, 255, 0.35);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+        position: relative;
+        touch-action: none;
+      }
+      #strikeDot {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: #d23c3c;
+        border: 2px solid #fff;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      #trajBtn {
+        padding: 5px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(12, 41, 20, 0.85);
+        color: #ffd54f;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+      }
       #swingBtn {
         position: fixed;
         left: 50%;
@@ -692,6 +735,10 @@
       <button id="prevClub" class="clubBtn">◀</button>
       <span id="clubName">Driver</span>
       <button id="nextClub" class="clubBtn">▶</button>
+    </div>
+    <div id="shotShape">
+      <div id="strikePad"><div id="strikeDot"></div></div>
+      <button id="trajBtn">NORM</button>
     </div>
     <button id="aerialBtn">AERIAL</button>
     <button id="swingBtn">SWING</button>

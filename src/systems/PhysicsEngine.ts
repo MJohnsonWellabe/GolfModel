@@ -8,6 +8,7 @@ import {
   HoleData,
   Point,
   ShotOutcome,
+  SpinState,
   Surface,
   SwingResult,
   TrajectoryPoint,
@@ -32,6 +33,27 @@ export interface ShotParams {
   hole: HoleData;
   /** True = deterministic dry run for the aim preview (no lie noise). */
   preview?: boolean;
+  /** Pre-shot spin from the strike widget (Phase 4). */
+  spin?: SpinState;
+  /** Launch-angle multiplier from trajectory shaping / strike height. */
+  launchMult?: number;
+  /** Dispersion multiplier — extreme strike positions increase risk. */
+  riskMult?: number;
+}
+
+/** A shot with all randomness drawn, ready to integrate (and re-integrate
+ *  with different spin from any step — the aerial swipe mechanic). */
+export interface ResolvedLaunch {
+  origin: Point;
+  carryPx: number;
+  dir: number;
+  club: ClubSpec;
+  hole: HoleData;
+  wind: Wind;
+  launchMult: number;
+  /** Club-family × lie spin authority, 0..1. */
+  spinEff: number;
+  preview: boolean;
 }
 
 /** Which stats govern a given club. */
@@ -184,11 +206,18 @@ export class PhysicsEngine {
 
   /**
    * Simulate a full shot: flight, landing bounce, rollout, hazards, cup.
-   * Deterministic given its inputs (all randomness is injected before this call
-   * except small lie noise, which is sampled here).
+   * Split into resolveLaunch (all pre-flight randomness) + integrateLaunch
+   * (the deterministic flight/roll) so mid-flight spin input can re-shape
+   * the SAME resolved shot from any step (Phase 4 aerial swipe).
    */
   simulate(params: ShotParams): ShotOutcome {
-    const { origin, aimAngle, swing, club, golfer, fireBoost, lie, wind, hole } = params;
+    const launch = this.resolveLaunch(params);
+    return this.integrateLaunch(launch, params.spin ?? { side: 0, top: 0 }, 0);
+  }
+
+  /** Draw all pre-flight randomness and fix the launch state. */
+  resolveLaunch(params: ShotParams): ResolvedLaunch {
+    const { origin, aimAngle, swing, club, golfer, fireBoost, lie, wind } = params;
     const { accuracy } = statsForClub(club, golfer, fireBoost);
 
     // Distance ------------------------------------------------------------
@@ -220,13 +249,41 @@ export class PhysicsEngine {
     // swing shouldn't guarantee a perfect line (GDD §864); ×2/×4 on good/miss
     // swings per the Appendix A dispersion table. Tightens as the governing
     // accuracy stat rises; skipped in preview so the aim line is exact.
+    // riskMult: extreme strike positions widen dispersion (Phase 4 widget).
     const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2 : 4;
     const residualSigma =
-      (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) * (1.3 - accuracy / 200) * qualityMult;
+      (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) *
+      (1.3 - accuracy / 200) *
+      qualityMult *
+      (params.riskMult ?? 1);
     const residual = params.preview ? 0 : gaussianOf(this.rng, 0, Math.max(0, residualSigma));
     const errorDeg = swing.accuracy * maxErr * errFactor + lieNoise + residual;
     const dir = aimAngle + (errorDeg * Math.PI) / 180;
 
+    // Spin authority: club family × lie retention (GDD spin tables)
+    const spinEff =
+      (PHYSICS.spinEffectiveness[clubFamily(club)] ?? 0) * (PHYSICS.lieSpin[lie] ?? 1);
+
+    return {
+      origin,
+      carryPx,
+      dir,
+      club,
+      hole: params.hole,
+      wind,
+      launchMult: params.launchMult ?? 1,
+      spinEff,
+      preview: params.preview ?? false
+    };
+  }
+
+  /**
+   * Deterministic flight + roll for a resolved launch. `spinFromStep` applies
+   * the aerial side-spin curve only from that step on, so re-integrating with
+   * new spin mid-flight reproduces the already-flown prefix exactly.
+   */
+  integrateLaunch(launch: ResolvedLaunch, spin: SpinState, spinFromStep = 0): ShotOutcome {
+    const { origin, carryPx, dir, club, hole, wind, launchMult, spinEff, preview } = launch;
     const path: TrajectoryPoint[] = [{ x: origin.x, y: origin.y, z: 0 }];
     const g = PHYSICS.gravity;
     const dt = PHYSICS.dt;
@@ -258,8 +315,9 @@ export class PhysicsEngine {
       vz = 0;
       rolling = true;
     } else {
-      // Ballistic launch sized so ideal range equals carryPx.
-      const theta = (club.launchAngle * Math.PI) / 180;
+      // Ballistic launch sized so ideal range equals carryPx. Trajectory
+      // shaping (Low/High presets, strike height) tilts the launch angle.
+      const theta = (clamp(club.launchAngle * launchMult, 6, 55) * Math.PI) / 180;
       const v0 = Math.sqrt((carryPx * g) / Math.sin(2 * theta));
       const vh = v0 * Math.cos(theta);
       vx = Math.cos(dir) * vh;
@@ -277,6 +335,16 @@ export class PhysicsEngine {
         const wScale = 0.25 + 0.85 * clamp(aboveGround / PHYSICS.windRefHeight, 0, 1.3);
         vx += windAx * wScale * dt;
         vy += windAy * wScale * dt;
+        // Side spin: curve perpendicular to the current travel direction
+        // (+side bends right of the line — a fade for a north-bound shot)
+        if (spin.side !== 0 && step >= spinFromStep) {
+          const hSpeed = Math.hypot(vx, vy) || 1;
+          const k = spin.side * spinEff * PHYSICS.sideSpinAccel * dt;
+          const perpX = -vy / hSpeed;
+          const perpY = vx / hSpeed;
+          vx += perpX * k;
+          vy += perpY * k;
+        }
         vz -= g * dt;
         x += vx * dt;
         y += vy * dt;
@@ -304,10 +372,20 @@ export class PhysicsEngine {
             path.push({ x, y, z: 0 });
             break;
           }
-          const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin);
+          // Topspin runs out, backspin checks up (GDD: "Topspin should
+          // increase rollout. Backspin should reduce rollout.")
+          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, 0.05, 2);
+          const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin) * spinKeep;
           vx *= keep;
           vy *= keep;
           vz = 0;
+          // Strong backspin on the short stuff bites and sucks back
+          if (spin.top < -0.35 && (surf === 'green' || surf === 'fringe') && spinEff > 0.4) {
+            const hs = Math.hypot(vx, vy) || 1;
+            const bite = PHYSICS.backspinBite * (-spin.top - 0.35) * spinEff * 1.54;
+            vx = (-vx / hs) * bite;
+            vy = (-vy / hs) * bite;
+          }
           rolling = true;
         }
         path.push({ x, y, z: Math.max(0, z - ground) });
@@ -339,7 +417,7 @@ export class PhysicsEngine {
         speed < PHYSICS.cupLipSpeed
       ) {
         lipped = true;
-        const deflect = 0.5 + (params.preview ? 0.5 : this.rng()) * 0.35; // ~30-50°
+        const deflect = 0.5 + (preview ? 0.5 : this.rng()) * 0.35; // ~30-50°
         const cs = Math.cos(deflect);
         const sn = Math.sin(deflect);
         const nvx = vx * cs - vy * sn;

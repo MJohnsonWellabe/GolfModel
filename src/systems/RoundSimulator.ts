@@ -61,7 +61,9 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
       fireBoost: 0,
       lie,
       wind,
-      hole
+      hole,
+      spin: d.spin,
+      launchMult: d.spin ? 1 - d.spin.top * 0.18 : 1
     });
     if (d.club.id === 'putter') putts++;
     strokes += 1 + (out.waterPenalty ? 1 : 0);

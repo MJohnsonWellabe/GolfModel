@@ -75,6 +75,18 @@ drive different lines through the same holes) at GDD difficulty tiers.
 Eagles trigger the pack's Song Jump celebration. `opponents.ts`,
 `TurnManager` and the `Scoring`-adjacent tests all guard live code now.
 
+**Phase 4 (spin & shotmaking) landed:** `PhysicsEngine.simulate` split into
+`resolveLaunch` (all randomness) + `integrateLaunch` (deterministic,
+spin-aware, resumable from any step) — regression-neutral by construction.
+`SpinState` (side/top) with per-club-family effectiveness and lie retention
+(GDD tables); side spin curves flight, topspin runs out, backspin bites and
+sucks back on greens; trajectory presets tilt the launch and ride the
+altitude-scaled wind for free. Player input: a strike-position pad + LOW/
+NORM/HIGH toggle pre-shot (`core/input/StrikeControl.ts`, edge strikes add
+dispersion risk) and a mid-flight swipe that re-shapes the SAME resolved
+launch from the current step (identical flown prefix, spliced tail).
+Pin-hunting AIs rip wedges back. 10 new spin tests.
+
 # Update — 2026-07-08: identity rework + purchased assets integrated
 
 A ground-up front-end rework landed on top of the foundation below. The parts

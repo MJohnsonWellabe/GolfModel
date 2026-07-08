@@ -125,6 +125,30 @@ export const PHYSICS = {
     water: 1.0,
     trees: 0.7
   } as Record<string, number>,
+  /** How strongly player spin input affects each club family (GDD Phase 4:
+   *  driver ~0.2 → wedge 1.0; spin "should never feel exaggerated"). */
+  spinEffectiveness: {
+    wood: 0.22,
+    iron: 0.6,
+    wedge: 1.0,
+    putter: 0
+  } as Record<string, number>,
+  /** Spin retention when striking FROM a surface (GDD lie table). */
+  lieSpin: {
+    tee: 1.0,
+    fairway: 1.0,
+    rough: 0.6,
+    sand: 0.8,
+    fringe: 0.95,
+    green: 1.0,
+    water: 1.0,
+    trees: 0.4
+  } as Record<string, number>,
+  /** Sideways curve acceleration (px/s²) at full side spin, before the
+   *  per-club effectiveness scaling. */
+  sideSpinAccel: 30,
+  /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
+  backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */
   lieError: {
     tee: 0,

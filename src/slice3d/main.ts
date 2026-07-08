@@ -16,6 +16,7 @@ import {
 import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
+import { StrikeControl } from '../core/input/StrikeControl';
 import { resolveTheme } from '../core/rendering/Theme';
 import { CourseData, GameMode, Golfer, GolferStats, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
@@ -54,6 +55,14 @@ const swingBtn = document.getElementById('swingBtn')!;
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
+const shotShapeEl = document.getElementById('shotShape')!;
+const strikePadEl = document.getElementById('strikePad')!;
+const strikeDotEl = document.getElementById('strikeDot')!;
+const trajBtn = document.getElementById('trajBtn') as HTMLButtonElement;
+
+function clampSpin(v: number): number {
+  return Math.max(-1, Math.min(1, v));
+}
 
 function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
@@ -200,6 +209,11 @@ class HoleScene {
   private aimDots: Mesh[] = [];
   private aimRing!: Mesh;
   private aerial = false;
+  /** Pre-shot shaping (strike dot + trajectory preset), per turn. */
+  private strike = new StrikeControl();
+  private strikeDragging = false;
+  /** Mid-flight swipe-spin state (Phase 4 aerial spin). */
+  private swipeLast: { x: number; y: number } | null = null;
   private flight: {
     outcome: ShotOutcome;
     progress: number;
@@ -208,6 +222,9 @@ class HoleScene {
     isPutt: boolean;
     landed: boolean;
     trail: TrailMesh | null;
+    /** Resolved launch + live spin so swipes can re-shape the flight. */
+    launch: import('../systems/PhysicsEngine').ResolvedLaunch | null;
+    spin: { side: number; top: number };
   } | null = null;
   private disposed = false;
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
@@ -614,7 +631,17 @@ class HoleScene {
     this.armMeter();
     clubBar.style.display = 'flex';
     aerialBtn.style.display = 'block';
+    this.updateStrikeUI();
     this.refreshClubBar();
+  }
+
+  /** Show/refresh the strike pad + trajectory preset for the current turn. */
+  private updateStrikeUI(): void {
+    const show = this.state.phase === 'aiming' && !this.ai && !this.aim.isPutting;
+    shotShapeEl.style.display = show ? 'flex' : 'none';
+    trajBtn.textContent = this.strike.trajectory === 'normal' ? 'NORM' : this.strike.trajectory.toUpperCase();
+    strikeDotEl.style.left = `${50 + this.strike.x * 38}%`;
+    strikeDotEl.style.top = `${50 - this.strike.y * 38}%`;
   }
 
   /** Redraw the ground aim guide from the current aim + preview. */
@@ -658,6 +685,7 @@ class HoleScene {
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.course3d.greenRing.setEnabled(!this.aim.isPutting);
     this.armMeter();
+    this.updateStrikeUI();
     this.updateAimVisuals();
     this.updateHud();
     this.refreshClubBar();
@@ -675,10 +703,14 @@ class HoleScene {
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }
 
+  /** The AI's chosen spin for its current shot (null = flat). */
+  private aiSpin: { side: number; top: number } | null = null;
+
   /** AI opponent: pick a shot with AIController and play it (no meter). */
   private aiTurn(): void {
     promptEl.textContent = `${this.curPart().golfer.name} is playing…`;
     const decision = this.ai!.decide(this.state.ballPos, this.state.lie, this.wind, this.hole);
+    this.aiSpin = decision.spin ?? null;
     this.aim.setClubById(decision.club.id);
     this.aim.yaw = decision.aimAngle;
     this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
@@ -734,13 +766,24 @@ class HoleScene {
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
+    shotShapeEl.style.display = 'none';
     const club = this.aim.club;
     const fire = this.fires[this.turnIdx];
     // The meter reports bar units; the AI already reports physics power.
     const converted: SwingResult = powerIsPhysics
       ? swing
       : { ...swing, power: this.aim.barToPhysicsPower(swing.power, this.ctx()) };
-    const outcome = this.engine2d.simulate({
+    // Shot shaping applies to full shots only; resolve + integrate separately
+    // so mid-flight swipes can re-shape the same resolved launch. The AI's
+    // spin comes from its decision, never the player's sticky widget state.
+    const shaping = !this.aim.isPutting;
+    const spin = !shaping
+      ? { side: 0, top: 0 }
+      : this.ai
+        ? { ...(this.aiSpin ?? { side: 0, top: 0 }) }
+        : { ...this.strike.spin };
+    const launchMult = !shaping ? 1 : this.ai ? 1 - spin.top * 0.18 : this.strike.launchMult;
+    const launch = this.engine2d.resolveLaunch({
       origin: this.state.ballPos,
       aimAngle: this.aim.yaw,
       swing: converted,
@@ -749,8 +792,12 @@ class HoleScene {
       fireBoost: fire.statBoost,
       lie: this.state.lie,
       wind: this.wind,
-      hole: this.hole
+      hole: this.hole,
+      launchMult,
+      riskMult: shaping && !this.ai ? this.strike.riskMult : 1
     });
+    const outcome = this.engine2d.integrateLaunch(launch, spin, 0);
+    this.strike.resetDot();
     // Feed the streak AFTER the shot resolves with the pre-shot boost
     if (fire.recordSwing(converted)) {
       showMsg(`🔥 ${this.curPart().golfer.name} is ON FIRE!`, 1600);
@@ -795,7 +842,9 @@ class HoleScene {
         dir: this.aim.yaw,
         isPutt: club.id === 'putter',
         landed: false,
-        trail
+        trail,
+        launch: shaping ? launch : null,
+        spin
       };
       this.state.phase = 'flying';
       if (club.id !== 'putter') this.shakeT = 0.18;
@@ -902,10 +951,20 @@ class HoleScene {
 
     this.onPointerDown = (e: PointerEvent): void => {
       startAmbience();
+      // Mid-flight: start a spin swipe (aerial spin window while the slowed
+      // ball is still airborne — GDD Phase 4)
+      if (this.state.phase === 'flying' && this.flight?.launch && !this.flight.landed && !this.flight.isPutt) {
+        this.swipeLast = { x: e.clientX, y: e.clientY };
+        return;
+      }
       if (this.state.phase !== 'aiming' || meter.isActive) return;
       this.aim.beginDrag({ x: e.clientX, y: e.clientY });
     };
     this.onPointerMove = (e: PointerEvent): void => {
+      if (this.swipeLast) {
+        this.applySwipeSpin(e);
+        return;
+      }
       if (!this.aim.isDragging || this.state.phase !== 'aiming' || meter.isActive) return;
       // Horizontal rotates the aim; vertical moves it nearer/farther.
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
@@ -918,6 +977,7 @@ class HoleScene {
       if (meter.isArmed) this.armMeter();
     };
     this.onPointerUp = (): void => {
+      this.swipeLast = null;
       this.aim.endDrag();
     };
     canvas.addEventListener('pointerdown', this.onPointerDown);
@@ -936,6 +996,65 @@ class HoleScene {
       const label = band === 'perfect' ? 'PERFECT!' : band === 'good' ? 'Good' : 'Miss!';
       showMsg(`${kind === 'power' ? 'Power' : 'Accuracy'}: ${label}`, 500);
     };
+
+    // Strike pad: drag the dot around the ball face
+    this.onStrikeDown = (e: PointerEvent) => {
+      e.stopPropagation();
+      this.strikeDragging = true;
+      this.moveStrike(e);
+    };
+    this.onStrikeMove = (e: PointerEvent) => {
+      if (this.strikeDragging) this.moveStrike(e);
+    };
+    this.onStrikeUp = () => (this.strikeDragging = false);
+    strikePadEl.addEventListener('pointerdown', this.onStrikeDown);
+    window.addEventListener('pointermove', this.onStrikeMove);
+    window.addEventListener('pointerup', this.onStrikeUp);
+    this.onTraj = (e: Event) => {
+      e.stopPropagation();
+      this.strike.cycleTrajectory();
+      this.updateStrikeUI();
+      this.updateAimVisuals();
+    };
+    trajBtn.addEventListener('pointerdown', this.onTraj);
+  }
+
+  private moveStrike(e: PointerEvent): void {
+    const r = strikePadEl.getBoundingClientRect();
+    this.strike.setFromOffset(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), r.width / 2);
+    this.updateStrikeUI();
+  }
+
+  /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */
+  private applySwipeSpin(e: PointerEvent): void {
+    const fl = this.flight;
+    if (!fl || !fl.launch || fl.landed || fl.isPutt || !this.swipeLast) {
+      this.swipeLast = null;
+      return;
+    }
+    const dx = e.clientX - this.swipeLast.x;
+    const dy = e.clientY - this.swipeLast.y;
+    this.swipeLast = { x: e.clientX, y: e.clientY };
+    // Swipe sideways = curve; swipe down = backspin, up = topspin. Less
+    // remaining flight = less remaining authority (naturally, via physics).
+    const ns = {
+      side: clampSpin(fl.spin.side + dx * 0.006),
+      top: clampSpin(fl.spin.top - dy * 0.006)
+    };
+    if (ns.side === fl.spin.side && ns.top === fl.spin.top) return;
+    fl.spin = ns;
+    const cur = Math.min(Math.floor(fl.progress), fl.outcome.path.length - 1);
+    const reshaped = this.engine2d.integrateLaunch(fl.launch, ns, cur);
+    fl.outcome = reshaped;
+    let landIdx = reshaped.path.length - 1;
+    for (let i = 5; i < reshaped.path.length; i++) {
+      if (reshaped.path[i].z <= 0.001) {
+        landIdx = i;
+        break;
+      }
+    }
+    fl.landIdx = landIdx;
+    promptEl.textContent = `✨ spin ${ns.side >= 0 ? '→' : '←'}${Math.abs(ns.side).toFixed(1)} ${ns.top >= 0 ? '↟' : '↡'}${Math.abs(ns.top).toFixed(1)}`;
   }
 
   private onSwingTap!: (e: Event) => void;
@@ -945,6 +1064,10 @@ class HoleScene {
   private onPrevClub!: () => void;
   private onNextClub!: () => void;
   private onAerial!: () => void;
+  private onStrikeDown!: (e: PointerEvent) => void;
+  private onStrikeMove!: (e: PointerEvent) => void;
+  private onStrikeUp!: () => void;
+  private onTraj!: (e: Event) => void;
 
   // ----------------------------------------------------------------- loop
 
@@ -1036,10 +1159,15 @@ class HoleScene {
     document.getElementById('prevClub')!.removeEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.removeEventListener('pointerdown', this.onNextClub);
     aerialBtn.removeEventListener('pointerdown', this.onAerial);
+    strikePadEl.removeEventListener('pointerdown', this.onStrikeDown);
+    window.removeEventListener('pointermove', this.onStrikeMove);
+    window.removeEventListener('pointerup', this.onStrikeUp);
+    trajBtn.removeEventListener('pointerdown', this.onTraj);
     meter.onComplete = null;
     meter.hide();
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
+    shotShapeEl.style.display = 'none';
     this.scene.dispose();
   }
 }

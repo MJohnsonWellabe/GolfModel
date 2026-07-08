@@ -10,6 +10,7 @@ import {
   Golfer,
   HoleData,
   Point,
+  SpinState,
   Surface,
   SwingResult,
   Wind
@@ -20,6 +21,8 @@ export interface AIDecision {
   aimAngle: number;
   aimPoint: Point;
   swing: SwingResult;
+  /** Shot-shaping spin (pin hunters spin their wedges back). */
+  spin?: SpinState;
 }
 
 /** How an AI attacks holes (all 0..1). See data/opponents.ts. */
@@ -82,7 +85,13 @@ export class AIController {
     const aimAngle = angleTo(ballPos, adjusted);
 
     const swing = this.rollSwing(ballPos, aimPoint, club, lie);
-    return { club, aimAngle, aimPoint: adjusted, swing };
+    // Pin hunters rip their wedges back at the flag (Phase 4 spin usage)
+    const spinsWedge =
+      this.personality.pinHunting > 0.6 &&
+      (club.id === 'pw' || club.id === 'sw' || club.id === '9i') &&
+      (lie === 'fairway' || lie === 'tee' || lie === 'fringe');
+    const spin = spinsWedge ? { side: 0, top: -0.7 } : undefined;
+    return { club, aimAngle, aimPoint: adjusted, swing, spin };
   }
 
   private chooseTarget(ballPos: Point, lie: Surface, hole: HoleData): Point {

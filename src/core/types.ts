@@ -157,6 +157,14 @@ export interface Wind {
   speed: number;
 }
 
+/** Player-shaped spin, both axes -1..1. side: + curves right of the aim
+ *  (fade), - left (draw). top: + topspin (low, runs out), - backspin
+ *  (high, bites). Scaled by the club's spin effectiveness. */
+export interface SpinState {
+  side: number;
+  top: number;
+}
+
 /** A single simulated trajectory sample. */
 export interface TrajectoryPoint {
   x: number;
