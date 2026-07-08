@@ -47,6 +47,9 @@ export const PHYSICS = {
   windAccelPerMph: 9.0,
   /** Downhill acceleration (px/s²) at slope strength 1.0 while rolling on the green. */
   slopeAccel: 55,
+  /** Rolling acceleration (px/s²) per unit of heightfield gradient (height/px).
+   *  A 0.1 gradient (steep) matches the legacy full-strength green slope. */
+  slopeGradAccel: 550,
   /** Max wind speed, mph (GDD: ~20mph should change club selection). */
   maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */

@@ -1,4 +1,5 @@
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
+import { HeightField } from './HeightField';
 import { clamp, dist, gaussian, pointInEllipse, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
@@ -85,7 +86,64 @@ export function effectiveCarryYards(
 }
 
 export class PhysicsEngine {
-  constructor(private readonly hole: HoleData) {}
+  /**
+   * @param hf Optional macro-terrain. When null (all pre-elevation courses
+   * and tests) every code path below reduces to the original flat behavior —
+   * that identity is the regression gate for the elevation feature.
+   */
+  constructor(
+    private readonly hole: HoleData,
+    private readonly hf: HeightField | null = null
+  ) {}
+
+  /** Terrain height under a world point (0 on flat/legacy holes). */
+  groundAt(x: number, y: number): number {
+    return this.hf ? this.hf.heightAt(x, y) : 0;
+  }
+
+  get heightField(): HeightField | null {
+    return this.hf;
+  }
+
+  /**
+   * Rolling acceleration from the local slope (px/s²). With a heightfield
+   * this is the true downhill gradient anywhere on the hole; legacy holes
+   * fall back to the single authored green slope (green/fringe only).
+   */
+  breakAccel(x: number, y: number): { ax: number; ay: number } {
+    if (this.hf) {
+      const g = this.hf.gradientAt(x, y);
+      return { ax: -g.x * PHYSICS.slopeGradAccel, ay: -g.y * PHYSICS.slopeGradAccel };
+    }
+    const s = this.hole.slope;
+    const surf = this.surfaceAt(x, y);
+    if (surf !== 'green' && surf !== 'fringe') return { ax: 0, ay: 0 };
+    return {
+      ax: Math.cos(s.angle) * PHYSICS.slopeAccel * s.strength,
+      ay: Math.sin(s.angle) * PHYSICS.slopeAccel * s.strength
+    };
+  }
+
+  /**
+   * Average slope acceleration parallel to an aim line (positive = helps the
+   * ball along the line). Drives the putt meter's power target and AI pace.
+   */
+  slopeAccelAlong(from: Point, yaw: number, distPx: number): number {
+    const dx = Math.cos(yaw);
+    const dy = Math.sin(yaw);
+    if (!this.hf) {
+      const s = this.hole.slope;
+      return PHYSICS.slopeAccel * s.strength * Math.cos(s.angle - yaw);
+    }
+    const samples = 5;
+    let sum = 0;
+    for (let i = 1; i <= samples; i++) {
+      const t = (i / (samples + 1)) * distPx;
+      const b = this.breakAccel(from.x + dx * t, from.y + dy * t);
+      sum += b.ax * dx + b.ay * dy;
+    }
+    return sum / samples;
+  }
 
   /**
    * Surface classification at a world point, in priority order.
@@ -154,7 +212,10 @@ export class PhysicsEngine {
 
     let x = origin.x;
     let y = origin.y;
-    let z = 0;
+    // Flight height is ABSOLUTE (terrain-relative zero on flat holes); path
+    // samples store height ABOVE the local ground so playback/land detection
+    // stay terrain-agnostic.
+    let z = this.groundAt(origin.x, origin.y);
     let vx: number;
     let vy: number;
     let vz: number;
@@ -192,19 +253,20 @@ export class PhysicsEngine {
         y += vy * dt;
         z += vz * dt;
 
+        const ground = this.groundAt(x, y);
         // Tree canopy collision on the way down (or flying low)
-        if (z > 0 && z < PHYSICS.treeHeight && vz < 0 && this.inTrees(x, y)) {
+        if (z > ground && z - ground < PHYSICS.treeHeight && vz < 0 && this.inTrees(x, y)) {
           hitTrees = true;
-          z = 0;
+          z = ground;
           const speed = Math.hypot(vx, vy);
           if (speed > 0) {
             vx = (vx / speed) * 40;
             vy = (vy / speed) * 40;
           }
           rolling = true;
-        } else if (z <= 0) {
-          // Landing
-          z = 0;
+        } else if (z <= ground) {
+          // Landing (terrain-aware: uphill ground meets the ball early)
+          z = ground;
           const surf = this.surfaceAt(x, y);
           // A ball landing in water is wet immediately — a fast splash can
           // bounce clear of the pond in one step before the roll check runs.
@@ -219,7 +281,7 @@ export class PhysicsEngine {
           vz = 0;
           rolling = true;
         }
-        path.push({ x, y, z: Math.max(0, z) });
+        path.push({ x, y, z: Math.max(0, z - ground) });
         if (!rolling) continue;
       }
 
@@ -243,8 +305,13 @@ export class PhysicsEngine {
       const newSpeed = Math.max(0, speed - decel * dt);
       vx = (vx / speed) * newSpeed;
       vy = (vy / speed) * newSpeed;
-      // Green break: the putting surface pushes the ball downhill
-      if (surf === 'green' || surf === 'fringe') {
+      // Slope: terrain gradient pushes the rolling ball downhill (legacy
+      // holes: the single authored green slope, green/fringe only)
+      if (this.hf) {
+        const b = this.breakAccel(x, y);
+        vx += b.ax * dt;
+        vy += b.ay * dt;
+      } else if (surf === 'green' || surf === 'fringe') {
         const slope = hole.slope;
         vx += Math.cos(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;
         vy += Math.sin(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;

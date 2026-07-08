@@ -26,6 +26,7 @@ import wildwood from '../data/courses/wildwood.json';
 import { bestRounds, fetchAllRounds, isNewRecord, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AIController } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
+import { buildHeightField } from '../systems/HeightField';
 import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
@@ -202,7 +203,7 @@ class HoleScene {
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
-    this.engine2d = new PhysicsEngine(this.hole);
+    this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole));
     this.aim = new AimControl(this.hole, this.engine2d);
     // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
@@ -223,7 +224,7 @@ class HoleScene {
       b.material = bm;
       shadows.addShadowCaster(b);
       this.balls.push(b);
-      this.ais.push(part.isAI ? new AIController(part.golfer, new FireSystem()) : null);
+      this.ais.push(part.isAI ? new AIController(part.golfer, new FireSystem(), this.engine2d) : null);
       this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, part });
     });
     this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => undefined);
@@ -371,7 +372,7 @@ class HoleScene {
 
   private setCamSetup(): void {
     const f = this.fwd3(this.aim.yaw);
-    const base = w2b(this.state.ballPos.x, this.state.ballPos.y, 0);
+    const base = w2b(this.state.ballPos.x, this.state.ballPos.y, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     const putt = this.aim.isPutting;
     if (this.aerial && !putt) {
       // Overhead planning view framing the whole ball→pin corridor so the
@@ -397,7 +398,7 @@ class HoleScene {
 
   private setCamFlight(p: { x: number; y: number; z: number }, dir: number): void {
     const f = this.fwd3(dir);
-    const pos3 = w2b(p.x, p.y, p.z);
+    const pos3 = w2b(p.x, p.y, p.z + this.gh(p.x, p.y));
     this.camTarget.pos = pos3.subtract(f.scale(13 + p.z * 0.25)).add(new Vector3(0, 7 + p.z * 0.4, 0));
     this.camTarget.look = pos3.add(f.scale(26)).add(new Vector3(0, 2 + p.z * 0.3, 0));
     this.camTarget.k = 7;
@@ -405,7 +406,7 @@ class HoleScene {
 
   private setCamLanding(p: { x: number; y: number }, dir: number): void {
     const f = this.fwd3(dir);
-    const pos3 = w2b(p.x, p.y, 0);
+    const pos3 = w2b(p.x, p.y, this.gh(p.x, p.y));
     this.camTarget.pos = pos3.subtract(f.scale(26)).add(new Vector3(0, 9, 0));
     this.camTarget.look = pos3;
     this.camTarget.k = 4;
@@ -414,7 +415,7 @@ class HoleScene {
   /** Green approaches: 3/4 aerial view that frames the green as a target. */
   private setCamDescent(land: { x: number; y: number }, dir: number): void {
     const f = this.fwd3(dir);
-    const pos3 = w2b(land.x, land.y, 0);
+    const pos3 = w2b(land.x, land.y, this.gh(land.x, land.y));
     this.camTarget.pos = pos3.subtract(f.scale(30)).add(new Vector3(0, 27, 0));
     this.camTarget.look = pos3.add(f.scale(5));
     this.camTarget.k = 5;
@@ -439,7 +440,7 @@ class HoleScene {
     const toGreen = Math.atan2(h.pin.y - h.tee.y, h.pin.x - h.tee.x);
     const g = this.fwd3(toGreen);
     // Start low behind the tee looking down the hole toward the green
-    this.camera.position = w2b(h.tee.x, h.tee.y, 14).subtract(g.scale(24));
+    this.camera.position = w2b(h.tee.x, h.tee.y, 14 + this.gh(h.tee.x, h.tee.y)).subtract(g.scale(24));
     this.camera.setTarget(w2b(h.pin.x, h.pin.y, 0));
 
     // Waypoint 1: rise and glide out over the fairway toward the green

@@ -30,7 +30,9 @@ export interface AIDecision {
 export class AIController {
   constructor(
     private readonly golfer: Golfer,
-    private readonly fire: FireSystem
+    private readonly fire: FireSystem,
+    /** Terrain reader for break compensation; null = legacy single slope. */
+    private readonly terrain: { breakAccel(x: number, y: number): { ax: number; ay: number } } | null = null
   ) {}
 
   decide(ballPos: Point, lie: Surface, wind: Wind, hole: HoleData): AIDecision {
@@ -42,11 +44,20 @@ export class AIController {
     if (club.id === 'putter') {
       // Play the break: aim partially uphill of the cup.
       const d = dist(ballPos, aimPoint);
-      const comp = d * hole.slope.strength * 0.5;
-      adjusted = {
-        x: adjusted.x - Math.cos(hole.slope.angle) * comp,
-        y: adjusted.y - Math.sin(hole.slope.angle) * comp
-      };
+      if (this.terrain) {
+        // Read the real gradient midway along the putt
+        const mx = (ballPos.x + aimPoint.x) / 2;
+        const my = (ballPos.y + aimPoint.y) / 2;
+        const b = this.terrain.breakAccel(mx, my);
+        const k = (d * 0.5) / PHYSICS.slopeAccel; // same scale as the legacy comp
+        adjusted = { x: adjusted.x - b.ax * k, y: adjusted.y - b.ay * k };
+      } else {
+        const comp = d * hole.slope.strength * 0.5;
+        adjusted = {
+          x: adjusted.x - Math.cos(hole.slope.angle) * comp,
+          y: adjusted.y - Math.sin(hole.slope.angle) * comp
+        };
+      }
     }
     const aimAngle = angleTo(ballPos, adjusted);
 

@@ -175,15 +175,16 @@ export function buildCourse(
   );
   ground.position = new Vector3(w / 2, 0, -h / 2);
   const heightAt = (wx: number, wy: number): number => {
-    // The playable interior stays perfectly flat so the 2D physics ball
-    // always sits on the visible turf; scenery mounds ramp up smoothly
+    // Playable interior: the authored heightfield (the SAME terrain physics
+    // rolls on — engine.groundAt), plus scenery mounds that ramp up smoothly
     // beyond the world edge only.
     const dx = Math.max(-30 - wx, wx - (w + 30), 0);
     const dy = Math.max(-30 - wy, wy - (h + 30), 0);
     const out = Math.hypot(dx, dy);
-    if (out <= 0) return 0;
+    const terrain = engine.groundAt(wx, wy);
+    if (out <= 0) return terrain;
     const t = Math.min(1, out / 140);
-    return t * (6 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5 + smoothNoise(wx, wy) * 2.2);
+    return terrain + t * (6 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5 + smoothNoise(wx, wy) * 2.2);
   };
   ground.updateMeshPositions((positions) => {
     for (let i = 0; i < positions.length; i += 3) {
@@ -263,7 +264,7 @@ export function buildCourse(
     const uvs: number[] = [];
     const indices: number[] = [];
     const pushVert = (wx: number, wy: number, hgt: number): void => {
-      positions.push(wx, hgt, -wy);
+      positions.push(wx, hgt + engine.groundAt(wx, wy), -wy);
       uvs.push((wx - patch.x0) / patch.w, 1 - (wy - patch.y0) / patch.h);
     };
     const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
@@ -329,15 +330,16 @@ export function buildCourse(
   // ----------------------------------------------------------- tee platform
   {
     const p = teePlatform(hole);
+    const baseH = engine.groundAt(hole.tee.x, hole.tee.y);
     // Babylon Y-rotation for a world-space axis direction (w2b flips world y)
     const rotY = Math.atan2(p.ay, p.ax);
     const base = MeshBuilder.CreateBox('teeBase', { width: p.w, depth: p.d, height: TEE_TOP - 0.22 }, scene);
     base.material = mat(scene, 'teeBaseMat', shade(theme.fairway, 0.5));
-    base.position = w2b(p.cx, p.cy, (TEE_TOP - 0.22) / 2);
+    base.position = w2b(p.cx, p.cy, baseH + (TEE_TOP - 0.22) / 2);
     base.rotation.y = rotY;
     const top = MeshBuilder.CreateBox('teeTop', { width: p.w + 1.2, depth: p.d + 1.2, height: 0.24 }, scene);
     top.material = mat(scene, 'teeTopMat', shade(theme.fairway, 1.12));
-    top.position = w2b(p.cx, p.cy, TEE_TOP - 0.12);
+    top.position = w2b(p.cx, p.cy, baseH + TEE_TOP - 0.12);
     top.rotation.y = rotY;
     top.receiveShadows = true;
     shadows.addShadowCaster(base);
@@ -348,7 +350,7 @@ export function buildCourse(
       const my = hole.tee.y + p.ax * side * (p.w / 2 - 2.4);
       const marker = MeshBuilder.CreateSphere(`teeMarker${side}`, { diameter: 1.5, segments: 10 }, scene);
       marker.material = markerMat;
-      marker.position = w2b(mx, my, TEE_TOP + 0.5);
+      marker.position = w2b(mx, my, baseH + TEE_TOP + 0.5);
       shadows.addShadowCaster(marker);
     }
   }
@@ -361,7 +363,9 @@ export function buildCourse(
     let bi = 0;
     for (const hz of hole.hazards) {
       if (hz.type !== 'bunker') continue;
-      const path = [...hz.polygon, hz.polygon[0]].map(([x, y]) => w2b(x, y, 0.18));
+      const path = [...hz.polygon, hz.polygon[0]].map(([x, y]) =>
+        w2b(x, y, 0.18 + Math.max(engine.groundAt(x, y), greenLift(x, y, hole)))
+      );
       const lip = MeshBuilder.CreateTube(`bunkerLip${bi++}`, { path, radius: 1.0, tessellation: 8 }, scene);
       lip.material = lipMat;
       lip.receiveShadows = true;
@@ -372,11 +376,12 @@ export function buildCourse(
   for (const hz of hole.hazards) {
     if (hz.type !== 'water') continue;
     // Triangle fan from the centroid (pond polygons are convex enough)
+    const level = hz.level ?? 0.35;
     const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
     const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
-    const positions: number[] = [cx, 0.35, -cy];
+    const positions: number[] = [cx, level, -cy];
     const indices: number[] = [];
-    hz.polygon.forEach(([x, y]) => positions.push(x, 0.35, -y));
+    hz.polygon.forEach(([x, y]) => positions.push(x, level, -y));
     for (let i = 1; i <= hz.polygon.length; i++) {
       const j = i === hz.polygon.length ? 1 : i + 1;
       indices.push(0, j, i);
@@ -634,12 +639,13 @@ export function buildCourse(
         const roll = hash2(xx + 91, yy + 47);
         if (surf === 'fairway') {
           // Short, dense mown tufts (kept low so they never block the ball read).
-          if (roll < 0.62) place(grasses, jx, jy, 1.3 + hash2(jx, jy) * 0.9, 3);
+          if (roll < 0.62) place(grasses, jx, jy, 0.9 + hash2(jx, jy) * 0.6, 3);
         } else {
-          // Longer rough grass, plus the occasional bush/stone/flower.
-          if (roll < 0.5) place(grasses, jx, jy, 4.0 + hash2(jx, jy) * 2.6, 3);
-          else if (roll < 0.55) place(bushes, jx, jy, 4.6 + hash2(jy, jx) * 2.2, 7);
-          else if (roll < 0.59) place(flowers, jx, jy, 2.6 + hash2(jx + 3, jy) * 1.4, 13);
+          // Longer rough grass, plus the occasional bush/flower — knee-high
+          // at most (the golfer is ~6 units; tufts must never read as walls).
+          if (roll < 0.5) place(grasses, jx, jy, 2.0 + hash2(jx, jy) * 1.2, 3);
+          else if (roll < 0.55) place(bushes, jx, jy, 3.2 + hash2(jy, jx) * 1.6, 7);
+          else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
         }
       }
     }
@@ -649,7 +655,7 @@ export function buildCourse(
   // The pin lives on a root node that scales with camera distance (with a
   // minimum on-screen size), so the flag stays findable even on a 560yd tee
   // shot — the Tiger-Woods-style "always visible target".
-  const pinBaseH = greenLift(hole.pin.x, hole.pin.y, hole);
+  const pinBaseH = greenLift(hole.pin.x, hole.pin.y, hole) + engine.groundAt(hole.pin.x, hole.pin.y);
   const pinRoot = new TransformNode('pinRoot', scene);
   pinRoot.position = w2b(hole.pin.x, hole.pin.y, pinBaseH);
   const pole = MeshBuilder.CreateCylinder('pole', { diameter: 0.55, height: 12, tessellation: 8 }, scene);
@@ -686,7 +692,11 @@ export function buildCourse(
   const greenRing = MeshBuilder.CreateTorus('greenRing', { diameter: 2, thickness: 0.055, tessellation: 64 }, scene);
   greenRing.scaling = new Vector3(hole.green.rx + FRINGE_MARGIN + 9, 18, hole.green.ry + FRINGE_MARGIN + 9);
   if (hole.green.rot) greenRing.rotation.y = hole.green.rot;
-  greenRing.position = w2b(hole.green.cx, hole.green.cy, GREEN_RAISE + 0.4);
+  greenRing.position = w2b(
+    hole.green.cx,
+    hole.green.cy,
+    GREEN_RAISE + 0.4 + engine.groundAt(hole.green.cx, hole.green.cy)
+  );
   const ringMat = new StandardMaterial('greenRingMat', scene);
   ringMat.emissiveColor = new Color3(1, 0.93, 0.55);
   ringMat.disableLighting = true;
@@ -770,10 +780,26 @@ export function buildCourse(
   gtx.restore();
   gridTex.update(false);
   gridTex.hasAlpha = true;
-  const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 1 }, scene);
-  puttGrid.position = new Vector3(g.cx, GREEN_RAISE + 0.14, -g.cy);
+  const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 24, updatable: true }, scene);
+  puttGrid.position = new Vector3(g.cx, 0, -g.cy);
   // Match an angled (kidney/oval) green so the clipped grid tracks its shape.
   if (g.rot) puttGrid.rotation.y = g.rot;
+  {
+    // Conform the grid to the contoured green surface: each vertex floats a
+    // constant skin above groundHeight (terrain + plateau) at its WORLD spot.
+    const rotC = Math.cos(g.rot ?? 0);
+    const rotS = Math.sin(g.rot ?? 0);
+    puttGrid.updateMeshPositions((pos) => {
+      for (let i = 0; i < pos.length; i += 3) {
+        const lx = pos[i];
+        const lz = pos[i + 2];
+        const wx = g.cx + rotC * lx + rotS * lz;
+        const wzOff = -rotS * lx + rotC * lz;
+        const wy = g.cy - wzOff;
+        pos[i + 1] = engine.groundAt(wx, wy) + greenLift(wx, wy, hole) + 0.14;
+      }
+    }, true);
+  }
   const gridMat = new StandardMaterial('puttGridMat', scene);
   gridMat.emissiveTexture = gridTex;
   gridMat.opacityTexture = gridTex;
@@ -803,7 +829,7 @@ export function buildCourse(
   const flow = MeshBuilder.CreateDisc('puttFlow', { radius: 1, tessellation: 40 }, scene);
   flow.rotation.x = Math.PI / 2;
   flow.scaling = new Vector3(g.rx + 3, g.ry + 3, 1);
-  flow.position = new Vector3(0, 0.05, 0);
+  flow.position = new Vector3(0, engine.groundAt(g.cx, g.cy) + GREEN_RAISE + 0.3, 0);
   const flowMat = new StandardMaterial('puttFlowMat', scene);
   flowMat.emissiveTexture = flowTex;
   flowMat.opacityTexture = flowTex;
@@ -811,13 +837,19 @@ export function buildCourse(
   flowMat.alpha = 0.6;
   flow.material = flowMat;
   flow.parent = puttGrid;
-  const slope = hole.slope;
+  // Break-flow drift direction: real terrain gradient at the green center
+  // when the hole has one, else the legacy single slope.
+  const hfGrad = engine.heightField?.gradientAt(g.cx, g.cy);
+  const flowAngle = hfGrad && (hfGrad.x || hfGrad.y) ? Math.atan2(-hfGrad.y, -hfGrad.x) : hole.slope.angle;
+  const flowStrength = hfGrad
+    ? Math.min(1, Math.hypot(hfGrad.x, hfGrad.y) * 10)
+    : hole.slope.strength;
   scene.onBeforeRenderObservable.add(() => {
     if (!flow.isEnabled() || isFrozen()) return;
     const fdt = scene.getEngine().getDeltaTime() / 1000;
-    const rate = 0.28 * (0.35 + slope.strength) * fdt;
-    flowTex.uOffset -= Math.cos(slope.angle) * rate;
-    flowTex.vOffset += Math.sin(slope.angle) * rate;
+    const rate = 0.28 * (0.35 + flowStrength) * fdt;
+    flowTex.uOffset -= Math.cos(flowAngle) * rate;
+    flowTex.vOffset += Math.sin(flowAngle) * rate;
   });
   // White ring marks the open cup while the pin is pulled
   const cupRing = MeshBuilder.CreateTorus('cupRing', { diameter: 3.1, thickness: 0.2, tessellation: 24 }, scene);
@@ -827,7 +859,14 @@ export function buildCourse(
   cupRing.material = cupRingM;
   cupRing.scaling.y = 0.05; // squashed flat: reads as painted on the green
   cupRing.parent = puttGrid;
-  cupRing.position = new Vector3(hole.pin.x - g.cx, -0.02, -(hole.pin.y - g.cy));
+  {
+    // Counter-rotate the world offset into the (possibly rotated) grid frame
+    const rotC = Math.cos(g.rot ?? 0);
+    const rotS = Math.sin(g.rot ?? 0);
+    const dx = hole.pin.x - g.cx;
+    const dzW = -(hole.pin.y - g.cy);
+    cupRing.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.1, rotS * dx + rotC * dzW);
+  }
 
   return {
     sun,
@@ -836,6 +875,6 @@ export function buildCourse(
     puttGrid,
     greenRing,
     groundHeightAt: (x: number, y: number): number =>
-      onTeePlatform(x, y, hole) ? TEE_TOP : Math.max(greenLift(x, y, hole), heightAt(x, y))
+      engine.groundAt(x, y) + (onTeePlatform(x, y, hole) ? TEE_TOP : greenLift(x, y, hole))
   };
 }

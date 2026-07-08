@@ -109,6 +109,8 @@ export type Polygon = number[][];
 export interface Hazard {
   type: 'water' | 'bunker' | 'trees' | 'building';
   polygon: Polygon;
+  /** Water only: surface height (world units) the pond renders at. */
+  level?: number;
 }
 
 export interface GreenSlope {
@@ -137,6 +139,8 @@ export interface HoleData {
   hazards: Hazard[];
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
+  /** Authored macro-terrain control points (see systems/HeightField.ts). */
+  elevation?: Array<{ x: number; y: number; h: number; r: number; shape?: 'dome' | 'plateau' }>;
 }
 
 export interface CourseData {

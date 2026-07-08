@@ -89,11 +89,11 @@ export class AimControl {
     // Putts: the target is the power needed to reach the HOLE, as a fraction
     // of a full stroke to the aim spot — aim farther and the target slides
     // toward the start of the bar. Slope-aware: uphill needs more,
-    // downhill less (rolling decel along the aim is mu - a_parallel).
+    // downhill less (rolling decel along the aim is mu - a_parallel). The
+    // engine samples the real terrain gradient when the hole has one.
     const pinDist = dist(ctx.ball, this.hole.pin);
     const mu = PHYSICS.friction.green;
-    const slope = this.hole.slope;
-    const aPar = PHYSICS.slopeAccel * slope.strength * Math.cos(slope.angle - this.yaw);
+    const aPar = this.engine.slopeAccelAlong(ctx.ball, this.yaw, pinDist);
     const effectivePinDist = pinDist * ((mu - aPar) / mu);
     return clamp(effectivePinDist / this.distPx, 0.05, 1);
   }
