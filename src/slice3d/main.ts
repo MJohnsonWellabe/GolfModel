@@ -584,9 +584,13 @@ class HoleScene {
   private setCamFlight(p: { x: number; y: number; z: number }, dir: number): void {
     const f = this.fwd3(dir);
     const pos3 = w2b(p.x, p.y, p.z + this.gh(p.x, p.y));
-    this.camTarget.pos = pos3.subtract(f.scale(13 + p.z * 0.25)).add(new Vector3(0, 7 + p.z * 0.4, 0));
-    this.camTarget.look = pos3.add(f.scale(26)).add(new Vector3(0, 2 + p.z * 0.3, 0));
-    this.camTarget.k = 7;
+    // Sit a stable distance behind the ball and look AT it (only a short lead),
+    // with a snappier follow gain — the old +26 look offset aimed far
+    // down-range, which made the camera drift ahead of the ball, and the softer
+    // gain trailed the ball so it read as laggy (playtest FB9).
+    this.camTarget.pos = pos3.subtract(f.scale(15 + p.z * 0.22)).add(new Vector3(0, 8 + p.z * 0.4, 0));
+    this.camTarget.look = pos3.add(f.scale(10)).add(new Vector3(0, 2 + p.z * 0.25, 0));
+    this.camTarget.k = 9;
   }
 
   private setCamLanding(p: { x: number; y: number }, dir: number): void {
@@ -622,21 +626,36 @@ class HoleScene {
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
 
-    // A clean flyover that travels from the TEE to the GREEN (FB3).
+    // A clean flyover that visibly TRAVELS from the TEE to the GREEN (FB9).
+    // Staged waypoints (tee → mid-fairway → over the green) with gentle follow
+    // gains so the whole length of the hole is seen — the old single fast lerp
+    // reached the green within the first second, so it looked like it started
+    // there.
     const toGreen = Math.atan2(h.pin.y - h.tee.y, h.pin.x - h.tee.x);
     const g = this.fwd3(toGreen);
     const teeH = this.gh(h.tee.x, h.tee.y);
-    // Start low, right behind the tee, looking down the hole.
-    this.camera.position = w2b(h.tee.x, h.tee.y, 18 + teeH).subtract(g.scale(30));
-    this.camera.setTarget(w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y)));
+    const midX = (h.tee.x + h.pin.x) / 2;
+    const midY = (h.tee.y + h.pin.y) / 2;
+    // Start low, right behind the tee, looking down the length of the hole.
+    this.camera.position = w2b(h.tee.x, h.tee.y, 20 + teeH).subtract(g.scale(34));
+    this.camera.setTarget(w2b(midX, midY, this.gh(midX, midY)));
 
-    // Waypoint 1: glide the length of the hole and settle over the green,
-    // looking down at the pin.
-    this.camTarget.pos = w2b(h.pin.x, h.pin.y, 78).subtract(g.scale(30));
+    // Waypoint 1: rise off the tee and glide down the fairway toward mid-hole.
+    this.camTarget.pos = w2b(midX, midY, 52).subtract(g.scale(30));
     this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
-    this.camTarget.k = 1.0;
+    this.camTarget.k = 0.9;
 
-    // Waypoint 2: pull back to the tee-shot framing and hand over control.
+    // Waypoint 2: continue up and over the green, looking down at the pin.
+    this.introTimers.push(
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.camTarget.pos = w2b(h.pin.x, h.pin.y, 82).subtract(g.scale(26));
+        this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
+        this.camTarget.k = 0.85;
+      }, 1600)
+    );
+
+    // Waypoint 3: pull back to the tee-shot framing and hand over control.
     this.introTimers.push(
       setTimeout(() => {
         if (this.disposed) return;
@@ -648,7 +667,7 @@ class HoleScene {
             if (!this.disposed) this.beginTurn();
           }, 900)
         );
-      }, 2600)
+      }, 3600)
     );
   }
 
@@ -1437,7 +1456,10 @@ class HoleScene {
           const o = this.flight.outcome;
           const greenFinish = o.holed || o.surface === 'green' || o.surface === 'fringe';
           const frac = this.flight.landIdx > 0 ? this.flight.progress / this.flight.landIdx : 1;
-          if (greenFinish && frac > 0.6) {
+          // Only swap to the green-framing view in the final stretch, so the
+          // camera keeps following the ball instead of jumping ahead to the
+          // landing zone mid-flight (playtest FB9).
+          if (greenFinish && frac > 0.8) {
             const land = path[this.flight.landIdx];
             this.setCamDescent({ x: land.x, y: land.y }, this.flight.dir);
           } else {

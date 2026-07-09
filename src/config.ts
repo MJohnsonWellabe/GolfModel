@@ -153,7 +153,7 @@ export const PHYSICS = {
   /** How strongly player spin input affects each club family (GDD Phase 4:
    *  driver ~0.2 → wedge 1.0; spin "should never feel exaggerated"). */
   spinEffectiveness: {
-    wood: 0.22,
+    wood: 0.32,
     iron: 0.6,
     wedge: 1.0,
     putter: 0
@@ -170,8 +170,10 @@ export const PHYSICS = {
     trees: 0.4
   } as Record<string, number>,
   /** Sideways curve acceleration (px/s²) at full side spin, before the
-   *  per-club effectiveness scaling. */
-  sideSpinAccel: 30,
+   *  per-club effectiveness scaling. Raised so a chosen draw/fade visibly bends
+   *  the flight (and the matching aim-dot preview) into a real strategic tool
+   *  without feeling exaggerated (playtest FB9). */
+  sideSpinAccel: 46,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */
