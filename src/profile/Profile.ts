@@ -10,7 +10,7 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
  * Phases 6 (progression) and 7 (store) read and write this object.
  */
 
-export type CosmeticKind = 'character' | 'ball' | 'trail';
+export type CosmeticKind = 'character' | 'ball' | 'trail' | 'outfit' | 'clubskin';
 
 export interface CareerStats {
   rounds: number;
@@ -57,6 +57,9 @@ export interface PlayerProfile {
   /** YYYY-MM-DD of the last completed daily challenge. */
   lastDailyDate: string;
   settings: { sound: number; ambience: number; reducedMotion: boolean };
+  /** Codes of tournaments the player created or played, newest first — the
+   *  "My Tournaments" history (Phase 8 gap). */
+  tournaments: Array<{ code: string; name: string }>;
   updatedAt: number;
 }
 
@@ -120,6 +123,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     dailyStreak: 0,
     lastDailyDate: '',
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
+    tournaments: [],
     updatedAt: now
   };
 }
@@ -163,7 +167,8 @@ export function loadProfile(storage: KVStorage | null = defaultStorage()): Playe
       achievements: [...(parsed.achievements ?? [])],
       stats: { ...base.stats, ...(parsed.stats ?? {}) },
       daily: { ...base.daily, ...(parsed.daily ?? {}) },
-      settings: { ...base.settings, ...(parsed.settings ?? {}) }
+      settings: { ...base.settings, ...(parsed.settings ?? {}) },
+      tournaments: [...(parsed.tournaments ?? [])]
     };
   } catch {
     return defaultProfile();
@@ -178,6 +183,21 @@ export function saveProfile(profile: PlayerProfile, storage: KVStorage | null = 
   } catch {
     // Quota/private-mode failures are non-fatal — play continues in memory
   }
+}
+
+/** Union two tournament histories by code, newest (a) first, capped at 30. */
+function mergeTournaments(
+  a: PlayerProfile['tournaments'],
+  b: PlayerProfile['tournaments']
+): PlayerProfile['tournaments'] {
+  const seen = new Set<string>();
+  const out: PlayerProfile['tournaments'] = [];
+  for (const t of [...a, ...b]) {
+    if (seen.has(t.code)) continue;
+    seen.add(t.code);
+    out.push(t);
+  }
+  return out.slice(0, 30);
 }
 
 /**
@@ -213,6 +233,7 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     ),
     achievements: [...new Set([...a.achievements, ...b.achievements])],
     stats,
+    tournaments: mergeTournaments(a.tournaments, b.tournaments),
     updatedAt: Math.max(a.updatedAt, b.updatedAt)
   };
 }

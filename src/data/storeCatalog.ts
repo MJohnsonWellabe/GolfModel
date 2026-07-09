@@ -9,8 +9,12 @@ import { CharacterKey } from './characters';
  * `StoreEngine` runs the transactions.
  */
 
-export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade';
+export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin';
 export type UpgradeFamily = 'driver' | 'irons' | 'wedges' | 'putter';
+
+/** Cosmetic kinds that are equipped (a chosen tint), vs owned-only. */
+export const EQUIPPABLE_KINDS: StoreKind[] = ['ball', 'trail', 'outfit', 'clubskin'];
+export const isEquippableKind = (kind: StoreKind): boolean => EQUIPPABLE_KINDS.includes(kind);
 
 export interface StoreItem {
   id: string;
@@ -29,11 +33,23 @@ export interface StoreItem {
 /** Characters owned from the start (the rest are store unlocks). */
 export const FREE_CHARACTERS: CharacterKey[] = ['chip', 'rose', 'rio', 'sunny', 'theo'];
 
-/** Cosmetics owned by default (white ball + plain white trail). */
-export const DEFAULT_OWNED = ['ball_white', 'trail_white', ...FREE_CHARACTERS.map((c) => `char_${c}`)];
+/** Cosmetics owned by default (white ball + plain white trail + the classic
+ *  outfit colorway and steel clubs). */
+export const DEFAULT_OWNED = [
+  'ball_white',
+  'trail_white',
+  'outfit_default',
+  'clubskin_steel',
+  ...FREE_CHARACTERS.map((c) => `char_${c}`)
+];
 
 /** Default equipped cosmetics for a fresh profile. */
-export const DEFAULT_EQUIPPED = { ball: 'ball_white', trail: 'trail_white' } as const;
+export const DEFAULT_EQUIPPED = {
+  ball: 'ball_white',
+  trail: 'trail_white',
+  outfit: 'outfit_default',
+  clubskin: 'clubskin_steel'
+} as const;
 
 const BALL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> = [
   ['red', 'Cherry', 0xe23c3c, 'common', 100],
@@ -77,6 +93,28 @@ const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
   ['remi', 'special', 300]
 ];
 
+// Outfit colorways: tint the whole character kit (one 'characters' material —
+// the chibi mesh has no separable garments, so this is a whole-kit wash applied
+// as an albedo multiply). Mid-saturation tints so the hue shift reads clearly
+// as a colorway (a multiply can only darken/colorize, never lighten).
+const OUTFIT_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> = [
+  ['azure', 'Azure Kit', 0x5a86d8, 'common', 100],
+  ['rose', 'Rose Kit', 0xd8688e, 'common', 100],
+  ['mint', 'Mint Kit', 0x57bf83, 'rare', 200],
+  ['sun', 'Sunlit Kit', 0xd8b23e, 'rare', 200],
+  ['noir', 'Noir Kit', 0x565c68, 'special', 300]
+];
+
+// Club skins: tint the (procedural) shaft + head. Gold matches the vision's
+// upgraded-club look.
+const CLUBSKIN_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> = [
+  ['crimson', 'Crimson Clubs', 0xd23c3c, 'common', 100],
+  ['azure', 'Azure Clubs', 0x3c86e2, 'common', 100],
+  ['emerald', 'Emerald Clubs', 0x3fbf6a, 'rare', 200],
+  ['onyx', 'Onyx Clubs', 0x2a2a30, 'rare', 200],
+  ['gold', 'Gold Clubs', 0xf5c542, 'special', 300]
+];
+
 const UPGRADE_FAMILIES: Array<[UpgradeFamily, string]> = [
   ['driver', 'Driver'],
   ['irons', 'Irons'],
@@ -102,6 +140,14 @@ export const STORE_CATALOG: StoreItem[] = [
       rarity,
       character
     })
+  ),
+  { id: 'outfit_default', kind: 'outfit', name: 'Classic Kit', price: 0, rarity: 'common', color: 0xffffff },
+  ...OUTFIT_TINTS.map(
+    ([id, name, color, rarity, price]): StoreItem => ({ id: `outfit_${id}`, kind: 'outfit', name, price, rarity, color })
+  ),
+  { id: 'clubskin_steel', kind: 'clubskin', name: 'Steel Clubs', price: 0, rarity: 'common', color: 0x9aa6b2 },
+  ...CLUBSKIN_TINTS.map(
+    ([id, name, color, rarity, price]): StoreItem => ({ id: `clubskin_${id}`, kind: 'clubskin', name, price, rarity, color })
   ),
   // Club upgrades: two tiers per family, +3 stat each (docs 08). Gold-only.
   ...UPGRADE_FAMILIES.flatMap(([family, label]): StoreItem[] => [

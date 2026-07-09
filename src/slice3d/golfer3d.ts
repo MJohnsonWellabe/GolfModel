@@ -66,6 +66,8 @@ export class Golfer3D {
   // Club rig (shared by both bodies) + procedural-body pivots.
   private shoulderPivot!: TransformNode;
   private wristPivot!: TransformNode;
+  private shaftMat: StandardMaterial | null = null;
+  private clubHeadMat: StandardMaterial | null = null;
   private torso!: TransformNode;
   private head!: TransformNode;
   private hips!: TransformNode;
@@ -184,15 +186,39 @@ export class Golfer3D {
     this.wristPivot.position = new Vector3(0, -1.92, 0.62);
     this.wristPivot.parent = this.shoulderPivot;
     const shaft = cast(MeshBuilder.CreateCylinder('shaft', { diameter: 0.11, height: 1.45, tessellation: 6 }, scene));
-    shaft.material = m(scene, 'shaft', 0x9aa6b2, 0.5);
+    this.shaftMat = m(scene, 'shaft', 0x9aa6b2, 0.5);
+    shaft.material = this.shaftMat;
     shaft.position = new Vector3(0.22, -0.66, 0.28);
     shaft.rotation.x = 0.2;
     shaft.rotation.z = -0.32;
     shaft.parent = this.wristPivot;
     const clubHead = cast(MeshBuilder.CreateBox('clubHead', { width: 0.62, height: 0.26, depth: 0.32 }, scene));
-    clubHead.material = m(scene, 'clubHeadM', 0x4b525c, 0.6);
+    this.clubHeadMat = m(scene, 'clubHeadM', 0x4b525c, 0.6);
+    clubHead.material = this.clubHeadMat;
     clubHead.position = new Vector3(0.48, -1.32, 0.44);
     clubHead.parent = this.wristPivot;
+  }
+
+  /** Tint the (procedural) club — shaft gets the chosen colour, the head a
+   *  darker shade of it so the two-tone read survives. Cosmetic only. */
+  setClubSkin(color: number): void {
+    if (this.shaftMat) this.shaftMat.diffuseColor = c3(color);
+    if (this.clubHeadMat) this.clubHeadMat.diffuseColor = c3(color).scale(0.55);
+  }
+
+  /** Tint the whole character kit by multiplying the 'characters' material's
+   *  albedo (the chibi has one clothing material — no separable garments), once
+   *  the async model has loaded. White (0xffffff) leaves the texture untouched. */
+  setOutfitTint(color: number): void {
+    void this.ready.then(() => {
+      const tint = c3(color);
+      this.inst?.root.getChildMeshes().forEach((cm) => {
+        const mat = cm.material as { name?: string; albedoColor?: Color3; diffuseColor?: Color3 } | null;
+        if (!mat || mat.name !== 'characters') return;
+        if (mat.albedoColor) mat.albedoColor = tint;
+        else if (mat.diffuseColor) mat.diffuseColor = tint;
+      });
+    });
   }
 
   // ----------------------------------------------------------- procedural body

@@ -44,11 +44,11 @@ import {
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, cloudSyncProfile, cloudUid, googleLinked, linkGoogleAccount } from '../firebase/FirebaseClient';
-import { loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { CosmeticKind, loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { STORE_CATALOG, StoreItem } from '../data/storeCatalog';
+import { isEquippableKind, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
@@ -348,6 +348,12 @@ class HoleScene {
     round.players.forEach((part, i) => {
       const g = new Golfer3D(this.scene, shadows, part.golfer.character, part.golfer.look);
       g.root.setEnabled(false);
+      // The human player wears their equipped apparel (outfit colorway + club
+      // skin); AI opponents keep the defaults (Phase 7 store — playtest FB9).
+      if (!part.isAI) {
+        g.setOutfitTint(equippedColor(profile, 'outfit', 0xffffff));
+        g.setClubSkin(equippedColor(profile, 'clubskin', 0x9aa6b2));
+      }
       this.golfers.push(g);
       const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
       const bm = new StandardMaterial(`ballMat${i}`, this.scene);
@@ -1817,13 +1823,13 @@ function renderStore(): void {
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
   const card = (item: StoreItem): string => {
     const owned = isOwned(p, item);
-    const equipped = (item.kind === 'ball' || item.kind === 'trail') && p.cosmetics.equipped[item.kind] === item.id;
+    const equipped = isEquippableKind(item.kind) && p.cosmetics.equipped[item.kind as CosmeticKind] === item.id;
     const affordable = canBuy(p, item).ok;
     const cls = equipped ? 'equipped' : owned ? 'owned' : affordable ? '' : 'locked';
     const swatch =
       item.color !== undefined ? `<div class="swatch" style="background:${hex(item.color)}"></div>` : `<div class="swatch" style="background:#2b6b41">⬆️</div>`;
     const label = item.kind === 'character' ? `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />` : swatch;
-    const price = equipped ? 'Equipped' : owned ? (item.kind === 'ball' || item.kind === 'trail' ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
+    const price = equipped ? 'Equipped' : owned ? (isEquippableKind(item.kind) ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
     return `<div class="storeCard ${cls}" data-item="${item.id}">${label}<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`;
   };
   const section = (title: string, kind: StoreItem['kind']): string =>
@@ -1833,8 +1839,10 @@ function renderStore(): void {
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
     `<div class="storeScroll">` +
     section('Characters', 'character') +
+    section('Outfit Colorways', 'outfit') +
     section('Ball Colors', 'ball') +
     section('Ball Trails', 'trail') +
+    section('Club Skins', 'clubskin') +
     section('Club Upgrades', 'clubUpgrade') +
     `</div><button id="storeBack">Back</button></div>`;
   storeEl.querySelectorAll('.storeCard').forEach((el) =>
@@ -1842,7 +1850,7 @@ function renderStore(): void {
       const id = (el as HTMLElement).dataset.item!;
       const item = STORE_CATALOG.find((i) => i.id === id)!;
       if (isOwned(p, item)) {
-        if (item.kind === 'ball' || item.kind === 'trail') equip(p, id);
+        if (isEquippableKind(item.kind)) equip(p, id);
       } else {
         const r = buyItem(p, id);
         if (!r.ok) {
@@ -1915,6 +1923,31 @@ function closeOverlay(el: HTMLElement): void {
 
 /** Tournament hub: create a new one or join by code. `preCode` boots straight
  *  into a shared `?t=CODE` link. */
+/** Record a tournament in the player's history (newest first, deduped). */
+function rememberTournament(code: string, name: string): void {
+  profile.tournaments = [{ code, name }, ...profile.tournaments.filter((t) => t.code !== code)].slice(0, 30);
+  saveProfile(profile);
+  void cloudSyncProfile(profile).then((m) => {
+    Object.assign(profile, m);
+    saveProfile(profile);
+  });
+}
+
+/** "My Tournaments" list: the events this player created or played, tap to reopen. */
+function myTournamentsHtml(): string {
+  if (!profile.tournaments.length) return '';
+  const rows = profile.tournaments
+    .slice(0, 8)
+    .map(
+      (t) =>
+        `<button class="tourMineRow" data-code="${escapeHtml(t.code)}">` +
+        `<span class="tourMineNm">🏁 ${escapeHtml(t.name)}</span>` +
+        `<span class="tourMineCode">${escapeHtml(t.code)}</span></button>`
+    )
+    .join('');
+  return `<div class="tourHeadRow">My Tournaments</div><div class="tourMineList">${rows}</div>`;
+}
+
 function renderTournaments(preCode?: string): void {
   const el = tournamentsEl();
   el.style.display = 'flex';
@@ -1934,6 +1967,7 @@ function renderTournaments(preCode?: string): void {
     `<div class="tourJoin"><input id="tourCode" type="text" maxlength="9" placeholder="JG-XXXXXX" ` +
     `autocomplete="off" autocapitalize="characters" value="${preCode ? escapeHtml(preCode) : ''}" />` +
     `<button id="tourJoinBtn">Join</button></div>` +
+    myTournamentsHtml() +
     `<div id="tourBody" class="tourBody"></div>` +
     `<button id="tourBack">Back</button></div>`;
   document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
@@ -1944,6 +1978,12 @@ function renderTournaments(preCode?: string): void {
     if (code) void openTournament(code);
   };
   document.getElementById('tourJoinBtn')!.addEventListener('pointerdown', join);
+  el.querySelectorAll('.tourMineRow').forEach((row) =>
+    row.addEventListener('pointerdown', () => {
+      const code = (row as HTMLElement).dataset.code;
+      if (code) void openTournament(code);
+    })
+  );
   codeInput.addEventListener('keydown', (e) => {
     if ((e as KeyboardEvent).key === 'Enter') join();
   });
@@ -1972,6 +2012,7 @@ async function createTournamentFlow(): Promise<void> {
     body.innerHTML = `<div class="recEmpty">Couldn't create the tournament — check your connection.</div>`;
     return;
   }
+  rememberTournament(meta.code, meta.name);
   const shareUrl = `${location.origin}${location.pathname}?t=${meta.code}`;
   body.innerHTML =
     `<div class="tourCode">${meta.code}</div>` +
@@ -2025,6 +2066,7 @@ function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myR
 
 /** Start a solo round under a tournament's shared seed (Phase 8). */
 function startTournamentRound(meta: Tournament): void {
+  rememberTournament(meta.code, meta.name);
   round.course = COURSES[courseIdByName(meta.course)];
   round.mode = 'solo';
   round.holeIdx = 0;

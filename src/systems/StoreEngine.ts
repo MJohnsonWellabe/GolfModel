@@ -1,5 +1,5 @@
-import { PlayerProfile } from '../profile/Profile';
-import { STORE_BY_ID, StoreItem } from '../data/storeCatalog';
+import { CosmeticKind, PlayerProfile } from '../profile/Profile';
+import { isEquippableKind, STORE_BY_ID, StoreItem } from '../data/storeCatalog';
 
 /**
  * Pure store transactions (Phase 7): buy, own, equip. Coins never go
@@ -37,8 +37,9 @@ export function buyItem(profile: PlayerProfile, itemId: string): BuyResult {
     profile.clubUpgrades[item.upgrade!.family] = item.upgrade!.tier;
   } else {
     if (!profile.cosmetics.owned.includes(item.id)) profile.cosmetics.owned.push(item.id);
-    // Auto-equip a freshly bought ball/trail so the buy feels immediate
-    if (item.kind === 'ball' || item.kind === 'trail') profile.cosmetics.equipped[item.kind] = item.id;
+    // Auto-equip a freshly bought tint (ball/trail/outfit/clubskin) so the buy
+    // feels immediate.
+    if (isEquippableKind(item.kind)) profile.cosmetics.equipped[item.kind as CosmeticKind] = item.id;
   }
   return { ok: true };
 }
@@ -49,12 +50,16 @@ export function equip(profile: PlayerProfile, itemId: string): BuyResult {
   if (!item) return { ok: false, reason: 'Unknown item' };
   if (item.kind === 'clubUpgrade') return { ok: false, reason: 'Not equippable' };
   if (!isOwned(profile, item)) return { ok: false, reason: 'Not owned' };
-  if (item.kind === 'ball' || item.kind === 'trail') profile.cosmetics.equipped[item.kind] = item.id;
+  if (isEquippableKind(item.kind)) profile.cosmetics.equipped[item.kind as CosmeticKind] = item.id;
   return { ok: true };
 }
 
-/** Tint (RGB hex) of the equipped ball/trail, falling back to the default. */
-export function equippedColor(profile: PlayerProfile, kind: 'ball' | 'trail', fallback: number): number {
+/** Tint (RGB hex) of an equipped cosmetic slot, falling back to the default. */
+export function equippedColor(
+  profile: PlayerProfile,
+  kind: 'ball' | 'trail' | 'outfit' | 'clubskin',
+  fallback: number
+): number {
   const id = profile.cosmetics.equipped[kind];
   const item = id ? STORE_BY_ID.get(id) : undefined;
   return item?.color ?? fallback;

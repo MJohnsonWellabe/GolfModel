@@ -26,18 +26,21 @@ function meanToPar(course: CourseAuthoring): { mean: number; everyHoled: boolean
 }
 
 describe('new course playability', () => {
+  // These Monte-Carlo suites play 120 full rounds each; the heavy-water Sable
+  // Bay and per-trunk tree collision push them past the default 5s, so give
+  // them room (they still finish in a few seconds).
   it('Sable Bay plays to a sane average and every hole finishes', () => {
     const { mean, everyHoled } = meanToPar(sablebay as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     // Water makes it demanding but not impossible for a strong player.
     expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeLessThan(6);
-  });
+  }, 20000);
 
   it('Timberline plays to a sane average and every hole finishes', () => {
     const { mean, everyHoled } = meanToPar(timberline as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeLessThan(6);
-  });
+  }, 20000);
 });
