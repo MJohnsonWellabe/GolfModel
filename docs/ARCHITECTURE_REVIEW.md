@@ -8,6 +8,31 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09 (later still): account-gated progression + honest-cup green rework
+
+- **Accounts are now gated on a real (Google) sign-in.** Removed the anonymous
+  auto-sign-in (`FirebaseClient.ensureFirebase`/`signOutAccount`); `linkGoogle*`
+  became `signInWithGoogle` (plain popup, no anon to "link"); added `isSignedIn`.
+  `main.ts` boots from an **empty** `defaultProfile()` and only adopts the cloud
+  account when signed in (`adoptCloudAccount`); all local persistence is gated
+  behind `persistProfile()` (a no-op when signed out); sign-out
+  (`doSignOut`/`clearLocalProfile`/`clearLocalHistory`) resets the live profile
+  to empty so a signed-out browser shows a clean slate. First sign-in on a device
+  folds any local progress up once via `mergeProfiles`. `cloudSyncProfile` now
+  logs permission-denied instead of swallowing it. Sign-in nudges added to the
+  store + round summary. Fixes: "coins show logged-out", "new device resets to 0".
+  Docs 04/08/FIREBASE_SETUP updated.
+- **Honest-cup green rework** (`config.ts`, `PhysicsEngine`, `main.ts`,
+  `course3d.ts`): the drawn cup == the physics capture zone, shrunk `cupRadius`
+  0.95→0.70 (≈2.1ft) and the ball to a proportional `PUTT_VIEW.ballScale` 0.56 so
+  the green reads at consistent real-world scale (~6ft golfer, small ball, ~2ft
+  cup). The "rolls over the hole" miss is fixed by widening the drop window —
+  `cupCaptureSpeed` 22→27 (Δ≈3.6ft overrun) and `cupLipSpeed` 25→31 — so a
+  normally-paced putt drops and only a way-too-fast one skips; `puttPaceNoise`
+  0.045→0.055 holds the make-rate curve (`putting.test`/`scoring.test` green).
+  New putt camera is low + gently telephoto (`PUTT_VIEW.fov` 0.72, lerped) so the
+  roll reads long; ball shadow + `camera.minZ` track the smaller ball.
+
 # Update — 2026-07-09 (later): Playtest FB9 — putting, cameras, trees, roster, apparel
 
 Second `2026-07-09` session (full detail in `docs/13_PLAYTEST_FB9_2026-07-09.md`).

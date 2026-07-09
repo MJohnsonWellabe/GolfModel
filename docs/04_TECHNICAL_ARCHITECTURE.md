@@ -436,17 +436,28 @@ Future controller support should require minimal changes.
 
 # Save System
 
-Guest players
+Progression is account-gated (see docs 08 §Account Philosophy).
 
-Local browser storage.
+Signed-out players
 
-Logged-in players
+Ephemeral. The live profile is an empty `defaultProfile()`; nothing is written
+to local storage, so a signed-out browser always shows a clean slate (0 coins,
+no records). Play is allowed but does not persist.
 
-Firebase cloud storage.
+Signed-in players
 
-The game should automatically determine which save system to use.
+The Firebase account (`profiles/{uid}`) is the source of truth, cached locally
+for offline play. There is no anonymous auto-sign-in — the cloud is touched only
+after a Google sign-in.
 
-Guest play should never require an account.
+Sign-out resets the live profile to empty and clears the local caches; the first
+sign-in on a device merges any pre-existing local progress up once
+(`mergeProfiles`, grow-only counters) so nothing is lost.
+
+Key modules: `src/profile/Profile.ts` (profile shape, `mergeProfiles`,
+`clearLocalProfile`), `src/firebase/FirebaseClient.ts` (`isSignedIn`,
+`signInWithGoogle`, `signOutAccount`, `cloudSyncProfile`), wired in
+`src/slice3d/main.ts` (`persistProfile`, `adoptCloudAccount`, `doSignOut`).
 
 ---
 

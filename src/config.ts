@@ -99,20 +99,25 @@ export const PHYSICS = {
   treeKillSpeed: 30,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
-  /** Cup capture radius, world px. Kept near the original tight size; the
-   *  swept-segment capture (PhysicsEngine) is what fixes an on-line putt
-   *  "rolling over the hole" (it catches a ball crossing the cup between
-   *  simulation samples), not a bigger hole (playtest FB9). */
-  cupRadius: 0.95,
-  /** Max roll speed (px/s) at which the cup can capture the ball. A putt
-   *  dying at the hole crosses the capture radius at ~16px/s (√(2μr)), so
-   *  this must stay above that or perfect-pace putts would never drop; 22
-   *  also swallows balls rolling ≤ ~0.7px past (calibrated vs Appendix A). */
-  cupCaptureSpeed: 22,
-  /** Lip-out: OVER the cup at speeds between cupCaptureSpeed and cupLipSpeed
-   *  the ball catches the rim and deflects instead of dropping. Narrow band
-   *  so lip-outs are the occasional heartbreak, not routine (FB2). */
-  cupLipSpeed: 25,
+  /** Cup radius, world px — HONEST: this is BOTH the drawn hole (course3d) and
+   *  the physics capture zone, so a ball that visibly rolls over the black hole
+   *  drops (no hidden "magnet" catch). Shrunk from the old 0.95 to the smallest
+   *  size that still holds the GDD make-rate table (calibrate vs putting.test),
+   *  so the cup reads smaller and consistent with the (now proportionally
+   *  smaller) ball while staying fair. 1u = 1.5ft, so 0.70u ≈ 2.1ft dia. */
+  cupRadius: 0.7,
+  /** Max roll speed (px/s) at which the cup captures the ball. THE fix for
+   *  "rolls over the hole but doesn't drop": with green friction 150, this gates
+   *  the max overrun a putt can carry and still drop — Δ = v²/(2·150). At 27,
+   *  Δ ≈ 2.4px ≈ 3.6ft, so a normally-paced putt (finishing a few feet past)
+   *  falls; only a genuinely too-fast putt skips. Raise this and putts get
+   *  easier — puttPaceNoise is retuned to hold the 40ft gate. */
+  cupCaptureSpeed: 27,
+  /** Lip-out: OVER the cup at speeds between cupCaptureSpeed and cupLipSpeed the
+   *  ball catches the rim and deflects instead of dropping (Δ ≈ 3.6–4.8ft past).
+   *  Beyond cupLipSpeed a way-too-fast putt skips clean. Narrow band so lip-outs
+   *  are the occasional heartbreak, not routine (FB2). */
+  cupLipSpeed: 31,
   /** Gimme: on a short putt, a slow ball near the cup drops even off-center —
    *  makes tap-ins reliable (FB2). Gated on the putt starting within
    *  gimmeShortPuttPx of the cup so long lag putts aren't gifted. */
@@ -127,7 +132,7 @@ export const PHYSICS = {
    *  values gave a "perfect" 70ft putt a ~30ft 1σ error (it could finish 20ft+
    *  short). Now a perfect lag putt finishes within a few feet; long-putt
    *  difficulty comes from reading the break, not random pace. */
-  puttPaceNoise: 0.045,
+  puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
   /** Ground roll friction (px/s²) per surface. */
   friction: {
@@ -200,6 +205,27 @@ export const PHYSICS = {
     water: 0,
     trees: 5
   } as Record<string, number>
+} as const;
+
+/**
+ * On-green ("putting view") presentation. The green is rendered at an HONEST,
+ * consistent scale: a ~6ft golfer, a ball sized ~1/2.5 of the cup (the real
+ * ball:cup ratio), and a low, gently-telephoto camera so the roll stretches out
+ * and reads long instead of foreshortening. Sizes are mesh-scale multipliers
+ * (1 = the off-green size). 1 world unit = 1.5 ft.
+ */
+export const PUTT_VIEW = {
+  /** Golfer mesh scale on the green → ~6ft tall (down from the readable-but-huge
+   *  off-green golfer). */
+  golferScale: 0.55,
+  /** Ball mesh scale on the green. Proportional to the cup (cup diameter ≈ 2.5×
+   *  the ball, the real ratio) and clearly smaller than the off-green ball, so
+   *  the ball reads small on the green. */
+  ballScale: 0.56,
+  /** Vertical field of view (radians) while putting — a gentle telephoto (vs the
+   *  1.05 default) that keeps the now-smaller ball and cup readable from a low,
+   *  pulled-back vantage without foreshortening the roll. */
+  fov: 0.72
 } as const;
 
 /**

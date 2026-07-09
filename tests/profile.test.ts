@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  clearLocalProfile,
   defaultProfile,
   KVStorage,
   loadProfile,
@@ -9,11 +10,13 @@ import {
   saveProfile
 } from '../src/profile/Profile';
 
-function memStorage(): KVStorage {
+function memStorage(): KVStorage & { removeItem: (k: string) => void; has: (k: string) => boolean } {
   const m = new Map<string, string>();
   return {
     getItem: (k) => m.get(k) ?? null,
-    setItem: (k, v) => void m.set(k, v)
+    setItem: (k, v) => void m.set(k, v),
+    removeItem: (k) => void m.delete(k),
+    has: (k) => m.has(k)
   };
 }
 
@@ -45,6 +48,41 @@ describe('profile persistence', () => {
     expect(p.coins).toBe(7);
     expect(p.settings.sound).toBeGreaterThan(0);
     expect(p.stats.rounds).toBe(0);
+  });
+});
+
+describe('account-gated model', () => {
+  it('clearLocalProfile wipes the persisted profile so sign-out shows a clean slate', () => {
+    const s = memStorage();
+    const p = defaultProfile();
+    p.name = 'Matt';
+    p.coins = 500;
+    saveProfile(p, s, 1);
+    expect(s.has('johnsons-golf-profile-v1')).toBe(true);
+    clearLocalProfile(s);
+    // Nothing persists — a reload loads a fresh, empty (0-coin) profile.
+    const back = loadProfile(s);
+    expect(back.name).toBe('');
+    expect(back.coins).toBe(0);
+    expect(back.level).toBe(1);
+  });
+
+  it('first sign-in folds pre-existing local progress into the (empty) account, losing nothing', () => {
+    // Live signed-out profile is a fresh empty default; the browser still holds
+    // legacy local progress from before accounts were gated.
+    const empty = defaultProfile();
+    empty.updatedAt = 500; // the live empty profile is the most-recently-touched
+    const legacy = defaultProfile();
+    legacy.updatedAt = 10;
+    legacy.coinsEarned = 640;
+    legacy.coins = 640;
+    legacy.cosmetics.owned.push('ball-red');
+    legacy.stats.birdies = 8;
+    // adoptCloudAccount seeds the sync with mergeProfiles(live, legacy).
+    const seeded = mergeProfiles(empty, legacy);
+    expect(seeded.coins).toBe(640);
+    expect(seeded.cosmetics.owned).toContain('ball-red');
+    expect(seeded.stats.birdies).toBe(8);
   });
 });
 

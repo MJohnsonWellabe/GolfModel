@@ -7,12 +7,13 @@ import { mergeProfiles, PlayerProfile } from '../profile/Profile';
  * setup in docs/FIREBASE_SETUP.md is completed the game runs local-only
  * with zero Firebase code even loaded (dynamic imports).
  *
- * Flow (docs 08 §Account Philosophy — zero auth friction):
- *  - first cloud touch signs in ANONYMOUSLY (invisible to the player)
- *  - profile lives at RTDB /profiles/{uid}, guarded by the rules in the
- *    setup doc (each uid can only read/write its own)
- *  - "Link Google account" upgrades the anonymous user in place, keeping
- *    the uid and therefore all progress
+ * Flow (account-gated progression — docs 08 §Account Philosophy):
+ *  - NO anonymous auto-sign-in. The cloud is touched only once the player
+ *    signs in with Google; signed-out play is purely ephemeral (main.ts).
+ *  - a signed-in player's profile lives at RTDB /profiles/{uid}, guarded by
+ *    the rules in the setup doc (each uid can only read/write its own)
+ *  - signing in on a device merges any local progress up once (mergeProfiles,
+ *    grow-only counters), so switching to an account never loses coins
  */
 
 export function authConfigured(): boolean {
@@ -30,7 +31,7 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
   if (!handles) {
     handles = (async () => {
       const { initializeApp } = await import('firebase/app');
-      const { getAuth, signInAnonymously, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } =
+      const { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } =
         await import('firebase/auth');
       const { getDatabase } = await import('firebase/database');
       const app = initializeApp({
@@ -54,9 +55,8 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
           /* in-memory only — nothing more we can do */
         }
       }
-      // Finalize a pending redirect-based link (the iOS-Safari fallback in
-      // linkGoogleAccount) so the upgraded account is restored on return before
-      // we'd otherwise sign in a fresh anonymous user.
+      // Finalize a pending redirect-based sign-in (the iOS-Safari fallback in
+      // signInWithGoogle) so the account is restored on return.
       try {
         const { getRedirectResult } = await import('firebase/auth');
         await getRedirectResult(auth);
@@ -64,12 +64,11 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
         /* no pending redirect */
       }
       // CRITICAL: `auth.currentUser` is null synchronously right after
-      // getAuth(); the persisted session (anonymous OR the Google-linked
-      // account) restores asynchronously. Wait for it before deciding to sign
-      // in — otherwise every load minted a NEW anonymous uid, stranding all
-      // saved progress under the previous uid and dropping the Google link.
+      // getAuth(); a persisted Google session restores asynchronously. Wait for
+      // it so a returning signed-in player is recognized before we render.
+      // No anonymous fallback: signed-out means genuinely no cloud user, and
+      // progress is only ever attached to a real (Google) account.
       await auth.authStateReady();
-      if (!auth.currentUser) await signInAnonymously(auth);
       return { auth, db: getDatabase(app) };
     })();
   }
@@ -88,16 +87,16 @@ export async function cloudUid(): Promise<string | null> {
 }
 
 /**
- * True when the signed-in user has upgraded from the anonymous guest session to
- * a real (e.g. Google) account. Used to hide the "Link Google" prompt on the
- * main menu once the account is already linked.
+ * True once the player has signed in with a real (Google) account. With no
+ * anonymous auto-sign-in, this is the single gate for "progress is saved":
+ * signed out → ephemeral local play; signed in → cloud-backed account.
  */
-export async function googleLinked(): Promise<boolean> {
+export async function isSignedIn(): Promise<boolean> {
   if (!authConfigured()) return false;
   try {
     const { auth } = await ensureFirebase();
     const u = auth.currentUser;
-    return !!u && !u.isAnonymous && u.providerData.length > 0;
+    return !!u && !u.isAnonymous;
   } catch {
     return false;
   }
@@ -122,33 +121,39 @@ export async function linkedAccountName(): Promise<string | null> {
 }
 
 /**
- * Sign out of the linked account and return to a fresh anonymous guest session.
- * The linked account's progress stays safe in the cloud under its own uid —
- * signing back in restores it.
+ * Sign out of the account, leaving NO cloud user signed in (no anonymous
+ * fallback). The account's progress stays safe in the cloud under its own uid —
+ * signing back in restores it. The caller (main.ts) resets the local view to a
+ * fresh empty profile so signed-out truly shows no coins/records.
  */
 export async function signOutAccount(): Promise<void> {
   if (!authConfigured()) return;
   try {
     const { auth } = await ensureFirebase();
-    const { signOut, signInAnonymously } = await import('firebase/auth');
+    const { signOut } = await import('firebase/auth');
     await signOut(auth);
-    await signInAnonymously(auth);
   } catch {
     /* ignore — stays on the current session */
   }
 }
 
 /**
- * Sync the profile with the cloud: pull the stored copy, merge (progress is
- * never lost — see mergeProfiles), push the result. Returns the merged
- * profile, or the input unchanged when the cloud is unreachable/unconfigured.
+ * Sync the profile with the cloud for a SIGNED-IN player: pull the stored copy,
+ * merge (progress is never lost — see mergeProfiles), push the result. Returns
+ * the merged profile, or the input unchanged when signed out / unreachable.
+ * A permission-denied (rules not deployed) is logged rather than swallowed
+ * silently, so the failure mode is visible in devtools instead of looking like
+ * a mysterious reset-to-zero.
  */
 export async function cloudSyncProfile(profile: PlayerProfile): Promise<PlayerProfile> {
   if (!authConfigured()) return profile;
   try {
     const { auth, db } = await ensureFirebase();
-    const uid = auth.currentUser?.uid;
-    if (!uid) return profile;
+    const u = auth.currentUser;
+    // Only signed-in players have a cloud profile — a signed-out session is
+    // ephemeral and must never write to the cloud.
+    if (!u || u.isAnonymous) return profile;
+    const uid = u.uid;
     const { get, ref, set } = await import('firebase/database');
     const snap = await get(ref(db, `profiles/${uid}`));
     const remote = snap.exists() ? (snap.val() as PlayerProfile) : null;
@@ -156,8 +161,12 @@ export async function cloudSyncProfile(profile: PlayerProfile): Promise<PlayerPr
     merged.id = uid;
     await set(ref(db, `profiles/${uid}`), merged);
     return merged;
-  } catch {
-    return profile; // offline / rules not deployed yet — play continues locally
+  } catch (e) {
+    // Offline is expected and fine; a permission-denied means the RTDB rules in
+    // docs/FIREBASE_SETUP.md aren't published — surface it so cross-device
+    // failures aren't invisible. Play continues on the in-memory profile.
+    console.warn('[cloud] profile sync failed (offline or rules not deployed):', e);
+    return profile;
   }
 }
 
@@ -167,42 +176,29 @@ function accountName(u: { displayName: string | null; email: string | null }): s
 }
 
 /**
- * Upgrade the anonymous session to a Google account (same uid, progress kept),
- * using a SINGLE popup. If that Google account already has its own Firebase
- * user (credential-already-in-use), we reuse the credential from the same popup
- * to sign into it — no second popup — and cloudSyncProfile merges the local
- * profile up afterwards. Returns the real Google display name (or email), or
- * null if linking failed / was dismissed, or 'redirect' on the iOS fallback.
+ * Sign in with Google (account-gated model — there is no anonymous user to
+ * "link", so this is a plain sign-in that works for both new and existing
+ * accounts). Uses a SINGLE popup; falls back to a redirect only where popups
+ * genuinely can't be used (iOS Safari) — a user-closed popup just cancels.
+ * Returns the account's display name (or email), null if dismissed/failed, or
+ * 'redirect' on the iOS fallback. After a successful sign-in the caller merges
+ * the local profile up via cloudSyncProfile so current progress is kept.
  */
-export async function linkGoogleAccount(): Promise<string | null> {
+export async function signInWithGoogle(): Promise<string | null> {
   if (!authConfigured()) return null;
   try {
     const { auth } = await ensureFirebase();
-    const { GoogleAuthProvider, linkWithPopup, linkWithRedirect, signInWithCredential } = await import('firebase/auth');
-    const user = auth.currentUser;
-    if (!user) return null;
+    const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth');
     const provider = new GoogleAuthProvider();
     try {
-      const res = await linkWithPopup(user, provider);
+      const res = await signInWithPopup(auth, provider);
       await res.user.reload().catch(() => undefined);
       return accountName(auth.currentUser ?? res.user);
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
-      // Only fall back to a redirect when popups genuinely can't be used (iOS
-      // Safari); a user-closed popup should just cancel, not redirect.
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-environment') {
-        await linkWithRedirect(user, provider);
+        await signInWithRedirect(auth, provider);
         return 'redirect';
-      }
-      if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
-        const cred = GoogleAuthProvider.credentialFromError(
-          e as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]
-        );
-        if (cred) {
-          const res = await signInWithCredential(auth, cred);
-          await res.user.reload().catch(() => undefined);
-          return accountName(auth.currentUser ?? res.user);
-        }
       }
       return null; // popup closed / cancelled / unusable
     }

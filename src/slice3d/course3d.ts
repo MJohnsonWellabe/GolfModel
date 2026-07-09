@@ -941,12 +941,13 @@ export function buildCourse(
     flowTex.uOffset -= Math.cos(flowAngle) * rate;
     flowTex.vOffset += Math.sin(flowAngle) * rate;
   });
-  // White ring marks the open cup while the pin is pulled. Sized to the physics
-  // capture radius so the target the player aims at is the target that actually
-  // catches the ball (FB9) — no more "rolled right over the hole".
+  // White ring marks the open cup while the pin is pulled. Drawn at the HONEST
+  // cup radius (== the physics capture zone) so the target the player aims at is
+  // exactly the target that catches the ball — no more "rolled right over the
+  // hole". Thin tube so the smaller cup reads as a crisp painted rim.
   const cupRing = MeshBuilder.CreateTorus(
     'cupRing',
-    { diameter: PHYSICS.cupRadius * 2, thickness: 0.14, tessellation: 28 },
+    { diameter: PHYSICS.cupRadius * 2, thickness: 0.09, tessellation: 28 },
     scene
   );
   const cupRingM = new StandardMaterial('cupRingM', scene);

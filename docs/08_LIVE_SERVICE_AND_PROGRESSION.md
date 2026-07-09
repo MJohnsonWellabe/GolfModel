@@ -43,19 +43,29 @@ Players should return because:
 
 # Account Philosophy
 
-Accounts are optional.
+Progression is account-gated. Playing is free and instant, but coins, records
+and unlocks belong to an account — not to a browser.
 
-Every player should be able to:
-
-Download the game.
+Every player can still:
 
 Open the game.
 
-Play immediately.
+Play immediately (signed out).
 
-Guest Mode should always be the default experience.
+But while signed out the experience is a clean slate:
 
-Accounts simply unlock persistent progression.
+- No coins, no records, no unlocks are shown, and nothing is saved.
+- A finished round shows its rewards, then prompts the player to sign in to keep
+  them.
+
+Signing in (Google) loads the player's account: their coins and records appear,
+and every change syncs to the cloud. The first sign-in on a device folds any
+progress already earned on that browser into the account, so nothing is lost.
+Signing out returns to the clean slate; the account stays safe in the cloud and
+returns on the next sign-in — on any device.
+
+There is no invisible "guest account": signed out means genuinely no account,
+which is why a signed-out browser (or a fresh device before sign-in) shows zero.
 
 ---
 
@@ -117,17 +127,19 @@ All information should synchronize automatically.
 
 # Cloud Saves
 
-Guest Players
+Signed-out players
 
-Stored locally.
+Ephemeral. Nothing is persisted — the session is a clean slate that resets on
+reload or sign-out.
 
-Account Players
+Account players
 
-Stored in Firebase.
+Stored in Firebase (RTDB `profiles/{uid}`) and cached locally for offline play.
 
-Cloud saves should synchronize automatically.
-
-The player should never manually upload or download save data.
+Cloud saves synchronize automatically. The player never manually uploads or
+downloads save data. The first sign-in on a device merges any local progress up
+once (grow-only counters — see `mergeProfiles`), so switching to an account
+never loses coins.
 
 ---
 
@@ -697,15 +709,16 @@ Future anti-cheat measures should prioritize fairness without inconveniencing ho
 
 The game should function without internet access.
 
-Offline players may:
+A signed-in player who loses connectivity may:
 
 Play rounds
 
-Earn local progress
+Earn progress (cached to the local account copy)
 
-View local statistics
+View statistics
 
 Cloud synchronization should occur automatically when connectivity returns.
+(Signed-out play is ephemeral either way — see Account Philosophy.)
 
 ---
 

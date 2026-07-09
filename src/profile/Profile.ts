@@ -200,6 +200,25 @@ export function saveProfile(profile: PlayerProfile, storage: KVStorage | null = 
   }
 }
 
+/**
+ * Remove the persisted profile from local storage. Used on sign-out so a
+ * signed-out session truly shows a clean slate (account-gated model): the live
+ * profile is reset to defaultProfile() in memory and nothing local remains to
+ * resurrect the previous account's coins/records on reload.
+ */
+export function clearLocalProfile(storage: KVStorage | null = defaultStorage()): void {
+  if (!storage) return;
+  try {
+    // KVStorage is a minimal getItem/setItem shape; localStorage also supports
+    // removeItem. Clear the key by removing it when possible, else blank it.
+    const s = storage as KVStorage & { removeItem?: (k: string) => void };
+    if (typeof s.removeItem === 'function') s.removeItem(KEY);
+    else s.setItem(KEY, '');
+  } catch {
+    // Nothing persisted / storage blocked — safe to ignore.
+  }
+}
+
 /** Union two tournament histories by code, newest (a) first, capped at 30. */
 function mergeTournaments(
   a: PlayerProfile['tournaments'],

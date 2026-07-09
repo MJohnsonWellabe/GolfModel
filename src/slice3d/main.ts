@@ -15,7 +15,7 @@ import {
   Vector3,
   Viewport
 } from '@babylonjs/core';
-import { FLIGHT, PHYSICS, PX_PER_YARD, RULES } from '../config';
+import { FLIGHT, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
@@ -28,7 +28,7 @@ import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
-import { bestRounds, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
   fetchTournament,
@@ -43,8 +43,8 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, cloudSyncProfile, cloudUid, linkedAccountName, linkGoogleAccount, signOutAccount } from '../firebase/FirebaseClient';
-import { CosmeticKind, loadProfile, mergeProfiles, PlayerProfile, saveProfile } from '../profile/Profile';
+import { authConfigured, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -289,7 +289,7 @@ class HoleScene {
   private ballShadow;
   private bsMat: StandardMaterial;
   private camera: FreeCamera;
-  private camTarget = { pos: new Vector3(0, 8, 0), look: new Vector3(0, 0, 0), k: 4 };
+  private camTarget = { pos: new Vector3(0, 8, 0), look: new Vector3(0, 0, 0), k: 4, fov: 1.05 };
   private puttGrid;
   private wind: Wind;
   private puff: ParticleSystem;
@@ -321,11 +321,12 @@ class HoleScene {
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
   private introTimers: ReturnType<typeof setTimeout>[] = [];
   private static BALL_REST = 0.5;
-  /** Putting view uses honest scale so a 30-ft putt reads ~5× the golfer's
-   *  height (playtest: the oversized golfer/ball made putts look tiny). Only
-   *  the putt view changes — every other camera keeps the readable big scale. */
-  private static PUTT_GOLFER_SCALE = 0.55;
-  private static PUTT_BALL_SCALE = 0.72;
+  /** Putting view uses honest, consistent real-world scale (config PUTT_VIEW):
+   *  a ~6ft golfer and a ball sized to the cup (~2.5× the ball), so nothing on
+   *  the green looks oversized. Only the putt view changes — every other camera
+   *  keeps the readable big scale. */
+  private static PUTT_GOLFER_SCALE = PUTT_VIEW.golferScale;
+  private static PUTT_BALL_SCALE = PUTT_VIEW.ballScale;
   /** Current ball-mesh size multiplier (1 off the green, PUTT_BALL_SCALE on it)
    *  so the ball rests on the surface at either size. */
   private ballScale = 1;
@@ -413,7 +414,9 @@ class HoleScene {
     this.aimRoot.setEnabled(false);
 
     this.camera = new FreeCamera('cam', new Vector3(0, 8, 0), this.scene);
-    this.camera.minZ = 0.5;
+    // Small near-plane so the now-smaller on-green ball never near-clips at the
+    // low, close putting vantage.
+    this.camera.minZ = 0.1;
     this.camera.maxZ = 12000;
     // Portrait phones crop the horizontal view hard, so run a wide vertical fov
     this.camera.fov = 1.05;
@@ -583,20 +586,23 @@ class HoleScene {
       this.camTarget.pos = mid.subtract(toPin.scale(span * 0.08)).add(new Vector3(0, height, 0.01));
       this.camTarget.look = mid;
       this.camTarget.k = 4;
+      this.camTarget.fov = 1.05;
       return;
     }
     if (putt) {
-      // Putting frames the WHOLE ball→cup corridor at honest scale: the camera
-      // sits behind the ball and rises with the putt length, looking at a point
-      // ~60% down the line so both the ball (with the now person-sized golfer)
-      // and the hole are in frame. A 30-ft putt then reads as a long roll —
-      // ~5× the golfer's height — instead of foreshortening to a few feet.
+      // Putting: a LOW, pulled-back, gently-telephoto vantage (behind the golfer,
+      // near green level) so the roll stretches out and reads long instead of
+      // foreshortening. Everything on the green is at honest scale — a ~6ft
+      // golfer, a small ball, a ~2ft cup — so a 30-ft putt looks like 30 ft.
       const d = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
-      const back = 5 + d * 0.32;
-      const rise = 7 + d * 0.62;
+      const back = 8 + d * 0.34;
+      const rise = 5 + d * 0.24;
       this.camTarget.pos = base.subtract(f.scale(back)).add(new Vector3(0, rise, 0));
-      this.camTarget.look = base.add(f.scale(d * 0.6)).add(new Vector3(0, 0.4, 0));
+      // Look most of the way to the cup so it sits high in the portrait frame,
+      // with the whole ball→cup line below it.
+      this.camTarget.look = base.add(f.scale(d * 0.72)).add(new Vector3(0, 0.35, 0));
       this.camTarget.k = 4;
+      this.camTarget.fov = PUTT_VIEW.fov;
       return;
     }
     // Pitched-down vantage; pulled in a touch from behind/above the golfer so
@@ -604,6 +610,7 @@ class HoleScene {
     this.camTarget.pos = base.subtract(f.scale(26)).add(new Vector3(0, 18, 0));
     this.camTarget.look = base.add(f.scale(70)).add(new Vector3(0, 1, 0));
     this.camTarget.k = 4;
+    this.camTarget.fov = 1.05;
   }
 
   private setCamFlight(p: { x: number; y: number; z: number }, dir: number): void {
@@ -616,6 +623,7 @@ class HoleScene {
     this.camTarget.pos = pos3.subtract(f.scale(15 + p.z * 0.22)).add(new Vector3(0, 8 + p.z * 0.4, 0));
     this.camTarget.look = pos3.add(f.scale(10)).add(new Vector3(0, 2 + p.z * 0.25, 0));
     this.camTarget.k = 9;
+    this.camTarget.fov = 1.05;
   }
 
   private setCamLanding(p: { x: number; y: number }, dir: number): void {
@@ -624,6 +632,7 @@ class HoleScene {
     this.camTarget.pos = pos3.subtract(f.scale(26)).add(new Vector3(0, 9, 0));
     this.camTarget.look = pos3;
     this.camTarget.k = 4;
+    this.camTarget.fov = 1.05;
   }
 
   /** Green approaches: 3/4 aerial view that frames the green as a target. */
@@ -633,6 +642,7 @@ class HoleScene {
     this.camTarget.pos = pos3.subtract(f.scale(30)).add(new Vector3(0, 27, 0));
     this.camTarget.look = pos3.add(f.scale(5));
     this.camTarget.k = 5;
+    this.camTarget.fov = 1.05;
   }
 
   // ---------------------------------------------------------------- intro
@@ -1493,11 +1503,12 @@ class HoleScene {
         if (this.flight.isPutt && dCup < 46) {
           const f = this.fwd3(this.flight.dir);
           const pos3 = w2b(p.x, p.y, this.gh(p.x, p.y));
-          // Higher, slightly further-back tuck than before so the roll's true
-          // length still reads while zooming toward the cup (playtest FB9).
-          this.camTarget.pos = pos3.subtract(f.scale(11)).add(new Vector3(0, 8.5, 0));
+          // Low, gently-telephoto tuck (matching the putt setup view) so the
+          // roll's true length still reads while the ball creeps to the cup.
+          this.camTarget.pos = pos3.subtract(f.scale(13)).add(new Vector3(0, 6, 0));
           this.camTarget.look = w2b(this.hole.pin.x, this.hole.pin.y, this.gh(this.hole.pin.x, this.hole.pin.y));
           this.camTarget.k = 6;
+          this.camTarget.fov = PUTT_VIEW.fov;
         }
         // Building drama: as a hole-out/ace from distance creeps to the cup,
         // rumble the camera (FB6). Refreshed each frame → continuous shake.
@@ -1531,7 +1542,9 @@ class HoleScene {
     const groundH = this.gh(this.ball.position.x, -this.ball.position.z);
     const hgt = Math.max(0, this.ball.position.y - this.ballRestH() - groundH);
     this.ballShadow.position.set(this.ball.position.x, groundH + 0.07, this.ball.position.z);
-    const spread = 1 + Math.min(2.2, hgt * 0.014);
+    // Track the ball size (smaller on the green) so the shadow never dwarfs the
+    // now real-scale putting ball; it still grows with flight height.
+    const spread = this.ballScale * (1 + Math.min(2.2, hgt * 0.014));
     this.ballShadow.scaling.set(spread, spread, spread);
     this.bsMat.alpha = 0.3 / (1 + hgt * 0.02);
 
@@ -1540,6 +1553,9 @@ class HoleScene {
     this.camera.position = Vector3.Lerp(this.camera.position, this.camTarget.pos, k);
     const look = this.camera.getTarget().clone();
     this.camera.setTarget(Vector3.Lerp(look, this.camTarget.look, k));
+    // Lerp the field of view too — the putting view zooms in telephoto so the
+    // real-scale (small) ball and cup stay readable while distances read long.
+    this.camera.fov += (this.camTarget.fov - this.camera.fov) * k;
     if (this.shakeT > 0) {
       this.shakeT -= dt;
       // Reduced-motion players keep the slow-mo drama but not the camera rumble.
@@ -1664,21 +1680,29 @@ function showSummary(): void {
     toPar: totals[0] - totalPar,
     holes: me.scores.slice(0, holes.length)
   };
-  saveRound(record);
+  // Records/coins only persist for a signed-in account (account-gated model):
+  // a signed-out round still plays and shows its rewards, but nothing is saved.
+  if (signedIn) saveRound(record);
 
   // Progression: build the round stats, award XP/coins/achievements/daily.
   const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
   const events = applyRound(profile, rstats, todayKey());
-  saveProfile(profile);
-  void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
+  persistProfile();
+  if (signedIn) void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
 
   const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
+  // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
+  const signInNudge =
+    !signedIn && authConfigured()
+      ? `<div class="signInNudge">Sign in to keep these coins & save your progress.</div>`
+      : '';
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
     `<div id="recBanner" class="recBanner"></div>` +
     `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
     tourBlock +
     rewardStripHtml(events) +
+    signInNudge +
     `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
     `<button id="profBtn" class="ghostBtn">Profile</button>` +
     `<button id="againBtn">Menu</button></div>`;
@@ -1774,7 +1798,7 @@ function renderProfile(): void {
     `<div class="profSettings">` +
     (authConfigured()
       ? `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
-        `<button id="linkGoogle" class="ghostBtn">Link Google account</button></div>`
+        `<button id="linkGoogle" class="ghostBtn">Sign in with Google</button></div>`
       : '') +
     `<label class="setRow"><span>Sound</span>` +
     `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
@@ -1787,59 +1811,61 @@ function renderProfile(): void {
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
   document.getElementById('setSound')!.addEventListener('input', (e) => {
     p.settings.sound = parseFloat((e.target as HTMLInputElement).value);
-    saveProfile(p);
+    persistProfile();
   });
   document.getElementById('setAmbience')!.addEventListener('input', (e) => {
     p.settings.ambience = parseFloat((e.target as HTMLInputElement).value);
     applyAmbienceVolume();
-    saveProfile(p);
+    persistProfile();
   });
   document.getElementById('setReducedMotion')!.addEventListener('change', (e) => {
     p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
-    saveProfile(p);
+    persistProfile();
   });
   wireAccountRow();
 }
 
-/** Cloud-account status + "Link Google account" (Phase 5). Only present when
- *  Firebase is configured; degrades quietly if the console setup isn't done. */
+/** Cloud-account status + sign-in/out on the Profile overlay (account-gated).
+ *  Only present when Firebase is configured; degrades quietly otherwise. */
 function wireAccountRow(): void {
   const status = document.getElementById('acctStatus');
   const btn = document.getElementById('linkGoogle') as HTMLButtonElement | null;
   if (!status || !btn) return;
-  // Reflect the REAL, persistent link state — if already linked, say so and hide
-  // the button (it used to always show "link Google", so reopening Profile made
-  // a linked account look unlinked). Only fall back to the link prompt when the
-  // session is still an anonymous guest.
-  void linkedAccountName().then((name) => {
-    if (name) {
-      status.textContent = `✓ Signed in as ${name} — progress syncs across devices`;
-      btn.style.display = 'none';
-      return;
-    }
-    void cloudUid().then((uid) => {
-      status.textContent = uid
-        ? 'Cloud sync on — link Google to keep progress across devices'
-        : 'Playing locally — cloud unavailable';
+  if (signedIn) {
+    void linkedAccountName().then((name) => {
+      status.textContent = `✓ Signed in as ${name ?? 'your account'} — progress syncs across devices`;
     });
-  });
-  btn.addEventListener('pointerdown', () => {
+    btn.textContent = 'Log out';
+    btn.onclick = () => {
+      btn.disabled = true;
+      void doSignOut().then(() => {
+        renderAcctMenu();
+        renderProfile(); // reopen the overlay reflecting the empty signed-out state
+      });
+    };
+    return;
+  }
+  status.textContent = 'Sign in to save your coins & progress across devices.';
+  btn.textContent = 'Sign in with Google';
+  btn.onclick = () => {
     btn.disabled = true;
     status.textContent = 'Opening Google sign-in…';
-    void linkGoogleAccount().then((name) => {
+    void signInWithGoogle().then((name) => {
       if (!name) {
-        status.textContent = 'Google linking was cancelled or unavailable.';
+        status.textContent = 'Sign-in was cancelled or unavailable.';
         btn.disabled = false;
         return;
       }
-      status.textContent = name === 'redirect' ? 'Redirecting to Google…' : `✓ Signed in as ${name} — progress syncs across devices`;
-      btn.style.display = 'none';
-      // Keep the main-menu account control in sync too.
-      renderAcctMenu();
-      // Re-sync so the just-linked account immediately owns the current profile.
-      void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
+      if (name === 'redirect') {
+        status.textContent = 'Redirecting to Google…';
+        return;
+      }
+      void adoptCloudAccount().then(() => {
+        renderAcctMenu();
+        renderProfile(); // re-render with the account's coins/records now loaded
+      });
     });
-  });
+  };
 }
 
 function statCell(value: number | string, label: string): string {
@@ -1881,6 +1907,7 @@ function renderStore(): void {
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
+    (!signedIn && authConfigured() ? `<div class="signInNudge">Sign in to earn coins & keep purchases.</div>` : '') +
     `<div class="storeScroll">` +
     charactersSection +
     section('Outfit Colorways', 'outfit') +
@@ -1908,8 +1935,8 @@ function renderStore(): void {
           return;
         }
       }
-      saveProfile(p);
-      void cloudSyncProfile(p).then((m) => applyCloudMerge(p, m));
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(p).then((m) => applyCloudMerge(p, m));
       renderStore();
     })
   );
@@ -1973,8 +2000,8 @@ function closeOverlay(el: HTMLElement): void {
 /** Record a tournament in the player's history (newest first, deduped). */
 function rememberTournament(code: string, name: string): void {
   profile.tournaments = [{ code, name }, ...profile.tournaments.filter((t) => t.code !== code)].slice(0, 30);
-  saveProfile(profile);
-  void cloudSyncProfile(profile).then((m) => applyCloudMerge(profile, m));
+  persistProfile();
+  if (signedIn) void cloudSyncProfile(profile).then((m) => applyCloudMerge(profile, m));
 }
 
 /** "My Tournaments" list: the events this player created or played, tap to reopen. */
@@ -2228,7 +2255,7 @@ function playAceAttempt(): void {
       if (holed) {
         acesSession.aces++;
         profile.stats.holeInOnes++;
-        saveProfile(profile);
+        persistProfile();
       }
       showAceInterstitial(holed);
     }
@@ -2309,14 +2336,80 @@ const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
  */
 function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
   Object.assign(live, mergeProfiles(live, cloud));
-  saveProfile(live);
+  persistProfile();
 }
 
 /** Persistent player profile — selections, currency, progression, stats. */
-const profile: PlayerProfile = loadProfile();
-// Fire-and-forget cloud sync (no-op until Firebase is configured; see
-// docs/FIREBASE_SETUP.md). Merged result is re-persisted locally.
-void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
+/**
+ * Account-gated progression (docs 08). The LIVE profile starts EMPTY: signed-out
+ * play shows no coins/records and persists nothing. Progress only exists once the
+ * player signs in with Google, at which point the cloud account becomes live.
+ *
+ *  - `legacyLocal` holds any pre-existing local progress (from before accounts
+ *    were gated, or a prior signed-in session's cache). It is NOT shown while
+ *    signed out; it's kept aside for a one-time merge into the account on the
+ *    first sign-in, so switching to an account never loses current coins.
+ *  - `signedIn` gates every local persist and cloud write.
+ */
+const legacyLocal: PlayerProfile = loadProfile();
+const profile: PlayerProfile = defaultProfile();
+let signedIn = false;
+/** Guard so the one-time legacy→account merge runs at most once per session. */
+let legacyMerged = false;
+
+/** Persist the profile locally ONLY when signed in — a signed-out session is
+ *  ephemeral and must write nothing (account-gated model). */
+function persistProfile(): void {
+  if (signedIn) saveProfile(profile);
+}
+
+/**
+ * Adopt the signed-in player's cloud account as the live profile. On the first
+ * sign-in this device, fold any pre-existing local progress up first (grow-only
+ * merge, nothing lost), then pull+merge+push the cloud copy.
+ */
+async function adoptCloudAccount(): Promise<void> {
+  if (!legacyMerged) {
+    Object.assign(profile, mergeProfiles(profile, legacyLocal));
+    legacyMerged = true;
+  }
+  signedIn = true; // enable persistence before the sync writes back
+  const merged = await cloudSyncProfile(profile);
+  Object.assign(profile, merged);
+  saveProfile(profile); // cache the account locally for offline/reload
+  syncSelFromProfile();
+}
+
+/** Sign out: return to a clean slate. Wipe the local view + persisted data so a
+ *  signed-out browser shows no coins/records; the account stays safe in the
+ *  cloud under its uid and returns on next sign-in. */
+async function doSignOut(): Promise<void> {
+  await signOutAccount();
+  signedIn = false;
+  // Don't resurrect the previous account's local data into a later sign-in.
+  legacyMerged = true;
+  clearLocalProfile();
+  clearLocalHistory();
+  Object.assign(profile, defaultProfile());
+  syncSelFromProfile();
+}
+
+/** Re-prefill the setup wizard from the live profile (after a cloud adopt or a
+ *  sign-out reset) so name/character/style reflect the current account. */
+function syncSelFromProfile(): void {
+  sel.name = profile.name;
+  sel.character = (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey);
+  sel.archetype = (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId);
+}
+
+// On boot, adopt the account only if a real Google session persists; otherwise
+// stay on the empty guest view and prompt the player to sign in.
+void (async () => {
+  if (authConfigured() && (await isSignedIn())) {
+    await adoptCloudAccount();
+  }
+  renderAcctMenu();
+})();
 
 /** The setup choices, prefilled from the profile so returning players jump
  *  straight to "Tee off". */
@@ -2576,11 +2669,11 @@ function startRound(): void {
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
-  // Remember the selections for next launch (and cloud, when configured)
+  // Remember the selections for next launch (persisted only when signed in)
   profile.name = sel.name;
   profile.character = sel.character;
   profile.archetype = sel.archetype;
-  saveProfile(profile);
+  persistProfile();
   // Ace Challenge is a mode: hand off to the repeat-a-par-3 loop instead of a
   // normal three-hole round (playtest FB9).
   if (sel.mode === 'aces') {
@@ -2615,26 +2708,28 @@ function renderAcctMenu(): void {
     el.innerHTML = '';
     return;
   }
-  // Show the Link button immediately (don't block on a Firebase round-trip);
-  // swap to the signed-in row once we confirm the linked account.
-  const showLinkButton = (): void => {
-    el.innerHTML = `<button id="acctLinkBtn" class="acctBtn">🔗 Link Google account</button>`;
+  // Signed-out: a prominent sign-in button with a "save your progress" subtitle
+  // so the account's purpose is obvious. Signed-in: a "Signed in as …" row with
+  // Log out. State is driven by the `signedIn` flag (set by adopt/sign-out).
+  const showSignInButton = (): void => {
+    el.innerHTML =
+      `<button id="acctLinkBtn" class="acctBtn">🔑 Sign in with Google</button>` +
+      `<div class="acctHint">Sign in to save your coins &amp; progress</div>`;
     const btn = document.getElementById('acctLinkBtn') as HTMLButtonElement;
     btn.addEventListener('pointerdown', () => {
       btn.disabled = true;
-      btn.textContent = '🔗 Opening Google…';
-      void linkGoogleAccount().then((name) => {
+      btn.textContent = '🔑 Opening Google…';
+      void signInWithGoogle().then((name) => {
         if (!name) {
           btn.disabled = false;
-          btn.textContent = '🔗 Link Google account';
+          btn.textContent = '🔑 Sign in with Google';
           return;
         }
         if (name === 'redirect') {
-          btn.textContent = '🔗 Redirecting…';
+          btn.textContent = '🔑 Redirecting…';
           return;
         }
-        void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
-        showSignedIn(name);
+        void adoptCloudAccount().then(() => showSignedIn(name));
       });
     });
   };
@@ -2643,13 +2738,14 @@ function renderAcctMenu(): void {
       `<div class="acctSignedIn"><span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
       `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
     document.getElementById('acctLogout')!.addEventListener('pointerdown', () => {
-      void signOutAccount().then(() => showLinkButton());
+      void doSignOut().then(() => showSignInButton());
     });
   };
-  showLinkButton();
-  void linkedAccountName().then((name) => {
-    if (name) showSignedIn(name);
-  });
+  if (signedIn) {
+    void linkedAccountName().then((name) => showSignedIn(name ?? 'your account'));
+  } else {
+    showSignInButton();
+  }
 }
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());

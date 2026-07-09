@@ -9,10 +9,16 @@ cloud layer lights up with no further code changes.
 Project: the existing **golfgame-9c11e** Firebase project (already used by
 the shared leaderboard) — or any project you prefer.
 
+> **Account model note (updated):** progression is now **account-gated** — there
+> is no anonymous auto-sign-in. Signed-out play is ephemeral; coins/records exist
+> only for a Google-signed-in account (docs 08 §Account Philosophy). **Anonymous
+> sign-in is no longer required** — only **Google** is. (Leaving Anonymous
+> enabled is harmless.)
+
 ## Console checklist (you)
 
 1. **Enable sign-in providers** — Firebase console → Build → Authentication →
-   Sign-in method → enable **Anonymous** and **Google**.
+   Sign-in method → enable **Google** (Anonymous optional / no longer used).
 2. **Authorize the game's domains** — Authentication → Settings → Authorized
    domains → make sure these are present:
    - `mjohnsonwellabe.github.io` (GitHub Pages)
@@ -73,10 +79,14 @@ the shared leaderboard) — or any project you prefer.
 
 ## What the game then does (already implemented)
 
-- First cloud touch signs the player in **anonymously** — zero friction,
-  invisible (docs 08 §Account Philosophy).
-- The local guest profile merges with the cloud copy (progress is never
-  lost: coins/xp/collections take the max/union — `mergeProfiles`).
-- A **"Link Google account"** action upgrades the anonymous user in place —
-  same uid, all progress kept — enabling cross-device sync.
-- Cloud outages degrade silently to local play.
+- Signed out, the game is a **clean slate** — no cloud user, no coins/records,
+  nothing saved (docs 08 §Account Philosophy).
+- **"Sign in with Google"** (main menu + Profile) signs the player into their
+  account. The cloud profile at `profiles/{uid}` becomes live and every change
+  syncs. The **first** sign-in on a device merges any local progress up once
+  (`mergeProfiles`, grow-only counters — nothing lost).
+- **Log out** returns to the clean slate; the account stays safe under its uid
+  and returns on the next sign-in, on any device.
+- Cloud outages degrade silently to local (account-cached) play for a signed-in
+  player; a permission-denied (rules not published) is logged to the console
+  instead of failing silently.
