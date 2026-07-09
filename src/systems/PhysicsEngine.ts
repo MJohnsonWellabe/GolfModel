@@ -1,5 +1,6 @@
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
+import { collectTreeBlobs, TreeBlob } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
 import { clamp, dist, pointInEllipse, pointInPolygon } from '../utils/Geometry';
 import {
@@ -114,12 +115,17 @@ export class PhysicsEngine {
    * and tests) every code path below reduces to the original flat behavior —
    * that identity is the regression gate for the elevation feature.
    */
+  /** Individual tree canopies for per-trunk flight collision (playtest FB9). */
+  private readonly treeTrunks: TreeBlob[];
+
   constructor(
     private readonly hole: HoleData,
     private readonly hf: HeightField | null = null,
     /** Uniform random source — inject a seeded rng for deterministic sims. */
     private readonly rng: Rng = Math.random
-  ) {}
+  ) {
+    this.treeTrunks = collectTreeBlobs(hole);
+  }
 
   /** Terrain height under a world point (0 on flat/legacy holes). */
   groundAt(x: number, y: number): number {
@@ -196,11 +202,26 @@ export class PhysicsEngine {
     return 'rough';
   }
 
-  /** Trees and buildings both knock a descending ball out of the air. */
-  private inTrees(x: number, y: number): boolean {
+  /**
+   * True when a point is inside an individual tree's canopy — the physics
+   * hitbox is now the actual trunks (collectTreeBlobs), NOT the whole tree
+   * polygon, so a ball threading a gap between trees flies on and only a ball
+   * that truly reaches a tree is stopped (playtest FB9).
+   */
+  private nearTree(x: number, y: number): boolean {
+    for (const t of this.treeTrunks) {
+      const dx = x - t.x;
+      const dy = y - t.y;
+      const rr = t.r * PHYSICS.treeCanopyMult;
+      if (dx * dx + dy * dy < rr * rr) return true;
+    }
+    return false;
+  }
+
+  /** Buildings stay solid across their whole footprint (no gaps to thread). */
+  private inBuilding(x: number, y: number): boolean {
     return this.hole.hazards.some(
-      (hz) =>
-        (hz.type === 'trees' || hz.type === 'building') && pointInPolygon(x, y, hz.polygon)
+      (hz) => hz.type === 'building' && pointInPolygon(x, y, hz.polygon)
     );
   }
 
@@ -380,17 +401,21 @@ export class PhysicsEngine {
         z += vz * dt;
 
         const ground = this.groundAt(x, y);
-        // Tree collision: a ball descending into the canopy — or a genuine low
-        // liner (still under the trunk band while climbing) — that is inside a
-        // tree polygon gets stopped. A high drive clearing an edge treeline is
-        // above the liner band by then, so it sails over untouched (preserves
-        // Wildwood's balance). Impact kills vertical carry and cuts horizontal
-        // speed to a small, capped fraction of the impact speed.
-        // Tree collision on the way down: a ball descending into the canopy
-        // inside a tree polygon is stopped — vertical carry killed and
-        // horizontal speed cut to a small, capped fraction of impact speed, so
-        // a drive into a mid-fairway tree drops near it instead of sailing on.
-        if (z > ground && z - ground < PHYSICS.treeHeight && vz < 0 && this.inTrees(x, y)) {
+        // Tree collision: any ball inside the trunk band (below treeHeight) that
+        // reaches an actual tree canopy is stopped — whether it is rising or
+        // descending (a low liner into a tree stops just like a drop into one,
+        // playtest FB9). A high shot is above the band by then, so it clears.
+        // Only a real trunk hit counts (nearTree, not the whole polygon), and a
+        // short launch grace lets a ball escape a tree it started under. Impact
+        // kills the vertical carry and cuts horizontal speed to a small, capped
+        // fraction of the impact speed, so a shot into a tree drops near it.
+        const movedFromOrigin = Math.hypot(x - origin.x, y - origin.y);
+        if (
+          z > ground &&
+          z - ground < PHYSICS.treeHeight &&
+          movedFromOrigin > PHYSICS.treeLaunchGrace &&
+          (this.nearTree(x, y) || this.inBuilding(x, y))
+        ) {
           hitTrees = true;
           z = ground;
           vz = 0;

@@ -84,8 +84,15 @@ export const PHYSICS = {
   /** Airborne wind scaling: full effect at/above this height (world px),
    *  fading toward the ground — low flight cuts through wind (GDD §Wind). */
   windRefHeight: 45,
-  /** Height (world px) below which tree polygons block ball flight. */
+  /** Height (world px) below which tree canopies block ball flight. */
   treeHeight: 55,
+  /** A ball must travel at least this far (world px) from its origin before a
+   *  tree can stop it, so a shot can escape a tree it started next to (FB9). */
+  treeLaunchGrace: 16,
+  /** Flight-collision radius as a multiple of a tree's canopy-shadow radius.
+   *  Slightly >1 so branches (not just the trunk) catch the ball, while a
+   *  genuine gap between trees stays threadable (playtest FB9). */
+  treeCanopyMult: 1.15,
   /** A ball that strikes a tree keeps this fraction of its impact speed… */
   treeDamp: 0.35,
   /** …capped here (world px/s) — a fast liner drops dead, a slow one dribbles. */

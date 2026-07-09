@@ -46,4 +46,42 @@ describe('tree-in-fairway collision', () => {
     // The tree kills the carry: the ball drops well short of the open drive.
     expect(blocked.yd, `blocked ${blocked.yd.toFixed(0)}yd vs open ${open.yd.toFixed(0)}yd`).toBeLessThan(open.yd - 40);
   });
+
+  it('stops a still-RISING ball that flies into a tree', () => {
+    // A stand right in front of the tee: the ball is still climbing when it
+    // reaches it and must be knocked down all the same (playtest FB9 — the old
+    // engine only stopped descending balls, so low liners sailed through).
+    const nearStand: number[][] = [
+      [1430, 2740],
+      [1570, 2740],
+      [1570, 2660],
+      [1430, 2660]
+    ];
+    const blocked = driveDistanceYd(openHole({ hazards: [{ type: 'trees', polygon: nearStand }] }));
+    expect(blocked.hitTrees, 'a rising ball into the stand should register a strike').toBe(true);
+    expect(blocked.yd, `rising-strike drive ${blocked.yd.toFixed(0)}yd`).toBeLessThan(140);
+  });
+
+  it('lets a ball THREAD a clear gap between trees', () => {
+    // Two separate clumps with an open lane between them: a straight ball down
+    // the lane flies on untouched — only balls that truly reach a tree stop,
+    // because the hitbox is now the individual trunks, not the whole polygon.
+    const leftClump: number[][] = [
+      [1330, 2360],
+      [1410, 2360],
+      [1410, 2040],
+      [1330, 2040]
+    ];
+    const rightClump: number[][] = [
+      [1590, 2360],
+      [1670, 2360],
+      [1670, 2040],
+      [1590, 2040]
+    ];
+    const threaded = driveDistanceYd(
+      openHole({ hazards: [{ type: 'trees', polygon: leftClump }, { type: 'trees', polygon: rightClump }] })
+    );
+    expect(threaded.hitTrees, 'a ball down the open lane should NOT hit a tree').toBe(false);
+    expect(threaded.yd, `threaded drive ${threaded.yd.toFixed(0)}yd`).toBeGreaterThan(200);
+  });
 });

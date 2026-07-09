@@ -1,20 +1,16 @@
 import { PhysicsEngine } from '../../systems/PhysicsEngine';
-import { pointInPolygon } from '../../utils/Geometry';
+import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { CourseTheme, shade } from './Theme';
 
+// Tree blobs now live in a rendering-independent module so the physics engine
+// can share them for per-trunk collision. Re-exported here so existing
+// importers (course3d) keep their import path.
+export { blobHash, collectTreeBlobs };
+export type { TreeBlob };
+
 /** World-px padding baked around the hole so the horizon never shows seams. */
 export const TEXTURE_PAD = 220;
-
-export interface TreeBlob {
-  x: number;
-  y: number;
-  r: number;
-  /** 0 = round oak, 1 = tall poplar, 2 = wide double-crown, 3 = blossom. */
-  kind: number;
-  /** Per-tree canopy tint multiplier. */
-  tint: number;
-}
 
 /** Half-size (world px) of the mown apron baked under the built tee platform. */
 export const TEE_HALF = 26;
@@ -34,42 +30,6 @@ export function inTeePad(hole: HoleData, x: number, y: number): boolean {
   const along = (x - cx) * ax + (y - cy) * ay;
   const perp = -(x - cx) * ay + (y - cy) * ax;
   return Math.abs(along) <= TEE_HALF && Math.abs(perp) <= TEE_HALF;
-}
-
-/** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
-export function blobHash(x: number, y: number): number {
-  const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
-  return s - Math.floor(s);
-}
-
-/** The tree positions for a hole — one source for billboards AND baked shadows. */
-export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] {
-  const blobs: TreeBlob[] = [];
-  for (const hz of hole.hazards) {
-    if (hz.type !== 'trees') continue;
-    const xs = hz.polygon.map((p) => p[0]);
-    const ys = hz.polygon.map((p) => p[1]);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-    for (let yy = minY; yy < maxY; yy += 52) {
-      for (let xx = minX; xx < maxX; xx += 52) {
-        const jx = xx + (blobHash(xx, yy) - 0.5) * 36;
-        const jy = yy + (blobHash(yy, xx) - 0.5) * 36;
-        if (!pointInPolygon(jx, jy, hz.polygon)) continue;
-        const k = blobHash(xx + 31, yy + 17);
-        blobs.push({
-          x: jx,
-          y: jy,
-          r: 15 + blobHash(xx + 7, yy + 3) * 12,
-          kind: k < blossomChance ? 3 : Math.floor((k - blossomChance) / (1 - blossomChance) * 3),
-          tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32
-        });
-      }
-    }
-  }
-  return blobs;
 }
 
 /** Fast integer hash → 0..1 (cheap enough for millions of texels). */

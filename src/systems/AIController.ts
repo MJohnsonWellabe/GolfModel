@@ -51,6 +51,7 @@ export class AIController {
     private readonly terrain: {
       breakAccel(x: number, y: number): { ax: number; ay: number };
       slopeAccelAlong?(from: Point, yaw: number, distPx: number): number;
+      surfaceAt?(x: number, y: number): Surface;
     } | null = null,
     /** Uniform random source — inject a seeded rng for deterministic sims. */
     private readonly rng: Rng = Math.random,
@@ -97,6 +98,11 @@ export class AIController {
   private chooseTarget(ballPos: Point, lie: Surface, hole: HoleData): Point {
     const pin = hole.pin;
     if (lie === 'green') return pin;
+    // In the trees: punch out to the nearest open ground rather than firing at
+    // the flag through more trunks. With per-trunk collision that now stops
+    // rising balls too, aiming at the pin through a stand just re-hits trees
+    // and stalls (playtest FB9) — a real recovery escapes sideways.
+    if (lie === 'trees') return this.punchOutTarget(ballPos, hole);
     const remainingYds = dist(ballPos, pin) / PX_PER_YARD;
     const maxCarry = effectiveCarryYards(
       clubById('driver'),
@@ -147,6 +153,46 @@ export class AIController {
       return { x: base.x + (next.x - base.x) * t, y: base.y + (next.y - base.y) * t };
     }
     return base;
+  }
+
+  /**
+   * Trees recovery: scan outward in every direction for the shortest way back
+   * to open ground (lightly favouring progress toward the pin), never punching
+   * into water. Needs a surface probe; without one it falls back to the pin.
+   */
+  private punchOutTarget(ballPos: Point, hole: HoleData): Point {
+    const probe = this.terrain?.surfaceAt?.bind(this.terrain);
+    const pin = hole.pin;
+    if (!probe) return pin;
+    const toPin = angleTo(ballPos, pin);
+    let best: Point | null = null;
+    let bestScore = Infinity;
+    for (let i = 0; i < 24; i++) {
+      const ang = toPin + (i / 24) * Math.PI * 2;
+      const dx = Math.cos(ang);
+      const dy = Math.sin(ang);
+      for (let d = 12; d <= 150; d += 8) {
+        const px = ballPos.x + dx * d;
+        const py = ballPos.y + dy * d;
+        if (px < 10 || py < 10 || px > hole.world.width - 10 || py > hole.world.height - 10) break;
+        const s = probe(px, py);
+        if (s === 'water') break; // never punch into water
+        if (s !== 'trees') {
+          // Clear ground: aim a touch past the tree line so the ball settles out.
+          const exit = { x: px + dx * 16, y: py + dy * 16 };
+          const es = probe(exit.x, exit.y);
+          if (es !== 'trees' && es !== 'water') {
+            const score = d + 0.15 * dist(exit, pin);
+            if (score < bestScore) {
+              bestScore = score;
+              best = exit;
+            }
+          }
+          break;
+        }
+      }
+    }
+    return best ?? pin;
   }
 
   private chooseClub(ballPos: Point, aimPoint: Point, lie: Surface): ClubSpec {
