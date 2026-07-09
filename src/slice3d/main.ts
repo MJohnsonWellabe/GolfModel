@@ -43,7 +43,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, cloudSyncProfile, cloudUid, googleLinked, linkGoogleAccount } from '../firebase/FirebaseClient';
+import { authConfigured, cloudSyncProfile, cloudUid, googleLinked, linkedAccountName, linkGoogleAccount } from '../firebase/FirebaseClient';
 import { CosmeticKind, loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
@@ -1761,8 +1761,21 @@ function wireAccountRow(): void {
   const status = document.getElementById('acctStatus');
   const btn = document.getElementById('linkGoogle') as HTMLButtonElement | null;
   if (!status || !btn) return;
-  void cloudUid().then((uid) => {
-    status.textContent = uid ? 'Cloud sync on — link Google to keep progress across devices' : 'Playing locally — cloud unavailable';
+  // Reflect the REAL, persistent link state — if already linked, say so and hide
+  // the button (it used to always show "link Google", so reopening Profile made
+  // a linked account look unlinked). Only fall back to the link prompt when the
+  // session is still an anonymous guest.
+  void linkedAccountName().then((name) => {
+    if (name) {
+      status.textContent = `✓ Signed in as ${name} — progress syncs across devices`;
+      btn.style.display = 'none';
+      return;
+    }
+    void cloudUid().then((uid) => {
+      status.textContent = uid
+        ? 'Cloud sync on — link Google to keep progress across devices'
+        : 'Playing locally — cloud unavailable';
+    });
   });
   btn.addEventListener('pointerdown', () => {
     btn.disabled = true;
@@ -1773,8 +1786,11 @@ function wireAccountRow(): void {
         btn.disabled = false;
         return;
       }
-      status.textContent = name === 'redirect' ? 'Redirecting to Google…' : `Linked as ${name} — progress now syncs across devices`;
+      status.textContent = name === 'redirect' ? 'Redirecting to Google…' : `✓ Signed in as ${name} — progress syncs across devices`;
       btn.style.display = 'none';
+      // Keep the main-menu prompt in sync too.
+      const menuBtn = document.getElementById('linkGoogleMenu');
+      if (menuBtn) menuBtn.style.display = 'none';
       // Re-sync so the just-linked account immediately owns the current profile.
       void cloudSyncProfile(profile).then((merged) => {
         Object.assign(profile, merged);

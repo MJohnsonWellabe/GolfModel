@@ -40,6 +40,15 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
         databaseURL: FIREBASE.databaseURL
       });
       const auth = getAuth(app);
+      // Finalize a pending redirect-based link (the iOS-Safari fallback in
+      // linkGoogleAccount) so the upgraded account is restored on return before
+      // we'd otherwise sign in a fresh anonymous user.
+      try {
+        const { getRedirectResult } = await import('firebase/auth');
+        await getRedirectResult(auth);
+      } catch {
+        /* no pending redirect */
+      }
       if (!auth.currentUser) await signInAnonymously(auth);
       return { auth, db: getDatabase(app) };
     })();
@@ -71,6 +80,24 @@ export async function googleLinked(): Promise<boolean> {
     return !!u && !u.isAnonymous && u.providerData.length > 0;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Display name (or email) of the linked account, or null when the session is
+ * still an anonymous guest / unconfigured. Drives the "Signed in as …" label so
+ * the Profile and menu reflect the persistent link state instead of always
+ * offering to link.
+ */
+export async function linkedAccountName(): Promise<string | null> {
+  if (!authConfigured()) return null;
+  try {
+    const { auth } = await ensureFirebase();
+    const u = auth.currentUser;
+    if (!u || u.isAnonymous || u.providerData.length === 0) return null;
+    return u.displayName ?? u.email ?? 'your account';
+  } catch {
+    return null;
   }
 }
 
