@@ -2365,26 +2365,40 @@ function renderName(): void {
 }
 
 function renderCharacter(): void {
-  // Only characters you own appear here; the rest are store unlocks.
-  const owned = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
-  if (!owned.some((c) => c.key === sel.character)) sel.character = owned[0].key;
+  // Show the WHOLE roster (playtest FB9): owned characters are selectable;
+  // locked ones carry a lock + price badge and, when tapped, jump to the Store
+  // so the full lineup is always visible — "where are the rest" is answered.
+  const isCharOwned = (key: string): boolean => profile.cosmetics.owned.includes(`char_${key}`);
+  const priceOf = (key: string): number => STORE_CATALOG.find((i) => i.id === `char_${key}`)?.price ?? 0;
+  if (!isCharOwned(sel.character)) {
+    const firstOwned = CHARACTERS.find((c) => isCharOwned(c.key));
+    if (firstOwned) sel.character = firstOwned.key;
+  }
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Pick your character</div>` +
-    `<div class="stepHint">Just for looks — unlock more in the Store.</div>` +
+    `<div class="stepHint">Just for looks — tap a locked one to unlock it in the Store.</div>` +
     `<div class="charGrid">` +
-    owned
-      .map(
-        (ch) =>
-          `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
-          `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
-          `<div class="cn">${ch.name}</div></div>`
-      )
-      .join('') +
+    CHARACTERS.map((ch) => {
+      const owned = isCharOwned(ch.key);
+      const selCls = owned && sel.character === ch.key ? ' sel' : '';
+      const lock = owned ? '' : `<div class="lockBadge">🔒 ${priceOf(ch.key)}</div>`;
+      return (
+        `<div class="charCard${selCls}${owned ? '' : ' locked'}" data-ch="${ch.key}" data-owned="${owned ? 1 : 0}">` +
+        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />${lock}` +
+        `<div class="cn">${ch.name}</div></div>`
+      );
+    }).join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
-      sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
-      renderCharacter();
+      const card = el as HTMLElement;
+      const key = card.dataset.ch as CharacterKey;
+      if (card.dataset.owned === '1') {
+        sel.character = key;
+        renderCharacter();
+      } else {
+        renderStore(); // locked — send the player to the Store to unlock it
+      }
     })
   );
 }

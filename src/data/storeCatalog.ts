@@ -4,8 +4,8 @@ import { CharacterKey } from './characters';
 /**
  * Gold-only store (docs 08): cosmetics + modest club upgrades bought with
  * J-Coins earned through play. No real money. Everything here uses assets the
- * game already ships — procedural ball/trail colors and the existing rigged
- * characters (four free, the rest unlockable). Config only; the pure
+ * game already ships — procedural ball/trail colors and the full 25-character
+ * rigged roster (five free, the other twenty unlockable). Config only; the pure
  * `StoreEngine` runs the transactions.
  */
 
@@ -27,7 +27,7 @@ export interface StoreItem {
 }
 
 /** Characters owned from the start (the rest are store unlocks). */
-export const FREE_CHARACTERS: CharacterKey[] = ['chip', 'rose', 'rio', 'sunny'];
+export const FREE_CHARACTERS: CharacterKey[] = ['chip', 'rose', 'rio', 'sunny', 'theo'];
 
 /** Cosmetics owned by default (white ball + plain white trail). */
 export const DEFAULT_OWNED = ['ball_white', 'trail_white', ...FREE_CHARACTERS.map((c) => `char_${c}`)];
@@ -57,10 +57,24 @@ const TRAIL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> 
 const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
   ['dez', 'common', 100],
   ['beat', 'common', 100],
+  ['milo', 'common', 100],
+  ['finn', 'common', 100],
+  ['bree', 'common', 100],
+  ['coco', 'common', 100],
   ['kuro', 'rare', 200],
   ['lily', 'rare', 200],
+  ['cole', 'rare', 200],
+  ['reid', 'rare', 200],
+  ['wren', 'rare', 200],
+  ['ivy', 'rare', 200],
+  ['dash', 'rare', 200],
   ['jade', 'special', 300],
-  ['nova', 'special', 300]
+  ['nova', 'special', 300],
+  ['enzo', 'special', 300],
+  ['knox', 'special', 300],
+  ['pia', 'special', 300],
+  ['zuri', 'special', 300],
+  ['remi', 'special', 300]
 ];
 
 const UPGRADE_FAMILIES: Array<[UpgradeFamily, string]> = [

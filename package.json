@@ -8,7 +8,8 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "shots": "playwright test -c playwright.config.ts"
+    "shots": "playwright test -c playwright.config.ts",
+    "portraits": "node scripts/gen-portraits.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",

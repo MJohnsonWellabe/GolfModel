@@ -1,10 +1,10 @@
 /**
  * Selectable character avatars — the cosmetic half of a golfer's identity
- * (the gameplay half is the Archetype in ./archetypes.ts). Ten rigged chibi
- * models curated from the purchased "Cute Characters 4" pack (ithappy), each
- * exported to a self-contained glb under assets/models/characters/ with the
- * pack's animation clips baked in (Idle / Win / Sad drive the in-game golfer —
- * see slice3d/characterModels.ts).
+ * (the gameplay half is the Archetype in ./archetypes.ts). The full roster of
+ * 25 rigged chibi models from the purchased "Cute Characters 4" pack (ithappy,
+ * f_1–f_12 + m_1–m_13), each a self-contained glb under
+ * assets/models/characters/ with the pack's animation clips baked in
+ * (Idle / Win / Sad drive the in-game golfer — see slice3d/characterModels.ts).
  *
  * Choosing a character is purely visual: any character can be paired with any
  * archetype, so gameplay code never branches on which avatar is selected.
@@ -19,7 +19,22 @@ export type CharacterKey =
   | 'sunny'
   | 'lily'
   | 'jade'
-  | 'nova';
+  | 'nova'
+  | 'theo'
+  | 'milo'
+  | 'finn'
+  | 'cole'
+  | 'reid'
+  | 'enzo'
+  | 'dash'
+  | 'knox'
+  | 'bree'
+  | 'coco'
+  | 'wren'
+  | 'ivy'
+  | 'pia'
+  | 'zuri'
+  | 'remi';
 
 export interface CharacterDef {
   key: CharacterKey;
@@ -30,18 +45,34 @@ export interface CharacterDef {
 }
 
 const model = (key: CharacterKey): string => `models/characters/${key}.glb`;
+const def = (key: CharacterKey, name: string): CharacterDef => ({ key, name, file: model(key) });
 
 export const CHARACTERS: CharacterDef[] = [
-  { key: 'chip', name: 'Chip', file: model('chip') },
-  { key: 'dez', name: 'Dez', file: model('dez') },
-  { key: 'rio', name: 'Rio', file: model('rio') },
-  { key: 'kuro', name: 'Kuro', file: model('kuro') },
-  { key: 'beat', name: 'Beat', file: model('beat') },
-  { key: 'rose', name: 'Rose', file: model('rose') },
-  { key: 'sunny', name: 'Sunny', file: model('sunny') },
-  { key: 'lily', name: 'Lily', file: model('lily') },
-  { key: 'jade', name: 'Jade', file: model('jade') },
-  { key: 'nova', name: 'Nova', file: model('nova') }
+  def('chip', 'Chip'),
+  def('rose', 'Rose'),
+  def('rio', 'Rio'),
+  def('sunny', 'Sunny'),
+  def('theo', 'Theo'),
+  def('dez', 'Dez'),
+  def('beat', 'Beat'),
+  def('kuro', 'Kuro'),
+  def('lily', 'Lily'),
+  def('jade', 'Jade'),
+  def('nova', 'Nova'),
+  def('milo', 'Milo'),
+  def('finn', 'Finn'),
+  def('cole', 'Cole'),
+  def('reid', 'Reid'),
+  def('enzo', 'Enzo'),
+  def('dash', 'Dash'),
+  def('knox', 'Knox'),
+  def('bree', 'Bree'),
+  def('coco', 'Coco'),
+  def('wren', 'Wren'),
+  def('ivy', 'Ivy'),
+  def('pia', 'Pia'),
+  def('zuri', 'Zuri'),
+  def('remi', 'Remi')
 ];
 
 const BY_KEY = new Map(CHARACTERS.map((c) => [c.key, c]));
