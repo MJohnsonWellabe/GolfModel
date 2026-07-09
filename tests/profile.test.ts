@@ -5,6 +5,7 @@ import {
   KVStorage,
   loadProfile,
   mergeProfiles,
+  migrateProfile,
   PlayerProfile,
   resetProfileRecords,
   saveProfile
@@ -83,6 +84,63 @@ describe('account-gated model', () => {
     expect(seeded.coins).toBe(640);
     expect(seeded.cosmetics.owned).toContain('ball-red');
     expect(seeded.stats.birdies).toBe(8);
+  });
+});
+
+describe('cloud round-trip — RTDB drops empty collections', () => {
+  // Firebase RTDB does not store empty arrays/objects/null: a saved profile reads
+  // back with clubUpgrades/achievements/tournaments ABSENT and bestRoundToPar
+  // absent. This is exactly the shape that used to crash mergeProfiles and
+  // silently abort every cloud save after the first.
+  function sparseRemoteFromRtdb(coins: number): PlayerProfile {
+    // Only the fields RTDB would actually keep for a near-fresh account.
+    return {
+      v: 1,
+      id: 'cloud-uid',
+      name: 'Matt',
+      character: 'chip',
+      archetype: 'bigHitter',
+      coins,
+      coinsEarned: coins,
+      coinsSpent: 0,
+      xp: 120,
+      level: 2,
+      cosmetics: { owned: ['ball_white'], equipped: { ball: 'ball_white' } },
+      // clubUpgrades, achievements, tournaments intentionally OMITTED (RTDB drops
+      // empty ones) and stats.bestRoundToPar omitted (RTDB drops null).
+      stats: { rounds: 3, birdies: 1 },
+      daily: { date: '', challengeId: '', done: false },
+      dailyStreak: 0,
+      lastDailyDate: '',
+      settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
+      updatedAt: 500
+    } as unknown as PlayerProfile;
+  }
+
+  it('mergeProfiles does not throw on a sparse cloud copy and preserves coins', () => {
+    const local = defaultProfile();
+    local.updatedAt = 100;
+    const remote = sparseRemoteFromRtdb(640);
+    expect(() => mergeProfiles(local, remote)).not.toThrow();
+    const m = mergeProfiles(local, remote);
+    expect(m.coins).toBe(640);
+    expect(m.stats.rounds).toBe(3);
+    expect(m.stats.bestRoundToPar).toBeNull();
+    expect(Array.isArray(m.achievements)).toBe(true);
+    expect(typeof m.clubUpgrades).toBe('object');
+  });
+
+  it('migrateProfile fills every collection a sparse cloud/legacy copy is missing', () => {
+    const filled = migrateProfile({ coins: 500, name: 'Matt' } as Partial<PlayerProfile>);
+    expect(filled.coins).toBe(500);
+    expect(filled.coinsEarned).toBe(500); // back-filled from coins
+    expect(filled.clubUpgrades).toEqual({});
+    expect(filled.achievements).toEqual([]);
+    expect(filled.tournaments).toEqual([]);
+    expect(filled.stats.bestRoundToPar).toBeNull();
+    expect(filled.cosmetics.owned.length).toBeGreaterThan(0);
+    // A normalized copy then merges cleanly (the cloudSyncProfile path).
+    expect(() => mergeProfiles(defaultProfile(), filled)).not.toThrow();
   });
 });
 

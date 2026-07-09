@@ -1,5 +1,5 @@
 import { FIREBASE } from '../config';
-import { mergeProfiles, PlayerProfile } from '../profile/Profile';
+import { mergeProfiles, migrateProfile, PlayerProfile } from '../profile/Profile';
 
 /**
  * Full Firebase auth + cloud saves (Phase 5). Everything here is gated on
@@ -175,7 +175,11 @@ export async function cloudSyncProfile(profile: PlayerProfile): Promise<CloudSyn
     const uid = u.uid;
     const { get, ref, set } = await import('firebase/database');
     const snap = await get(ref(db, `profiles/${uid}`));
-    const remote = snap.exists() ? (snap.val() as PlayerProfile) : null;
+    // Normalize the cloud copy: RTDB omits empty arrays/objects/null, so the
+    // snapshot reads back with collections undefined. migrateProfile backfills
+    // them to a complete profile before merging (otherwise the merge threw and
+    // the save silently aborted — the "coins never persist" bug).
+    const remote = snap.exists() ? migrateProfile(snap.val() as Partial<PlayerProfile>) : null;
     const merged = remote ? mergeProfiles(profile, remote) : { ...profile, id: uid };
     merged.id = uid;
     await set(ref(db, `profiles/${uid}`), merged);

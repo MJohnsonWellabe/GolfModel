@@ -156,35 +156,46 @@ export function resetProfileRecords(profile: PlayerProfile, now = 0): PlayerProf
   return profile;
 }
 
+/**
+ * Fill a partial/sparse profile into a complete PlayerProfile, backfilling every
+ * missing field from the defaults. Critical for the CLOUD copy: Firebase RTDB
+ * does not store empty arrays/objects/null, so a saved profile reads back with
+ * `clubUpgrades`/`achievements`/`tournaments` absent (undefined) and
+ * `stats.bestRoundToPar` absent — feeding that raw into mergeProfiles would throw
+ * (`Object.keys(undefined)`). Normalizing through here first guarantees all
+ * collections are present. Shared by loadProfile and cloudSyncProfile.
+ */
+export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
+  const base = defaultProfile();
+  return {
+    ...base,
+    ...parsed,
+    v: 1,
+    // Backfill the grow-only coin counters for saves from before they existed:
+    // treat the whole current balance as "earned, none tracked-spent" so the
+    // balance is preserved and future spends/earns stay consistent.
+    coinsEarned: parsed.coinsEarned ?? parsed.coins ?? base.coinsEarned,
+    coinsSpent: parsed.coinsSpent ?? base.coinsSpent,
+    cosmetics: {
+      // Always keep the default-owned items, even for older saves.
+      owned: [...new Set([...base.cosmetics.owned, ...(parsed.cosmetics?.owned ?? [])])],
+      equipped: { ...base.cosmetics.equipped, ...(parsed.cosmetics?.equipped ?? {}) }
+    },
+    clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
+    achievements: [...(parsed.achievements ?? [])],
+    stats: { ...base.stats, ...(parsed.stats ?? {}) },
+    daily: { ...base.daily, ...(parsed.daily ?? {}) },
+    settings: { ...base.settings, ...(parsed.settings ?? {}) },
+    tournaments: [...(parsed.tournaments ?? [])]
+  };
+}
+
 export function loadProfile(storage: KVStorage | null = defaultStorage()): PlayerProfile {
   if (!storage) return defaultProfile();
   try {
     const raw = storage.getItem(KEY);
     if (!raw) return defaultProfile();
-    const parsed = JSON.parse(raw) as Partial<PlayerProfile>;
-    // Forward-compatible migrate: fill anything missing from the default
-    const base = defaultProfile();
-    return {
-      ...base,
-      ...parsed,
-      v: 1,
-      // Backfill the grow-only coin counters for saves from before they existed:
-      // treat the whole current balance as "earned, none tracked-spent" so the
-      // balance is preserved and future spends/earns stay consistent.
-      coinsEarned: parsed.coinsEarned ?? parsed.coins ?? base.coinsEarned,
-      coinsSpent: parsed.coinsSpent ?? base.coinsSpent,
-      cosmetics: {
-        // Always keep the default-owned items, even for older saves.
-        owned: [...new Set([...base.cosmetics.owned, ...(parsed.cosmetics?.owned ?? [])])],
-        equipped: { ...base.cosmetics.equipped, ...(parsed.cosmetics?.equipped ?? {}) }
-      },
-      clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
-      achievements: [...(parsed.achievements ?? [])],
-      stats: { ...base.stats, ...(parsed.stats ?? {}) },
-      daily: { ...base.daily, ...(parsed.daily ?? {}) },
-      settings: { ...base.settings, ...(parsed.settings ?? {}) },
-      tournaments: [...(parsed.tournaments ?? [])]
-    };
+    return migrateProfile(JSON.parse(raw) as Partial<PlayerProfile>);
   } catch {
     return defaultProfile();
   }
@@ -238,16 +249,28 @@ function mergeTournaments(
  * Merge a local and a cloud copy of the same player. Progress is never lost:
  * currency/xp take the max, collections union, career counters take the max
  * (they only ever grow), preferences follow the most recently updated copy.
+ *
+ * Every collection access is null-coalesced because a cloud copy from Firebase
+ * RTDB comes back with empty arrays/objects/null OMITTED (undefined) — feeding
+ * that raw in used to throw `Object.keys(undefined)` and silently abort the save.
+ * (Callers should still normalize via migrateProfile; this is defense in depth.)
  */
 export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile {
   const newer = a.updatedAt >= b.updatedAt ? a : b;
+  const aStats = a.stats ?? emptyCareerStats();
+  const bStats = b.stats ?? emptyCareerStats();
+  const aClub = a.clubUpgrades ?? {};
+  const bClub = b.clubUpgrades ?? {};
+  const aOwned = a.cosmetics?.owned ?? [];
+  const bOwned = b.cosmetics?.owned ?? [];
   const stats: CareerStats = { ...emptyCareerStats() };
   (Object.keys(stats) as Array<keyof CareerStats>).forEach((k) => {
     if (k === 'bestRoundToPar') {
-      const vals = [a.stats.bestRoundToPar, b.stats.bestRoundToPar].filter((v): v is number => v !== null);
+      // Reject undefined too (RTDB drops a null best-round) so Math.min can't NaN.
+      const vals = [aStats.bestRoundToPar, bStats.bestRoundToPar].filter((v): v is number => v != null);
       stats.bestRoundToPar = vals.length ? Math.min(...vals) : null;
     } else {
-      (stats[k] as number) = Math.max(a.stats[k] as number, b.stats[k] as number);
+      (stats[k] as number) = Math.max((aStats[k] as number) ?? 0, (bStats[k] as number) ?? 0);
     }
   });
   // Coins are SPENDABLE, so neither a plain max (resurrects spent currency) nor
@@ -265,21 +288,21 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     coinsEarned,
     coinsSpent,
     coins: Math.max(0, coinsEarned - coinsSpent),
-    xp: Math.max(a.xp, b.xp),
-    level: Math.max(a.level, b.level),
+    xp: Math.max(a.xp ?? 0, b.xp ?? 0),
+    level: Math.max(a.level ?? 1, b.level ?? 1),
     cosmetics: {
-      owned: [...new Set([...a.cosmetics.owned, ...b.cosmetics.owned])],
-      equipped: newer.cosmetics.equipped
+      owned: [...new Set([...aOwned, ...bOwned])],
+      equipped: newer.cosmetics?.equipped ?? {}
     },
     clubUpgrades: Object.fromEntries(
-      [...new Set([...Object.keys(a.clubUpgrades), ...Object.keys(b.clubUpgrades)])].map((k) => [
+      [...new Set([...Object.keys(aClub), ...Object.keys(bClub)])].map((k) => [
         k,
-        Math.max(a.clubUpgrades[k] ?? 0, b.clubUpgrades[k] ?? 0)
+        Math.max(aClub[k] ?? 0, bClub[k] ?? 0)
       ])
     ),
-    achievements: [...new Set([...a.achievements, ...b.achievements])],
+    achievements: [...new Set([...(a.achievements ?? []), ...(b.achievements ?? [])])],
     stats,
-    tournaments: mergeTournaments(a.tournaments, b.tournaments),
-    updatedAt: Math.max(a.updatedAt, b.updatedAt)
+    tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
+    updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
   };
 }
