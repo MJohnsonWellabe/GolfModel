@@ -473,7 +473,9 @@ export class PhysicsEngine {
           }
           // Topspin runs out, backspin checks up (GDD: "Topspin should
           // increase rollout. Backspin should reduce rollout.")
-          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, 0.05, 2);
+          // Ceiling 1.5 (was 2): even a stray high topspin can't more-than-double
+          // the bounce retention and quadruple the roll-out (input is capped too).
+          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, 0.05, 1.5);
           const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin) * spinKeep;
           vx *= keep;
           vy *= keep;

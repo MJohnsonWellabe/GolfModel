@@ -1454,12 +1454,14 @@ class HoleScene {
     const dx = e.clientX - this.swipeLast.x;
     const dy = e.clientY - this.swipeLast.y;
     this.swipeLast = { x: e.clientX, y: e.clientY };
-    // Swipe sideways = curve; swipe down = backspin, up = topspin. UNCAPPED —
-    // keep swiping for more spin (FB1). Remaining-flight authority tapers
-    // naturally because fewer steps remain to curve the ball.
+    // Swipe sideways = curve; swipe down = backspin, up = topspin. CAPPED so a
+    // hard topspin swipe can't turn a drive into a 440-yd runaway roll-out —
+    // top ±1.5 still gives a strong run / backspin-check, side ±2.5 keeps
+    // aggressive draw/fade shaping.
+    const cap = (v: number, m: number): number => Math.max(-m, Math.min(m, v));
     const ns = {
-      side: fl.spin.side + dx * 0.006,
-      top: fl.spin.top - dy * 0.006
+      side: cap(fl.spin.side + dx * 0.006, 2.5),
+      top: cap(fl.spin.top - dy * 0.006, 1.5)
     };
     if (ns.side === fl.spin.side && ns.top === fl.spin.top) return;
     fl.spin = ns;

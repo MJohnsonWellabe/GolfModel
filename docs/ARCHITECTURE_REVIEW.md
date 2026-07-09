@@ -8,6 +8,16 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09 (latest+2): cap topspin (drives ran to 440+)
+
+- **Topspin is now capped.** `applySwipeSpin` (`main.ts`) was explicitly UNCAPPED,
+  so a hard downward swipe set `spin.top` to 3-6+; that maxed the bounce-retention
+  ceiling (`spinKeep`), and a low/flat strike then ran the drive off the rough
+  onto the low-friction green → 440+ yd. Clamp the swipe: `top` ±1.5, `side` ±2.5
+  (draw/fade + backspin-check preserved). Lowered `spinKeep` ceiling 2→1.5 as a
+  backstop. New `tests/simulation/driver.test.ts`: worst case (low strike + max
+  topspin + 20mph tail) ≤ 370 yd on every hole (was 434). Carry unchanged (320).
+
 # Update — 2026-07-09 (latest+1): putting rebuild, driver aim-dot, flyover skip
 
 - **Putting is skill-based now — green break is LIVE.** Root cause of the "RNG"
