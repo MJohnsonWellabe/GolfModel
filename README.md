@@ -52,7 +52,8 @@ review is [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md).
 | Ace Challenge | Tee off a par 3 on repeat, chasing an all-time hole-in-one leaderboard |
 
 Play earns **XP, coins, levels and achievements**, plus a rotating **daily
-challenge** with a day-streak. Coins buy characters, ball/trail cosmetics and
+challenge** with a day-streak. Coins buy characters (25 in the roster — 5 free,
+the rest unlockable), ball/trail tints, outfit colorways, club skins and
 club-upgrade tiers in the **Store** (in-game currency only). Progress is stored
 per device and cloud-syncs when Firebase is configured, with a never-lose-progress
 merge. A **Reset Records** control in the profile clears stats and scores while

@@ -8,6 +8,47 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09 (later): Playtest FB9 — putting, cameras, trees, roster, apparel
+
+Second `2026-07-09` session (full detail in `docs/13_PLAYTEST_FB9_2026-07-09.md`).
+Note: this work happens on `claude/golf-playtest-feedback-0jjea8`, re-based onto
+`version2` (the branch had been cut from the unrelated betting-model repo).
+
+- **Putting** (`PhysicsEngine.integrateLaunch`, `config.ts`, `main.ts`,
+  `course3d.ts`): putter launch speed now uses a path-averaged roll friction
+  (`puttRollFriction`) so off-green putts reach their target while on-green pace
+  (and the Appendix-A make rates) stay bit-identical; a 3-ft auto-gimme
+  (`tryGimme`) in `main.ts`; the flagstick is pulled while putting
+  (`setPinPulled`); the visual cup/ring were shrunk to the physics capture
+  radius (no capture change); the putt camera sits higher/back to stop distance
+  foreshortening.
+- **Cameras / aim / shape** (`main.ts`, `StrikeControl`, `config.ts`): aim
+  readout clamps to the screen edge instead of hiding; `moveStrike` recomputes
+  the aim preview and side-spin is stronger (`sideSpinAccel` 30→46, wood
+  `spinEffectiveness` 0.22→0.32); the intro flyover is a staged tee→green travel;
+  the ball-follow camera looks at the ball and defers the green-framing swap.
+- **Trees** (`src/systems/treeField.ts` NEW — shared, pulled out of
+  `CourseTexture` to avoid a physics→rendering cycle): `PhysicsEngine` collides
+  against individual tree canopies (`nearTree`), not the whole polygon, and stops
+  rising balls too (dropped the `vz<0` gate; added `treeLaunchGrace`). Buildings
+  stay whole-polygon. `AIController.punchOutTarget` escapes trees toward open
+  ground (needs the engine's `surfaceAt`, already passed as the terrain reader).
+  Pine Alley re-authored so the centre tree guards one line, not the only line.
+- **Courses** (`sablebay.json`): smaller island green, par-4 left ocean + green
+  creek, par-5 forced carry. Both course sims gained a 20s timeout (heavier now).
+- **Roster** (`characters.ts`, `storeCatalog.ts`, `main.ts`): all 25 pack chibis
+  wired; select shows the full roster with lock/price badges routing to the
+  Store; 5 free / 20 unlockable. `portrait.html` + `src/portrait.ts` +
+  `scripts/gen-portraits.mjs` (`npm run portraits`) render all portraits.
+- **Modes / accounts** (`main.ts`, `types.ts`, `FirebaseClient.ts`): Ace
+  Challenge is the 4th wizard mode (its Course step picks any course's par 3);
+  `googleLinked()` + a main-menu "Link Google" entry point; the menu-bar ace link
+  is gone.
+- **Apparel + tournament history** (`golfer3d.ts`, `StoreEngine`, `Profile`):
+  outfit colorway (albedo multiply on the single `characters` material — the
+  chibi has no separable garments) + procedural club-skin tint, equippable like
+  ball/trail; `PlayerProfile.tournaments[]` history + a "My Tournaments" list.
+
 # Update — 2026-07-09: Phase 9 — polish, accessibility, docs, RC
 
 - **Reset Records** (profile): a two-step confirm clears career stats,
