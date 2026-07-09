@@ -840,15 +840,33 @@ class HoleScene {
   private updateAimReadout(target: { x: number; y: number }): void {
     const bx = this.state.ballPos.x;
     const by = this.state.ballPos.y;
-    const yd = Math.hypot(target.x - bx, target.y - by) / PX_PER_YARD;
+    const dxp = target.x - bx;
+    const dyp = target.y - by;
+    const yd = Math.hypot(dxp, dyp) / PX_PER_YARD;
     const distLabel = this.aim.isPutting ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`;
-    // Elevation from the real terrain (world units → feet: 1 unit = 1.5 ft)
-    const elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;
+    let elevFt: number;
+    if (this.aim.isPutting) {
+      // Greens are flat-topped plateaus, so the terrain heightfield reads level
+      // on the green — derive uphill/downhill from the authored green break
+      // instead (slope.angle points DOWNHILL). Playtest FB9: the putt readout
+      // must show up/down.
+      const s = this.hole.slope;
+      const len = Math.hypot(dxp, dyp) || 1;
+      const distFt = (len / PX_PER_YARD) * 3;
+      const downhill = (dxp * Math.cos(s.angle) + dyp * Math.sin(s.angle)) / len;
+      elevFt = -downhill * distFt * s.strength * 0.09; // strength 1.0 ≈ a 9% grade
+    } else {
+      // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)
+      elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;
+    }
     let elevLabel = '';
-    if (Math.abs(elevFt) >= 0.5) {
+    const shows = this.aim.isPutting ? Math.abs(elevFt) >= 0.08 : Math.abs(elevFt) >= 0.5;
+    if (shows) {
       const mag = Math.abs(elevFt);
       const amount = mag < 1 ? `${Math.round(mag * 12)}"` : `${mag.toFixed(1)} ft`;
-      elevLabel = `<span class="elev">${elevFt > 0 ? '▲' : '▼'} ${amount}</span>`;
+      elevLabel = `<span class="elev">${elevFt > 0 ? '▲ uphill' : '▼ downhill'} ${amount}</span>`;
+    } else if (this.aim.isPutting) {
+      elevLabel = `<span class="elev">• level</span>`;
     }
     aimReadoutEl.innerHTML = `<span>${distLabel}</span>${elevLabel}`;
     this.aimReadoutWorld = { x: target.x, y: target.y };
@@ -2385,8 +2403,8 @@ function renderCourse(): void {
   stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.courseId = (el as HTMLElement).dataset.course!;
-      const sub = document.getElementById('subtitle');
-      if (sub) sub.textContent = COURSES[sel.courseId].name;
+      // The menu subtitle stays "3 Hole Challenge" (playtest FB9) — it no longer
+      // echoes the selected course name.
       renderCourse();
     })
   );

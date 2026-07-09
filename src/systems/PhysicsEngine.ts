@@ -20,6 +20,18 @@ import {
  *  collar still reads at gameplay camera distance (survives mip averaging). */
 export const FRINGE_MARGIN = 32;
 
+/** Shortest distance from point (px,py) to the segment (ax,ay)-(bx,by), world
+ *  px. Used for swept cup capture so a fast putt crossing the hole between two
+ *  simulation samples is still detected. */
+function distToSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
 export interface ShotParams {
   origin: Point;
   /** Aim direction in radians (world space). */
@@ -273,7 +285,11 @@ export class PhysicsEngine {
     // (with the tight cup) produces the Appendix A make-rate curve. Grows
     // superlinearly with length: lag pace is the hard part of long putts.
     if (club.id === 'putter' && !params.preview) {
-      const paceMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 1.7 : 2.9;
+      // A PERFECT stroke lags tight (base noise) so hitting the pace target
+      // reliably finishes near the hole (playtest FB9 — no more 20ft-short
+      // "perfect" long putts); mishits scatter hard, so difficulty comes from
+      // striking the meter, not random perfect strokes.
+      const paceMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 3 : 6;
       const sigmaPx = PHYSICS.puttPaceNoise * carryPx * (1 + carryPx / PHYSICS.puttPaceGrowPx) * paceMult;
       carryPx = Math.max(2, carryPx + gaussianOf(this.rng, 0, sigmaPx));
     } else if (!params.preview) {
@@ -528,8 +544,21 @@ export class PhysicsEngine {
         vx += Math.cos(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;
         vy += Math.sin(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;
       }
-      x += vx * dt;
-      y += vy * dt;
+      // Swept cup capture: a firm putt can cross the cup between two samples
+      // with neither endpoint inside cupRadius. Test the whole step segment so
+      // an on-line putt at capturable pace still drops rather than skimming past
+      // (playtest FB9 — "rolled right over the hole").
+      const nx = x + vx * dt;
+      const ny = y + vy * dt;
+      if (speed < PHYSICS.cupCaptureSpeed && distToSegment(hole.pin.x, hole.pin.y, x, y, nx, ny) < PHYSICS.cupRadius) {
+        holed = true;
+        x = hole.pin.x;
+        y = hole.pin.y;
+        path.push({ x, y, z: 0 });
+        break;
+      }
+      x = nx;
+      y = ny;
       path.push({ x, y, z: 0 });
     }
 

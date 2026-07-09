@@ -99,8 +99,11 @@ export const PHYSICS = {
   treeKillSpeed: 30,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
-  /** Cup capture radius, world px (0.45yd — Appendix A make-rate pass). */
-  cupRadius: 0.9,
+  /** Cup capture radius, world px. Kept near the original tight size; the
+   *  swept-segment capture (PhysicsEngine) is what fixes an on-line putt
+   *  "rolling over the hole" (it catches a ball crossing the cup between
+   *  simulation samples), not a bigger hole (playtest FB9). */
+  cupRadius: 0.95,
   /** Max roll speed (px/s) at which the cup can capture the ball. A putt
    *  dying at the hole crosses the capture radius at ~16px/s (√(2μr)), so
    *  this must stay above that or perfect-pace putts would never drop; 22
@@ -120,10 +123,12 @@ export const PHYSICS = {
    *  tail (<0.01px) never biases putt pace. */
   rollStopSpeed: 1,
   /** Putt pace noise on a perfect stroke: 1σ = puttPaceNoise · roll ·
-   *  (1 + roll/puttPaceGrowPx) px — superlinear so long putts get harder,
-   *  producing the Appendix A make-rate curve. */
-  puttPaceNoise: 0.1,
-  puttPaceGrowPx: 21,
+   *  (1 + roll/puttPaceGrowPx) px. Retuned hard on playtest feedback — the old
+   *  values gave a "perfect" 70ft putt a ~30ft 1σ error (it could finish 20ft+
+   *  short). Now a perfect lag putt finishes within a few feet; long-putt
+   *  difficulty comes from reading the break, not random pace. */
+  puttPaceNoise: 0.045,
+  puttPaceGrowPx: 70,
   /** Ground roll friction (px/s²) per surface. */
   friction: {
     tee: 500,
@@ -140,7 +145,9 @@ export const PHYSICS = {
     tee: 0.32,
     fairway: 0.32,
     rough: 0.2,
-    sand: 0.04,
+    // Sand plugs: a ball that lands in a bunker keeps zero horizontal speed, so
+    // it never skips/bounces out — it stays put until the next shot (FB9).
+    sand: 0,
     fringe: 0.35,
     green: 0.3,
     water: 0,
@@ -160,8 +167,8 @@ export const PHYSICS = {
   /** How strongly player spin input affects each club family (GDD Phase 4:
    *  driver ~0.2 → wedge 1.0; spin "should never feel exaggerated"). */
   spinEffectiveness: {
-    wood: 0.32,
-    iron: 0.6,
+    wood: 0.5,
+    iron: 0.75,
     wedge: 1.0,
     putter: 0
   } as Record<string, number>,
@@ -177,10 +184,9 @@ export const PHYSICS = {
     trees: 0.4
   } as Record<string, number>,
   /** Sideways curve acceleration (px/s²) at full side spin, before the
-   *  per-club effectiveness scaling. Raised so a chosen draw/fade visibly bends
-   *  the flight (and the matching aim-dot preview) into a real strategic tool
-   *  without feeling exaggerated (playtest FB9). */
-  sideSpinAccel: 46,
+   *  per-club effectiveness scaling. Tuned up twice on playtest feedback so a
+   *  chosen draw/fade produces a clearly visible, usable bend on every club. */
+  sideSpinAccel: 78,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */

@@ -2,7 +2,7 @@ import { SpinState } from '../types';
 import { clamp } from '../../utils/Geometry';
 
 /** Max deterministic side curve from a full left/right strike. */
-const SHAPE_STRENGTH = 0.75;
+const SHAPE_STRENGTH = 0.95;
 /** Launch-angle swing from a full top/bottom strike. */
 const LAUNCH_STRENGTH = 0.24;
 
