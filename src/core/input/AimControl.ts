@@ -1,4 +1,4 @@
-import { PHYSICS, PX_PER_YARD } from '../../config';
+import { PHYSICS, PX_PER_YARD, SWING } from '../../config';
 import { CLUBS } from '../../data/clubs';
 import { effectiveCarryYards, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { angleTo, clamp, dist } from '../../utils/Geometry';
@@ -73,12 +73,26 @@ export class AimControl {
   }
 
   /**
-   * Full-bar distance in world px. Putts scale the bar to the aim spot:
-   * a full stroke rolls exactly to where you're aiming, so aiming farther
-   * makes every real distance a smaller fraction of the bar.
+   * Full-bar distance in world px. The putt bar is FIXED-length: its power
+   * target always sits at the same spot (SWING.fullPowerMark) and a perfect
+   * strike there rolls the ball exactly to the aim spot — a 4-ft putt and a
+   * 40-ft putt show an identical bar, only the aim spot differs. So the aim
+   * distance is baked into the bar's scale instead of into the target
+   * position: fullPowerMark maps to the (slope-adjusted) aim distance.
+   *
+   * Slope-aware: reaching the aim spot uphill needs more power, downhill less,
+   * because the rolling decel along the aim line is (mu - a_parallel); the
+   * flat-equivalent roll to feed the physics is aimDist·(mu - a_par)/mu. The
+   * engine samples the real terrain gradient when the hole has one.
    */
   meterScalePx(ctx: ShotContext): number {
-    return this.isPutting ? this.distPx : this.maxCarryPx(ctx);
+    if (!this.isPutting) return this.maxCarryPx(ctx);
+    const mu = PHYSICS.friction.green;
+    const aPar = this.engine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
+    // Clamp the slope factor so a steep downhill can't collapse the bar to zero
+    // (or flip it negative) and a steep uphill can't blow it up unboundedly.
+    const slopeFactor = clamp((mu - aPar) / mu, 0.4, 2.2);
+    return (this.distPx * slopeFactor) / SWING.fullPowerMark;
   }
 
   /** Where the power target line sits on the bar for the current aim. */
@@ -86,16 +100,10 @@ export class AimControl {
     if (!this.isPutting) {
       return clamp(this.distPx / this.maxCarryPx(ctx), 0.15, 1);
     }
-    // Putts: the target is the power needed to reach the HOLE, as a fraction
-    // of a full stroke to the aim spot — aim farther and the target slides
-    // toward the start of the bar. Slope-aware: uphill needs more,
-    // downhill less (rolling decel along the aim is mu - a_parallel). The
-    // engine samples the real terrain gradient when the hole has one.
-    const pinDist = dist(ctx.ball, this.hole.pin);
-    const mu = PHYSICS.friction.green;
-    const aPar = this.engine.slopeAccelAlong(ctx.ball, this.yaw, pinDist);
-    const effectivePinDist = pinDist * ((mu - aPar) / mu);
-    return clamp(effectivePinDist / this.distPx, 0.05, 1);
+    // Putts: the target ALWAYS sits at the same fixed spot on the bar. The aim
+    // distance lives in meterScalePx instead, so a perfect strike here rolls
+    // exactly to the aim spot no matter the putt length.
+    return SWING.fullPowerMark;
   }
 
   /** Convert a bar fraction to the physics engine's power units. */
@@ -108,10 +116,11 @@ export class AimControl {
   resetAim(ctx: ShotContext): void {
     this.yaw = angleTo(ctx.ball, this.hole.pin);
     const pinDist = dist(ctx.ball, this.hole.pin);
-    // Putts default the aim spot ~30% past the cup so the target line
-    // starts around three-quarters of the bar.
+    // Putts default the aim spot AT the cup, so a perfect stroke rolls the
+    // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
+    // The player drags the aim past the hole to add pace.
     this.distPx = this.isPutting
-      ? clamp(pinDist * 1.3, 20, this.maxCarryPx(ctx))
+      ? clamp(pinDist, 6, this.maxCarryPx(ctx))
       : Math.min(pinDist, this.maxCarryPx(ctx));
   }
 
@@ -142,8 +151,8 @@ export class AimControl {
   cycleClub(dir: number, ctx: ShotContext): void {
     this.clubIdx = (this.clubIdx + dir + CLUBS.length) % CLUBS.length;
     if (this.isPutting) {
-      // Switching to the putter re-defaults the aim spot past the cup
-      this.distPx = clamp(dist(ctx.ball, this.hole.pin) * 1.3, 20, this.maxCarryPx(ctx));
+      // Switching to the putter re-defaults the aim spot AT the cup
+      this.distPx = clamp(dist(ctx.ball, this.hole.pin), 6, this.maxCarryPx(ctx));
     } else {
       // Keep aiming at the same spot when possible; clamp to the new club's reach
       this.distPx = Math.min(this.distPx, this.maxCarryPx(ctx));

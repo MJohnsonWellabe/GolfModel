@@ -30,7 +30,8 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
   if (!handles) {
     handles = (async () => {
       const { initializeApp } = await import('firebase/app');
-      const { getAuth, signInAnonymously } = await import('firebase/auth');
+      const { getAuth, signInAnonymously, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } =
+        await import('firebase/auth');
       const { getDatabase } = await import('firebase/database');
       const app = initializeApp({
         apiKey: FIREBASE.apiKey,
@@ -40,6 +41,19 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
         databaseURL: FIREBASE.databaseURL
       });
       const auth = getAuth(app);
+      // Persist the session (and therefore the uid) across reloads so progress
+      // stays attached to one account. Prefer IndexedDB, fall back to
+      // localStorage — without this, some browsers drop the anonymous/linked
+      // session and a new uid is minted, appearing to lose all progress.
+      try {
+        await setPersistence(auth, indexedDBLocalPersistence);
+      } catch {
+        try {
+          await setPersistence(auth, browserLocalPersistence);
+        } catch {
+          /* in-memory only — nothing more we can do */
+        }
+      }
       // Finalize a pending redirect-based link (the iOS-Safari fallback in
       // linkGoogleAccount) so the upgraded account is restored on return before
       // we'd otherwise sign in a fresh anonymous user.
@@ -147,35 +161,50 @@ export async function cloudSyncProfile(profile: PlayerProfile): Promise<PlayerPr
   }
 }
 
+/** Best human-readable name for a signed-in user. */
+function accountName(u: { displayName: string | null; email: string | null }): string {
+  return u.displayName ?? u.email ?? 'your account';
+}
+
 /**
- * Upgrade the anonymous session to a Google account (same uid, progress
- * kept). Popup first, redirect fallback for iOS Safari. Returns the linked
- * display name, or null if linking failed / was dismissed.
+ * Upgrade the anonymous session to a Google account (same uid, progress kept),
+ * using a SINGLE popup. If that Google account already has its own Firebase
+ * user (credential-already-in-use), we reuse the credential from the same popup
+ * to sign into it — no second popup — and cloudSyncProfile merges the local
+ * profile up afterwards. Returns the real Google display name (or email), or
+ * null if linking failed / was dismissed, or 'redirect' on the iOS fallback.
  */
 export async function linkGoogleAccount(): Promise<string | null> {
   if (!authConfigured()) return null;
   try {
     const { auth } = await ensureFirebase();
-    const { GoogleAuthProvider, linkWithPopup, linkWithRedirect } = await import('firebase/auth');
+    const { GoogleAuthProvider, linkWithPopup, linkWithRedirect, signInWithCredential } = await import('firebase/auth');
     const user = auth.currentUser;
     if (!user) return null;
     const provider = new GoogleAuthProvider();
     try {
       const res = await linkWithPopup(user, provider);
-      return res.user.displayName ?? res.user.email ?? 'linked';
+      await res.user.reload().catch(() => undefined);
+      return accountName(auth.currentUser ?? res.user);
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
-      if (code.includes('popup')) {
+      // Only fall back to a redirect when popups genuinely can't be used (iOS
+      // Safari); a user-closed popup should just cancel, not redirect.
+      if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-environment') {
         await linkWithRedirect(user, provider);
         return 'redirect';
       }
-      if (code === 'auth/credential-already-in-use') {
-        // Account exists: sign into it instead (cloud copy will merge in)
-        const { signInWithPopup } = await import('firebase/auth');
-        const res = await signInWithPopup(auth, provider);
-        return res.user.displayName ?? 'linked';
+      if (code === 'auth/credential-already-in-use' || code === 'auth/email-already-in-use') {
+        const cred = GoogleAuthProvider.credentialFromError(
+          e as Parameters<typeof GoogleAuthProvider.credentialFromError>[0]
+        );
+        if (cred) {
+          const res = await signInWithCredential(auth, cred);
+          await res.user.reload().catch(() => undefined);
+          return accountName(auth.currentUser ?? res.user);
+        }
       }
-      return null;
+      return null; // popup closed / cancelled / unusable
     }
   } catch {
     return null;

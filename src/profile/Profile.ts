@@ -218,7 +218,11 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
   });
   return {
     ...newer,
-    coins: Math.max(a.coins, b.coins),
+    // Coins are SPENDABLE, so a plain max would resurrect currency the player
+    // just spent (buy an item on this device, sync, and the pre-spend cloud
+    // balance overwrites the debit). Take the most-recently-updated copy's
+    // balance instead — last write wins — so spends and earnings both persist.
+    coins: newer.coins,
     xp: Math.max(a.xp, b.xp),
     level: Math.max(a.level, b.level),
     cosmetics: {

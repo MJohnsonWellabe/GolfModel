@@ -99,11 +99,15 @@ describe('spin physics', () => {
     expect(wedgeCurve).toBeGreaterThan(driverCurve * 1.5);
   });
 
-  it('spin never feels exaggerated: max wedge curve stays modest', () => {
+  it('shot shaping bends visibly but not cartoonishly: max wedge curve is strong yet bounded', () => {
+    // Playtest FB: shot-shaping impact was doubled (config sideSpinAccel) so a
+    // chosen draw/fade produces an obvious, usable bend. The ceiling still
+    // guards the GDD's "spin should never feel exaggerated" — a full-spin wedge
+    // curves ~20yd, not off the map.
     const fade = shoot('pw', 0.9, { side: 1, top: 0 });
     const curveYd = Math.abs(fade.finalPos.x - 1500) / 2;
-    expect(curveYd).toBeLessThan(14);
-    expect(curveYd).toBeGreaterThan(1);
+    expect(curveYd).toBeLessThan(26);
+    expect(curveYd).toBeGreaterThan(8);
   });
 
   it('low trajectory cuts wind better than high (Phase 2 altitude wind)', () => {

@@ -57,14 +57,17 @@ describe('mergeProfiles — progress is never lost', () => {
     return [a, b];
   }
 
-  it('coins/xp take the max regardless of recency', () => {
-    const [a, b] = pair();
+  it('coins follow the most recent copy (spend must persist); xp still takes the max', () => {
+    const [a, b] = pair(); // a.updatedAt=100, b.updatedAt=200 → b is newer
     a.coins = 500;
-    b.coins = 90;
+    b.coins = 90; // spent down on the newer device
     a.xp = 1000;
     b.xp = 2500;
     const m = mergeProfiles(a, b);
-    expect(m.coins).toBe(500);
+    // Coins are SPENDABLE: a plain max would resurrect currency the player just
+    // spent, so the balance follows the last write instead of the max.
+    expect(m.coins).toBe(90);
+    // XP only ever grows, so it stays a max regardless of recency.
     expect(m.xp).toBe(2500);
   });
 

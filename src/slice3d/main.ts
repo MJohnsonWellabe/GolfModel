@@ -28,7 +28,7 @@ import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
-import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
   fetchTournament,
@@ -44,7 +44,7 @@ import {
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, cloudSyncProfile, cloudUid, linkedAccountName, linkGoogleAccount, signOutAccount } from '../firebase/FirebaseClient';
-import { CosmeticKind, loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { CosmeticKind, loadProfile, mergeProfiles, PlayerProfile, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -1636,10 +1636,7 @@ function showSummary(): void {
   const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
   const events = applyRound(profile, rstats, todayKey());
   saveProfile(profile);
-  void cloudSyncProfile(profile).then((merged) => {
-    Object.assign(profile, merged);
-    saveProfile(profile);
-  });
+  void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
 
   const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   summaryEl.innerHTML =
@@ -1751,8 +1748,6 @@ function renderProfile(): void {
     `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
     `<label class="setRow"><span>Reduced motion</span>` +
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
-    `<div id="resetZone" class="resetZone">` +
-    `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
     `</div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
@@ -1769,7 +1764,6 @@ function renderProfile(): void {
     p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
     saveProfile(p);
   });
-  document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
   wireAccountRow();
 }
 
@@ -1809,38 +1803,8 @@ function wireAccountRow(): void {
       // Keep the main-menu account control in sync too.
       renderAcctMenu();
       // Re-sync so the just-linked account immediately owns the current profile.
-      void cloudSyncProfile(profile).then((merged) => {
-        Object.assign(profile, merged);
-        saveProfile(profile);
-      });
+      void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
     });
-  });
-}
-
-/** Two-step Reset Records: the button swaps to an explicit confirm/cancel so a
- *  destructive wipe can't happen on a single tap (FB — reset records). */
-function confirmResetRecords(): void {
-  const zone = document.getElementById('resetZone');
-  if (!zone) return;
-  const sharedNote = isShared()
-    ? ` Scores already posted to the shared leaderboard stay there.`
-    : '';
-  zone.innerHTML =
-    `<div class="resetWarn">Clear career stats, achievements, XP and local scores? ` +
-    `Coins and unlocked items are kept.${sharedNote}</div>` +
-    `<div class="btnRow"><button id="resetYes" class="dangerBtn">Yes, reset</button>` +
-    `<button id="resetNo" class="ghostBtn">Cancel</button></div>`;
-  document.getElementById('resetNo')!.addEventListener('pointerdown', () => renderProfile());
-  document.getElementById('resetYes')!.addEventListener('pointerdown', () => {
-    resetProfileRecords(profile, Date.now());
-    saveProfile(profile);
-    clearLocalHistory();
-    void cloudSyncProfile(profile).then((merged) => {
-      Object.assign(profile, merged);
-      saveProfile(profile);
-    });
-    renderProfile();
-    updateDailyBanner();
   });
 }
 
@@ -1911,10 +1875,7 @@ function renderStore(): void {
         }
       }
       saveProfile(p);
-      void cloudSyncProfile(p).then((m) => {
-        Object.assign(p, m);
-        saveProfile(p);
-      });
+      void cloudSyncProfile(p).then((m) => applyCloudMerge(p, m));
       renderStore();
     })
   );
@@ -1979,10 +1940,7 @@ function closeOverlay(el: HTMLElement): void {
 function rememberTournament(code: string, name: string): void {
   profile.tournaments = [{ code, name }, ...profile.tournaments.filter((t) => t.code !== code)].slice(0, 30);
   saveProfile(profile);
-  void cloudSyncProfile(profile).then((m) => {
-    Object.assign(profile, m);
-    saveProfile(profile);
-  });
+  void cloudSyncProfile(profile).then((m) => applyCloudMerge(profile, m));
 }
 
 /** "My Tournaments" list: the events this player created or played, tap to reopen. */
@@ -2306,14 +2264,25 @@ const stepBodyEl = document.getElementById('stepBody')!;
 const backBtn = document.getElementById('backBtn') as HTMLButtonElement;
 const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
 
+/**
+ * Fold a resolved cloud-sync result back into a LIVE profile object. Because
+ * cloudSyncProfile is async, the local profile can change (a coin spend, a
+ * finished round) between a sync starting and its promise resolving — a blind
+ * Object.assign would then clobber that fresh local change with the stale
+ * pre-sync snapshot the cloud round-tripped. Re-merging with mergeProfiles
+ * keeps whichever copy is newer for spendable fields (coins) while still
+ * unioning collections, so late-resolving syncs can't undo a recent spend.
+ */
+function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
+  Object.assign(live, mergeProfiles(live, cloud));
+  saveProfile(live);
+}
+
 /** Persistent player profile — selections, currency, progression, stats. */
 const profile: PlayerProfile = loadProfile();
 // Fire-and-forget cloud sync (no-op until Firebase is configured; see
 // docs/FIREBASE_SETUP.md). Merged result is re-persisted locally.
-void cloudSyncProfile(profile).then((merged) => {
-  Object.assign(profile, merged);
-  saveProfile(profile);
-});
+void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
 
 /** The setup choices, prefilled from the profile so returning players jump
  *  straight to "Tee off". */
@@ -2630,10 +2599,7 @@ function renderAcctMenu(): void {
           btn.textContent = '🔗 Redirecting…';
           return;
         }
-        void cloudSyncProfile(profile).then((merged) => {
-          Object.assign(profile, merged);
-          saveProfile(profile);
-        });
+        void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
         showSignedIn(name);
       });
     });

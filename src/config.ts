@@ -184,9 +184,9 @@ export const PHYSICS = {
     trees: 0.4
   } as Record<string, number>,
   /** Sideways curve acceleration (px/s²) at full side spin, before the
-   *  per-club effectiveness scaling. Tuned up twice on playtest feedback so a
-   *  chosen draw/fade produces a clearly visible, usable bend on every club. */
-  sideSpinAccel: 78,
+   *  per-club effectiveness scaling. Tuned up repeatedly on playtest feedback so
+   *  a chosen draw/fade produces a strong, obvious, usable bend on every club. */
+  sideSpinAccel: 156,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */

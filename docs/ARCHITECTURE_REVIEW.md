@@ -369,10 +369,13 @@ tests/                 vitest unit tests (geometry, physics, scoring, turns,
    animates the ball along `outcome.path`, `GameHud` shows feedback, and
    `TurnManager`/`Scoring` advance the round.
 
-Putting note: the meter bar is rescaled so a full stroke rolls exactly to the
-*aim spot*; the power target line is slope-aware
-(`AimControl.barPowerTarget`). This is the subtlest math in the game — it has
-a dedicated seam and should be preserved through Phase 2 rebalancing.
+Putting note: the putt meter is FIXED-length — the power target line always
+sits at the same spot on the bar (`SWING.fullPowerMark`) so a 4-ft and a 40-ft
+putt look identical, and a perfect strike there rolls the ball exactly to the
+*aim spot*. The aim distance and slope are baked into the bar's scale
+(`AimControl.meterScalePx`: `aimDist·(μ − a_parallel)/μ / fullPowerMark`) rather
+than into the target position. This is the subtlest math in the game — it has a
+dedicated seam and mirrors the AI's putt-power calc in `AIController`.
 
 ---
 
