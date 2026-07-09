@@ -58,6 +58,7 @@ export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''):
 
   profile.xp += xp;
   profile.coins += coins;
+  profile.coinsEarned += coins; // grow-only lifetime tally (drives cloud merge)
   events.push({ kind: 'xp', amount: xp });
   events.push({ kind: 'coins', amount: coins });
 
@@ -90,6 +91,7 @@ export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''):
       profile.achievements.push(a.id);
       profile.xp += a.xp;
       profile.coins += a.coins;
+      profile.coinsEarned += a.coins; // grow-only lifetime tally
       events.push({ kind: 'achievement', name: a.name, desc: a.desc });
     }
   }

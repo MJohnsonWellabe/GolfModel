@@ -39,7 +39,15 @@ export interface PlayerProfile {
   name: string;
   character: CharacterKey;
   archetype: ArchetypeId;
+  /** Spendable balance. Invariant: coins === coinsEarned − coinsSpent. */
   coins: number;
+  /** Lifetime coins ever earned — grow-only, so it merges by max. */
+  coinsEarned: number;
+  /** Lifetime coins ever spent — grow-only, so it merges by max. Together
+   *  these let a spendable balance survive a cloud merge: a spend sticks
+   *  (spent only grows) and a fresh/empty local profile can never wipe the
+   *  cloud balance (earned only grows). */
+  coinsSpent: number;
   xp: number;
   level: number;
   cosmetics: {
@@ -113,6 +121,8 @@ export function defaultProfile(now = 0): PlayerProfile {
     character: 'chip',
     archetype: 'bigHitter',
     coins: 0,
+    coinsEarned: 0,
+    coinsSpent: 0,
     xp: 0,
     level: 1,
     cosmetics: { owned: [...DEFAULT_OWNED], equipped: { ...DEFAULT_EQUIPPED } },
@@ -158,6 +168,11 @@ export function loadProfile(storage: KVStorage | null = defaultStorage()): Playe
       ...base,
       ...parsed,
       v: 1,
+      // Backfill the grow-only coin counters for saves from before they existed:
+      // treat the whole current balance as "earned, none tracked-spent" so the
+      // balance is preserved and future spends/earns stay consistent.
+      coinsEarned: parsed.coinsEarned ?? parsed.coins ?? base.coinsEarned,
+      coinsSpent: parsed.coinsSpent ?? base.coinsSpent,
       cosmetics: {
         // Always keep the default-owned items, even for older saves.
         owned: [...new Set([...base.cosmetics.owned, ...(parsed.cosmetics?.owned ?? [])])],
@@ -216,13 +231,21 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
       (stats[k] as number) = Math.max(a.stats[k] as number, b.stats[k] as number);
     }
   });
+  // Coins are SPENDABLE, so neither a plain max (resurrects spent currency) nor
+  // last-write-wins (a fresh/empty local profile clobbers the cloud balance on
+  // login) is correct. Derive the balance from two GROW-ONLY lifetime counters
+  // that each merge cleanly by max: earned only grows, spent only grows, so a
+  // spend always sticks AND logging in on a wiped device never loses the cloud
+  // balance. Coalesce for pre-counter saves (earned falls back to the balance).
+  const aEarned = a.coinsEarned ?? a.coins ?? 0;
+  const bEarned = b.coinsEarned ?? b.coins ?? 0;
+  const coinsEarned = Math.max(aEarned, bEarned);
+  const coinsSpent = Math.max(a.coinsSpent ?? 0, b.coinsSpent ?? 0);
   return {
     ...newer,
-    // Coins are SPENDABLE, so a plain max would resurrect currency the player
-    // just spent (buy an item on this device, sync, and the pre-spend cloud
-    // balance overwrites the debit). Take the most-recently-updated copy's
-    // balance instead — last write wins — so spends and earnings both persist.
-    coins: newer.coins,
+    coinsEarned,
+    coinsSpent,
+    coins: Math.max(0, coinsEarned - coinsSpent),
     xp: Math.max(a.xp, b.xp),
     level: Math.max(a.level, b.level),
     cosmetics: {

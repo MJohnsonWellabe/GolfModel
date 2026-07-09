@@ -57,18 +57,53 @@ describe('mergeProfiles — progress is never lost', () => {
     return [a, b];
   }
 
-  it('coins follow the most recent copy (spend must persist); xp still takes the max', () => {
-    const [a, b] = pair(); // a.updatedAt=100, b.updatedAt=200 → b is newer
-    a.coins = 500;
-    b.coins = 90; // spent down on the newer device
+  it('a spend survives the merge (grow-only spent counter), xp still takes the max', () => {
+    const [a, b] = pair();
+    // Both started at 1000 earned; the newer copy (b) spent 910 down to 90.
+    a.coinsEarned = 1000;
+    a.coinsSpent = 0;
+    a.coins = 1000;
+    b.coinsEarned = 1000;
+    b.coinsSpent = 910;
+    b.coins = 90;
     a.xp = 1000;
     b.xp = 2500;
     const m = mergeProfiles(a, b);
-    // Coins are SPENDABLE: a plain max would resurrect currency the player just
-    // spent, so the balance follows the last write instead of the max.
+    // Spent only grows, so the debit isn't resurrected: 1000 − 910 = 90.
     expect(m.coins).toBe(90);
-    // XP only ever grows, so it stays a max regardless of recency.
-    expect(m.xp).toBe(2500);
+    expect(m.coinsSpent).toBe(910);
+    expect(m.xp).toBe(2500); // grow-only
+  });
+
+  it('logging in on a wiped device never loses the cloud balance', () => {
+    const [fresh, cloud] = pair(); // fresh.updatedAt=100 (older) ... make it NEWER
+    fresh.updatedAt = 300; // fresh empty profile is the most-recently-touched
+    // Fresh local profile after clearing browser data: nothing earned/spent.
+    fresh.coinsEarned = 0;
+    fresh.coinsSpent = 0;
+    fresh.coins = 0;
+    // The Google account in the cloud holds a real balance.
+    cloud.coinsEarned = 1000;
+    cloud.coinsSpent = 200;
+    cloud.coins = 800;
+    const m = mergeProfiles(fresh, cloud);
+    // earned/spent are grow-only, so the empty-but-newer local can't wipe it.
+    expect(m.coins).toBe(800);
+    expect(m.coinsEarned).toBe(1000);
+    expect(m.coinsSpent).toBe(200);
+  });
+
+  it('coalesces pre-counter saves (balance falls back into earned)', () => {
+    const [a, b] = pair();
+    // Legacy cloud copy written before the counters existed: only `coins`.
+    b.coinsEarned = undefined as unknown as number;
+    b.coinsSpent = undefined as unknown as number;
+    b.coins = 640;
+    a.coinsEarned = 0;
+    a.coinsSpent = 0;
+    a.coins = 0;
+    const m = mergeProfiles(a, b);
+    expect(m.coins).toBe(640); // legacy balance treated as earned, preserved
   });
 
   it('collections union, career counters max, best-round min', () => {

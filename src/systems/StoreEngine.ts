@@ -33,6 +33,7 @@ export function buyItem(profile: PlayerProfile, itemId: string): BuyResult {
   const check = canBuy(profile, item);
   if (!check.ok) return check;
   profile.coins -= item.price;
+  profile.coinsSpent += item.price; // grow-only lifetime tally (drives cloud merge)
   if (item.kind === 'clubUpgrade') {
     profile.clubUpgrades[item.upgrade!.family] = item.upgrade!.tier;
   } else {
