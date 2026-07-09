@@ -8,6 +8,31 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09 (latest): deploy-visibility, putt slope skill, cup pop-up
+
+- **Cloud-save now reports a status.** `cloudSyncProfile` returns
+  `{ profile, status: 'saved'|'denied'|'offline'|'skipped' }`
+  (`FirebaseClient.ts`); `main.ts` shows it (`showCloudStatus`) — a "✓ Saved",
+  an offline notice, or a loud "⚠ Cloud save failed — publish the DB rules"
+  (also on the account status line). This makes the invisible "coins vanished"
+  failure (RTDB rules not published) obvious. Sign-out/sign-in now also
+  re-render the setup wizard (`refreshWizardIfVisible`) so the on-screen NAME
+  clears/loads, not just the account button. NOTE: the account fix only takes
+  effect once merged to `version2` (Pages deploy branch) — the live site ran the
+  old build until then.
+- **Putting no longer auto-compensates for slope (gameplay change).**
+  `AimControl.meterScalePx` dropped its `slopeFactor`; a perfect strike is now
+  sized to the FLAT pace for the aim distance, so uphill putts come up short and
+  downhill run long — the player must read the break and aim further (the
+  "▲ uphill" chip is the cue). The AI is unaffected (it reads greens via its own
+  `AIController.rollSwing` slope math), and the sims bypass `meterScalePx`, so
+  `putting.test`/`scoring.test` stay green.
+- **Ball pops off the lip on a hard skip.** A putt crossing the cup at
+  `speed >= cupLipSpeed` injects a short cosmetic `z` hop into the path
+  (`PhysicsEngine` rolling loop) + a small pace scrub (`cupSkipPopPx`,
+  `cupSkipPaceScrub`), so a ball blown over the hole visibly catches the lip.
+  `z` never affects x/y/`holed`, so make-rates are unchanged.
+
 # Update — 2026-07-09 (later still): account-gated progression + honest-cup green rework
 
 - **Accounts are now gated on a real (Google) sign-in.** Removed the anonymous

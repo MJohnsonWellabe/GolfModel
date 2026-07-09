@@ -393,6 +393,12 @@ export class PhysicsEngine {
     }
 
     const maxSteps = 60 * 25;
+    // Cosmetic cup-skip hop: when a putt rolls over the cup too fast to drop, the
+    // ball pops up off the lip for a few samples (z only — never touches x/y or
+    // capture). hopLeft counts remaining samples, hopDur/hopPeak shape a parabola.
+    let hopLeft = 0;
+    let hopDur = 0;
+    let hopPeak = 0;
     for (let step = 0; step < maxSteps; step++) {
       if (!rolling) {
         // Airborne phase — wind bites harder the higher the ball flies
@@ -550,16 +556,36 @@ export class PhysicsEngine {
       // (playtest FB9 — "rolled right over the hole").
       const nx = x + vx * dt;
       const ny = y + vy * dt;
-      if (speed < PHYSICS.cupCaptureSpeed && distToSegment(hole.pin.x, hole.pin.y, x, y, nx, ny) < PHYSICS.cupRadius) {
+      const crossesCup = distToSegment(hole.pin.x, hole.pin.y, x, y, nx, ny) < PHYSICS.cupRadius;
+      if (speed < PHYSICS.cupCaptureSpeed && crossesCup) {
         holed = true;
         x = hole.pin.x;
         y = hole.pin.y;
         path.push({ x, y, z: 0 });
         break;
       }
+      // Rolled over the cup too fast to drop (a genuine skip, above the lip-out
+      // band) → pop up off the lip (cosmetic z) and scrub a little pace, so a
+      // ball blown over the hole visibly catches the lip like a real one. Gated
+      // above cupLipSpeed so makeable firm putts that rattle in don't hop; not
+      // during preview so the aim line stays flat.
+      if (!preview && crossesCup && speed >= PHYSICS.cupLipSpeed && hopLeft === 0) {
+        const over = (speed - PHYSICS.cupLipSpeed) / PHYSICS.cupLipSpeed;
+        hopPeak = PHYSICS.cupSkipPopPx * Math.min(2, 0.6 + over);
+        hopDur = 8;
+        hopLeft = hopDur;
+        vx *= PHYSICS.cupSkipPaceScrub;
+        vy *= PHYSICS.cupSkipPaceScrub;
+      }
       x = nx;
       y = ny;
-      path.push({ x, y, z: 0 });
+      let hopZ = 0;
+      if (hopLeft > 0) {
+        const t = (hopDur - hopLeft + 1) / hopDur; // 0..1 across the hop
+        hopZ = hopPeak * 4 * t * (1 - t); // parabola, peak at t=0.5
+        hopLeft--;
+      }
+      path.push({ x, y, z: hopZ });
     }
 
     // Clamp to the hole's world

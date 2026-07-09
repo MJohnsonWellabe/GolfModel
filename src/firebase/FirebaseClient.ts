@@ -138,21 +138,40 @@ export async function signOutAccount(): Promise<void> {
 }
 
 /**
+ * Outcome of a cloud sync, so the UI can show the player whether their progress
+ * actually reached the cloud:
+ *  - 'saved'   — pulled, merged, and wrote back successfully
+ *  - 'denied'  — permission denied: the RTDB rules for profiles/{uid} aren't
+ *                published (docs/FIREBASE_SETUP.md). THE cause of "coins vanish".
+ *  - 'offline' — network/other error; retried on the next sync
+ *  - 'skipped' — signed out or auth unconfigured (nothing to save)
+ */
+export type CloudSaveStatus = 'saved' | 'denied' | 'offline' | 'skipped';
+export interface CloudSyncResult {
+  profile: PlayerProfile;
+  status: CloudSaveStatus;
+}
+
+function isPermissionDenied(e: unknown): boolean {
+  const code = (e as { code?: string }).code ?? '';
+  const msg = (e as { message?: string }).message ?? String(e);
+  return /permission[_ ]?denied/i.test(code) || /permission[_ ]?denied/i.test(msg);
+}
+
+/**
  * Sync the profile with the cloud for a SIGNED-IN player: pull the stored copy,
  * merge (progress is never lost — see mergeProfiles), push the result. Returns
- * the merged profile, or the input unchanged when signed out / unreachable.
- * A permission-denied (rules not deployed) is logged rather than swallowed
- * silently, so the failure mode is visible in devtools instead of looking like
- * a mysterious reset-to-zero.
+ * the merged profile plus a status so the UI can confirm the save reached the
+ * cloud (or surface a rules/offline failure instead of a silent reset-to-zero).
  */
-export async function cloudSyncProfile(profile: PlayerProfile): Promise<PlayerProfile> {
-  if (!authConfigured()) return profile;
+export async function cloudSyncProfile(profile: PlayerProfile): Promise<CloudSyncResult> {
+  if (!authConfigured()) return { profile, status: 'skipped' };
   try {
     const { auth, db } = await ensureFirebase();
     const u = auth.currentUser;
     // Only signed-in players have a cloud profile — a signed-out session is
     // ephemeral and must never write to the cloud.
-    if (!u || u.isAnonymous) return profile;
+    if (!u || u.isAnonymous) return { profile, status: 'skipped' };
     const uid = u.uid;
     const { get, ref, set } = await import('firebase/database');
     const snap = await get(ref(db, `profiles/${uid}`));
@@ -160,13 +179,16 @@ export async function cloudSyncProfile(profile: PlayerProfile): Promise<PlayerPr
     const merged = remote ? mergeProfiles(profile, remote) : { ...profile, id: uid };
     merged.id = uid;
     await set(ref(db, `profiles/${uid}`), merged);
-    return merged;
+    return { profile: merged, status: 'saved' };
   } catch (e) {
-    // Offline is expected and fine; a permission-denied means the RTDB rules in
-    // docs/FIREBASE_SETUP.md aren't published — surface it so cross-device
-    // failures aren't invisible. Play continues on the in-memory profile.
-    console.warn('[cloud] profile sync failed (offline or rules not deployed):', e);
-    return profile;
+    const denied = isPermissionDenied(e);
+    console.warn(
+      denied
+        ? '[cloud] profile save DENIED — publish the RTDB rules (docs/FIREBASE_SETUP.md):'
+        : '[cloud] profile sync failed (offline); will retry:',
+      e
+    );
+    return { profile, status: denied ? 'denied' : 'offline' };
   }
 }
 

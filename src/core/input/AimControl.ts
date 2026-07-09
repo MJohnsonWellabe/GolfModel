@@ -1,4 +1,4 @@
-import { PHYSICS, PX_PER_YARD, SWING } from '../../config';
+import { PX_PER_YARD, SWING } from '../../config';
 import { CLUBS } from '../../data/clubs';
 import { effectiveCarryYards, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { angleTo, clamp, dist } from '../../utils/Geometry';
@@ -77,22 +77,18 @@ export class AimControl {
    * target always sits at the same spot (SWING.fullPowerMark) and a perfect
    * strike there rolls the ball exactly to the aim spot — a 4-ft putt and a
    * 40-ft putt show an identical bar, only the aim spot differs. So the aim
-   * distance is baked into the bar's scale instead of into the target
-   * position: fullPowerMark maps to the (slope-adjusted) aim distance.
+   * distance is baked into the bar's scale instead of into the target position:
+   * fullPowerMark maps to the FLAT-ground aim distance.
    *
-   * Slope-aware: reaching the aim spot uphill needs more power, downhill less,
-   * because the rolling decel along the aim line is (mu - a_parallel); the
-   * flat-equivalent roll to feed the physics is aimDist·(mu - a_par)/mu. The
-   * engine samples the real terrain gradient when the hole has one.
+   * NO slope compensation (by design): a perfect strike is sized to the flat
+   * pace for the aim distance, so uphill the ball naturally comes up short and
+   * downhill it runs long. Reading the break and aiming further is the player's
+   * skill — the "▲ uphill" readout is the only hint. (The AI reads greens on its
+   * own in AIController.rollSwing; this only governs the human's meter.)
    */
   meterScalePx(ctx: ShotContext): number {
     if (!this.isPutting) return this.maxCarryPx(ctx);
-    const mu = PHYSICS.friction.green;
-    const aPar = this.engine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
-    // Clamp the slope factor so a steep downhill can't collapse the bar to zero
-    // (or flip it negative) and a steep uphill can't blow it up unboundedly.
-    const slopeFactor = clamp((mu - aPar) / mu, 0.4, 2.2);
-    return (this.distPx * slopeFactor) / SWING.fullPowerMark;
+    return this.distPx / SWING.fullPowerMark;
   }
 
   /** Where the power target line sits on the bar for the current aim. */

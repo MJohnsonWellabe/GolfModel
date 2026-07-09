@@ -118,6 +118,14 @@ export const PHYSICS = {
    *  Beyond cupLipSpeed a way-too-fast putt skips clean. Narrow band so lip-outs
    *  are the occasional heartbreak, not routine (FB2). */
   cupLipSpeed: 31,
+  /** Visual-only: a putt that rolls over the cup too fast to drop pops UP off the
+   *  lip so there's real interaction (like a real ball). Peak hop (world px) at a
+   *  crossing exactly cupCaptureSpeed over the drop threshold; scales with how
+   *  hard it's rolling. Cosmetic — z never affects capture/roll (x,y). */
+  cupSkipPopPx: 1.1,
+  /** A hard skip over the lip also scrubs this fraction of pace (the ball clips
+   *  the far rim). Subtle so it doesn't distort where a screamer ends up. */
+  cupSkipPaceScrub: 0.92,
   /** Gimme: on a short putt, a slow ball near the cup drops even off-center —
    *  makes tap-ins reliable (FB2). Gated on the putt starting within
    *  gimmeShortPuttPx of the cup so long lag putts aren't gifted. */

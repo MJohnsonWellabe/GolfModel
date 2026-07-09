@@ -43,7 +43,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, CloudSaveStatus, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
@@ -93,6 +93,25 @@ function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
   msgEl.style.opacity = '1';
   setTimeout(() => (msgEl.style.opacity = '0'), ms);
+}
+
+/** Last cloud-save outcome, so the account UI can flag a persistent failure. */
+let lastCloudStatus: CloudSaveStatus = 'skipped';
+
+/**
+ * Reflect a cloud-sync outcome to the player so a failed save is visible instead
+ * of looking like vanished coins. `quiet` suppresses the reassuring "saved"
+ * toast for frequent actions (store taps) but never hides a failure.
+ */
+function showCloudStatus(status: CloudSaveStatus, quiet = false): void {
+  lastCloudStatus = status;
+  if (status === 'denied') {
+    showMsg('⚠ Cloud save failed — publish the database rules (FIREBASE_SETUP.md)', 3200);
+  } else if (status === 'offline') {
+    showMsg('⚠ Offline — progress will sync when you reconnect', 2200);
+  } else if (status === 'saved' && !quiet) {
+    showMsg('✓ Saved to your account', 1100);
+  }
 }
 
 const sounds: Record<string, number> = {
@@ -1688,7 +1707,11 @@ function showSummary(): void {
   const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
   const events = applyRound(profile, rstats, todayKey());
   persistProfile();
-  if (signedIn) void cloudSyncProfile(profile).then((merged) => applyCloudMerge(profile, merged));
+  if (signedIn)
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status);
+    });
 
   const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
@@ -1833,13 +1856,17 @@ function wireAccountRow(): void {
   if (!status || !btn) return;
   if (signedIn) {
     void linkedAccountName().then((name) => {
-      status.textContent = `✓ Signed in as ${name ?? 'your account'} — progress syncs across devices`;
+      status.textContent =
+        lastCloudStatus === 'denied'
+          ? `✓ Signed in as ${name ?? 'your account'} — ⚠ cloud saves are FAILING (publish the DB rules, FIREBASE_SETUP.md)`
+          : `✓ Signed in as ${name ?? 'your account'} — progress syncs across devices`;
     });
     btn.textContent = 'Log out';
     btn.onclick = () => {
       btn.disabled = true;
       void doSignOut().then(() => {
         renderAcctMenu();
+        refreshWizardIfVisible();
         renderProfile(); // reopen the overlay reflecting the empty signed-out state
       });
     };
@@ -1862,6 +1889,7 @@ function wireAccountRow(): void {
       }
       void adoptCloudAccount().then(() => {
         renderAcctMenu();
+        refreshWizardIfVisible();
         renderProfile(); // re-render with the account's coins/records now loaded
       });
     });
@@ -1936,7 +1964,11 @@ function renderStore(): void {
         }
       }
       persistProfile();
-      if (signedIn) void cloudSyncProfile(p).then((m) => applyCloudMerge(p, m));
+      if (signedIn)
+        void cloudSyncProfile(p).then((res) => {
+          applyCloudMerge(p, res.profile);
+          showCloudStatus(res.status, true); // quiet on success — store taps are frequent
+        });
       renderStore();
     })
   );
@@ -2001,7 +2033,11 @@ function closeOverlay(el: HTMLElement): void {
 function rememberTournament(code: string, name: string): void {
   profile.tournaments = [{ code, name }, ...profile.tournaments.filter((t) => t.code !== code)].slice(0, 30);
   persistProfile();
-  if (signedIn) void cloudSyncProfile(profile).then((m) => applyCloudMerge(profile, m));
+  if (signedIn)
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
 }
 
 /** "My Tournaments" list: the events this player created or played, tap to reopen. */
@@ -2374,9 +2410,10 @@ async function adoptCloudAccount(): Promise<void> {
     legacyMerged = true;
   }
   signedIn = true; // enable persistence before the sync writes back
-  const merged = await cloudSyncProfile(profile);
-  Object.assign(profile, merged);
+  const res = await cloudSyncProfile(profile);
+  Object.assign(profile, res.profile);
   saveProfile(profile); // cache the account locally for offline/reload
+  showCloudStatus(res.status);
   syncSelFromProfile();
 }
 
@@ -2400,6 +2437,13 @@ function syncSelFromProfile(): void {
   sel.name = profile.name;
   sel.character = (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey);
   sel.archetype = (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId);
+}
+
+/** Re-render the visible setup wizard so a sign-in/sign-out actually clears (or
+ *  loads) the on-screen name/character — not just the account button. Without
+ *  this the wizard's Name field keeps showing the previous account's name. */
+function refreshWizardIfVisible(): void {
+  if (setupEl.style.display !== 'none') goStep(sel.step);
 }
 
 // On boot, adopt the account only if a real Google session persists; otherwise
@@ -2729,7 +2773,10 @@ function renderAcctMenu(): void {
           btn.textContent = '🔑 Redirecting…';
           return;
         }
-        void adoptCloudAccount().then(() => showSignedIn(name));
+        void adoptCloudAccount().then(() => {
+          showSignedIn(name);
+          refreshWizardIfVisible();
+        });
       });
     });
   };
@@ -2738,7 +2785,10 @@ function renderAcctMenu(): void {
       `<div class="acctSignedIn"><span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
       `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
     document.getElementById('acctLogout')!.addEventListener('pointerdown', () => {
-      void doSignOut().then(() => showSignInButton());
+      void doSignOut().then(() => {
+        showSignInButton();
+        refreshWizardIfVisible();
+      });
     });
   };
   if (signedIn) {
