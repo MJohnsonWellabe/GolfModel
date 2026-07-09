@@ -154,17 +154,29 @@ export class PhysicsEngine {
    * fall back to the single authored green slope (green/fringe only).
    */
   breakAccel(x: number, y: number): { ax: number; ay: number } {
+    const surf = this.surfaceAt(x, y);
+    // The authored per-hole green break. Production greens are modelled as FLAT
+    // plateaus in the heightfield (so the ball sits), which means the heightfield
+    // gradient alone gives a green with NO break. Add the authored hole.slope on
+    // green/fringe so putts actually curve and gain/lose pace — and so the read
+    // matches the ▲uphill/▼downhill readout (also derived from hole.slope).
+    let ax = 0;
+    let ay = 0;
+    if (surf === 'green' || surf === 'fringe') {
+      const s = this.hole.slope;
+      ax += Math.cos(s.angle) * PHYSICS.slopeAccel * s.strength;
+      ay += Math.sin(s.angle) * PHYSICS.slopeAccel * s.strength;
+    }
+    // Macro-terrain roll (fairway/rough contours) comes from the heightfield.
+    // Off the green, dampen it so a steep downhill can't send a drive running out
+    // absurdly far (a drive should gain some yards downhill, not ~120).
     if (this.hf) {
       const g = this.hf.gradientAt(x, y);
-      return { ax: -g.x * PHYSICS.slopeGradAccel, ay: -g.y * PHYSICS.slopeGradAccel };
+      const grad = surf === 'green' || surf === 'fringe' ? 1 : PHYSICS.rollGradFairwayMult;
+      ax += -g.x * PHYSICS.slopeGradAccel * grad;
+      ay += -g.y * PHYSICS.slopeGradAccel * grad;
     }
-    const s = this.hole.slope;
-    const surf = this.surfaceAt(x, y);
-    if (surf !== 'green' && surf !== 'fringe') return { ax: 0, ay: 0 };
-    return {
-      ax: Math.cos(s.angle) * PHYSICS.slopeAccel * s.strength,
-      ay: Math.sin(s.angle) * PHYSICS.slopeAccel * s.strength
-    };
+    return { ax, ay };
   }
 
   /**
@@ -539,17 +551,12 @@ export class PhysicsEngine {
       const newSpeed = Math.max(0, speed - decel * dt);
       vx = (vx / speed) * newSpeed;
       vy = (vy / speed) * newSpeed;
-      // Slope: terrain gradient pushes the rolling ball downhill (legacy
-      // holes: the single authored green slope, green/fringe only)
-      if (this.hf) {
-        const b = this.breakAccel(x, y);
-        vx += b.ax * dt;
-        vy += b.ay * dt;
-      } else if (surf === 'green' || surf === 'fringe') {
-        const slope = hole.slope;
-        vx += Math.cos(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;
-        vy += Math.sin(slope.angle) * PHYSICS.slopeAccel * slope.strength * dt;
-      }
+      // Slope pushes the rolling ball: breakAccel combines the authored green
+      // break (green/fringe) with the heightfield contour (fairway/rough), so a
+      // putt reads and rolls with the same slope the readout shows.
+      const b = this.breakAccel(x, y);
+      vx += b.ax * dt;
+      vy += b.ay * dt;
       // Swept cup capture: a firm putt can cross the cup between two samples
       // with neither endpoint inside cupRadius. Test the whole step segment so
       // an on-line putt at capturable pace still drops rather than skimming past

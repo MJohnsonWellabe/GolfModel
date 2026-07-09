@@ -8,6 +8,31 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09 (latest+1): putting rebuild, driver aim-dot, flyover skip
+
+- **Putting is skill-based now — green break is LIVE.** Root cause of the "RNG"
+  feel: production greens are flat plateaus in the heightfield, so
+  `breakAccel` returned ≈0 on the green and the authored `hole.slope` was ignored
+  whenever a heightfield existed — yet the ▲/▼ readout used `hole.slope`. Now
+  `breakAccel` ADDS the authored `hole.slope` on green/fringe on top of the
+  heightfield contour, and the roll step always uses `breakAccel` (removed the
+  dead `else if`). So putts curve/gain/lose pace with the slope the readout
+  shows. `slopeAccel` 55→85 for a readable break; new `break.test.ts` proves a
+  straight putt on a sloped green misses and a flat green holes.
+- **Aim any distance.** The putt aim floor was 14px≈21ft in `moveDrag`/`placeAim`
+  (couldn't aim a short putt); now `isPutting ? 1 : 14` px everywhere.
+- **Driver reads as carry.** Carry is on-spec (320 at power 100); the aim
+  dot/ring/readout now mark the CARRY-landing (`updateAimVisuals` uses the first
+  z≤0 sample) instead of the post-rollout resting spot, so it reads ~320 and the
+  ball rolls out past it. Added `rollGradFairwayMult` (0.55) to dampen off-green
+  downhill roll so a drive can't run out absurdly (couldn't reproduce the 439 in
+  sim — max ~353 in extreme wind/strike/spin — this is insurance). Player aim
+  aids still ignore wind/slope (unchanged); the ▲/▼ + wind readouts stay as info.
+- **Flyover:** added an on-screen `#skipBtn` (shown in `playIntro`, hidden in
+  `beginTurn`/`dispose`, wired to `skipIntro`); opening frame now sits low right
+  behind the tee looking down the line (was high/aimed at mid-hole → read as an
+  overview at the honest scale).
+
 # Update — 2026-07-09 (latest): deploy-visibility, putt slope skill, cup pop-up
 
 - **Cloud-save now reports a status.** `cloudSyncProfile` returns

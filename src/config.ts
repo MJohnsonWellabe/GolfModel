@@ -62,11 +62,17 @@ export const PHYSICS = {
   dt: 1 / 60,
   /** Wind acceleration (px/s²) per mph of wind speed, applied while airborne. */
   windAccelPerMph: 9.0,
-  /** Downhill acceleration (px/s²) at slope strength 1.0 while rolling on the green. */
-  slopeAccel: 55,
+  /** Green break/downhill acceleration (px/s²) at slope strength 1.0 while
+   *  rolling on the green. Sized so authored per-hole slopes produce a readable,
+   *  skill-relevant break (a mid-length putt curves ~a cup-width+) and downhill
+   *  putts run meaningfully long — the player reads it and adjusts. */
+  slopeAccel: 85,
   /** Rolling acceleration (px/s²) per unit of heightfield gradient (height/px).
    *  A 0.1 gradient (steep) matches the legacy full-strength green slope. */
   slopeGradAccel: 550,
+  /** Fraction of the heightfield-gradient roll applied OFF the green (fairway/
+   *  rough), so a downhill drive gains yards without a runaway roll-out. */
+  rollGradFairwayMult: 0.55,
   /** Max wind speed, mph (GDD: ~20mph should change club selection). */
   maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */

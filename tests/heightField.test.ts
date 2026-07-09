@@ -3,6 +3,7 @@ import { buildHeightField, HeightField } from '../src/systems/HeightField';
 import { PhysicsEngine } from '../src/systems/PhysicsEngine';
 import { Golfer, HoleData } from '../src/core/types';
 import { clubById } from '../src/data/clubs';
+import { PHYSICS } from '../src/config';
 
 const flatHole: HoleData = {
   number: 1,
@@ -141,6 +142,6 @@ describe('PhysicsEngine + heightfield', () => {
     const engine = new PhysicsEngine(hole);
     // Putting straight downhill (yaw = slope angle): full positive assist
     const along = engine.slopeAccelAlong({ x: 1000, y: 350 }, Math.PI / 2, 100);
-    expect(along).toBeCloseTo(55 * 0.5, 5);
+    expect(along).toBeCloseTo(PHYSICS.slopeAccel * 0.5, 5);
   });
 });

@@ -79,6 +79,7 @@ const swingBtn = document.getElementById('swingBtn')!;
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
+const skipBtn = document.getElementById('skipBtn')!;
 const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
@@ -677,6 +678,7 @@ class HoleScene {
     const badge = document.getElementById('badge');
     if (badge) badge.innerHTML = `${round.course.name}<br />${h.name ?? 'Hole ' + h.number}`;
     bannerEl.style.opacity = '1';
+    skipBtn.style.display = 'block'; // let the player skip the flyover
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
 
@@ -690,9 +692,12 @@ class HoleScene {
     const teeH = this.gh(h.tee.x, h.tee.y);
     const midX = (h.tee.x + h.pin.x) / 2;
     const midY = (h.tee.y + h.pin.y) / 2;
-    // Start low, right behind the tee, looking down the length of the hole.
-    this.camera.position = w2b(h.tee.x, h.tee.y, 20 + teeH).subtract(g.scale(34));
-    this.camera.setTarget(w2b(midX, midY, this.gh(midX, midY)));
+    // Open LOW and tight right behind the tee, looking just down the line (not at
+    // mid-hole) so the first frame unmistakably reads "at the tee" before the
+    // camera glides downrange. (At the honest scale, the old high/mid-hole aim
+    // read as an overview.)
+    this.camera.position = w2b(h.tee.x, h.tee.y, 9 + teeH).subtract(g.scale(20));
+    this.camera.setTarget(w2b(h.tee.x, h.tee.y, teeH + 2).add(g.scale(42)));
 
     // Waypoint 1: rise off the tee and glide down the fairway toward mid-hole.
     this.camTarget.pos = w2b(midX, midY, 52).subtract(g.scale(30));
@@ -786,6 +791,7 @@ class HoleScene {
   }
 
   beginTurn(): void {
+    skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     if (this.tm.isScramble) {
       // Scramble: both teammates attempt from the shared team ball; the
       // better result becomes the new team ball (TurnManager owns the state).
@@ -867,20 +873,25 @@ class HoleScene {
     const by = this.state.ballPos.y;
     const span = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
     const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
-    // Full shots: sample the curved flight path so the dots trace the shape.
+    // Full shots: the dots/ring/readout mark the CARRY-LANDING (where the ball
+    // first touches down, ~320yd for a big-hitter driver) — not the post-rollout
+    // resting spot. So the number reads as carry (matches the GDD/expectation)
+    // and the ball visibly rolls out past the ring; the player judges the roll.
     // Putts: a straight aim/pace line to the chosen spot (read break yourself).
-    const target = this.aim.isPutting
-      ? this.aim.aimPoint(this.state.ballPos)
-      : path && path.length
-        ? path[path.length - 1]
-        : this.aim.aimPoint(this.state.ballPos);
-    const curved = !this.aim.isPutting && path && path.length > 4;
+    let landIdx = -1;
+    if (path && path.length) {
+      landIdx = path.findIndex((p, i) => i > 0 && p.z <= 0.01);
+      if (landIdx < 0) landIdx = path.length - 1;
+    }
+    const target =
+      this.aim.isPutting || landIdx < 0 ? this.aim.aimPoint(this.state.ballPos) : path![landIdx];
+    const curved = !this.aim.isPutting && landIdx > 4;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
       let dx: number;
       let dy: number;
       if (curved) {
-        const p = path![Math.min(path!.length - 1, Math.round(f * (path!.length - 1)))];
+        const p = path![Math.min(landIdx, Math.round(f * landIdx))];
         dx = p.x;
         dy = p.y;
       } else {
@@ -1393,9 +1404,14 @@ class HoleScene {
     this.onPrevClub = () => this.cycleClub(-1);
     this.onNextClub = () => this.cycleClub(1);
     this.onAerial = () => this.toggleAerial();
+    this.onSkip = (e) => {
+      e.preventDefault();
+      this.skipIntro();
+    };
     document.getElementById('prevClub')!.addEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.addEventListener('pointerdown', this.onNextClub);
     aerialBtn.addEventListener('pointerdown', this.onAerial);
+    skipBtn.addEventListener('pointerdown', this.onSkip);
 
     meter.onComplete = (result) => this.executeShot(result);
     meter.onBand = (kind, band) => {
@@ -1468,6 +1484,7 @@ class HoleScene {
   private onPrevClub!: () => void;
   private onNextClub!: () => void;
   private onAerial!: () => void;
+  private onSkip!: (e: Event) => void;
   private onStrikeDown!: (e: PointerEvent) => void;
   private onStrikeMove!: (e: PointerEvent) => void;
   private onStrikeUp!: () => void;
@@ -1618,6 +1635,8 @@ class HoleScene {
     document.getElementById('prevClub')!.removeEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.removeEventListener('pointerdown', this.onNextClub);
     aerialBtn.removeEventListener('pointerdown', this.onAerial);
+    skipBtn.removeEventListener('pointerdown', this.onSkip);
+    skipBtn.style.display = 'none';
     strikePadEl.removeEventListener('pointerdown', this.onStrikeDown);
     window.removeEventListener('pointermove', this.onStrikeMove);
     window.removeEventListener('pointerup', this.onStrikeUp);

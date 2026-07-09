@@ -116,7 +116,7 @@ export class AimControl {
     // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
     // The player drags the aim past the hole to add pace.
     this.distPx = this.isPutting
-      ? clamp(pinDist, 6, this.maxCarryPx(ctx))
+      ? clamp(pinDist, 1, this.maxCarryPx(ctx))
       : Math.min(pinDist, this.maxCarryPx(ctx));
   }
 
@@ -148,7 +148,7 @@ export class AimControl {
     this.clubIdx = (this.clubIdx + dir + CLUBS.length) % CLUBS.length;
     if (this.isPutting) {
       // Switching to the putter re-defaults the aim spot AT the cup
-      this.distPx = clamp(dist(ctx.ball, this.hole.pin), 6, this.maxCarryPx(ctx));
+      this.distPx = clamp(dist(ctx.ball, this.hole.pin), 1, this.maxCarryPx(ctx));
     } else {
       // Keep aiming at the same spot when possible; clamp to the new club's reach
       this.distPx = Math.min(this.distPx, this.maxCarryPx(ctx));
@@ -196,7 +196,9 @@ export class AimControl {
   /** Jump the aim to a world point (overhead mode: aim follows the finger). */
   placeAim(ctx: ShotContext, world: Point): void {
     this.yaw = angleTo(ctx.ball, world);
-    this.distPx = clamp(dist(ctx.ball, world), 14, this.maxCarryPx(ctx));
+    // Putts can be aimed right up to the cup (1px≈1.5ft); full shots keep a
+    // sane 14px≈21ft minimum so a tap never arms a near-zero swing.
+    this.distPx = clamp(dist(ctx.ball, world), this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
   }
 
   beginDrag(screen: Point): void {
@@ -224,7 +226,9 @@ export class AimControl {
     const dy = screen.y - this.dragLast.y;
     this.dragLast = { ...screen };
     this.yaw += dx * YAW_PER_PX;
-    this.distPx = clamp(this.distPx - dy * DIST_PER_PX, 14, this.maxCarryPx(ctx));
+    // Putts aim down to ~1.5ft so a short putt can be aimed at the cup (was a
+    // 21ft floor); full shots keep the 14px floor.
+    this.distPx = clamp(this.distPx - dy * DIST_PER_PX, this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
     return true;
   }
 
