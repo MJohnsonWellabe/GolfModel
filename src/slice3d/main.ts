@@ -321,6 +321,14 @@ class HoleScene {
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
   private introTimers: ReturnType<typeof setTimeout>[] = [];
   private static BALL_REST = 0.5;
+  /** Putting view uses honest scale so a 30-ft putt reads ~5× the golfer's
+   *  height (playtest: the oversized golfer/ball made putts look tiny). Only
+   *  the putt view changes — every other camera keeps the readable big scale. */
+  private static PUTT_GOLFER_SCALE = 0.55;
+  private static PUTT_BALL_SCALE = 0.72;
+  /** Current ball-mesh size multiplier (1 off the green, PUTT_BALL_SCALE on it)
+   *  so the ball rests on the surface at either size. */
+  private ballScale = 1;
 
   constructor(
     private onHoleComplete: (scores: number[]) => void,
@@ -545,7 +553,7 @@ class HoleScene {
     this.golfers.forEach((g, i) => g.root.setEnabled(i === this.turnIdx));
     this.balls.forEach((b, i) => {
       const c = this.comps[i];
-      b.position = w2b(c.ball.x, c.ball.y, HoleScene.BALL_REST + this.gh(c.ball.x, c.ball.y));
+      b.position = w2b(c.ball.x, c.ball.y, this.ballRestH() + this.gh(c.ball.x, c.ball.y));
       b.setEnabled(!c.holed && (!this.tm.isScramble || i === this.turnIdx));
     });
   }
@@ -577,13 +585,24 @@ class HoleScene {
       this.camTarget.k = 4;
       return;
     }
+    if (putt) {
+      // Putting frames the WHOLE ball→cup corridor at honest scale: the camera
+      // sits behind the ball and rises with the putt length, looking at a point
+      // ~60% down the line so both the ball (with the now person-sized golfer)
+      // and the hole are in frame. A 30-ft putt then reads as a long roll —
+      // ~5× the golfer's height — instead of foreshortening to a few feet.
+      const d = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
+      const back = 5 + d * 0.32;
+      const rise = 7 + d * 0.62;
+      this.camTarget.pos = base.subtract(f.scale(back)).add(new Vector3(0, rise, 0));
+      this.camTarget.look = base.add(f.scale(d * 0.6)).add(new Vector3(0, 0.4, 0));
+      this.camTarget.k = 4;
+      return;
+    }
     // Pitched-down vantage; pulled in a touch from behind/above the golfer so
     // the (larger) golfer reads clearly while the fairway still shows.
-    // The putt vantage sits higher and further back (~17° vs the old ~6°) so
-    // down-the-line distance no longer foreshortens — a 30ft putt reads as 30ft,
-    // not a few feet (playtest FB9).
-    this.camTarget.pos = base.subtract(f.scale(putt ? 14 : 26)).add(new Vector3(0, putt ? 13 : 18, 0));
-    this.camTarget.look = base.add(f.scale(putt ? 26 : 70)).add(new Vector3(0, putt ? 0.5 : 1, 0));
+    this.camTarget.pos = base.subtract(f.scale(26)).add(new Vector3(0, 18, 0));
+    this.camTarget.look = base.add(f.scale(70)).add(new Vector3(0, 1, 0));
     this.camTarget.k = 4;
   }
 
@@ -723,6 +742,20 @@ class HoleScene {
 
   // ---------------------------------------------------------------- turns
 
+  /** Resting-ball centre height above the ground, tracking the current ball
+   *  size so a shrunk putting ball still sits on the surface. */
+  private ballRestH(): number {
+    return HoleScene.BALL_REST * this.ballScale;
+  }
+
+  /** Apply the honest putting scale (or restore the readable big scale) to the
+   *  active golfer and every ball mesh for this turn. */
+  private applyViewScale(putting: boolean): void {
+    this.golfer.setSizeMult(putting ? HoleScene.PUTT_GOLFER_SCALE : 1);
+    this.ballScale = putting ? HoleScene.PUTT_BALL_SCALE : 1;
+    this.balls.forEach((b) => b.scaling.setAll(this.ballScale));
+  }
+
   beginTurn(): void {
     if (this.tm.isScramble) {
       // Scramble: both teammates attempt from the shared team ball; the
@@ -749,11 +782,12 @@ class HoleScene {
     }
     this.aim.autoSelectClub(this.ctx());
     this.aim.resetAim(this.ctx());
+    this.applyViewScale(this.aim.isPutting);
     const bp = this.state.ballPos;
     this.golfer.placeAt(bp.x, bp.y, this.aim.yaw, this.gh(bp.x, bp.y));
     this.golfer.setPose(0);
     this.golfer.aiming = true;
-    this.ball.position = w2b(bp.x, bp.y, HoleScene.BALL_REST + this.gh(bp.x, bp.y));
+    this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
     this.setPinPulled(this.aim.isPutting);
@@ -926,7 +960,7 @@ class HoleScene {
     this.ball.position = w2b(
       this.hole.pin.x,
       this.hole.pin.y,
-      HoleScene.BALL_REST + this.gh(this.hole.pin.x, this.hole.pin.y)
+      this.ballRestH() + this.gh(this.hole.pin.x, this.hole.pin.y)
     );
     play('putt');
     showMsg('Gimme — good!', 1100);
@@ -1453,7 +1487,7 @@ class HoleScene {
         this.afterShot(outcome);
       } else {
         const p = path[i];
-        this.ball.position = w2b(p.x, p.y, p.z + HoleScene.BALL_REST + this.gh(p.x, p.y));
+        this.ball.position = w2b(p.x, p.y, p.z + this.ballRestH() + this.gh(p.x, p.y));
         const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
         // Putts: zoom the camera in tight as the ball nears the cup (FB2).
         if (this.flight.isPutt && dCup < 46) {
@@ -1495,7 +1529,7 @@ class HoleScene {
 
     // Blob shadow tracks the ball's ground point (on the local built surface)
     const groundH = this.gh(this.ball.position.x, -this.ball.position.z);
-    const hgt = Math.max(0, this.ball.position.y - HoleScene.BALL_REST - groundH);
+    const hgt = Math.max(0, this.ball.position.y - this.ballRestH() - groundH);
     this.ballShadow.position.set(this.ball.position.x, groundH + 0.07, this.ball.position.z);
     const spread = 1 + Math.min(2.2, hgt * 0.014);
     this.ballShadow.scaling.set(spread, spread, spread);

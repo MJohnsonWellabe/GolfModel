@@ -364,12 +364,22 @@ export class Golfer3D {
 
   /** Place the golfer beside the ball, facing along the 2D aim yaw. */
   placeAt(ballX: number, ballY: number, yaw: number, groundH = 0): void {
-    // Stand a step left of the ball; offset widened for the larger golfer so
-    // the (now bigger) body doesn't overlap the ball at address.
-    const leftX = Math.cos(yaw + Math.PI / 2) * 2.9;
-    const leftY = Math.sin(yaw + Math.PI / 2) * 2.9;
+    // Stand a step left of the ball; the stance offset scales with the body so
+    // a shrunk (putting-view) golfer still addresses the ball at arm's length
+    // instead of a step away.
+    const leftX = Math.cos(yaw + Math.PI / 2) * 2.9 * this.sizeMult;
+    const leftY = Math.sin(yaw + Math.PI / 2) * 2.9 * this.sizeMult;
     this.root.position = w2b(ballX - leftX, ballY - leftY, groundH);
     this.root.rotation.y = yaw + Math.PI;
+  }
+
+  /** Overall size multiplier on top of GOLFER_SCALE. The putting view uses a
+   *  smaller golfer so a 30-ft putt reads at true scale (~5× the golfer's
+   *  height) instead of the oversized figure that dwarfs the putt. */
+  private sizeMult = 1;
+  setSizeMult(m: number): void {
+    this.sizeMult = m;
+    this.root.scaling.setAll(GOLFER_SCALE * m);
   }
 
   // ------------------------------------------------------------------- swing

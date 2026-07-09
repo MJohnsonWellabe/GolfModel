@@ -15,6 +15,7 @@ import {
   Vector3,
   VertexData
 } from '@babylonjs/core';
+import { PHYSICS } from '../config';
 import { animTime, isFrozen } from '../core/debugFlags';
 import {
   blobHash,
@@ -767,11 +768,11 @@ export function buildCourse(
   shadows.addShadowCaster(pole);
   shadows.addShadowCaster(flag);
 
-  // Cup: small dark disc at the pin, sitting on the green plateau. Sized to the
-  // physics capture radius (PHYSICS.cupRadius ≈ 1.1) so the drawn hole and the
-  // real hole coincide — what looks like "over the hole" is exactly what the
-  // swept capture catches (FB9).
-  const cup = MeshBuilder.CreateDisc('cup', { radius: 1.05, tessellation: 20 }, scene);
+  // Cup: small dark disc at the pin, sitting on the green plateau. Drawn at
+  // EXACTLY the physics capture radius so the hole you see is the hole that
+  // catches the ball — a putt that visibly crosses the black disc at a
+  // makeable pace drops, killing the "rolled right over the hole" miss (FB9).
+  const cup = MeshBuilder.CreateDisc('cup', { radius: PHYSICS.cupRadius, tessellation: 24 }, scene);
   cup.rotation.x = Math.PI / 2;
   cup.material = mat(scene, 'cupMat', 0x0c2410, { emissive: 0x081a0b });
   cup.position = w2b(hole.pin.x, hole.pin.y, pinBaseH + 0.06);
@@ -943,7 +944,11 @@ export function buildCourse(
   // White ring marks the open cup while the pin is pulled. Sized to the physics
   // capture radius so the target the player aims at is the target that actually
   // catches the ball (FB9) — no more "rolled right over the hole".
-  const cupRing = MeshBuilder.CreateTorus('cupRing', { diameter: 2.2, thickness: 0.17, tessellation: 24 }, scene);
+  const cupRing = MeshBuilder.CreateTorus(
+    'cupRing',
+    { diameter: PHYSICS.cupRadius * 2, thickness: 0.14, tessellation: 28 },
+    scene
+  );
   const cupRingM = new StandardMaterial('cupRingM', scene);
   cupRingM.emissiveColor = new Color3(0.95, 0.98, 0.95);
   cupRingM.disableLighting = true;
