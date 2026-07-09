@@ -205,6 +205,29 @@ export class PhysicsEngine {
   }
 
   /**
+   * Mean roll friction a putt crosses from its origin toward the aim, so the
+   * launch speed reaches the target distance from ANY lie — a putt started on
+   * fringe/rough needs more pace to travel the same distance (fixes "off-green
+   * putts go nowhere"). A putt that rolls entirely on the green averages to
+   * exactly friction.green, so on-green pace (and the Appendix-A make rates)
+   * is unchanged. Per-sample friction is capped at the rough value so a stray
+   * water/trees sample can't blow the launch speed up.
+   */
+  private puttRollFriction(origin: Point, dir: number, distPx: number): number {
+    const steps = 6;
+    const cap = PHYSICS.friction.rough;
+    const dx = Math.cos(dir);
+    const dy = Math.sin(dir);
+    let sum = 0;
+    for (let i = 0; i < steps; i++) {
+      const t = (distPx * (i + 0.5)) / steps;
+      const surf = this.surfaceAt(origin.x + dx * t, origin.y + dy * t);
+      sum += Math.min(PHYSICS.friction[surf] ?? PHYSICS.friction.green, cap);
+    }
+    return sum / steps;
+  }
+
+  /**
    * Simulate a full shot: flight, landing bounce, rollout, hazards, cup.
    * Split into resolveLaunch (all pre-flight randomness) + integrateLaunch
    * (the deterministic flight/roll) so mid-flight spin input can re-shape
@@ -308,10 +331,14 @@ export class PhysicsEngine {
     const shortPuttOrigin = Math.hypot(origin.x - hole.pin.x, origin.y - hole.pin.y) < PHYSICS.gimmeShortPuttPx;
 
     if (club.launchAngle <= 0) {
-      // Putter: pure roll. Speed chosen so friction on green stops it at
-      // carryPx. The half-kick term compensates the discrete integrator's
-      // systematic v0·dt/2 shortfall (decelerate-then-move Euler ordering).
-      const v0 = Math.sqrt(2 * PHYSICS.friction.green * carryPx) + (PHYSICS.friction.green * PHYSICS.dt) / 2;
+      // Putter: pure roll. Speed chosen so the friction the ball will ACTUALLY
+      // roll through stops it at carryPx — a putt off the green (fringe/rough)
+      // needs more pace to reach the same distance. On-green putts see only
+      // green friction, so their pace is unchanged. The half-kick term
+      // compensates the discrete integrator's systematic v0·dt/2 shortfall
+      // (decelerate-then-move Euler ordering).
+      const mu = this.puttRollFriction(origin, dir, carryPx);
+      const v0 = Math.sqrt(2 * mu * carryPx) + (mu * PHYSICS.dt) / 2;
       vx = Math.cos(dir) * v0;
       vy = Math.sin(dir) * v0;
       vz = 0;

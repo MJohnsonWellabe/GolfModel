@@ -573,8 +573,11 @@ class HoleScene {
     }
     // Pitched-down vantage; pulled in a touch from behind/above the golfer so
     // the (larger) golfer reads clearly while the fairway still shows.
-    this.camTarget.pos = base.subtract(f.scale(putt ? 11 : 26)).add(new Vector3(0, putt ? 4.5 : 18, 0));
-    this.camTarget.look = base.add(f.scale(putt ? 24 : 70)).add(new Vector3(0, putt ? 1 : 1, 0));
+    // The putt vantage sits higher and further back (~17° vs the old ~6°) so
+    // down-the-line distance no longer foreshortens — a 30ft putt reads as 30ft,
+    // not a few feet (playtest FB9).
+    this.camTarget.pos = base.subtract(f.scale(putt ? 14 : 26)).add(new Vector3(0, putt ? 13 : 18, 0));
+    this.camTarget.look = base.add(f.scale(putt ? 26 : 70)).add(new Vector3(0, putt ? 0.5 : 1, 0));
     this.camTarget.k = 4;
   }
 
@@ -714,6 +717,8 @@ class HoleScene {
       return;
     }
     this.state.phase = 'aiming';
+    // Anything inside gimme range is conceded before we ever arm the meter.
+    if (this.tryGimme()) return;
     if (round.mode === '1v1') {
       showMsg(`${this.curPart().golfer.name} to play`, 900);
     }
@@ -726,6 +731,7 @@ class HoleScene {
     this.ball.position = w2b(bp.x, bp.y, HoleScene.BALL_REST + this.gh(bp.x, bp.y));
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
+    this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
     promptEl.textContent = this.aim.isPutting
@@ -829,6 +835,7 @@ class HoleScene {
     this.aim.cycleClub(dir, this.ctx());
     this.puttGrid.setEnabled(this.aim.isPutting);
     this.course3d.greenRing.setEnabled(!this.aim.isPutting);
+    this.setPinPulled(this.aim.isPutting);
     this.armMeter();
     this.updateStrikeUI();
     this.updateAimVisuals();
@@ -838,6 +845,52 @@ class HoleScene {
 
   private refreshClubBar(): void {
     clubName.textContent = this.aim.club.name;
+  }
+
+  /** Pull (hide) the flagstick while putting so a putt can't clatter the flag
+   *  or hang up on the pin (playtest FB9). The open cup ring marks the hole. */
+  private setPinPulled(pulled: boolean): void {
+    this.course3d.pin.forEach((m) => m.setEnabled(!pulled));
+  }
+
+  /** Feet inside which a putt is conceded automatically (playtest FB9). */
+  private static readonly GIMME_FEET = 3;
+
+  /**
+   * Concede anything inside GIMME range: the ball is picked up and counted as
+   * holed with a single tap-in stroke — no putt required. Runs at the start of
+   * a turn when the player is already on the green within range. Returns true
+   * when the turn was consumed by the concession.
+   */
+  private tryGimme(): boolean {
+    if (this.onFirstShot) return false; // ace challenge is a single shot — never conceded
+    if (this.state.lie !== 'green') return false;
+    const ft = (dist(this.state.ballPos, this.hole.pin) / PX_PER_YARD) * 3;
+    if (ft > HoleScene.GIMME_FEET) return false;
+    const origin = { ...this.state.ballPos };
+    this.state.strokes += 1;
+    const outcome: ShotOutcome = {
+      path: [
+        { x: origin.x, y: origin.y, z: 0 },
+        { x: this.hole.pin.x, y: this.hole.pin.y, z: 0 }
+      ],
+      finalPos: { x: this.hole.pin.x, y: this.hole.pin.y },
+      surface: 'green',
+      waterPenalty: false,
+      hitTrees: false,
+      holed: true
+    };
+    this.ball.position = w2b(
+      this.hole.pin.x,
+      this.hole.pin.y,
+      HoleScene.BALL_REST + this.gh(this.hole.pin.x, this.hole.pin.y)
+    );
+    play('putt');
+    showMsg('Gimme — good!', 1100);
+    this.updateHud();
+    if (this.tm.isScramble) this.afterScrambleShot(outcome);
+    else this.afterShot(outcome);
+    return true;
   }
 
   private toggleAerial(): void {
@@ -861,6 +914,7 @@ class HoleScene {
     this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
     this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     this.puttGrid.setEnabled(this.aim.isPutting);
+    this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
     setTimeout(() => {
@@ -1262,6 +1316,10 @@ class HoleScene {
     const r = strikePadEl.getBoundingClientRect();
     this.strike.setFromOffset(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2), r.width / 2);
     this.updateStrikeUI();
+    // Recompute the aim preview so the dots curve with the chosen shape and the
+    // launch height — previously the strike dot moved but the trajectory never
+    // updated (playtest FB9).
+    this.updateAimVisuals();
   }
 
   /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */
@@ -1325,10 +1383,17 @@ class HoleScene {
       );
       const w = engine3d.getRenderWidth();
       const h = engine3d.getRenderHeight();
-      if (s.z > 0 && s.z < 1 && s.x > 0 && s.x < w && s.y > 0 && s.y < h) {
+      // Show the readout whenever the aim point is IN FRONT of the camera. When
+      // it projects outside the viewport (common — the pin often sits above the
+      // top edge in the shot view), clamp the label to a screen-edge margin
+      // instead of hiding it. Previously it vanished off-screen, which read as
+      // "the readout only appears sometimes" (playtest FB9).
+      if (s.z > 0 && s.z < 1) {
         aimReadoutEl.style.display = 'flex';
-        aimReadoutEl.style.left = `${(s.x / w) * 100}%`;
-        aimReadoutEl.style.top = `${(s.y / h) * 100}%`;
+        const cx = Math.min(Math.max(s.x, w * 0.06), w * 0.94);
+        const cy = Math.min(Math.max(s.y, h * 0.1), h * 0.9);
+        aimReadoutEl.style.left = `${(cx / w) * 100}%`;
+        aimReadoutEl.style.top = `${(cy / h) * 100}%`;
       } else {
         aimReadoutEl.style.display = 'none';
       }
@@ -1351,7 +1416,9 @@ class HoleScene {
         if (this.flight.isPutt && dCup < 46) {
           const f = this.fwd3(this.flight.dir);
           const pos3 = w2b(p.x, p.y, this.gh(p.x, p.y));
-          this.camTarget.pos = pos3.subtract(f.scale(8)).add(new Vector3(0, 5.5, 0));
+          // Higher, slightly further-back tuck than before so the roll's true
+          // length still reads while zooming toward the cup (playtest FB9).
+          this.camTarget.pos = pos3.subtract(f.scale(11)).add(new Vector3(0, 8.5, 0));
           this.camTarget.look = w2b(this.hole.pin.x, this.hole.pin.y, this.gh(this.hole.pin.x, this.hole.pin.y));
           this.camTarget.k = 6;
         }
