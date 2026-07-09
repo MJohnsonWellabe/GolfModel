@@ -56,7 +56,7 @@ export function overallRating(g: Golfer): number {
   );
 }
 
-export type GameMode = 'solo' | '1v1' | 'scramble';
+export type GameMode = 'solo' | '1v1' | 'scramble' | 'aces';
 
 export type Surface =
   | 'tee'

@@ -12,12 +12,17 @@ test('tournaments overlay opens from the menu', async ({ page }) => {
   await page.screenshot({ path: 'tests/visual/__shots__/tournaments.png' });
 });
 
-test('ace challenge overlay opens from the menu', async ({ page }) => {
+test('ace challenge is a wizard mode that frames a par-3 choice', async ({ page }) => {
+  // Ace Challenge moved from a menu link to a game mode (after Scramble); the
+  // Course step then lets you choose which course's par 3 to tee off.
   await page.goto('/');
-  await page.waitForSelector('#aceLink');
-  await page.evaluate(() => (document.getElementById('aceLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
-  await page.waitForSelector('#aces .recInner');
-  await expect(page.locator('#aces h2')).toContainText('Ace Challenge');
+  await page.waitForSelector('.modeCard[data-mode="aces"]');
+  await page.evaluate(() =>
+    (document.querySelector('.modeCard[data-mode="aces"]') as HTMLElement).dispatchEvent(new Event('pointerdown'))
+  );
+  await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForSelector('.modeCard[data-course]');
+  await expect(page.locator('.stepTitle')).toContainText('par 3');
   await page.screenshot({ path: 'tests/visual/__shots__/aces.png' });
 });
 

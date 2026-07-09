@@ -43,7 +43,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, cloudSyncProfile, cloudUid, linkGoogleAccount } from '../firebase/FirebaseClient';
+import { authConfigured, cloudSyncProfile, cloudUid, googleLinked, linkGoogleAccount } from '../firebase/FirebaseClient';
 import { loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
@@ -1898,8 +1898,10 @@ async function renderRecords(): Promise<void> {
 
 // ------------------------------------------------ Phase 8: tournaments + aces
 
-/** The par-3 the ace challenge is played on (Wildwood's Cedar Carry). */
-const ACE_HOLE_IDX = round.course.holes.findIndex((h) => h.par === 3);
+/** Index of a course's par 3 — the hole the Ace Challenge tees off. */
+function par3Index(course: CourseData): number {
+  return course.holes.findIndex((h) => h.par === 3);
+}
 
 function tournamentsEl(): HTMLElement {
   return document.getElementById('tournaments')!;
@@ -2077,9 +2079,10 @@ let acesSession: { attempts: number; aces: number } | null = null;
 async function renderAcesMenu(): Promise<void> {
   const el = acesEl();
   el.style.display = 'flex';
+  const par3 = round.course.holes.find((h) => h.par === 3);
   el.innerHTML =
     `<div class="recInner"><h2>🎯 Ace Challenge</h2>` +
-    `<div class="recSub">Tee off ${round.course.holes[ACE_HOLE_IDX]?.name ?? 'a par 3'} again and again. ` +
+    `<div class="recSub">Tee off ${par3?.name ?? 'a par 3'} again and again. ` +
     `Every hole-in-one counts toward the all-time board.</div>` +
     `<button id="aceStart" class="tourAction">Start teeing off →</button>` +
     `<div class="tourHeadRow">All-time aces</div>` +
@@ -2106,17 +2109,21 @@ async function renderAcesMenu(): Promise<void> {
 }
 
 function startAces(): void {
-  if (ACE_HOLE_IDX < 0) return;
+  // Tee off the selected course's par 3 (chosen on the wizard's Course step);
+  // falls back to Wildwood so the results-screen "tee off again" always works.
+  const course = COURSES[sel.courseId] ?? COURSES.wildwood;
+  const holeIdx = par3Index(course);
+  if (holeIdx < 0) return;
   acesSession = { attempts: 0, aces: 0 };
-  round.course = COURSES.wildwood;
-  round.mode = 'solo';
-  round.holeIdx = ACE_HOLE_IDX;
+  round.course = course;
+  round.mode = 'solo'; // an ace attempt runs as a single solo hole internally
+  round.holeIdx = holeIdx;
   round.activePlayer = 0;
   round.holeWinds = [];
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
-  const golfer = assembleGolfer(profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
   round.players = [{ golfer, isAI: false, scores: [] }];
   closeOverlay(acesEl());
   setupEl.style.display = 'none';
@@ -2226,9 +2233,10 @@ const sel = {
   opponentId: OPPONENTS[1].id
 };
 
-/** Solo rounds skip the rival step; 1v1/scramble add it at the end. */
+/** Solo & Ace rounds skip the rival step; 1v1/scramble add it at the end. On
+ *  the Ace Challenge the Course step chooses which course's par 3 you tee off. */
 function stepLabels(): string[] {
-  return sel.mode === 'solo'
+  return sel.mode === 'solo' || sel.mode === 'aces'
     ? ['Mode', 'Course', 'Name', 'Character', 'Style']
     : ['Mode', 'Course', 'Name', 'Character', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
 }
@@ -2271,7 +2279,8 @@ function renderSteps(): void {
 const MODES: Array<{ id: GameMode; name: string; desc: string; icon: string }> = [
   { id: 'solo', name: 'Solo Round', desc: 'Three holes, you against the course.', icon: '⛳' },
   { id: '1v1', name: '1 vs 1', desc: 'Match an AI rival, lowest total wins.', icon: '⚔️' },
-  { id: 'scramble', name: 'Scramble', desc: 'Team up with an AI partner — best ball counts.', icon: '🤝' }
+  { id: 'scramble', name: 'Scramble', desc: 'Team up with an AI partner — best ball counts.', icon: '🤝' },
+  { id: 'aces', name: 'Ace Challenge', desc: 'Tee off a par 3 over and over — chase a hole-in-one.', icon: '🎯' }
 ];
 
 function renderMode(): void {
@@ -2296,17 +2305,22 @@ function renderMode(): void {
 }
 
 function renderCourse(): void {
+  const aces = sel.mode === 'aces';
   stepBodyEl.innerHTML =
-    `<div class="stepTitle">Choose your course</div>` +
+    `<div class="stepTitle">${aces ? 'Pick a par 3 to attack' : 'Choose your course'}</div>` +
     `<div class="modeGrid">` +
     COURSE_LIST.map((c) => {
-      const holes = COURSES[c.id].holes.length;
-      const par = COURSES[c.id].holes.slice(0, Math.min(RULES.holesPerRound, holes)).reduce((a, h) => a + h.par, 0);
+      const course = COURSES[c.id];
+      const par3 = course.holes.find((h) => h.par === 3);
+      // Ace mode: the card names the course's par 3 (the hole you'll tee off);
+      // otherwise it shows the 3-hole par as usual.
+      const tag = aces ? `Par 3 · ${par3?.yardage ?? ''}yd` : `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
+      const sub = aces ? `${par3?.name ?? 'Par 3'} — ${c.name}` : c.tag;
       return (
         `<div class="archCard modeCard${sel.courseId === c.id ? ' sel' : ''}" data-course="${c.id}">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
-        `<span class="atag">Par ${par}</span></div>` +
-        `<div class="stepHint" style="margin:6px 0 0">${c.tag}</div></div>`
+        `<span class="atag">${tag}</span></div>` +
+        `<div class="stepHint" style="margin:6px 0 0">${sub}</div></div>`
       );
     }).join('') +
     `</div>`;
@@ -2482,6 +2496,12 @@ function startRound(): void {
   profile.character = sel.character;
   profile.archetype = sel.archetype;
   saveProfile(profile);
+  // Ace Challenge is a mode: hand off to the repeat-a-par-3 loop instead of a
+  // normal three-hole round (playtest FB9).
+  if (sel.mode === 'aces') {
+    startAces();
+    return;
+  }
   const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades);
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {
@@ -2496,11 +2516,55 @@ function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 }
 
+/**
+ * Main-menu "Link Google" entry point (playtest FB9): surfaces account linking
+ * where it's obvious instead of burying it in the profile overlay. Hidden when
+ * auth isn't configured or the account is already linked; on success it syncs
+ * the profile and tucks itself away. The profile overlay keeps its own control.
+ */
+function wireMenuGoogleLink(): void {
+  const btn = document.getElementById('linkGoogleMenu') as HTMLButtonElement | null;
+  if (!btn) return;
+  if (!authConfigured()) {
+    btn.style.display = 'none';
+    return;
+  }
+  // Show the prompt right away (don't wait on a Firebase round-trip that can
+  // hang offline); only tuck it away once we confirm the account is linked.
+  btn.style.display = '';
+  void googleLinked().then((linked) => {
+    if (linked) btn.style.display = 'none';
+  });
+  btn.addEventListener('pointerdown', () => {
+    btn.disabled = true;
+    btn.textContent = '🔗 Opening Google…';
+    void linkGoogleAccount().then((name) => {
+      if (!name) {
+        btn.textContent = '🔗 Link Google';
+        btn.disabled = false;
+        return;
+      }
+      if (name === 'redirect') {
+        btn.textContent = '🔗 Redirecting…';
+        return;
+      }
+      btn.textContent = `✓ Linked as ${name}`;
+      void cloudSyncProfile(profile).then((merged) => {
+        Object.assign(profile, merged);
+        saveProfile(profile);
+      });
+      setTimeout(() => {
+        btn.style.display = 'none';
+      }, 1800);
+    });
+  });
+}
+
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
-document.getElementById('aceLink')!.addEventListener('pointerdown', () => void renderAcesMenu());
+wireMenuGoogleLink();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);

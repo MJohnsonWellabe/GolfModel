@@ -59,6 +59,22 @@ export async function cloudUid(): Promise<string | null> {
 }
 
 /**
+ * True when the signed-in user has upgraded from the anonymous guest session to
+ * a real (e.g. Google) account. Used to hide the "Link Google" prompt on the
+ * main menu once the account is already linked.
+ */
+export async function googleLinked(): Promise<boolean> {
+  if (!authConfigured()) return false;
+  try {
+    const { auth } = await ensureFirebase();
+    const u = auth.currentUser;
+    return !!u && !u.isAnonymous && u.providerData.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Sync the profile with the cloud: pull the stored copy, merge (progress is
  * never lost — see mergeProfiles), push the result. Returns the merged
  * profile, or the input unchanged when the cloud is unreachable/unconfigured.
