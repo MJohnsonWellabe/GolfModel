@@ -25,6 +25,17 @@ that feed Phase 1B and beyond.
 - **Docs:** README rewritten to the shipped game (Babylon 3D, the three real
   courses, current controls/modes/progression).
 
+**Deferred to post-RC (deliberate):**
+- **`src/slice3d/main.ts` split.** It remains the ~2.2k-line composition root
+  and `HoleScene` host. Splitting it cleanly means untangling heavy shared
+  mutable state (`round`, `current`, `profile`, `sel`, the engine + DOM
+  singletons); doing that at RC would risk the stable, fully-tested build for a
+  purely internal gain. Tracked as the top tech-debt item — do it first in the
+  next cycle, behind the Playwright net, before adding more to the module.
+- **A fourth "links" course.** V1.0 needs ≥2 courses and ships with three
+  (Wildwood, Sable Bay, Timberline); a firm-and-fast links course is a nice
+  content add, not a release blocker.
+
 # Update — 2026-07-08: Phase 9 — two new courses + tree collision
 
 - **Tree collision** now stops a ball descending into a canopy inside a tree
