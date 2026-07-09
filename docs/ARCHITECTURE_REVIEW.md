@@ -8,6 +8,23 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-09: Phase 9 — polish, accessibility, docs, RC
+
+- **Reset Records** (profile): a two-step confirm clears career stats,
+  achievements, XP/level and local history (`resetProfileRecords`,
+  `clearLocalHistory`) while keeping coins and cosmetics.
+- **Accessibility:** the profile's `sound`/`ambience` settings now drive real
+  volume (SFX scale by `sound`; the ambience loop follows `ambience` live), the
+  reduced-motion toggle suppresses the hole-out camera rumble, and the meter's
+  perfect band carries a bright inset outline as a colorblind-safe cue. Settings
+  rows are 48px touch targets.
+- **Dead code:** removed the unused `Scoring` class + `formatToPar`.
+- **Perf gate:** `tests/visual/perf.spec.ts` times a `scene.render()` loop
+  (headless rAF is throttled, so `getFps()` is meaningless) and records a
+  per-frame baseline; `docs/DEVICE_MATRIX.md` is the on-device checklist.
+- **Docs:** README rewritten to the shipped game (Babylon 3D, the three real
+  courses, current controls/modes/progression).
+
 # Update — 2026-07-08: Phase 9 — two new courses + tree collision
 
 - **Tree collision** now stops a ball descending into a canopy inside a tree

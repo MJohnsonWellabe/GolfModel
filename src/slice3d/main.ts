@@ -102,24 +102,32 @@ const sounds: Record<string, number> = {
 function play(key: string): void {
   try {
     const a = new Audio(`sfx/${key}.wav`);
-    a.volume = sounds[key] ?? 0.7;
+    // Scale by the player's SFX volume setting (accessibility).
+    a.volume = Math.max(0, Math.min(1, (sounds[key] ?? 0.7) * profile.settings.sound));
+    if (a.volume <= 0) return;
     void a.play().catch(() => undefined);
   } catch {
     // audio is optional
   }
 }
 let ambienceStarted = false;
+let ambienceEl: HTMLAudioElement | null = null;
 function startAmbience(): void {
   if (ambienceStarted) return;
   ambienceStarted = true;
   try {
     const a = new Audio('sfx/ambience.wav');
     a.loop = true;
-    a.volume = 0.2;
+    a.volume = Math.max(0, Math.min(1, profile.settings.ambience));
+    ambienceEl = a;
     void a.play().catch(() => (ambienceStarted = false));
   } catch {
     ambienceStarted = false;
   }
+}
+/** Push the current ambience-volume setting to the live loop (slider drag). */
+function applyAmbienceVolume(): void {
+  if (ambienceEl) ambienceEl.volume = Math.max(0, Math.min(1, profile.settings.ambience));
 }
 
 // ------------------------------------------------------------ round state
@@ -1620,6 +1628,10 @@ function renderProfile(): void {
     }).join('') +
     `</div>` +
     `<div class="profSettings">` +
+    `<label class="setRow"><span>Sound</span>` +
+    `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
+    `<label class="setRow"><span>Ambience</span>` +
+    `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
     `<label class="setRow"><span>Reduced motion</span>` +
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
     `<div id="resetZone" class="resetZone">` +
@@ -1627,6 +1639,15 @@ function renderProfile(): void {
     `</div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
+  document.getElementById('setSound')!.addEventListener('input', (e) => {
+    p.settings.sound = parseFloat((e.target as HTMLInputElement).value);
+    saveProfile(p);
+  });
+  document.getElementById('setAmbience')!.addEventListener('input', (e) => {
+    p.settings.ambience = parseFloat((e.target as HTMLInputElement).value);
+    applyAmbienceVolume();
+    saveProfile(p);
+  });
   document.getElementById('setReducedMotion')!.addEventListener('change', (e) => {
     p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
     saveProfile(p);

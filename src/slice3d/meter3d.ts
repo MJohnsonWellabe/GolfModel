@@ -201,17 +201,20 @@ export class DomMeter {
 
   private renderZones(): void {
     this.el.innerHTML = '';
-    const zone = (left: number, width: number, color: string, z: number): void => {
+    const zone = (left: number, width: number, color: string, z: number, outline = false): void => {
       const d = document.createElement('div');
       d.className = 'zone';
       d.style.left = `${left * 100}%`;
       d.style.width = `${width * 100}%`;
       d.style.background = color;
       d.style.zIndex = String(z);
+      // Colorblind cue: the perfect band gets a bright outline so it reads as a
+      // distinct notch, not just a green-vs-gold hue difference.
+      if (outline) d.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.92)';
       this.el.appendChild(d);
     };
-    const band = (center: number, half: number, color: string, z: number): void =>
-      zone(center - half, half * 2, color, z);
+    const band = (center: number, half: number, color: string, z: number, outline = false): void =>
+      zone(center - half, half * 2, color, z, outline);
     const line = (at: number, color: string): void => {
       const l = document.createElement('div');
       l.className = 'zone';
@@ -227,11 +230,11 @@ export class DomMeter {
       zone(pTarget + SWING.goodBand, 1 - (pTarget + SWING.goodBand), 'rgba(196,58,58,0.4)', 1);
     }
     band(pTarget, SWING.goodBand, 'rgba(201,162,39,0.55)', 2);
-    band(pTarget, this.perfectHalf(), '#43d05c', 3);
+    band(pTarget, this.perfectHalf(), '#43d05c', 3, true);
     line(pTarget, '#fff');
     // Accuracy target
     band(ACCURACY_TARGET, SWING.goodBand, 'rgba(201,162,39,0.4)', 2);
-    band(ACCURACY_TARGET, this.perfectHalf(), '#43d05c', 3);
+    band(ACCURACY_TARGET, this.perfectHalf(), '#43d05c', 3, true);
     line(ACCURACY_TARGET, '#fff');
 
     this.el.appendChild(this.markerEl);
