@@ -49,6 +49,12 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
       } catch {
         /* no pending redirect */
       }
+      // CRITICAL: `auth.currentUser` is null synchronously right after
+      // getAuth(); the persisted session (anonymous OR the Google-linked
+      // account) restores asynchronously. Wait for it before deciding to sign
+      // in — otherwise every load minted a NEW anonymous uid, stranding all
+      // saved progress under the previous uid and dropping the Google link.
+      await auth.authStateReady();
       if (!auth.currentUser) await signInAnonymously(auth);
       return { auth, db: getDatabase(app) };
     })();
@@ -98,6 +104,23 @@ export async function linkedAccountName(): Promise<string | null> {
     return u.displayName ?? u.email ?? 'your account';
   } catch {
     return null;
+  }
+}
+
+/**
+ * Sign out of the linked account and return to a fresh anonymous guest session.
+ * The linked account's progress stays safe in the cloud under its own uid —
+ * signing back in restores it.
+ */
+export async function signOutAccount(): Promise<void> {
+  if (!authConfigured()) return;
+  try {
+    const { auth } = await ensureFirebase();
+    const { signOut, signInAnonymously } = await import('firebase/auth');
+    await signOut(auth);
+    await signInAnonymously(auth);
+  } catch {
+    /* ignore — stays on the current session */
   }
 }
 

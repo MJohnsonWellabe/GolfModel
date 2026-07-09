@@ -43,7 +43,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, cloudSyncProfile, cloudUid, googleLinked, linkedAccountName, linkGoogleAccount } from '../firebase/FirebaseClient';
+import { authConfigured, cloudSyncProfile, cloudUid, linkedAccountName, linkGoogleAccount, signOutAccount } from '../firebase/FirebaseClient';
 import { CosmeticKind, loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
@@ -1806,9 +1806,8 @@ function wireAccountRow(): void {
       }
       status.textContent = name === 'redirect' ? 'Redirecting to Google…' : `✓ Signed in as ${name} — progress syncs across devices`;
       btn.style.display = 'none';
-      // Keep the main-menu prompt in sync too.
-      const menuBtn = document.getElementById('linkGoogleMenu');
-      if (menuBtn) menuBtn.style.display = 'none';
+      // Keep the main-menu account control in sync too.
+      renderAcctMenu();
       // Re-sync so the just-linked account immediately owns the current profile.
       void cloudSyncProfile(profile).then((merged) => {
         Object.assign(profile, merged);
@@ -1850,6 +1849,10 @@ function statCell(value: number | string, label: string): string {
 }
 
 const storeEl = document.getElementById('store')!;
+/** The Characters store section starts collapsed to two rows (playtest FB9). */
+let storeCharsExpanded = false;
+/** Character cards shown before "See more" (two rows of the 3-wide grid). */
+const STORE_CHAR_PREVIEW = 6;
 
 /** Store overlay (Phase 7): buy/equip cosmetics + club upgrades with coins. */
 function renderStore(): void {
@@ -1868,17 +1871,32 @@ function renderStore(): void {
   };
   const section = (title: string, kind: StoreItem['kind']): string =>
     `<div class="storeTab">${title}</div><div class="storeGrid">${STORE_CATALOG.filter((i) => i.kind === kind).map(card).join('')}</div>`;
+  // Characters collapse to two rows with a See-more toggle (there are 20+),
+  // so the other categories stay reachable without a long scroll (FB9).
+  const charItems = STORE_CATALOG.filter((i) => i.kind === 'character');
+  const shownChars = storeCharsExpanded ? charItems : charItems.slice(0, STORE_CHAR_PREVIEW);
+  const seeMore =
+    charItems.length > STORE_CHAR_PREVIEW
+      ? `<button id="charSeeMore" class="storeSeeMore">${storeCharsExpanded ? 'Show fewer ▴' : `See more (${charItems.length - STORE_CHAR_PREVIEW}) ▾`}</button>`
+      : '';
+  const charactersSection = `<div class="storeTab">Characters</div><div class="storeGrid">${shownChars.map(card).join('')}</div>${seeMore}`;
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
     `<div class="storeScroll">` +
-    section('Characters', 'character') +
+    charactersSection +
     section('Outfit Colorways', 'outfit') +
     section('Ball Colors', 'ball') +
     section('Ball Trails', 'trail') +
     section('Club Skins', 'clubskin') +
     section('Club Upgrades', 'clubUpgrade') +
     `</div><button id="storeBack">Back</button></div>`;
+  const seeMoreBtn = document.getElementById('charSeeMore');
+  if (seeMoreBtn)
+    seeMoreBtn.addEventListener('pointerdown', () => {
+      storeCharsExpanded = !storeCharsExpanded;
+      renderStore();
+    });
   storeEl.querySelectorAll('.storeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       const id = (el as HTMLElement).dataset.item!;
@@ -2455,40 +2473,28 @@ function renderName(): void {
 }
 
 function renderCharacter(): void {
-  // Show the WHOLE roster (playtest FB9): owned characters are selectable;
-  // locked ones carry a lock + price badge and, when tapped, jump to the Store
-  // so the full lineup is always visible — "where are the rest" is answered.
-  const isCharOwned = (key: string): boolean => profile.cosmetics.owned.includes(`char_${key}`);
-  const priceOf = (key: string): number => STORE_CATALOG.find((i) => i.id === `char_${key}`)?.price ?? 0;
-  if (!isCharOwned(sel.character)) {
-    const firstOwned = CHARACTERS.find((c) => isCharOwned(c.key));
-    if (firstOwned) sel.character = firstOwned.key;
-  }
+  // Only OWNED characters here (playtest FB9): showing locked cards that routed
+  // to the Store on tap made the grid feel touchy while scrolling. Unlock more
+  // in the Store; a purchased character then appears here.
+  const owned = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
+  if (!owned.some((c) => c.key === sel.character)) sel.character = owned[0]?.key ?? CHARACTERS[0].key;
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Pick your character</div>` +
-    `<div class="stepHint">Just for looks — tap a locked one to unlock it in the Store.</div>` +
+    `<div class="stepHint">Just for looks — unlock more in the Store.</div>` +
     `<div class="charGrid">` +
-    CHARACTERS.map((ch) => {
-      const owned = isCharOwned(ch.key);
-      const selCls = owned && sel.character === ch.key ? ' sel' : '';
-      const lock = owned ? '' : `<div class="lockBadge">🔒 ${priceOf(ch.key)}</div>`;
-      return (
-        `<div class="charCard${selCls}${owned ? '' : ' locked'}" data-ch="${ch.key}" data-owned="${owned ? 1 : 0}">` +
-        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />${lock}` +
-        `<div class="cn">${ch.name}</div></div>`
-      );
-    }).join('') +
+    owned
+      .map(
+        (ch) =>
+          `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
+          `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
+          `<div class="cn">${ch.name}</div></div>`
+      )
+      .join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
-      const card = el as HTMLElement;
-      const key = card.dataset.ch as CharacterKey;
-      if (card.dataset.owned === '1') {
-        sel.character = key;
-        renderCharacter();
-      } else {
-        renderStore(); // locked — send the player to the Store to unlock it
-      }
+      sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
+      renderCharacter();
     })
   );
 }
@@ -2593,46 +2599,56 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Main-menu "Link Google" entry point (playtest FB9): surfaces account linking
- * where it's obvious instead of burying it in the profile overlay. Hidden when
- * auth isn't configured or the account is already linked; on success it syncs
- * the profile and tucks itself away. The profile overlay keeps its own control.
+ * Prominent main-menu account control (playtest FB9): a green Link-Google button
+ * (styled like the wizard's Next button) when signed out; a "✓ Signed in as …"
+ * row with a Log out button once linked. Surfaces account linking where it's
+ * obvious and reflects the real, persistent state. The profile overlay keeps its
+ * own copy of the control too.
  */
-function wireMenuGoogleLink(): void {
-  const btn = document.getElementById('linkGoogleMenu') as HTMLButtonElement | null;
-  if (!btn) return;
+function renderAcctMenu(): void {
+  const el = document.getElementById('acctMenu');
+  if (!el) return;
   if (!authConfigured()) {
-    btn.style.display = 'none';
+    el.innerHTML = '';
     return;
   }
-  // Show the prompt right away (don't wait on a Firebase round-trip that can
-  // hang offline); only tuck it away once we confirm the account is linked.
-  btn.style.display = '';
-  void googleLinked().then((linked) => {
-    if (linked) btn.style.display = 'none';
-  });
-  btn.addEventListener('pointerdown', () => {
-    btn.disabled = true;
-    btn.textContent = '🔗 Opening Google…';
-    void linkGoogleAccount().then((name) => {
-      if (!name) {
-        btn.textContent = '🔗 Link Google';
-        btn.disabled = false;
-        return;
-      }
-      if (name === 'redirect') {
-        btn.textContent = '🔗 Redirecting…';
-        return;
-      }
-      btn.textContent = `✓ Linked as ${name}`;
-      void cloudSyncProfile(profile).then((merged) => {
-        Object.assign(profile, merged);
-        saveProfile(profile);
+  // Show the Link button immediately (don't block on a Firebase round-trip);
+  // swap to the signed-in row once we confirm the linked account.
+  const showLinkButton = (): void => {
+    el.innerHTML = `<button id="acctLinkBtn" class="acctBtn">🔗 Link Google account</button>`;
+    const btn = document.getElementById('acctLinkBtn') as HTMLButtonElement;
+    btn.addEventListener('pointerdown', () => {
+      btn.disabled = true;
+      btn.textContent = '🔗 Opening Google…';
+      void linkGoogleAccount().then((name) => {
+        if (!name) {
+          btn.disabled = false;
+          btn.textContent = '🔗 Link Google account';
+          return;
+        }
+        if (name === 'redirect') {
+          btn.textContent = '🔗 Redirecting…';
+          return;
+        }
+        void cloudSyncProfile(profile).then((merged) => {
+          Object.assign(profile, merged);
+          saveProfile(profile);
+        });
+        showSignedIn(name);
       });
-      setTimeout(() => {
-        btn.style.display = 'none';
-      }, 1800);
     });
+  };
+  const showSignedIn = (name: string): void => {
+    el.innerHTML =
+      `<div class="acctSignedIn"><span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
+      `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
+    document.getElementById('acctLogout')!.addEventListener('pointerdown', () => {
+      void signOutAccount().then(() => showLinkButton());
+    });
+  };
+  showLinkButton();
+  void linkedAccountName().then((name) => {
+    if (name) showSignedIn(name);
   });
 }
 
@@ -2640,7 +2656,7 @@ document.getElementById('recordsLink')!.addEventListener('pointerdown', () => re
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
-wireMenuGoogleLink();
+renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);

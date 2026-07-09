@@ -1047,6 +1047,59 @@
         justify-content: center;
         flex-wrap: wrap;
       }
+      /* Main-menu account button (styled like the Next button) + signed-in row */
+      .acctMenu {
+        margin: 14px auto 0;
+      }
+      .acctMenu:empty {
+        display: none;
+      }
+      .acctBtn {
+        display: block;
+        width: 100%;
+        padding: 13px 16px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        cursor: pointer;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      }
+      .acctBtn:disabled {
+        opacity: 0.6;
+      }
+      .acctSignedIn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: linear-gradient(180deg, rgba(53, 165, 88, 0.18), rgba(30, 122, 60, 0.08));
+        border: 1px solid rgba(53, 165, 88, 0.4);
+      }
+      .acctSignedIn .acctWho {
+        color: #d7f0dc;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .acctSignedIn .acctWho b {
+        color: #fff;
+      }
+      .acctLogout {
+        flex: 0 0 auto;
+        background: rgba(255, 255, 255, 0.09);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        color: #dbe8d6;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 7px 12px;
+        border-radius: 9px;
+        cursor: pointer;
+      }
       /* Store overlay (Phase 7) */
       .storeInner {
         width: min(96%, 560px);
@@ -1085,6 +1138,19 @@
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         gap: 8px;
+      }
+      .storeSeeMore {
+        display: block;
+        width: 100%;
+        margin: 8px 0 2px;
+        padding: 9px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        color: #cfe3ca;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
       }
       .storeCard {
         border-radius: 12px;
@@ -1252,12 +1318,12 @@
           <button id="backBtn">Back</button>
           <button id="nextBtn">Next</button>
         </div>
+        <div id="acctMenu" class="acctMenu"></div>
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🏁 Tournaments</button>
-          <button id="linkGoogleMenu" class="recordsLink" style="display: none">🔗 Link Google</button>
         </div>
       </div>
     </div>
