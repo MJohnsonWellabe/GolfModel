@@ -2031,6 +2031,9 @@ async function endAces(): Promise<void> {
 engine3d.runRenderLoop(() => current?.render());
 window.addEventListener('resize', () => engine3d.resize());
 
+// Perf probe for the Playwright FPS baseline (Phase 9).
+(window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();
+
 // Debug/automation handle for the Playwright verification scripts
 function exposeDebug(): void {
   (window as unknown as { __slice3d: unknown }).__slice3d = current
