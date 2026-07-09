@@ -43,7 +43,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
-import { cloudSyncProfile } from '../firebase/FirebaseClient';
+import { authConfigured, cloudSyncProfile, cloudUid, linkGoogleAccount } from '../firebase/FirebaseClient';
 import { loadProfile, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
@@ -1628,6 +1628,10 @@ function renderProfile(): void {
     }).join('') +
     `</div>` +
     `<div class="profSettings">` +
+    (authConfigured()
+      ? `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
+        `<button id="linkGoogle" class="ghostBtn">Link Google account</button></div>`
+      : '') +
     `<label class="setRow"><span>Sound</span>` +
     `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
     `<label class="setRow"><span>Ambience</span>` +
@@ -1653,6 +1657,36 @@ function renderProfile(): void {
     saveProfile(p);
   });
   document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
+  wireAccountRow();
+}
+
+/** Cloud-account status + "Link Google account" (Phase 5). Only present when
+ *  Firebase is configured; degrades quietly if the console setup isn't done. */
+function wireAccountRow(): void {
+  const status = document.getElementById('acctStatus');
+  const btn = document.getElementById('linkGoogle') as HTMLButtonElement | null;
+  if (!status || !btn) return;
+  void cloudUid().then((uid) => {
+    status.textContent = uid ? 'Cloud sync on — link Google to keep progress across devices' : 'Playing locally — cloud unavailable';
+  });
+  btn.addEventListener('pointerdown', () => {
+    btn.disabled = true;
+    status.textContent = 'Opening Google sign-in…';
+    void linkGoogleAccount().then((name) => {
+      if (!name) {
+        status.textContent = 'Google linking was cancelled or unavailable.';
+        btn.disabled = false;
+        return;
+      }
+      status.textContent = name === 'redirect' ? 'Redirecting to Google…' : `Linked as ${name} — progress now syncs across devices`;
+      btn.style.display = 'none';
+      // Re-sync so the just-linked account immediately owns the current profile.
+      void cloudSyncProfile(profile).then((merged) => {
+        Object.assign(profile, merged);
+        saveProfile(profile);
+      });
+    });
+  });
 }
 
 /** Two-step Reset Records: the button swaps to an explicit confirm/cancel so a

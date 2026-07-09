@@ -57,13 +57,19 @@ the shared leaderboard) — or any project you prefer.
              "$player": { ".write": "!data.exists()" }
            }
          }
+       },
+       "aces": {
+         ".read": true,
+         "$player": { ".write": true }
        }
      }
    }
    ```
    (`rounds` keeps the existing open leaderboard behavior; `tournaments`
    supports Phase 8 — entries are write-once so posted scores can't be
-   overwritten. Profile data is strictly per-user.)
+   overwritten; `aces` is the all-time hole-in-one board. Profile data is
+   strictly per-user. Without a rule, a path defaults to deny under locked
+   mode — the `aces` block is required or the ace leaderboard can't post.)
 
 ## What the game then does (already implemented)
 

@@ -14,3 +14,14 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
   await page.evaluate(() => (document.getElementById('resetNo') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#resetRecords');
 });
+
+/** With Firebase configured, the profile offers a Link Google account control
+ *  and an account-status line (Phase 5). */
+test('profile shows the cloud account row when auth is configured', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForSelector('#profileLink');
+  await page.evaluate(() => (document.getElementById('profileLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForSelector('#linkGoogle');
+  await expect(page.locator('#linkGoogle')).toContainText('Link Google');
+  await expect(page.locator('#acctStatus')).toBeVisible();
+});

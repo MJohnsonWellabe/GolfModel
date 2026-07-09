@@ -18,10 +18,10 @@ export const LEADERBOARD_URL = 'https://golfgame-9c11e-default-rtdb.firebaseio.c
  * auth/cloud-save layer stays dormant and the game runs local-only.
  */
 export const FIREBASE = {
-  apiKey: '',
-  authDomain: '',
+  apiKey: 'AIzaSyAdEG6OgXAL8qugqO4PZUv37QKAV193r8M',
+  authDomain: 'golfgame-9c11e.firebaseapp.com',
   projectId: 'golfgame-9c11e',
-  appId: '',
+  appId: '1:122624336711:web:7dd59548b19d434d60a262',
   databaseURL: LEADERBOARD_URL
 } as const;
 
