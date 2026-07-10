@@ -776,6 +776,17 @@
         color: #cfe3ca;
         margin-top: 4px;
       }
+      /* Pals wizard step: emoji tile in place of the character portrait. */
+      .charCard .palPickIcon {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        border-radius: 9px;
+        background: linear-gradient(180deg, #123f24, #0b2c17);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+      }
       .charCard.sel {
         border-color: #ffd54f;
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.2), rgba(255, 213, 79, 0.06));
@@ -933,7 +944,6 @@
       /* Records overlay */
       #records,
       #store,
-      #pals,
       #tournaments,
       #aces {
         position: fixed;
@@ -1461,7 +1471,6 @@
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
-          <button id="palsLink" class="recordsLink">🐾 Pals</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🏁 Tournaments</button>
         </div>
@@ -1469,7 +1478,6 @@
     </div>
     <div id="records"></div>
     <div id="store"></div>
-    <div id="pals"></div>
     <div id="tournaments"></div>
     <div id="aces"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
