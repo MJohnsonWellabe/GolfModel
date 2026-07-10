@@ -362,13 +362,15 @@ block (see `src/data/courses/*.json`, rendered by `src/slice3d/course3d.ts`):
 - **Timberline** — a vivid, bright day: a deep saturated‑azure zenith
   (`skyTop`) fading to a clean cool blue→white horizon (`skyBottom` /
   `horizonTint`), reduced haze so distance reads clear. Clouds use
-  `cloudStyle: "wispy"` — smaller mesh clouds scattered high and wide across
-  the dome and stretched into thin, semi‑transparent streaks (more open sky).
+  `cloudStyle: "wispy"` — soft, feathered, semi‑transparent *painted* clouds
+  (billboards, not the hard low‑poly mesh blobs): puffy cumulus banked low
+  near the treeline plus thin cirrus streaks high across the dome, so they
+  read see‑through against the blue like the references.
   The warm sun disc stays for sunlight. Note this leans brighter/cooler than
   the generic "mountain course = cool, avoid oversaturation" guideline, by
   design from sky references.
-- Other courses keep the default warm gradient and puffy clouds
-  (`cloudStyle` unset ⇒ the historical full cumulus banks).
+- Other courses are untouched: mesh clouds when a theme sets `cloudKeys`,
+  else the historical painted puff billboards (`cloudStyle` unset).
 
 ---
 

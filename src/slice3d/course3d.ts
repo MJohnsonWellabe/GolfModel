@@ -627,7 +627,109 @@ export function buildCourse(
   );
   sunBillboard.applyFog = false;
 
-  if (theme.cloudKeys) {
+  if (theme.cloudStyle === 'wispy') {
+    // Reference-style sky: soft, feathered, SEE-THROUGH clouds painted onto
+    // billboards. The low-poly mesh clouds read as hard white blobs no amount
+    // of stretching fixes, so this course paints its own. Two layers: soft
+    // cumulus banked low near the treeline + thin cirrus streaks high across
+    // the dome, drifting at different speeds for parallax.
+    //
+    // A feathered radial puff — the gradient falloff IS the soft edge. Built
+    // in LOCAL space so the canvas transform places it correctly (an absolute-
+    // coord gradient would land off-mesh once translated and fill clear).
+    const puff = (ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, alpha: number): void => {
+      const R = Math.max(rx, ry);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(rx / R, ry / R);
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(0.45, `rgba(255,255,255,${alpha * 0.7})`);
+      g.addColorStop(0.8, `rgba(255,255,255,${alpha * 0.2})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    const softCloudTex = (name: string, tw: number, th: number, paint: (ctx: CanvasRenderingContext2D) => void): DynamicTexture => {
+      const tex = new DynamicTexture(name, { width: tw, height: th }, scene, true);
+      const ctx = tex.getContext() as CanvasRenderingContext2D;
+      ctx.clearRect(0, 0, tw, th);
+      paint(ctx);
+      tex.update(false);
+      tex.hasAlpha = true;
+      return tex;
+    };
+    // Puffy cumulus: rounded top lobes over a broad, flatter base.
+    const cumulusTex = softCloudTex('cumulusTex', 512, 256, (ctx) => {
+      const blobs: Array<[number, number, number, number, number]> = [
+        [0, 40, 210, 62, 0.65], [-130, 46, 130, 56, 0.55], [130, 46, 132, 54, 0.55],
+        [0, -6, 160, 96, 1.0], [-92, 10, 116, 78, 0.85], [96, 6, 108, 74, 0.85],
+        [46, -44, 92, 74, 0.9], [-44, -34, 84, 70, 0.8]
+      ];
+      for (const [dx, dy, rx, ry, a] of blobs) puff(ctx, 256 + dx, 168 + dy, rx, ry, a);
+    });
+    // Cirrus: a thin feathered streak that fades in and out along its length.
+    const cirrusTex = softCloudTex('cirrusTex', 512, 96, (ctx) => {
+      for (let i = 0; i < 30; i++) {
+        const t = i / 29;
+        puff(
+          ctx,
+          20 + t * 472,
+          48 + Math.sin(t * 6) * 9,
+          Math.abs(30 + 26 * Math.sin(t * 7 + 1.3)) + 12,
+          Math.abs(5 + 4 * Math.sin(t * 5 + 0.6)) + 3,
+          0.55 * (0.3 + 0.7 * Math.sin(t * Math.PI))
+        );
+      }
+    });
+    const cloudMat = (name: string, tex: DynamicTexture): StandardMaterial => {
+      const m = new StandardMaterial(name, scene);
+      m.emissiveTexture = tex;
+      m.opacityTexture = tex;
+      m.disableLighting = true;
+      m.backFaceCulling = false;
+      return m;
+    };
+    const cumulusMat = cloudMat('cumulusMat', cumulusTex);
+    const cirrusMat = cloudMat('cirrusMat', cirrusTex);
+
+    const drift: Array<{ mesh: Mesh; v: number }> = [];
+    const wrapMin = hole.tee.x - 3600;
+    const wrapMax = hole.tee.x + 3600;
+    const span = wrapMax - wrapMin;
+    const place = (mat: StandardMaterial, pw: number, ph: number, wx: number, wy: number, alt: number, vis: number, v: number, tag: string): void => {
+      const cl = MeshBuilder.CreatePlane(tag, { width: pw, height: ph }, scene);
+      cl.material = mat;
+      cl.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      cl.position = w2b(wx, wy, alt);
+      cl.applyFog = false;
+      cl.visibility = vis;
+      drift.push({ mesh: cl, v });
+    };
+    for (let i = 0; i < 6; i++) {
+      // Soft cumulus, banked low near the treeline.
+      const j = hash2(i * 12.1, i * 4.7);
+      const pw = 820 + j * 520;
+      place(cumulusMat, pw, pw * 0.5, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2500 - (i % 3) * 260, 560 + (i % 2) * 150 + j * 90, 0.86, 5 + j * 2.5, `cumulus${i}`);
+    }
+    for (let i = 0; i < 5; i++) {
+      // Thin cirrus, high and wide across the dome.
+      const j = hash2(i * 7.9 + 2, i * 9.3);
+      const pw = 1000 + j * 620;
+      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 2900 + i * (5800 / 5) + j * 320, hole.tee.y - 3100 - (i % 2) * 320, 1150 + (i % 3) * 150 + j * 120, 0.6, 3.4 + j * 1.6, `cirrus${i}`);
+    }
+    scene.onBeforeRenderObservable.add(() => {
+      if (isFrozen()) return;
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      for (const c of drift) {
+        c.mesh.position.x += dt * c.v;
+        if (c.mesh.position.x > wrapMax) c.mesh.position.x -= span; // gentle recycle
+      }
+    });
+  } else if (theme.cloudKeys) {
     // Stylized volumetric cloud meshes from the forest pack. CLONES, not
     // instances — each clone must honor applyFog=false or the EXP2 fog at
     // sky distance washes them into the haze. Two altitude/depth layers with
@@ -635,44 +737,28 @@ export function buildCourse(
     // with the theme's shape variety.
     const cloudDrift: Array<{ mesh: Mesh; v: number }> = [];
     const keys = theme.cloudKeys;
-    // 'wispy' (Timberline) scatters more, smaller clouds higher and wider
-    // across the dome and stretches a subset into thin semi-transparent
-    // streaks; the default 'puffy' path stays byte-identical.
-    const wispy = theme.cloudStyle === 'wispy';
-    const count = wispy ? Math.min(16, 6 + keys.length) : Math.min(10, 4 + keys.length);
+    const count = Math.min(10, 4 + keys.length);
     void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
       for (let i = 0; i < count; i++) {
         const proto = protos.get(keys[i % keys.length]);
         if (!proto) continue;
         const jitter = hash2(i * 17.3, i * 5.1);
         const far = i % 2 === 1; // alternate near/far bands
-        const pos = wispy
-          ? w2b(
-              hole.tee.x - 2600 + i * (5200 / count) + jitter * 320,
-              hole.tee.y - (far ? 3300 : 2500) - (i % 3) * 360,
-              (far ? 1150 : 820) + ((i * 97) % 4) * 150 + jitter * 180
-            )
-          : w2b(
-              hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
-              hole.tee.y - (far ? 2900 : 2100) - (i % 3) * 300,
-              (far ? 740 : 430) + ((i * 97) % 3) * 130 + jitter * 60
-            );
-        const targetH = wispy ? (far ? 58 : 40) + jitter * 22 : (far ? 95 : 65) + jitter * 40;
+        const pos = w2b(
+          hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
+          hole.tee.y - (far ? 2900 : 2100) - (i % 3) * 300,
+          (far ? 740 : 430) + ((i * 97) % 3) * 130 + jitter * 60
+        );
+        const targetH = (far ? 95 : 65) + jitter * 40;
         for (const part of proto.parts) {
           const cl = part.clone(`meshCloud${i}`);
           cl.position = pos.clone();
           const s = targetH / proto.height;
-          // Wispy: stretch horizontally + flatten vertically into a streak.
-          cl.scaling = wispy
-            ? new Vector3(s * (2.6 + jitter * 1.4), s * 0.5, s * 1.5)
-            : new Vector3(s * (1.4 + jitter * 0.9), s, s * 1.2);
+          cl.scaling = new Vector3(s * (1.4 + jitter * 0.9), s, s * 1.2);
           cl.rotation = new Vector3(0, hash2(i, 3) * Math.PI * 2, 0);
           cl.applyFog = false;
-          // Thin the wisps so more sky reads through (Babylon treats
-          // visibility < 1 as alpha blending even for the flat cloud mat).
-          if (wispy) cl.visibility = i % 3 === 0 ? 0.5 : 0.72;
           cl.setEnabled(true);
-          cloudDrift.push({ mesh: cl, v: (far ? 2.5 : 4.5) * (wispy ? 1.15 : 1) });
+          cloudDrift.push({ mesh: cl, v: far ? 2.5 : 4.5 });
         }
       }
     });

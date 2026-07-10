@@ -69,17 +69,6 @@
       "bush_raspberry"
     ],
     "sandSculpt": 0.7,
-    "cloudKeys": [
-      "cloud_a",
-      "cloud_b",
-      "cloud_c",
-      "cloud_d",
-      "cloud_e",
-      "cloud_f",
-      "cloud_g",
-      "cloud_h",
-      "cloud_i"
-    ],
     "horizonTint": "#e6f3fb",
     "cloudStyle": "wispy",
     "turfGrainKey": "textures/turf_grain.jpg",

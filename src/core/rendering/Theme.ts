@@ -73,10 +73,10 @@ export interface CourseTheme {
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
-   * Mesh-cloud layout (only consulted when cloudKeys is set). 'puffy' (the
-   * default when unset) keeps the historical low, full cumulus banks; 'wispy'
-   * scatters smaller clouds higher and wider across the dome and stretches a
-   * subset into thin airy streaks. Art-only.
+   * Cloud rendering style for the course sky. 'wispy' paints soft, feathered,
+   * semi-transparent cumulus + cirrus billboards (reference-style, see-through)
+   * and ignores cloudKeys. Unset falls back to mesh clouds when cloudKeys is
+   * set, else the painted puff billboards. Art-only.
    */
   cloudStyle?: 'puffy' | 'wispy';
   /**
