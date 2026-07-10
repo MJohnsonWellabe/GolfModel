@@ -537,6 +537,18 @@ export class PhysicsEngine {
         speed >= PHYSICS.cupCaptureSpeed &&
         speed < PHYSICS.cupLipSpeed
       ) {
+        // Dead-center exception: if the ball's path over this step passes within
+        // cupCenterDropFrac of the pin, it's a pured putt — it drops even at this
+        // firm pace (rattles in) rather than lipping out. Off-center firm putts
+        // (closest approach outside that inner ring) still horseshoe.
+        const centerDist = distToSegment(hole.pin.x, hole.pin.y, x, y, x + vx * dt, y + vy * dt);
+        if (centerDist < PHYSICS.cupRadius * PHYSICS.cupCenterDropFrac) {
+          holed = true;
+          x = hole.pin.x;
+          y = hole.pin.y;
+          path.push({ x, y, z: 0 });
+          break;
+        }
         lipped = true;
         const deflect = 0.5 + (preview ? 0.5 : this.rng()) * 0.35; // ~30-50°
         const cs = Math.cos(deflect);

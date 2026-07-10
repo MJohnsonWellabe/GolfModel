@@ -141,6 +141,8 @@ export function renderCourseCanvas(
       return { cx: bcx, cy: bcy, maxR };
     });
 
+  // Edge-wobble amplitude multiplier (default 1 → historical subtle ripple).
+  const ew = theme.edgeWobble ?? 1;
   const realGrain = Boolean(theme.turfGrainKey);
   const fairwayTile = theme.fairwayGrainTile ?? 6;
   const roughTile = theme.roughGrainTile ?? 14;
@@ -164,14 +166,18 @@ export function renderCourseCanvas(
       // gently curved surface edges — soft-rounded fairways rather than hard
       // rectangles) plus a little white-noise grain to keep the boundary from
       // reading as a clean sine. Texture-only: gameplay polygons stay crisp.
+      // theme.edgeWobble scales the amplitude (default 1); a course that reads
+      // too rectangular can crank it for wavier, more organic boundaries.
       const wobX =
-        Math.sin(wx * 0.019 + wy * 0.011) * 5 +
-        Math.sin(wy * 0.034 - wx * 0.014) * 3 +
-        (texelHash(px + 7, py) - 0.5) * 3;
+        (Math.sin(wx * 0.019 + wy * 0.011) * 5 +
+          Math.sin(wy * 0.034 - wx * 0.014) * 3 +
+          (texelHash(px + 7, py) - 0.5) * 3) *
+        ew;
       const wobY =
-        Math.sin(wy * 0.018 - wx * 0.010) * 5 +
-        Math.sin(wx * 0.032 + wy * 0.015) * 3 +
-        (texelHash(px, py + 7) - 0.5) * 3;
+        (Math.sin(wy * 0.018 - wx * 0.010) * 5 +
+          Math.sin(wx * 0.032 + wy * 0.015) * 3 +
+          (texelHash(px, py + 7) - 0.5) * 3) *
+        ew;
       const jx = wx + wobX;
       const jy = wy + wobY;
       let cls = classAt(jx, jy);

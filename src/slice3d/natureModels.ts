@@ -76,6 +76,10 @@ export interface NaturePalette {
   foliageLight: number;
   grass: number;
   stone: number;
+  /** Lush grass: build a LIT, two-sided grass material (self-shading, catches
+   *  the sun) instead of the flat unlit one, and register a per-instance color
+   *  buffer on the grass prototypes so tufts can be tinted individually. */
+  grassLit?: boolean;
 }
 
 export interface NatureProto {
@@ -112,9 +116,13 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
   const barkMat = flat(scene, 'natBark', palette.bark);
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
-  // Grass tufts and flowers are crossed flat cards — lit shading turns the
-  // back-facing half black, so render them unlit in flat palette colors.
-  const grassMat = unlit(scene, 'natGrass', palette.grass);
+  // Grass tufts and flowers are crossed flat cards — plain lit shading turns the
+  // back-facing half black, so by default render them unlit in flat palette
+  // colors. When grassLit, grass instead uses a LIT, two-sided material
+  // (twoSidedLighting lights the back cards too, so they don't go black) with a
+  // green emissive floor — the tufts self-shade and catch the sun for depth
+  // rather than reading as one flat silhouette.
+  const grassMat = palette.grassLit ? litGrass(scene, 'natGrass', palette.grass) : unlit(scene, 'natGrass', palette.grass);
   const flowerMat = unlit(scene, 'natFlower', 0xe8a8c8);
   const stoneMat = flat(scene, 'natStone', palette.stone);
   // Clouds: flat near-white and self-lit so they read soft against any sky.
@@ -215,6 +223,15 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       if (parts.length) out.set(key, { parts, height: maxY - minY || 1 });
     })
   );
+  // Per-tuft color variation needs a 'color' instanced buffer on each grass
+  // prototype mesh before any instance is created (course3d sets each
+  // instance's .instancedBuffers.color). Register once here when lush.
+  if (palette.grassLit) {
+    for (const [key, proto] of out) {
+      if (!key.startsWith('grass')) continue;
+      for (const part of proto.parts) part.registerInstancedBuffer('color', 4);
+    }
+  }
   return out;
 }
 
@@ -225,6 +242,19 @@ function unlit(scene: Scene, name: string, color: number): StandardMaterial {
   mt.emissiveColor = c3(color);
   mt.disableLighting = true;
   mt.backFaceCulling = false;
+  return mt;
+}
+
+/** Lit, two-sided grass material: catches the sun and self-shades (unlike the
+ *  flat unlit tuft), with a green emissive floor so shaded/back faces of the
+ *  crossed cards stay green instead of going black. */
+function litGrass(scene: Scene, name: string, color: number): StandardMaterial {
+  const mt = new StandardMaterial(name, scene);
+  mt.diffuseColor = c3(color);
+  mt.specularColor = new Color3(0, 0, 0);
+  mt.emissiveColor = c3(color).scale(0.32);
+  mt.backFaceCulling = false;
+  mt.twoSidedLighting = true;
   return mt;
 }
 

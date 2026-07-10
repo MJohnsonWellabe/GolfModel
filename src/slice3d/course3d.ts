@@ -537,7 +537,8 @@ export function buildCourse(
     foliage: theme.treeCanopy,
     foliageLight: theme.treeCanopyLight,
     grass: shade(theme.rough, 1.1),
-    stone: 0x7e7c72
+    stone: 0x7e7c72,
+    grassLit: theme.lushGrass
   };
   // Only download the props this course's theme actually places (about half
   // the catalog) — both loadNaturePrototypes calls MUST share this set since
@@ -748,7 +749,7 @@ export function buildCourse(
     // shadow-map frustum and darken the whole (shadow-receiving) terrain.
 
     let n = 0;
-    const placeProto = (proto: NatureProto, x: number, y: number, targetH: number): void => {
+    const placeProto = (proto: NatureProto, x: number, y: number, targetH: number, tint?: Color4): void => {
       const s = targetH / proto.height;
       const pos = w2b(x, y, heightAt(x, y));
       const rotY = hash2(y, x) * Math.PI * 2;
@@ -759,11 +760,21 @@ export function buildCourse(
         inst.position = pos;
         inst.rotation = new Vector3(0, rotY, 0);
         inst.parent = treeRoot;
+        // Per-tuft tint (lush grass only; the buffer is registered on grass
+        // prototypes in natureModels when grassLit) breaks the flat one-color read.
+        if (tint) inst.instancedBuffers.color = tint;
       }
     };
-    const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0): void => {
+    // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
+    // warmer (yellow-green) so the field reads as varied blades, not flat green.
+    const grassTint = (x: number, y: number): Color4 => {
+      const lum = 0.72 + hash2(x * 1.7, y * 0.7) * 0.6; // 0.72..1.32
+      const warm = hash2(x + 13, y - 9); // 0..1
+      return new Color4(lum * (1 + warm * 0.2), lum, lum * (1 - warm * 0.12), 1);
+    };
+    const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0, tint?: Color4): void => {
       if (!set.length) return;
-      placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH);
+      placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH, tint);
     };
     const plantTree = (b: TreeBlob): void => {
       // Accent species (e.g. birch among Timberline's pines) on ~15% of trees.
@@ -826,15 +837,21 @@ export function buildCourse(
         const jy = yy + (hash2(yy + 5, xx) - 0.5) * 26;
         if (engine.surfaceAt(jx, jy) !== surf) continue;
         const roll = hash2(xx + 91, yy + 47);
+        // Lush grass (theme.lushGrass): per-tuft color variation, a denser
+        // fairway carpet, and a taller rough cap. Undefined = historical.
+        const lush = theme.lushGrass;
+        const tint = lush ? grassTint(jx, jy) : undefined;
         if (surf === 'fairway') {
-          // Short, dense mown tufts (kept low so they never block the ball read).
-          if (roll < 0.62) place(grasses, jx, jy, 0.9 + hash2(jx, jy) * 0.6, 3);
+          // Short, dense mown tufts (kept low so they never block the ball read);
+          // lush lays a denser carpet so the fairway isn't a bare painted surface.
+          if (roll < (lush ? 0.9 : 0.62)) place(grasses, jx, jy, 0.85 + hash2(jx, jy) * 0.6, 3, tint);
         } else {
           // Longer rough grass, plus the occasional bush/flower — knee-high
           // at most (the golfer is ~6 units; tufts must never read as walls).
           // Hard cap: tufts stay knee-high whatever the theme multiplier —
           // the golfer is ~6 units, tufts "must never read as walls".
-          if (roll < 0.5) place(grasses, jx, jy, Math.min(3.4, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3);
+          const cap = lush ? 4.6 : 3.4;
+          if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
           else if (roll < 0.55 && bushSet.length) {
             // Same proto-choice hash place() used (jitter 7) so the classic
             // bush_a/b courses keep their exact historical layout. Low

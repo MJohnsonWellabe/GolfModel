@@ -129,6 +129,12 @@ export const PHYSICS = {
    *  Beyond cupLipSpeed a way-too-fast putt skips clean. Narrow band so lip-outs
    *  are the occasional heartbreak, not routine (FB2). */
   cupLipSpeed: 31,
+  /** Centering: a putt whose closest approach to the pin is within this fraction
+   *  of the cup radius is struck DEAD-CENTER and drops even at firm (lip-band)
+   *  pace — a pured putt rattles in; only OFF-center firm putts horseshoe out.
+   *  Without this, pace noise could push a nominal 2ft-past centered putt into
+   *  the lip band and eject it (the "hit the hole and bounced out" bug). */
+  cupCenterDropFrac: 0.5,
   /** Visual-only: a putt that rolls over the cup too fast to drop pops UP off the
    *  lip so there's real interaction (like a real ball). Peak hop (world px) at a
    *  crossing exactly cupCaptureSpeed over the drop threshold; scales with how

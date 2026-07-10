@@ -42,8 +42,10 @@
       "tree_broken"
     ],
     "backdropTreeStep": 38,
-    "tuftDensity": 2.4,
-    "roughTuftHeight": 1.3,
+    "tuftDensity": 3.2,
+    "roughTuftHeight": 1.35,
+    "edgeWobble": 2.4,
+    "lushGrass": true,
     "grassKeys": [
       "grass_g",
       "grass_h",
@@ -128,12 +130,12 @@
             ]
           ],
           "width": [
-            38,
-            58,
+            34,
+            62,
             74,
-            66,
             52,
-            44
+            58,
+            40
           ]
         }
       ],

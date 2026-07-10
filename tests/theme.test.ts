@@ -13,6 +13,8 @@ describe('theme knobs', () => {
     expect(t.sandSculpt).toBe(0); // sand bake bit-identical when unset
     expect(t.bushKeys).toBeUndefined(); // falls back to BUSH_KEYS
     expect(t.grassKeys).toBeUndefined(); // falls back to GRASS_KEYS
+    expect(t.lushGrass).toBeUndefined(); // flat unlit grass
+    expect(t.edgeWobble).toBeUndefined(); // historical subtle wobble
     expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
     expect(t.turfGrainKey).toBeUndefined(); // coded grain(), not a real texture
@@ -31,6 +33,8 @@ describe('theme knobs', () => {
         hazeStrength: 0.55,
         bushKeys: ['bush_juniper', 'bush_c', 'bush_a'],
         grassKeys: ['grass_g', 'grass_h', 'grass_i'],
+        lushGrass: true,
+        edgeWobble: 2.4,
         cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c'],
         turfGrainKey: 'textures/turf_grain.jpg',
         turfNormalKey: 'textures/turf_normal.jpg',
@@ -45,6 +49,8 @@ describe('theme knobs', () => {
     expect(t.hazeStrength).toBe(0.55);
     expect(t.bushKeys).toEqual(['bush_juniper', 'bush_c', 'bush_a']);
     expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
+    expect(t.lushGrass).toBe(true);
+    expect(t.edgeWobble).toBe(2.4);
     expect(t.cloudKeys).toEqual(['cloud_a', 'cloud_b', 'cloud_c']);
     expect(t.turfGrainKey).toBe('textures/turf_grain.jpg');
     expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');

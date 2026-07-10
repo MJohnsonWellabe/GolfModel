@@ -25,12 +25,12 @@ const DRAG_DEAD_ZONE = 12;
 /** Radians of yaw per horizontal screen px dragged in the shot view. */
 const YAW_PER_PX = 0.0032;
 /** Putts aim over much shorter distances, so the same yaw-per-px swings the aim
- *  point too far on the green — use a finer rate so it doesn't jump. */
-const PUTT_YAW_PER_PX = 0.0014;
+ *  point too far on the green — use a much finer rate so it doesn't jump. */
+const PUTT_YAW_PER_PX = 0.0009;
 /** World px of aim distance per vertical screen px dragged. */
 const DIST_PER_PX = 1.1;
 /** Finer pace drag for putts (short distances magnify every px). */
-const PUTT_DIST_PER_PX = 0.6;
+const PUTT_DIST_PER_PX = 0.45;
 
 /**
  * Shot setup: which club, where you're aiming, and the preview arc.

@@ -61,6 +61,12 @@ export interface CourseTheme {
   /** Ground grass-tuft mesh mix (defaults to GRASS_KEYS). Lets a course pull in
    *  the denser meadow-pack tufts for a lusher look without changing others. */
   grassKeys?: readonly string[];
+  /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
+   *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
+  lushGrass?: boolean;
+  /** Multiplier on the baked-texture edge wobble (organic fairway/rough/bunker
+   *  boundaries). Default 1 = the historical subtle ripple; higher = wavier. */
+  edgeWobble?: number;
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
@@ -141,6 +147,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'backdropTreeStep'
     | 'bushKeys'
     | 'grassKeys'
+    | 'lushGrass'
+    | 'edgeWobble'
     | 'cloudKeys'
     | 'turfGrainKey'
     | 'turfNormalKey'
@@ -178,6 +186,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.bushKeys = strings(spec.bushKeys);
   t.grassKeys = strings(spec.grassKeys);
   t.cloudKeys = strings(spec.cloudKeys);
+  if (spec.lushGrass === true) t.lushGrass = true;
+  if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;
   if (typeof spec.turfNormalKey === 'string') t.turfNormalKey = spec.turfNormalKey;

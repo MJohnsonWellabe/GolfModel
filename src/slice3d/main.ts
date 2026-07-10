@@ -707,10 +707,24 @@ class HoleScene {
     this.camera.position = w2b(h.tee.x, h.tee.y, 9 + teeH).subtract(g.scale(20));
     this.camera.setTarget(w2b(h.tee.x, h.tee.y, teeH + 2).add(g.scale(42)));
 
+    // Hold AT the tee first: point camTarget at the same tee framing with a
+    // gentle gain so the opening frames unmistakably sit at the tee (the banner
+    // is up for ~0.5s and the smoothing lerp was drifting the camera downrange
+    // before the player even looked). The travel waypoint fires shortly after.
+    const TEE_HOLD_MS = 500;
+    this.camTarget.pos = this.camera.position.clone();
+    this.camTarget.look = w2b(h.tee.x, h.tee.y, teeH + 2).add(g.scale(42));
+    this.camTarget.k = 0.4;
+
     // Waypoint 1: rise off the tee and glide down the fairway toward mid-hole.
-    this.camTarget.pos = w2b(midX, midY, 52).subtract(g.scale(30));
-    this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
-    this.camTarget.k = 0.9;
+    this.introTimers.push(
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.camTarget.pos = w2b(midX, midY, 52).subtract(g.scale(30));
+        this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
+        this.camTarget.k = 0.9;
+      }, TEE_HOLD_MS)
+    );
 
     // Waypoint 2: continue up and over the green, looking down at the pin.
     this.introTimers.push(
@@ -719,7 +733,7 @@ class HoleScene {
         this.camTarget.pos = w2b(h.pin.x, h.pin.y, 82).subtract(g.scale(26));
         this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
         this.camTarget.k = 0.85;
-      }, 1600)
+      }, 1600 + TEE_HOLD_MS)
     );
 
     // Waypoint 3: pull back to the tee-shot framing and hand over control.
@@ -734,7 +748,7 @@ class HoleScene {
             if (!this.disposed) this.beginTurn();
           }, 900)
         );
-      }, 3600)
+      }, 3600 + TEE_HOLD_MS)
     );
   }
 
@@ -1895,20 +1909,30 @@ function renderProfile(): void {
   wireAccountRow();
 }
 
-/** Two-step Reset Records: the button swaps to an explicit confirm/cancel so a
- *  destructive wipe can't happen on a single tap (Phase 9; restored after the
- *  profile rework dropped it). Clears stats/scores, keeps coins + purchases. */
+/** Reset Records: a centered "Are you sure?" modal (same style as the store
+ *  purchase confirm) so a destructive wipe can't happen on a single tap.
+ *  Clears stats/scores, keeps coins + purchases. */
 function confirmResetRecords(): void {
-  const zone = document.getElementById('resetZone');
-  if (!zone) return;
   const sharedNote = isShared() ? ` Scores already posted to the shared leaderboard stay there.` : '';
-  zone.innerHTML =
-    `<div class="resetWarn">Clear career stats, achievements, XP and local scores? ` +
+  const modal = document.createElement('div');
+  modal.className = 'storeConfirm';
+  // The profile overlay it sits over is z-index 25; .storeConfirm's own 5 only
+  // works inside the store's stacking context, so lift it above the overlay.
+  modal.style.zIndex = '30';
+  const close = (): void => modal.remove();
+  modal.innerHTML =
+    `<div class="storeConfirmBox"><div class="scTitle">Reset Records?</div>` +
+    `<div class="scAsk">Clear career stats, achievements, XP and local scores? ` +
     `Coins and unlocked items are kept.${sharedNote}</div>` +
     `<div class="btnRow"><button id="resetYes" class="dangerBtn">Yes, reset</button>` +
-    `<button id="resetNo" class="ghostBtn">Cancel</button></div>`;
-  document.getElementById('resetNo')!.addEventListener('pointerdown', () => renderProfile());
-  document.getElementById('resetYes')!.addEventListener('pointerdown', () => {
+    `<button id="resetNo" class="ghostBtn">Cancel</button></div></div>`;
+  // Tap the dimmed backdrop (outside the box) to cancel.
+  modal.addEventListener('pointerdown', (e) => {
+    if (e.target === modal) close();
+  });
+  document.body.appendChild(modal);
+  modal.querySelector<HTMLButtonElement>('#resetNo')!.addEventListener('pointerdown', close);
+  modal.querySelector<HTMLButtonElement>('#resetYes')!.addEventListener('pointerdown', () => {
     resetProfileRecords(profile, Date.now());
     persistProfile();
     clearLocalHistory();
@@ -1918,14 +1942,14 @@ function confirmResetRecords(): void {
         showCloudStatus(res.status, true);
       });
     updateDailyBanner();
-    // Confirm in place and let the player close out. Re-rendering the whole
-    // profile here used to tear down and rebuild the overlay (scroll jumped to
-    // top), which read as being unexpectedly thrown back into the profile
-    // screen — the cleared stats are shown next time Profile is opened.
-    zone.innerHTML =
-      `<div class="resetWarn">✓ Career records cleared.</div>` +
-      `<div class="btnRow"><button id="resetDone" class="ghostBtn">Done</button></div>`;
-    document.getElementById('resetDone')!.addEventListener('pointerdown', () => {
+    // Confirm in place, then close both the modal and the profile overlay —
+    // the cleared stats show next time Profile is opened (avoids a jarring
+    // full re-render of the profile screen).
+    modal.querySelector('.storeConfirmBox')!.innerHTML =
+      `<div class="scTitle">✓ Records cleared</div>` +
+      `<div class="btnRow"><button id="resetDone">Done</button></div>`;
+    modal.querySelector<HTMLButtonElement>('#resetDone')!.addEventListener('pointerdown', () => {
+      close();
       recordsEl.style.display = 'none';
     });
   });
