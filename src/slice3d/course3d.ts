@@ -642,12 +642,13 @@ export function buildCourse(
       ctx.save();
       ctx.translate(cx, cy);
       ctx.scale(rx / R, ry / R);
-      // Falloff biased toward the edge so puffs feather out gently (softer,
-      // more see-through) rather than reading as a hard-cored blob.
+      // Denser core/mid with a still-feathered rim: firm enough to read as a
+      // real cloud, soft enough not to be a hard-edged blob. Cirrus stays airy
+      // via its low billboard opacity, not a softer gradient.
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
-      g.addColorStop(0, `rgba(255,255,255,${alpha * 0.9})`);
-      g.addColorStop(0.3, `rgba(255,255,255,${alpha * 0.5})`);
-      g.addColorStop(0.65, `rgba(255,255,255,${alpha * 0.16})`);
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(0.42, `rgba(255,255,255,${alpha * 0.6})`);
+      g.addColorStop(0.75, `rgba(255,255,255,${alpha * 0.18})`);
       g.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -716,17 +717,18 @@ export function buildCourse(
       drift.push({ mesh: cl, v });
     };
     for (let i = 0; i < 6; i++) {
-      // Soft cumulus — rounded mounds at varied heights so their tops don't
-      // line up into a flat band, sized to sit fully in-frame.
+      // Rounded cumulus mounds at varied heights (no flat band). Smaller and a
+      // touch firmer than the softest pass so they read as real clouds.
       const j = hash2(i * 12.1, i * 4.7);
-      const pw = 640 + j * 420;
-      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.72, 5 + j * 2.5, `cumulus${i}`);
+      const pw = 520 + j * 340;
+      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
     }
-    for (let i = 0; i < 7; i++) {
-      // Thin cirrus streaks, lower into the tee FOV so they actually show.
+    for (let i = 0; i < 10; i++) {
+      // Thin cirrus streaks — more of them, wide across the dome at varied
+      // heights, kept low-opacity so they stay airy waves.
       const j = hash2(i * 7.9 + 2, i * 9.3);
-      const pw = 900 + j * 560;
-      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3000 + i * (6000 / 7) + j * 300, hole.tee.y - 3000 - (i % 2) * 300, 820 + (i % 3) * 150 + j * 160, 0.5, 3.4 + j * 1.6, `cirrus${i}`);
+      const pw = 860 + j * 540;
+      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / 10) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
     }
     scene.onBeforeRenderObservable.add(() => {
       if (isFrozen()) return;
