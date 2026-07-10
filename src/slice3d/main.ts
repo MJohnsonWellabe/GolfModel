@@ -1152,7 +1152,10 @@ class HoleScene {
       wind: this.wind,
       hole: this.hole,
       launchMult,
-      riskMult: shaping && !this.ai ? this.strike.riskMult : 1
+      riskMult: shaping && !this.ai ? this.strike.riskMult : 1,
+      // Pre-shot stroke count (0 = tee shot) → recovery shots get a more
+      // forgiving tree hitbox.
+      stroke: this.state.strokes
     });
     const outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     this.strike.resetDot();

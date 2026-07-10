@@ -13,6 +13,7 @@ describe('theme knobs', () => {
     expect(t.sandSculpt).toBe(0); // sand bake bit-identical when unset
     expect(t.bushKeys).toBeUndefined(); // falls back to BUSH_KEYS
     expect(t.grassKeys).toBeUndefined(); // falls back to GRASS_KEYS
+    expect(t.flowerKeys).toBeUndefined(); // falls back to FLOWER_KEYS
     expect(t.lushGrass).toBeUndefined(); // flat unlit grass
     expect(t.edgeWobble).toBeUndefined(); // historical subtle wobble
     expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
@@ -33,6 +34,7 @@ describe('theme knobs', () => {
         hazeStrength: 0.55,
         bushKeys: ['bush_juniper', 'bush_c', 'bush_a'],
         grassKeys: ['grass_g', 'grass_h', 'grass_i'],
+        flowerKeys: ['flower_a', 'flower_b', 'flower_c'],
         lushGrass: true,
         edgeWobble: 2.4,
         cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c'],

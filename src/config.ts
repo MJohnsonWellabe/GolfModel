@@ -101,9 +101,14 @@ export const PHYSICS = {
    *  tree can stop it, so a shot can escape a tree it started next to (FB9). */
   treeLaunchGrace: 16,
   /** Flight-collision radius as a multiple of a tree's canopy-shadow radius.
-   *  Slightly >1 so branches (not just the trunk) catch the ball, while a
-   *  genuine gap between trees stays threadable (playtest FB9). */
-  treeCanopyMult: 1.15,
+   *  Now BELOW 1 so only a near-core strike stops the ball — a glancing
+   *  branch clip flies on (playtest: trees were too grabby, esp. the fairway
+   *  tree). A dense stand still blocks because many trunks overlap. */
+  treeCanopyMult: 0.85,
+  /** Extra collision-radius scale applied to RECOVERY shots (stroke >= 1, i.e.
+   *  the 2nd/3rd shot around a tree). Makes escaping a tree you're stuck under
+   *  much more forgiving than the tee shot that put you there. */
+  treeRecoveryMult: 0.6,
   /** A ball that strikes a tree keeps this fraction of its impact speed… */
   treeDamp: 0.35,
   /** …capped here (world px/s) — a fast liner drops dead, a slow one dribbles. */

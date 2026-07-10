@@ -61,6 +61,9 @@ export interface CourseTheme {
   /** Ground grass-tuft mesh mix (defaults to GRASS_KEYS). Lets a course pull in
    *  the denser meadow-pack tufts for a lusher look without changing others. */
   grassKeys?: readonly string[];
+  /** Flower mesh mix (defaults to FLOWER_KEYS). More variety = more bloom
+   *  shapes; with lushGrass they also render multi-colored. */
+  flowerKeys?: readonly string[];
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -147,6 +150,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'backdropTreeStep'
     | 'bushKeys'
     | 'grassKeys'
+    | 'flowerKeys'
     | 'lushGrass'
     | 'edgeWobble'
     | 'cloudKeys'
@@ -185,6 +189,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.scatterKeys = strings(spec.scatterKeys);
   t.bushKeys = strings(spec.bushKeys);
   t.grassKeys = strings(spec.grassKeys);
+  t.flowerKeys = strings(spec.flowerKeys);
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.lushGrass === true) t.lushGrass = true;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;

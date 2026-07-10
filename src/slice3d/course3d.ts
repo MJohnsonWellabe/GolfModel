@@ -552,7 +552,7 @@ export function buildCourse(
       ...(theme.cloudKeys ?? []),
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
-      ...FLOWER_KEYS
+      ...(theme.flowerKeys ?? FLOWER_KEYS)
     ])
   ];
 
@@ -742,7 +742,7 @@ export function buildCourse(
     const conifers = new Set<string>(CONIFER_KEYS);
     const bushSet = pickKeyed(theme.bushKeys ?? BUSH_KEYS);
     const grasses = pick(theme.grassKeys ?? GRASS_KEYS);
-    const flowers = pick(FLOWER_KEYS);
+    const flowers = pick(theme.flowerKeys ?? FLOWER_KEYS);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
     // into the course texture (collectTreeBlobs), and adding the native-scale
     // prototypes as shadow casters would blow up the directional light's
@@ -771,6 +771,22 @@ export function buildCourse(
       const lum = 0.72 + hash2(x * 1.7, y * 0.7) * 0.6; // 0.72..1.32
       const warm = hash2(x + 13, y - 9); // 0..1
       return new Color4(lum * (1 + warm * 0.2), lum, lum * (1 - warm * 0.12), 1);
+    };
+    // Multi-colored blooms: pick a hue from a small wildflower palette per
+    // flower (the lit near-white flower material multiplies by this).
+    const FLOWER_COLORS = [
+      new Color4(0.98, 0.95, 0.62, 1), // yellow
+      new Color4(0.96, 0.96, 0.98, 1), // white
+      new Color4(0.72, 0.55, 0.92, 1), // purple
+      new Color4(0.95, 0.5, 0.55, 1), // red-pink
+      new Color4(0.98, 0.66, 0.4, 1) // orange
+    ];
+    const flowerTint = (x: number, y: number): Color4 =>
+      FLOWER_COLORS[Math.floor(hash2(x + 31, y - 19) * FLOWER_COLORS.length) % FLOWER_COLORS.length];
+    // Subtle green variance so bushes stop reading as one flat tone.
+    const bushTint = (x: number, y: number): Color4 => {
+      const l = 0.82 + hash2(x - 4, y + 8) * 0.34; // 0.82..1.16
+      return new Color4(l * 0.97, l, l * 0.92, 1);
     };
     const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0, tint?: Color4): void => {
       if (!set.length) return;
@@ -860,15 +876,17 @@ export function buildCourse(
             // fairway-swallowing blob.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
             const bh = e.key === 'bush_juniper' ? 1.5 + hash2(jy, jx) * 0.7 : 3.2 + hash2(jy, jx) * 1.6;
-            placeProto(e.proto, jx, jy, bh);
+            placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
-          else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
+          // Flowers: multi-colored + a wider band when lush (patchier bloom).
+          else if (roll < (lush ? 0.64 : 0.59))
+            place(flowers, jx, jy, 1.6 + hash2(jx + 3, jy) * 0.9, 13, lush ? flowerTint(jx, jy) : undefined);
           // Forest-floor props (ferns/stumps/logs/deadwood) where the theme
           // asks for them — rare, visual only (never physics). Heights are
           // keyed: a fallen trunk is height-scaled from its LYING pose (big
           // height = huge length), a broken snag should tower like a dead
           // spar, everything else stays knee-high.
-          else if (scatter.length && roll < 0.625) {
+          else if (scatter.length && roll < (lush ? 0.68 : 0.625)) {
             const e = scatter[Math.floor(hash2(jx + 17, jy - 17) * scatter.length) % scatter.length];
             const sh =
               e.key === 'tree_broken'

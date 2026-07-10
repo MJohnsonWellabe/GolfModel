@@ -100,12 +100,17 @@ export function catmullRom(points: number[][], samplesPerSeg = 8): number[][] {
  * Offset an open polyline by per-point half-widths on both sides and join
  * the two edges into one closed polygon (a ribbon). Normals average the
  * adjacent segment directions so joints stay smooth.
+ *
+ * `roundCaps` replaces the blunt perpendicular end cuts with rounded shoulders
+ * (a half-circle of radius = the end half-width), so a fairway tee/green end
+ * reads organic instead of squared off.
  */
-export function offsetPolyline(line: Point[], halfWidths: number[]): Polygon {
+export function offsetPolyline(line: Point[], halfWidths: number[], roundCaps = false): Polygon {
   const n = line.length;
   if (n < 2) return [];
   const left: number[][] = [];
   const right: number[][] = [];
+  const hwAt = (i: number): number => halfWidths[Math.min(i, halfWidths.length - 1)];
   for (let i = 0; i < n; i++) {
     const prev = line[Math.max(0, i - 1)];
     const next = line[Math.min(n - 1, i + 1)];
@@ -115,9 +120,38 @@ export function offsetPolyline(line: Point[], halfWidths: number[]): Polygon {
     // Unit normal (left of travel direction)
     const nx = -dy / len;
     const ny = dx / len;
-    const hw = halfWidths[Math.min(i, halfWidths.length - 1)];
+    const hw = hwAt(i);
     left.push([line[i].x + nx * hw, line[i].y + ny * hw]);
     right.push([line[i].x - nx * hw, line[i].y - ny * hw]);
   }
-  return [...left, ...right.reverse()];
+  if (!roundCaps) return [...left, ...right.reverse()];
+  // Half-circle cap: sweep from the +normal offset point (θ=0) through the
+  // OUTWARD bulge (θ=π/2) to the −normal offset point (θ=π). `normU`/`outU` are
+  // the unit normal and unit outward-tangent (perpendicular) at the endpoint.
+  const arc = (cx: number, cy: number, normU: Point, outU: Point, hw: number): number[][] => {
+    const steps = 6;
+    const pts: number[][] = [];
+    for (let s = 1; s < steps; s++) {
+      const th = (Math.PI * s) / steps;
+      const c = Math.cos(th);
+      const sn = Math.sin(th);
+      pts.push([cx + hw * (c * normU.x + sn * outU.x), cy + hw * (c * normU.y + sn * outU.y)]);
+    }
+    return pts;
+  };
+  const unit = (x: number, y: number): Point => {
+    const l = Math.hypot(x, y) || 1;
+    return { x: x / l, y: y / l };
+  };
+  // End cap: from left[n-1] (+normal) → right[n-1] (−normal), bulging past the end.
+  const hwE = hwAt(n - 1);
+  const normE = unit(left[n - 1][0] - line[n - 1].x, left[n - 1][1] - line[n - 1].y);
+  const outE = unit(line[n - 1].x - line[n - 2].x, line[n - 1].y - line[n - 2].y);
+  const endCap = arc(line[n - 1].x, line[n - 1].y, normE, outE, hwE);
+  // Start cap: from right[0] (−normal) → left[0] (+normal), bulging before the start.
+  const hwS = hwAt(0);
+  const normS = unit(right[0][0] - line[0].x, right[0][1] - line[0].y);
+  const outS = unit(line[0].x - line[1].x, line[0].y - line[1].y);
+  const startCap = arc(line[0].x, line[0].y, normS, outS, hwS);
+  return [...left, ...endCap, ...right.reverse(), ...startCap];
 }

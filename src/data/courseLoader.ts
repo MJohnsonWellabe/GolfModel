@@ -27,6 +27,9 @@ export type HoleAuthoring = Omit<HoleData, 'fairway'> & {
 
 export type CourseAuthoring = Omit<CourseData, 'holes'> & {
   version?: number;
+  /** Round the fairway ribbon end-caps (tee/green) instead of blunt square
+   *  cuts. Opt-in per course so others stay byte-identical. */
+  roundFairwayCaps?: boolean;
   holes: HoleAuthoring[];
 };
 
@@ -38,7 +41,7 @@ function isRibbon(f: FairwaySpec): f is FairwayRibbon {
 }
 
 /** Compile one ribbon spec into a closed polygon. */
-export function compileRibbon(ribbon: FairwayRibbon): Polygon {
+export function compileRibbon(ribbon: FairwayRibbon, roundCaps = false): Polygon {
   const { centerline, width } = ribbon;
   if (centerline.length < 2) return [];
   // Sample position and width together so both interpolate coherently
@@ -46,17 +49,19 @@ export function compileRibbon(ribbon: FairwayRibbon): Polygon {
   const samples = catmullRom(merged, RIBBON_SAMPLES);
   return offsetPolyline(
     samples.map(([x, y]) => ({ x, y })),
-    samples.map(([, , hw]) => Math.max(4, hw))
+    samples.map(([, , hw]) => Math.max(4, hw)),
+    roundCaps
   );
 }
 
 /** Compile a course authoring file into the runtime CourseData. */
 export function loadCourse(data: CourseAuthoring): CourseData {
+  const roundCaps = data.roundFairwayCaps === true;
   return {
     ...data,
     holes: data.holes.map((h) => ({
       ...h,
-      fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f) : f))
+      fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f))
     }))
   };
 }

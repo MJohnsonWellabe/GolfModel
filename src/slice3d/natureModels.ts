@@ -123,7 +123,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
   // green emissive floor — the tufts self-shade and catch the sun for depth
   // rather than reading as one flat silhouette.
   const grassMat = palette.grassLit ? litGrass(scene, 'natGrass', palette.grass) : unlit(scene, 'natGrass', palette.grass);
-  const flowerMat = unlit(scene, 'natFlower', 0xe8a8c8);
+  // Lush flowers: a light, two-sided lit material so each bloom's per-instance
+  // color shows as a true hue (the color buffer multiplies this near-white base)
+  // — otherwise flowers are one flat unlit pink.
+  const flowerMat = palette.grassLit ? litGrass(scene, 'natFlower', 0xf2ebe6) : unlit(scene, 'natFlower', 0xe8a8c8);
   const stoneMat = flat(scene, 'natStone', palette.stone);
   // Clouds: flat near-white and self-lit so they read soft against any sky.
   const cloudMat = flat(scene, 'natCloud', 0xf2f7fb);
@@ -223,12 +226,13 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       if (parts.length) out.set(key, { parts, height: maxY - minY || 1 });
     })
   );
-  // Per-tuft color variation needs a 'color' instanced buffer on each grass
-  // prototype mesh before any instance is created (course3d sets each
-  // instance's .instancedBuffers.color). Register once here when lush.
+  // Per-instance color variation needs a 'color' instanced buffer on each
+  // prototype mesh before any instance is created (course3d sets each instance's
+  // .instancedBuffers.color). Register once here when lush — grass/flowers get
+  // varied hues, bushes a subtle green variance so scatter stops reading flat.
   if (palette.grassLit) {
     for (const [key, proto] of out) {
-      if (!key.startsWith('grass')) continue;
+      if (!(key.startsWith('grass') || key.startsWith('flower') || key.startsWith('bush'))) continue;
       for (const part of proto.parts) part.registerInstancedBuffer('color', 4);
     }
   }
