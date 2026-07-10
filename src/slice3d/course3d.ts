@@ -29,6 +29,7 @@ import {
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
+import { buildBreakDots } from './breakDots';
 import {
   BUSH_KEYS,
   CONIFER_KEYS,
@@ -925,49 +926,10 @@ export function buildCourse(
   puttGrid.material = gridMat;
   puttGrid.setEnabled(false);
 
-  // Break flow: crawling dots drifting downhill (speed ∝ slope strength) so
-  // the break direction reads at a glance, like EG's putting aid
-  const flowTex = new DynamicTexture('flowTex', { width: 64, height: 64 }, scene, true);
-  const ftx = flowTex.getContext() as CanvasRenderingContext2D;
-  ftx.clearRect(0, 0, 64, 64);
-  for (const [fx, fy] of [[16, 18], [48, 44], [36, 6]]) {
-    const fg = ftx.createRadialGradient(fx, fy, 0, fx, fy, 4.5);
-    fg.addColorStop(0, 'rgba(255,255,255,0.95)');
-    fg.addColorStop(1, 'rgba(255,255,255,0)');
-    ftx.fillStyle = fg;
-    ftx.fillRect(fx - 6, fy - 6, 12, 12);
-  }
-  flowTex.update(false);
-  flowTex.hasAlpha = true;
-  flowTex.wrapU = Texture.WRAP_ADDRESSMODE;
-  flowTex.wrapV = Texture.WRAP_ADDRESSMODE;
-  flowTex.uScale = (g.rx * 2 + 6) / 15;
-  flowTex.vScale = (g.ry * 2 + 6) / 15;
-  const flow = MeshBuilder.CreateDisc('puttFlow', { radius: 1, tessellation: 40 }, scene);
-  flow.rotation.x = Math.PI / 2;
-  flow.scaling = new Vector3(g.rx + 3, g.ry + 3, 1);
-  flow.position = new Vector3(0, engine.groundAt(g.cx, g.cy) + GREEN_RAISE + 0.3, 0);
-  const flowMat = new StandardMaterial('puttFlowMat', scene);
-  flowMat.emissiveTexture = flowTex;
-  flowMat.opacityTexture = flowTex;
-  flowMat.disableLighting = true;
-  flowMat.alpha = 0.6;
-  flow.material = flowMat;
-  flow.parent = puttGrid;
-  // Break-flow drift direction: real terrain gradient at the green center
-  // when the hole has one, else the legacy single slope.
-  const hfGrad = engine.heightField?.gradientAt(g.cx, g.cy);
-  const flowAngle = hfGrad && (hfGrad.x || hfGrad.y) ? Math.atan2(-hfGrad.y, -hfGrad.x) : hole.slope.angle;
-  const flowStrength = hfGrad
-    ? Math.min(1, Math.hypot(hfGrad.x, hfGrad.y) * 10)
-    : hole.slope.strength;
-  scene.onBeforeRenderObservable.add(() => {
-    if (!flow.isEnabled() || isFrozen()) return;
-    const fdt = scene.getEngine().getDeltaTime() / 1000;
-    const rate = 0.28 * (0.35 + flowStrength) * fdt;
-    flowTex.uOffset -= Math.cos(flowAngle) * rate;
-    flowTex.vOffset += Math.sin(flowAngle) * rate;
-  });
+  // Break-dot flow field: every dot drifts along the LOCAL breakAccel (the
+  // same field the roll integrator uses), speed ∝ break magnitude — so the
+  // aid always agrees with the actual putt. See breakDots.ts.
+  buildBreakDots(scene, hole, engine, puttGrid, (x, y) => engine.groundAt(x, y) + greenLift(x, y, hole));
   // White ring marks the open cup while the pin is pulled. Drawn at the HONEST
   // cup radius (== the physics capture zone) so the target the player aims at is
   // exactly the target that catches the ball — no more "rolled right over the
