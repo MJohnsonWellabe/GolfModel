@@ -8,8 +8,10 @@ import {
 } from '@babylonjs/core';
 
 /**
- * Loader for the purchased "Fantastic Nature" prop pack (FBX → glb offline; see
- * asset-packs/fantastic-nature-pack). Each prop is a static low-poly mesh that
+ * Loader for the nature prop packs (FBX → glb offline; see
+ * asset-packs/fantastic-nature-pack and asset-packs/forest-nature-fbx, the
+ * latter converted by scripts/convert-nature.mjs). Each prop is a static
+ * low-poly mesh that
  * ships with material *slots* but no textures, so we recolor by slot name into
  * flat stylized materials tuned to the course theme — consistent with the
  * game's cel-shaded look. buildCourse() spawns lightweight instances of these
@@ -26,6 +28,22 @@ const c3 = (hex: number): Color3 =>
 
 /** Prop files under assets/models/nature (relative — GitHub Pages subpath). */
 export const TREE_KEYS = ['tree_a', 'tree_b', 'tree_c', 'tree_d'] as const;
+/** Named species from the forest pack (asset-packs/forest-nature-fbx),
+ *  converted by scripts/convert-nature.mjs. Courses opt into a mix via the
+ *  theme's treeKeys/accentTreeKeys/scatterKeys — see course3d.buildCourse. */
+export const BROADLEAF_KEYS = [
+  'tree_oak',
+  'tree_birch',
+  'tree_birch_b',
+  'tree_maple',
+  'tree_aspen',
+  'tree_poplar'
+] as const;
+export const CONIFER_KEYS = ['tree_spruce', 'tree_spruce_tall', 'tree_pine'] as const;
+/** Forest-floor props for rough-only ground scatter (visual, never physics). */
+export const DEADWOOD_KEYS = ['stump_a', 'log_a'] as const;
+export const FERN_KEYS = ['fern_a'] as const;
+export const BERRY_KEYS = ['bush_berry'] as const;
 export const STONE_KEYS = ['stone_a', 'stone_b', 'stone_c'] as const;
 export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
 /** grass_c–f = the purchased Grass F tuft pack (asset-packs/grass-f): crossed
@@ -33,7 +51,18 @@ export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
  *  are chunky slabs at turf scale, so ground scatter no longer uses them. */
 export const GRASS_KEYS = ['grass_c', 'grass_d', 'grass_e', 'grass_f'] as const;
 export const FLOWER_KEYS = ['flower_a'] as const;
-const ALL_KEYS = [...TREE_KEYS, ...STONE_KEYS, ...BUSH_KEYS, ...GRASS_KEYS, ...FLOWER_KEYS];
+const ALL_KEYS = [
+  ...TREE_KEYS,
+  ...BROADLEAF_KEYS,
+  ...CONIFER_KEYS,
+  ...DEADWOOD_KEYS,
+  ...FERN_KEYS,
+  ...BERRY_KEYS,
+  ...STONE_KEYS,
+  ...BUSH_KEYS,
+  ...GRASS_KEYS,
+  ...FLOWER_KEYS
+];
 
 export interface NaturePalette {
   bark: number;
@@ -76,11 +105,22 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
     // Card-style props pick by prop key first (their slots are generic)
     if (key.startsWith('grass')) return grassMat;
     if (key.startsWith('flower')) return flowerMat;
+    // Forest-pack floor props ship one generic "MainMaterial" slot for the
+    // whole mesh, so the prop key decides: deadwood is bark, plants foliage.
+    if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
+    if (key.startsWith('fern')) return foliageMat;
+    if (key.startsWith('bush_berry')) return foliageLightMat;
     const n = slot.toLowerCase();
     if (n.includes('wood')) return barkMat;
     if (n.includes('grass')) return grassMat;
     if (n.includes('stone')) return stoneMat;
     if (n.includes('plant')) return foliageMat;
+    // Forest-pack tree slots: foliage is "*_Leavse_New" / "Leaves_For_*"
+    // (conifers are a single all-needles slot); trunks are "MainMaterial",
+    // "Tree" (birch) or "AspenTexture".
+    if (n.includes('leav') || n.includes('leaf') || n.includes('needle')) return foliageMat;
+    if (n.includes('main') || n.includes('tree') || n.includes('trunk') || n.includes('bark') || n.includes('texture'))
+      return barkMat;
     return foliageLightMat;
   };
 
