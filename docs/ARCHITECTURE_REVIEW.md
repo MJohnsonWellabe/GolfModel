@@ -8,6 +8,32 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+9): playtest fixes — green rendering, hole builds ~3× faster, dogleg flyover, honest tree hitbox
+
+- **The "odd green from aerial" was two real bugs, both fixed.** (1) The green
+  complex's patch texture was VERTICALLY MIRRORED (a stale `1 - v` in its UVs)
+  — invisible while greens were radially symmetric, glaring once greenside
+  bunker sand landed in the patch: sand painted opposite its lip. (2) The
+  plateau skirt used geometric normals, so its sun-facing side blew out into a
+  bright cream ring circling every green and the skirt rings showed as facet
+  bands; the complex now lights with straight-up normals like the flat ground
+  it sits in (silhouette still 3D, colors continuous with the course).
+- **Hole-build freeze cut ~3×** (the "lag between holes" / laggy first meter):
+  the ground bake's classification pass no longer point-tests polygons per
+  cell — `rasterizeClassGrid` paints surfaces with native canvas fills
+  (precedence-ordered, per-layer alpha threshold so AA can't bleed class ids)
+  and `renderGreenPatch` reuses it instead of per-texel `surfaceAt`. The edge
+  wobble's four per-texel `Math.sin`s now bilinear-sample an 8px lattice.
+  Hole 3: bake 7.8s → 3.2s, green patch 2.1s → 0.3s (Chromium, container).
+- **Flyover follows the fairway**: intro waypoints are now the authored
+  fairway ribbons' centroids (tee-nearest first) with the camera looking down
+  each leg — hole 3's dogleg flies leg 1, turns, flies leg 2; single-ribbon
+  holes keep the classic sweep and timings.
+- **Tree hitbox honest at 1.0** (playtest ping-pong: 1.15 grabby → 0.85
+  sailed through the woods → 1.0 canopy-shadow-as-hitbox). Recovery relief
+  (`treeRecoveryMult`) unchanged; hole-3's corner-stand west lobe eased to
+  keep the Monte-Carlo playability gate green at the tighter canopy.
+
 # Update — 2026-07-10 (latest+8): Timberline props variety + layered sky
 
 - **Two more berry bushes and six more cloud shapes** converted from the

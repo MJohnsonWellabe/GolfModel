@@ -1,4 +1,4 @@
-import { PhysicsEngine } from '../../systems/PhysicsEngine';
+import { FRINGE_MARGIN, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
@@ -46,16 +46,89 @@ function grain(x: number, y: number): number {
   return texelHash(x, y) * 0.65 + texelHash(x >> 2, y >> 2) * 0.35;
 }
 
-const SURFACE_ID: Record<Surface, number> = {
-  rough: 0,
-  fairway: 1,
-  green: 2,
-  fringe: 3,
-  sand: 4,
-  water: 5,
-  trees: 6,
-  tee: 1
-};
+/** Class id → Surface name (ids 0..6, the palette order below; 'tee' is a
+ *  painted in-loop override, never a raster class). */
+const ID_SURFACE: Surface[] = ['rough', 'fairway', 'green', 'fringe', 'sand', 'water', 'trees'];
+
+/**
+ * Rasterize the hole's surface classification into a SURFACE_ID grid with
+ * native canvas fills instead of per-cell PhysicsEngine.surfaceAt() point
+ * tests — the point tests were seconds of main-thread polygon math per hole
+ * build (the playtest "lag between holes"). Layers paint in low→high
+ * precedence and each is alpha-thresholded on its own pass, so boundary
+ * antialiasing can never bleed a foreign class id into the grid. Precedence
+ * mirrors surfaceAt exactly: green > bunker > fringe > water >
+ * trees/building > fairway > rough. Gameplay still calls surfaceAt — this
+ * grid feeds only the texture bakes.
+ *
+ * Grid cell (gx, gy) covers world point (originX + gx*cell, originY + gy*cell).
+ */
+function rasterizeClassGrid(
+  hole: HoleData,
+  gw: number,
+  gh: number,
+  cell: number,
+  originX: number,
+  originY: number
+): Uint8Array {
+  const canvas = document.createElement('canvas');
+  canvas.width = gw;
+  canvas.height = gh;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  const worldTransform = (): void =>
+    ctx.setTransform(1 / cell, 0, 0, 1 / cell, -originX / cell, -originY / cell);
+  const poly = (pts: ReadonlyArray<ReadonlyArray<number>>): void => {
+    ctx.beginPath();
+    pts.forEach((p, i) => (i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])));
+    ctx.closePath();
+    ctx.fill();
+  };
+  const g = hole.green;
+  const ell = (margin: number): void => {
+    ctx.beginPath();
+    ctx.ellipse(g.cx, g.cy, g.rx + margin, g.ry + margin, g.rot ?? 0, 0, Math.PI * 2);
+    ctx.fill();
+  };
+  const layers: Array<[number, () => void]> = [
+    [1, (): void => hole.fairway.forEach(poly)],
+    [
+      6,
+      (): void =>
+        hole.hazards.forEach((hz) => {
+          if (hz.type === 'trees' || hz.type === 'building') poly(hz.polygon);
+        })
+    ],
+    [
+      5,
+      (): void =>
+        hole.hazards.forEach((hz) => {
+          if (hz.type === 'water') poly(hz.polygon);
+        })
+    ],
+    [3, (): void => ell(FRINGE_MARGIN)],
+    [
+      4,
+      (): void =>
+        hole.hazards.forEach((hz) => {
+          if (hz.type === 'bunker') poly(hz.polygon);
+        })
+    ],
+    [2, (): void => ell(0)]
+  ];
+  const grid = new Uint8Array(gw * gh); // starts all rough (0)
+  for (const [id, draw] of layers) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, gw, gh);
+    worldTransform();
+    ctx.fillStyle = '#fff';
+    draw();
+    const { data } = ctx.getImageData(0, 0, gw, gh);
+    for (let i = 0; i < grid.length; i++) {
+      if (data[i * 4 + 3] > 127) grid[i] = id;
+    }
+  }
+  return grid;
+}
 
 /**
  * Render the hole into a grass canvas: per-texel surface classification with
@@ -73,17 +146,13 @@ export function renderCourseCanvas(
   const w = Math.round((hole.world.width + pad * 2) * scale);
   const h = Math.round((hole.world.height + pad * 2) * scale);
 
-  // Coarse classification grid (2 world px per cell) — the expensive pass
+  // Coarse classification grid (2 world px per cell), rasterized with native
+  // canvas fills — see rasterizeClassGrid (the old per-cell surfaceAt() pass
+  // froze the main thread for seconds on every hole build).
   const step = 2;
   const gw = Math.ceil(w / step);
   const gh = Math.ceil(h / step);
-  const grid = new Uint8Array(gw * gh);
-  for (let gy = 0; gy < gh; gy++) {
-    for (let gx = 0; gx < gw; gx++) {
-      grid[gy * gw + gx] =
-        SURFACE_ID[engine.surfaceAt(gx * step - pad, gy * step - pad)];
-    }
-  }
+  const grid = rasterizeClassGrid(hole, gw, gh, step, -pad, -pad);
   const classAt = (x: number, y: number): number => {
     const gx = Math.max(0, Math.min(gw - 1, ((x + pad) / step) | 0));
     const gy = Math.max(0, Math.min(gh - 1, ((y + pad) / step) | 0));
@@ -158,8 +227,28 @@ export function renderCourseCanvas(
   const img = ctx.createImageData(w, h);
   const data = img.data;
 
+  // The smooth halves of the edge wobble vary over ~50+ world px, so they are
+  // precomputed on a coarse lattice and bilinearly sampled per texel — the
+  // four Math.sin() calls per texel were a real slice of the bake freeze.
+  // The per-texel white-noise half stays in the loop (it must not smooth).
+  const LAT = 8; // lattice step, texels
+  const lw = Math.ceil(w / LAT) + 1;
+  const lh = Math.ceil(h / LAT) + 1;
+  const latX = new Float32Array(lw * lh);
+  const latY = new Float32Array(lw * lh);
+  for (let ly = 0; ly < lh; ly++) {
+    const wy = (ly * LAT) / scale - pad;
+    for (let lx = 0; lx < lw; lx++) {
+      const wx = (lx * LAT) / scale - pad;
+      latX[ly * lw + lx] = Math.sin(wx * 0.019 + wy * 0.011) * 5 + Math.sin(wy * 0.034 - wx * 0.014) * 3;
+      latY[ly * lw + lx] = Math.sin(wy * 0.018 - wx * 0.010) * 5 + Math.sin(wx * 0.032 + wy * 0.015) * 3;
+    }
+  }
+
   for (let py = 0; py < h; py++) {
     const wy = py / scale - pad;
+    const ly = Math.min(lh - 2, (py / LAT) | 0);
+    const ty = py / LAT - ly;
     for (let px = 0; px < w; px++) {
       const wx = px / scale - pad;
       // Displace the class lookup by a SMOOTH low-frequency wobble (organic,
@@ -168,16 +257,18 @@ export function renderCourseCanvas(
       // reading as a clean sine. Texture-only: gameplay polygons stay crisp.
       // theme.edgeWobble scales the amplitude (default 1); a course that reads
       // too rectangular can crank it for wavier, more organic boundaries.
-      const wobX =
-        (Math.sin(wx * 0.019 + wy * 0.011) * 5 +
-          Math.sin(wy * 0.034 - wx * 0.014) * 3 +
-          (texelHash(px + 7, py) - 0.5) * 3) *
-        ew;
-      const wobY =
-        (Math.sin(wy * 0.018 - wx * 0.010) * 5 +
-          Math.sin(wx * 0.032 + wy * 0.015) * 3 +
-          (texelHash(px, py + 7) - 0.5) * 3) *
-        ew;
+      const lx = Math.min(lw - 2, (px / LAT) | 0);
+      const tx = px / LAT - lx;
+      const i00 = ly * lw + lx;
+      const i10 = i00 + 1;
+      const i01 = i00 + lw;
+      const i11 = i01 + 1;
+      const smoothX =
+        (latX[i00] * (1 - tx) + latX[i10] * tx) * (1 - ty) + (latX[i01] * (1 - tx) + latX[i11] * tx) * ty;
+      const smoothY =
+        (latY[i00] * (1 - tx) + latY[i10] * tx) * (1 - ty) + (latY[i01] * (1 - tx) + latY[i11] * tx) * ty;
+      const wobX = (smoothX + (texelHash(px + 7, py) - 0.5) * 3) * ew;
+      const wobY = (smoothY + (texelHash(px, py + 7) - 0.5) * 3) * ew;
       const jx = wx + wobX;
       const jy = wy + wobY;
       let cls = classAt(jx, jy);
@@ -384,11 +475,17 @@ export function renderGreenPatch(
       return { cx: bcx, cy: bcy, maxR };
     });
 
+  // Rasterized classification at full patch resolution (same native-fill
+  // approach as the main bake — the per-texel surfaceAt() pass was a big
+  // slice of the hole-build freeze).
+  const grid = rasterizeClassGrid(hole, w, w, 1 / scale, x0, y0);
+  const rimStep = Math.max(1, Math.round(1.2 * scale));
+
   for (let py = 0; py < w; py++) {
     const wy = y0 + py / scale;
     for (let px = 0; px < w; px++) {
       const wx = x0 + px / scale;
-      const surf = engine.surfaceAt(wx, wy);
+      const surf = ID_SURFACE[grid[py * w + px]];
       const [r, gr, b] = cols[surf] ?? cols.rough;
       let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : surf === 'fringe' ? 0.11 : 0.14);
       if (surf === 'green') {
@@ -416,7 +513,8 @@ export function renderGreenPatch(
         }
       }
       // Crisp darker rim right at the green/fringe boundary anchors the collar
-      if (surf === 'fringe' && engine.surfaceAt(wx + 1.2, wy) !== 'fringe') light *= 0.88;
+      if (surf === 'fringe' && ID_SURFACE[grid[py * w + Math.min(w - 1, px + rimStep)]] !== 'fringe')
+        light *= 0.88;
       const i = (py * w + px) * 4;
       data[i] = Math.min(255, r * light);
       data[i + 1] = Math.min(255, gr * light);

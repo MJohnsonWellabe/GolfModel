@@ -711,8 +711,6 @@ class HoleScene {
     const toGreen = Math.atan2(h.pin.y - h.tee.y, h.pin.x - h.tee.x);
     const g = this.fwd3(toGreen);
     const teeH = this.gh(h.tee.x, h.tee.y);
-    const midX = (h.tee.x + h.pin.x) / 2;
-    const midY = (h.tee.y + h.pin.y) / 2;
     // Open LOW and tight right behind the tee, looking just down the line (not at
     // mid-hole) so the first frame unmistakably reads "at the tee" before the
     // camera glides downrange. (At the honest scale, the old high/mid-hole aim
@@ -729,27 +727,44 @@ class HoleScene {
     this.camTarget.look = w2b(h.tee.x, h.tee.y, teeH + 2).add(g.scale(42));
     this.camTarget.k = 0.4;
 
-    // Waypoint 1: rise off the tee and glide down the fairway toward mid-hole.
-    this.introTimers.push(
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.camTarget.pos = w2b(midX, midY, 52).subtract(g.scale(30));
-        this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
-        this.camTarget.k = 0.9;
-      }, TEE_HOLD_MS)
-    );
+    // Travel waypoints follow the AUTHORED fairway — one stop per fairway
+    // ribbon (its polygon centroid, tee-nearest first), finishing over the
+    // green. A dogleg therefore flies down each leg in turn instead of
+    // cutting straight over the corner woods; single-ribbon holes keep the
+    // classic tee → mid-hole → green sweep.
+    const centroid = (poly: ReadonlyArray<ReadonlyArray<number>>): { x: number; y: number } => ({
+      x: poly.reduce((a, p) => a + p[0], 0) / poly.length,
+      y: poly.reduce((a, p) => a + p[1], 0) / poly.length
+    });
+    const stops = h.fairway
+      .map(centroid)
+      .sort(
+        (a, b) => Math.hypot(a.x - h.tee.x, a.y - h.tee.y) - Math.hypot(b.x - h.tee.x, b.y - h.tee.y)
+      );
+    stops.push({ x: h.pin.x, y: h.pin.y });
+    const TRAVEL_MS = 3600;
+    let from = { x: h.tee.x, y: h.tee.y };
+    stops.forEach((stop, i) => {
+      const last = i === stops.length - 1;
+      const leg = this.fwd3(Math.atan2(stop.y - from.y, stop.x - from.x));
+      from = stop;
+      // Look ahead down the CURRENT leg (the next stop), not always at the
+      // pin — on a dogleg the pin sits behind the corner woods until the turn.
+      const ahead = last ? { x: h.pin.x, y: h.pin.y } : stops[i + 1];
+      this.introTimers.push(
+        setTimeout(
+          () => {
+            if (this.disposed) return;
+            this.camTarget.pos = w2b(stop.x, stop.y, last ? 82 : 52).subtract(leg.scale(last ? 26 : 30));
+            this.camTarget.look = w2b(ahead.x, ahead.y, this.gh(ahead.x, ahead.y));
+            this.camTarget.k = last ? 0.85 : 0.9;
+          },
+          TEE_HOLD_MS + (i * TRAVEL_MS) / stops.length
+        )
+      );
+    });
 
-    // Waypoint 2: continue up and over the green, looking down at the pin.
-    this.introTimers.push(
-      setTimeout(() => {
-        if (this.disposed) return;
-        this.camTarget.pos = w2b(h.pin.x, h.pin.y, 82).subtract(g.scale(26));
-        this.camTarget.look = w2b(h.pin.x, h.pin.y, this.gh(h.pin.x, h.pin.y));
-        this.camTarget.k = 0.85;
-      }, 1600 + TEE_HOLD_MS)
-    );
-
-    // Waypoint 3: pull back to the tee-shot framing and hand over control.
+    // Final waypoint: pull back to the tee-shot framing and hand over control.
     this.introTimers.push(
       setTimeout(() => {
         if (this.disposed) return;
@@ -761,7 +776,7 @@ class HoleScene {
             if (!this.disposed) this.beginTurn();
           }, 900)
         );
-      }, 3600 + TEE_HOLD_MS)
+      }, TRAVEL_MS + TEE_HOLD_MS)
     );
   }
 

@@ -346,7 +346,7 @@ export function buildCourse(
     const indices: number[] = [];
     const pushVert = (wx: number, wy: number, hgt: number): void => {
       positions.push(wx, hgt + engine.groundAt(wx, wy), -wy);
-      uvs.push((wx - patch.x0) / patch.w, 1 - (wy - patch.y0) / patch.h);
+      uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
     };
     const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
       const lx = Math.cos(theta) * rxx;
@@ -392,8 +392,12 @@ export function buildCourse(
     vd.positions = positions;
     vd.uvs = uvs;
     vd.indices = indices;
+    // Straight-up normals everywhere: the raised plateau must LIGHT like the
+    // flat ground around it. Geometric normals made the sun-facing side of the
+    // skirt blow out into a bright cream ring around every green (the aerial
+    // "odd green" playtest report) and showed the skirt rings as facet bands.
     const normals: number[] = [];
-    VertexData.ComputeNormals(positions, indices, normals);
+    for (let i = 0; i < positions.length; i += 3) normals.push(0, 1, 0);
     vd.normals = normals;
     vd.applyToMesh(greenMesh);
     const patchTex = new DynamicTexture('greenPatch', { width: patch.canvas.width, height: patch.canvas.height }, scene, true);
