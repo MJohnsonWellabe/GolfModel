@@ -1956,6 +1956,8 @@ const storeEl = document.getElementById('store')!;
 let storeCharsExpanded = false;
 /** Character cards shown before "See more" (two rows of the 3-wide grid). */
 const STORE_CHAR_PREVIEW = 6;
+/** Item id awaiting the "Spend X coins?" confirmation (null = no popup). */
+let pendingBuy: string | null = null;
 
 /** Store overlay (Phase 7): buy/equip cosmetics + club upgrades with coins. */
 function renderStore(): void {
@@ -1983,6 +1985,16 @@ function renderStore(): void {
       ? `<button id="charSeeMore" class="storeSeeMore">${storeCharsExpanded ? 'Show fewer ▴' : `See more (${charItems.length - STORE_CHAR_PREVIEW}) ▾`}</button>`
       : '';
   const charactersSection = `<div class="storeTab">Characters</div><div class="storeGrid">${shownChars.map(card).join('')}</div>${seeMore}`;
+  // Purchases go through an explicit "Spend X coins?" confirmation so a
+  // stray tap can never drain coins (equipping owned items stays one-tap).
+  const pending = pendingBuy ? STORE_CATALOG.find((i) => i.id === pendingBuy) : undefined;
+  const confirmPanel = pending
+    ? `<div class="storeConfirm"><div class="storeConfirmBox">` +
+      `<div class="scTitle">${pending.name}</div>` +
+      `<div class="scAsk">Spend <b>${pending.price} 🪙</b> now?</div>` +
+      `<div class="btnRow"><button id="buyYes">Buy · ${pending.price} 🪙</button>` +
+      `<button id="buyNo" class="ghostBtn">Cancel</button></div></div></div>`
+    : '';
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
@@ -1994,36 +2006,64 @@ function renderStore(): void {
     section('Ball Trails', 'trail') +
     section('Club Skins', 'clubskin') +
     section('Club Upgrades', 'clubUpgrade') +
-    `</div><button id="storeBack">Back</button></div>`;
+    `</div><button id="storeBack">Back</button>${confirmPanel}</div>`;
   const seeMoreBtn = document.getElementById('charSeeMore');
   if (seeMoreBtn)
     seeMoreBtn.addEventListener('pointerdown', () => {
       storeCharsExpanded = !storeCharsExpanded;
       renderStore();
     });
+  const syncAfterChange = (): void => {
+    persistProfile();
+    if (signedIn)
+      void cloudSyncProfile(p).then((res) => {
+        applyCloudMerge(p, res.profile);
+        showCloudStatus(res.status, true); // quiet on success — store taps are frequent
+      });
+    renderStore();
+  };
   storeEl.querySelectorAll('.storeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       const id = (el as HTMLElement).dataset.item!;
       const item = STORE_CATALOG.find((i) => i.id === id)!;
       if (isOwned(p, item)) {
-        if (isEquippableKind(item.kind)) equip(p, id);
-      } else {
-        const r = buyItem(p, id);
-        if (!r.ok) {
-          showMsg(r.reason, 1200);
-          return;
-        }
+        if (!isEquippableKind(item.kind)) return;
+        equip(p, id);
+        syncAfterChange();
+        return;
       }
-      persistProfile();
-      if (signedIn)
-        void cloudSyncProfile(p).then((res) => {
-          applyCloudMerge(p, res.profile);
-          showCloudStatus(res.status, true); // quiet on success — store taps are frequent
-        });
+      // Not owned: arm the confirmation instead of buying outright. Items
+      // that can't be bought keep the transient reason message.
+      const can = canBuy(p, item);
+      if (!can.ok) {
+        showMsg(can.reason, 1200);
+        return;
+      }
+      pendingBuy = id;
       renderStore();
     })
   );
-  document.getElementById('storeBack')!.addEventListener('pointerdown', () => (storeEl.style.display = 'none'));
+  const buyYes = document.getElementById('buyYes');
+  if (buyYes && pending) {
+    buyYes.addEventListener('pointerdown', () => {
+      pendingBuy = null;
+      const r = buyItem(p, pending.id);
+      if (!r.ok) {
+        showMsg(r.reason, 1200);
+        renderStore();
+        return;
+      }
+      syncAfterChange();
+    });
+    document.getElementById('buyNo')!.addEventListener('pointerdown', () => {
+      pendingBuy = null;
+      renderStore();
+    });
+  }
+  document.getElementById('storeBack')!.addEventListener('pointerdown', () => {
+    pendingBuy = null;
+    storeEl.style.display = 'none';
+  });
 }
 
 /** Records / leaderboard overlay: top rounds for the current course + mode. */
@@ -2924,4 +2964,10 @@ else {
 (window as unknown as { __startAces: unknown }).__startAces = () => {
   setupEl.style.display = 'none';
   startAces();
+};
+
+// Test hook: grant session coins so specs can exercise the purchase flow
+// (signed-out play is ephemeral — nothing here persists or reaches the cloud).
+(window as unknown as { __grantCoins: unknown }).__grantCoins = (n: number) => {
+  profile.coins += n;
 };

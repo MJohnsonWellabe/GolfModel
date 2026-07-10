@@ -1235,6 +1235,67 @@
         font-size: 17px;
         font-weight: 800;
       }
+      /* "Spend X coins?" purchase confirmation over the store */
+      .storeConfirm {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 5;
+      }
+      .storeConfirmBox {
+        width: min(86%, 340px);
+        padding: 20px 18px;
+        border-radius: 16px;
+        background: #123a22;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+        text-align: center;
+      }
+      .storeConfirmBox .scTitle {
+        font-size: 17px;
+        font-weight: 800;
+        color: #eef5ea;
+      }
+      .storeConfirmBox .scAsk {
+        font-size: 15px;
+        color: #cfe3ca;
+        margin: 8px 0 14px;
+      }
+      .storeConfirmBox .scAsk b {
+        color: #ffe28a;
+      }
+      .storeConfirmBox #buyYes {
+        width: 100%;
+        padding: 13px;
+        border-radius: 12px;
+        border: none;
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 800;
+        min-height: 48px;
+        cursor: pointer;
+      }
+      .storeConfirmBox .btnRow {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .storeConfirmBox #buyNo {
+        width: 100%;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        background: transparent;
+        color: #cfe3ca;
+        font-size: 14px;
+        font-weight: 700;
+        min-height: 48px;
+        cursor: pointer;
+      }
       .recInner {
         width: min(96%, 520px);
         padding: 24px 20px;
