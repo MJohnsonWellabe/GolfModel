@@ -8,6 +8,38 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+4): break-dot flow field + Pine Alley environment pass
+
+- **The putting aid now shows the real read.** `src/slice3d/breakDots.ts`
+  replaces the uniform scrolling-texture drift with a SolidParticleSystem of
+  ~150-350 world-space dots, each moving along `engine.breakAccel` at its own
+  position (the same field the roll integrator uses) at a speed ∝ break
+  magnitude. Downhill-away recedes, uphill approaches, break drifts sideways,
+  flat greens sit still. Deterministic seeding + freeze priming keep `?freeze=1`
+  captures stable; `alwaysSelectAsActiveMesh` avoids the stale-SPS-bounds cull.
+- **Pine Alley (Timberline h1) one-pass environment upgrade**, all scoped via
+  theme knobs / course data so other courses render identically:
+  - *Trees*: conifer trunks recolor bark via mesh-name (`SM_` node) gated to
+    CONIFER_KEYS; conifer heights jitter 2.3–3.0× for a ragged skyline; three
+    pinch-pine hazards straddle the fairway edge; flank spacing 38.
+  - *Grass/bushes*: theme `tuftDensity` (grid 34/√d), `roughTuftHeight`
+    (capped 3.4 — "never read as walls"), 55-unit tee clear radius,
+    `bushKeys` with keyed heights (juniper sprawler plants knee-high);
+    converted `bush_juniper`/`bush_c`.
+  - *Sand*: greenside trap moved out from under the green ellipse (it was 86%
+    swallowed → rendered as a lip full of green), heightfield dish (−0.7×r30)
+    at the sand centre — physics/aid/lip all read the same field; theme
+    `sandSculpt` adds crossing rake ripples + radial depth in both the main
+    bake and the green patch (seam-free).
+  - *Sky*: `hazeStrength` finally consumed (`fogDensity = 0.00042·(h/0.5)`;
+    wildwood/sablebay re-anchored to 0.5 — field was dead, zero visual
+    change); `cloudKeys` swaps painted billboards for cloned forest-pack
+    cloud meshes (clones honor `applyFog=false`).
+- **Next iteration knobs** (per-layer tuning with Matt): course JSON theme
+  values (`tuftDensity`, `roughTuftHeight`, `sandSculpt`, `backdropTreeStep`,
+  key mixes), hazard `spacing`, elevation dishes, `dotSpeed` mapping in
+  breakDots.ts.
+
 # Update — 2026-07-10 (latest+3): forest pack integrated, store confirm, all-course records
 
 - **Second nature pack integrated.** The raw Unity FBX upload (named species
