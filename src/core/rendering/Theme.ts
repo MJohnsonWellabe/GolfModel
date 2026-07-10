@@ -73,6 +73,13 @@ export interface CourseTheme {
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
+   * Mesh-cloud layout (only consulted when cloudKeys is set). 'puffy' (the
+   * default when unset) keeps the historical low, full cumulus banks; 'wispy'
+   * scatters smaller clouds higher and wider across the dome and stretches a
+   * subset into thin airy streaks. Art-only.
+   */
+  cloudStyle?: 'puffy' | 'wispy';
+  /**
    * Real turf grain: a texture path (assets/textures/*.jpg) sampled by the
    * ground bake instead of coded procedural noise. Undefined = the original
    * coded grain(). Always paired with fairwayGrainTile/roughGrainTile.
@@ -164,6 +171,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'lushGrass'
     | 'edgeWobble'
     | 'cloudKeys'
+    | 'cloudStyle'
     | 'turfGrainKey'
     | 'turfNormalKey'
     | 'fairwayGrainTile'
@@ -205,6 +213,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.grassKeys = strings(spec.grassKeys);
   t.flowerKeys = strings(spec.flowerKeys);
   t.cloudKeys = strings(spec.cloudKeys);
+  if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
   if (spec.lushGrass === true) t.lushGrass = true;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;

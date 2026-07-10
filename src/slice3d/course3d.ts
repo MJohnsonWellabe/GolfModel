@@ -635,28 +635,44 @@ export function buildCourse(
     // with the theme's shape variety.
     const cloudDrift: Array<{ mesh: Mesh; v: number }> = [];
     const keys = theme.cloudKeys;
-    const count = Math.min(10, 4 + keys.length);
+    // 'wispy' (Timberline) scatters more, smaller clouds higher and wider
+    // across the dome and stretches a subset into thin semi-transparent
+    // streaks; the default 'puffy' path stays byte-identical.
+    const wispy = theme.cloudStyle === 'wispy';
+    const count = wispy ? Math.min(16, 6 + keys.length) : Math.min(10, 4 + keys.length);
     void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
       for (let i = 0; i < count; i++) {
         const proto = protos.get(keys[i % keys.length]);
         if (!proto) continue;
         const jitter = hash2(i * 17.3, i * 5.1);
         const far = i % 2 === 1; // alternate near/far bands
-        const pos = w2b(
-          hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
-          hole.tee.y - (far ? 2900 : 2100) - (i % 3) * 300,
-          (far ? 740 : 430) + ((i * 97) % 3) * 130 + jitter * 60
-        );
-        const targetH = (far ? 95 : 65) + jitter * 40;
+        const pos = wispy
+          ? w2b(
+              hole.tee.x - 2600 + i * (5200 / count) + jitter * 320,
+              hole.tee.y - (far ? 3300 : 2500) - (i % 3) * 360,
+              (far ? 1150 : 820) + ((i * 97) % 4) * 150 + jitter * 180
+            )
+          : w2b(
+              hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
+              hole.tee.y - (far ? 2900 : 2100) - (i % 3) * 300,
+              (far ? 740 : 430) + ((i * 97) % 3) * 130 + jitter * 60
+            );
+        const targetH = wispy ? (far ? 58 : 40) + jitter * 22 : (far ? 95 : 65) + jitter * 40;
         for (const part of proto.parts) {
           const cl = part.clone(`meshCloud${i}`);
           cl.position = pos.clone();
           const s = targetH / proto.height;
-          cl.scaling = new Vector3(s * (1.4 + jitter * 0.9), s, s * 1.2);
+          // Wispy: stretch horizontally + flatten vertically into a streak.
+          cl.scaling = wispy
+            ? new Vector3(s * (2.6 + jitter * 1.4), s * 0.5, s * 1.5)
+            : new Vector3(s * (1.4 + jitter * 0.9), s, s * 1.2);
           cl.rotation = new Vector3(0, hash2(i, 3) * Math.PI * 2, 0);
           cl.applyFog = false;
+          // Thin the wisps so more sky reads through (Babylon treats
+          // visibility < 1 as alpha blending even for the flat cloud mat).
+          if (wispy) cl.visibility = i % 3 === 0 ? 0.5 : 0.72;
           cl.setEnabled(true);
-          cloudDrift.push({ mesh: cl, v: far ? 2.5 : 4.5 });
+          cloudDrift.push({ mesh: cl, v: (far ? 2.5 : 4.5) * (wispy ? 1.15 : 1) });
         }
       }
     });
