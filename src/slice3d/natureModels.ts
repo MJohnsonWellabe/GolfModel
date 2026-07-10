@@ -151,12 +151,24 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
     return foliageLightMat;
   };
 
+  // Same hardening as the golfer character load (golfer3d.ts): a stalled
+  // fetch (never settles) is treated as a failure via a timeout, and one
+  // failure gets a single retry before the prop is given up on. Without
+  // this, a single flaky or hung fetch permanently dropped that prop for
+  // the whole session with only a console.warn no player would ever see.
+  const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+    Promise.race([
+      p,
+      new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`load timed out after ${ms}ms`)), ms))
+    ]);
+  const loadContainer = (key: string) => withTimeout(LoadAssetContainerAsync(`models/nature/${key}.glb`, scene), 15000);
+
   const out = new Map<string, NatureProto>();
   await Promise.all(
     keys.map(async (key) => {
       let container;
       try {
-        container = await LoadAssetContainerAsync(`models/nature/${key}.glb`, scene);
+        container = await loadContainer(key).catch(() => loadContainer(key));
       } catch (err) {
         // Fault-tolerant by design: a flaky fetch loses ONE prop, never the
         // whole forest (a rejected Promise.all used to blank every prop).
