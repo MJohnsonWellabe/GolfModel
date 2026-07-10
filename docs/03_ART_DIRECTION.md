@@ -354,6 +354,26 @@ Warm sunlight.
 
 Never a flat blue background.
 
+## Per-course sky
+
+The dome gradient, haze, and clouds are driven by each course's `theme`
+block (see `src/data/courses/*.json`, rendered by `src/slice3d/course3d.ts`):
+
+- **Timberline** — a vivid, bright day: a deep saturated‑azure zenith
+  (`skyTop`) fading to a clean cool blue→white horizon (`skyBottom` /
+  `horizonTint`), reduced haze so distance reads clear. Clouds use
+  `cloudStyle: "wispy"` — soft, feathered, semi‑transparent *painted* clouds
+  (billboards, not the hard low‑poly mesh blobs): rounded, softly‑painted
+  cumulus mounds plus thin cirrus streaks scattered across the dome, so they
+  read see‑through against the blue like the references. Timberline also uses
+  `backdrop: "none"` — no ridges or feature peak; the dense conifer wall
+  (`backdropTreeStep`) plus open sky is the horizon.
+  The warm sun disc stays for sunlight. Note this leans brighter/cooler than
+  the generic "mountain course = cool, avoid oversaturation" guideline, by
+  design from sky references.
+- Other courses are untouched: mesh clouds when a theme sets `cloudKeys`,
+  else the historical painted puff billboards (`cloudStyle` unset).
+
 ---
 
 # Camera Philosophy

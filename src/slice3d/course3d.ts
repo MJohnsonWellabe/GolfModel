@@ -606,7 +606,118 @@ export function buildCourse(
   );
   sunBillboard.applyFog = false;
 
-  if (theme.cloudKeys) {
+  if (theme.cloudStyle === 'wispy') {
+    // Reference-style sky: soft, feathered, SEE-THROUGH clouds painted onto
+    // billboards. The low-poly mesh clouds read as hard white blobs no amount
+    // of stretching fixes, so this course paints its own. Two layers: soft
+    // cumulus banked low near the treeline + thin cirrus streaks high across
+    // the dome, drifting at different speeds for parallax.
+    //
+    // A feathered radial puff — the gradient falloff IS the soft edge. Built
+    // in LOCAL space so the canvas transform places it correctly (an absolute-
+    // coord gradient would land off-mesh once translated and fill clear).
+    const puff = (ctx: CanvasRenderingContext2D, cx: number, cy: number, rx: number, ry: number, alpha: number): void => {
+      const R = Math.max(rx, ry);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.scale(rx / R, ry / R);
+      // Denser core/mid with a still-feathered rim: firm enough to read as a
+      // real cloud, soft enough not to be a hard-edged blob. Cirrus stays airy
+      // via its low billboard opacity, not a softer gradient.
+      const g = ctx.createRadialGradient(0, 0, 0, 0, 0, R);
+      g.addColorStop(0, `rgba(255,255,255,${alpha})`);
+      g.addColorStop(0.42, `rgba(255,255,255,${alpha * 0.6})`);
+      g.addColorStop(0.75, `rgba(255,255,255,${alpha * 0.18})`);
+      g.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(0, 0, R, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    const softCloudTex = (name: string, tw: number, th: number, paint: (ctx: CanvasRenderingContext2D) => void): DynamicTexture => {
+      const tex = new DynamicTexture(name, { width: tw, height: th }, scene, true);
+      const ctx = tex.getContext() as CanvasRenderingContext2D;
+      ctx.clearRect(0, 0, tw, th);
+      paint(ctx);
+      tex.update(false);
+      tex.hasAlpha = true;
+      return tex;
+    };
+    // Puffy cumulus: a rounded cauliflower mound — near-circular bumps all the
+    // way around (domed crown on top, bumpy base below, shoulders on the sides)
+    // so there's no flat top line and the whole silhouette reads soft & round.
+    const cumulusTex = softCloudTex('cumulusTex', 512, 320, (ctx) => {
+      const blobs: Array<[number, number, number, number, number]> = [
+        [0, 0, 120, 104, 0.85], // core
+        [-42, -60, 76, 70, 0.8], [42, -66, 80, 72, 0.82], [0, -86, 68, 62, 0.78], // domed crown
+        [-98, -18, 88, 80, 0.8], [98, -20, 90, 80, 0.8], // upper flanks
+        [-142, 22, 78, 70, 0.72], [142, 24, 80, 68, 0.72], // shoulders
+        [-70, 58, 84, 68, 0.7], [72, 60, 86, 66, 0.7], [0, 70, 92, 64, 0.74] // rounded base bumps
+      ];
+      for (const [dx, dy, rx, ry, a] of blobs) puff(ctx, 256 + dx, 180 + dy, rx, ry, a);
+    });
+    // Cirrus: a thin feathered streak that fades in and out along its length.
+    const cirrusTex = softCloudTex('cirrusTex', 512, 96, (ctx) => {
+      for (let i = 0; i < 30; i++) {
+        const t = i / 29;
+        puff(
+          ctx,
+          20 + t * 472,
+          48 + Math.sin(t * 6) * 9,
+          Math.abs(30 + 26 * Math.sin(t * 7 + 1.3)) + 12,
+          Math.abs(5 + 4 * Math.sin(t * 5 + 0.6)) + 3,
+          0.55 * (0.3 + 0.7 * Math.sin(t * Math.PI))
+        );
+      }
+    });
+    const cloudMat = (name: string, tex: DynamicTexture): StandardMaterial => {
+      const m = new StandardMaterial(name, scene);
+      m.emissiveTexture = tex;
+      m.opacityTexture = tex;
+      m.disableLighting = true;
+      m.backFaceCulling = false;
+      return m;
+    };
+    const cumulusMat = cloudMat('cumulusMat', cumulusTex);
+    const cirrusMat = cloudMat('cirrusMat', cirrusTex);
+
+    const drift: Array<{ mesh: Mesh; v: number }> = [];
+    const wrapMin = hole.tee.x - 3600;
+    const wrapMax = hole.tee.x + 3600;
+    const span = wrapMax - wrapMin;
+    const place = (mat: StandardMaterial, pw: number, ph: number, wx: number, wy: number, alt: number, vis: number, v: number, tag: string): void => {
+      const cl = MeshBuilder.CreatePlane(tag, { width: pw, height: ph }, scene);
+      cl.material = mat;
+      cl.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      cl.position = w2b(wx, wy, alt);
+      cl.applyFog = false;
+      cl.visibility = vis;
+      drift.push({ mesh: cl, v });
+    };
+    for (let i = 0; i < 6; i++) {
+      // Rounded cumulus mounds at varied heights (no flat band). Smaller and a
+      // touch firmer than the softest pass so they read as real clouds.
+      const j = hash2(i * 12.1, i * 4.7);
+      const pw = 520 + j * 340;
+      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
+    }
+    for (let i = 0; i < 10; i++) {
+      // Thin cirrus streaks — more of them, wide across the dome at varied
+      // heights, kept low-opacity so they stay airy waves.
+      const j = hash2(i * 7.9 + 2, i * 9.3);
+      const pw = 860 + j * 540;
+      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / 10) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
+    }
+    scene.onBeforeRenderObservable.add(() => {
+      if (isFrozen()) return;
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      for (const c of drift) {
+        c.mesh.position.x += dt * c.v;
+        if (c.mesh.position.x > wrapMax) c.mesh.position.x -= span; // gentle recycle
+      }
+    });
+  } else if (theme.cloudKeys) {
     // Stylized volumetric cloud meshes from the forest pack. CLONES, not
     // instances — each clone must honor applyFog=false or the EXP2 fog at
     // sky distance washes them into the haze. Two altitude/depth layers with
@@ -706,6 +817,9 @@ export function buildCourse(
       d.material = duneMat;
       d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
     }
+  } else if (theme.backdrop === 'none') {
+    // No backdrop scenery: the dense conifer wall (backdropTreeStep) plus open
+    // sky is the horizon — deliberately no ridges or feature peak (Timberline).
   } else {
     // Championship parkland: layered ridge line + a Fuji-like feature peak
     const ridgeMat = mat(scene, 'ridge', shade(theme.skyTop, 1.1), { emissive: shade(theme.skyTop, 0.55) });
