@@ -363,9 +363,11 @@ block (see `src/data/courses/*.json`, rendered by `src/slice3d/course3d.ts`):
   (`skyTop`) fading to a clean cool blue→white horizon (`skyBottom` /
   `horizonTint`), reduced haze so distance reads clear. Clouds use
   `cloudStyle: "wispy"` — soft, feathered, semi‑transparent *painted* clouds
-  (billboards, not the hard low‑poly mesh blobs): puffy cumulus banked low
-  near the treeline plus thin cirrus streaks high across the dome, so they
-  read see‑through against the blue like the references.
+  (billboards, not the hard low‑poly mesh blobs): rounded, softly‑painted
+  cumulus mounds plus thin cirrus streaks scattered across the dome, so they
+  read see‑through against the blue like the references. Timberline also uses
+  `backdrop: "none"` — no ridges or feature peak; the dense conifer wall
+  (`backdropTreeStep`) plus open sky is the horizon.
   The warm sun disc stays for sunlight. Note this leans brighter/cooler than
   the generic "mountain course = cool, avoid oversaturation" guideline, by
   design from sky references.

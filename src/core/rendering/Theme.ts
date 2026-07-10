@@ -34,8 +34,9 @@ export interface CourseTheme {
   /** Atmospheric haze tint + strength (0..1) near the horizon. */
   haze: number;
   hazeStrength: number;
-  /** Horizon scenery: layered mountain ridges or a sea horizon with dunes. */
-  backdrop: 'peaks' | 'sea';
+  /** Horizon scenery: layered mountain ridges, a sea horizon with dunes, or
+   *  'none' (no backdrop scenery — a dense treeline + open sky is the scenery). */
+  backdrop: 'peaks' | 'sea' | 'none';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
   /** Ground-scatter density multiplier (grass tufts/bushes/flowers); 1 = default. */
@@ -197,7 +198,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     ) {
       if (typeof v === 'number') t[key] = v;
     } else if (key === 'backdrop') {
-      if (v === 'peaks' || v === 'sea') t.backdrop = v;
+      if (v === 'peaks' || v === 'sea' || v === 'none') t.backdrop = v;
     } else {
       t[key] = parseColor(v, t[key]);
     }

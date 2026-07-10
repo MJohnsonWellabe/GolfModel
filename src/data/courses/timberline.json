@@ -23,7 +23,7 @@
     "treeTrunk": "#513f2c",
     "haze": "#dcecf5",
     "hazeStrength": 0.45,
-    "backdrop": "peaks",
+    "backdrop": "none",
     "blossomChance": 0.08,
     "treeKeys": [
       "tree_spruce",
