@@ -8,6 +8,33 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+5): load hardening, Pine Alley dense woods, grid-locked dots
+
+- **Model loading is fault-tolerant and ~half the size.** A playtest "nothing
+  rendered" report exposed that `natureModels` rejected the ENTIRE prototype
+  map if any one of ~26 glbs failed (silently — callers had no catch), and a
+  stalled character fetch left a bodiless golfer holding a club. Now: per-key
+  skip+warn (the map never rejects); `loadNaturePrototypes(scene, palette,
+  keys)` downloads only the props the course theme places; character loads
+  retry once and race a 20s timeout into the procedural-body fallback
+  (rejected loads also evict from the per-scene cache). convert-nature gained
+  per-entry `ratio` overrides (leaf-card-soup meshes need lockBorder off to
+  decimate) + KHR_mesh_quantization on all props — nature payload 5.6→3.8MB.
+  New verification standard: `vite preview` production-bundle runtime check +
+  fault-injection (abort a nature glb / the character glb) before shipping.
+- **Pine Alley is a real alley.** Flank woods polygons track the fairway edge
+  at ~38 units (spacing 36, 100+ trunks/side, physics-real), the three pinch
+  clusters are gone (the original overhanging centre pine is the only
+  fairway tree), a spacing-34 forest polygon walls the back of the green,
+  backdrop step 46→38, aspen accents, and converted fallen-trunk/broken-snag
+  deadwood in the rough scatter (keyed heights). Monte Carlo band holds.
+- **Break dots ride the grid.** Each dot sits on a putt-grid line (4-unit
+  lattice, green's rotated frame) and slides along it at the local
+  `breakAccel` projection onto its axis — break-right runs the x-lines,
+  uphill runs the y-lines toward the golfer, aligned lines glow brighter,
+  flat greens rest. breakDots.ts exports pure `lineLattice`/`localBreak`
+  helpers under test.
+
 # Update — 2026-07-10 (latest+4): break-dot flow field + Pine Alley environment pass
 
 - **The putting aid now shows the real read.** `src/slice3d/breakDots.ts`
