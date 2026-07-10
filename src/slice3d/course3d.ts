@@ -286,31 +286,54 @@ export function buildCourse(
   const groundMat = new StandardMaterial('groundMat', scene);
   groundMat.diffuseTexture = courseTex;
   groundMat.specularColor = new Color3(0.02, 0.03, 0.02);
-  // Tiling neutral-noise detail map keeps near-field turf crisp where the
-  // baked albedo alone would blur under magnification
-  const detailCanvas = document.createElement('canvas');
-  detailCanvas.width = detailCanvas.height = 128;
-  const dctx = detailCanvas.getContext('2d')!;
-  const img = dctx.createImageData(128, 128);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const px = (i / 4) % 128;
-    const py = Math.floor(i / 4 / 128);
-    // Mean ~128 so the detail modulates without darkening the albedo
-    const n = 122 + smoothNoise(px * 7.3, py * 7.3) * 16 + ((px * 374761393 + py * 668265263) % 29) * 0.45;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = n;
-    img.data[i + 3] = 255;
+  // Tiling detail map keeps near-field turf crisp where the baked albedo
+  // alone would blur under magnification. This is a real, native-resolution
+  // GPU texture with its own mip chain — unlike the coarse (2 texel/world-
+  // unit) baked albedo, its fine detail actually survives to normal
+  // gameplay camera distance, so it's the right slot for a purchased grass
+  // photo to read as "real grass" rather than a coded pattern. A course
+  // opting in (theme.groundDetailKey) gets the photo; tile count scales
+  // with hole width/height so a short par 3 and a long par 5 both see a
+  // believable ~7-world-unit repeat instead of one constant tuned for a
+  // single hole size. Falls back to the original coded neutral-noise canvas
+  // otherwise — bit-identical to before for every course that doesn't opt in.
+  let detailTex: Texture;
+  let detailBlend = 0.24;
+  let detailUScale = 110;
+  let detailVScale = 110;
+  if (theme.groundDetailKey) {
+    detailTex = new Texture(theme.groundDetailKey, scene);
+    detailTex.wrapU = Texture.WRAP_ADDRESSMODE;
+    detailTex.wrapV = Texture.WRAP_ADDRESSMODE;
+    detailBlend = 0.4;
+    detailUScale = Math.max(20, Math.round(w / 7));
+    detailVScale = Math.max(20, Math.round(h / 7));
+  } else {
+    const detailCanvas = document.createElement('canvas');
+    detailCanvas.width = detailCanvas.height = 128;
+    const dctx = detailCanvas.getContext('2d')!;
+    const img = dctx.createImageData(128, 128);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const px = (i / 4) % 128;
+      const py = Math.floor(i / 4 / 128);
+      // Mean ~128 so the detail modulates without darkening the albedo
+      const n = 122 + smoothNoise(px * 7.3, py * 7.3) * 16 + ((px * 374761393 + py * 668265263) % 29) * 0.45;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = n;
+      img.data[i + 3] = 255;
+    }
+    dctx.putImageData(img, 0, 0);
+    const dyn = new DynamicTexture('turfDetail', { width: 128, height: 128 }, scene, true);
+    dyn.getContext().drawImage(detailCanvas, 0, 0);
+    dyn.update(false);
+    dyn.wrapU = Texture.WRAP_ADDRESSMODE;
+    dyn.wrapV = Texture.WRAP_ADDRESSMODE;
+    detailTex = dyn;
   }
-  dctx.putImageData(img, 0, 0);
-  const detailTex = new DynamicTexture('turfDetail', { width: 128, height: 128 }, scene, true);
-  detailTex.getContext().drawImage(detailCanvas, 0, 0);
-  detailTex.update(false);
-  detailTex.wrapU = Texture.WRAP_ADDRESSMODE;
-  detailTex.wrapV = Texture.WRAP_ADDRESSMODE;
-  detailTex.uScale = 110;
-  detailTex.vScale = 110;
+  detailTex.uScale = detailUScale;
+  detailTex.vScale = detailVScale;
   groundMat.detailMap.texture = detailTex;
   groundMat.detailMap.isEnabled = true;
-  groundMat.detailMap.diffuseBlendLevel = 0.24;
+  groundMat.detailMap.diffuseBlendLevel = detailBlend;
   // Fine turf-grain normal map: near-field grass responds to the sun instead
   // of reading as a flat albedo (art bible: "nothing should appear flat").
   // A course opting into real turf art (theme.turfNormalKey) gets the

@@ -18,6 +18,8 @@ describe('theme knobs', () => {
     expect(t.turfNormalKey).toBeUndefined(); // coded sine-wave bump
     expect(t.fairwayGrainTile).toBeUndefined();
     expect(t.roughGrainTile).toBeUndefined();
+    expect(t.roughGrainKey).toBeUndefined(); // rough grain falls back to turfGrainKey
+    expect(t.groundDetailKey).toBeUndefined(); // coded neutral-noise detail map
   });
 
   it('round-trips authored scatter/sand/cloud knobs', () => {
@@ -32,7 +34,9 @@ describe('theme knobs', () => {
         turfGrainKey: 'textures/turf_grain.jpg',
         turfNormalKey: 'textures/turf_normal.jpg',
         fairwayGrainTile: 6,
-        roughGrainTile: 14
+        roughGrainTile: 14,
+        roughGrainKey: 'textures/turf_grain_rough.jpg',
+        groundDetailKey: 'textures/turf_grain.jpg'
       })
     );
     expect(t.tuftDensity).toBe(1.35);
@@ -45,6 +49,8 @@ describe('theme knobs', () => {
     expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');
     expect(t.fairwayGrainTile).toBe(6);
     expect(t.roughGrainTile).toBe(14);
+    expect(t.roughGrainKey).toBe('textures/turf_grain_rough.jpg');
+    expect(t.groundDetailKey).toBe('textures/turf_grain.jpg');
   });
 
   it('ignores malformed key arrays', () => {

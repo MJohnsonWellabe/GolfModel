@@ -21,7 +21,11 @@ const OUT = path.join(root, 'assets', 'textures');
 
 const JOBS = [
   { src: 'Grass_Albedo_02.png', out: 'turf_grain.jpg', quality: 85 },
-  { src: 'Grass_Normal.png', out: 'turf_normal.jpg', quality: 88 }
+  { src: 'Grass_Normal.png', out: 'turf_normal.jpg', quality: 88 },
+  // Rough gets a genuinely different real photo (wilder grass+wildflower
+  // blend) rather than the fairway image retinted — no normal map needed,
+  // bump detail is secondary and turf_normal.jpg is shared across surfaces.
+  { src: 'Grass_Albedo_Flower_01.png', out: 'turf_grain_rough.jpg', quality: 85 }
 ];
 
 for (const job of JOBS) {

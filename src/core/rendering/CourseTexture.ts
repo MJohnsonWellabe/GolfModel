@@ -144,6 +144,10 @@ export function renderCourseCanvas(
   const realGrain = Boolean(theme.turfGrainKey);
   const fairwayTile = theme.fairwayGrainTile ?? 6;
   const roughTile = theme.roughGrainTile ?? 14;
+  // Rough gets its own real photo when authored (genuinely different image,
+  // not a retint) — falls back to the fairway key so a course that only
+  // sets turfGrainKey still gets a real (if shared) grain on rough too.
+  const roughKey = theme.roughGrainKey ?? theme.turfGrainKey;
 
   const canvas = document.createElement('canvas');
   canvas.width = w;
@@ -185,13 +189,16 @@ export function renderCourseCanvas(
       }
       const [r, g, b] = palette[cls];
 
-      // Real-asset turf grain (theme.turfGrainKey) replaces the coded noise
-      // on fairway/rough only, tiled tighter on fairway (short grass) than
-      // rough (long grass) — same downstream math either way. Falls back to
-      // the procedural grain() until the image has decoded (or if unset).
+      // Real-asset turf grain (theme.turfGrainKey/roughGrainKey) replaces the
+      // coded noise on fairway/rough only, tiled tighter on fairway (short
+      // grass) than rough (long grass) — same downstream math either way.
+      // Falls back to the procedural grain() until the image has decoded
+      // (or if unset).
       let grainVal: number | null = null;
-      if (realGrain && (cls === 0 || cls === 1)) {
-        grainVal = sampleGrassGrain(wx, wy, cls === 1 ? fairwayTile : roughTile);
+      if (cls === 1 && realGrain) {
+        grainVal = sampleGrassGrain(theme.turfGrainKey!, wx, wy, fairwayTile);
+      } else if (cls === 0 && roughKey) {
+        grainVal = sampleGrassGrain(roughKey, wx, wy, roughTile);
       }
       let light = 1 + ((grainVal ?? grain(px, py)) - 0.5) * (noiseAmp[cls] / 128);
       // Mow bands: a signed light↔dark brightness swing. Fairway (cls 1) runs on

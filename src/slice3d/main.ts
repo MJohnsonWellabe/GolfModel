@@ -182,10 +182,12 @@ const COURSES: Record<string, CourseData> = {
   timberline: loadCourse(timberline as unknown as CourseAuthoring)
 };
 
-// Fire the real-turf-grain preload at boot, well before any round can start
+// Fire the real-turf-grain preloads at boot, well before any round can start
 // (the menu is always shown first) — the ground bake is synchronous and
-// falls back to procedural noise if this hasn't resolved yet.
+// falls back to procedural noise if a key hasn't resolved yet. Harmless
+// no-ops on courses that don't opt into either key (decoded but unread).
 preloadGrassGrain('textures/turf_grain.jpg');
+preloadGrassGrain('textures/turf_grain_rough.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
