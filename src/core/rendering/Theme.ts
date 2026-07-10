@@ -76,13 +76,6 @@ export interface CourseTheme {
    *  photo) — a genuinely different real photo, not a retint. Falls back to
    *  turfGrainKey for rough when unset. */
   roughGrainKey?: string;
-  /**
-   * Real-photo detail map (native-res GPU texture, not pre-blurred by the
-   * coarse baked albedo) replacing the coded neutral-noise detail pattern —
-   * this is the dominant carrier of visible "real grass" detail at normal
-   * gameplay camera distance. Undefined = the original coded pattern.
-   */
-  groundDetailKey?: string;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -150,7 +143,6 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'fairwayGrainTile'
     | 'roughGrainTile'
     | 'roughGrainKey'
-    | 'groundDetailKey'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -187,6 +179,5 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.fairwayGrainTile === 'number') t.fairwayGrainTile = spec.fairwayGrainTile;
   if (typeof spec.roughGrainTile === 'number') t.roughGrainTile = spec.roughGrainTile;
   if (typeof spec.roughGrainKey === 'string') t.roughGrainKey = spec.roughGrainKey;
-  if (typeof spec.groundDetailKey === 'string') t.groundDetailKey = spec.groundDetailKey;
   return t;
 }

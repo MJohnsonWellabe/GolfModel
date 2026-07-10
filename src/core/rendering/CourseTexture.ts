@@ -200,7 +200,19 @@ export function renderCourseCanvas(
       } else if (cls === 0 && roughKey) {
         grainVal = sampleGrassGrain(roughKey, wx, wy, roughTile);
       }
-      let light = 1 + ((grainVal ?? grain(px, py)) - 0.5) * (noiseAmp[cls] / 128);
+      // Real-photo grain gets its own, much stronger amplitude than the coded
+      // fallback's noiseAmp/128 (±14%/±7% max) — that scale was tuned for the
+      // procedural grain()'s narrow, capped [0,0.5) output, and even at full
+      // strength barely survives the bake's mip/anisotropic blur at gameplay
+      // distance. A real photo's re-centered per-texel detail (grassTexture.ts)
+      // needs a much wider swing to actually read on screen. Coded fallback
+      // (every other course) is untouched — this only applies when grainVal
+      // is non-null, i.e. only when a real texture decoded.
+      const realAmp = cls === 1 ? 0.85 : 1.25;
+      let light =
+        grainVal !== null
+          ? 1 + (grainVal - 0.5) * realAmp
+          : 1 + (grain(px, py) - 0.5) * (noiseAmp[cls] / 128);
       // Mow bands: a signed light↔dark brightness swing. Fairway (cls 1) runs on
       // the diagonal; rough/green run along the tee→pin axis. A real photo
       // texture already carries grain/pattern, so damp the coded stripes to

@@ -59,8 +59,7 @@
     "turfNormalKey": "textures/turf_normal.jpg",
     "fairwayGrainTile": 6,
     "roughGrainTile": 14,
-    "roughGrainKey": "textures/turf_grain_rough.jpg",
-    "groundDetailKey": "textures/turf_grain.jpg"
+    "roughGrainKey": "textures/turf_grain_rough.jpg"
   },
   "holes": [
     {
