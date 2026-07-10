@@ -39,6 +39,7 @@ import {
   loadNaturePrototypes,
   NaturePalette,
   NatureProto,
+  STONE_KEYS,
   TREE_KEYS
 } from './natureModels';
 
@@ -530,6 +531,21 @@ export function buildCourse(
     grass: shade(theme.rough, 1.1),
     stone: 0x7e7c72
   };
+  // Only download the props this course's theme actually places (about half
+  // the catalog) — both loadNaturePrototypes calls MUST share this set since
+  // the loader caches per scene on the first call.
+  const natKeys = [
+    ...new Set<string>([
+      ...(theme.treeKeys ?? TREE_KEYS),
+      ...(theme.accentTreeKeys ?? []),
+      ...(theme.scatterKeys ?? []),
+      ...(theme.bushKeys ?? BUSH_KEYS),
+      ...(theme.cloudKeys ?? []),
+      ...STONE_KEYS,
+      ...GRASS_KEYS,
+      ...FLOWER_KEYS
+    ])
+  ];
 
   // -------------------------------------------------------------------- sky
   const sky = MeshBuilder.CreateSphere('sky', { diameter: 9000, sideOrientation: Mesh.BACKSIDE }, scene);
@@ -584,7 +600,7 @@ export function buildCourse(
     // sky distance washes them into the haze. Slow drift like the billboards.
     const cloudDrift: Mesh[] = [];
     const keys = theme.cloudKeys;
-    void loadNaturePrototypes(scene, natPalette).then((protos) => {
+    void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
       for (let i = 0; i < 5; i++) {
         const proto = protos.get(keys[i % keys.length]);
         if (!proto) continue;
@@ -701,7 +717,7 @@ export function buildCourse(
   // from the same collectTreeBlobs() the baked texture drops shadows for, so
   // trunks land on their shadows. (Palette defined above the sky section.)
   const treeRoot = new TransformNode('nature', scene);
-  void loadNaturePrototypes(scene, natPalette).then((protos) => {
+  void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
     const pick = (keys: readonly string[]): NatureProto[] =>
       keys.map((k) => protos.get(k)).filter((p): p is NatureProto => !!p);
     // Keyed variant for the woods: the key decides the conifer height boost.

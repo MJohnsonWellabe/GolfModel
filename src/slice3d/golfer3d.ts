@@ -96,7 +96,16 @@ export class Golfer3D {
       // Club rig is independent of the (async) model — build it now so a club
       // is present immediately and the swing works even mid-load.
       this.buildClubRig(scene, shadows, look ?? DEFAULT_LOOK);
-      this.ready = instantiateCharacter(scene, character)
+      // Never leave a bodiless golfer: retry a failed fetch once, and treat a
+      // STALLED fetch (never settles — the old "floating club, no body" state)
+      // as a failure via a timeout so the procedural fallback always runs.
+      const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+        Promise.race([
+          p,
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`character load timed out after ${ms}ms`)), ms))
+        ]);
+      this.ready = withTimeout(instantiateCharacter(scene, character), 20000)
+        .catch(() => withTimeout(instantiateCharacter(scene, character), 20000))
         .then((inst) => {
           this.inst = inst;
           inst.root.parent = this.modelPivot!;

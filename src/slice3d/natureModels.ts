@@ -87,17 +87,28 @@ export interface NatureProto {
 
 const cache = new WeakMap<Scene, Promise<Map<string, NatureProto>>>();
 
-/** Load + recolor every prop once per scene; instances share the prototypes. */
-export function loadNaturePrototypes(scene: Scene, palette: NaturePalette): Promise<Map<string, NatureProto>> {
+/**
+ * Load + recolor props once per scene; instances share the prototypes.
+ * `keys` limits the download to what the course's theme actually places
+ * (default: every known prop) — the first call per scene wins the cache, so
+ * both call sites in buildCourse must pass the same set. Loading is
+ * per-key fault-tolerant: a failed glb logs a warning and is skipped; the
+ * returned promise NEVER rejects, so one flaky fetch can't blank the course.
+ */
+export function loadNaturePrototypes(
+  scene: Scene,
+  palette: NaturePalette,
+  keys: readonly string[] = ALL_KEYS
+): Promise<Map<string, NatureProto>> {
   let p = cache.get(scene);
   if (!p) {
-    p = build(scene, palette);
+    p = build(scene, palette, keys);
     cache.set(scene, p);
   }
   return p;
 }
 
-async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, NatureProto>> {
+async function build(scene: Scene, palette: NaturePalette, keys: readonly string[]): Promise<Map<string, NatureProto>> {
   const barkMat = flat(scene, 'natBark', palette.bark);
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
@@ -142,8 +153,16 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
 
   const out = new Map<string, NatureProto>();
   await Promise.all(
-    ALL_KEYS.map(async (key) => {
-      const container = await LoadAssetContainerAsync(`models/nature/${key}.glb`, scene);
+    keys.map(async (key) => {
+      let container;
+      try {
+        container = await LoadAssetContainerAsync(`models/nature/${key}.glb`, scene);
+      } catch (err) {
+        // Fault-tolerant by design: a flaky fetch loses ONE prop, never the
+        // whole forest (a rejected Promise.all used to blank every prop).
+        console.warn(`[nature] failed to load "${key}" — skipping`, err);
+        return;
+      }
       container.addAllToScene();
       const raw = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
       if (!raw.length) return;

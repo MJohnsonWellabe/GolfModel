@@ -19,26 +19,34 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
-import { dedup, prune, simplify, weld } from '@gltf-transform/functions';
+import { dedup, prune, quantize, simplify, weld } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACK = path.join(root, 'asset-packs', 'forest-nature-fbx');
 const OUT = path.join(root, 'assets', 'models', 'nature');
 
-/** outKey -> pack-relative FBX source. Keys are what natureModels.ts loads. */
+/**
+ * outKey -> pack-relative FBX source (string) or { src, ratio } where ratio
+ * overrides the default simplify target. Keys are what natureModels.ts loads.
+ * The dense broadleaf meshes get a harder decimation — they were the bulk of
+ * the first-load payload (oak alone was 1 MB).
+ */
 const MANIFEST = {
   // Broadleaf (Wildwood Glen mix)
-  tree_oak: 'Oak/SM_Oak_LOD.fbx',
-  tree_birch: 'Birch/Birch_01/SM_Birch_LOD.fbx',
-  tree_birch_b: 'Birch/Birch_02/SM_Birch_02_LOD.fbx',
+  tree_oak: { src: 'Oak/SM_Oak_LOD.fbx', ratio: 0.32 },
+  tree_birch: { src: 'Birch/Birch_01/SM_Birch_LOD.fbx', ratio: 0.42 },
+  tree_birch_b: { src: 'Birch/Birch_02/SM_Birch_02_LOD.fbx', ratio: 0.35 },
   tree_maple: 'Maple/SM_Maple_LOD.fbx',
   tree_aspen: 'Aspen/SM_Aspen_LOD.fbx',
-  tree_poplar: 'Poplar/SM_Poplar_LOD.fbx',
+  tree_poplar: { src: 'Poplar/SM_Poplar_LOD.fbx', ratio: 0.42 },
   // Conifers (Timberline mix)
   tree_spruce: 'Spruce/SM_Spruce_LOD.fbx',
   tree_spruce_tall: 'Big Hight Spruce/SM_Hight_Spruce_LOD.fbx',
-  tree_pine: 'Pine/SM_Pine_LOD.fbx',
+  tree_pine: { src: 'Pine/SM_Pine_LOD.fbx', ratio: 0.4 },
+  // Deadwood storytelling (rough scatter on forest courses)
+  tree_fallen: 'Fallen/SM_Fallen_Tree_LOD.fbx',
+  tree_broken: 'Broken/SM_Broken_Tree_LOD.fbx',
   // Forest-floor scatter
   stump_a: 'Trunks/SM_Stump_01_LOD.fbx',
   log_a: 'Trunks/SM_Log_01_LOD.fbx',
@@ -73,7 +81,8 @@ await MeshoptSimplifier.ready;
 const work = mkdtempSync(path.join(tmpdir(), 'nature-'));
 
 try {
-  for (const [key, rel] of Object.entries(MANIFEST)) {
+  for (const [key, entry] of Object.entries(MANIFEST)) {
+    const { src: rel, ratio = 0.6 } = typeof entry === 'string' ? { src: entry } : entry;
     const src = path.join(PACK, rel);
     const raw = path.join(work, `${key}.glb`);
     execFileSync(fbx2gltf, ['--binary', '--input', src, '--output', raw.replace(/\.glb$/, '')], {
@@ -85,10 +94,20 @@ try {
     await document.transform(
       dedup(),
       weld(),
-      // Conservative decimation: these are stylized low-poly props seen from
-      // fairway distance; lockBorder keeps trunk/foliage seams intact.
-      simplify({ simplifier: MeshoptSimplifier, ratio: 0.6, error: 0.001, lockBorder: true }),
-      prune()
+      // Decimation: stylized low-poly props seen from fairway distance.
+      // The default keeps lockBorder (protects trunk/foliage seams); the
+      // aggressive manifest entries are disconnected leaf-card soup where
+      // every edge is a border, so they must unlock borders (plus a looser
+      // error bound) or the simplifier can't remove anything.
+      simplify(
+        ratio < 0.6
+          ? { simplifier: MeshoptSimplifier, ratio, error: 0.02, lockBorder: false }
+          : { simplifier: MeshoptSimplifier, ratio, error: 0.001, lockBorder: true }
+      ),
+      prune(),
+      // Quantized attributes (KHR_mesh_quantization — Babylon-supported)
+      // roughly halve every file for free.
+      quantize()
     );
 
     const out = path.join(OUT, `${key}.glb`);

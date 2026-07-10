@@ -39,6 +39,9 @@ function containerFor(scene: Scene, key: string, file: string): Promise<AssetCon
   let p = perScene.get(key);
   if (!p) {
     p = LoadAssetContainerAsync(file, scene);
+    // Evict a REJECTED load so a retry can actually re-fetch — caching the
+    // rejection used to pin the failure for the rest of the hole.
+    p.catch(() => cache.get(scene)?.delete(key));
     perScene.set(key, p);
   }
   return p;
