@@ -21,7 +21,11 @@ import { ftToPx, golferWith, NO_WIND, openHole, PERFECT_SWING, SWING_OF } from '
 const hole = openHole();
 const golfer = golferWith(85);
 const putter = clubById('putter');
-const CARRY_PX = 40 * (0.259 + (85 / 100) * 0.926) * 2;
+// Mirror the game's putt power derivation: power = aimDistPx / maxCarryPx, where
+// maxCarryPx = effectiveCarryYards(putter) * PX_PER_YARD. Derive it from the
+// putter's actual baseDistance (not a hardcoded copy) so it stays faithful — the
+// putter's baseDistance only scales the aim ceiling and cancels out of putt pace.
+const CARRY_PX = putter.baseDistance * (0.259 + (85 / 100) * 0.926) * 2;
 
 function putt(ft: number, quality: 'perfect' | 'good', rng: () => number): { holed: boolean; finishFt: number } {
   const distPx = ftToPx(ft);

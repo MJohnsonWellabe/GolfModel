@@ -14,6 +14,12 @@ import { golferWith } from './simHelpers';
  * with the GDD's original tier targets (good ≈ −1, excellent ≈ −2) rather than
  * the ≈ +0.5 shifted values the old over-random putting forced. Ordering,
  * spacing and the "−3 is rare" rule are preserved.
+ *
+ * DRIVE NERF (playtest, "drives going too far"): the woods carry ~10% less
+ * (PHYSICS.driveDistanceScale). A deliberate difficulty increase — the whole
+ * tier curve shifts up ~1 stroke as skilled players lose par-5 reachability, so
+ * the excellent target moves from ≈ −2 to ≈ −0.8. Ordering and the "−3 is rare"
+ * rule still hold.
  */
 
 const course = loadCourse(wildwood as unknown as CourseAuthoring);
@@ -61,10 +67,13 @@ describe('Appendix A scoring tiers (3-hole rounds on Wildwood Glen)', () => {
     expect(threeUnderPct, `good tier -3s ${threeUnderPct.toFixed(1)}%`).toBeLessThan(18);
   });
 
-  it('excellent tier (stat ~95) averages ≈ −2', { timeout: T }, () => {
+  it('excellent tier (stat ~95) averages ≈ −0.8 (post drive-nerf)', { timeout: T }, () => {
     const { mean } = meanToPar(95);
-    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(-2.8);
-    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(-1.0);
+    // Was ≈ −2 before the woods carry trim; the ~10% drive nerf costs skilled
+    // players par-5 reachability, lifting the tier ~1 stroke. Still comfortably
+    // under par and still the best tier (see the monotonic test below).
+    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(-1.8);
+    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(-0.2);
   });
 
   it('scoring improves monotonically with skill', { timeout: T }, () => {

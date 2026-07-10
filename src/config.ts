@@ -60,6 +60,11 @@ export const PHYSICS = {
   gravity: 420,
   /** Simulation timestep, seconds. */
   dt: 1 / 60,
+  /** Carry multiplier applied to the woods (driver/3W/5W) — the clubs you
+   *  drive with, which were running long. Kept off the irons/wedges/putter so
+   *  approach play and the GDD scoring balance stay intact; it's the drives
+   *  specifically that come down. */
+  driveDistanceScale: 0.9,
   /** Wind acceleration (px/s²) per mph of wind speed, applied while airborne. */
   windAccelPerMph: 9.0,
   /** Green break/downhill acceleration (px/s²) at slope strength 1.0 while

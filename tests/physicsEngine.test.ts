@@ -242,7 +242,8 @@ describe('effectiveCarryYards', () => {
     const fromFairway = effectiveCarryYards(iron, GOLFER, 0, 'fairway');
     const fromRough = effectiveCarryYards(iron, GOLFER, 0, 'rough');
     const fromSand = effectiveCarryYards(iron, GOLFER, 0, 'sand');
-    // statMult = 0.259 + (approach/100) * 0.926 (GDD Appendix A carry table)
+    // statMult = 0.259 + (approach/100) * 0.926 (GDD Appendix A carry table).
+    // 7i is an iron, so the woods-only driveDistanceScale does not apply here.
     expect(fromFairway).toBeCloseTo(160 * (0.259 + 0.8 * 0.926));
     expect(fromRough).toBeCloseTo(fromFairway * 0.75);
     expect(fromSand).toBeCloseTo(fromFairway * 0.55);

@@ -1217,3 +1217,13 @@ Also fixed while calibrating: the rolling integrator's systematic v0·dt/2
 shortfall (putts died ~1px short of intent — masked for years by the old
 2.4px cup); lip-outs now eject clear of the hole; full shots gained
 power-scaled depth noise (delicate part-swings ~6%, committed swings ~2%).
+
+## Drive-distance trim (playtest, "drives going too far")
+
+The woods (driver/3W/5W) now carry ~10% less (`PHYSICS.driveDistanceScale =
+0.9`); irons, wedges and the putter are unchanged. This is a deliberate
+difficulty increase requested in playtest: drives were flying too far. The
+FB9 putting rework had lifted the excellent tier back toward ≈ −2, but losing
+~10% of driver carry costs skilled players par-5 reachability and returns the
+whole tier curve to the Phase 2 calibration above — excellent ≈ −0.8 per 3
+holes. Tier order and the "−3 is an accomplishment" rule are preserved.

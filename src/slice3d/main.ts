@@ -1502,7 +1502,11 @@ class HoleScene {
   // ----------------------------------------------------------------- loop
 
   private tick(): void {
-    const dt = engine3d.getDeltaTime() / 1000;
+    // Clamp the frame delta: a hitch (screen transition, GC, tab refocus) can
+    // report a multi-hundred-ms delta that snaps every exponential-lerp toward
+    // its target in one frame — that's what made the flyover appear to start
+    // mid-fairway and jolted the ball. Cap at ~3 frames' worth.
+    const dt = Math.min(0.05, engine3d.getDeltaTime() / 1000);
 
     // Float the aim readout over its world anchor (projected each frame so it
     // tracks the smoothing camera).
@@ -1543,7 +1547,18 @@ class HoleScene {
         this.afterShot(outcome);
       } else {
         const p = path[i];
-        this.ball.position = w2b(p.x, p.y, p.z + this.ballRestH() + this.gh(p.x, p.y));
+        // The physics path is sampled at a fixed 1/60s but playback advances
+        // by a fractional index per rendered frame (slow-mo air = ~0.26/frame),
+        // so snapping the mesh to the integer sample froze it for several frames
+        // then hopped — the "laggy ball". Lerp to the next sample by the
+        // fractional part for smooth motion. (Landing/camera logic below still
+        // keys off the discrete sample `p`, which is what those thresholds want.)
+        const pn = path[Math.min(i + 1, path.length - 1)];
+        const frac = this.flight.progress - i;
+        const bx = p.x + (pn.x - p.x) * frac;
+        const by = p.y + (pn.y - p.y) * frac;
+        const bz = p.z + (pn.z - p.z) * frac;
+        this.ball.position = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
         const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
         // Putts: zoom the camera in tight as the ball nears the cup (FB2).
         if (this.flight.isPutt && dCup < 46) {
@@ -1902,8 +1917,17 @@ function confirmResetRecords(): void {
         applyCloudMerge(profile, res.profile);
         showCloudStatus(res.status, true);
       });
-    renderProfile();
     updateDailyBanner();
+    // Confirm in place and let the player close out. Re-rendering the whole
+    // profile here used to tear down and rebuild the overlay (scroll jumped to
+    // top), which read as being unexpectedly thrown back into the profile
+    // screen — the cleared stats are shown next time Profile is opened.
+    zone.innerHTML =
+      `<div class="resetWarn">✓ Career records cleared.</div>` +
+      `<div class="btnRow"><button id="resetDone" class="ghostBtn">Done</button></div>`;
+    document.getElementById('resetDone')!.addEventListener('pointerdown', () => {
+      recordsEl.style.display = 'none';
+    });
   });
 }
 

@@ -15,7 +15,13 @@ export const CLUBS: ClubSpec[] = [
   { id: '9i', name: '9I', baseDistance: 135, launchAngle: 25, spin: 0.58 },
   { id: 'pw', name: 'PW', baseDistance: 110, launchAngle: 29, spin: 0.72 },
   { id: 'sw', name: 'SW', baseDistance: 80, launchAngle: 34, spin: 0.85 },
-  { id: 'putter', name: 'Putter', baseDistance: 40, launchAngle: 0, spin: 0 }
+  // Putter baseDistance is NOT a real carry — a putt's roll is derived from the
+  // aim spot, and this value cancels out of the putt power math (AimControl
+  // barToPhysicsPower ÷ PhysicsEngine carry). It only sets how far the aim can
+  // be dragged (maxCarryPx), so it must be generous enough to reach long lag
+  // putts: at 40 the aim clamp capped ~48ft, so an 84ft putt could never be
+  // aimed at the hole. 90 gives a ~120ft+ aim ceiling for any putting stat.
+  { id: 'putter', name: 'Putter', baseDistance: 90, launchAngle: 0, spin: 0 }
 ];
 
 export function clubById(id: string): ClubSpec {

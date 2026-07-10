@@ -118,7 +118,11 @@ export function effectiveCarryYards(
   // full power spread lands on the documented targets.
   const statMult = 0.259 + (distance / 100) * 0.926;
   const lieMult = PHYSICS.lieDistance[lie] ?? 1;
-  return club.baseDistance * statMult * lieMult;
+  // Trim the woods (driver/3W/5W) only — "drives were going too far". Irons,
+  // wedges and the putter are untouched so approach play and the GDD scoring
+  // balance hold.
+  const distScale = clubFamily(club) === 'wood' ? PHYSICS.driveDistanceScale : 1;
+  return club.baseDistance * statMult * lieMult * distScale;
 }
 
 export class PhysicsEngine {

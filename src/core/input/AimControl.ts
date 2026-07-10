@@ -24,8 +24,13 @@ export interface ShotContext {
 const DRAG_DEAD_ZONE = 12;
 /** Radians of yaw per horizontal screen px dragged in the shot view. */
 const YAW_PER_PX = 0.0032;
+/** Putts aim over much shorter distances, so the same yaw-per-px swings the aim
+ *  point too far on the green — use a finer rate so it doesn't jump. */
+const PUTT_YAW_PER_PX = 0.0014;
 /** World px of aim distance per vertical screen px dragged. */
 const DIST_PER_PX = 1.1;
+/** Finer pace drag for putts (short distances magnify every px). */
+const PUTT_DIST_PER_PX = 0.6;
 
 /**
  * Shot setup: which club, where you're aiming, and the preview arc.
@@ -225,10 +230,11 @@ export class AimControl {
     const dx = screen.x - this.dragLast.x;
     const dy = screen.y - this.dragLast.y;
     this.dragLast = { ...screen };
-    this.yaw += dx * YAW_PER_PX;
+    this.yaw += dx * (this.isPutting ? PUTT_YAW_PER_PX : YAW_PER_PX);
     // Putts aim down to ~1.5ft so a short putt can be aimed at the cup (was a
     // 21ft floor); full shots keep the 14px floor.
-    this.distPx = clamp(this.distPx - dy * DIST_PER_PX, this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
+    const distPerPx = this.isPutting ? PUTT_DIST_PER_PX : DIST_PER_PX;
+    this.distPx = clamp(this.distPx - dy * distPerPx, this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
     return true;
   }
 
