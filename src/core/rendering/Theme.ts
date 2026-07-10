@@ -38,6 +38,12 @@ export interface CourseTheme {
   backdrop: 'peaks' | 'sea';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
+  /** Ground-scatter density multiplier (grass tufts/bushes/flowers); 1 = default. */
+  tuftDensity: number;
+  /** Rough grass-tuft height multiplier (fairway tufts stay low regardless). */
+  roughTuftHeight: number;
+  /** 0..1 sand sculpting: crossing rake ripples + bunker depth darkening. */
+  sandSculpt: number;
   /**
    * Optional woods species mix — prop keys from slice3d/natureModels.ts
    * (e.g. conifers on Timberline, broadleaf on Wildwood). Omitted = the
@@ -50,6 +56,10 @@ export interface CourseTheme {
   scatterKeys?: readonly string[];
   /** Backdrop-woods grid step override (default 60–74); lower = denser wall. */
   backdropTreeStep?: number;
+  /** Bush prop mix for the rough (defaults to the classic bush_a/bush_b). */
+  bushKeys?: readonly string[];
+  /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
+  cloudKeys?: readonly string[];
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -76,7 +86,10 @@ export const DEFAULT_THEME: CourseTheme = {
   haze: 0xdcecf4,
   hazeStrength: 0.5,
   backdrop: 'peaks',
-  blossomChance: 0.22
+  blossomChance: 0.22,
+  tuftDensity: 1,
+  roughTuftHeight: 1,
+  sandSculpt: 0
 };
 
 /** Multiply a color's RGB by `f` (>1 lightens toward white, <1 darkens). */
@@ -103,7 +116,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   // optional array/number fields are read explicitly below.
   type ScalarKey = Exclude<
     keyof CourseTheme,
-    'treeKeys' | 'accentTreeKeys' | 'scatterKeys' | 'backdropTreeStep'
+    'treeKeys' | 'accentTreeKeys' | 'scatterKeys' | 'backdropTreeStep' | 'bushKeys' | 'cloudKeys'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -113,7 +126,10 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
       key === 'sunY' ||
       key === 'shadowAngle' ||
       key === 'hazeStrength' ||
-      key === 'blossomChance'
+      key === 'blossomChance' ||
+      key === 'tuftDensity' ||
+      key === 'roughTuftHeight' ||
+      key === 'sandSculpt'
     ) {
       if (typeof v === 'number') t[key] = v;
     } else if (key === 'backdrop') {
@@ -129,6 +145,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.treeKeys = strings(spec.treeKeys);
   t.accentTreeKeys = strings(spec.accentTreeKeys);
   t.scatterKeys = strings(spec.scatterKeys);
+  t.bushKeys = strings(spec.bushKeys);
+  t.cloudKeys = strings(spec.cloudKeys);
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   return t;
 }

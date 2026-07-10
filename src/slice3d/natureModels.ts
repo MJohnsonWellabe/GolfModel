@@ -46,6 +46,10 @@ export const FERN_KEYS = ['fern_a'] as const;
 export const BERRY_KEYS = ['bush_berry'] as const;
 export const STONE_KEYS = ['stone_a', 'stone_b', 'stone_c'] as const;
 export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
+/** Forest-pack bushes courses can opt into via theme.bushKeys. */
+export const EXTRA_BUSH_KEYS = ['bush_juniper', 'bush_c'] as const;
+/** Stylized volumetric cloud meshes; courses opt in via theme.cloudKeys. */
+export const CLOUD_KEYS = ['cloud_a', 'cloud_b', 'cloud_c'] as const;
 /** grass_c–f = the purchased Grass F tuft pack (asset-packs/grass-f): crossed
  *  unlit cards that read as soft tufts. The Fantastic Nature grass_a/b clumps
  *  are chunky slabs at turf scale, so ground scatter no longer uses them. */
@@ -60,6 +64,8 @@ const ALL_KEYS = [
   ...BERRY_KEYS,
   ...STONE_KEYS,
   ...BUSH_KEYS,
+  ...EXTRA_BUSH_KEYS,
+  ...CLOUD_KEYS,
   ...GRASS_KEYS,
   ...FLOWER_KEYS
 ];
@@ -100,6 +106,9 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
   const grassMat = unlit(scene, 'natGrass', palette.grass);
   const flowerMat = unlit(scene, 'natFlower', 0xe8a8c8);
   const stoneMat = flat(scene, 'natStone', palette.stone);
+  // Clouds: flat near-white and self-lit so they read soft against any sky.
+  const cloudMat = flat(scene, 'natCloud', 0xf2f7fb);
+  cloudMat.emissiveColor = c3(0xdfe7ee);
 
   const pickMat = (slot: string, key: string, meshName: string): StandardMaterial => {
     // Card-style props pick by prop key first (their slots are generic)
@@ -109,7 +118,9 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
     // whole mesh, so the prop key decides: deadwood is bark, plants foliage.
     if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
     if (key.startsWith('fern')) return foliageMat;
-    if (key.startsWith('bush_berry')) return foliageLightMat;
+    if (key.startsWith('bush_berry') || key.startsWith('bush_c')) return foliageLightMat;
+    if (key.startsWith('bush_juniper')) return foliageMat;
+    if (key.startsWith('cloud')) return cloudMat;
     // Conifer glbs ship trunk + foliage as two NODES sharing one needles
     // material; the SM_-prefixed node is the trunk (verified via bounds).
     // Keyed to conifers only — the old pack's single nodes are all SM_ENV_*.

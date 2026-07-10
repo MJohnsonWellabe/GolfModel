@@ -673,7 +673,7 @@ export function buildCourse(
     const accents = pickKeyed(theme.accentTreeKeys ?? []);
     const scatter = pick(theme.scatterKeys ?? []);
     const conifers = new Set<string>(CONIFER_KEYS);
-    const bushes = pick(BUSH_KEYS);
+    const bushes = pick(theme.bushKeys ?? BUSH_KEYS);
     const grasses = pick(GRASS_KEYS);
     const flowers = pick(FLOWER_KEYS);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
@@ -739,8 +739,10 @@ export function buildCourse(
     // Ground detail encodes grass LENGTH by surface: tall, sparse tufts +
     // stones/bushes on the rough; short, dense tufts on the fairway; nothing on
     // the green (mown smooth) — so fairway/rough/green read differently up close.
-    for (let yy = 0; yy < h; yy += 34) {
-      for (let xx = 0; xx < w; xx += 34) {
+    // tuftDensity 1 keeps the exact historical 34-unit grid (hash-stable).
+    const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
+    for (let yy = 0; yy < h; yy += tuftStep) {
+      for (let xx = 0; xx < w; xx += tuftStep) {
         const surf = engine.surfaceAt(xx, yy);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
@@ -756,7 +758,7 @@ export function buildCourse(
         } else {
           // Longer rough grass, plus the occasional bush/flower — knee-high
           // at most (the golfer is ~6 units; tufts must never read as walls).
-          if (roll < 0.5) place(grasses, jx, jy, 2.0 + hash2(jx, jy) * 1.2, 3);
+          if (roll < 0.5) place(grasses, jx, jy, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight, 3);
           else if (roll < 0.55) place(bushes, jx, jy, 3.2 + hash2(jy, jx) * 1.6, 7);
           else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
           // Forest-floor props (ferns/stumps/logs/berries) where the theme

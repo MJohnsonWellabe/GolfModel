@@ -27,7 +27,10 @@
     "treeKeys": ["tree_spruce", "tree_spruce_tall", "tree_pine", "tree_spruce_tall"],
     "accentTreeKeys": ["tree_birch"],
     "scatterKeys": ["fern_a", "stump_a", "log_a"],
-    "backdropTreeStep": 46
+    "backdropTreeStep": 46,
+    "tuftDensity": 1.35,
+    "roughTuftHeight": 1.25,
+    "bushKeys": ["bush_juniper", "bush_c", "bush_a"]
   },
   "holes": [
     {

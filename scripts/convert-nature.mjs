@@ -43,7 +43,13 @@ const MANIFEST = {
   stump_a: 'Trunks/SM_Stump_01_LOD.fbx',
   log_a: 'Trunks/SM_Log_01_LOD.fbx',
   fern_a: 'Bushe/SM_Fern_01.fbx', // LOD-less single mesh
-  bush_berry: 'Bushe/SM_Blackberry_LOD.fbx'
+  bush_berry: 'Bushe/SM_Blackberry_LOD.fbx',
+  bush_juniper: 'Bushe/SM_Junipper_LOD.fbx',
+  bush_c: 'Bushe/SM_Bushe_01_LOD.fbx',
+  // Sky props (LOD-less)
+  cloud_a: 'Clouds/SM_Cloud_01.fbx',
+  cloud_b: 'Clouds/SM_Cloud_02.fbx',
+  cloud_c: 'Clouds/SM_Cloud_03.fbx'
 };
 
 const fbx2gltf = path.join(
