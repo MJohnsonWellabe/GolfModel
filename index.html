@@ -688,6 +688,9 @@
         text-align: left;
         /* Room so the scroll shadow doesn't clip selected cards */
         padding: 2px;
+        /* Native vertical panning so a drag over a character/pal card scrolls
+           instead of selecting (matches the store). */
+        touch-action: pan-y;
       }
       .stepTitle {
         font-size: 19px;
@@ -1167,6 +1170,9 @@
       .storeScroll {
         flex: 1 1 auto;
         overflow-y: auto;
+        /* Let the browser own vertical panning so a drag that starts on a card
+           scrolls natively (and cancels the card's pointer) instead of buying. */
+        touch-action: pan-y;
       }
       .storeTab {
         font-size: 12px;

@@ -1251,9 +1251,13 @@ class HoleScene {
         // tint (AI keeps plain white). Phase 6 fire + Phase 7 store.
         const onFire = this.fires[this.turnIdx].isOnFire;
         const tint = this.comps[this.turnIdx].isAI ? 0xffffff : equippedColor(profile, 'trail', 0xffffff);
+        // Unlit: the trail glows its own tint instead of being washed toward
+        // white by the sun's diffuse term, so Comet reads blue, Ember orange,
+        // etc. (playtest: "trails all look like the white default").
+        tmat.disableLighting = true;
         tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : c3(tint);
-        tmat.diffuseColor = tmat.emissiveColor;
-        tmat.alpha = onFire ? 0.55 : 0.35;
+        tmat.diffuseColor = new Color3(0, 0, 0);
+        tmat.alpha = onFire ? 0.6 : 0.55;
         trail.material = tmat;
       }
       this.flight = {
@@ -2070,6 +2074,36 @@ function statCell(value: number | string, label: string): string {
 }
 
 const storeEl = document.getElementById('store')!;
+
+/** Distance (px) a pointer may drift between down and up and still count as a
+ *  tap rather than a scroll — mirrors AimControl's DRAG_DEAD_ZONE. */
+const TAP_SLOP = 12;
+
+/** Bind a scroll-safe tap: fires `fn` only when the pointer is released near
+ *  where it went down. A drag to scroll a list that happens to start on a card
+ *  moves past TAP_SLOP (or cancels the pointer for a native pan), so it no
+ *  longer buys/equips — the store's #1 playtest annoyance (batch 2). */
+function onTap(el: Element, fn: () => void): void {
+  let sx = 0;
+  let sy = 0;
+  let armed = false;
+  el.addEventListener('pointerdown', (e) => {
+    const pe = e as PointerEvent;
+    sx = pe.clientX;
+    sy = pe.clientY;
+    armed = true;
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (!armed) return;
+    armed = false;
+    const pe = e as PointerEvent;
+    if (Math.hypot(pe.clientX - sx, pe.clientY - sy) <= TAP_SLOP) fn();
+  });
+  el.addEventListener('pointercancel', () => {
+    armed = false;
+  });
+}
+
 /** The Characters store section starts collapsed to two rows (playtest FB9). */
 let storeCharsExpanded = false;
 /** Character cards shown before "See more" (two rows of the 3-wide grid). */
@@ -2158,7 +2192,7 @@ function renderStore(): void {
     renderStore();
   };
   storeEl.querySelectorAll('.storeCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    onTap(el, () => {
       const id = (el as HTMLElement).dataset.item!;
       const item = STORE_CATALOG.find((i) => i.id === id)!;
       if (isOwned(p, item)) {
@@ -2222,7 +2256,7 @@ function renderPalsStep(): void {
     ownedPals.map((i) => card(i.id, i.name, palByKey(i.pal)?.icon ?? '🐾')).join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.palPick').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    onTap(el, () => {
       const id = (el as HTMLElement).dataset.pal!;
       if (id) equip(p, id);
       else delete p.cosmetics.equipped.pal;
@@ -2920,7 +2954,7 @@ function renderCharacter(): void {
       .join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    onTap(el, () => {
       sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
       renderCharacter();
     })
