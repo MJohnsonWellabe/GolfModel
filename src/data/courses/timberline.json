@@ -30,7 +30,8 @@
     "backdropTreeStep": 46,
     "tuftDensity": 1.35,
     "roughTuftHeight": 1.25,
-    "bushKeys": ["bush_juniper", "bush_c", "bush_a"]
+    "bushKeys": ["bush_juniper", "bush_c", "bush_a"],
+    "sandSculpt": 0.7
   },
   "holes": [
     {
@@ -76,7 +77,7 @@
         },
         {
           "type": "bunker",
-          "polygon": [[498, 300], [528, 288], [542, 264], [528, 240], [500, 246], [488, 274]]
+          "polygon": [[522, 306], [552, 294], [566, 270], [552, 246], [524, 252], [512, 280]]
         },
         {
           "type": "trees",
@@ -93,7 +94,8 @@
       "elevation": [
         { "x": 450, "y": 1070, "h": 1.8, "r": 130, "shape": "plateau" },
         { "x": 460, "y": 700, "h": 1.0, "r": 170 },
-        { "x": 460, "y": 268, "h": 2.2, "r": 128, "shape": "plateau" }
+        { "x": 460, "y": 268, "h": 2.2, "r": 128, "shape": "plateau" },
+        { "x": 538, "y": 275, "h": -0.7, "r": 30 }
       ]
     },
     {

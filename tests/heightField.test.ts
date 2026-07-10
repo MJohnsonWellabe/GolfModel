@@ -145,3 +145,22 @@ describe('PhysicsEngine + heightfield', () => {
     expect(along).toBeCloseTo(PHYSICS.slopeAccel * 0.5, 5);
   });
 });
+
+describe('Timberline h1 bunker dish', () => {
+  it('digs a sand hollow beside the green without cratering the putting surface', async () => {
+    const timberline = (await import('../src/data/courses/timberline.json')).default;
+    const { loadCourse } = await import('../src/data/courseLoader');
+    const course = loadCourse(timberline as never);
+    const h1 = course.holes[0];
+    const hf = buildHeightField(h1);
+    const engine = new PhysicsEngine(h1);
+    // The dish centre sits in the VISIBLE sand crescent (green overlaps most
+    // of the authored polygon). Compare against the mirrored point at the same
+    // distance from the plateau centre (460,268) — same base height, no dish —
+    // so the assertion isolates the hollow from the plateau's own skirt.
+    expect(engine.surfaceAt(538, 275)).toBe('sand');
+    expect(hf!.heightAt(538, 275)).toBeLessThan(hf!.heightAt(382, 275) - 0.5);
+    // The pin still sits on the untouched plateau top.
+    expect(hf!.heightAt(h1.pin.x, h1.pin.y)).toBeCloseTo(2.2, 1);
+  });
+});

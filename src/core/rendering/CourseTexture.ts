@@ -128,6 +128,18 @@ export function renderCourseCanvas(
   const tcx = hole.tee.x - ax * TEE_HALF * 0.55;
   const tcy = hole.tee.y - ay * TEE_HALF * 0.55;
 
+  // Sand sculpting (theme.sandSculpt > 0): bunker centres precomputed for the
+  // radial depth shading inside the hot texel loop.
+  const sculpt = theme.sandSculpt;
+  const bunkers = hole.hazards
+    .filter((z) => z.type === 'bunker')
+    .map((z) => {
+      const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
+      const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
+      const maxR = Math.max(...z.polygon.map((p) => Math.hypot(p[0] - bcx, p[1] - bcy)));
+      return { cx: bcx, cy: bcy, maxR };
+    });
+
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -183,7 +195,17 @@ export function renderCourseCanvas(
       // Water: subtle horizontal banding reads as ripples
       if (cls === 5) light *= 1 + Math.sin(wy * 0.18) * 0.045;
       // Sand: raked ripple lines (art bible: "small ripples, color variation")
-      if (cls === 4) light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+      if (cls === 4) {
+        light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+        if (sculpt > 0) {
+          // Crossing rake set + radial darkening toward the bunker centre —
+          // the flat painted disc reads as a raked, dished hollow.
+          light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
+          let d = 1;
+          for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
+        }
+      }
 
       const i = (py * w + px) * 4;
       data[i] = Math.min(255, r * light);
@@ -296,6 +318,17 @@ export function renderGreenPatch(
   const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
   const ax = Math.cos(axis);
   const ay = Math.sin(axis);
+  // Greenside sand painted by this high-res patch must match the main bake's
+  // sculpting or a shading seam appears at the green-mesh skirt.
+  const sculpt = theme.sandSculpt;
+  const bunkers = hole.hazards
+    .filter((z) => z.type === 'bunker')
+    .map((z) => {
+      const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
+      const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
+      const maxR = Math.max(...z.polygon.map((p) => Math.hypot(p[0] - bcx, p[1] - bcy)));
+      return { cx: bcx, cy: bcy, maxR };
+    });
 
   for (let py = 0; py < w; py++) {
     const wy = y0 + py / scale;
@@ -308,6 +341,13 @@ export function renderGreenPatch(
         // Tight, subtle mow stripes along the play axis
         const along = wx * ax + wy * ay;
         light *= 1 + Math.sin((along / 30) * Math.PI) * 0.075;
+      }
+      if (surf === 'sand' && sculpt > 0) {
+        light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+        light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
+        let d = 1;
+        for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+        light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
       }
       // Crisp darker rim right at the green/fringe boundary anchors the collar
       if (surf === 'fringe' && engine.surfaceAt(wx + 1.2, wy) !== 'fringe') light *= 0.88;
