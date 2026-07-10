@@ -10,7 +10,7 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
  * Phases 6 (progression) and 7 (store) read and write this object.
  */
 
-export type CosmeticKind = 'character' | 'ball' | 'trail' | 'outfit' | 'clubskin';
+export type CosmeticKind = 'character' | 'ball' | 'trail' | 'outfit' | 'clubskin' | 'pal';
 
 export interface CareerStats {
   rounds: number;

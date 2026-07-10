@@ -1,5 +1,6 @@
 import { GolferStats } from '../core/types';
 import { CharacterKey } from './characters';
+import { PalKey } from './pals';
 
 /**
  * Gold-only store (docs 08): cosmetics + modest club upgrades bought with
@@ -9,11 +10,11 @@ import { CharacterKey } from './characters';
  * `StoreEngine` runs the transactions.
  */
 
-export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin';
+export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin' | 'pal';
 export type UpgradeFamily = 'driver' | 'irons' | 'wedges' | 'putter';
 
-/** Cosmetic kinds that are equipped (a chosen tint), vs owned-only. */
-export const EQUIPPABLE_KINDS: StoreKind[] = ['ball', 'trail', 'outfit', 'clubskin'];
+/** Cosmetic kinds that are equipped (a chosen tint/pal), vs owned-only. */
+export const EQUIPPABLE_KINDS: StoreKind[] = ['ball', 'trail', 'outfit', 'clubskin', 'pal'];
 export const isEquippableKind = (kind: StoreKind): boolean => EQUIPPABLE_KINDS.includes(kind);
 
 export interface StoreItem {
@@ -28,18 +29,22 @@ export interface StoreItem {
   character?: CharacterKey;
   /** clubUpgrade: which family + tier (1 or 2). */
   upgrade?: { family: UpgradeFamily; tier: number };
+  /** pal: which companion this unlocks. */
+  pal?: PalKey;
 }
 
 /** Characters owned from the start (the rest are store unlocks). */
 export const FREE_CHARACTERS: CharacterKey[] = ['chip', 'rose', 'rio', 'sunny', 'theo'];
 
 /** Cosmetics owned by default (white ball + plain white trail + the classic
- *  outfit colorway and steel clubs). */
+ *  outfit colorway, steel clubs, and the starter pals — none equipped). */
 export const DEFAULT_OWNED = [
   'ball_white',
   'trail_white',
   'outfit_default',
   'clubskin_steel',
+  'pal_fox',
+  'pal_dragon',
   ...FREE_CHARACTERS.map((c) => `char_${c}`)
 ];
 
@@ -145,6 +150,8 @@ export const STORE_CATALOG: StoreItem[] = [
   ...OUTFIT_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `outfit_${id}`, kind: 'outfit', name, price, rarity, color })
   ),
+  { id: 'pal_fox', kind: 'pal', name: 'Foxy', price: 0, rarity: 'common', pal: 'fox' },
+  { id: 'pal_dragon', kind: 'pal', name: 'Ember', price: 0, rarity: 'common', pal: 'dragon' },
   { id: 'clubskin_steel', kind: 'clubskin', name: 'Steel Clubs', price: 0, rarity: 'common', color: 0x9aa6b2 },
   ...CLUBSKIN_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `clubskin_${id}`, kind: 'clubskin', name, price, rarity, color })

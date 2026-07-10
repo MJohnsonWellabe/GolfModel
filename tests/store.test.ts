@@ -65,6 +65,19 @@ describe('purchases', () => {
     expect(equip(p, 'trail_fire').ok).toBe(false); // not owned
     expect(equip(p, 'trail_white').ok).toBe(true); // default-owned
   });
+
+  it('starter pals are free, owned by default, and equip into the pal slot', () => {
+    const p = defaultProfile();
+    expect(p.cosmetics.equipped.pal).toBeUndefined(); // none follows until picked
+    for (const id of ['pal_fox', 'pal_dragon']) {
+      expect(DEFAULT_OWNED).toContain(id);
+      expect(isOwned(p, STORE_BY_ID.get(id)!)).toBe(true);
+    }
+    expect(equip(p, 'pal_fox').ok).toBe(true);
+    expect(p.cosmetics.equipped.pal).toBe('pal_fox');
+    expect(equip(p, 'pal_dragon').ok).toBe(true);
+    expect(p.cosmetics.equipped.pal).toBe('pal_dragon');
+  });
 });
 
 describe('applyClubUpgrades', () => {

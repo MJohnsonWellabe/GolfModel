@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Dev-only pal model viewer (like slice3d.html/portrait.html, never linked
+     from the game): npm run dev, then /palview.html?pal=dragon&ry=0.6 to
+     inspect a converted pal glb on a neutral stage before shipping it. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html,
+      body,
+      #c {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <script type="module">
+      import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, LoadAssetContainerAsync, Color4 } from '@babylonjs/core';
+      import '@babylonjs/loaders/glTF';
+      const q = new URLSearchParams(location.search);
+      const pal = q.get('pal') ?? 'dragon';
+      const ry = parseFloat(q.get('ry') ?? '0');
+      const canvas = document.getElementById('c');
+      const engine = new Engine(canvas, true);
+      const scene = new Scene(engine);
+      scene.clearColor = new Color4(0.25, 0.3, 0.35, 1);
+      const cam = new ArcRotateCamera('cam', ry, 1.2, 7, new Vector3(0, 1.2, 0), scene);
+      cam.attachControl(canvas, true);
+      new HemisphericLight('h', new Vector3(0, 1, 0), scene).intensity = 0.9;
+      new DirectionalLight('d', new Vector3(-0.5, -1, -0.5), scene).intensity = 0.6;
+      const container = await LoadAssetContainerAsync(`models/pals/${pal}.glb`, scene);
+      container.addAllToScene();
+      const root = container.rootNodes[0];
+      root.computeWorldMatrix(true);
+      const b = root.getHierarchyBoundingVectors(true);
+      const h = b.max.y - b.min.y || 1;
+      const s = 2.4 / h;
+      root.scaling.setAll(s);
+      root.computeWorldMatrix(true);
+      const b2 = root.getHierarchyBoundingVectors(true);
+      root.position.y -= b2.min.y;
+      window.__bounds = { min: b.min.asArray(), max: b.max.asArray() };
+      engine.runRenderLoop(() => scene.render());
+      let frames = 0;
+      scene.onAfterRenderObservable.add(() => {
+        if (++frames === 20) window.__palReady = true;
+      });
+    </script>
+  </body>
+</html>

@@ -49,7 +49,9 @@ import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProf
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { isEquippableKind, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
+import { isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
+import { palByKey, PalDef } from '../data/pals';
+import { Pal3D } from './pal3d';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
@@ -314,6 +316,8 @@ class HoleScene {
     return this.ais[this.turnIdx];
   }
   private course3d!: ReturnType<typeof buildCourse>;
+  /** The human player's equipped pal, if any — decorative, never load-bearing. */
+  private pal: Pal3D | null = null;
   private ballShadow;
   private bsMat: StandardMaterial;
   private camera: FreeCamera;
@@ -409,6 +413,14 @@ class HoleScene {
       this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, isAI: part.isAI, part });
     });
     this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => undefined);
+
+    // The human player's equipped pal pads along for the round (AI opponents
+    // never bring one). Deliberately NOT part of bodiesReady: a slow or failed
+    // pal fetch must never hold up the shot.
+    const equippedPal: PalDef | undefined = round.players[0].isAI
+      ? undefined
+      : palByKey(STORE_BY_ID.get(profile.cosmetics.equipped.pal ?? '')?.pal);
+    if (equippedPal) this.pal = new Pal3D(this.scene, shadows, equippedPal, (x, y) => this.gh(x, y));
 
     this.ballShadow = MeshBuilder.CreateDisc('ballShadow', { radius: 0.7, tessellation: 16 }, this.scene);
     this.ballShadow.rotation.x = Math.PI / 2;
@@ -808,6 +820,7 @@ class HoleScene {
    *  active golfer and every ball mesh for this turn. */
   private applyViewScale(putting: boolean): void {
     this.golfer.setSizeMult(putting ? HoleScene.PUTT_GOLFER_SCALE : 1);
+    this.pal?.setSizeMult(putting ? HoleScene.PUTT_GOLFER_SCALE : 1);
     this.ballScale = putting ? HoleScene.PUTT_BALL_SCALE : 1;
     this.balls.forEach((b) => b.scaling.setAll(this.ballScale));
   }
@@ -842,6 +855,8 @@ class HoleScene {
     this.applyViewScale(this.aim.isPutting);
     const bp = this.state.ballPos;
     this.golfer.placeAt(bp.x, bp.y, this.aim.yaw, this.gh(bp.x, bp.y));
+    // The pal trots over to its perch beside its owner's ball (their turn only).
+    if (this.turnIdx === 0) this.pal?.setTarget(bp.x, bp.y, this.aim.yaw);
     this.golfer.setPose(0);
     this.golfer.aiming = true;
     this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
@@ -1411,6 +1426,7 @@ class HoleScene {
       // Horizontal rotates the aim; vertical moves it nearer/farther.
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
+      if (this.turnIdx === 0) this.pal?.setTarget(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
       this.setCamSetup();
       this.updateAimVisuals();
       this.updateHud();
@@ -2029,12 +2045,28 @@ function renderStore(): void {
     const cls = equipped ? 'equipped' : owned ? 'owned' : affordable ? '' : 'locked';
     const swatch =
       item.color !== undefined ? `<div class="swatch" style="background:${hex(item.color)}"></div>` : `<div class="swatch" style="background:#2b6b41">⬆️</div>`;
-    const label = item.kind === 'character' ? `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />` : swatch;
+    const label =
+      item.kind === 'character'
+        ? `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />`
+        : item.kind === 'pal'
+          ? `<div class="swatch palSwatch">${palByKey(item.pal)?.icon ?? '🐾'}</div>`
+          : swatch;
     const price = equipped ? 'Equipped' : owned ? (isEquippableKind(item.kind) ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
     return `<div class="storeCard ${cls}" data-item="${item.id}">${label}<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`;
   };
   const section = (title: string, kind: StoreItem['kind']): string =>
     `<div class="storeTab">${title}</div><div class="storeGrid">${STORE_CATALOG.filter((i) => i.kind === kind).map(card).join('')}</div>`;
+  // Pals for sale only — the free starter pair lives in the Pals menu. Nothing
+  // is priced yet, so this renders the coming-soon shelf.
+  const palsSection = (): string => {
+    const priced = STORE_CATALOG.filter((i) => i.kind === 'pal' && i.price > 0);
+    return (
+      `<div class="storeTab">Pals</div>` +
+      (priced.length
+        ? `<div class="storeGrid">${priced.map(card).join('')}</div>`
+        : `<div class="storeEmpty">New pals coming soon 🐾</div>`)
+    );
+  };
   // Characters collapse to two rows with a See-more toggle (there are 20+),
   // so the other categories stay reachable without a long scroll (FB9).
   const charItems = STORE_CATALOG.filter((i) => i.kind === 'character');
@@ -2065,6 +2097,7 @@ function renderStore(): void {
     section('Ball Trails', 'trail') +
     section('Club Skins', 'clubskin') +
     section('Club Upgrades', 'clubUpgrade') +
+    palsSection() +
     `</div><button id="storeBack">Back</button>${confirmPanel}</div>`;
   const seeMoreBtn = document.getElementById('charSeeMore');
   if (seeMoreBtn)
@@ -2122,6 +2155,49 @@ function renderStore(): void {
   document.getElementById('storeBack')!.addEventListener('pointerdown', () => {
     pendingBuy = null;
     storeEl.style.display = 'none';
+  });
+}
+
+const palsEl = document.getElementById('pals')!;
+
+/** Pals overlay: choose which companion follows you around the course. */
+function renderPals(): void {
+  const p = profile;
+  const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(p, i));
+  const equippedId = p.cosmetics.equipped.pal;
+  const card = (id: string | null, name: string, icon: string): string => {
+    const selected = id === null ? !equippedId : equippedId === id;
+    return (
+      `<div class="storeCard palCard ${selected ? 'equipped' : 'owned'}" data-pal="${id ?? ''}">` +
+      `<div class="swatch palSwatch">${icon}</div>` +
+      `<div class="sName">${name}</div>` +
+      `<div class="sPrice">${selected ? 'Selected' : 'Tap to select'}</div></div>`
+    );
+  };
+  palsEl.style.display = 'flex';
+  palsEl.innerHTML =
+    `<div class="storeInner"><h2>Pals</h2>` +
+    `<div class="palsBlurb">A pal follows you around the course and sits with you while you hit. Just for fun — more pals coming to the store.</div>` +
+    `<div class="storeScroll"><div class="storeGrid">` +
+    card(null, 'No Pal', '❌') +
+    ownedPals.map((i) => card(i.id, i.name, palByKey(i.pal)?.icon ?? '🐾')).join('') +
+    `</div></div><button id="palsBack">Back</button></div>`;
+  palsEl.querySelectorAll('.palCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      const id = (el as HTMLElement).dataset.pal!;
+      if (id) equip(p, id);
+      else delete p.cosmetics.equipped.pal;
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(p).then((res) => {
+          applyCloudMerge(p, res.profile);
+          showCloudStatus(res.status, true);
+        });
+      renderPals();
+    })
+  );
+  document.getElementById('palsBack')!.addEventListener('pointerdown', () => {
+    palsEl.style.display = 'none';
   });
 }
 
@@ -2976,6 +3052,7 @@ function renderAcctMenu(): void {
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
+document.getElementById('palsLink')!.addEventListener('pointerdown', () => renderPals());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 renderAcctMenu();

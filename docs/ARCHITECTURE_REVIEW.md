@@ -8,6 +8,32 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+6): Pals — companion pets (Foxy & Ember)
+
+- **Pals ship as a new cosmetic kind.** Two uploaded pets (a chibi fox and a
+  pink baby dragon) convert via `scripts/convert-pals.mjs` (GLB→GLB:
+  dedup/weld/simplify/prune + 1024px jpeg textureCompress + quantize; the
+  200k-tri dragon decimates to 26k, normal maps dropped) into
+  `assets/models/pals/*.glb` — 309KB + 840KB from 14.3MB raw. Raw sources are
+  committed under `asset-packs/pals/`; `palview.html` is a dev-only stage for
+  eyeballing future conversions.
+- **Plumbing reuses the cosmetics rails end-to-end**: `'pal'` added to
+  `StoreKind`/`EQUIPPABLE_KINDS`/`CosmeticKind`, `pal_fox`/`pal_dragon` are
+  price-0 default-owned catalog items (nothing equipped by default), so
+  StoreEngine buy/equip, profile migrate/merge, and cloud sync all work
+  unchanged. `src/data/pals.ts` mirrors `characters.ts`.
+- **`Pal3D` (`src/slice3d/pal3d.ts`)** loads with the standard
+  timeout+retry+cache pattern and normalizes like `characterModels`; motion is
+  fully procedural (models ship no clips): exponential 2D chase toward a perch
+  5.5 units off the ball on the golfer's far side, faces travel then the ball,
+  soft bob on a child pivot. Human player only (participant 0), deliberately
+  excluded from `bodiesReady`, and a failed fetch just means no pal — it can
+  never block a shot. Retargeted from `beginTurn` + the aim-drag re-address;
+  mirrors the putting-view `setSizeMult` shrink.
+- **UI**: 🐾 Pals menu overlay (pick No Pal / Foxy / Ember, persists via the
+  store sync path) + an empty priced-pals "coming soon" store section ready
+  for future catalog entries.
+
 # Update — 2026-07-10 (latest+5): load hardening, Pine Alley dense woods, grid-locked dots
 
 - **Model loading is fault-tolerant and ~half the size.** A playtest "nothing

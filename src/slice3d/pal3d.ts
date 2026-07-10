@@ -1,0 +1,174 @@
+import '@babylonjs/loaders/glTF';
+import {
+  AssetContainer,
+  LoadAssetContainerAsync,
+  Quaternion,
+  Scene,
+  ShadowGenerator,
+  TransformNode,
+  Vector3
+} from '@babylonjs/core';
+import { PalDef } from '../data/pals';
+import { w2b } from './course3d';
+
+/**
+ * A pal: the player's companion pet (data/pals.ts). Purely decorative — it
+ * pads along after the player and settles off to the side of the ball while
+ * they hit. One per scene, human player only, and never load-bearing: a pal
+ * that fails to fetch simply doesn't appear (no fallback body, no message),
+ * and nothing awaits it.
+ *
+ * The models are static scans with no animation clips, so all motion is
+ * procedural: an exponential chase toward the current perch point plus a soft
+ * idle bob/sway on a child pivot.
+ */
+
+/** How far off the ball the pal settles, on the opposite side from the golfer
+ *  (who stands 2.9 units the other way). Far enough to never crowd the swing,
+ *  close enough to read as "sitting with you". */
+const PERCH_OFFSET = 5.5;
+/** Chase stiffness: fraction-per-second decay toward the perch (~95% in 1.5s). */
+const CHASE_RATE = 2.0;
+/** Beyond this the pal teleports instead of sprinting across the hole (new
+ *  hole, big reset). */
+const SNAP_DIST = 120;
+/** Heading applied to the model inside its pivot (glTF roots carry a
+ *  handedness rotationQuaternion, so plain rotation.y on the model is a
+ *  silent no-op — same trap golfer3d.ts documents). Verified on-course: both
+ *  pals read as facing the ball with no extra turn. */
+const MODEL_FACING = 0;
+
+const cache = new WeakMap<Scene, Map<string, Promise<AssetContainer>>>();
+
+function containerFor(scene: Scene, key: string, file: string): Promise<AssetContainer> {
+  let perScene = cache.get(scene);
+  if (!perScene) {
+    perScene = new Map();
+    cache.set(scene, perScene);
+  }
+  let p = perScene.get(key);
+  if (!p) {
+    p = LoadAssetContainerAsync(file, scene);
+    p.catch(() => cache.get(scene)?.delete(key));
+    perScene.set(key, p);
+  }
+  return p;
+}
+
+const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    p,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`pal load timed out after ${ms}ms`)), ms))
+  ]);
+
+export class Pal3D {
+  private root: TransformNode;
+  private bobPivot: TransformNode | null = null;
+  private loaded = false;
+  private idleTime = 0;
+  private sizeMult = 1;
+  /** Current + target perch in 2D world coords; heading in 2D angle. */
+  private cur = { x: 0, y: 0 };
+  private target = { x: 0, y: 0, heading: 0 };
+  private placed = false;
+
+  constructor(
+    scene: Scene,
+    shadows: ShadowGenerator,
+    def: PalDef,
+    private groundH: (x: number, y: number) => number
+  ) {
+    this.root = new TransformNode('pal', scene);
+    this.root.setEnabled(false);
+
+    withTimeout(this.instantiate(scene, def), 15000)
+      .catch(() => withTimeout(this.instantiate(scene, def), 15000))
+      .then((model) => {
+        this.bobPivot = new TransformNode('palBob', scene);
+        this.bobPivot.parent = this.root;
+        model.parent = this.bobPivot;
+        model.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), MODEL_FACING);
+        model.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
+        this.loaded = true;
+        if (this.placed) this.root.setEnabled(true);
+      })
+      .catch((err) => {
+        // Decorative: a pal that won't load just never shows up.
+        console.warn(`[Pal3D] pal "${def.key}" failed to load:`, err);
+      });
+
+    scene.onBeforeRenderObservable.add(() => {
+      if (!this.loaded || !this.placed) return;
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      this.idleTime += dt;
+      const dx = this.target.x - this.cur.x;
+      const dy = this.target.y - this.cur.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist > SNAP_DIST) {
+        this.cur.x = this.target.x;
+        this.cur.y = this.target.y;
+      } else if (dist > 0.01) {
+        const k = 1 - Math.exp(-CHASE_RATE * dt);
+        this.cur.x += dx * k;
+        this.cur.y += dy * k;
+      }
+      // Face travel while padding along; settle facing the ball.
+      const heading = dist > 1.2 ? Math.atan2(dy, dx) : this.target.heading;
+      const want = heading + Math.PI / 2; // 2D angle → Babylon rotation.y
+      let dr = want - this.root.rotation.y;
+      dr = Math.atan2(Math.sin(dr), Math.cos(dr));
+      this.root.rotation.y += dr * Math.min(1, dt * 6);
+      this.root.position = w2b(this.cur.x, this.cur.y, this.groundH(this.cur.x, this.cur.y));
+      // Idle life: soft bob + a whisper of sway (the models ship no clips).
+      if (this.bobPivot) {
+        this.bobPivot.position.y = Math.abs(Math.sin(this.idleTime * 1.6)) * 0.1;
+        this.bobPivot.rotation.z = Math.sin(this.idleTime * 0.9) * 0.02;
+      }
+    });
+  }
+
+  private async instantiate(scene: Scene, def: PalDef): Promise<TransformNode> {
+    const container = await containerFor(scene, def.key, def.file);
+    const inst = container.instantiateModelsToScene(undefined, false, { doNotInstantiate: true });
+    const root = inst.rootNodes[0] as TransformNode;
+    // Normalize like characterModels.instantiateCharacter: stand def.targetHeight
+    // tall, feet on y=0, centered on X/Z.
+    root.computeWorldMatrix(true);
+    let bounds = root.getHierarchyBoundingVectors(true);
+    const rawHeight = bounds.max.y - bounds.min.y || 1;
+    const s = def.targetHeight / rawHeight;
+    root.scaling = new Vector3(s, s, s);
+    root.computeWorldMatrix(true);
+    bounds = root.getHierarchyBoundingVectors(true);
+    root.position.x -= (bounds.min.x + bounds.max.x) / 2;
+    root.position.y -= bounds.min.y;
+    root.position.z -= (bounds.min.z + bounds.max.z) / 2;
+    root.computeWorldMatrix(true);
+    return root;
+  }
+
+  /** Send the pal to its perch beside the ball: PERCH_OFFSET units off the
+   *  golfer's far side, facing the ball. Called at each address. */
+  setTarget(ballX: number, ballY: number, yaw: number): void {
+    const ox = Math.cos(yaw + Math.PI / 2) * PERCH_OFFSET;
+    const oy = Math.sin(yaw + Math.PI / 2) * PERCH_OFFSET;
+    this.target.x = ballX + ox;
+    this.target.y = ballY + oy;
+    // Face from perch toward the ball.
+    this.target.heading = Math.atan2(-oy, -ox);
+    if (!this.placed) {
+      this.cur.x = this.target.x;
+      this.cur.y = this.target.y;
+      this.root.rotation.y = this.target.heading + Math.PI / 2;
+      this.placed = true;
+      if (this.loaded) this.root.setEnabled(true);
+    }
+  }
+
+  /** Mirror the golfer's putting-view shrink so the pal doesn't dwarf a
+   *  shrunk golfer on the green. */
+  setSizeMult(m: number): void {
+    this.sizeMult = m;
+    this.root.scaling.setAll(this.sizeMult);
+  }
+}

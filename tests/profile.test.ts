@@ -142,6 +142,19 @@ describe('cloud round-trip — RTDB drops empty collections', () => {
     // A normalized copy then merges cleanly (the cloudSyncProfile path).
     expect(() => mergeProfiles(defaultProfile(), filled)).not.toThrow();
   });
+
+  it('migrateProfile grants the starter pals to old saves without equipping one', () => {
+    const filled = migrateProfile({ coins: 500 } as Partial<PlayerProfile>);
+    expect(filled.cosmetics.owned).toContain('pal_fox');
+    expect(filled.cosmetics.owned).toContain('pal_dragon');
+    expect(filled.cosmetics.equipped.pal).toBeUndefined();
+    // An equipped pal survives migration and a cloud merge.
+    const withPal = migrateProfile({ cosmetics: { owned: [], equipped: { pal: 'pal_fox' } } } as Partial<PlayerProfile>);
+    expect(withPal.cosmetics.equipped.pal).toBe('pal_fox');
+    withPal.updatedAt = 999;
+    const merged = mergeProfiles(defaultProfile(), withPal);
+    expect(merged.cosmetics.equipped.pal).toBe('pal_fox');
+  });
 });
 
 describe('mergeProfiles — progress is never lost', () => {

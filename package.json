@@ -11,6 +11,7 @@
     "shots": "playwright test -c playwright.config.ts",
     "portraits": "node scripts/gen-portraits.mjs",
     "convert:nature": "node scripts/convert-nature.mjs",
+    "convert:pals": "node scripts/convert-pals.mjs",
     "convert:turf": "node scripts/convert-turf-texture.mjs"
   },
   "dependencies": {
