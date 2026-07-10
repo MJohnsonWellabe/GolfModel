@@ -14,6 +14,10 @@ describe('theme knobs', () => {
     expect(t.bushKeys).toBeUndefined(); // falls back to BUSH_KEYS
     expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
+    expect(t.turfGrainKey).toBeUndefined(); // coded grain(), not a real texture
+    expect(t.turfNormalKey).toBeUndefined(); // coded sine-wave bump
+    expect(t.fairwayGrainTile).toBeUndefined();
+    expect(t.roughGrainTile).toBeUndefined();
   });
 
   it('round-trips authored scatter/sand/cloud knobs', () => {
@@ -24,7 +28,11 @@ describe('theme knobs', () => {
         sandSculpt: 0.7,
         hazeStrength: 0.55,
         bushKeys: ['bush_juniper', 'bush_c', 'bush_a'],
-        cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c']
+        cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c'],
+        turfGrainKey: 'textures/turf_grain.jpg',
+        turfNormalKey: 'textures/turf_normal.jpg',
+        fairwayGrainTile: 6,
+        roughGrainTile: 14
       })
     );
     expect(t.tuftDensity).toBe(1.35);
@@ -33,6 +41,10 @@ describe('theme knobs', () => {
     expect(t.hazeStrength).toBe(0.55);
     expect(t.bushKeys).toEqual(['bush_juniper', 'bush_c', 'bush_a']);
     expect(t.cloudKeys).toEqual(['cloud_a', 'cloud_b', 'cloud_c']);
+    expect(t.turfGrainKey).toBe('textures/turf_grain.jpg');
+    expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');
+    expect(t.fairwayGrainTile).toBe(6);
+    expect(t.roughGrainTile).toBe(14);
   });
 
   it('ignores malformed key arrays', () => {

@@ -10,7 +10,8 @@
     "test": "vitest run",
     "shots": "playwright test -c playwright.config.ts",
     "portraits": "node scripts/gen-portraits.mjs",
-    "convert:nature": "node scripts/convert-nature.mjs"
+    "convert:nature": "node scripts/convert-nature.mjs",
+    "convert:turf": "node scripts/convert-turf-texture.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",
@@ -23,6 +24,7 @@
     "@playwright/test": "^1.61.1",
     "fbx2gltf": "^0.9.7-p1",
     "meshoptimizer": "^1.2.0",
+    "sharp": "^0.34.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",
     "vitest": "^4.1.10"

@@ -1,6 +1,7 @@
 import { PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
+import { sampleGrassGrain } from './grassTexture';
 import { CourseTheme, shade } from './Theme';
 
 // Tree blobs now live in a rendering-independent module so the physics engine
@@ -140,6 +141,10 @@ export function renderCourseCanvas(
       return { cx: bcx, cy: bcy, maxR };
     });
 
+  const realGrain = Boolean(theme.turfGrainKey);
+  const fairwayTile = theme.fairwayGrainTile ?? 6;
+  const roughTile = theme.roughGrainTile ?? 14;
+
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
@@ -180,13 +185,24 @@ export function renderCourseCanvas(
       }
       const [r, g, b] = palette[cls];
 
-      let light = 1 + (grain(px, py) - 0.5) * (noiseAmp[cls] / 128);
+      // Real-asset turf grain (theme.turfGrainKey) replaces the coded noise
+      // on fairway/rough only, tiled tighter on fairway (short grass) than
+      // rough (long grass) — same downstream math either way. Falls back to
+      // the procedural grain() until the image has decoded (or if unset).
+      let grainVal: number | null = null;
+      if (realGrain && (cls === 0 || cls === 1)) {
+        grainVal = sampleGrassGrain(wx, wy, cls === 1 ? fairwayTile : roughTile);
+      }
+      let light = 1 + ((grainVal ?? grain(px, py)) - 0.5) * (noiseAmp[cls] / 128);
       // Mow bands: a signed light↔dark brightness swing. Fairway (cls 1) runs on
-      // the diagonal; rough/green run along the tee→pin axis.
+      // the diagonal; rough/green run along the tee→pin axis. A real photo
+      // texture already carries grain/pattern, so damp the coded stripes to
+      // let it read instead of fighting it.
       const sw = stripeWidth[cls];
       if (sw > 0) {
         const along = cls === 1 ? wx * dax + wy * day : wx * ax + wy * ay;
-        light *= 1 + Math.sin((along / sw) * Math.PI) * stripeContrast[cls];
+        const contrast = grainVal !== null ? stripeContrast[cls] * 0.4 : stripeContrast[cls];
+        light *= 1 + Math.sin((along / sw) * Math.PI) * contrast;
       }
       // Tee collar: a darker mown border framing the square pad.
       if (cls === 7 && teeInset >= 0 && teeInset < 7) light *= 0.72;

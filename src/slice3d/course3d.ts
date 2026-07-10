@@ -312,11 +312,19 @@ export function buildCourse(
   groundMat.detailMap.isEnabled = true;
   groundMat.detailMap.diffuseBlendLevel = 0.24;
   // Fine turf-grain normal map: near-field grass responds to the sun instead
-  // of reading as a flat albedo (art bible: "nothing should appear flat")
-  const turfNormal = makeTurfNormalTexture(scene);
+  // of reading as a flat albedo (art bible: "nothing should appear flat").
+  // A course opting into real turf art (theme.turfNormalKey) gets the
+  // purchased grass-texture bump map loaded like any other asset texture —
+  // no special preload needed (unlike the CPU-sampled grain, GPU texture
+  // upload is already async); otherwise the coded sine-wave bump.
+  const turfNormal = theme.turfNormalKey ? new Texture(theme.turfNormalKey, scene) : makeTurfNormalTexture(scene);
   turfNormal.uScale = 90;
   turfNormal.vScale = 90;
   turfNormal.level = 0.55;
+  if (theme.turfNormalKey) {
+    turfNormal.wrapU = Texture.WRAP_ADDRESSMODE;
+    turfNormal.wrapV = Texture.WRAP_ADDRESSMODE;
+  }
   groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
 

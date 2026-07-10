@@ -60,6 +60,18 @@ export interface CourseTheme {
   bushKeys?: readonly string[];
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
+  /**
+   * Real turf grain: a texture path (assets/textures/*.jpg) sampled by the
+   * ground bake instead of coded procedural noise. Undefined = the original
+   * coded grain(). Always paired with fairwayGrainTile/roughGrainTile.
+   */
+  turfGrainKey?: string;
+  /** Real bump map path replacing the coded sine-wave turf normal. */
+  turfNormalKey?: string;
+  /** World-unit tile size for turfGrainKey on fairway (tight = short grass). */
+  fairwayGrainTile?: number;
+  /** World-unit tile size for turfGrainKey on rough (loose = long grass). */
+  roughGrainTile?: number;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -116,7 +128,16 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   // optional array/number fields are read explicitly below.
   type ScalarKey = Exclude<
     keyof CourseTheme,
-    'treeKeys' | 'accentTreeKeys' | 'scatterKeys' | 'backdropTreeStep' | 'bushKeys' | 'cloudKeys'
+    | 'treeKeys'
+    | 'accentTreeKeys'
+    | 'scatterKeys'
+    | 'backdropTreeStep'
+    | 'bushKeys'
+    | 'cloudKeys'
+    | 'turfGrainKey'
+    | 'turfNormalKey'
+    | 'fairwayGrainTile'
+    | 'roughGrainTile'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -148,5 +169,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.bushKeys = strings(spec.bushKeys);
   t.cloudKeys = strings(spec.cloudKeys);
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
+  if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;
+  if (typeof spec.turfNormalKey === 'string') t.turfNormalKey = spec.turfNormalKey;
+  if (typeof spec.fairwayGrainTile === 'number') t.fairwayGrainTile = spec.fairwayGrainTile;
+  if (typeof spec.roughGrainTile === 'number') t.roughGrainTile = spec.roughGrainTile;
   return t;
 }

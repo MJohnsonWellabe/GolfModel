@@ -54,7 +54,11 @@
       "cloud_a",
       "cloud_b",
       "cloud_c"
-    ]
+    ],
+    "turfGrainKey": "textures/turf_grain.jpg",
+    "turfNormalKey": "textures/turf_normal.jpg",
+    "fairwayGrainTile": 6,
+    "roughGrainTile": 14
   },
   "holes": [
     {

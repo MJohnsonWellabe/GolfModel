@@ -19,6 +19,7 @@ import { FLIGHT, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
+import { preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
 import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
@@ -180,6 +181,11 @@ const COURSES: Record<string, CourseData> = {
   sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
   timberline: loadCourse(timberline as unknown as CourseAuthoring)
 };
+
+// Fire the real-turf-grain preload at boot, well before any round can start
+// (the menu is always shown first) — the ground bake is synchronous and
+// falls back to procedural noise if this hasn't resolved yet.
+preloadGrassGrain('textures/turf_grain.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
