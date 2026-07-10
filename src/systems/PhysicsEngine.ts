@@ -432,16 +432,9 @@ export class PhysicsEngine {
         const wScale = 0.25 + 0.85 * clamp(aboveGround / PHYSICS.windRefHeight, 0, 1.3);
         vx += windAx * wScale * dt;
         vy += windAy * wScale * dt;
-        // Side spin: curve perpendicular to the current travel direction
-        // (+side bends right of the line — a fade for a north-bound shot)
-        if (spin.side !== 0 && step >= spinFromStep) {
-          const hSpeed = Math.hypot(vx, vy) || 1;
-          const k = spin.side * spinEff * PHYSICS.sideSpinAccel * dt;
-          const perpX = -vy / hSpeed;
-          const perpY = vx / hSpeed;
-          vx += perpX * k;
-          vy += perpY * k;
-        }
+        // Side spin does NOT curve the ball in the air (playtest): a fade/draw
+        // flies straight and only breaks sideways when it bites the green — see
+        // the landing block below. Wind is the only in-air lateral force.
         vz -= g * dt;
         x += vx * dt;
         y += vy * dt;
@@ -484,6 +477,14 @@ export class PhysicsEngine {
             path.push({ x, y, z: 0 });
             break;
           }
+          // Sand plugs: a ball that lands in a bunker stops dead where it lands —
+          // it never bounces or rolls out (playtest). No penalty, just a plug.
+          if (surf === 'sand') {
+            vx = 0;
+            vy = 0;
+            path.push({ x, y, z: 0 });
+            break;
+          }
           // Topspin runs out, backspin checks up (GDD: "Topspin should
           // increase rollout. Backspin should reduce rollout.")
           // Ceiling 1.5 (was 2): even a stray high topspin can't more-than-double
@@ -500,6 +501,17 @@ export class PhysicsEngine {
             vx = (-vx / hs) * bite;
             vy = (-vy / hs) * bite;
           }
+          // Side spin breaks the ball sideways ON the bounce (green/fringe) —
+          // this is where a fade/draw shows up now that the air path is straight.
+          // +side kicks right of the line, matching the strike-dot convention.
+          if (spin.side !== 0 && (surf === 'green' || surf === 'fringe') && spinEff > 0.2) {
+            const hs = Math.hypot(vx, vy) || 1;
+            const kick = spin.side * spinEff * PHYSICS.sideSpinKick;
+            const px = -vy / hs;
+            const py = vx / hs;
+            vx += px * kick;
+            vy += py * kick;
+          }
           rolling = true;
         }
         path.push({ x, y, z: Math.max(0, z - ground) });
@@ -510,6 +522,14 @@ export class PhysicsEngine {
       const surf = this.surfaceAt(x, y);
       if (surf === 'water') {
         waterPenalty = true;
+        break;
+      }
+      // A ball that rolls into a bunker from outside stops the instant it
+      // reaches the sand (checked BEFORE slope accel, so a sloped bunker can't
+      // re-accelerate it back out) — bunkers never let a ball roll through.
+      if (surf === 'sand') {
+        vx = 0;
+        vy = 0;
         break;
       }
       const speed = Math.hypot(vx, vy);

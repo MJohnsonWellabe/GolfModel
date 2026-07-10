@@ -105,6 +105,37 @@ describe('surfaceAt priority', () => {
   });
 });
 
+describe('bunker dead-stop', () => {
+  it('a ball that lands in a bunker plugs and never rolls out', () => {
+    // A hole whose whole landing zone is one big bunker (green kept far away).
+    const sandHole: HoleData = {
+      ...HOLE,
+      green: { cx: 1000, cy: 100, rx: 40, ry: 40 },
+      pin: { x: 1000, y: 100 },
+      hazards: [{ type: 'bunker', polygon: [[700, 400], [1300, 400], [1300, 1700], [700, 1700]] }]
+    };
+    const e = new PhysicsEngine(sandHole);
+    const out = e.simulate({
+      origin: { x: 1000, y: 1800 },
+      aimAngle: -Math.PI / 2,
+      swing: PERFECT(0.6),
+      club: clubById('7i'),
+      golfer: GOLFER,
+      fireBoost: 0,
+      lie: 'tee',
+      wind: NO_WIND,
+      hole: sandHole
+    });
+    // It came to rest in the sand…
+    expect(e.surfaceAt(out.finalPos.x, out.finalPos.y)).toBe('sand');
+    // …right where it first touched down (no bounce/roll out of the trap).
+    const landIdx = out.path.findIndex((p, i) => i > 3 && p.z <= 0.001);
+    const land = out.path[landIdx];
+    const rolled = Math.hypot(out.finalPos.x - land.x, out.finalPos.y - land.y);
+    expect(rolled).toBeLessThan(2);
+  });
+});
+
 describe('simulate', () => {
   it('a perfect straight iron carries its rated distance with no wind', () => {
     const club = clubById('7i');
