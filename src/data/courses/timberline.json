@@ -40,7 +40,10 @@
       "stump_a",
       "log_a",
       "tree_fallen",
-      "tree_broken"
+      "tree_broken",
+      "stone_a",
+      "stone_b",
+      "stone_c"
     ],
     "backdropTreeStep": 32,
     "tuftDensity": 3.2,
@@ -60,14 +63,24 @@
     "bushKeys": [
       "bush_juniper",
       "bush_c",
-      "bush_a"
+      "bush_a",
+      "bush_berry",
+      "bush_currant",
+      "bush_raspberry"
     ],
     "sandSculpt": 0.7,
     "cloudKeys": [
       "cloud_a",
       "cloud_b",
-      "cloud_c"
+      "cloud_c",
+      "cloud_d",
+      "cloud_e",
+      "cloud_f",
+      "cloud_g",
+      "cloud_h",
+      "cloud_i"
     ],
+    "horizonTint": "#e9dcc0",
     "turfGrainKey": "textures/turf_grain.jpg",
     "turfNormalKey": "textures/turf_normal.jpg",
     "fairwayGrainTile": 6,

@@ -8,6 +8,20 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+8): Timberline props variety + layered sky
+
+- **Two more berry bushes and six more cloud shapes** converted from the
+  forest pack (`bush_currant`, `bush_raspberry`, `cloud_d`–`cloud_i`;
+  deterministic pipeline — re-running convert:nature left every existing glb
+  byte-identical). Berry-type bushes share the light foliage material.
+- **Timberline theme** now mixes all six bushes, scatters `stone_a/b/c`
+  through the rough (keyed low height so they read as rocks, not boulders),
+  and runs all nine cloud shapes.
+- **Sky**: new optional `theme.horizonTint` — an extra zenith stop plus a warm
+  band low on the dome before the haze (default gradient untouched elsewhere).
+  Mesh clouds scale with shape variety (up to 10), split across two
+  altitude/depth bands with per-band drift speeds for cheap parallax.
+
 # Update — 2026-07-10 (latest+7): real bunker sand + Timberline layout feedback
 
 - **Bunker sand is a real ripple texture.** `scripts/convert-sand-texture.mjs`

@@ -95,6 +95,9 @@ export interface CourseTheme {
   sandGrainTile?: number;
   /** Scatter a few stone props just outside each bunker's lip. */
   bunkerStones?: boolean;
+  /** Warm band low on the sky dome (sunlit horizon glow). Unset = the
+   *  historical 4-stop gradient, byte-identical. */
+  horizonTint?: number;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -169,6 +172,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandGrainKey'
     | 'sandGrainTile'
     | 'bunkerStones'
+    | 'horizonTint'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -212,5 +216,6 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainKey === 'string') t.sandGrainKey = spec.sandGrainKey;
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (spec.bunkerStones === true) t.bunkerStones = true;
+  if (spec.horizonTint !== undefined) t.horizonTint = parseColor(spec.horizonTint, 0xe8ddc4);
   return t;
 }

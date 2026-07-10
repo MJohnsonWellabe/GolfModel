@@ -47,9 +47,19 @@ export const BERRY_KEYS = ['bush_berry'] as const;
 export const STONE_KEYS = ['stone_a', 'stone_b', 'stone_c'] as const;
 export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
 /** Forest-pack bushes courses can opt into via theme.bushKeys. */
-export const EXTRA_BUSH_KEYS = ['bush_juniper', 'bush_c'] as const;
+export const EXTRA_BUSH_KEYS = ['bush_juniper', 'bush_c', 'bush_currant', 'bush_raspberry'] as const;
 /** Stylized volumetric cloud meshes; courses opt in via theme.cloudKeys. */
-export const CLOUD_KEYS = ['cloud_a', 'cloud_b', 'cloud_c'] as const;
+export const CLOUD_KEYS = [
+  'cloud_a',
+  'cloud_b',
+  'cloud_c',
+  'cloud_d',
+  'cloud_e',
+  'cloud_f',
+  'cloud_g',
+  'cloud_h',
+  'cloud_i'
+] as const;
 /** grass_c–f = the purchased Grass F tuft pack (asset-packs/grass-f): crossed
  *  unlit cards that read as soft tufts. The Fantastic Nature grass_a/b clumps
  *  are chunky slabs at turf scale, so ground scatter no longer uses them. */
@@ -140,7 +150,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
     // whole mesh, so the prop key decides: deadwood is bark, plants foliage.
     if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
     if (key.startsWith('fern')) return foliageMat;
-    if (key.startsWith('bush_berry') || key.startsWith('bush_c')) return foliageLightMat;
+    // Berry-type bushes (blackberry/currant/raspberry) read lighter, like the
+    // fruit rows they are; the plain shrubs stay deep foliage green.
+    if (key.startsWith('bush_berry') || key.startsWith('bush_c') || key.startsWith('bush_currant') || key.startsWith('bush_raspberry'))
+      return foliageLightMat;
     if (key.startsWith('bush_juniper')) return foliageMat;
     if (key.startsWith('cloud')) return cloudMat;
     // Conifer glbs ship trunk + foliage as two NODES sharing one needles

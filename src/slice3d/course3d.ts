@@ -572,10 +572,21 @@ export function buildCourse(
   const sctx = skyTex.getContext();
   const grad = (sctx as CanvasRenderingContext2D).createLinearGradient(0, 0, 0, 256);
   const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
-  grad.addColorStop(0, hex(theme.skyTop));
-  grad.addColorStop(0.55, hex(shade(theme.skyTop, 1.35)));
-  grad.addColorStop(0.8, hex(theme.skyBottom));
-  grad.addColorStop(1, hex(theme.haze));
+  if (theme.horizonTint !== undefined) {
+    // Richer dome: an extra mid stop smooths the zenith falloff and a warm
+    // band glows just above the treeline before dissolving into the haze.
+    grad.addColorStop(0, hex(theme.skyTop));
+    grad.addColorStop(0.3, hex(shade(theme.skyTop, 1.16)));
+    grad.addColorStop(0.55, hex(shade(theme.skyTop, 1.35)));
+    grad.addColorStop(0.76, hex(theme.skyBottom));
+    grad.addColorStop(0.88, hex(theme.horizonTint));
+    grad.addColorStop(1, hex(theme.haze));
+  } else {
+    grad.addColorStop(0, hex(theme.skyTop));
+    grad.addColorStop(0.55, hex(shade(theme.skyTop, 1.35)));
+    grad.addColorStop(0.8, hex(theme.skyBottom));
+    grad.addColorStop(1, hex(theme.haze));
+  }
   (sctx as CanvasRenderingContext2D).fillStyle = grad;
   sctx.fillRect(0, 0, 8, 256);
   skyTex.update(false);
@@ -615,36 +626,40 @@ export function buildCourse(
   if (theme.cloudKeys) {
     // Stylized volumetric cloud meshes from the forest pack. CLONES, not
     // instances — each clone must honor applyFog=false or the EXP2 fog at
-    // sky distance washes them into the haze. Slow drift like the billboards.
-    const cloudDrift: Mesh[] = [];
+    // sky distance washes them into the haze. Two altitude/depth layers with
+    // different drift speeds sell parallax for almost nothing; count scales
+    // with the theme's shape variety.
+    const cloudDrift: Array<{ mesh: Mesh; v: number }> = [];
     const keys = theme.cloudKeys;
+    const count = Math.min(10, 4 + keys.length);
     void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < count; i++) {
         const proto = protos.get(keys[i % keys.length]);
         if (!proto) continue;
         const jitter = hash2(i * 17.3, i * 5.1);
+        const far = i % 2 === 1; // alternate near/far bands
         const pos = w2b(
-          hole.tee.x - 1400 + i * 750 + jitter * 160,
-          hole.tee.y - 2100 - (i % 3) * 400,
-          430 + ((i * 97) % 3) * 130 + jitter * 40
+          hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
+          hole.tee.y - (far ? 2900 : 2100) - (i % 3) * 300,
+          (far ? 740 : 430) + ((i * 97) % 3) * 130 + jitter * 60
         );
-        const targetH = 65 + jitter * 30;
+        const targetH = (far ? 95 : 65) + jitter * 40;
         for (const part of proto.parts) {
           const cl = part.clone(`meshCloud${i}`);
           cl.position = pos.clone();
           const s = targetH / proto.height;
-          cl.scaling = new Vector3(s * (1.6 + jitter * 0.6), s, s * 1.2);
+          cl.scaling = new Vector3(s * (1.4 + jitter * 0.9), s, s * 1.2);
           cl.rotation = new Vector3(0, hash2(i, 3) * Math.PI * 2, 0);
           cl.applyFog = false;
           cl.setEnabled(true);
-          cloudDrift.push(cl);
+          cloudDrift.push({ mesh: cl, v: far ? 2.5 : 4.5 });
         }
       }
     });
     scene.onBeforeRenderObservable.add(() => {
       if (isFrozen()) return;
       const dt = scene.getEngine().getDeltaTime() / 1000;
-      for (const cl of cloudDrift) cl.position.x += dt * 4;
+      for (const cl of cloudDrift) cl.mesh.position.x += dt * cl.v;
     });
   } else {
     const cloudMat = new StandardMaterial('cloudMat', scene);

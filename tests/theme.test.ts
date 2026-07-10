@@ -26,6 +26,7 @@ describe('theme knobs', () => {
     expect(t.sandGrainKey).toBeUndefined(); // coded rake sines, not a real texture
     expect(t.sandGrainTile).toBeUndefined();
     expect(t.bunkerStones).toBeUndefined(); // no bunker-edge stones
+    expect(t.horizonTint).toBeUndefined(); // historical 4-stop sky gradient
   });
 
   it('round-trips authored scatter/sand/cloud knobs', () => {
@@ -48,7 +49,8 @@ describe('theme knobs', () => {
         roughGrainKey: 'textures/turf_grain_rough.jpg',
         sandGrainKey: 'textures/sand_ripple.jpg',
         sandGrainTile: 9,
-        bunkerStones: true
+        bunkerStones: true,
+        horizonTint: '#e9dcc0'
       })
     );
     expect(t.tuftDensity).toBe(1.35);
@@ -68,6 +70,7 @@ describe('theme knobs', () => {
     expect(t.sandGrainKey).toBe('textures/sand_ripple.jpg');
     expect(t.sandGrainTile).toBe(9);
     expect(t.bunkerStones).toBe(true);
+    expect(t.horizonTint).toBe(0xe9dcc0);
   });
 
   it('ignores malformed key arrays', () => {

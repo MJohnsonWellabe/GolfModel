@@ -55,10 +55,18 @@ const MANIFEST = {
   bush_berry: 'Bushe/SM_Blackberry_LOD.fbx',
   bush_juniper: 'Bushe/SM_Junipper_LOD.fbx',
   bush_c: 'Bushe/SM_Bushe_01_LOD.fbx',
+  bush_currant: 'Bushe/SM_Currant_LOD.fbx',
+  bush_raspberry: 'Bushe/SM_Raspberry_LOD.fbx',
   // Sky props (LOD-less)
   cloud_a: 'Clouds/SM_Cloud_01.fbx',
   cloud_b: 'Clouds/SM_Cloud_02.fbx',
-  cloud_c: 'Clouds/SM_Cloud_03.fbx'
+  cloud_c: 'Clouds/SM_Cloud_03.fbx',
+  cloud_d: 'Clouds/SM_Cloud_04.fbx',
+  cloud_e: 'Clouds/SM_Cloud_05.fbx',
+  cloud_f: 'Clouds/SM_Cloud_06.fbx',
+  cloud_g: 'Clouds/SM_Cloud_07.fbx',
+  cloud_h: 'Clouds/SM_Cloud_08.fbx',
+  cloud_i: 'Clouds/SM_Cloud_09.fbx'
 };
 
 /**
