@@ -769,7 +769,12 @@ export function buildCourse(
       placeProto(e.proto, b.x, b.y, Math.max(24, b.r * hMul));
     };
 
-    for (const b of collectTreeBlobs(hole, theme.blossomChance)) plantTree(b);
+    // forRender=true: the 3D trunks read any hz.renderOffset nudge (visual
+    // pop-out), hz.visualSpacing (denser render-only grid), and hz.visualOnly
+    // hazards (extra trunks with zero collision footprint). Collision
+    // (PhysicsEngine) and the baked ground shadow (bakeGroundShadows) call
+    // collectTreeBlobs without it, so a hazard's hitbox never moves/densifies.
+    for (const b of collectTreeBlobs(hole, theme.blossomChance, true)) plantTree(b);
 
     // Backdrop woods (scenery only — never on a playable surface): a wall of
     // trees behind the green and deep bands down both outer margins. Forest

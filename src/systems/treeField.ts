@@ -25,11 +25,24 @@ export function blobHash(x: number, y: number): number {
   return s - Math.floor(s);
 }
 
-/** The tree positions for a hole — one source for billboards, shadows AND collision. */
-export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] {
+/**
+ * The tree positions for a hole — one source for billboards, shadows AND
+ * collision. `forRender` opts into visual-only hazard fields (`renderOffset`
+ * nudge, a denser `visualSpacing` grid, and `visualOnly` hazards that
+ * otherwise contribute nothing) — leave it false for anything collision/
+ * shadow-facing (PhysicsEngine, bakeGroundShadows) so a hazard's true
+ * position/density is always what the ball and its baked shadow see; only
+ * the 3D mesh placement (course3d.ts) passes true. Woods can look far denser
+ * than they collide: canopy radius is large enough that a genuinely dense
+ * COLLISION grid can make a corridor physically unescapable (confirmed via
+ * the playability sim) — `visualSpacing`/`visualOnly` add render-only trunks
+ * instead of tightening the real hazard.
+ */
+export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = false): TreeBlob[] {
   const blobs: TreeBlob[] = [];
   for (const hz of hole.hazards) {
     if (hz.type !== 'trees') continue;
+    if (hz.visualOnly && !forRender) continue;
     const xs = hz.polygon.map((p) => p[0]);
     const ys = hz.polygon.map((p) => p[1]);
     const minX = Math.min(...xs);
@@ -38,8 +51,11 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] 
     const maxY = Math.max(...ys);
     // Authored density knob: hazard.spacing (default 52). Jitter scales with
     // the step so dense woods stay organic without trunks overlapping.
-    const step = hz.spacing ?? 52;
+    // Rendering can opt into a denser step via visualSpacing (collision and
+    // the baked shadow always use the real `spacing`, never this one).
+    const step = (forRender ? hz.visualSpacing : undefined) ?? hz.spacing ?? 52;
     const jitter = step * (36 / 52);
+    const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : [0, 0];
     for (let yy = minY; yy < maxY; yy += step) {
       for (let xx = minX; xx < maxX; xx += step) {
         const jx = xx + (blobHash(xx, yy) - 0.5) * jitter;
@@ -47,8 +63,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] 
         if (!pointInPolygon(jx, jy, hz.polygon)) continue;
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
-          x: jx,
-          y: jy,
+          x: jx + offX,
+          y: jy + offY,
           r: 15 + blobHash(xx + 7, yy + 3) * 12,
           kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32

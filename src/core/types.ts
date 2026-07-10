@@ -118,6 +118,29 @@ export interface Hazard {
    * the baked shadows as well as the 3D props: density is gameplay, not art.
    */
   spacing?: number;
+  /**
+   * Trees only, VISUAL ONLY: nudge the rendered trunk/canopy [dx, dy] world
+   * units from its true collision position. Ball-flight collision
+   * (PhysicsEngine.treeTrunks) and the baked drop-shadow always read the
+   * true position — only the 3D mesh placement in course3d.ts applies this,
+   * via collectTreeBlobs's opt-in `forRender` parameter.
+   */
+  renderOffset?: [number, number];
+  /**
+   * Trees only, VISUAL ONLY: a denser grid step used instead of `spacing`
+   * when rendering (never for collision/shadows). Lets woods look genuinely
+   * thick without the extra trunks ever being able to trap a ball — canopy
+   * radius is large enough that a truly dense collision grid can make a
+   * corridor physically unescapable (confirmed via the playability sim).
+   */
+  visualSpacing?: number;
+  /**
+   * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
+   * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
+   * contributes trunks when rendering. Use this for a second, denser/closer
+   * polygon layered in front of a real (collision-safe) trees hazard.
+   */
+  visualOnly?: boolean;
 }
 
 export interface GreenSlope {
