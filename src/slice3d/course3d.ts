@@ -729,7 +729,7 @@ export function buildCourse(
     // broadleaf on Wildwood); themes without a mix keep the generic trees.
     const trees = pickKeyed(theme.treeKeys ?? TREE_KEYS);
     const accents = pickKeyed(theme.accentTreeKeys ?? []);
-    const scatter = pick(theme.scatterKeys ?? []);
+    const scatter = pickKeyed(theme.scatterKeys ?? []);
     const conifers = new Set<string>(CONIFER_KEYS);
     const bushSet = pickKeyed(theme.bushKeys ?? BUSH_KEYS);
     const grasses = pick(GRASS_KEYS);
@@ -833,9 +833,21 @@ export function buildCourse(
             placeProto(e.proto, jx, jy, bh);
           }
           else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
-          // Forest-floor props (ferns/stumps/logs/berries) where the theme
-          // asks for them — rare, knee-high, visual only (never physics).
-          else if (scatter.length && roll < 0.625) place(scatter, jx, jy, 2.4 + hash2(jx + 7, jy) * 1.1, 17);
+          // Forest-floor props (ferns/stumps/logs/deadwood) where the theme
+          // asks for them — rare, visual only (never physics). Heights are
+          // keyed: a fallen trunk is height-scaled from its LYING pose (big
+          // height = huge length), a broken snag should tower like a dead
+          // spar, everything else stays knee-high.
+          else if (scatter.length && roll < 0.625) {
+            const e = scatter[Math.floor(hash2(jx + 17, jy - 17) * scatter.length) % scatter.length];
+            const sh =
+              e.key === 'tree_broken'
+                ? 5.5 + hash2(jx, jy + 9) * 2.5
+                : e.key === 'tree_fallen'
+                  ? 1.6 + hash2(jx, jy + 9) * 0.6
+                  : 2.4 + hash2(jx + 7, jy) * 1.1;
+            placeProto(e.proto, jx, jy, sh);
+          }
         }
       }
     }
