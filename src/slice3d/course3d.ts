@@ -550,7 +550,7 @@ export function buildCourse(
       ...(theme.bushKeys ?? BUSH_KEYS),
       ...(theme.cloudKeys ?? []),
       ...STONE_KEYS,
-      ...GRASS_KEYS,
+      ...(theme.grassKeys ?? GRASS_KEYS),
       ...FLOWER_KEYS
     ])
   ];
@@ -740,7 +740,7 @@ export function buildCourse(
     const scatter = pickKeyed(theme.scatterKeys ?? []);
     const conifers = new Set<string>(CONIFER_KEYS);
     const bushSet = pickKeyed(theme.bushKeys ?? BUSH_KEYS);
-    const grasses = pick(GRASS_KEYS);
+    const grasses = pick(theme.grassKeys ?? GRASS_KEYS);
     const flowers = pick(FLOWER_KEYS);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
     // into the course texture (collectTreeBlobs), and adding the native-scale

@@ -58,6 +58,9 @@ export interface CourseTheme {
   backdropTreeStep?: number;
   /** Bush prop mix for the rough (defaults to the classic bush_a/bush_b). */
   bushKeys?: readonly string[];
+  /** Ground grass-tuft mesh mix (defaults to GRASS_KEYS). Lets a course pull in
+   *  the denser meadow-pack tufts for a lusher look without changing others. */
+  grassKeys?: readonly string[];
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
@@ -137,6 +140,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'scatterKeys'
     | 'backdropTreeStep'
     | 'bushKeys'
+    | 'grassKeys'
     | 'cloudKeys'
     | 'turfGrainKey'
     | 'turfNormalKey'
@@ -172,6 +176,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.accentTreeKeys = strings(spec.accentTreeKeys);
   t.scatterKeys = strings(spec.scatterKeys);
   t.bushKeys = strings(spec.bushKeys);
+  t.grassKeys = strings(spec.grassKeys);
   t.cloudKeys = strings(spec.cloudKeys);
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;

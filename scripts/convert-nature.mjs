@@ -24,6 +24,7 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACK = path.join(root, 'asset-packs', 'forest-nature-fbx');
+const MEADOW = path.join(root, 'asset-packs', 'meadow-fbx');
 const OUT = path.join(root, 'assets', 'models', 'nature');
 
 /**
@@ -60,6 +61,23 @@ const MANIFEST = {
   cloud_c: 'Clouds/SM_Cloud_03.fbx'
 };
 
+/**
+ * Meadow pack (asset-packs/meadow-fbx) grass tufts + wildflowers. These are
+ * thin crossed blade-cards, so `light: true` skips the border-unlocking
+ * decimation the trees use (it would shred the blades) — just weld + quantize.
+ * Recolored by slot like the rest: grass_* → flat unlit grass, flower_* → the
+ * unlit flower material (natureModels.ts pickMat). Kept OUT of the default
+ * GRASS_KEYS/FLOWER_KEYS — only a course opting in via theme.grassKeys places
+ * them, so the other courses stay identical.
+ */
+const MEADOW_MANIFEST = {
+  grass_g: 'SM_Grass_01.fbx',
+  grass_h: 'SM_Grass_03.fbx',
+  grass_i: 'SM_Grass_Shorts.fbx',
+  flower_b: 'SM_Wild_Flower_02.fbx',
+  flower_c: 'SM_Lavender.fbx'
+};
+
 const fbx2gltf = path.join(
   root,
   'node_modules',
@@ -80,45 +98,58 @@ const io = new NodeIO();
 await MeshoptSimplifier.ready;
 const work = mkdtempSync(path.join(tmpdir(), 'nature-'));
 
+async function convertOne(packDir, key, entry, light) {
+  const { src: rel, ratio = 0.6 } = typeof entry === 'string' ? { src: entry } : entry;
+  const src = path.join(packDir, rel);
+  const raw = path.join(work, `${key}.glb`);
+  execFileSync(fbx2gltf, ['--binary', '--input', src, '--output', raw.replace(/\.glb$/, '')], {
+    stdio: ['ignore', 'ignore', 'inherit']
+  });
+
+  const document = await io.read(raw);
+  stripLods(document);
+  // Thin blade-cards (grass/flowers) skip decimation — the simplifier collapses
+  // the crossed quads into slivers; they're already tiny. Everything else gets
+  // the border-aware simplify pass.
+  const steps = light
+    ? [dedup(), weld(), prune(), quantize()]
+    : [
+        dedup(),
+        weld(),
+        // Decimation: stylized low-poly props seen from fairway distance.
+        // The default keeps lockBorder (protects trunk/foliage seams); the
+        // aggressive manifest entries are disconnected leaf-card soup where
+        // every edge is a border, so they must unlock borders (plus a looser
+        // error bound) or the simplifier can't remove anything.
+        simplify(
+          ratio < 0.6
+            ? { simplifier: MeshoptSimplifier, ratio, error: 0.02, lockBorder: false }
+            : { simplifier: MeshoptSimplifier, ratio, error: 0.001, lockBorder: true }
+        ),
+        prune(),
+        // Quantized attributes (KHR_mesh_quantization — Babylon-supported)
+        // roughly halve every file for free.
+        quantize()
+      ];
+  await document.transform(...steps);
+
+  const out = path.join(OUT, `${key}.glb`);
+  await io.write(out, document);
+  const kb = Math.round(statSync(out).size / 1024);
+  const mats = document
+    .getRoot()
+    .listMaterials()
+    .map((m) => m.getName())
+    .join(', ');
+  console.log(`${key}.glb  ${kb} KB  [${mats}]`);
+}
+
 try {
   for (const [key, entry] of Object.entries(MANIFEST)) {
-    const { src: rel, ratio = 0.6 } = typeof entry === 'string' ? { src: entry } : entry;
-    const src = path.join(PACK, rel);
-    const raw = path.join(work, `${key}.glb`);
-    execFileSync(fbx2gltf, ['--binary', '--input', src, '--output', raw.replace(/\.glb$/, '')], {
-      stdio: ['ignore', 'ignore', 'inherit']
-    });
-
-    const document = await io.read(raw);
-    stripLods(document);
-    await document.transform(
-      dedup(),
-      weld(),
-      // Decimation: stylized low-poly props seen from fairway distance.
-      // The default keeps lockBorder (protects trunk/foliage seams); the
-      // aggressive manifest entries are disconnected leaf-card soup where
-      // every edge is a border, so they must unlock borders (plus a looser
-      // error bound) or the simplifier can't remove anything.
-      simplify(
-        ratio < 0.6
-          ? { simplifier: MeshoptSimplifier, ratio, error: 0.02, lockBorder: false }
-          : { simplifier: MeshoptSimplifier, ratio, error: 0.001, lockBorder: true }
-      ),
-      prune(),
-      // Quantized attributes (KHR_mesh_quantization — Babylon-supported)
-      // roughly halve every file for free.
-      quantize()
-    );
-
-    const out = path.join(OUT, `${key}.glb`);
-    await io.write(out, document);
-    const kb = Math.round(statSync(out).size / 1024);
-    const mats = document
-      .getRoot()
-      .listMaterials()
-      .map((m) => m.getName())
-      .join(', ');
-    console.log(`${key}.glb  ${kb} KB  [${mats}]`);
+    await convertOne(PACK, key, entry, false);
+  }
+  for (const [key, entry] of Object.entries(MEADOW_MANIFEST)) {
+    await convertOne(MEADOW, key, entry, true);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });
