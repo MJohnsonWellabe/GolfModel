@@ -2,6 +2,7 @@ import { FRINGE_MARGIN, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
+import { mowCheckerboard } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
 
 // Tree blobs now live in a rendering-independent module so the physics engine
@@ -328,12 +329,25 @@ export function renderCourseCanvas(
         // stay subtle per the visual bar ("subtle on green").
         const boost = cls === 2 ? 1 : theme.stripeStrength ?? 1;
         const contrast = stripeContrast[cls] * damp * boost;
-        // A raw sine reads as a gentle light↔dark undulation, not two mown
-        // tones. Square the band on fairway/rough (tanh flattens each half into
-        // a near-uniform plateau with a soft edge — distinct alternating
-        // stripes like the references) while greens keep the smooth sine.
-        const phase = Math.sin((along / sw) * Math.PI);
-        const band = cls === 2 ? phase : Math.tanh(phase * 2.4) / 0.9837;
+        let band: number;
+        if (cls === 1 && theme.mowPattern === 'checker') {
+          // Fairway checkerboard: a hard-edged two-tone grid aligned to the
+          // tee→pin axis (rows AND columns) — NOT the diagonal `along` above.
+          // The 3D grass carpet samples the same function so ground and tufts
+          // show the same distinct cells.
+          band = mowCheckerboard(wx * ax + wy * ay, -wx * ay + wy * ax, theme.mowTile ?? 30);
+          // Bias the swing UP: light cells pop at full contrast, dark cells only
+          // dip ~half as far so the darkest cell stays clearly above the rough
+          // (the aerial grayscale-separation bar) while still reading two-tone.
+          if (band < 0) band *= 0.45;
+        } else {
+          // A raw sine reads as a gentle light↔dark undulation, not two mown
+          // tones. Square the band on fairway/rough (tanh flattens each half
+          // into a near-uniform plateau with a soft edge — distinct alternating
+          // stripes) while greens keep the smooth sine.
+          const phase = Math.sin((along / sw) * Math.PI);
+          band = cls === 2 ? phase : Math.tanh(phase * 2.4) / 0.9837;
+        }
         light *= 1 + band * contrast;
       }
       // Tee collar: a darker mown border framing the square pad.

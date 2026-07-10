@@ -26,6 +26,7 @@ import {
   TEXTURE_PAD,
   TreeBlob
 } from '../core/rendering/CourseTexture';
+import { mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
@@ -800,6 +801,23 @@ export function buildCourse(
       const warm = hash2(x + 13, y - 9); // 0..1
       return new Color4(lum * (1 + warm * 0.2), lum, lum * (1 - warm * 0.12), 1);
     };
+    // Fairway checkerboard tint (theme.mowPattern==='checker'): the tuft carpet
+    // follows the SAME two-tone grid the ground bake paints, so the grass
+    // reinforces the cells instead of speckling random brightness over them and
+    // washing the pattern out. Light cell brighter, dark cell darker, with a
+    // whisper of per-tuft jitter so cells aren't dead flat.
+    const checkerAxis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+    const cax = Math.cos(checkerAxis);
+    const cay = Math.sin(checkerAxis);
+    const mowTile = theme.mowTile ?? 30;
+    const fairwayTint = (x: number, y: number): Color4 => {
+      const band = mowCheckerboard(x * cax + y * cay, -x * cay + y * cax, mowTile);
+      // Light cells brighten fully; dark cells only dip a little so the fairway
+      // carpet stays clearly above the rough in grayscale (matches the biased
+      // ground bake in CourseTexture).
+      const lum = (band > 0 ? 1.12 : 0.95) + (hash2(x * 1.7, y * 0.7) - 0.5) * 0.08;
+      return new Color4(lum, lum, lum * 0.98, 1);
+    };
     // Multi-colored blooms: pick a hue from a small wildflower palette per
     // flower (the lit near-white flower material multiplies by this).
     const FLOWER_COLORS = [
@@ -888,7 +906,10 @@ export function buildCourse(
         if (surf === 'fairway') {
           // Short, dense mown tufts (kept low so they never block the ball read);
           // lush lays a denser carpet so the fairway isn't a bare painted surface.
-          if (roll < (lush ? 0.9 : 0.62)) place(grasses, jx, jy, 0.85 + hash2(jx, jy) * 0.6, 3, tint);
+          // When the theme mows a checkerboard, the fairway carpet follows it so
+          // the tufts read as the same two tones instead of random speckle.
+          const fTint = lush ? (theme.mowPattern === 'checker' ? fairwayTint(jx, jy) : tint) : undefined;
+          if (roll < (lush ? 0.9 : 0.62)) place(grasses, jx, jy, 0.85 + hash2(jx, jy) * 0.6, 3, fTint);
         } else {
           // Longer rough grass, plus the occasional bush/flower — knee-high
           // at most (the golfer is ~6 units; tufts must never read as walls).

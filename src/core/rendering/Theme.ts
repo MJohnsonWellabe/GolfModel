@@ -75,6 +75,14 @@ export interface CourseTheme {
    *  broadcast look); the green stays subtle regardless. Real-photo courses
    *  read very muted stripes without this because the turf grain damps them. */
   stripeStrength?: number;
+  /** Fairway mow pattern. Unset = the historical single-direction diagonal
+   *  stripe. `'checker'` = a hard-edged two-tone checkerboard (rows AND
+   *  columns) aligned to the tee→pin axis; the 3D fairway grass carpet follows
+   *  the same pattern so the two tones read as distinct cells, not undulation. */
+  mowPattern?: 'checker';
+  /** Checkerboard cell width in world units (mowPattern='checker'). Default 30
+   *  — small enough that 2–3 cells span a fairway. Ignored otherwise. */
+  mowTile?: number;
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
@@ -169,6 +177,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'lushGrass'
     | 'edgeWobble'
     | 'stripeStrength'
+    | 'mowPattern'
+    | 'mowTile'
     | 'cloudKeys'
     | 'turfGrainKey'
     | 'turfNormalKey'
@@ -214,6 +224,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (spec.lushGrass === true) t.lushGrass = true;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;
+  if (spec.mowPattern === 'checker') t.mowPattern = 'checker';
+  if (typeof spec.mowTile === 'number') t.mowTile = spec.mowTile;
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;
   if (typeof spec.turfNormalKey === 'string') t.turfNormalKey = spec.turfNormalKey;

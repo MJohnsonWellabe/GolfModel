@@ -703,10 +703,15 @@ Graphics 2.0 (post-1B, after playtest feedback):
   green keeps the gentle sine. Real-photo courses only partly damp the coded
   stripes (0.7, not 0.4) and run a gentler fairway grain (realAmp 0.5 vs the
   rough's 1.25) so the photo texture can't shred the bands. `theme.stripeStrength`
-  (default 1) scales the fairway/rough swing per course (Timberline 2.0), while
-  the green stays subtle. Timberline's turf palette is brightened/saturated
-  toward the reference look while keeping rough clearly darker than fairway (the
-  aerial grayscale-separation bar).
+  (default 1) scales the fairway/rough swing per course, while the green stays
+  subtle. `theme.mowPattern: 'checker'` (with `mowTile`) swaps the fairway's
+  single-direction diagonal stripe for a hard-edged two-tone checkerboard (rows
+  AND columns, aligned to the tee→pin axis) via the shared `mowPattern.ts`
+  helper — and the 3D fairway grass carpet (`course3d.ts`) samples the SAME
+  helper so the tufts reinforce the cells instead of speckling random brightness
+  over them (the earlier reason the pattern wouldn't read). Timberline enables
+  it; its turf palette is brightened/saturated toward the reference look while
+  keeping rough clearly darker than fairway (the aerial grayscale-separation bar).
 - **Mesh ground** (`core/rendering/GroundMesh.ts`): the perspective ground is
   a frustum-shaped ortho Mesh whose vertices are placed by the game's own
   `Projection` every frame — textured terrain that never lags the camera and

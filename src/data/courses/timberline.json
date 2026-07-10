@@ -49,7 +49,9 @@
     "tuftDensity": 3.2,
     "roughTuftHeight": 1.35,
     "edgeWobble": 2.4,
-    "stripeStrength": 2.0,
+    "stripeStrength": 1.2,
+    "mowPattern": "checker",
+    "mowTile": 30,
     "lushGrass": true,
     "grassKeys": [
       "grass_g",
