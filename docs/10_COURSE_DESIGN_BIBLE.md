@@ -308,6 +308,19 @@ Create visual framing.
 
 Trees should rarely exist only for decoration.
 
+## Woods density (`spacing`)
+
+A `type: "trees"` hazard may author `"spacing"` — the grid step in world
+units between trunks (default 52; lower is denser). Density is **gameplay,
+not art**: the same tree positions drive ball-flight collision, the baked
+drop shadows, and the 3D props, so a denser polygon is a genuinely harder
+place to escape from.
+
+Fairness rule: densify the flanking margins, never the driving line. A
+recovery line must always exist (the Pine Alley precedent — an unavoidable
+centre block breaks this Bible). After densifying, verify the AI still
+finishes the hole near par.
+
 ---
 
 # Rough

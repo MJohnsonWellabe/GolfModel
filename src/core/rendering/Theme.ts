@@ -38,6 +38,18 @@ export interface CourseTheme {
   backdrop: 'peaks' | 'sea';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
+  /**
+   * Optional woods species mix — prop keys from slice3d/natureModels.ts
+   * (e.g. conifers on Timberline, broadleaf on Wildwood). Omitted = the
+   * original generic TREE_KEYS. Art-only: species never affects physics.
+   */
+  treeKeys?: readonly string[];
+  /** Rare species mixed into ~15% of woods trees (e.g. birch among pines). */
+  accentTreeKeys?: readonly string[];
+  /** Extra rough-only ground scatter (ferns, stumps, logs, berry bushes). */
+  scatterKeys?: readonly string[];
+  /** Backdrop-woods grid step override (default 60–74); lower = denser wall. */
+  backdropTreeStep?: number;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -87,7 +99,13 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   const spec = (course as { theme?: Record<string, unknown> } | null)?.theme;
   if (!spec) return DEFAULT_THEME;
   const t: CourseTheme = { ...DEFAULT_THEME };
-  for (const key of Object.keys(t) as Array<keyof CourseTheme>) {
+  // Only the always-present scalar fields take part in the generic merge; the
+  // optional array/number fields are read explicitly below.
+  type ScalarKey = Exclude<
+    keyof CourseTheme,
+    'treeKeys' | 'accentTreeKeys' | 'scatterKeys' | 'backdropTreeStep'
+  >;
+  for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
     const v = spec[key];
     if (
@@ -104,5 +122,13 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
       t[key] = parseColor(v, t[key]);
     }
   }
+  // Optional fields are absent from DEFAULT_THEME, so the merge loop above
+  // never sees them — read them from the spec explicitly.
+  const strings = (v: unknown): string[] | undefined =>
+    Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string') ? v : undefined;
+  t.treeKeys = strings(spec.treeKeys);
+  t.accentTreeKeys = strings(spec.accentTreeKeys);
+  t.scatterKeys = strings(spec.scatterKeys);
+  if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   return t;
 }

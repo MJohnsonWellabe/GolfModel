@@ -252,6 +252,24 @@ slight animation
 
 Tree trunks should always be visible.
 
+## Species per course
+
+Each course's `theme` block picks its woods mix from the converted nature
+props (`treeKeys`, plus `accentTreeKeys` for ~15% rare mix-ins and
+`scatterKeys` for rough-only forest-floor props):
+
+- **Timberline** — conifer forest: spruce, tall spruce, pine; birch
+  accents; ferns, stumps and logs on the forest floor; denser backdrop
+  wall (`backdropTreeStep`).
+- **Wildwood Glen** — broadleaf parkland: oak, maple, birch, aspen,
+  poplar plus the original generic trees; ferns and berry bushes in the
+  rough.
+- **Sable Bay** — sparse coastal: the generic wind-shaped set; the sea is
+  the scenery.
+
+Species is art only — it never changes physics. Density does (see the
+Course Design Bible's `spacing` rule).
+
 Canopies should feel full.
 
 ---

@@ -111,6 +111,13 @@ export interface Hazard {
   polygon: Polygon;
   /** Water only: surface height (world units) the pond renders at. */
   level?: number;
+  /**
+   * Trees only: grid step (world units) between trunks inside the polygon,
+   * default 52 — lower is denser woods. Lives on the hazard (course data),
+   * not the theme, because collectTreeBlobs feeds ball-flight collision and
+   * the baked shadows as well as the 3D props: density is gameplay, not art.
+   */
+  spacing?: number;
 }
 
 export interface GreenSlope {
@@ -147,7 +154,7 @@ export interface CourseData {
   name: string;
   holes: HoleData[];
   /** Optional per-course art overrides — see core/rendering/Theme.ts. */
-  theme?: Record<string, string | number>;
+  theme?: Record<string, string | number | string[]>;
 }
 
 export interface Wind {

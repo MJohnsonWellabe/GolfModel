@@ -31,6 +31,7 @@ import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
 import {
   BUSH_KEYS,
+  CONIFER_KEYS,
   FLOWER_KEYS,
   GRASS_KEYS,
   hash2,
@@ -660,7 +661,17 @@ export function buildCourse(
   void loadNaturePrototypes(scene, natPalette).then((protos) => {
     const pick = (keys: readonly string[]): NatureProto[] =>
       keys.map((k) => protos.get(k)).filter((p): p is NatureProto => !!p);
-    const trees = pick(TREE_KEYS);
+    // Keyed variant for the woods: the key decides the conifer height boost.
+    const pickKeyed = (keys: readonly string[]): Array<{ key: string; proto: NatureProto }> =>
+      keys
+        .map((key) => ({ key, proto: protos.get(key) }))
+        .filter((e): e is { key: string; proto: NatureProto } => !!e.proto);
+    // Species mix is per-course art direction (conifers on Timberline,
+    // broadleaf on Wildwood); themes without a mix keep the generic trees.
+    const trees = pickKeyed(theme.treeKeys ?? TREE_KEYS);
+    const accents = pickKeyed(theme.accentTreeKeys ?? []);
+    const scatter = pick(theme.scatterKeys ?? []);
+    const conifers = new Set<string>(CONIFER_KEYS);
     const bushes = pick(BUSH_KEYS);
     const grasses = pick(GRASS_KEYS);
     const flowers = pick(FLOWER_KEYS);
@@ -670,9 +681,7 @@ export function buildCourse(
     // shadow-map frustum and darken the whole (shadow-receiving) terrain.
 
     let n = 0;
-    const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0): void => {
-      if (!set.length) return;
-      const proto = set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length];
+    const placeProto = (proto: NatureProto, x: number, y: number, targetH: number): void => {
       const s = targetH / proto.height;
       const pos = w2b(x, y, heightAt(x, y));
       const rotY = hash2(y, x) * Math.PI * 2;
@@ -685,16 +694,31 @@ export function buildCourse(
         inst.parent = treeRoot;
       }
     };
-    const plantTree = (b: TreeBlob): void => place(trees, b.x, b.y, Math.max(24, b.r * 2.0));
+    const place = (set: NatureProto[], x: number, y: number, targetH: number, jitter = 0): void => {
+      if (!set.length) return;
+      placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH);
+    };
+    const plantTree = (b: TreeBlob): void => {
+      // Accent species (e.g. birch among Timberline's pines) on ~15% of trees.
+      const set = accents.length && hash2(b.x * 1.7, b.y * 0.9) < 0.15 ? accents : trees;
+      if (!set.length) return;
+      const e = set[Math.floor(hash2(b.x, b.y) * set.length) % set.length];
+      // Conifer silhouettes are tall and narrow; at broadleaf target heights
+      // they read squat, so they grow taller from the same canopy radius.
+      const hMul = conifers.has(e.key) ? 2.6 : 2.0;
+      placeProto(e.proto, b.x, b.y, Math.max(24, b.r * hMul));
+    };
 
     for (const b of collectTreeBlobs(hole, theme.blossomChance)) plantTree(b);
 
     // Backdrop woods (scenery only — never on a playable surface): a wall of
-    // trees behind the green and deep bands down both outer margins.
+    // trees behind the green and deep bands down both outer margins. Forest
+    // themes tighten the grid via backdropTreeStep for a denser wall.
+    const bStep = theme.backdropTreeStep;
     const bands = [
-      { x0: 40, x1: 860, y0: -190, y1: 180, step: 60 },
-      { x0: -180, x1: 160, y0: 140, y1: h + 80, step: 74 },
-      { x0: 740, x1: 1080, y0: 140, y1: h + 80, step: 74 }
+      { x0: 40, x1: 860, y0: -190, y1: 180, step: bStep ?? 60 },
+      { x0: -180, x1: 160, y0: 140, y1: h + 80, step: bStep ? Math.round(bStep * 1.23) : 74 },
+      { x0: 740, x1: 1080, y0: 140, y1: h + 80, step: bStep ? Math.round(bStep * 1.23) : 74 }
     ];
     for (const band of bands) {
       for (let yy = band.y0; yy < band.y1; yy += band.step) {
@@ -733,6 +757,9 @@ export function buildCourse(
           if (roll < 0.5) place(grasses, jx, jy, 2.0 + hash2(jx, jy) * 1.2, 3);
           else if (roll < 0.55) place(bushes, jx, jy, 3.2 + hash2(jy, jx) * 1.6, 7);
           else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
+          // Forest-floor props (ferns/stumps/logs/berries) where the theme
+          // asks for them — rare, knee-high, visual only (never physics).
+          else if (scatter.length && roll < 0.625) place(scatter, jx, jy, 2.4 + hash2(jx + 7, jy) * 1.1, 17);
         }
       }
     }

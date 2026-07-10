@@ -36,10 +36,14 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0): TreeBlob[] 
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-    for (let yy = minY; yy < maxY; yy += 52) {
-      for (let xx = minX; xx < maxX; xx += 52) {
-        const jx = xx + (blobHash(xx, yy) - 0.5) * 36;
-        const jy = yy + (blobHash(yy, xx) - 0.5) * 36;
+    // Authored density knob: hazard.spacing (default 52). Jitter scales with
+    // the step so dense woods stay organic without trunks overlapping.
+    const step = hz.spacing ?? 52;
+    const jitter = step * (36 / 52);
+    for (let yy = minY; yy < maxY; yy += step) {
+      for (let xx = minX; xx < maxX; xx += step) {
+        const jx = xx + (blobHash(xx, yy) - 0.5) * jitter;
+        const jy = yy + (blobHash(yy, xx) - 0.5) * jitter;
         if (!pointInPolygon(jx, jy, hz.polygon)) continue;
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
