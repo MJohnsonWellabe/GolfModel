@@ -23,6 +23,9 @@ describe('theme knobs', () => {
     expect(t.fairwayGrainTile).toBeUndefined();
     expect(t.roughGrainTile).toBeUndefined();
     expect(t.roughGrainKey).toBeUndefined(); // rough grain falls back to turfGrainKey
+    expect(t.sandGrainKey).toBeUndefined(); // coded rake sines, not a real texture
+    expect(t.sandGrainTile).toBeUndefined();
+    expect(t.bunkerStones).toBeUndefined(); // no bunker-edge stones
   });
 
   it('round-trips authored scatter/sand/cloud knobs', () => {
@@ -42,7 +45,10 @@ describe('theme knobs', () => {
         turfNormalKey: 'textures/turf_normal.jpg',
         fairwayGrainTile: 6,
         roughGrainTile: 14,
-        roughGrainKey: 'textures/turf_grain_rough.jpg'
+        roughGrainKey: 'textures/turf_grain_rough.jpg',
+        sandGrainKey: 'textures/sand_ripple.jpg',
+        sandGrainTile: 9,
+        bunkerStones: true
       })
     );
     expect(t.tuftDensity).toBe(1.35);
@@ -59,6 +65,9 @@ describe('theme knobs', () => {
     expect(t.fairwayGrainTile).toBe(6);
     expect(t.roughGrainTile).toBe(14);
     expect(t.roughGrainKey).toBe('textures/turf_grain_rough.jpg');
+    expect(t.sandGrainKey).toBe('textures/sand_ripple.jpg');
+    expect(t.sandGrainTile).toBe(9);
+    expect(t.bunkerStones).toBe(true);
   });
 
   it('ignores malformed key arrays', () => {

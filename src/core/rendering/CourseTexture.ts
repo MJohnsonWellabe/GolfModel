@@ -235,13 +235,26 @@ export function renderCourseCanvas(
       if (classAt(wx + 3, wy) !== cls || classAt(wx, wy + 3) !== cls) light *= 0.82;
       // Water: subtle horizontal banding reads as ripples
       if (cls === 5) light *= 1 + Math.sin(wy * 0.18) * 0.045;
-      // Sand: raked ripple lines (art bible: "small ripples, color variation")
+      // Sand: raked ripple lines (art bible: "small ripples, color variation").
+      // With a real ripple texture (theme.sandGrainKey) the wind-ripple field
+      // replaces BOTH coded rake sines — the radial dish stays either way.
+      // IMPORTANT: any change here must mirror renderGreenPatch's sand branch
+      // or greenside bunkers seam at the green-mesh skirt.
       if (cls === 4) {
-        light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+        const sandGrain = theme.sandGrainKey
+          ? sampleGrassGrain(theme.sandGrainKey, wx, wy, theme.sandGrainTile ?? 18)
+          : null;
+        if (sandGrain !== null) {
+          light *= 1 + (sandGrain - 0.5) * 0.55;
+        } else {
+          light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+          if (sculpt > 0) {
+            // Crossing rake set — the flat painted disc reads as raked.
+            light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
+          }
+        }
         if (sculpt > 0) {
-          // Crossing rake set + radial darkening toward the bunker centre —
-          // the flat painted disc reads as a raked, dished hollow.
-          light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
+          // Radial darkening toward the bunker centre: a dished hollow.
           let d = 1;
           for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
           light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
@@ -383,12 +396,24 @@ export function renderGreenPatch(
         const along = wx * ax + wy * ay;
         light *= 1 + Math.sin((along / 30) * Math.PI) * 0.075;
       }
-      if (surf === 'sand' && sculpt > 0) {
-        light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
-        light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
-        let d = 1;
-        for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
-        light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
+      if (surf === 'sand') {
+        // Must stay in lockstep with the main bake's cls===4 branch (both
+        // sample in world coordinates, so the two canvases agree despite
+        // different scales) — see the seam warning there.
+        const sandGrain = theme.sandGrainKey
+          ? sampleGrassGrain(theme.sandGrainKey, wx, wy, theme.sandGrainTile ?? 18)
+          : null;
+        if (sandGrain !== null) {
+          light *= 1 + (sandGrain - 0.5) * 0.55;
+        } else if (sculpt > 0) {
+          light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
+          light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
+        }
+        if (sculpt > 0) {
+          let d = 1;
+          for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
+        }
       }
       // Crisp darker rim right at the green/fringe boundary anchors the collar
       if (surf === 'fringe' && engine.surfaceAt(wx + 1.2, wy) !== 'fringe') light *= 0.88;

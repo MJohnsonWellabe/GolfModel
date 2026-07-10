@@ -19,7 +19,7 @@ import { FLIGHT, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
-import { preloadGrassGrain } from '../core/rendering/grassTexture';
+import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
 import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
@@ -190,6 +190,7 @@ const COURSES: Record<string, CourseData> = {
 // no-ops on courses that don't opt into either key (decoded but unread).
 preloadGrassGrain('textures/turf_grain.jpg');
 preloadGrassGrain('textures/turf_grain_rough.jpg');
+preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
@@ -3067,7 +3068,7 @@ nextBtn.addEventListener('pointerdown', () => {
  * the requested hole in a fixed pose with fixed wind, and raise __shotReady
  * once the scene (course, character, textures) is fully renderable.
  */
-function startShotCapture(): void {
+async function startShotCapture(): Promise<void> {
   round.course = (SHOT.course && COURSES[SHOT.course]) || COURSES.wildwood;
   round.mode = 'solo';
   round.holeIdx = Math.min((SHOT.hole ?? 1) - 1, round.course.holes.length - 1);
@@ -3078,6 +3079,10 @@ function startShotCapture(): void {
     { golfer: assembleGolfer('Shot', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }
   ];
   setupEl.style.display = 'none';
+  // Real play always passes through the menu, giving the grain images time to
+  // decode before the first synchronous bake; this direct boot must wait for
+  // them or every capture shows the procedural fallback players never see.
+  await grainPreloadsSettled();
   playHole();
   const scene = current!;
   scene.enterShotPose(SHOT.cam);
@@ -3092,7 +3097,7 @@ function startShotCapture(): void {
   });
 }
 
-if (SHOT.hole) startShotCapture();
+if (SHOT.hole) void startShotCapture();
 else {
   showSetup();
   // A shared ?t=CODE link boots straight into the tournament's join screen.

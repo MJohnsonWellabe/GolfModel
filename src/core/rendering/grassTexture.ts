@@ -64,6 +64,20 @@ export function preloadGrassGrain(key: string): void {
 }
 
 /**
+ * Resolves once every fired preload has settled (or after `timeoutMs` as a
+ * hard cap — never blocks forever on a hung fetch). Production code never
+ * needs this — the menu always shows before a hole builds — but the
+ * screenshot harness boots straight into a bake and would otherwise always
+ * capture the procedural fallback instead of what players actually see.
+ */
+export function grainPreloadsSettled(timeoutMs = 3000): Promise<void> {
+  return Promise.race([
+    Promise.allSettled([...inflight.values()]).then(() => undefined),
+    new Promise<void>((res) => setTimeout(res, timeoutMs))
+  ]);
+}
+
+/**
  * Sample a preloaded turf grain at a tiled world coordinate, returning 0..1
  * luminance (same range/shape as CourseTexture's coded `grain()`). `tile` is
  * the world-unit size of one texture repeat. Returns null if `key` hasn't

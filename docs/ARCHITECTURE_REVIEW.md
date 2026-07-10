@@ -8,6 +8,35 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+7): real bunker sand + Timberline layout feedback
+
+- **Bunker sand is a real ripple texture.** `scripts/convert-sand-texture.mjs`
+  lifts the one stone-free window of the terrain pack's `Desert_stones.PNG`
+  (the pack ships no plain sand map), high-passes it around mid-grey (kills the
+  soft gradient that made naive tiling read as a kaleidoscope) and torus-blends
+  the borders → seamless `assets/textures/sand_ripple.jpg`. New theme knobs
+  `sandGrainKey`/`sandGrainTile` sample it through the existing
+  `grassTexture.ts` preload/sampler in BOTH ground bakes (`renderCourseCanvas`
+  + `renderGreenPatch`, world-coordinate math kept identical — the documented
+  green-skirt seam trap); the coded rake sines remain the fallback and other
+  courses are bit-identical. Sculpted courses also get a slimmer, sandDark
+  bunker lip, and `bunkerStones` scatters a few stone props on the rough just
+  outside each trap (never fringe/fairway/sand).
+- **Screenshot harness now waits for grain decode** —
+  `grainPreloadsSettled()` (grassTexture.ts) before `playHole()` in
+  `startShotCapture`: direct `?hole=` boots used to bake before any texture
+  decoded, so captures showed the procedural fallback players never see.
+- **Timberline layout (playtest feedback):** hole-3's front bunker is now a
+  full crescent hugging the green's shape across the entire approach face
+  (generated from the green ellipse, 12..38 units out); a thinking-tree sits
+  in EACH hole-3 fairway leg (placed off the AI's routing/descent lines);
+  flanking woods pulled in hard on holes 2 and 3 (hole-2 inner edges ride the
+  fringe buffer). Guardrail learned the hard way: the corner-stand west lobe +
+  fairway trees can compound into punch-out grind-outs that blow the 8-stroke
+  sim cap — the Monte-Carlo `newCourses` suite plus a per-seed shot tracer
+  drove the final tree/AI-target positions (aiTarget 4 moved out of the new
+  crescent; 120×3 rounds now always hole out).
+
 # Update — 2026-07-10 (latest+6): Pals — companion pets (Foxy & Ember)
 
 - **Pals ship as a new cosmetic kind.** Two uploaded pets (a chibi fox and a

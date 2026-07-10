@@ -445,14 +445,23 @@ export function buildCourse(
   // Raised sand lips trace each bunker outline so traps read as dug features,
   // not painted patches (full dished terrain arrives with the heightfield).
   {
-    const lipMat = mat(scene, 'bunkerLip', shade(theme.sand, 1.12), { spec: 0.05 });
+    // Sculpted courses (sandSculpt > 0) get a slimmer, warmer sun-dried crest
+    // that hugs the ripple-textured sand instead of reading as bright piping;
+    // the flat painted-disc courses keep the historical light-sand tube.
+    const sculpted = (theme.sandSculpt ?? 0) > 0;
+    const lipTint = sculpted ? theme.sandDark : shade(theme.sand, 1.12);
+    const lipMat = mat(scene, 'bunkerLip', lipTint, { spec: 0.05 });
     let bi = 0;
     for (const hz of hole.hazards) {
       if (hz.type !== 'bunker') continue;
       const path = [...hz.polygon, hz.polygon[0]].map(([x, y]) =>
-        w2b(x, y, 0.18 + Math.max(engine.groundAt(x, y), greenLift(x, y, hole)))
+        w2b(x, y, (sculpted ? 0.1 : 0.18) + Math.max(engine.groundAt(x, y), greenLift(x, y, hole)))
       );
-      const lip = MeshBuilder.CreateTube(`bunkerLip${bi++}`, { path, radius: 1.0, tessellation: 8 }, scene);
+      const lip = MeshBuilder.CreateTube(
+        `bunkerLip${bi++}`,
+        { path, radius: sculpted ? 0.62 : 1.0, tessellation: 8 },
+        scene
+      );
       lip.material = lipMat;
       lip.receiveShadows = true;
     }
@@ -893,9 +902,37 @@ export function buildCourse(
                 ? 5.5 + hash2(jx, jy + 9) * 2.5
                 : e.key === 'tree_fallen'
                   ? 1.6 + hash2(jx, jy + 9) * 0.6
-                  : 2.4 + hash2(jx + 7, jy) * 1.1;
+                  : e.key.startsWith('stone')
+                    ? 0.8 + hash2(jx, jy + 9) * 0.9
+                    : 2.4 + hash2(jx + 7, jy) * 1.1;
             placeProto(e.proto, jx, jy, sh);
           }
+        }
+      }
+    }
+
+    // Weathered stones ring each bunker's outside edge (theme.bunkerStones):
+    // sparse, on the surrounding rough only (never sand/fairway/green), so a
+    // trap reads as dug into the terrain rather than laid onto it.
+    if (theme.bunkerStones) {
+      const stones = pickKeyed(STONE_KEYS);
+      for (const hz of hole.hazards) {
+        if (!stones.length) break;
+        if (hz.type !== 'bunker') continue;
+        const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
+        const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
+        let placed = 0;
+        for (const [px, py] of hz.polygon) {
+          if (placed >= 4) break;
+          if (hash2(px * 1.3, py * 0.7) > 0.5) continue; // sparse, hash-stable
+          const d = Math.hypot(px - cx, py - cy) || 1;
+          const sx = px + ((px - cx) / d) * 2.6;
+          const sy = py + ((py - cy) / d) * 2.6;
+          const s = engine.surfaceAt(sx, sy);
+          if (s !== 'rough' && s !== 'trees') continue; // never on fringe/fairway/sand
+          const e = stones[Math.floor(hash2(sx, sy) * stones.length) % stones.length];
+          placeProto(e.proto, sx, sy, 0.9 + hash2(sx + 3, sy) * 0.9);
+          placed++;
         }
       }
     }

@@ -88,6 +88,13 @@ export interface CourseTheme {
    *  photo) — a genuinely different real photo, not a retint. Falls back to
    *  turfGrainKey for rough when unset. */
   roughGrainKey?: string;
+  /** Real sand-ripple grain (assets/textures/*.jpg) sampled by the ground
+   *  bake for bunker texels instead of the coded rake sines. */
+  sandGrainKey?: string;
+  /** World-unit tile size for sandGrainKey (one wind-ripple field repeat). */
+  sandGrainTile?: number;
+  /** Scatter a few stone props just outside each bunker's lip. */
+  bunkerStones?: boolean;
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -159,6 +166,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'fairwayGrainTile'
     | 'roughGrainTile'
     | 'roughGrainKey'
+    | 'sandGrainKey'
+    | 'sandGrainTile'
+    | 'bunkerStones'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -199,5 +209,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.fairwayGrainTile === 'number') t.fairwayGrainTile = spec.fairwayGrainTile;
   if (typeof spec.roughGrainTile === 'number') t.roughGrainTile = spec.roughGrainTile;
   if (typeof spec.roughGrainKey === 'string') t.roughGrainKey = spec.roughGrainKey;
+  if (typeof spec.sandGrainKey === 'string') t.sandGrainKey = spec.sandGrainKey;
+  if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
+  if (spec.bunkerStones === true) t.bunkerStones = true;
   return t;
 }
