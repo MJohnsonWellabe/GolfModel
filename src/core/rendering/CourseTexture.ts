@@ -305,7 +305,11 @@ export function renderCourseCanvas(
       // needs a much wider swing to actually read on screen. Coded fallback
       // (every other course) is untouched — this only applies when grainVal
       // is non-null, i.e. only when a real texture decoded.
-      const realAmp = cls === 1 ? 0.85 : 1.25;
+      // Fairway grain is deliberately gentler than rough: a strong per-texel
+      // photo swing on the fairway visually shreds the mow stripes (the whole
+      // point of a mown fairway is the two clean tones), so let the stripes lead
+      // there and keep the heavier grain for the long, unmown rough.
+      const realAmp = cls === 1 ? 0.5 : 1.25;
       let light =
         grainVal !== null
           ? 1 + (grainVal - 0.5) * realAmp
@@ -324,7 +328,13 @@ export function renderCourseCanvas(
         // stay subtle per the visual bar ("subtle on green").
         const boost = cls === 2 ? 1 : theme.stripeStrength ?? 1;
         const contrast = stripeContrast[cls] * damp * boost;
-        light *= 1 + Math.sin((along / sw) * Math.PI) * contrast;
+        // A raw sine reads as a gentle light↔dark undulation, not two mown
+        // tones. Square the band on fairway/rough (tanh flattens each half into
+        // a near-uniform plateau with a soft edge — distinct alternating
+        // stripes like the references) while greens keep the smooth sine.
+        const phase = Math.sin((along / sw) * Math.PI);
+        const band = cls === 2 ? phase : Math.tanh(phase * 2.4) / 0.9837;
+        light *= 1 + band * contrast;
       }
       // Tee collar: a darker mown border framing the square pad.
       if (cls === 7 && teeInset >= 0 && teeInset < 7) light *= 0.72;
