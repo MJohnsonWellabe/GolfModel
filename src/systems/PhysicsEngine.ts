@@ -52,6 +52,9 @@ export interface ShotParams {
   launchMult?: number;
   /** Dispersion multiplier — extreme strike positions increase risk. */
   riskMult?: number;
+  /** Pre-shot stroke count (0 = tee shot). Recovery shots (>= 1) get a more
+   *  forgiving tree hitbox (PHYSICS.treeRecoveryMult). */
+  stroke?: number;
 }
 
 /** A shot with all randomness drawn, ready to integrate (and re-integrate
@@ -133,6 +136,10 @@ export class PhysicsEngine {
    */
   /** Individual tree canopies for per-trunk flight collision (playtest FB9). */
   private readonly treeTrunks: TreeBlob[];
+  /** Tree hitbox scale for the CURRENT shot — set per shot in resolveLaunch from
+   *  the stroke count (recovery shots get a smaller core). Persists across an
+   *  aerial-swipe re-integrate of the same shot. */
+  private shotTreeMult: number = PHYSICS.treeCanopyMult;
 
   constructor(
     private readonly hole: HoleData,
@@ -240,7 +247,7 @@ export class PhysicsEngine {
     for (const t of this.treeTrunks) {
       const dx = x - t.x;
       const dy = y - t.y;
-      const rr = t.r * PHYSICS.treeCanopyMult;
+      const rr = t.r * this.shotTreeMult;
       if (dx * dx + dy * dy < rr * rr) return true;
     }
     return false;
@@ -291,6 +298,8 @@ export class PhysicsEngine {
   resolveLaunch(params: ShotParams): ResolvedLaunch {
     const { origin, aimAngle, swing, club, golfer, fireBoost, lie, wind } = params;
     const { accuracy } = statsForClub(club, golfer, fireBoost);
+    // Recovery shots (2nd/3rd around a tree) get a smaller collision core.
+    this.shotTreeMult = PHYSICS.treeCanopyMult * ((params.stroke ?? 0) >= 1 ? PHYSICS.treeRecoveryMult : 1);
 
     // Distance ------------------------------------------------------------
     const carryYds = effectiveCarryYards(club, golfer, fireBoost, lie) * swing.power;
