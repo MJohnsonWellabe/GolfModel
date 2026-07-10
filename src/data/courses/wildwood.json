@@ -21,7 +21,7 @@
     "treeCanopyLight": "#4a8a4f",
     "treeTrunk": "#7a6049",
     "haze": "#dfece8",
-    "hazeStrength": 0.7,
+    "hazeStrength": 0.5,
     "backdrop": "peaks",
     "blossomChance": 0.15,
     "treeKeys": ["tree_oak", "tree_maple", "tree_birch", "tree_aspen", "tree_poplar", "tree_a", "tree_b"],

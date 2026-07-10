@@ -21,7 +21,7 @@
     "treeCanopyLight": "#437f4a",
     "treeTrunk": "#6f5843",
     "haze": "#d3e7f2",
-    "hazeStrength": 0.6,
+    "hazeStrength": 0.5,
     "backdrop": "sea",
     "blossomChance": 0.05
   },

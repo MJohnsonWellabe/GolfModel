@@ -31,7 +31,8 @@
     "tuftDensity": 1.35,
     "roughTuftHeight": 1.25,
     "bushKeys": ["bush_juniper", "bush_c", "bush_a"],
-    "sandSculpt": 0.7
+    "sandSculpt": 0.7,
+    "cloudKeys": ["cloud_a", "cloud_b", "cloud_c"]
   },
   "holes": [
     {

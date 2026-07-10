@@ -227,7 +227,9 @@ export function buildCourse(
 
   scene.clearColor = Color4.FromColor3(c3(theme.skyBottom), 1);
   scene.fogMode = Scene.FOGMODE_EXP2;
-  scene.fogDensity = 0.00042;
+  // hazeStrength scales atmospheric depth around the long-standing default
+  // density (0.5 -> exactly the historical 0.00042).
+  scene.fogDensity = 0.00042 * (theme.hazeStrength / 0.5);
   scene.fogColor = c3(theme.haze);
 
   // ---------------------------------------------------------------- terrain
@@ -518,6 +520,17 @@ export function buildCourse(
     });
   }
 
+  // Shared nature-prop palette. Defined BEFORE the first loadNaturePrototypes
+  // call (the mesh clouds below) because the loader caches per-scene with the
+  // palette of the first caller — the trees section reuses this same object.
+  const natPalette: NaturePalette = {
+    bark: theme.treeTrunk,
+    foliage: theme.treeCanopy,
+    foliageLight: theme.treeCanopyLight,
+    grass: shade(theme.rough, 1.1),
+    stone: 0x7e7c72
+  };
+
   // -------------------------------------------------------------------- sky
   const sky = MeshBuilder.CreateSphere('sky', { diameter: 9000, sideOrientation: Mesh.BACKSIDE }, scene);
   sky.position = new Vector3(w / 2, 0, -h / 2);
@@ -565,40 +578,76 @@ export function buildCourse(
   );
   sunBillboard.applyFog = false;
 
-  const cloudMat = new StandardMaterial('cloudMat', scene);
-  const cloudTex = new DynamicTexture('cloudTex', { width: 256, height: 128 }, scene, true);
-  const cctx = cloudTex.getContext() as CanvasRenderingContext2D;
-  cctx.clearRect(0, 0, 256, 128);
-  cctx.filter = 'blur(10px)';
-  cctx.fillStyle = 'rgba(255,255,255,0.95)';
-  for (const [ex, ey, rx, ry] of [[128, 74, 90, 26], [82, 58, 48, 20], [176, 56, 52, 20]]) {
-    cctx.beginPath();
-    cctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2);
-    cctx.fill();
+  if (theme.cloudKeys) {
+    // Stylized volumetric cloud meshes from the forest pack. CLONES, not
+    // instances — each clone must honor applyFog=false or the EXP2 fog at
+    // sky distance washes them into the haze. Slow drift like the billboards.
+    const cloudDrift: Mesh[] = [];
+    const keys = theme.cloudKeys;
+    void loadNaturePrototypes(scene, natPalette).then((protos) => {
+      for (let i = 0; i < 5; i++) {
+        const proto = protos.get(keys[i % keys.length]);
+        if (!proto) continue;
+        const jitter = hash2(i * 17.3, i * 5.1);
+        const pos = w2b(
+          hole.tee.x - 1400 + i * 750 + jitter * 160,
+          hole.tee.y - 2100 - (i % 3) * 400,
+          430 + ((i * 97) % 3) * 130 + jitter * 40
+        );
+        const targetH = 65 + jitter * 30;
+        for (const part of proto.parts) {
+          const cl = part.clone(`meshCloud${i}`);
+          cl.position = pos.clone();
+          const s = targetH / proto.height;
+          cl.scaling = new Vector3(s * (1.6 + jitter * 0.6), s, s * 1.2);
+          cl.rotation = new Vector3(0, hash2(i, 3) * Math.PI * 2, 0);
+          cl.applyFog = false;
+          cl.setEnabled(true);
+          cloudDrift.push(cl);
+        }
+      }
+    });
+    scene.onBeforeRenderObservable.add(() => {
+      if (isFrozen()) return;
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      for (const cl of cloudDrift) cl.position.x += dt * 4;
+    });
+  } else {
+    const cloudMat = new StandardMaterial('cloudMat', scene);
+    const cloudTex = new DynamicTexture('cloudTex', { width: 256, height: 128 }, scene, true);
+    const cctx = cloudTex.getContext() as CanvasRenderingContext2D;
+    cctx.clearRect(0, 0, 256, 128);
+    cctx.filter = 'blur(10px)';
+    cctx.fillStyle = 'rgba(255,255,255,0.95)';
+    for (const [ex, ey, rx, ry] of [[128, 74, 90, 26], [82, 58, 48, 20], [176, 56, 52, 20]]) {
+      cctx.beginPath();
+      cctx.ellipse(ex, ey, rx, ry, 0, 0, Math.PI * 2);
+      cctx.fill();
+    }
+    cloudTex.update(false);
+    cloudTex.hasAlpha = true;
+    cloudMat.emissiveTexture = cloudTex;
+    cloudMat.opacityTexture = cloudTex;
+    cloudMat.disableLighting = true;
+    const clouds: Mesh[] = [];
+    for (let i = 0; i < 6; i++) {
+      const cl = MeshBuilder.CreatePlane(`cloud${i}`, { width: 420 + i * 60, height: 170 }, scene);
+      cl.material = cloudMat;
+      cl.billboardMode = Mesh.BILLBOARDMODE_ALL;
+      cl.position = w2b(
+        hole.tee.x - 1500 + i * 640,
+        hole.tee.y - 2200 - (i % 3) * 300,
+        760 + (i % 2) * 180
+      );
+      cl.applyFog = false;
+      clouds.push(cl);
+    }
+    scene.onBeforeRenderObservable.add(() => {
+      if (isFrozen()) return;
+      const dt = scene.getEngine().getDeltaTime() / 1000;
+      for (const cl of clouds) cl.position.x += dt * 6;
+    });
   }
-  cloudTex.update(false);
-  cloudTex.hasAlpha = true;
-  cloudMat.emissiveTexture = cloudTex;
-  cloudMat.opacityTexture = cloudTex;
-  cloudMat.disableLighting = true;
-  const clouds: Mesh[] = [];
-  for (let i = 0; i < 6; i++) {
-    const cl = MeshBuilder.CreatePlane(`cloud${i}`, { width: 420 + i * 60, height: 170 }, scene);
-    cl.material = cloudMat;
-    cl.billboardMode = Mesh.BILLBOARDMODE_ALL;
-    cl.position = w2b(
-      hole.tee.x - 1500 + i * 640,
-      hole.tee.y - 2200 - (i % 3) * 300,
-      760 + (i % 2) * 180
-    );
-    cl.applyFog = false;
-    clouds.push(cl);
-  }
-  scene.onBeforeRenderObservable.add(() => {
-    if (isFrozen()) return;
-    const dt = scene.getEngine().getDeltaTime() / 1000;
-    for (const cl of clouds) cl.position.x += dt * 6;
-  });
 
   // ------------------------------------------------------------ backdrop
   const peakDist = 2500;
@@ -650,14 +699,7 @@ export function buildCourse(
   // procedural cylinders/spheres. Loading is async (glb), so instances plant a
   // moment after the hole builds — like the character models. Positions come
   // from the same collectTreeBlobs() the baked texture drops shadows for, so
-  // trunks land on their shadows.
-  const natPalette: NaturePalette = {
-    bark: theme.treeTrunk,
-    foliage: theme.treeCanopy,
-    foliageLight: theme.treeCanopyLight,
-    grass: shade(theme.rough, 1.1),
-    stone: 0x7e7c72
-  };
+  // trunks land on their shadows. (Palette defined above the sky section.)
   const treeRoot = new TransformNode('nature', scene);
   void loadNaturePrototypes(scene, natPalette).then((protos) => {
     const pick = (keys: readonly string[]): NatureProto[] =>
@@ -673,7 +715,7 @@ export function buildCourse(
     const accents = pickKeyed(theme.accentTreeKeys ?? []);
     const scatter = pick(theme.scatterKeys ?? []);
     const conifers = new Set<string>(CONIFER_KEYS);
-    const bushes = pick(theme.bushKeys ?? BUSH_KEYS);
+    const bushSet = pickKeyed(theme.bushKeys ?? BUSH_KEYS);
     const grasses = pick(GRASS_KEYS);
     const flowers = pick(FLOWER_KEYS);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
@@ -746,8 +788,11 @@ export function buildCourse(
         const surf = engine.surfaceAt(xx, yy);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
-        // Keep tall grass off the mown tee pad (it reads as short, clean turf).
+        // Keep tall grass off the mown tee pad (it reads as short, clean turf)
+        // and out of the tee approach — a tuft right in front of the camera
+        // reads huge at address.
         if (inTeePad(hole, xx, yy)) continue;
+        if (Math.hypot(xx - hole.tee.x, yy - hole.tee.y) < 55) continue;
         const jx = xx + (hash2(xx, yy) - 0.5) * 26;
         const jy = yy + (hash2(yy + 5, xx) - 0.5) * 26;
         if (engine.surfaceAt(jx, jy) !== surf) continue;
@@ -758,8 +803,19 @@ export function buildCourse(
         } else {
           // Longer rough grass, plus the occasional bush/flower — knee-high
           // at most (the golfer is ~6 units; tufts must never read as walls).
-          if (roll < 0.5) place(grasses, jx, jy, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight, 3);
-          else if (roll < 0.55) place(bushes, jx, jy, 3.2 + hash2(jy, jx) * 1.6, 7);
+          // Hard cap: tufts stay knee-high whatever the theme multiplier —
+          // the golfer is ~6 units, tufts "must never read as walls".
+          if (roll < 0.5) place(grasses, jx, jy, Math.min(3.4, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3);
+          else if (roll < 0.55 && bushSet.length) {
+            // Same proto-choice hash place() used (jitter 7) so the classic
+            // bush_a/b courses keep their exact historical layout. Low
+            // sprawlers (juniper: 1.5x0.9 footprint) get a knee-high target —
+            // height-scaling a wide-low mesh to bush height reads as a
+            // fairway-swallowing blob.
+            const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
+            const bh = e.key === 'bush_juniper' ? 1.5 + hash2(jy, jx) * 0.7 : 3.2 + hash2(jy, jx) * 1.6;
+            placeProto(e.proto, jx, jy, bh);
+          }
           else if (roll < 0.59) place(flowers, jx, jy, 1.7 + hash2(jx + 3, jy) * 0.9, 13);
           // Forest-floor props (ferns/stumps/logs/berries) where the theme
           // asks for them — rare, knee-high, visual only (never physics).
