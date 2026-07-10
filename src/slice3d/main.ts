@@ -44,7 +44,7 @@ import {
 } from '../firebase/Tournaments';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
-import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, saveProfile } from '../profile/Profile';
+import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -1850,6 +1850,8 @@ function renderProfile(): void {
     `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
     `<label class="setRow"><span>Reduced motion</span>` +
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+    `<div id="resetZone" class="resetZone">` +
+    `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
     `</div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
@@ -1866,7 +1868,35 @@ function renderProfile(): void {
     p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
     persistProfile();
   });
+  document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
   wireAccountRow();
+}
+
+/** Two-step Reset Records: the button swaps to an explicit confirm/cancel so a
+ *  destructive wipe can't happen on a single tap (Phase 9; restored after the
+ *  profile rework dropped it). Clears stats/scores, keeps coins + purchases. */
+function confirmResetRecords(): void {
+  const zone = document.getElementById('resetZone');
+  if (!zone) return;
+  const sharedNote = isShared() ? ` Scores already posted to the shared leaderboard stay there.` : '';
+  zone.innerHTML =
+    `<div class="resetWarn">Clear career stats, achievements, XP and local scores? ` +
+    `Coins and unlocked items are kept.${sharedNote}</div>` +
+    `<div class="btnRow"><button id="resetYes" class="dangerBtn">Yes, reset</button>` +
+    `<button id="resetNo" class="ghostBtn">Cancel</button></div>`;
+  document.getElementById('resetNo')!.addEventListener('pointerdown', () => renderProfile());
+  document.getElementById('resetYes')!.addEventListener('pointerdown', () => {
+    resetProfileRecords(profile, Date.now());
+    persistProfile();
+    clearLocalHistory();
+    if (signedIn)
+      void cloudSyncProfile(profile).then((res) => {
+        applyCloudMerge(profile, res.profile);
+        showCloudStatus(res.status, true);
+      });
+    renderProfile();
+    updateDailyBanner();
+  });
 }
 
 /** Cloud-account status + sign-in/out on the Profile overlay (account-gated).

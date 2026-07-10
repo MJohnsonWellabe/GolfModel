@@ -22,6 +22,7 @@ test('profile shows the cloud account row when auth is configured', async ({ pag
   await page.waitForSelector('#profileLink');
   await page.evaluate(() => (document.getElementById('profileLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#linkGoogle');
-  await expect(page.locator('#linkGoogle')).toContainText('Link Google');
+  // Signed out the control reads "Sign in with Google"; signed in, "Log out".
+  await expect(page.locator('#linkGoogle')).toContainText('Google');
   await expect(page.locator('#acctStatus')).toBeVisible();
 });
