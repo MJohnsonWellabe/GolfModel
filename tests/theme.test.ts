@@ -16,6 +16,7 @@ describe('theme knobs', () => {
     expect(t.flowerKeys).toBeUndefined(); // falls back to FLOWER_KEYS
     expect(t.lushGrass).toBeUndefined(); // flat unlit grass
     expect(t.edgeWobble).toBeUndefined(); // historical subtle wobble
+    expect(t.stripeStrength).toBeUndefined(); // historical mow-stripe swing
     expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
     expect(t.turfGrainKey).toBeUndefined(); // coded grain(), not a real texture
@@ -41,6 +42,7 @@ describe('theme knobs', () => {
         flowerKeys: ['flower_a', 'flower_b', 'flower_c'],
         lushGrass: true,
         edgeWobble: 2.4,
+        stripeStrength: 1.3,
         cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c'],
         turfGrainKey: 'textures/turf_grain.jpg',
         turfNormalKey: 'textures/turf_normal.jpg',
@@ -61,6 +63,7 @@ describe('theme knobs', () => {
     expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
     expect(t.lushGrass).toBe(true);
     expect(t.edgeWobble).toBe(2.4);
+    expect(t.stripeStrength).toBe(1.3);
     expect(t.cloudKeys).toEqual(['cloud_a', 'cloud_b', 'cloud_c']);
     expect(t.turfGrainKey).toBe('textures/turf_grain.jpg');
     expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');

@@ -312,12 +312,18 @@ export function renderCourseCanvas(
           : 1 + (grain(px, py) - 0.5) * (noiseAmp[cls] / 128);
       // Mow bands: a signed light↔dark brightness swing. Fairway (cls 1) runs on
       // the diagonal; rough/green run along the tee→pin axis. A real photo
-      // texture already carries grain/pattern, so damp the coded stripes to
-      // let it read instead of fighting it.
+      // texture already carries grain/pattern, so damp the coded stripes so the
+      // grain still reads — but only partly (0.7), or the bold reference-style
+      // bands wash out entirely on real-photo courses. theme.stripeStrength
+      // (default 1) then scales the final swing per course for the broadcast look.
       const sw = stripeWidth[cls];
       if (sw > 0) {
         const along = cls === 1 ? wx * dax + wy * day : wx * ax + wy * ay;
-        const contrast = grainVal !== null ? stripeContrast[cls] * 0.4 : stripeContrast[cls];
+        const damp = grainVal !== null ? 0.7 : 1;
+        // stripeStrength boosts the mown ground (fairway/rough) only; greens
+        // stay subtle per the visual bar ("subtle on green").
+        const boost = cls === 2 ? 1 : theme.stripeStrength ?? 1;
+        const contrast = stripeContrast[cls] * damp * boost;
         light *= 1 + Math.sin((along / sw) * Math.PI) * contrast;
       }
       // Tee collar: a darker mown border framing the square pad.

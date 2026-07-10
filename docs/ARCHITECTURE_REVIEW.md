@@ -698,6 +698,12 @@ Graphics 2.0 (post-1B, after playtest feedback):
   bakes to a canvas texture at load — per-texel surface classification with
   grain noise, soft mow stripes along the hole axis, dithered organic edges,
   water ripple banding, and sun-consistent baked tree/building shadows.
+  Real-photo courses only partly damp the coded stripes (0.7, not 0.4) so the
+  bold reference-style bands still read; `theme.stripeStrength` (default 1)
+  then scales the fairway/rough swing per course (Timberline 1.3), while the
+  green stays subtle. Timberline's turf palette is brightened/saturated toward
+  the reference look while keeping rough clearly darker than fairway (the
+  aerial grayscale-separation bar).
 - **Mesh ground** (`core/rendering/GroundMesh.ts`): the perspective ground is
   a frustum-shaped ortho Mesh whose vertices are placed by the game's own
   `Projection` every frame — textured terrain that never lags the camera and
