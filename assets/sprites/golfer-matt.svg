@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
-  <circle cx="48" cy="48" r="44" fill="#4d8fe0"/>
-  <circle cx="48" cy="36" r="14" fill="#f0c8a0"/>
-  <path d="M34 32 Q48 20 62 32 L62 28 Q48 16 34 28 Z" fill="#9ec7f0"/>
-  <rect x="30" y="52" width="36" height="26" rx="8" fill="#2f6bb0"/>
-  <text x="48" y="90" text-anchor="middle" font-family="Arial" font-size="13" fill="#ffffff" font-weight="bold">MATT</text>
-</svg>
