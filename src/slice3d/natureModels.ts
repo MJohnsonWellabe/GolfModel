@@ -101,7 +101,7 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
   const flowerMat = unlit(scene, 'natFlower', 0xe8a8c8);
   const stoneMat = flat(scene, 'natStone', palette.stone);
 
-  const pickMat = (slot: string, key: string): StandardMaterial => {
+  const pickMat = (slot: string, key: string, meshName: string): StandardMaterial => {
     // Card-style props pick by prop key first (their slots are generic)
     if (key.startsWith('grass')) return grassMat;
     if (key.startsWith('flower')) return flowerMat;
@@ -110,6 +110,11 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
     if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
     if (key.startsWith('fern')) return foliageMat;
     if (key.startsWith('bush_berry')) return foliageLightMat;
+    // Conifer glbs ship trunk + foliage as two NODES sharing one needles
+    // material; the SM_-prefixed node is the trunk (verified via bounds).
+    // Keyed to conifers only — the old pack's single nodes are all SM_ENV_*.
+    if ((CONIFER_KEYS as readonly string[]).includes(key))
+      return meshName.startsWith('SM_') ? barkMat : foliageMat;
     const n = slot.toLowerCase();
     if (n.includes('wood')) return barkMat;
     if (n.includes('grass')) return grassMat;
@@ -141,7 +146,7 @@ async function build(scene: Scene, palette: NaturePalette): Promise<Map<string, 
       // avoids the multi-material instancing path.
       const byMat = new Map<string, Mesh[]>();
       raw.forEach((mm) => {
-        const mat = pickMat(mm.material?.name ?? '', key);
+        const mat = pickMat(mm.material?.name ?? '', key, mm.name);
         mm.material = mat;
         const g = byMat.get(mat.name);
         if (g) g.push(mm);

@@ -24,7 +24,7 @@
     "hazeStrength": 0.55,
     "backdrop": "peaks",
     "blossomChance": 0.08,
-    "treeKeys": ["tree_spruce", "tree_spruce_tall", "tree_pine"],
+    "treeKeys": ["tree_spruce", "tree_spruce_tall", "tree_pine", "tree_spruce_tall"],
     "accentTreeKeys": ["tree_birch"],
     "scatterKeys": ["fern_a", "stump_a", "log_a"],
     "backdropTreeStep": 46
@@ -60,17 +60,29 @@
           "polygon": [[418, 688], [450, 684], [458, 650], [446, 616], [414, 620], [402, 652]]
         },
         {
+          "type": "trees",
+          "polygon": [[478, 896], [506, 890], [514, 866], [500, 846], [474, 852], [466, 878]]
+        },
+        {
+          "type": "trees",
+          "polygon": [[404, 486], [432, 480], [440, 456], [426, 438], [400, 444], [392, 470]]
+        },
+        {
+          "type": "trees",
+          "polygon": [[508, 616], [534, 610], [542, 588], [528, 570], [504, 576], [496, 600]]
+        },
+        {
           "type": "bunker",
           "polygon": [[498, 300], [528, 288], [542, 264], [528, 240], [500, 246], [488, 274]]
         },
         {
           "type": "trees",
-          "spacing": 42,
+          "spacing": 38,
           "polygon": [[150, 1080], [258, 1080], [278, 720], [250, 360], [160, 350], [140, 720]]
         },
         {
           "type": "trees",
-          "spacing": 42,
+          "spacing": 38,
           "polygon": [[660, 1080], [770, 1080], [782, 700], [752, 350], [662, 360], [648, 720]]
         }
       ],

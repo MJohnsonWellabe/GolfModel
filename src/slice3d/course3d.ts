@@ -705,8 +705,9 @@ export function buildCourse(
       if (!set.length) return;
       const e = set[Math.floor(hash2(b.x, b.y) * set.length) % set.length];
       // Conifer silhouettes are tall and narrow; at broadleaf target heights
-      // they read squat, so they grow taller from the same canopy radius.
-      const hMul = conifers.has(e.key) ? 2.6 : 2.0;
+      // they read squat, so they grow taller from the same canopy radius —
+      // with per-tree jitter so a pine wall gets a ragged natural skyline.
+      const hMul = conifers.has(e.key) ? 2.3 + hash2(b.x * 1.3, b.y * 2.1) * 0.7 : 2.0;
       placeProto(e.proto, b.x, b.y, Math.max(24, b.r * hMul));
     };
 
