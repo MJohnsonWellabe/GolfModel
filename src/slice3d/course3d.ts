@@ -143,6 +143,10 @@ export interface Course3D {
    * with a real heightfield behind this same seam.
    */
   groundHeightAt: (x: number, y: number) => number;
+  /** Re-point the putt grid + break dots down the golfer→hole line for a putt
+   *  from (ballX, ballY): one lattice axis runs at the cup, the other is the
+   *  90° horizontal — how you read break. Call when a putt is addressed. */
+  orientPuttAids: (ballX: number, ballY: number) => void;
 }
 
 /** Visual raise of the green plateau and the tee platform top (world units). */
@@ -1151,29 +1155,35 @@ export function buildCourse(
   });
 
   // ------------------------------------------------------------- putt grid
-  // EG-signature reading aid: a soft white grid clipped to the green ellipse
+  // Reading aid: a soft white square grid, circular-clipped to cover the green.
+  // Its orientation is DYNAMIC — the scene re-points it down the golfer→hole
+  // line each putt (orientPuttAids) so one axis runs straight at the cup and
+  // the other is the 90° horizontal, which is how you actually read break.
+  // A square mesh + circular clip means re-orienting is just a rotation (no
+  // texture rebuild) and never exposes a corner. The mutable `puttAids.rot` is
+  // shared with the break dots so lines and dots always agree.
   const g = hole.green;
-  const gridW = g.rx * 2 + 12;
-  const gridH = g.ry * 2 + 12;
+  const maxR = Math.max(g.rx, g.ry);
+  const side = maxR * 2 + 12;
+  const puttAids = { rot: g.rot ?? 0 };
   const texW = 1024;
-  const texH = Math.max(256, Math.round((texW * gridH) / gridW));
-  const gridTex = new DynamicTexture('puttGridTex', { width: texW, height: texH }, scene, true);
+  const gridTex = new DynamicTexture('puttGridTex', { width: texW, height: texW }, scene, true);
   const gtx = gridTex.getContext() as CanvasRenderingContext2D;
-  gtx.clearRect(0, 0, texW, texH);
+  gtx.clearRect(0, 0, texW, texW);
   gtx.save();
   gtx.beginPath();
-  gtx.ellipse(texW / 2, texH / 2, (g.rx / gridW) * 2 * texW * 0.5, (g.ry / gridH) * 2 * texH * 0.5, 0, 0, Math.PI * 2);
+  gtx.ellipse(texW / 2, texW / 2, ((maxR + 2) / side) * texW, ((maxR + 2) / side) * texW, 0, 0, Math.PI * 2);
   gtx.clip();
   gtx.strokeStyle = 'rgba(255,255,255,0.42)';
   gtx.lineWidth = 1.5;
-  const stepPx = (4 / gridW) * texW; // one cell ≈ 2 yards
-  for (let x = 0; x <= texW; x += stepPx) {
+  const stepPx = (4 / side) * texW; // one cell ≈ 2 yards
+  for (let x = (texW / 2) % stepPx; x <= texW; x += stepPx) {
     gtx.beginPath();
     gtx.moveTo(x, 0);
-    gtx.lineTo(x, texH);
+    gtx.lineTo(x, texW);
     gtx.stroke();
   }
-  for (let y = 0; y <= texH; y += stepPx) {
+  for (let y = (texW / 2) % stepPx; y <= texW; y += stepPx) {
     gtx.beginPath();
     gtx.moveTo(0, y);
     gtx.lineTo(texW, y);
@@ -1182,15 +1192,14 @@ export function buildCourse(
   gtx.restore();
   gridTex.update(false);
   gridTex.hasAlpha = true;
-  const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: gridW, height: gridH, subdivisions: 24, updatable: true }, scene);
+  const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: side, height: side, subdivisions: 24, updatable: true }, scene);
   puttGrid.position = new Vector3(g.cx, 0, -g.cy);
-  // Match an angled (kidney/oval) green so the clipped grid tracks its shape.
-  if (g.rot) puttGrid.rotation.y = g.rot;
-  {
-    // Conform the grid to the contoured green surface: each vertex floats a
-    // constant skin above groundHeight (terrain + plateau) at its WORLD spot.
-    const rotC = Math.cos(g.rot ?? 0);
-    const rotS = Math.sin(g.rot ?? 0);
+  // Conform the grid to the contoured green surface (each vertex floats a
+  // constant skin above groundHeight at its WORLD spot) — re-run whenever the
+  // grid re-orients so the skin still tracks the green under the rotated lattice.
+  const conformGrid = (rot: number): void => {
+    const rotC = Math.cos(rot);
+    const rotS = Math.sin(rot);
     puttGrid.updateMeshPositions((pos) => {
       for (let i = 0; i < pos.length; i += 3) {
         const lx = pos[i];
@@ -1201,7 +1210,9 @@ export function buildCourse(
         pos[i + 1] = engine.groundAt(wx, wy) + greenLift(wx, wy, hole) + 0.14;
       }
     }, true);
-  }
+  };
+  puttGrid.rotation.y = puttAids.rot;
+  conformGrid(puttAids.rot);
   const gridMat = new StandardMaterial('puttGridMat', scene);
   gridMat.emissiveTexture = gridTex;
   gridMat.opacityTexture = gridTex;
@@ -1212,8 +1223,8 @@ export function buildCourse(
 
   // Break-dot flow field: every dot drifts along the LOCAL breakAccel (the
   // same field the roll integrator uses), speed ∝ break magnitude — so the
-  // aid always agrees with the actual putt. See breakDots.ts.
-  buildBreakDots(scene, hole, engine, puttGrid, (x, y) => engine.groundAt(x, y) + greenLift(x, y, hole));
+  // aid always agrees with the actual putt. Shares puttAids.rot. See breakDots.ts.
+  buildBreakDots(scene, hole, engine, puttGrid, (x, y) => engine.groundAt(x, y) + greenLift(x, y, hole), puttAids);
   // White ring marks the open cup while the pin is pulled. Drawn at the HONEST
   // cup radius (== the physics capture zone) so the target the player aims at is
   // exactly the target that catches the ball — no more "rolled right over the
@@ -1228,15 +1239,18 @@ export function buildCourse(
   cupRingM.disableLighting = true;
   cupRing.material = cupRingM;
   cupRing.scaling.y = 0.05; // squashed flat: reads as painted on the green
+  // Parented to the grid so it hides with it; but its LOCAL offset is
+  // counter-rotated into the (dynamically rotated) grid frame so the ring
+  // stays pinned over the cup no matter which way the grid is oriented.
   cupRing.parent = puttGrid;
-  {
-    // Counter-rotate the world offset into the (possibly rotated) grid frame
-    const rotC = Math.cos(g.rot ?? 0);
-    const rotS = Math.sin(g.rot ?? 0);
+  const placeCupRing = (rot: number): void => {
+    const rotC = Math.cos(rot);
+    const rotS = Math.sin(rot);
     const dx = hole.pin.x - g.cx;
     const dzW = -(hole.pin.y - g.cy);
     cupRing.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.1, rotS * dx + rotC * dzW);
-  }
+  };
+  placeCupRing(puttAids.rot);
 
   return {
     sun,
@@ -1244,6 +1258,15 @@ export function buildCourse(
     pin: [pole, flag],
     puttGrid,
     greenRing,
+    /** Re-point the putt grid + break dots down the golfer→hole line (one axis
+     *  at the cup, the perpendicular for horizontal break). Call each putt. */
+    orientPuttAids: (ballX: number, ballY: number): void => {
+      const rot = Math.atan2(hole.pin.y - ballY, hole.pin.x - ballX);
+      puttAids.rot = rot;
+      puttGrid.rotation.y = rot;
+      conformGrid(rot);
+      placeCupRing(rot);
+    },
     groundHeightAt: (x: number, y: number): number =>
       engine.groundAt(x, y) + (onTeePlatform(x, y, hole) ? TEE_TOP : greenLift(x, y, hole))
   };

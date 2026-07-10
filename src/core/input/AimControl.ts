@@ -113,16 +113,40 @@ export class AimControl {
     return (barPower * this.meterScalePx(ctx)) / this.maxCarryPx(ctx);
   }
 
-  /** Default aim: at the pin, clamped to a full swing with the current club. */
+  /** Default aim: DOWN THE FAIRWAY, not over the trees at the pin. For full
+   *  shots the default points at the next fairway waypoint (the authored route
+   *  the AI follows) so a tee shot on a dogleg aims down the leg, not across
+   *  the corner. Putts still default at the cup. */
   resetAim(ctx: ShotContext): void {
-    this.yaw = angleTo(ctx.ball, this.hole.pin);
+    const aimTarget = this.isPutting ? this.hole.pin : this.nextRoutePoint(ctx.ball);
+    this.yaw = angleTo(ctx.ball, aimTarget);
     const pinDist = dist(ctx.ball, this.hole.pin);
     // Putts default the aim spot AT the cup, so a perfect stroke rolls the
     // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
-    // The player drags the aim past the hole to add pace.
+    // The player drags the aim past the hole to add pace. Full shots keep the
+    // full-carry aim distance (down the fairway line).
     this.distPx = this.isPutting
       ? clamp(pinDist, 1, this.maxCarryPx(ctx))
       : Math.min(pinDist, this.maxCarryPx(ctx));
+  }
+
+  /** The next fairway waypoint ahead of the ball (closer to the pin than the
+   *  ball is): the nearest such `aiTargets` point, or the pin once past them
+   *  all / when a hole authored no route (e.g. a par 3). Keeps the tee aim
+   *  down the fairway instead of straight at a pin hidden behind a dogleg. */
+  private nextRoutePoint(ball: Point): Point {
+    const pinDist = dist(ball, this.hole.pin);
+    let best: Point | null = null;
+    let bestD = Infinity;
+    for (const t of this.hole.aiTargets ?? []) {
+      if (dist(t, this.hole.pin) >= pinDist - 8) continue; // not progress toward the green
+      const d = dist(ball, t);
+      if (d < bestD) {
+        bestD = d;
+        best = t;
+      }
+    }
+    return best ?? this.hole.pin;
   }
 
   /** Pick the sensible club for the current lie and distance. */

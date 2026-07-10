@@ -841,6 +841,14 @@ class HoleScene {
     this.balls.forEach((b) => b.scaling.setAll(this.ballScale));
   }
 
+  /** Show/hide the putt grid, and when putting re-point it (and the break
+   *  dots) down the golfer→hole line so break reads along/across your putt. */
+  private syncPuttGrid(): void {
+    const on = this.aim.isPutting;
+    this.puttGrid.setEnabled(on);
+    if (on) this.course3d.orientPuttAids(this.state.ballPos.x, this.state.ballPos.y);
+  }
+
   beginTurn(): void {
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     if (this.tm.isScramble) {
@@ -876,7 +884,7 @@ class HoleScene {
     this.golfer.setPose(0);
     this.golfer.aiming = true;
     this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
@@ -925,7 +933,14 @@ class HoleScene {
     const bx = this.state.ballPos.x;
     const by = this.state.ballPos.y;
     const span = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
-    const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
+    // Putting: shrink the ball→cup aiming dots (and target ring) so the line is
+    // a fine string of dots, not fat discs that hide the read (playtest). The
+    // moving break-flow dots (breakDots.ts) are a separate mesh, unaffected.
+    const dotScale = this.aerial
+      ? Math.min(9, Math.max(4, span / 120))
+      : this.aim.isPutting
+        ? 0.42
+        : 1;
     // Full shots: the dots/ring/readout mark the CARRY-LANDING (where the ball
     // first touches down, ~320yd for a big-hitter driver) — not the post-rollout
     // resting spot. So the number reads as carry (matches the GDD/expectation)
@@ -1003,7 +1018,7 @@ class HoleScene {
   private cycleClub(dir: number): void {
     if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
     this.aim.cycleClub(dir, this.ctx());
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.course3d.greenRing.setEnabled(!this.aim.isPutting);
     this.setPinPulled(this.aim.isPutting);
     this.armMeter();
@@ -1083,7 +1098,7 @@ class HoleScene {
     this.aim.yaw = decision.aimAngle;
     this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
     this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();

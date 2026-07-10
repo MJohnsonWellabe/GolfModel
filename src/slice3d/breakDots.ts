@@ -60,22 +60,30 @@ export function buildBreakDots(
   hole: HoleData,
   engine: PhysicsEngine,
   puttGrid: Mesh,
-  groundH: (x: number, y: number) => number
+  groundH: (x: number, y: number) => number,
+  /** Shared, mutable lattice orientation (radians). The scene re-points it
+   *  down the golfer→hole line each putt; the dots ride that frame so one axis
+   *  runs at the cup and the other is the horizontal (course3d.orientPuttAids). */
+  orient: { rot: number } = { rot: hole.green.rot ?? 0 }
 ): void {
   const g = hole.green;
-  const rot = g.rot ?? 0;
-  const rotC = Math.cos(rot);
-  const rotS = Math.sin(rot);
-  const halfW = g.rx + 6; // grid spans 2rx+12 x 2ry+12, like the texture
-  const halfH = g.ry + 6;
+  // Square lattice covering the green; the aim frame is generally NOT aligned
+  // with the green ellipse, so coverage/clipping uses a true ellipse test
+  // (insideGreen) rather than an axis-aligned chord.
+  const maxR = Math.max(g.rx, g.ry);
+  const half = maxR + 6;
   const count = Math.max(150, Math.min(350, Math.round((Math.PI * g.rx * g.ry) / 40)));
-
-  // Ellipse chord half-length along the FREE axis at a fixed line coordinate,
-  // pulled slightly inside the fringe edge. Grid frame == green frame, so the
-  // ellipse is axis-aligned here.
-  const chord = (fixed: number, fixedR: number, freeR: number): number => {
-    const t = fixed / fixedR;
-    return t * t >= 1 ? 0 : (freeR - 2) * Math.sqrt(1 - t * t);
+  const greenC = Math.cos(g.rot ?? 0);
+  const greenS = Math.sin(g.rot ?? 0);
+  // Is a world point inside the green (slightly inset from the fringe edge)?
+  const insideGreen = (wx: number, wy: number): boolean => {
+    const dx = wx - g.cx;
+    const dy = wy - g.cy;
+    const lx = greenC * dx + greenS * dy; // rotate into the green's own frame
+    const ly = -greenS * dx + greenC * dy;
+    const rx = g.rx - 2;
+    const ry = g.ry - 2;
+    return (lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) <= 1;
   };
 
   // Soft round sprite shared by every dot.
@@ -118,12 +126,31 @@ export function buildBreakDots(
   const fixed = new Float32Array(count); // the line coordinate (on the lattice)
   const free = new Float32Array(count); // position along the line
   const phase = new Float32Array(count);
+  // World position of a lattice point (fixed line coord + free offset) in the
+  // CURRENT (dynamic) frame.
+  const toWorld = (onX: boolean, lineCoord: number, along: number, rc: number, rs: number): [number, number] => {
+    const lx = onX ? along : lineCoord;
+    const ly = onX ? lineCoord : along;
+    return [g.cx + rc * lx - rs * ly, g.cy + rs * lx + rc * ly];
+  };
   const spawn = (i: number, seq: number): void => {
     const onX = i % 2 === 0;
-    const lineCoord = lineLattice(onX ? halfH : halfW, hash2(seq * 12.9 + i, i * 3.7));
-    const c = chord(lineCoord, onX ? g.ry : g.rx, onX ? g.rx : g.ry);
+    const lineCoord = lineLattice(half, hash2(seq * 12.9 + i, i * 3.7));
     fixed[i] = lineCoord;
-    free[i] = (hash2(i * 7.1, seq * 5.3 + i) * 2 - 1) * c;
+    const rc = Math.cos(orient.rot);
+    const rs = Math.sin(orient.rot);
+    // Reject-sample a spot along the line that actually lands on the green
+    // (the lattice axis isn't aligned with the ellipse, so no closed-form chord).
+    let f = 0;
+    for (let tryN = 0; tryN < 8; tryN++) {
+      const cand = (hash2(i * 7.1 + tryN * 2.3, seq * 5.3 + i) * 2 - 1) * half;
+      const [wx, wy] = toWorld(onX, lineCoord, cand, rc, rs);
+      if (insideGreen(wx, wy)) {
+        f = cand;
+        break;
+      }
+    }
+    free[i] = f;
   };
   for (let i = 0; i < count; i++) {
     spawn(i, 0);
@@ -138,12 +165,12 @@ export function buildBreakDots(
     if (!on) return;
     if (isFrozen() && primed) return;
     const dt = isFrozen() ? 0 : scene.getEngine().getDeltaTime() / 1000;
+    const rot = orient.rot;
+    const rotC = Math.cos(rot);
+    const rotS = Math.sin(rot);
     for (let i = 0; i < count; i++) {
       const onX = i % 2 === 0;
-      const lx = onX ? free[i] : fixed[i];
-      const ly = onX ? fixed[i] : free[i];
-      const wx = g.cx + rotC * lx - rotS * ly;
-      const wy = g.cy + rotS * lx + rotC * ly;
+      const [wx, wy] = toWorld(onX, fixed[i], free[i], rotC, rotS);
       const a = engine.breakAccel(wx, wy);
       const m = Math.hypot(a.ax, a.ay);
       let align = 0;
@@ -157,15 +184,11 @@ export function buildBreakDots(
         free[i] += (comp / m) * dotSpeed(m) * dt;
       }
       phase[i] += dt;
-      const bound = chord(fixed[i], onX ? g.ry : g.rx, onX ? g.rx : g.ry);
-      if (phase[i] >= LIFE || bound === 0 || Math.abs(free[i]) > bound) {
+      if (phase[i] >= LIFE || !insideGreen(wx, wy)) {
         spawn(i, respawnSeq++);
         phase[i] = 0;
       }
-      const plx = onX ? free[i] : fixed[i];
-      const ply = onX ? fixed[i] : free[i];
-      const pwx = g.cx + rotC * plx - rotS * ply;
-      const pwy = g.cy + rotS * plx + rotC * ply;
+      const [pwx, pwy] = toWorld(onX, fixed[i], free[i], rotC, rotS);
       const dot = sps.particles[i];
       dot.position.set(pwx, groundH(pwx, pwy) + 0.18, -pwy);
       // 20% fade in/out over the dot's life so respawns never pop; lines
