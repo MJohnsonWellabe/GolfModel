@@ -8,6 +8,47 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+3): forest pack integrated, store confirm, all-course records
+
+- **Second nature pack integrated.** The raw Unity FBX upload (named species
+  trees, deadwood, bushes, clouds, terrain grass textures) moved out of the
+  served `assets/` tree into `asset-packs/forest-nature-fbx/` (provenance
+  README; Unity `.meta`/`.terrainlayer` litter and a byte-dup of the
+  fantastic-nature zip deleted). `scripts/convert-nature.mjs`
+  (`npm run convert:nature`; FBX2glTF + @gltf-transform LOD0-only/weld/
+  simplify/prune) emits 13 committed glbs: 6 broadleaf trees, 3 conifers,
+  stump/log/fern/berry. Cloud meshes deferred (they'd fight the gradient-sky
+  + baked-backdrop system). `natureModels.pickMat` maps the pack's slots
+  (`*Leavse*`/`Leaves_For_*` → foliage; `MainMaterial`/`Tree`/`AspenTexture`
+  → bark; floor props by key).
+- **Species are per-course art; density is course data.** CourseTheme grew
+  optional `treeKeys`/`accentTreeKeys`/`scatterKeys`/`backdropTreeStep`;
+  Timberline is now a conifer forest (birch accents, fern/stump/log floor,
+  denser backdrop), Wildwood a broadleaf parkland (fern/berry floor), Sable
+  Bay unchanged. Woods density moved to the trees hazard itself —
+  `Hazard.spacing` (default 52) read by `collectTreeBlobs`, so physics,
+  baked shadows and props stay in lockstep; Timberline's six flanking woods
+  author 42 (never the driving line — Course Bible fairness rule +
+  `tests/treeField.test.ts`). Conifers plant at 2.6× canopy radius so the
+  tall-narrow silhouettes read right. All 14 course baselines regenerated.
+- **Store purchases confirm first.** Tapping an unowned, affordable item
+  arms a "Spend X 🪙 now?" panel (`pendingBuy` in `renderStore`); Buy runs
+  the existing StoreEngine + persist + quiet cloud-sync path, Cancel spends
+  nothing, leaving the store disarms. Equip stays one-tap. Spec drives
+  guarded/cancel/confirm via a new `__grantCoins` test hook.
+- **Records shows every course.** `renderRecords` was pinned to
+  `round.course` (defaults Wildwood; only changes when a round starts). Now
+  a tab per course re-filters one `fetchAllRounds()` result; tabs are live
+  while the fetch is in flight. New `records.spec.ts`.
+- **Restored two regressions from the recent upload commits:** the Phase 9
+  Reset Records control (two-step confirm — helpers had survived, the UI
+  and CSS hadn't) and the stale `Link Google` label assertion in
+  `profile.spec.ts` (button reads "Sign in with Google" signed-out).
+- **Still open / deferred:** cloud meshes, Chopped/Damaged tree variants and
+  remaining bushes (all in the pack, unconverted); downscaling the pack's
+  ~33MB grass albedo/normal PNGs into tiling turf detail textures (art doc's
+  multi-scale-detail item); `main.ts` split remains the top debt item.
+
 # Update — 2026-07-09 (latest+2): cap topspin (drives ran to 440+)
 
 - **Topspin is now capped.** `applySwipeSpin` (`main.ts`) was explicitly UNCAPPED,
