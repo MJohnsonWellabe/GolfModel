@@ -1314,6 +1314,30 @@
         color: #7fbf8c;
         margin: 4px 0 18px;
       }
+      /* Course tabs — Records covers every course, not just the last played */
+      .recTabs {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: 10px 0 16px;
+      }
+      .recTab {
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cfe3ca;
+        font-size: 13px;
+        font-weight: 700;
+        min-height: 40px;
+        cursor: pointer;
+      }
+      .recTab.sel {
+        border-color: #ffd54f;
+        background: rgba(255, 213, 79, 0.14);
+        color: #ffe28a;
+      }
       .recList {
         display: flex;
         flex-direction: column;

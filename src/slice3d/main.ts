@@ -2066,22 +2066,38 @@ function renderStore(): void {
   });
 }
 
-/** Records / leaderboard overlay: top rounds for the current course + mode. */
+/** Course whose records are open in the overlay (defaults to the round's). */
+let recCourseId: string | null = null;
+
+/** Records / leaderboard overlay: top rounds per course (tabs) + mode. */
 async function renderRecords(): Promise<void> {
   recordsEl.style.display = 'flex';
+  if (!recCourseId || !COURSES[recCourseId]) recCourseId = courseIdByName(round.course.name);
+  const tabs = COURSE_LIST.map(
+    (c) =>
+      `<button class="recTab${c.id === recCourseId ? ' sel' : ''}" data-course="${c.id}">` +
+      `${c.icon} ${COURSES[c.id].name}</button>`
+  ).join('');
   recordsEl.innerHTML =
     `<div class="recInner"><h2>Records</h2>` +
-    `<div class="recSub">${round.course.name}</div>` +
+    `<div class="recTabs">${tabs}</div>` +
     `<div id="recList" class="recList">Loading…</div>` +
     `<div id="recFoot" class="recFoot"></div>` +
     `<button id="recBack">Back</button></div>`;
   document.getElementById('recBack')!.addEventListener('pointerdown', () => {
     recordsEl.style.display = 'none';
   });
-  const { rounds, shared } = await fetchAllRounds();
-  const best = bestRounds(rounds, round.course.name, round.mode, 5);
-  const listEl = document.getElementById('recList');
-  if (listEl) {
+  // One fetch covers every course; the tabs just re-filter the list. Tabs are
+  // live immediately — while the fetch is in flight they show "Loading…".
+  let data: Awaited<ReturnType<typeof fetchAllRounds>>['rounds'] | null = null;
+  const fill = (): void => {
+    const listEl = document.getElementById('recList');
+    if (!listEl) return;
+    if (!data) {
+      listEl.innerHTML = 'Loading…';
+      return;
+    }
+    const best = bestRounds(data, COURSES[recCourseId!].name, round.mode, 5);
     listEl.innerHTML = best.length
       ? best
           .map((r, i) => {
@@ -2096,7 +2112,17 @@ async function renderRecords(): Promise<void> {
           })
           .join('')
       : `<div class="recEmpty">No rounds yet — play one!</div>`;
-  }
+  };
+  recordsEl.querySelectorAll('.recTab').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      recCourseId = (el as HTMLElement).dataset.course!;
+      recordsEl.querySelectorAll('.recTab').forEach((t) => t.classList.toggle('sel', t === el));
+      fill();
+    })
+  );
+  const { rounds, shared } = await fetchAllRounds();
+  data = rounds;
+  fill();
   const foot = document.getElementById('recFoot');
   if (foot) foot.textContent = shared ? '🌐 Shared leaderboard' : '📱 This device only';
 }
