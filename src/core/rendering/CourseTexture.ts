@@ -361,14 +361,15 @@ export function renderCourseCanvas(
   }
   ctx.putImageData(img, 0, 0);
 
-  // Baked contact AO: a soft dark seam around dug features (bunkers, ponds)
-  // grounds them in the turf instead of reading as painted patches.
+  // Baked contact AO: a soft dark seam around ponds grounds them in the turf.
+  // Bunkers are DELIBERATELY excluded (playtest: "get rid of the outlines
+  // around the bunkers") — they read as plain sand with no dark rim.
   ctx.save();
   ctx.filter = 'blur(5px)';
   ctx.strokeStyle = 'rgba(8, 22, 10, 0.34)';
   ctx.lineWidth = 8 * scale;
   for (const hz of hole.hazards) {
-    if (hz.type !== 'bunker' && hz.type !== 'water') continue;
+    if (hz.type !== 'water') continue;
     ctx.beginPath();
     hz.polygon.forEach(([x, y], i) => {
       const sx = (x + pad) * scale;

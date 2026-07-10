@@ -445,31 +445,10 @@ export function buildCourse(
     }
   }
 
-  // ------------------------------------------------------------ bunker lips
-  // Raised sand lips trace each bunker outline so traps read as dug features,
-  // not painted patches (full dished terrain arrives with the heightfield).
-  {
-    // Sculpted courses (sandSculpt > 0) get a slimmer, warmer sun-dried crest
-    // that hugs the ripple-textured sand instead of reading as bright piping;
-    // the flat painted-disc courses keep the historical light-sand tube.
-    const sculpted = (theme.sandSculpt ?? 0) > 0;
-    const lipTint = sculpted ? theme.sandDark : shade(theme.sand, 1.12);
-    const lipMat = mat(scene, 'bunkerLip', lipTint, { spec: 0.05 });
-    let bi = 0;
-    for (const hz of hole.hazards) {
-      if (hz.type !== 'bunker') continue;
-      const path = [...hz.polygon, hz.polygon[0]].map(([x, y]) =>
-        w2b(x, y, (sculpted ? 0.1 : 0.18) + Math.max(engine.groundAt(x, y), greenLift(x, y, hole)))
-      );
-      const lip = MeshBuilder.CreateTube(
-        `bunkerLip${bi++}`,
-        { path, radius: sculpted ? 0.62 : 1.0, tessellation: 8 },
-        scene
-      );
-      lip.material = lipMat;
-      lip.receiveShadows = true;
-    }
-  }
+  // Bunkers are drawn as plain painted sand (ripple texture + subtle dish in
+  // the bake) — no raised lip tube and no dark AO ring (both removed on
+  // playtest feedback: "get rid of the outlines around the bunkers"). A ball
+  // that lands in one plugs dead (PhysicsEngine), so they read as simple sand.
 
   // ------------------------------------------------------------------ water
   // Art bible: water should be "one of the prettiest parts of every course" —
