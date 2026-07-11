@@ -1,5 +1,5 @@
 import { CourseData, HoleData, Polygon } from '../core/types';
-import { catmullRom, offsetPolyline } from '../utils/Geometry';
+import { catmullRom, offsetPolyline, roundPolygon } from '../utils/Geometry';
 
 /**
  * Course authoring format (schema v2) → runtime `CourseData` compiler.
@@ -36,6 +36,10 @@ export type CourseAuthoring = Omit<CourseData, 'holes'> & {
 /** Samples per centerline segment — plenty for organic edges, cheap to bake. */
 const RIBBON_SAMPLES = 9;
 
+/** Chaikin passes applied to every bunker outline — soft rounded sand edges as
+ *  a general rule for all courses (authored bunkers are sharp-cornered polys). */
+const BUNKER_ROUND_ITERATIONS = 2;
+
 function isRibbon(f: FairwaySpec): f is FairwayRibbon {
   return !Array.isArray(f);
 }
@@ -61,7 +65,13 @@ export function loadCourse(data: CourseAuthoring): CourseData {
     ...data,
     holes: data.holes.map((h) => ({
       ...h,
-      fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f))
+      fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f)),
+      // Round every bunker outline once, here at the single compile choke point,
+      // so physics (surfaceAt), the texture bake and the 3D scatter all read the
+      // same soft-edged ring — the sand drawn and the sand played can't diverge.
+      hazards: h.hazards.map((hz) =>
+        hz.type === 'bunker' ? { ...hz, polygon: roundPolygon(hz.polygon, BUNKER_ROUND_ITERATIONS) } : hz
+      )
     }))
   };
 }

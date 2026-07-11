@@ -372,7 +372,7 @@ export function renderCourseCanvas(
           ? sampleGrassGrain(theme.sandGrainKey, wx, wy, theme.sandGrainTile ?? 18)
           : null;
         if (sandGrain !== null) {
-          light *= 1 + (sandGrain - 0.5) * 0.55;
+          light *= 1 + (sandGrain - 0.5) * 0.42;
         } else {
           light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
           if (sculpt > 0) {
@@ -538,7 +538,7 @@ export function renderGreenPatch(
           ? sampleGrassGrain(theme.sandGrainKey, wx, wy, theme.sandGrainTile ?? 18)
           : null;
         if (sandGrain !== null) {
-          light *= 1 + (sandGrain - 0.5) * 0.55;
+          light *= 1 + (sandGrain - 0.5) * 0.42;
         } else if (sculpt > 0) {
           light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
           light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;

@@ -97,6 +97,34 @@ export function catmullRom(points: number[][], samplesPerSeg = 8): number[][] {
 }
 
 /**
+ * Chaikin corner-cutting on a CLOSED ring: each pass replaces every vertex with
+ * two points a quarter in from its neighbours along the adjoining edges. Sharp
+ * corners round off while the polygon's overall form — and its concavities (a
+ * crescent bunker stays a crescent) — are preserved, because the cut is purely
+ * local and never references a centroid. `iterations` sets the roundness
+ * (2 ≈ soft rounded corners; more = rounder + smaller). Deterministic and
+ * cheap, so the physics point-in-polygon test and the texture bake can share
+ * the same rounded ring with no chance of the sand drawn and the sand played
+ * disagreeing.
+ */
+export function roundPolygon(poly: Polygon, iterations = 2): Polygon {
+  if (poly.length < 3) return poly.map((p) => [...p]);
+  let ring: number[][] = poly.map((p) => [p[0], p[1]]);
+  for (let it = 0; it < iterations; it++) {
+    const n = ring.length;
+    const next: number[][] = [];
+    for (let i = 0; i < n; i++) {
+      const a = ring[i];
+      const b = ring[(i + 1) % n];
+      next.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+      next.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+    }
+    ring = next;
+  }
+  return ring;
+}
+
+/**
  * Offset an open polyline by per-point half-widths on both sides and join
  * the two edges into one closed polygon (a ribbon). Normals average the
  * adjacent segment directions so joints stay smooth.

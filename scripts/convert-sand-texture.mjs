@@ -5,9 +5,14 @@
 // re-centered on its mean (grassTexture.ts), so the tile is prepared as
 // detail, not as a picture:
 //
-//  1. High-pass: subtract a heavy blur, re-center on mid-grey. Kills the
-//     window's large soft light gradient — the thing that made naive tiling
-//     (and mirror mosaics) read as an obvious kaleidoscope on screen.
+//  1. Gentle high-pass: subtract a WIDE blur, re-center on mid-grey. A wide
+//     blur radius only removes the window's very-low-frequency light gradient
+//     (the thing that made naive tiling read as an obvious kaleidoscope) while
+//     LEAVING the soft mid-scale wind ripples intact — those are the "small
+//     ripples, color variation" the art bible asks for. The old pass used a
+//     tight blur + 3.5x gain, which subtracted the ripples too and amplified
+//     only the finest micro-noise, so the sand read as flat grey fabric weave
+//     rather than soft dunes. A wide blur + modest gain keeps it calm and sandy.
 //  2. Torus blend: crossfade the border zone with a half-and-half circular
 //     shift of the image so the wrap edges match exactly.
 //
@@ -24,21 +29,36 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(root, 'asset-packs', 'unity-terrain-textures', 'Desert_stones.PNG');
 const OUT = path.join(root, 'assets', 'textures', 'sand_ripple.jpg');
 
-// The one clean vertical strip between the painting's rock clusters (verified
-// by eye: everything outside this window has a stone in frame).
-const CROP = { left: 600, top: 555, width: 160, height: 185 };
+// A clean rock-free patch of the painting's upper-left sand, chosen by eye for
+// its soft flowing wind ripples and even tone (no stone anywhere in frame).
+const CROP = { left: 30, top: 300, width: 150, height: 150 };
 const SIZE = 512;
 /** Border crossfade width for the torus blend, in output pixels. */
 const MARGIN = 64;
+/** Pre-blur radius: erases the source painting's fine paint-dither micro-grid
+ *  BEFORE the high-pass, so that grid isn't the thing amplified. Without it the
+ *  high-pass boosts the tiny grid (a hard weave) and leaves the soft ripples
+ *  faint — the sand ends up reading as grey fabric. */
+const PRE_BLUR = 3;
+/** High-pass blur radius: WIDE — wider than a ripple (~200px in the upscaled
+ *  tile) — so only the broad light gradient is subtracted and the soft ripples
+ *  survive at near-full contrast (a tight blur would subtract them too). */
+const HP_BLUR = 150;
+/** High-pass gain: modest, for a subtle calm grain (not a harsh weave). */
+const HP_GAIN = 1.4;
 
-const base = sharp(SRC).extract(CROP).resize(SIZE, SIZE, { fit: 'fill' });
+// removeAlpha: the source PNG decodes as RGBA. Without dropping the (constant,
+// opaque) alpha channel the high-pass below would drive it to mid-grey (128 =
+// half-transparent) and the 3-channel torus blend would mis-index the RGBA
+// bytes — which is exactly what flattened the old tile into grey fabric.
+const base = sharp(SRC).extract(CROP).resize(SIZE, SIZE, { fit: 'fill' }).removeAlpha().blur(PRE_BLUR);
 const sharpPx = await base.clone().raw().toBuffer();
-const blurPx = await base.clone().blur(24).raw().toBuffer();
+const blurPx = await base.clone().blur(HP_BLUR).raw().toBuffer();
 
-// 1. High-pass around mid-grey, amplified back to a healthy detail range.
+// 1. Gentle high-pass around mid-grey: keep the soft ripples, drop the gradient.
 const hp = Buffer.alloc(sharpPx.length);
 for (let i = 0; i < sharpPx.length; i++) {
-  hp[i] = Math.max(0, Math.min(255, 128 + (sharpPx[i] - blurPx[i]) * 3.5));
+  hp[i] = Math.max(0, Math.min(255, 128 + (sharpPx[i] - blurPx[i]) * HP_GAIN));
 }
 
 // 2. Torus blend: near the borders, crossfade into a (W/2, H/2) circular
