@@ -1110,7 +1110,7 @@
         },
         {
           "type": "trees",
-          "spacing": 40,
+          "spacing": 24,
           "visualSpacing": 26,
           "polygon": [
             [
