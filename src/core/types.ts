@@ -226,6 +226,9 @@ export interface HoleData {
   hazards: Hazard[];
   /** Decorative flower beds (no collision) — see GardenBed. */
   gardens?: GardenBed[];
+  /** Number of decorative sailboats to scatter on the sea behind the green
+   *  (sea-backdrop holes only, e.g. Sable Bay's island green). No collision. */
+  sailboats?: number;
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */

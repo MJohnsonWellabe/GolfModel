@@ -559,7 +559,10 @@ export function buildCourse(
     const colors: number[] = [];
     const uvs: number[] = [cx / 90, cy / 90];
     const deep = c3(theme.waterDeep);
-    const shore = c3(shade(theme.water, 1.35));
+    // Shore edge: a subtly DARKER, more opaque band (like the bank shadow real
+    // water carries at its edge), not the old lightened translucent ring that
+    // read as a weird light-blue halo on narrow creeks (Wildwood h1).
+    const shore = c3(shade(theme.water, 0.9));
     colors.push(deep.r, deep.g, deep.b, 0.94);
     const ring = hz.polygon;
     const n = ring.length;
@@ -575,7 +578,7 @@ export function buildCourse(
     for (const [x, y] of ring) {
       positions.push(x, level, -y);
       uvs.push(x / 90, y / 90);
-      colors.push(shore.r, shore.g, shore.b, 0.45); // soft shore fade
+      colors.push(shore.r, shore.g, shore.b, 0.72); // firm, slightly-darker shoreline
     }
     const indices: number[] = [];
     for (let i = 0; i < n; i++) {
@@ -931,6 +934,50 @@ export function buildCourse(
         );
         d.material = duneMat;
         d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
+      }
+    }
+    // Decorative sailboats on the open sea behind the green (hole.sailboats). A
+    // dark low hull, a thin mast, and a double-sided triangular sail — sized to
+    // read as distant boats, parked a few hundred yards past the pin on the water.
+    if (hole.sailboats && hole.sailboats > 0) {
+      const hullMat = mat(scene, 'boatHull', 0x3a4756, { emissive: 0x1c2530 });
+      const sailMat = mat(scene, 'boatSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
+      const mastMat = mat(scene, 'boatMast', 0x8a6a45);
+      for (let i = 0; i < hole.sailboats; i++) {
+        const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
+        const sc = 18 + ((i * 37) % 8); // sail height in world units (~18-24)
+        const bx = hole.pin.x + (t - 0.5) * 1500 + ((i * 53) % 120) - 60;
+        const by = hole.pin.y - 640 - ((i * 71) % 300);
+        const yaw = (((i * 41) % 100) / 100) * Math.PI * 2;
+        const boat = new TransformNode(`boat${i}`, scene);
+        boat.position = w2b(bx, by, 0.35);
+        boat.rotation = new Vector3(0, yaw, 0);
+        const hull = MeshBuilder.CreateBox(
+          `boatHull${i}`,
+          { width: 0.95 * sc, height: 0.18 * sc, depth: 0.34 * sc },
+          scene
+        );
+        hull.material = hullMat;
+        hull.position = new Vector3(0, 0.09 * sc, 0);
+        hull.parent = boat;
+        const mast = MeshBuilder.CreateCylinder(
+          `boatMast${i}`,
+          { diameter: 0.035 * sc, height: 1.08 * sc, tessellation: 5 },
+          scene
+        );
+        mast.material = mastMat;
+        mast.position = new Vector3(0, 0.6 * sc, 0);
+        mast.parent = boat;
+        const sail = new Mesh(`boatSail${i}`, scene);
+        const svd = new VertexData();
+        svd.positions = [0.02 * sc, 0.16 * sc, 0, 0.02 * sc, sc, 0, 0.62 * sc, 0.2 * sc, 0];
+        svd.indices = [0, 1, 2, 0, 2, 1]; // double-sided triangle
+        const snorm: number[] = [];
+        VertexData.ComputeNormals(svd.positions, svd.indices, snorm);
+        svd.normals = snorm;
+        svd.applyToMesh(sail);
+        sail.material = sailMat;
+        sail.parent = boat;
       }
     }
   } else if (theme.backdrop === 'none') {
