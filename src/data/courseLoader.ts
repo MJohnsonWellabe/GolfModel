@@ -1,5 +1,15 @@
 import { CourseData, HoleData, Polygon } from '../core/types';
-import { catmullRom, offsetPolyline, roundPolygon } from '../utils/Geometry';
+import { catmullRom, clipPolyOffGreen, offsetPolyline, roundPolygon } from '../utils/Geometry';
+import { FRINGE_VISUAL } from '../systems/PhysicsEngine';
+
+/**
+ * Bunkers that run under the green get sliced flat along the green's rim (the
+ * green wins surface precedence). Carve their green-facing edge back to hug the
+ * collar so they read as natural sand ending BEFORE the green. Gated to one
+ * representative hole for a look-approval before it goes universal.
+ * TODO(pass6): once approved, drop the gate and clip every hole's bunkers.
+ */
+const BUNKER_CLIP_HOLES: Array<{ course: string; hole: number }> = [{ course: 'Wildwood Glen', hole: 3 }];
 
 /**
  * Course authoring format (schema v2) → runtime `CourseData` compiler.
@@ -78,9 +88,12 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       // Round every bunker outline once, here at the single compile choke point,
       // so physics (surfaceAt), the texture bake and the 3D scatter all read the
       // same soft-edged ring — the sand drawn and the sand played can't diverge.
-      hazards: h.hazards.map((hz) =>
-        hz.type === 'bunker' ? { ...hz, polygon: roundPolygon(hz.polygon, BUNKER_ROUND_ITERATIONS) } : hz
-      )
+      hazards: h.hazards.map((hz) => {
+        if (hz.type !== 'bunker') return hz;
+        const clip = BUNKER_CLIP_HOLES.some((t) => t.course === data.name && t.hole === h.number);
+        const base = clip ? clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL) : hz.polygon;
+        return { ...hz, polygon: roundPolygon(base, BUNKER_ROUND_ITERATIONS) };
+      })
       };
     })
   };

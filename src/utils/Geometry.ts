@@ -83,6 +83,36 @@ export function pointInGreen(x: number, y: number, e: EllipseArea, margin = 0): 
   return dx * dx + dy * dy <= w * w;
 }
 
+/**
+ * Push any polygon vertex that sits on the green + collar radially outward to
+ * just past that boundary, so a bunker whose authored outline runs under the
+ * green stops SHORT of it with its own organic edge — instead of being sliced
+ * flat along the green's rim (the green wins the surface precedence, so the
+ * overlap reads as a hard straight cut). Vertices already clear of the green are
+ * untouched, so the bunker keeps its Chaikin-rounded shape and only the
+ * green-facing edge is carved back to hug the collar. Deterministic; run at load
+ * (courseLoader) so physics, the albedo bake and the 3D sand all agree.
+ */
+export function clipPolyOffGreen(poly: Polygon, green: EllipseArea, margin: number, gap = 3): Polygon {
+  return poly.map(([x, y]) => {
+    if (!pointInGreen(x, y, green, margin)) return [x, y];
+    const dx = x - green.cx;
+    const dy = y - green.cy;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len;
+    const uy = dy / len;
+    // Binary-search the boundary distance along the ray from the green centre.
+    let lo = 0;
+    let hi = (Math.max(green.rx, green.ry) + margin) * 1.6 + 40;
+    for (let i = 0; i < 26; i++) {
+      const mid = (lo + hi) / 2;
+      if (pointInGreen(green.cx + ux * mid, green.cy + uy * mid, green, margin)) lo = mid;
+      else hi = mid;
+    }
+    return [green.cx + ux * (hi + gap), green.cy + uy * (hi + gap)];
+  });
+}
+
 export function dist(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
