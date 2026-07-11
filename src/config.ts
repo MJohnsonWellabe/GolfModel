@@ -224,8 +224,16 @@ export const PHYSICS = {
    *  must NOT curve the ball in the air — a fade/draw flies straight and only
    *  breaks sideways when it bites the green (like a real ball). Sized so a
    *  full-spin wedge releases a few yards to its shape on the bounce.
-   *  Trimmed ~25% (playtest: side spin on the green was too strong). */
-  sideSpinKick: 45,
+   *  Applies to the IN-FLIGHT SWIPE spin only (the pre-shot shape curves the
+   *  air instead — shapeCurveAccel). Playtest-tuned: 60 was too strong, 45 too
+   *  soft after the swipe/shape split. */
+  sideSpinKick: 55,
+  /** In-air lateral acceleration (px/s²) at full strike-pad shape, before the
+   *  per-club spinEffectiveness scaling — the deterministic draw/fade curve.
+   *  Flights in this px-scaled world last well under a second, so this reads
+   *  large; sized so a full-shape mid-iron bends ~10-14yd across its flight
+   *  (driver ~8, wedge ~15 — locked by tests/spin.test.ts). */
+  shapeCurveAccel: 120,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */

@@ -554,7 +554,8 @@ class HoleScene {
       ball: this.state.ballPos,
       lie: this.state.lie,
       golfer: this.curPart().golfer,
-      fireBoost: this.fires[this.turnIdx].statBoost
+      fireBoost: this.fires[this.turnIdx].statBoost,
+      strokes: this.state.strokes
     };
   }
 
@@ -1009,18 +1010,14 @@ class HoleScene {
     const target =
       this.aim.isPutting || landIdx < 0 ? this.aim.aimPoint(this.state.ballPos) : path![landIdx];
     const curved = !this.aim.isPutting && landIdx > 4;
-    // Shot shape now breaks the ball ON the green bounce (the air path is
-    // straight), so to preview a draw/fade the dots must trace PAST carry-landing
-    // into the on-green release where the curve actually is. Only when a side
-    // shape is dialed in; the ring/readout stay at carry distance either way.
-    const shaped = !this.aim.isPutting && this.strike.shapeSpin.side !== 0;
-    const dotsEndIdx = shaped && landIdx >= 0 && path ? path.length - 1 : landIdx;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
       let dx: number;
       let dy: number;
       if (curved) {
-        const p = path![Math.min(dotsEndIdx, Math.round(f * dotsEndIdx))];
+        // The strike shape curves the AIR path, so tracing to carry-landing
+        // shows the draw/fade bend directly.
+        const p = path![Math.min(landIdx, Math.round(f * landIdx))];
         dx = p.x;
         dy = p.y;
       } else {
@@ -1245,15 +1242,17 @@ class HoleScene {
       : { ...swing, power: this.aim.barToPhysicsPower(swing.power, this.ctx()) };
     // Shot shaping applies to full shots only; resolve + integrate separately
     // so mid-flight swipes can re-shape the same resolved launch. The player's
-    // pre-shot spin is the strike SHAPE (a fixed draw/fade); more spin is
-    // added in-flight by swiping. The AI's spin comes from its decision.
+    // pre-shot SHAPE (strike-pad draw/fade) rides ON the launch and curves the
+    // ball in the air; the live spin channel starts empty and carries only the
+    // in-flight SWIPE (which kicks on landing) plus any top spin.
     const shaping = !this.aim.isPutting;
-    const spin = !shaping
+    const shape = !shaping
       ? { side: 0, top: 0 }
       : this.ai
         ? { ...(this.aiSpin ?? { side: 0, top: 0 }) }
         : { ...this.strike.shapeSpin };
-    const launchMult = !shaping ? 1 : this.ai ? 1 - spin.top * 0.18 : this.strike.launchMult;
+    const launchMult = !shaping ? 1 : this.ai ? 1 - shape.top * 0.18 : this.strike.launchMult;
+    const spin = { side: 0, top: shape.top };
     const launch = this.engine2d.resolveLaunch({
       origin: this.state.ballPos,
       aimAngle: this.aim.yaw,
@@ -1264,6 +1263,7 @@ class HoleScene {
       lie: this.state.lie,
       wind: this.wind,
       hole: this.hole,
+      spin: shape,
       launchMult,
       riskMult: shaping && !this.ai ? this.strike.riskMult : 1,
       // Pre-shot stroke count (0 = tee shot) → recovery shots get a more
@@ -1516,6 +1516,14 @@ class HoleScene {
         this.swipeLast = { x: e.clientX, y: e.clientY };
         return;
       }
+      // After the ball is down, a tap skips the rest of a long roll-out
+      // (slopey greens can trickle for many seconds — playtest): jumping the
+      // playback to the end makes the next tick land on the existing terminal
+      // branch, which places the ball at rest and hands the turn over.
+      if (this.state.phase === 'flying' && this.flight?.landed) {
+        this.flight.progress = this.flight.outcome.path.length;
+        return;
+      }
       if (this.state.phase !== 'aiming' || meter.isActive) return;
       this.aim.beginDrag({ x: e.clientX, y: e.clientY });
     };
@@ -1716,6 +1724,12 @@ class HoleScene {
           if (!this.flight.isPutt) {
             this.setCamLanding({ x: p.x, y: p.y }, this.flight.dir);
             this.landingPuff(p.x, p.y, this.engine2d.surfaceAt(p.x, p.y) === 'sand');
+            // A long slopey-green trickle can play out for many seconds — offer
+            // the skip (a tap jumps to the resting spot) when there's a real
+            // roll left to watch.
+            if (this.flight.outcome.path.length - i > 70 && !this.flight.outcome.holed) {
+              promptEl.textContent = 'tap to skip the roll ⏩';
+            }
           }
         } else if (!this.flight.landed && !this.flight.isPutt) {
           const o = this.flight.outcome;

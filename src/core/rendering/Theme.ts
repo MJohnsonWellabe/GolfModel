@@ -175,7 +175,10 @@ export const DEFAULT_THEME: CourseTheme = {
   // their own identity; these are just the shared system defaults. The bake stays
   // bounded via the adaptive scale (course3d.ts), so grain-everywhere no longer
   // reintroduces the laggy hole build.
-  tuftDensity: 1.6, // moderate — Timberline overrides up to 3.2 for its forest floor
+  tuftDensity: 1.2, // moderate — Timberline overrides for its forest floor. Kept
+  // lean by default: ground scatter is the main steady-state instance load, and
+  // an overgrown default made every course's frame pacing (and the rAF swing
+  // meter) suffer on playtest devices.
   roughTuftHeight: 1.2,
   sandSculpt: 0.6,
   lushGrass: true,

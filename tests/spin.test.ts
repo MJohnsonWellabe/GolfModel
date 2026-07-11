@@ -83,61 +83,64 @@ describe('spin physics', () => {
     expect(back.finalPos.y).toBeGreaterThan(land.y + 1); // rolled back toward the tee
   });
 
-  // Side spin no longer curves the ball in the AIR — it flies straight and only
-  // breaks sideways when it bites the green (playtest). These shots are aimed at
-  // a green sized to catch the wedge landing so the on-green kick is exercised.
+  // The pre-shot SHAPE curves the AIR path; the in-flight SWIPE breaks the ball
+  // on the green landing. Swipe shots below aim at a green sized to catch the
+  // wedge landing so the on-green kick is exercised.
   const greenHole: HoleData = { ...HOLE, green: { cx: 1500, cy: 2560, rx: 340, ry: 340 }, pin: { x: 1500, y: 2560 } };
   const greenEngine = new PhysicsEngine(greenHole, null, () => 0.5);
-  function shootGreen(clubId: string, power: number, spin: { side: number; top: number }) {
-    return greenEngine.simulate({
-      origin: { x: 1500, y: 2800 },
-      aimAngle: -Math.PI / 2,
-      swing: { power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
-      club: clubById(clubId),
-      golfer: GOLFER,
-      fireBoost: 0,
-      lie: 'fairway',
-      wind: { angle: 0, speed: 0 },
-      hole: greenHole,
-      preview: true,
-      spin
-    });
-  }
 
-  it('side spin does NOT curve the ball in the air (straight flight)', () => {
-    // A shot that lands short of any green (on fairway) must not bend — the old
-    // in-air curve is gone, so fade/straight/draw land at essentially the same x.
+  it('shot SHAPE curves the ball in the air (a full-shape 7i bends ~8-18yd)', () => {
+    // The strike-pad shape is a deterministic in-air draw/fade — "shot shaping
+    // should impact flight" (playtest). +side curves right of the aim line.
     const fade = shoot('7i', 0.9, { side: 1, top: 0 });
     const straight = shoot('7i', 0.9, { side: 0, top: 0 });
     const draw = shoot('7i', 0.9, { side: -1, top: 0 });
-    expect(Math.abs(fade.finalPos.x - straight.finalPos.x)).toBeLessThan(1.5);
-    expect(Math.abs(draw.finalPos.x - straight.finalPos.x)).toBeLessThan(1.5);
+    const fadeYd = (fade.finalPos.x - straight.finalPos.x) / 2;
+    const drawYd = (draw.finalPos.x - straight.finalPos.x) / 2;
+    expect(fadeYd).toBeGreaterThan(8);
+    expect(fadeYd).toBeLessThan(18);
+    expect(drawYd).toBeLessThan(-8);
+    expect(drawYd).toBeGreaterThan(-18);
   });
 
-  it('side spin breaks the ball sideways when it lands on the green', () => {
-    const fade = shootGreen('pw', 0.9, { side: 1, top: 0 });
-    const straight = shootGreen('pw', 0.9, { side: 0, top: 0 });
-    const draw = shootGreen('pw', 0.9, { side: -1, top: 0 });
+  it('SWIPE side spin does not curve the air path — it kicks on the green landing', () => {
+    // The in-flight swipe rides the mutable spin channel (integrateLaunch),
+    // separate from the launch's shape. It leaves the flight straight and
+    // breaks the ball sideways when it bites the green.
+    const swipeShot = (side: number) => {
+      const launch = greenEngine.resolveLaunch({
+        origin: { x: 1500, y: 2800 },
+        aimAngle: -Math.PI / 2,
+        swing: { power: 0.9, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
+        club: clubById('pw'),
+        golfer: GOLFER,
+        fireBoost: 0,
+        lie: 'fairway',
+        wind: { angle: 0, speed: 0 },
+        hole: greenHole,
+        preview: true
+      });
+      return greenEngine.integrateLaunch(launch, { side, top: 0 }, 0);
+    };
+    const right = swipeShot(1);
+    const none = swipeShot(0);
+    const left = swipeShot(-1);
     // Aiming -y (north): +side kicks right of the line = +x on the bounce.
-    expect(fade.finalPos.x).toBeGreaterThan(straight.finalPos.x + 3);
-    expect(draw.finalPos.x).toBeLessThan(straight.finalPos.x - 3);
-  });
-
-  it('the green kick is visible but bounded (not cartoonish)', () => {
-    const fade = shootGreen('pw', 0.9, { side: 1, top: 0 });
-    const kickYd = Math.abs(fade.finalPos.x - 1500) / 2;
-    expect(kickYd).toBeLessThan(26);
+    expect(right.finalPos.x).toBeGreaterThan(none.finalPos.x + 3);
+    expect(left.finalPos.x).toBeLessThan(none.finalPos.x - 3);
+    // The kick is visible but bounded (not cartoonish).
+    const kickYd = Math.abs(right.finalPos.x - none.finalPos.x) / 2;
+    expect(kickYd).toBeLessThan(30);
     expect(kickYd).toBeGreaterThan(2);
   });
 
-  it('breaks to the aimed side even in a crosswind (kick follows the shot line)', () => {
-    // A stiff left-to-right crosswind drifts the ball right in the air; the green
-    // kick must still break in the SPIN direction relative to the AIM (right
-    // swipe = right of the shot), not perpendicular to the wind-drifted landing
-    // velocity — the "swipe right, breaks left" playtest bug.
+  it('swipe kick breaks to the aimed side even in a crosswind', () => {
+    // A stiff crosswind drifts the ball in the air; the landing kick must still
+    // break in the SWIPE direction relative to the AIM line, not perpendicular
+    // to the wind-drifted landing velocity ("swipe right, breaks left" bug).
     const wind = { angle: 0, speed: 16 }; // pushes +x
-    const shot = (side: number) =>
-      greenEngine.simulate({
+    const swipeShot = (side: number) => {
+      const launch = greenEngine.resolveLaunch({
         origin: { x: 1500, y: 2800 },
         aimAngle: -Math.PI / 2,
         swing: { power: 0.9, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
@@ -147,14 +150,13 @@ describe('spin physics', () => {
         lie: 'fairway',
         wind,
         hole: greenHole,
-        preview: true,
-        spin: { side, top: 0 }
+        preview: true
       });
-    const right = shot(1);
-    const none = shot(0);
-    const left = shot(-1);
-    // Relative to the SAME wind-drifted no-spin baseline, +side lands further
-    // right and -side further left.
+      return greenEngine.integrateLaunch(launch, { side, top: 0 }, 0);
+    };
+    const right = swipeShot(1);
+    const none = swipeShot(0);
+    const left = swipeShot(-1);
     expect(right.finalPos.x).toBeGreaterThan(none.finalPos.x + 3);
     expect(left.finalPos.x).toBeLessThan(none.finalPos.x - 3);
   });

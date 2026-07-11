@@ -962,25 +962,65 @@ export function buildCourse(
     // prototypes as shadow casters would blow up the directional light's
     // shadow-map frustum and darken the whole (shadow-receiving) terrain.
 
+    // Warm the nature shaders (instanced variants) as soon as the prototypes
+    // exist — the flyover is still playing, so the compile cost lands there
+    // instead of on the first frame the props appear (part of the "hole-1 first
+    // shot lags / meter jerks" fix). Best-effort.
+    for (const proto of protos.values()) {
+      for (const part of proto.parts) {
+        const mat = part.material as { forceCompilationAsync?: (m: Mesh, o?: object) => Promise<void> } | null;
+        void mat?.forceCompilationAsync?.(part, { useInstances: true })?.catch(() => undefined);
+      }
+    }
+
+    // CHUNKED PLANTING: creating every prop instance in one synchronous burst
+    // (2-4k createInstance calls on a dense forest hole) blocked the main thread
+    // for long enough to visibly freeze the rAF-driven swing meter and the
+    // first-shot camera (playtest: "the bar doesn't move smoothly"). placeProto
+    // now enqueues a thunk; a per-frame drain plants a bounded batch, so the
+    // forest fills in over ~a second of flyover without ever stalling a frame.
+    const plantQueue: Array<() => void> = [];
+    const PLANTS_PER_FRAME = 140;
     let n = 0;
     const placeProto = (proto: NatureProto, x: number, y: number, targetH: number, tint?: Color4): void => {
-      const s = targetH / proto.height;
-      const pos = w2b(x, y, heightAt(x, y));
-      const rotY = hash2(y, x) * Math.PI * 2;
-      // Instance every material part of the prop with one shared transform.
-      for (const part of proto.parts) {
-        const inst = part.createInstance(`nat${n++}`);
-        inst.scaling = new Vector3(s, s, s);
-        inst.position = pos;
-        inst.rotation = new Vector3(0, rotY, 0);
-        inst.parent = treeRoot;
-        // Per-tuft tint (lush grass only; the 'color' buffer is registered on
-        // tintable prototype parts in natureModels when grassLit) breaks the flat
-        // one-color read. For split flowers only the petal part is tintable, so a
-        // hue colors the bloom while the stem part stays green.
-        if (tint && (part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint;
-      }
+      plantQueue.push(() => {
+        const s = targetH / proto.height;
+        const pos = w2b(x, y, heightAt(x, y));
+        const rotY = hash2(y, x) * Math.PI * 2;
+        // Instance every material part of the prop with one shared transform.
+        for (const part of proto.parts) {
+          const inst = part.createInstance(`nat${n++}`);
+          inst.scaling = new Vector3(s, s, s);
+          inst.position = pos;
+          inst.rotation = new Vector3(0, rotY, 0);
+          inst.parent = treeRoot;
+          // Per-tuft tint (lush grass only; the 'color' buffer is registered on
+          // tintable prototype parts in natureModels when grassLit) breaks the flat
+          // one-color read. For split flowers only the petal part is tintable, so a
+          // hue colors the bloom while the stem part stays green.
+          if (tint && (part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint;
+          // Scenery never moves: freeze the world matrix (thousands of static
+          // instances otherwise recompute matrices EVERY frame — the real
+          // steady-state cost behind "the meter doesn't move smoothly"), skip
+          // bounding-info resyncs, and opt out of pointer picking.
+          inst.computeWorldMatrix(true);
+          inst.freezeWorldMatrix();
+          inst.doNotSyncBoundingInfo = true;
+          inst.isPickable = false;
+        }
+      });
     };
+    const drain = scene.onBeforeRenderObservable.add(() => {
+      let budget = PLANTS_PER_FRAME;
+      while (budget-- > 0) {
+        const job = plantQueue.shift();
+        if (!job) {
+          scene.onBeforeRenderObservable.remove(drain);
+          return;
+        }
+        job();
+      }
+    });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
     // warmer (yellow-green) so the field reads as varied blades, not flat green.
     const grassTint = (x: number, y: number): Color4 => {
@@ -1505,12 +1545,38 @@ export function buildCourse(
   // counter-rotated into the (dynamically rotated) grid frame so the ring
   // stays pinned over the cup no matter which way the grid is oriented.
   cupRing.parent = puttGrid;
+  // Cup BEACON: the honest cup + thin rim are near-invisible from a long putt's
+  // low telephoto camera against the two-tone green (playtest: "you can't even
+  // see the hole"). A larger, gently pulsing halo ring marks the hole while the
+  // putt grid is up — an aid ring, clearly not the cup itself, so the honest
+  // capture size stays readable.
+  const cupBeacon = MeshBuilder.CreateTorus(
+    'cupBeacon',
+    { diameter: PHYSICS.cupRadius * 6, thickness: 0.14, tessellation: 40 },
+    scene
+  );
+  const cupBeaconM = new StandardMaterial('cupBeaconM', scene);
+  cupBeaconM.emissiveColor = new Color3(1, 1, 1);
+  cupBeaconM.disableLighting = true;
+  cupBeaconM.alpha = 0.55;
+  cupBeacon.material = cupBeaconM;
+  cupBeacon.scaling.y = 0.05;
+  cupBeacon.parent = puttGrid;
+  scene.onBeforeRenderObservable.add(() => {
+    if (!cupBeacon.isEnabled(false) || !puttGrid.isEnabled()) return;
+    const t = animTime() * 2.4;
+    cupBeaconM.alpha = 0.42 + 0.18 * Math.sin(t);
+    const s = 1 + 0.08 * Math.sin(t * 0.5);
+    cupBeacon.scaling.x = s;
+    cupBeacon.scaling.z = s;
+  });
   const placeCupRing = (rot: number): void => {
     const rotC = Math.cos(rot);
     const rotS = Math.sin(rot);
     const dx = hole.pin.x - g.cx;
     const dzW = -(hole.pin.y - g.cy);
     cupRing.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.1, rotS * dx + rotC * dzW);
+    cupBeacon.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.12, rotS * dx + rotC * dzW);
   };
   placeCupRing(puttAids.rot);
 

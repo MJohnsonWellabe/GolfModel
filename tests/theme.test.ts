@@ -11,7 +11,7 @@ describe('theme knobs', () => {
     // sky, flowers) was promoted from Timberline into DEFAULT_THEME so every
     // course inherits it. resolveTheme(null) === DEFAULT_THEME.
     const t = resolveTheme(null);
-    expect(t.tuftDensity).toBe(1.6);
+    expect(t.tuftDensity).toBe(1.2);
     expect(t.roughTuftHeight).toBe(1.2);
     expect(t.sandSculpt).toBe(0.6);
     expect(t.lushGrass).toBe(true);

@@ -69,6 +69,12 @@ export interface ResolvedLaunch {
   launchMult: number;
   /** Club-family × lie spin authority, 0..1. */
   spinEff: number;
+  /** Pre-shot SHAPE from the strike pad (−1..1-ish): a deterministic draw/fade
+   *  that curves the ball IN THE AIR. Fixed at launch — the in-flight swipe
+   *  never touches it (swipe side spin instead kicks the ball on landing).
+   *  +side curves right of the aim line; a right strike-dot gives side<0 (draw
+   *  bending left), matching the StrikeControl convention. */
+  shapeSide: number;
   preview: boolean;
 }
 
@@ -291,7 +297,11 @@ export class PhysicsEngine {
    */
   simulate(params: ShotParams): ShotOutcome {
     const launch = this.resolveLaunch(params);
-    return this.integrateLaunch(launch, params.spin ?? { side: 0, top: 0 }, 0);
+    // params.spin.side is the pre-shot SHAPE — it rides on the launch as the
+    // in-air curve (resolveLaunch). Only `top` passes through as live spin here;
+    // side spin in the mutable channel is the in-flight SWIPE (landing kick),
+    // which a plain simulate() has none of.
+    return this.integrateLaunch(launch, { side: 0, top: params.spin?.top ?? 0 }, 0);
   }
 
   /** Draw all pre-flight randomness and fix the launch state. */
@@ -358,6 +368,7 @@ export class PhysicsEngine {
       wind,
       launchMult: params.launchMult ?? 1,
       spinEff,
+      shapeSide: params.spin?.side ?? 0,
       preview: params.preview ?? false
     };
   }
@@ -368,7 +379,7 @@ export class PhysicsEngine {
    * new spin mid-flight reproduces the already-flown prefix exactly.
    */
   integrateLaunch(launch: ResolvedLaunch, spin: SpinState, spinFromStep = 0): ShotOutcome {
-    const { origin, carryPx, dir, club, hole, wind, launchMult, spinEff, preview } = launch;
+    const { origin, carryPx, dir, club, hole, wind, launchMult, spinEff, shapeSide, preview } = launch;
     const path: TrajectoryPoint[] = [{ x: origin.x, y: origin.y, z: 0 }];
     const g = PHYSICS.gravity;
     const dt = PHYSICS.dt;
@@ -432,9 +443,16 @@ export class PhysicsEngine {
         const wScale = 0.25 + 0.85 * clamp(aboveGround / PHYSICS.windRefHeight, 0, 1.3);
         vx += windAx * wScale * dt;
         vy += windAy * wScale * dt;
-        // Side spin does NOT curve the ball in the air (playtest): a fade/draw
-        // flies straight and only breaks sideways when it bites the green — see
-        // the landing block below. Wind is the only in-air lateral force.
+        // SHOT SHAPE curves the ball in the air: the strike-pad draw/fade is a
+        // deterministic lateral acceleration perpendicular to the aim line,
+        // fixed at launch (playtest: "shot shaping should impact flight").
+        // The in-flight SWIPE spin deliberately does NOT curve here — it kicks
+        // the ball sideways when it bites the green (the landing block below).
+        if (shapeSide !== 0) {
+          const sa = shapeSide * spinEff * PHYSICS.shapeCurveAccel;
+          vx += -Math.sin(dir) * sa * dt;
+          vy += Math.cos(dir) * sa * dt;
+        }
         vz -= g * dt;
         x += vx * dt;
         y += vy * dt;
@@ -501,14 +519,13 @@ export class PhysicsEngine {
             vx = (-vx / hs) * bite;
             vy = (-vy / hs) * bite;
           }
-          // Side spin breaks the ball sideways ON the bounce (green/fringe) —
-          // this is where a fade/draw shows up now that the air path is straight.
-          // Break perpendicular to the SHOT LINE (the aim `dir`), NOT the
-          // instantaneous landing velocity: wind and shape can drift the landing
-          // velocity so a velocity-based kick sometimes broke the wrong way
-          // (playtest "swipe right, breaks left"). +side = the player's RIGHT of
-          // the shot they aimed (a right swipe/arrow → breaks right), matching
-          // the aim convention (drag right aims toward +x).
+          // SWIPE side spin breaks the ball sideways ON the bounce (green/
+          // fringe) — the aerial swipe's effect (the pre-shot SHAPE curves in
+          // the air instead, above). Break perpendicular to the SHOT LINE (the
+          // aim `dir`), NOT the instantaneous landing velocity: wind/shape can
+          // drift the landing velocity so a velocity-based kick sometimes broke
+          // the wrong way (playtest "swipe right, breaks left"). +side = the
+          // player's RIGHT of the shot they aimed.
           if (spin.side !== 0 && (surf === 'green' || surf === 'fringe') && spinEff > 0.2) {
             const kick = spin.side * spinEff * PHYSICS.sideSpinKick;
             const px = -Math.sin(dir);

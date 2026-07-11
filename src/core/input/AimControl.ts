@@ -18,19 +18,24 @@ export interface ShotContext {
   lie: Surface;
   golfer: Golfer;
   fireBoost: number;
+  /** Strokes already played on this hole (0 = tee shot). */
+  strokes: number;
 }
 
 /** Pointer drag: tap jitter below this (screen px) never nudges the aim. */
 const DRAG_DEAD_ZONE = 12;
-/** Radians of yaw per horizontal screen px dragged in the shot view. */
-const YAW_PER_PX = 0.0032;
+/** Radians of yaw per horizontal screen px dragged in the shot view.
+ *  Halved on playtest ("aiming in general is too sensitive") so a slow drag
+ *  makes deliberate micro-adjustments. */
+const YAW_PER_PX = 0.0017;
 /** Putts aim over much shorter distances, so the same yaw-per-px swings the aim
- *  point too far on the green — use a much finer rate so it doesn't jump. */
-const PUTT_YAW_PER_PX = 0.0009;
+ *  point too far on the green — a much finer rate for micro-movements
+ *  (playtest: "putting aim is too touchy"). */
+const PUTT_YAW_PER_PX = 0.00045;
 /** World px of aim distance per vertical screen px dragged. */
-const DIST_PER_PX = 1.1;
+const DIST_PER_PX = 0.6;
 /** Finer pace drag for putts (short distances magnify every px). */
-const PUTT_DIST_PER_PX = 0.45;
+const PUTT_DIST_PER_PX = 0.22;
 
 /**
  * Shot setup: which club, where you're aiming, and the preview arc.
@@ -119,12 +124,12 @@ export class AimControl {
    *  the corner. Putts still default at the cup. */
   resetAim(ctx: ShotContext): void {
     const pinDist = dist(ctx.ball, this.hole.pin);
-    // Approach shots aim AT THE FLAG: once the green is within the current club's
-    // reach, point at the pin (2nd/3rd shots hunt the flag). Only long tee/second
-    // shots that can't get home default down the fairway route, so a dogleg tee
-    // shot still aims down the leg rather than over the corner.
-    const canReachGreen = pinDist <= this.maxCarryPx(ctx);
-    const aimTarget = this.isPutting || canReachGreen ? this.hole.pin : this.nextRoutePoint(ctx.ball);
+    // Every shot AFTER the tee shot aims straight at the flag (playtest: the
+    // fairway-route default was pointing second shots at terrible spots — "just
+    // aim at the green"). Only the tee shot defaults down the fairway route, so
+    // a dogleg drive still aims down the leg rather than over the corner.
+    const aimTarget =
+      this.isPutting || ctx.strokes >= 1 ? this.hole.pin : this.nextRoutePoint(ctx.ball);
     this.yaw = angleTo(ctx.ball, aimTarget);
     // Putts default the aim spot AT the cup, so a perfect stroke rolls the
     // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
