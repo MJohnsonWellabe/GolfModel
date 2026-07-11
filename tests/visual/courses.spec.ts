@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 /** Each course boots into a playable scene through the test hook (Phase 9).
  *  Guards the new Sable Bay (heavy water, island par 3) and Timberline
  *  (wooded, tree-in-fairway) geometry against render/loader crashes. */
-for (const courseId of ['wildwood', 'sablebay', 'timberline']) {
+for (const courseId of ['wildwood', 'sablebay', 'timberline', 'portjohnson']) {
   test(`${courseId} boots and reaches the aiming phase`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(String(e)));
@@ -51,5 +51,5 @@ test('wizard course step lists every course', async ({ page }) => {
   await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.modeCard[data-course]');
   const count = await page.locator('.modeCard[data-course]').count();
-  expect(count).toBe(3);
+  expect(count).toBe(4);
 });

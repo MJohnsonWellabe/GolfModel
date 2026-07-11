@@ -1,0 +1,198 @@
+{
+  "name": "Port Johnson Links",
+  "version": 2,
+  "roundFairwayCaps": true,
+  "theme": {
+    "skyTop": "#5aa6dc",
+    "skyBottom": "#d4e9f2",
+    "sunX": 520,
+    "sunY": 110,
+    "fairway": "#8fa356",
+    "fairwayDark": "#7d9149",
+    "rough": "#8a8b4e",
+    "roughDark": "#6f7440",
+    "fringe": "#a6b96a",
+    "green": "#9fc36e",
+    "greenLight": "#b2d382",
+    "sand": "#e7d6a4",
+    "sandDark": "#c9b47c",
+    "water": "#2f7fb8",
+    "waterDeep": "#1c5686",
+    "waterReflect": true,
+    "treeCanopy": "#4a5f34",
+    "treeCanopyLight": "#63793f",
+    "treeTrunk": "#6b5540",
+    "haze": "#dfeaf0",
+    "hazeStrength": 0.6,
+    "backdrop": "sea",
+    "blossomChance": 0.0,
+    "backdropTreeStep": 120,
+    "treeKeys": ["tree_oak", "tree_poplar"],
+    "sandSculpt": 0.95,
+    "edgeWobble": 2.2,
+    "tallGrass": { "cap": 9, "density": 0.6, "waste": true }
+  },
+  "holes": [
+    {
+      "number": 1,
+      "name": "Harbour Mouth",
+      "par": 4,
+      "yardage": 452,
+      "world": { "width": 1000, "height": 1320 },
+      "tee": { "x": 500, "y": 1170 },
+      "teeBox": { "w": 30, "d": 22 },
+      "green": { "cx": 500, "cy": 300, "rx": 78, "ry": 58, "rot": 0.2 },
+      "slope": { "angle": 1.4, "strength": 0.28 },
+      "pin": { "x": 500, "y": 296 },
+      "fairway": [
+        {
+          "centerline": [
+            [500, 1140],
+            [498, 980],
+            [506, 800],
+            [520, 620],
+            [512, 440],
+            [504, 356]
+          ],
+          "width": [52, 98, 112, 100, 82, 60]
+        }
+      ],
+      "hazards": [
+        {
+          "type": "bunker",
+          "polygon": [[430, 700], [470, 690], [486, 668], [474, 640], [438, 646], [420, 674]]
+        },
+        {
+          "type": "bunker",
+          "polygon": [[566, 700], [606, 690], [622, 666], [608, 638], [572, 644], [552, 672]]
+        },
+        {
+          "type": "bunker",
+          "polygon": [[548, 356], [586, 346], [600, 322], [586, 298], [552, 304], [536, 330]]
+        }
+      ],
+      "aiTargets": [
+        { "x": 508, "y": 800 },
+        { "x": 512, "y": 500 }
+      ],
+      "elevation": [
+        { "x": 500, "y": 1190, "h": 1.4, "r": 150, "shape": "plateau" },
+        { "x": 500, "y": 300, "h": 1.2, "r": 100, "shape": "plateau" }
+      ]
+    },
+    {
+      "number": 2,
+      "name": "The Redan",
+      "par": 3,
+      "yardage": 205,
+      "world": { "width": 940, "height": 940 },
+      "tee": { "x": 460, "y": 790 },
+      "teeBox": { "w": 28, "d": 20 },
+      "green": { "cx": 470, "cy": 300, "rx": 90, "ry": 60, "rot": -0.5 },
+      "slope": { "angle": 2.2, "strength": 0.34 },
+      "pin": { "x": 492, "y": 296 },
+      "fairway": [
+        {
+          "centerline": [
+            [460, 770],
+            [462, 620],
+            [470, 500]
+          ],
+          "width": [40, 58, 66]
+        }
+      ],
+      "hazards": [
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [330, 392], [408, 382], [446, 356], [438, 318], [396, 300],
+            [340, 306], [308, 340], [306, 372]
+          ]
+        },
+        {
+          "type": "bunker",
+          "polygon": [[540, 292], [576, 284], [590, 262], [576, 240], [544, 246], [530, 270]]
+        }
+      ],
+      "aiTargets": [],
+      "elevation": [
+        { "x": 460, "y": 812, "h": 1.6, "r": 140, "shape": "plateau" },
+        { "x": 470, "y": 300, "h": 1.4, "r": 108, "shape": "plateau" }
+      ]
+    },
+    {
+      "number": 3,
+      "name": "The Old Wall",
+      "par": 5,
+      "yardage": 604,
+      "world": { "width": 1320, "height": 1640 },
+      "tee": { "x": 360, "y": 1540 },
+      "teeBox": { "w": 32, "d": 24 },
+      "green": { "cx": 830, "cy": 400, "rx": 84, "ry": 58, "rot": 0.4 },
+      "slope": { "angle": 2.4, "strength": 0.36 },
+      "pin": { "x": 834, "y": 396 },
+      "fairway": [
+        {
+          "centerline": [
+            [360, 1510],
+            [382, 1320],
+            [402, 1140],
+            [432, 980]
+          ],
+          "width": [54, 100, 112, 98]
+        },
+        {
+          "centerline": [
+            [432, 980],
+            [560, 880],
+            [690, 720],
+            [792, 520],
+            [826, 420]
+          ],
+          "width": [98, 92, 82, 66, 56]
+        }
+      ],
+      "hazards": [
+        {
+          "type": "bunker",
+          "polygon": [[506, 918], [548, 910], [562, 886], [548, 860], [512, 866], [496, 892]]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [[540, 946], [612, 936], [636, 908], [618, 876], [556, 882], [520, 910], [516, 934]]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [[676, 792], [748, 780], [772, 752], [752, 720], [690, 728], [656, 758], [654, 782]]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [[796, 636], [864, 624], [886, 596], [868, 566], [808, 574], [776, 604], [774, 626]]
+        },
+        {
+          "type": "bunker",
+          "polygon": [[762, 452], [800, 444], [814, 420], [800, 396], [766, 402], [750, 428]]
+        },
+        {
+          "type": "water",
+          "polygon": [[900, 470], [962, 458], [986, 410], [966, 356], [906, 366], [880, 418]]
+        }
+      ],
+      "aiTargets": [
+        { "x": 392, "y": 1160 },
+        { "x": 432, "y": 980 },
+        { "x": 600, "y": 838 },
+        { "x": 742, "y": 636 },
+        { "x": 812, "y": 452 }
+      ],
+      "elevation": [
+        { "x": 360, "y": 1560, "h": 1.6, "r": 170, "shape": "plateau" },
+        { "x": 830, "y": 400, "h": 1.3, "r": 104, "shape": "plateau" }
+      ]
+    }
+  ]
+}

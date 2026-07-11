@@ -33,6 +33,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
+import { pointInPolygon } from '../utils/Geometry';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
 import { buildBreakDots } from './breakDots';
@@ -1143,6 +1144,51 @@ export function buildCourse(
                     ? 0.8 + hash2(jx, jy + 9) * 0.9
                     : 2.4 + hash2(jx + 7, jy) * 1.1;
             placeProto(e.proto, jx, jy, sh);
+          }
+        }
+      }
+    }
+
+    // Links TALL GRASS (theme.tallGrass): sparse, wind-blown marram/fescue in the
+    // rough, standing well above the knee-high default cap — the signature look
+    // of an open links. Visual only (no collision), kept off the tee/fairway/
+    // green and the immediate tee approach so it never reads as a wall at address.
+    if (theme.tallGrass) {
+      const { cap, density } = theme.tallGrass;
+      const tgStep = 40 / Math.sqrt(Math.max(0.15, density));
+      for (let yy = 0; yy < h; yy += tgStep) {
+        for (let xx = 0; xx < w; xx += tgStep) {
+          if (engine.surfaceAt(xx, yy) !== 'rough') continue;
+          if (inTeePad(hole, xx, yy)) continue;
+          if (Math.hypot(xx - hole.tee.x, yy - hole.tee.y) < 70) continue;
+          if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 90) continue;
+          const jx = xx + (hash2(xx + 13, yy) - 0.5) * tgStep * 0.9;
+          const jy = yy + (hash2(yy + 13, xx) - 0.5) * tgStep * 0.9;
+          if (engine.surfaceAt(jx, jy) !== 'rough') continue;
+          const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
+          place(grasses, jx, jy, tall, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+        }
+      }
+      // Fescue growing THROUGH the waste bunkers: still plain sand for physics,
+      // but scruffy grass clumps rise out of it so it reads as a natural blowout.
+      if (theme.tallGrass.waste) {
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'bunker' || !hz.waste) continue;
+          const xs = hz.polygon.map((p) => p[0]);
+          const ys = hz.polygon.map((p) => p[1]);
+          const bcx = xs.reduce((a, b) => a + b, 0) / xs.length;
+          const bcy = ys.reduce((a, b) => a + b, 0) / ys.length;
+          const step = 22;
+          for (let yy = Math.min(...ys); yy < Math.max(...ys); yy += step) {
+            for (let xx = Math.min(...xs); xx < Math.max(...xs); xx += step) {
+              const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
+              const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
+              if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+              // Leave the middle open so the sand still reads as a playable trap.
+              if (Math.hypot(jx - bcx, jy - bcy) < 12) continue;
+              if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
+              place(grasses, jx, jy, cap * (0.5 + hash2(jx, jy) * 0.35), 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+            }
           }
         }
       }

@@ -134,6 +134,13 @@ export interface CourseTheme {
   /** Warm band low on the sky dome (sunlit horizon glow). Unset = the
    *  historical 4-stop gradient, byte-identical. */
   horizonTint?: number;
+  /**
+   * Links tall grass (marram/fescue). When set, the rough grows sparse, tall
+   * wind-grass tufts up to `cap` world units (well above the knee-high default),
+   * and — with `waste` — fescue also sprouts through any `waste:true` bunker.
+   * `density` scales how many tufts (0..1-ish of the base grid). Art only.
+   */
+  tallGrass?: { cap: number; density: number; waste?: boolean };
 }
 
 /** Augusta in April: lush, bright, warm. */
@@ -240,6 +247,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'horizonTint'
     | 'waterReflect'
     | 'waterReflectStrength'
+    | 'tallGrass'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -298,5 +306,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
+  const tg = spec.tallGrass as { cap?: unknown; density?: unknown; waste?: unknown } | undefined;
+  if (tg && typeof tg.cap === 'number' && typeof tg.density === 'number') {
+    t.tallGrass = { cap: tg.cap, density: tg.density, waste: tg.waste === true };
+  }
   return t;
 }

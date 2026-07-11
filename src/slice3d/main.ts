@@ -30,6 +30,7 @@ import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
+import portjohnson from '../data/courses/portjohnson.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -182,7 +183,8 @@ interface RoundState {
 const COURSES: Record<string, CourseData> = {
   wildwood: loadCourse(wildwood as unknown as CourseAuthoring),
   sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
-  timberline: loadCourse(timberline as unknown as CourseAuthoring)
+  timberline: loadCourse(timberline as unknown as CourseAuthoring),
+  portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring)
 };
 
 // Fire the real-turf-grain preloads at boot, well before any round can start
@@ -195,9 +197,10 @@ preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · a gentle, welcoming opener', icon: '🌳' },
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · Bethpage-style, small greens, flower gardens', icon: '🌳' },
   { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water in play on every hole, island par 3', icon: '🌊' },
-  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight, tree-lined and demanding', icon: '🌲' }
+  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight, tree-lined and demanding', icon: '🌲' },
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · wide, windy, deep bunkers by the sea', icon: '🏴' }
 ];
 
 /** Resolve a course by its display name (tournament entries carry the name). */

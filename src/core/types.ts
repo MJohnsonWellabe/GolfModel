@@ -141,6 +141,13 @@ export interface Hazard {
    * polygon layered in front of a real (collision-safe) trees hazard.
    */
   visualOnly?: boolean;
+  /**
+   * Bunker only, VISUAL: a links "waste" bunker — still plain sand for physics
+   * (a ball still plugs, no separate hazard type), but tall fescue is scattered
+   * through it so it reads as a scruffy natural blowout rather than a manicured
+   * trap. Cosmetic only; the grass carries no collision.
+   */
+  waste?: boolean;
 }
 
 export interface GreenSlope {

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import sablebay from '../../src/data/courses/sablebay.json';
 import timberline from '../../src/data/courses/timberline.json';
 import wildwood from '../../src/data/courses/wildwood.json';
+import portjohnson from '../../src/data/courses/portjohnson.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
@@ -52,5 +53,15 @@ describe('new course playability', () => {
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeLessThan(6);
+  }, 20000);
+
+  it('Port Johnson Links plays to a sane average and every hole finishes', () => {
+    // Wide-open links: playable off the tee, but deep waste bunkers + tall grass
+    // and the long par 5 keep it honest. The gate catches an unescapable waste
+    // bunker or a green the wind makes unreachable.
+    const { mean, everyHoled } = meanToPar(portjohnson as unknown as CourseAuthoring);
+    expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
+    expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
+    expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeLessThan(6);
   }, 20000);
 });
