@@ -7,7 +7,10 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main, version2]
+    # version2 is the trunk and the ONLY branch we deploy from. `main` is a
+    # stale legacy branch — deploying it would clobber the live site with an
+    # old build, so it is deliberately excluded.
+    branches: [version2]
   workflow_dispatch:
 
 permissions:
