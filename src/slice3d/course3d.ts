@@ -271,7 +271,23 @@ export function buildCourse(
   }, true);
   ground.receiveShadows = true;
 
-  const courseCanvas = renderCourseCanvas(hole, theme, engine, 2);
+  // Adaptive bake resolution: the ground albedo bake is synchronous, so its
+  // cost scales with the padded world area × scale². Capping the texel budget
+  // keeps the per-hole build (the between-holes freeze) bounded even for a big
+  // world — a wide links hole or a long par 5 — and, crucially, lets the
+  // polished per-texel turf grain run on EVERY course without every hole
+  // stalling like Timberline used to. Small holes still bake near the historical
+  // scale 2; large ones ease down toward ~1.3. Near-field crispness is
+  // unaffected: the green wears its own scale-6 patch and the ground carries
+  // tiling detail + normal maps at gameplay-camera distance.
+  const bakeArea = (w + pad * 2) * (h + pad * 2);
+  const BAKE_TEXEL_BUDGET = 4_000_000;
+  const bakeScale = Math.max(1, Math.min(2, Math.sqrt(BAKE_TEXEL_BUDGET / bakeArea)));
+  const bakeT0 = performance.now();
+  const courseCanvas = renderCourseCanvas(hole, theme, engine, bakeScale);
+  // Expose the synchronous ground-bake cost so the perf gate can regression-test
+  // it directly (the render-loop timer never sees the one-shot bake stall).
+  (globalThis as { __lastBakeMs?: number }).__lastBakeMs = performance.now() - bakeT0;
   const courseTex = new DynamicTexture(
     'course',
     { width: courseCanvas.width, height: courseCanvas.height },

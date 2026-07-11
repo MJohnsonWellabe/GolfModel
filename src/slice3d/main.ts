@@ -1,4 +1,5 @@
 import {
+  AbstractMesh,
   Color3,
   Color4,
   DynamicTexture,
@@ -473,7 +474,42 @@ class HoleScene {
 
     this.wireInput();
     this.scene.onBeforeRenderObservable.add(() => this.tick());
+    // Compile the address-time shaders DURING the flyover so the first shot is
+    // smooth (the old "hole 1 lags on the first shot"). Best-effort, never blocks.
+    void this.warmupShaders();
     this.playIntro();
+  }
+
+  /**
+   * Warm the shader programs for everything that first APPEARS at address — the
+   * golfer, the aim guide, the ball + its shadow — while the intro flyover is
+   * still playing. Those StandardMaterials compile lazily on first render, and
+   * on the FIRST hole nothing is cached yet, so that compile landed on the first
+   * swing as a visible hitch ("hole 1 lags on the first shot"). Holes 2+ already
+   * reused the engine-level program cache, which is why only hole 1 stuttered.
+   * Compiling here moves the cost into the flyover window. Purely a warm-up:
+   * wrapped so a failure (or an early skipIntro) can never block or break a shot.
+   */
+  private async warmupShaders(): Promise<void> {
+    try {
+      await this.bodiesReady;
+      if (this.disposed) return;
+      const warm = (m: AbstractMesh | null | undefined): Promise<void> | null => {
+        const mat = m?.material as
+          | { forceCompilationAsync?: (mesh: AbstractMesh) => Promise<void> }
+          | null
+          | undefined;
+        return m && mat?.forceCompilationAsync ? mat.forceCompilationAsync(m).catch(() => undefined) : null;
+      };
+      const jobs: Array<Promise<void> | null> = [];
+      this.golfers.forEach((g) => g.root.getChildMeshes().forEach((m) => jobs.push(warm(m))));
+      this.aimDots.forEach((d) => jobs.push(warm(d)));
+      jobs.push(warm(this.aimRing), warm(this.ballShadow));
+      this.balls.forEach((b) => jobs.push(warm(b)));
+      await Promise.all(jobs.filter(Boolean));
+    } catch {
+      /* best-effort warm-up — a shot must never depend on it */
+    }
   }
 
   private makePuff(): ParticleSystem {
