@@ -179,13 +179,18 @@ export const DEFAULT_THEME: CourseTheme = {
   // lean by default: ground scatter is the main steady-state instance load, and
   // an overgrown default made every course's frame pacing (and the rAF swing
   // meter) suffer on playtest devices.
-  roughTuftHeight: 1.2,
-  sandSculpt: 0.6,
+  roughTuftHeight: 1.1,
+  sandSculpt: 0.7,
   lushGrass: true,
   edgeWobble: 1.6,
   stripeStrength: 1.15,
   cloudStyle: 'wispy',
   bunkerStones: true,
+  // The fairway mowing DIAMONDS and the greens' two-tone COLUMNS are universal
+  // design language, not a per-course signature (playtest: every course should
+  // have "the fairway pattern").
+  mowPattern: 'checker',
+  mowTile: 30,
   greenColumns: true,
   greenMowTile: 14,
   turfGrainKey: 'textures/turf_grain.jpg',
@@ -195,7 +200,12 @@ export const DEFAULT_THEME: CourseTheme = {
   roughGrainTile: 14,
   sandGrainKey: 'textures/sand_ripple.jpg',
   sandGrainTile: 18,
-  flowerKeys: ['flower_a', 'flower_b', 'flower_c'],
+  // Genuinely-3D props by default: the Kenney blooms/bushes have real volume;
+  // the meadow-pack cards (flower_a/b/c, bush_a/b) read as flat "2D blocks" at
+  // gameplay distance and are no longer defaults (grass tufts stay cards but
+  // only ever SHORT, where they read as ground texture).
+  flowerKeys: ['flower_f', 'flower_g', 'flower_h'],
+  bushKeys: ['bush_kenney_a', 'bush_kenney_b'],
   grassKeys: ['grass_g', 'grass_h', 'grass_i']
 };
 
@@ -279,9 +289,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.treeKeys = strings(spec.treeKeys);
   t.accentTreeKeys = strings(spec.accentTreeKeys);
   t.scatterKeys = strings(spec.scatterKeys);
-  t.bushKeys = strings(spec.bushKeys);
-  // grassKeys/flowerKeys are now defaulted (unified system), so fall back to the
+  // bush/grass/flower keys are defaulted (unified system), so fall back to the
   // default mix when a course omits them instead of wiping to undefined.
+  t.bushKeys = strings(spec.bushKeys) ?? DEFAULT_THEME.bushKeys;
   t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.cloudKeys = strings(spec.cloudKeys);

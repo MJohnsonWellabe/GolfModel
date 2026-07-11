@@ -12,8 +12,8 @@ describe('theme knobs', () => {
     // course inherits it. resolveTheme(null) === DEFAULT_THEME.
     const t = resolveTheme(null);
     expect(t.tuftDensity).toBe(1.2);
-    expect(t.roughTuftHeight).toBe(1.2);
-    expect(t.sandSculpt).toBe(0.6);
+    expect(t.roughTuftHeight).toBe(1.1);
+    expect(t.sandSculpt).toBe(0.7);
     expect(t.lushGrass).toBe(true);
     expect(t.edgeWobble).toBe(1.6);
     expect(t.stripeStrength).toBe(1.15);
@@ -29,13 +29,18 @@ describe('theme knobs', () => {
     expect(t.sandGrainKey).toBe('textures/sand_ripple.jpg');
     expect(t.sandGrainTile).toBe(18);
     expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
-    expect(t.flowerKeys).toEqual(['flower_a', 'flower_b', 'flower_c']);
+    // Genuinely-3D blooms/bushes are the universal default now — the flat
+    // meadow cards (flower_a/b/c, bush_a/b) read as "2D blocks" at gameplay
+    // distance and were retired as defaults (playtest regression).
+    expect(t.flowerKeys).toEqual(['flower_f', 'flower_g', 'flower_h']);
+    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_b']);
+    // The fairway checker + green columns are universal design language now
+    // (playtest: every course should carry "the fairway pattern").
+    expect(t.mowPattern).toBe('checker');
+    expect(t.mowTile).toBe(30);
     // Still per-course IDENTITY — NOT defaulted (each course keeps its own):
-    expect(t.mowPattern).toBeUndefined(); // the checker diamond is Timberline-only
-    expect(t.mowTile).toBeUndefined();
     expect(t.cloudKeys).toBeUndefined(); // wispy painted clouds ignore mesh keys
     expect(t.treeKeys).toBeUndefined(); // species stay per-course
-    expect(t.bushKeys).toBeUndefined();
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
   });
 
@@ -110,7 +115,10 @@ describe('theme knobs', () => {
 
   it('ignores malformed key arrays', () => {
     const t = resolveTheme(course({ bushKeys: 'bush_a', cloudKeys: [1, 2] }));
-    expect(t.bushKeys).toBeUndefined();
-    expect(t.cloudKeys).toBeUndefined();
+    // bushKeys is a defaulted field now: a malformed override falls back to the
+    // unified 3D default rather than wiping to undefined (which would drop the
+    // course back to flat cards).
+    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_b']);
+    expect(t.cloudKeys).toBeUndefined(); // cloudKeys stays truly optional
   });
 });

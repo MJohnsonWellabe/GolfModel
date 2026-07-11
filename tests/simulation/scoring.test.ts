@@ -7,22 +7,24 @@ import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
 
 /**
- * The headline balance gate — GDD Appendix A 3-hole scoring expectations:
- *   average casual ≈ +1 · returning ≈ +0.5 · good ≈ −0.3 · excellent ≈ −0.8
- *   (−3 "should feel like an accomplishment", i.e. rare even for experts)
+ * The headline balance gate — GDD Appendix A skill ordering, MEASURED GAME-WIDE
+ * ACROSS ALL COURSES.
  *
- * MEASURED GAME-WIDE, ACROSS ALL COURSES. The courses now have deliberately
- * DIFFERENT difficulties by design — Wildwood is a hard Bethpage-style
- * championship layout (small greens, greenside sand, long holes), Timberline is
- * a tight tree-lined forest, Sable Bay a demanding water course. The Appendix A
- * tiers are a GAME-WIDE player-experience target, so we average a tier's score
- * across all three courses rather than pin the calibration to any single one
- * (Wildwood used to be the neutral baseline; it no longer is). The three-course
- * average still tracks Appendix A, while any one course may play harder/easier.
+ * Calibration is INTENTIONALLY loose right now: the playtest pass tightened the
+ * feel (halved aim sensitivity, shot-shape now curves flight, restored the
+ * missing fairway-tree collisions) and the explicit direction was "let the game
+ * get hard — I'll recalibrate the exact tier averages later." So these tiers no
+ * longer pin a narrow mean per skill level; they assert only the INVARIANTS that
+ * must hold at any difficulty:
+ *   1. every tier stays in a sane, human band (not impossible, not trivial):
+ *      roughly [−4, +6] to par over a 3-hole round;
+ *   2. score improves monotonically with skill (the separate test below);
+ *   3. −3 stays an accomplishment — rare even for good players.
  *
- * Prior calibration history: the FB9 putting rework and the ~10% drive nerf
- * (PHYSICS.driveDistanceScale) each shifted the curve; ordering, spacing and the
- * "−3 is rare" rule are the invariants that must always hold.
+ * The courses have deliberately DIFFERENT difficulties by design (hard
+ * Bethpage-style Wildwood, tight forest Timberline, demanding water Sable Bay),
+ * so a tier is averaged across all three rather than pinned to one course. When
+ * the exact Appendix A means are re-tuned, tighten these bands back up.
  */
 
 const courses = [wildwood, sablebay, timberline].map((c) => loadCourse(c as unknown as CourseAuthoring));
@@ -45,30 +47,35 @@ function meanToPar(stat: number, ROUNDS = 240): { mean: number; threeUnderPct: n
 }
 
 describe('Appendix A scoring tiers (3-hole rounds, game-wide across courses)', () => {
-  it('casual tier (stat ~72) averages ≈ +1', { timeout: T }, () => {
+  // Wide sanity band shared by every tier (see the header): playable-but-not-
+  // trivial over a 3-hole round. Ordering is enforced by the monotonic test.
+  const SANE_LOW = -4;
+  const SANE_HIGH = 6;
+
+  it('casual tier (stat ~72) stays in a sane, human band', { timeout: T }, () => {
     const { mean } = meanToPar(72);
-    expect(mean, `casual mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(0.6);
-    expect(mean, `casual mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(2.2);
+    expect(mean, `casual mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(SANE_LOW);
+    expect(mean, `casual mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(SANE_HIGH);
   });
 
-  it('returning tier (stat ~80) averages ≈ +0.5', { timeout: T }, () => {
+  it('returning tier (stat ~80) stays in a sane, human band', { timeout: T }, () => {
     const { mean } = meanToPar(80);
-    expect(mean, `returning mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(0.0);
-    expect(mean, `returning mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(1.4);
+    expect(mean, `returning mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(SANE_LOW);
+    expect(mean, `returning mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(SANE_HIGH);
   });
 
-  it('good tier (stat ~88) averages ≈ −0.2', { timeout: T }, () => {
+  it('good tier (stat ~88) stays sane and keeps −3 rare', { timeout: T }, () => {
     const { mean, threeUnderPct } = meanToPar(88);
-    expect(mean, `good mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(-0.9);
-    expect(mean, `good mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(0.6);
-    // "-3 should feel like an accomplishment" even for good players
+    expect(mean, `good mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(SANE_LOW);
+    expect(mean, `good mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(SANE_HIGH);
+    // "-3 should feel like an accomplishment" even for good players.
     expect(threeUnderPct, `good tier -3s ${threeUnderPct.toFixed(1)}%`).toBeLessThan(18);
   });
 
-  it('excellent tier (stat ~95) averages ≈ −0.8', { timeout: T }, () => {
+  it('excellent tier (stat ~95) stays in a sane, human band', { timeout: T }, () => {
     const { mean } = meanToPar(95);
-    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(-1.6);
-    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(-0.2);
+    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeGreaterThanOrEqual(SANE_LOW);
+    expect(mean, `excellent mean ${mean.toFixed(2)}`).toBeLessThanOrEqual(SANE_HIGH);
   });
 
   it('scoring improves monotonically with skill', { timeout: T }, () => {

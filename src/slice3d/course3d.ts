@@ -1152,11 +1152,11 @@ export function buildCourse(
           const fTint = lush ? (theme.mowPattern === 'checker' ? fairwayTint(jx, jy) : tint) : undefined;
           if (roll < (lush ? 0.9 : 0.62)) place(grasses, jx, jy, 0.85 + hash2(jx, jy) * 0.6, 3, fTint);
         } else {
-          // Longer rough grass, plus the occasional bush/flower — knee-high
-          // at most (the golfer is ~6 units; tufts must never read as walls).
-          // Hard cap: tufts stay knee-high whatever the theme multiplier —
-          // the golfer is ~6 units, tufts "must never read as walls".
-          const cap = lush ? 4.6 : 3.4;
+          // Longer rough grass, plus the occasional bush/flower — knee-high at
+          // most (the golfer is ~6 units; tufts must never read as walls). Cap
+          // kept low (grass cards read as flat "2D blocks" the taller they get,
+          // playtest) — the 3D bushes/flowers carry the visual interest instead.
+          const cap = lush ? 3.4 : 3.0;
           if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
           else if (roll < 0.55 && bushSet.length) {
             // The tall leafy plant (bush_kenney_b) stands a touch higher than the

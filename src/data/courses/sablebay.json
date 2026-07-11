@@ -17,6 +17,7 @@
     "sandDark": "#d0bd88",
     "water": "#2f83c6",
     "waterDeep": "#1c5b97",
+    "waterReflect": true,
     "treeCanopy": "#2f5f37",
     "treeCanopyLight": "#437f4a",
     "treeTrunk": "#6f5843",

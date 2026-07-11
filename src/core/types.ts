@@ -199,6 +199,12 @@ export interface HoleData {
   pin: Point;
   /** One or more fairway polygons. */
   fairway: Polygon[];
+  /** Authored ribbon centerlines (tee end → green end), one array per ribbon
+   *  fairway, derived by the course loader from the FairwayRibbon specs before
+   *  they are flattened to polygons. The opening flyover follows these so it
+   *  tracks the true fairway route (doglegs included) instead of cutting across
+   *  polygon centroids. Absent for v1 raw-polygon fairways. */
+  fairwayCenterlines?: number[][][];
   hazards: Hazard[];
   /** Decorative flower beds (no collision) — see GardenBed. */
   gardens?: GardenBed[];

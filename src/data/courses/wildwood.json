@@ -17,6 +17,7 @@
     "sandDark": "#cfb883",
     "water": "#3b84c4",
     "waterDeep": "#2a5f94",
+    "waterReflect": true,
     "treeCanopy": "#35673a",
     "treeCanopyLight": "#4a8a4f",
     "treeTrunk": "#7a6049",
@@ -34,7 +35,7 @@
       "tree_b"
     ],
     "scatterKeys": [
-      "fern_a",
+      "fern_kenney",
       "bush_berry"
     ]
   },

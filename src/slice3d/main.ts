@@ -767,20 +767,38 @@ class HoleScene {
     this.camTarget.look = w2b(h.tee.x, h.tee.y, teeH + 2).add(g.scale(42));
     this.camTarget.k = 0.4;
 
-    // Travel waypoints follow the AUTHORED fairway — one stop per fairway
-    // ribbon (its polygon centroid, tee-nearest first), finishing over the
-    // green. A dogleg therefore flies down each leg in turn instead of
-    // cutting straight over the corner woods; single-ribbon holes keep the
-    // classic tee → mid-hole → green sweep.
-    const centroid = (poly: ReadonlyArray<ReadonlyArray<number>>): { x: number; y: number } => ({
-      x: poly.reduce((a, p) => a + p[0], 0) / poly.length,
-      y: poly.reduce((a, p) => a + p[1], 0) / poly.length
-    });
-    const stops = h.fairway
-      .map(centroid)
-      .sort(
-        (a, b) => Math.hypot(a.x - h.tee.x, a.y - h.tee.y) - Math.hypot(b.x - h.tee.x, b.y - h.tee.y)
+    // Travel waypoints follow the AUTHORED fairway. When the loader kept the
+    // ribbon centerlines, fly the actual route station-by-station so a dogleg
+    // is flown leg → corner → leg (not cut straight over the corner woods);
+    // otherwise fall back to one stop per fairway-polygon centroid. Both finish
+    // over the green.
+    const distTee = (p: { x: number; y: number }): number => Math.hypot(p.x - h.tee.x, p.y - h.tee.y);
+    let stops: { x: number; y: number }[];
+    if (h.fairwayCenterlines && h.fairwayCenterlines.length) {
+      // Order the ribbons tee-first, then walk each one keeping every ~2nd
+      // control point plus the leg's final station so corners are always hit.
+      const ribbons = [...h.fairwayCenterlines].sort(
+        (a, b) => distTee({ x: a[0][0], y: a[0][1] }) - distTee({ x: b[0][0], y: b[0][1] })
       );
+      stops = [];
+      for (const line of ribbons) {
+        // A ribbon authored green→tee (its first point is nearer the pin) is
+        // walked in reverse so travel always runs toward the green.
+        const ordered =
+          distTee({ x: line[0][0], y: line[0][1] }) <= distTee({ x: line[line.length - 1][0], y: line[line.length - 1][1] })
+            ? line
+            : [...line].reverse();
+        ordered.forEach((pt, i) => {
+          if (i % 2 === 0 || i === ordered.length - 1) stops.push({ x: pt[0], y: pt[1] });
+        });
+      }
+    } else {
+      const centroid = (poly: ReadonlyArray<ReadonlyArray<number>>): { x: number; y: number } => ({
+        x: poly.reduce((a, p) => a + p[0], 0) / poly.length,
+        y: poly.reduce((a, p) => a + p[1], 0) / poly.length
+      });
+      stops = h.fairway.map(centroid).sort((a, b) => distTee(a) - distTee(b));
+    }
     stops.push({ x: h.pin.x, y: h.pin.y });
     const TRAVEL_MS = 3600;
     let from = { x: h.tee.x, y: h.tee.y };

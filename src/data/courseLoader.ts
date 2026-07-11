@@ -63,15 +63,22 @@ export function loadCourse(data: CourseAuthoring): CourseData {
   const roundCaps = data.roundFairwayCaps === true;
   return {
     ...data,
-    holes: data.holes.map((h) => ({
+    holes: data.holes.map((h) => {
+      // Keep the authored ribbon centerlines (before they collapse into offset
+      // polygons) so the flyover can trace the real fairway route. Raw v1
+      // polygon fairways contribute nothing here.
+      const centerlines = h.fairway.filter(isRibbon).map((f) => f.centerline);
+      return {
       ...h,
       fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f)),
+      ...(centerlines.length ? { fairwayCenterlines: centerlines } : {}),
       // Round every bunker outline once, here at the single compile choke point,
       // so physics (surfaceAt), the texture bake and the 3D scatter all read the
       // same soft-edged ring — the sand drawn and the sand played can't diverge.
       hazards: h.hazards.map((hz) =>
         hz.type === 'bunker' ? { ...hz, polygon: roundPolygon(hz.polygon, BUNKER_ROUND_ITERATIONS) } : hz
       )
-    }))
+      };
+    })
   };
 }

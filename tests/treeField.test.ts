@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { collectTreeBlobs } from '../src/systems/treeField';
 import { HoleData } from '../src/core/types';
 import { pointInPolygon } from '../src/utils/Geometry';
+import { loadCourse, CourseAuthoring } from '../src/data/courseLoader';
+import timberline from '../src/data/courses/timberline.json';
+import wildwood from '../src/data/courses/wildwood.json';
+import sablebay from '../src/data/courses/sablebay.json';
+import portjohnson from '../src/data/courses/portjohnson.json';
 
 const square: number[][] = [
   [100, 100],
@@ -43,6 +48,74 @@ describe('collectTreeBlobs spacing', () => {
   it('keeps every trunk inside the authored polygon at any density', () => {
     for (const b of collectTreeBlobs(holeWith(40))) {
       expect(pointInPolygon(b.x, b.y, square)).toBe(true);
+    }
+  });
+});
+
+describe('collectTreeBlobs specimen-tree fallback', () => {
+  // A lone fairway tree / thinking tree is authored as a polygon finer than the
+  // sampling step. Without a fallback the grid pass lands zero trunks and the
+  // tree vanishes from BOTH render and collision (playtest: Timberline h1's
+  // fairway tree had no hitbox and no mesh).
+  const tinyTree = (spacing: number): HoleData => {
+    const c = 250; // small ~24-unit specimen polygon, well under any real step
+    const poly = [
+      [c - 12, c - 12],
+      [c + 12, c - 12],
+      [c + 12, c + 12],
+      [c - 12, c + 12]
+    ];
+    return {
+      number: 1,
+      par: 4,
+      yardage: 400,
+      world: { width: 900, height: 1200 },
+      tee: { x: 450, y: 1100 },
+      green: { cx: 450, cy: 200, rx: 60, ry: 40 },
+      slope: { angle: 0, strength: 0 },
+      pin: { x: 450, y: 200 },
+      fairway: [],
+      hazards: [{ type: 'trees', polygon: poly, spacing }],
+      aiTargets: []
+    } as HoleData;
+  };
+
+  it('plants a centroid trunk when the grid pass would miss a small polygon', () => {
+    const blobs = collectTreeBlobs(tinyTree(52));
+    expect(blobs.length).toBeGreaterThanOrEqual(1);
+    // It sits at the polygon centroid (250,250).
+    expect(blobs[0].x).toBeCloseTo(250);
+    expect(blobs[0].y).toBeCloseTo(250);
+  });
+
+  it('is deterministic across the collision and render passes', () => {
+    const collide = collectTreeBlobs(tinyTree(52), 0, false);
+    const render = collectTreeBlobs(tinyTree(52), 0, true);
+    expect(collide.length).toBe(render.length);
+    expect(render[0].x).toBeCloseTo(collide[0].x);
+    expect(render[0].y).toBeCloseTo(collide[0].y);
+  });
+
+  it('every authored trees hazard on every course yields at least one trunk', () => {
+    const courses = { timberline, wildwood, sablebay, portjohnson };
+    for (const [id, json] of Object.entries(courses)) {
+      const course = loadCourse(json as unknown as CourseAuthoring);
+      for (const hole of course.holes) {
+        const treeHazards = hole.hazards.filter((h) => h.type === 'trees');
+        for (let hi = 0; hi < treeHazards.length; hi++) {
+          // Isolate each hazard so one populated grid can't mask a neighbour
+          // that lands zero — both collision (forRender=false) and render
+          // (forRender=true, which honours visualOnly) must place a trunk.
+          const solo = { ...hole, hazards: [treeHazards[hi]] } as HoleData;
+          const collide = collectTreeBlobs(solo, 0, false);
+          const render = collectTreeBlobs(solo, 0, true);
+          const label = `${id} h${hole.number} tree-hazard[${hi}]`;
+          if (!treeHazards[hi].visualOnly) {
+            expect(collide.length, `${label} collision`).toBeGreaterThanOrEqual(1);
+          }
+          expect(render.length, `${label} render`).toBeGreaterThanOrEqual(1);
+        }
+      }
     }
   });
 });

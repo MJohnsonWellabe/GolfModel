@@ -56,6 +56,7 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     const step = (forRender ? hz.visualSpacing : undefined) ?? hz.spacing ?? 52;
     const jitter = step * (36 / 52);
     const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : [0, 0];
+    const before = blobs.length;
     for (let yy = minY; yy < maxY; yy += step) {
       for (let xx = minX; xx < maxX; xx += step) {
         const jx = xx + (blobHash(xx, yy) - 0.5) * jitter;
@@ -70,6 +71,24 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32
         });
       }
+    }
+    // A specimen tree authored as a SMALL polygon (a lone fairway tree, a pair
+    // of "thinking trees") can be finer than the sampling step and land zero
+    // grid trunks — so the tree silently vanishes from BOTH the render and the
+    // collision (playtest: Timberline h1's fairway tree had no hitbox and no
+    // mesh). Guarantee at least one trunk per authored hazard by planting it at
+    // the polygon centroid, deterministically sized/tinted from that centroid.
+    if (blobs.length === before) {
+      const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+      const k = blobHash(cx + 31, cy + 17);
+      blobs.push({
+        x: cx + offX,
+        y: cy + offY,
+        r: 15 + blobHash(cx + 7, cy + 3) * 12,
+        kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
+        tint: 0.82 + blobHash(cx + 3, cy + 11) * 0.32
+      });
     }
   }
   return blobs;
