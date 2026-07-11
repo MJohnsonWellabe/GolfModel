@@ -161,9 +161,32 @@ export const DEFAULT_THEME: CourseTheme = {
   hazeStrength: 0.5,
   backdrop: 'peaks',
   blossomChance: 0.22,
-  tuftDensity: 1,
-  roughTuftHeight: 1,
-  sandSculpt: 0
+  // --- Unified premium rendering system --------------------------------------
+  // Promoted from Timberline so EVERY course gets the polished look (lush grass,
+  // real turf/sand grain, sculpted bunkers, two-tone striped greens, wispy sky,
+  // flowers). Courses still override palette / species / backdrop / density for
+  // their own identity; these are just the shared system defaults. The bake stays
+  // bounded via the adaptive scale (course3d.ts), so grain-everywhere no longer
+  // reintroduces the laggy hole build.
+  tuftDensity: 1.6, // moderate — Timberline overrides up to 3.2 for its forest floor
+  roughTuftHeight: 1.2,
+  sandSculpt: 0.6,
+  lushGrass: true,
+  edgeWobble: 1.6,
+  stripeStrength: 1.15,
+  cloudStyle: 'wispy',
+  bunkerStones: true,
+  greenColumns: true,
+  greenMowTile: 14,
+  turfGrainKey: 'textures/turf_grain.jpg',
+  roughGrainKey: 'textures/turf_grain_rough.jpg',
+  turfNormalKey: 'textures/turf_normal.jpg',
+  fairwayGrainTile: 6,
+  roughGrainTile: 14,
+  sandGrainKey: 'textures/sand_ripple.jpg',
+  sandGrainTile: 18,
+  flowerKeys: ['flower_a', 'flower_b', 'flower_c'],
+  grassKeys: ['grass_g', 'grass_h', 'grass_i']
 };
 
 /** Multiply a color's RGB by `f` (>1 lightens toward white, <1 darkens). */
@@ -246,11 +269,13 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.accentTreeKeys = strings(spec.accentTreeKeys);
   t.scatterKeys = strings(spec.scatterKeys);
   t.bushKeys = strings(spec.bushKeys);
-  t.grassKeys = strings(spec.grassKeys);
-  t.flowerKeys = strings(spec.flowerKeys);
+  // grassKeys/flowerKeys are now defaulted (unified system), so fall back to the
+  // default mix when a course omits them instead of wiping to undefined.
+  t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
+  t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
-  if (spec.lushGrass === true) t.lushGrass = true;
+  if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;
   if (spec.mowPattern === 'checker') t.mowPattern = 'checker';
@@ -265,8 +290,12 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.roughGrainKey === 'string') t.roughGrainKey = spec.roughGrainKey;
   if (typeof spec.sandGrainKey === 'string') t.sandGrainKey = spec.sandGrainKey;
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
-  if (spec.bunkerStones === true) t.bunkerStones = true;
-  if (spec.horizonTint !== undefined) t.horizonTint = parseColor(spec.horizonTint, 0xe8ddc4);
+  if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
+  // Default the sunlit horizon band to a warm-tinted lift of this course's own
+  // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
+  // fixed cream that only suits the parkland default.
+  t.horizonTint =
+    spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
   return t;

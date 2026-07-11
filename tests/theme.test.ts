@@ -6,31 +6,54 @@ const course = (theme: Record<string, unknown>): CourseData =>
   ({ name: 'T', holes: [], theme }) as unknown as CourseData;
 
 describe('theme knobs', () => {
-  it('defaults preserve the historical literals exactly', () => {
+  it('defaults now carry the unified premium rendering system', () => {
+    // The polished look (grain, lush grass, sculpted sand, striped greens, wispy
+    // sky, flowers) was promoted from Timberline into DEFAULT_THEME so every
+    // course inherits it. resolveTheme(null) === DEFAULT_THEME.
     const t = resolveTheme(null);
-    expect(t.tuftDensity).toBe(1); // scatter grid step stays exactly 34
-    expect(t.roughTuftHeight).toBe(1);
-    expect(t.sandSculpt).toBe(0); // sand bake bit-identical when unset
-    expect(t.bushKeys).toBeUndefined(); // falls back to BUSH_KEYS
-    expect(t.grassKeys).toBeUndefined(); // falls back to GRASS_KEYS
-    expect(t.flowerKeys).toBeUndefined(); // falls back to FLOWER_KEYS
-    expect(t.lushGrass).toBeUndefined(); // flat unlit grass
-    expect(t.edgeWobble).toBeUndefined(); // historical subtle wobble
-    expect(t.stripeStrength).toBeUndefined(); // historical mow-stripe swing
-    expect(t.mowPattern).toBeUndefined(); // diagonal stripe, not checkerboard
+    expect(t.tuftDensity).toBe(1.6);
+    expect(t.roughTuftHeight).toBe(1.2);
+    expect(t.sandSculpt).toBe(0.6);
+    expect(t.lushGrass).toBe(true);
+    expect(t.edgeWobble).toBe(1.6);
+    expect(t.stripeStrength).toBe(1.15);
+    expect(t.cloudStyle).toBe('wispy');
+    expect(t.bunkerStones).toBe(true);
+    expect(t.greenColumns).toBe(true);
+    expect(t.greenMowTile).toBe(14);
+    expect(t.turfGrainKey).toBe('textures/turf_grain.jpg');
+    expect(t.roughGrainKey).toBe('textures/turf_grain_rough.jpg');
+    expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');
+    expect(t.fairwayGrainTile).toBe(6);
+    expect(t.roughGrainTile).toBe(14);
+    expect(t.sandGrainKey).toBe('textures/sand_ripple.jpg');
+    expect(t.sandGrainTile).toBe(18);
+    expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
+    expect(t.flowerKeys).toEqual(['flower_a', 'flower_b', 'flower_c']);
+    // Still per-course IDENTITY — NOT defaulted (each course keeps its own):
+    expect(t.mowPattern).toBeUndefined(); // the checker diamond is Timberline-only
     expect(t.mowTile).toBeUndefined();
-    expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
-    expect(t.cloudStyle).toBeUndefined(); // puffy mesh-cloud layout
+    expect(t.cloudKeys).toBeUndefined(); // wispy painted clouds ignore mesh keys
+    expect(t.treeKeys).toBeUndefined(); // species stay per-course
+    expect(t.bushKeys).toBeUndefined();
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
-    expect(t.turfGrainKey).toBeUndefined(); // coded grain(), not a real texture
-    expect(t.turfNormalKey).toBeUndefined(); // coded sine-wave bump
-    expect(t.fairwayGrainTile).toBeUndefined();
-    expect(t.roughGrainTile).toBeUndefined();
-    expect(t.roughGrainKey).toBeUndefined(); // rough grain falls back to turfGrainKey
-    expect(t.sandGrainKey).toBeUndefined(); // coded rake sines, not a real texture
-    expect(t.sandGrainTile).toBeUndefined();
-    expect(t.bunkerStones).toBeUndefined(); // no bunker-edge stones
-    expect(t.horizonTint).toBeUndefined(); // historical 4-stop sky gradient
+  });
+
+  it('a course inherits the defaults but can still override or DISABLE them', () => {
+    const lush = resolveTheme(course({ fairway: '#123456' }));
+    expect(lush.lushGrass).toBe(true); // inherited
+    expect(lush.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']); // inherited, not wiped
+    expect(lush.turfGrainKey).toBe('textures/turf_grain.jpg'); // inherited
+    const plain = resolveTheme(course({ lushGrass: false, bunkerStones: false }));
+    expect(plain.lushGrass).toBe(false); // explicit disable respected
+    expect(plain.bunkerStones).toBe(false);
+  });
+
+  it('derives horizonTint from the course sky when unset', () => {
+    const t = resolveTheme(course({ skyBottom: '#c0d8e8' }));
+    expect(t.horizonTint).not.toBeUndefined();
+    // a warm lift of the course's own horizon color, not a fixed cream
+    expect(t.horizonTint).not.toBe(0xe8ddc4);
   });
 
   it('round-trips authored scatter/sand/cloud knobs', () => {
