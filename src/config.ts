@@ -221,9 +221,9 @@ export const PHYSICS = {
   lieSpin: {
     tee: 1.0,
     fairway: 1.0,
-    rough: 0.6,
-    sand: 0.8,
-    fringe: 0.95,
+    rough: 0.45,
+    sand: 0.5,
+    fringe: 0.8,
     green: 1.0,
     water: 1.0,
     trees: 0.4

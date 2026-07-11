@@ -16,9 +16,18 @@ import {
   Wind
 } from '../core/types';
 
-/** Fringe ring width around the green, world px. Wide enough that the mown
- *  collar still reads at gameplay camera distance (survives mip averaging). */
+/** Fringe LIE zone (world px) — how far off the green a ball still plays the
+ *  cleaner 'fringe'/first-cut lie. Kept at the long-standing 16 yd so scoring
+ *  balance and the hole-out fairness gates are unchanged from what players
+ *  already experience. This is a GAMEPLAY collar, not the drawn one. */
 export const FRINGE_MARGIN = 32;
+
+/** VISIBLE mown collar (world px) — the lighter cut ring the eye reads around
+ *  the green, plus the raised-plateau falloff. At PX_PER_YARD 2.0, 7 px ≈ 3.5 yd
+ *  (playtest: "fringe rings are too large; ~3-4 yards"). Deliberately tighter
+ *  than the FRINGE_MARGIN lie zone: a crisp mown collar with a wider first-cut
+ *  of rough beyond it that still plays fringe — exactly like a real green. */
+export const FRINGE_VISUAL = 7;
 
 /** Shortest distance from point (px,py) to the segment (ax,ay)-(bx,by), world
  *  px. Used for swept cup capture so a fast putt crossing the hole between two

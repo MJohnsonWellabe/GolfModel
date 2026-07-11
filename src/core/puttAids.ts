@@ -4,7 +4,7 @@ import { Surface } from './types';
  *  grid. Covers the short game (chips and short pitches), not just tap-in range,
  *  so you can read the green you're landing on (playtest: grid wasn't showing on
  *  ordinary short chips). */
-export const CHIP_GRID_YDS = 30;
+export const CHIP_GRID_YDS = 50;
 
 /**
  * Whether the putting-read grid should be visible for the current shot. Always

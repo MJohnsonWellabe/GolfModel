@@ -33,8 +33,8 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { greenBoundaryScale, pointInPolygon } from '../utils/Geometry';
-import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
+import { greenBoundaryScale, pointInGreen, pointInPolygon } from '../utils/Geometry';
+import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { buildBreakDots } from './breakDots';
@@ -188,7 +188,7 @@ function greenLift(x: number, y: number, hole: HoleData): number {
   if (f <= 1) return GREEN_RAISE;
   // Approximate world distance beyond the green edge, smooth over the fringe
   const beyond = (f - 1) * Math.min(hole.green.rx, hole.green.ry);
-  const s = Math.min(1, beyond / FRINGE_MARGIN);
+  const s = Math.min(1, beyond / FRINGE_VISUAL);
   const t = 1 - s * s * (3 - 2 * s); // smoothstep down
   return GREEN_RAISE * t;
 }
@@ -378,7 +378,7 @@ export function buildCourse(
     // stepping across the fringe down to ground level (slightly below to tuck)
     const topT = [0, 0.45, 0.8, 1];
     const skirtS = [0.18, 0.45, 0.72, 1, 1.18];
-    const patch = renderGreenPatch(hole, theme, engine, FRINGE_MARGIN + 8, 6);
+    const patch = renderGreenPatch(hole, theme, engine, FRINGE_VISUAL + 8, 6);
     const positions: number[] = [];
     const uvs: number[] = [];
     const indices: number[] = [];
@@ -405,7 +405,7 @@ export function buildCourse(
     const rings: Array<{ rx: number; ry: number; h: number }> = [];
     for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
     for (const s of skirtS) {
-      const beyond = s * FRINGE_MARGIN;
+      const beyond = s * FRINGE_VISUAL;
       const tt = Math.min(1, s);
       const fall = 1 - tt * tt * (3 - 2 * tt);
       rings.push({
@@ -1213,7 +1213,14 @@ export function buildCourse(
     for (let i = 0; i < treeBlobs.length; i += 40) {
       const start = i;
       popQueue.push(() => {
-        for (let j = start; j < Math.min(start + 40, treeBlobs.length); j++) plantTree(treeBlobs[j]);
+        for (let j = start; j < Math.min(start + 40, treeBlobs.length); j++) {
+          const b = treeBlobs[j];
+          // Never plant a tree on the green or its collar (playtest: "no trees on
+          // the fringe anywhere"). Uses the wider lie collar so trunks stay well
+          // clear of the putting surface, not just off the mown ring.
+          if (pointInGreen(b.x, b.y, hole.green, FRINGE_MARGIN)) continue;
+          plantTree(b);
+        }
       });
     }
 

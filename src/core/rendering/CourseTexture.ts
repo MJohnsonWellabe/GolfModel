@@ -1,4 +1,4 @@
-import { FRINGE_MARGIN, PhysicsEngine } from '../../systems/PhysicsEngine';
+import { FRINGE_VISUAL, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
@@ -137,7 +137,7 @@ function rasterizeClassGrid(
           if (hz.type === 'water') poly(hz.polygon);
         })
     ],
-    [3, (): void => ell(FRINGE_MARGIN)],
+    [3, (): void => ell(FRINGE_VISUAL)],
     [
       4,
       (): void =>

@@ -671,15 +671,19 @@ class HoleScene {
     const f = this.fwd3(this.aim.yaw);
     const base = w2b(this.state.ballPos.x, this.state.ballPos.y, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     const putt = this.aim.isPutting;
-    if (this.aerial && !putt) {
+    if (this.aerial) {
       // Overhead planning view that ALWAYS frames the whole ball→pin corridor
       // (FB3): height scales with the span with no upper cap so the green is
       // in frame even on the longest holes. With the ~1.05 vertical fov the
       // ground coverage ≈ height, so height ≈ span·1.25 fits both ends + margin.
+      // Works while PUTTING too (playtest: "aerial doesn't work when putting") —
+      // there the span is short, so it drops to a tight overhead that frames the
+      // green + the ball→cup line + the break grid instead of a sky-high view.
       const mx = (this.state.ballPos.x + this.hole.pin.x) / 2;
       const my = (this.state.ballPos.y + this.hole.pin.y) / 2;
       const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
-      const height = Math.max(300, span * 1.25);
+      const greenR = Math.max(this.hole.green.rx, this.hole.green.ry);
+      const height = putt ? Math.max(90, span * 1.6 + greenR * 0.9) : Math.max(300, span * 1.25);
       const mid = w2b(mx, my, 0);
       // Aim the eye straight down the corridor from just behind the ball end.
       const toPin = this.fwd3(this.aim.yaw);
@@ -1047,10 +1051,15 @@ class HoleScene {
     // Putting: shrink the ball→cup aiming dots (and target ring) so the line is
     // a fine string of dots, not fat discs that hide the read (playtest). The
     // moving break-flow dots (breakDots.ts) are a separate mesh, unaffected.
-    const dotScale = this.aerial
-      ? Math.min(9, Math.max(4, span / 120))
-      : this.aim.isPutting
-        ? 0.42
+    // Putting keeps its fine aim dots even in the overhead view (a touch larger
+    // there so they read from the higher camera); only a FULL-shot aerial uses
+    // the big span-scaled dots.
+    const dotScale = this.aim.isPutting
+      ? this.aerial
+        ? 0.7
+        : 0.42
+      : this.aerial
+        ? Math.min(9, Math.max(4, span / 120))
         : 1;
     // Full shots: the dots/ring/readout mark the CARRY-LANDING (where the ball
     // first touches down, ~320yd for a big-hitter driver) — not the post-rollout
