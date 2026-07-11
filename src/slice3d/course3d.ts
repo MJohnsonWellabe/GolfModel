@@ -957,9 +957,11 @@ export function buildCourse(
         inst.position = pos;
         inst.rotation = new Vector3(0, rotY, 0);
         inst.parent = treeRoot;
-        // Per-tuft tint (lush grass only; the buffer is registered on grass
-        // prototypes in natureModels when grassLit) breaks the flat one-color read.
-        if (tint) inst.instancedBuffers.color = tint;
+        // Per-tuft tint (lush grass only; the 'color' buffer is registered on
+        // tintable prototype parts in natureModels when grassLit) breaks the flat
+        // one-color read. For split flowers only the petal part is tintable, so a
+        // hue colors the bloom while the stem part stays green.
+        if (tint && (part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint;
       }
     };
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts

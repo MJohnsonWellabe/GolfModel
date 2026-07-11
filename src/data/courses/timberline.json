@@ -605,9 +605,9 @@
           "rx": 104,
           "ry": 50,
           "rot": 0.35,
-          "density": 4.5,
-          "bloomChance": 0.9,
-          "bushChance": 0.08,
+          "density": 10.0,
+          "bloomChance": 0.95,
+          "bushChance": 0.06,
           "flowerKeys": ["flower_f", "flower_g", "flower_h", "flower_e", "flower_a"]
         }
       ],
