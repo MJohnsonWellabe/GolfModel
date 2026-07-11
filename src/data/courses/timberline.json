@@ -53,6 +53,8 @@
     "stripeStrength": 1.2,
     "mowPattern": "checker",
     "mowTile": 30,
+    "greenColumns": true,
+    "greenMowTile": 14,
     "lushGrass": true,
     "grassKeys": [
       "grass_g",

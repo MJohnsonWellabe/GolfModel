@@ -27,6 +27,19 @@ export function mowCheckerboard(along: number, across: number, tile: number, sha
 }
 
 /**
+ * Signed single-axis mowing STRIPE value in [-1, 1] for one hole-axis
+ * coordinate: +1 on a "light" band, -1 on a "dark" band, flipping every `tile`
+ * units. Same near-square wave as one factor of {@link mowCheckerboard}, so a
+ * green striped with this reads as straight two-tone columns (project the world
+ * point onto the ACROSS axis before calling → columns that run in the direction
+ * of play) rather than the checkerboard's diamonds. `sharp` (>1) hardens the
+ * band edge toward a square wave while keeping a thin anti-aliased transition.
+ */
+export function mowStripe(coord: number, tile: number, sharp = 8): number {
+  return Math.max(-1, Math.min(1, Math.sin((coord / tile) * Math.PI) * sharp));
+}
+
+/**
  * Checkerboard axis rotation: a diamond grid (squares on point) instead of
  * squares aligned straight along/across the fairway. Both call sites
  * (CourseTexture's bake and course3d's grass-tuft tint) must add this to the

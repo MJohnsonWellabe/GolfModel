@@ -90,6 +90,15 @@ export interface CourseTheme {
   /** Checkerboard cell width in world units (mowPattern='checker'). Default 30
    *  — small enough that 2–3 cells span a fairway. Ignored otherwise. */
   mowTile?: number;
+  /** Greens: paint straight two-tone MOWING COLUMNS (bands running in the
+   *  direction of play, alternating `greenLight`/`green`) instead of the default
+   *  subtle single-tone undulation — the "little design like the fairways" look.
+   *  The green-complex patch and the ground bake sample the same columns so they
+   *  never seam. */
+  greenColumns?: boolean;
+  /** Green mowing-column band width in world units (greenColumns). Default 14 —
+   *  tight enough that several columns span a green. */
+  greenMowTile?: number;
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
@@ -193,6 +202,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'stripeStrength'
     | 'mowPattern'
     | 'mowTile'
+    | 'greenColumns'
+    | 'greenMowTile'
     | 'cloudKeys'
     | 'cloudStyle'
     | 'turfGrainKey'
@@ -244,6 +255,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;
   if (spec.mowPattern === 'checker') t.mowPattern = 'checker';
   if (typeof spec.mowTile === 'number') t.mowTile = spec.mowTile;
+  if (typeof spec.greenColumns === 'boolean') t.greenColumns = spec.greenColumns;
+  if (typeof spec.greenMowTile === 'number') t.greenMowTile = spec.greenMowTile;
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;
   if (typeof spec.turfNormalKey === 'string') t.turfNormalKey = spec.turfNormalKey;

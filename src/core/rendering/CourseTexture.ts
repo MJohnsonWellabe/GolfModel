@@ -2,7 +2,7 @@ import { FRINGE_MARGIN, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
-import { CHECKER_ROTATION, mowCheckerboard } from './mowPattern';
+import { CHECKER_ROTATION, mowCheckerboard, mowStripe } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
 
 // Tree blobs now live in a rendering-independent module so the physics engine
@@ -200,6 +200,15 @@ export function renderCourseCanvas(
   // stripe fallback) even though the angle happens to match today.
   const chax = Math.cos(axis + CHECKER_ROTATION);
   const chay = Math.sin(axis + CHECKER_ROTATION);
+  // Green mowing columns (theme.greenColumns): straight two-tone bands running
+  // in the direction of play. The band sign flips along the ACROSS axis
+  // (perpendicular to tee->pin) so the columns run tee->pin; light bands use
+  // greenLight, dark bands the (darker) green. The green-complex patch samples
+  // the identical field (renderGreenPatch) so the mesh and ground never seam.
+  const greenCols = theme.greenColumns === true;
+  const greenTile = theme.greenMowTile ?? 14;
+  const gCol0 = rgb(theme.greenLight);
+  const gCol1 = rgb(theme.green);
   // Tee-pad centre (see inTeePad) precomputed so the hot texel loop stays cheap.
   const tcx = hole.tee.x - ax * TEE_HALF * 0.55;
   const tcy = hole.tee.y - ay * TEE_HALF * 0.55;
@@ -321,7 +330,17 @@ export function renderCourseCanvas(
         }
       }
 
-      const [r, g, b] = palette[cls];
+      let [r, g, b] = palette[cls];
+      // Green mowing columns: pick the light/dark green tone by the across-axis
+      // band sign (mirrored in renderGreenPatch). The two-tone IS the pattern,
+      // so the subtle green sine stripe below is skipped for these texels.
+      if (greenCols && cls === 2) {
+        const across = -wx * ay + wy * ax;
+        const t = (mowStripe(across, greenTile) + 1) / 2; // 0 = dark, 1 = light
+        r = gCol1[0] + (gCol0[0] - gCol1[0]) * t;
+        g = gCol1[1] + (gCol0[1] - gCol1[1]) * t;
+        b = gCol1[2] + (gCol0[2] - gCol1[2]) * t;
+      }
 
       // Real-asset turf grain (theme.turfGrainKey/roughGrainKey) replaces the
       // coded noise on fairway/rough only, tiled tighter on fairway (short
@@ -385,7 +404,9 @@ export function renderCourseCanvas(
           const phase = Math.sin((along / sw) * Math.PI);
           band = cls === 2 ? phase : Math.tanh(phase * 2.4) / 0.9837;
         }
-        light *= 1 + band * contrast;
+        // Green columns carry their two-tone in the base color, not a brightness
+        // stripe — don't also modulate, or the columns muddy.
+        if (!(greenCols && cls === 2)) light *= 1 + band * contrast;
       }
       // Tee collar: a darker mown border framing the square pad.
       if (cls === 7 && teeInset >= 0 && teeInset < 7) light *= 0.72;
@@ -542,6 +563,13 @@ export function renderGreenPatch(
   const axis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
   const ax = Math.cos(axis);
   const ay = Math.sin(axis);
+  // Two-tone green mowing columns — MUST match the main bake (renderCourseCanvas)
+  // exactly (same across-axis, tile and tones) or the green-mesh patch seams
+  // against the ground where the two canvases meet the fringe.
+  const greenCols = theme.greenColumns === true;
+  const greenTile = theme.greenMowTile ?? 14;
+  const gCol0 = rgb(theme.greenLight);
+  const gCol1 = rgb(theme.green);
   // Greenside sand painted by this high-res patch must match the main bake's
   // sculpting or a shading seam appears at the green-mesh skirt.
   const sculpt = theme.sandSculpt;
@@ -565,9 +593,17 @@ export function renderGreenPatch(
     for (let px = 0; px < w; px++) {
       const wx = x0 + px / scale;
       const surf = ID_SURFACE[grid[py * w + px]];
-      const [r, gr, b] = cols[surf] ?? cols.rough;
+      let [r, gr, b] = cols[surf] ?? cols.rough;
       let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : surf === 'fringe' ? 0.11 : 0.14);
-      if (surf === 'green') {
+      if (surf === 'green' && greenCols) {
+        // Two-tone columns (matches the main bake) — the pattern lives in the
+        // base color, so the subtle along-axis sine below is skipped.
+        const across = -wx * ay + wy * ax;
+        const t = (mowStripe(across, greenTile) + 1) / 2; // 0 = dark, 1 = light
+        r = gCol1[0] + (gCol0[0] - gCol1[0]) * t;
+        gr = gCol1[1] + (gCol0[1] - gCol1[1]) * t;
+        b = gCol1[2] + (gCol0[2] - gCol1[2]) * t;
+      } else if (surf === 'green') {
         // Tight, subtle mow stripes along the play axis
         const along = wx * ax + wy * ay;
         light *= 1 + Math.sin((along / 30) * Math.PI) * 0.075;
