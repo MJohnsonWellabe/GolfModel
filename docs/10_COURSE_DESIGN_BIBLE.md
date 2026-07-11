@@ -468,7 +468,9 @@ specific spot (e.g. behind a green). A garden is an ellipse
 Unlike a `trees` hazard, a garden is **art, not gameplay**: it carries no
 collision and is invisible to physics and the AI. The 3D scatter plants blooms
 on the `rough` surface only, so a bed never buries the green, fringe, bunkers,
-or a tree's hitbox. The bed paints a **left→right rainbow** — each bloom's hue
+or a tree's hitbox. The rough turf under a bed is painted as **bark mulch** in
+the baked ground texture (so the blooms rise out of earth, not grass), and the
+ambient grass/scatter is kept out of the footprint. The bed paints a **left→right rainbow** — each bloom's hue
 comes from its position along the bed's major axis (pink · purple · blue ·
 green · yellow · white) — so it reads as organized beds of color, not random
 speckle. Blooms are the genuinely-3D nature-kit meshes (`flower_f/g/h`
