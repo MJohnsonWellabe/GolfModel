@@ -28,7 +28,7 @@ describe('theme knobs', () => {
     expect(t.roughGrainTile).toBe(14);
     expect(t.sandGrainKey).toBe('textures/sand_ripple.jpg');
     expect(t.sandGrainTile).toBe(18);
-    expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
+    expect(t.grassKeys).toEqual(['grass_g', 'grass_h']);
     // Genuinely-3D blooms/bushes are the universal default now — the flat
     // meadow cards (flower_a/b/c, bush_a/b) read as "2D blocks" at gameplay
     // distance and were retired as defaults (playtest regression).
@@ -47,7 +47,7 @@ describe('theme knobs', () => {
   it('a course inherits the defaults but can still override or DISABLE them', () => {
     const lush = resolveTheme(course({ fairway: '#123456' }));
     expect(lush.lushGrass).toBe(true); // inherited
-    expect(lush.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']); // inherited, not wiped
+    expect(lush.grassKeys).toEqual(['grass_g', 'grass_h']); // inherited, not wiped
     expect(lush.turfGrainKey).toBe('textures/turf_grain.jpg'); // inherited
     const plain = resolveTheme(course({ lushGrass: false, bunkerStones: false }));
     expect(plain.lushGrass).toBe(false); // explicit disable respected
@@ -69,7 +69,7 @@ describe('theme knobs', () => {
         sandSculpt: 0.7,
         hazeStrength: 0.55,
         bushKeys: ['bush_juniper', 'bush_c', 'bush_a'],
-        grassKeys: ['grass_g', 'grass_h', 'grass_i'],
+        grassKeys: ['grass_g', 'grass_h'],
         flowerKeys: ['flower_a', 'flower_b', 'flower_c'],
         lushGrass: true,
         edgeWobble: 2.4,
@@ -94,7 +94,7 @@ describe('theme knobs', () => {
     expect(t.sandSculpt).toBe(0.7);
     expect(t.hazeStrength).toBe(0.55);
     expect(t.bushKeys).toEqual(['bush_juniper', 'bush_c', 'bush_a']);
-    expect(t.grassKeys).toEqual(['grass_g', 'grass_h', 'grass_i']);
+    expect(t.grassKeys).toEqual(['grass_g', 'grass_h']);
     expect(t.lushGrass).toBe(true);
     expect(t.edgeWobble).toBe(2.4);
     expect(t.stripeStrength).toBe(1.3);

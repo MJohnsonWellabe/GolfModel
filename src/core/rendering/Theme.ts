@@ -214,7 +214,11 @@ export const DEFAULT_THEME: CourseTheme = {
   // flowering shrub). The old bush_kenney_b was a spiky agave-like plant that
   // read badly in the rough (playtest) and was dropped as a default.
   bushKeys: ['bush_kenney_a', 'bush_kenney_c'],
-  grassKeys: ['grass_g', 'grass_h', 'grass_i']
+  // grass_i (SM_Grass_Shorts) is a DENSE ~1200-tri clump that reads as a solid
+  // "block"/hay-bale — especially tinted to a golden links rough — so it was
+  // dropped (playtest: "the golden asset is just a block, remove it"). grass_g/h
+  // are wispy blade cards that stay ground texture.
+  grassKeys: ['grass_g', 'grass_h']
 };
 
 /** Multiply a color's RGB by `f` (>1 lightens toward white, <1 darkens). */

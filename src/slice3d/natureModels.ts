@@ -241,15 +241,21 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
             const src = mm.material as unknown as { albedoTexture?: Texture; getActiveTextures?: () => Texture[] };
             const tex = src?.albedoTexture ?? src?.getActiveTextures?.()?.[0];
             if (tex) {
+              // Cut the rectangular card down to the grass-blade silhouette using
+              // the photo's OWN alpha channel. IMPORTANT: use ONLY the diffuse
+              // alpha — an extra opacityTexture here fought this and left the whole
+              // opaque quad showing (the "golden block" playtest bug). ALPHATEST
+              // (not blend) so thousands of instanced cards need no depth sorting.
               tex.hasAlpha = true;
               heatherMat.diffuseTexture = tex;
-              heatherMat.opacityTexture = tex;
               heatherMat.useAlphaFromDiffuseTexture = true;
+              heatherMat.diffuseTexture.getAlphaFromRGB = false;
             }
             heatherMat.emissiveColor = c3(0x5a5a5a); // lift so the cards aren't dark under the sun
             heatherMat.specularColor = c3(0x000000);
             heatherMat.backFaceCulling = false;
             heatherMat.transparencyMode = 1; // ALPHATEST — crisp grass-card cutout
+            heatherMat.alphaCutOff = 0.4;
           }
           mat = heatherMat;
         } else {
