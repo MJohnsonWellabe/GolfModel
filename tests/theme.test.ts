@@ -33,7 +33,7 @@ describe('theme knobs', () => {
     // meadow cards (flower_a/b/c, bush_a/b) read as "2D blocks" at gameplay
     // distance and were retired as defaults (playtest regression).
     expect(t.flowerKeys).toEqual(['flower_f', 'flower_g', 'flower_h']);
-    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_b']);
+    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_c']);
     // The fairway checker + green columns are universal design language now
     // (playtest: every course should carry "the fairway pattern").
     expect(t.mowPattern).toBe('checker');
@@ -118,7 +118,7 @@ describe('theme knobs', () => {
     // bushKeys is a defaulted field now: a malformed override falls back to the
     // unified 3D default rather than wiping to undefined (which would drop the
     // course back to flat cards).
-    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_b']);
+    expect(t.bushKeys).toEqual(['bush_kenney_a', 'bush_kenney_c']);
     expect(t.cloudKeys).toBeUndefined(); // cloudKeys stays truly optional
   });
 });

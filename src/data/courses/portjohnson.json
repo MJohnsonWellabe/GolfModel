@@ -31,11 +31,17 @@
     "edgeWobble": 2.2,
     "tallGrass": {
       "cap": 5,
-      "density": 1.6,
+      "density": 3.4,
       "waste": true
     },
     "scatterKeys": [
       "fern_kenney"
+    ],
+    "heatherKeys": [
+      "heather_fescue_a",
+      "heather_fescue_b",
+      "heather_fescue_c",
+      "heather_purple"
     ]
   },
   "holes": [
@@ -760,5 +766,7 @@
         }
       ]
     }
-  ]
+  ],
+  "minWind": 20,
+  "maxWind": 30
 }

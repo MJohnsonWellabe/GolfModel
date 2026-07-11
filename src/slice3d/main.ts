@@ -268,9 +268,11 @@ function todayKey(): string {
 function windForHole(idx: number): Wind {
   if (!round.holeWinds[idx]) {
     const rng = round.seed !== undefined ? mulberry32(round.seed * 1000 + idx) : Math.random;
+    const minW = round.course.minWind ?? 2;
+    const maxW = round.course.maxWind ?? PHYSICS.maxWind;
     round.holeWinds[idx] = {
       angle: rng() * Math.PI * 2,
-      speed: Math.round(2 + rng() * (PHYSICS.maxWind - 2))
+      speed: Math.round(minW + rng() * Math.max(0, maxW - minW))
     };
   }
   return round.holeWinds[idx];

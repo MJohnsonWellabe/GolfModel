@@ -634,6 +634,7 @@ export function buildCourse(
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
+      ...(theme.heatherKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
     ])
@@ -912,23 +913,18 @@ export function buildCourse(
     // No backdrop scenery: the dense conifer wall (backdropTreeStep) plus open
     // sky is the horizon — deliberately no ridges or feature peak (Timberline).
   } else {
-    // Championship parkland: layered ridge line + a Fuji-like feature peak
-    const ridgeMat = mat(scene, 'ridge', shade(theme.skyTop, 1.1), { emissive: shade(theme.skyTop, 0.55) });
+    // Soft, ROUNDED low hills on the far horizon — the old pointed cone "ridge"
+    // + Fuji peak read as hard triangle mountains, which playtest wanted gone.
+    // Flattened, haze-tinted domes sit low behind the treeline so the horizon
+    // reads as gentle rolling land, never a spiky range.
+    const hillMat = mat(scene, 'hill', shade(theme.skyTop, 1.06), { emissive: shade(theme.skyTop, 0.62) });
     for (let i = -3; i <= 3; i++) {
-      const m = MeshBuilder.CreateCylinder(
-        `ridge${i}`,
-        { diameterTop: 0, diameterBottom: 700 + Math.abs(i) * 160, height: 260 + ((i * 37) % 90), tessellation: 5 },
-        scene
-      );
-      m.material = ridgeMat;
-      m.position = w2b(hole.pin.x + i * 620 + 140, hole.pin.y - peakDist - Math.abs(i) * 240, 90);
+      const dome = MeshBuilder.CreateSphere(`hill${i}`, { diameter: 1400 + Math.abs(i) * 260, segments: 10 }, scene);
+      dome.material = hillMat;
+      // Very flat (wide, low) so it's a soft swell, not a peak; parked far back.
+      dome.scaling = new Vector3(1.4, 0.16 + ((Math.abs(i) * 7) % 5) * 0.01, 1);
+      dome.position = w2b(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
     }
-    const peak = MeshBuilder.CreateCylinder('peak', { diameterTop: 0, diameterBottom: 1750, height: 680, tessellation: 7 }, scene);
-    peak.material = mat(scene, 'peakMat', shade(theme.skyTop, 0.52), { emissive: shade(theme.skyTop, 0.24) });
-    peak.position = w2b(hole.pin.x + 380, hole.pin.y - peakDist - 780, 210);
-    const cap = MeshBuilder.CreateCylinder('peakCap', { diameterTop: 0, diameterBottom: 800, height: 315, tessellation: 7 }, scene);
-    cap.material = mat(scene, 'capMat', 0xf4f8fb, { emissive: 0xdfe9f0 });
-    cap.position = peak.position.add(new Vector3(0, 335, 0));
   }
 
   // ------------------------------------------------------------------ trees
@@ -1228,10 +1224,11 @@ export function buildCourse(
     if (theme.tallGrass) {
       const { cap, density } = theme.tallGrass;
       const tgStep = 40 / Math.sqrt(Math.max(0.15, density));
-      // Genuinely-3D clumps (ferns, leafy bushes) mixed through the fescue so
-      // the tall grass reads as volumetric tussocks rather than a field of flat
-      // cards (playtest: links tall grass "needs more dense" and 3D). Falls back
-      // to just cards if none of these prototypes loaded for the course.
+      // Photo-textured heather / links-fescue cards (theme.heatherKeys) are the
+      // preferred field content — real fescue + purple heather imagery, planted
+      // untinted so the photo (incl. the purple bloom) reads true. Absent that,
+      // fall back to the theme grass cards mixed with 3D tussock clumps.
+      const heatherSet = pick(theme.heatherKeys ?? []);
       const clump3d = pick(['fern_kenney', 'bush_kenney_b']);
       for (let yy = 0; yy < h; yy += tgStep) {
         const yRow = yy;
@@ -1245,9 +1242,10 @@ export function buildCourse(
           const jy = yRow + (hash2(yRow + 13, xx) - 0.5) * tgStep * 0.9;
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
-          // ~30% of clumps are 3D meshes (kept a touch shorter so a leafy bush
-          // doesn't tower); the rest stay wispy fescue cards.
-          if (clump3d.length && hash2(jx + 9, jy + 4) < 0.3) {
+          if (heatherSet.length) {
+            place(heatherSet, jx, jy, tall);
+          } else if (clump3d.length && hash2(jx + 9, jy + 4) < 0.3) {
+            // ~30% 3D tussock clumps (kept a touch shorter); the rest fescue cards.
             place(clump3d, jx, jy, tall * 0.8, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
           } else {
             place(grasses, jx, jy, tall, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);

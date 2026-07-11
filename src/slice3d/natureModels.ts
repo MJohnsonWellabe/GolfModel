@@ -5,6 +5,7 @@ import {
   Mesh,
   Scene,
   StandardMaterial,
+  Texture,
   VertexBuffer,
   VertexData
 } from '@babylonjs/core';
@@ -226,8 +227,34 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       // vertex data plus its own transform. Keeping one mesh per material
       // avoids the multi-material instancing path.
       const byMat = new Map<string, Mesh[]>();
+      // Heather/links-fescue cards are PHOTO-textured (a real grass/heather
+      // image with alpha), unlike every other prop which is recolored by slot.
+      // Keep their imported texture on a flat, alpha-tested, self-lit material so
+      // the photo reads true (and the purple heather stays purple).
+      const isHeather = key.startsWith('heather');
+      let heatherMat: StandardMaterial | undefined;
       raw.forEach((mm) => {
-        const mat = pickMat(mm.material?.name ?? '', key, mm.name);
+        let mat: StandardMaterial;
+        if (isHeather) {
+          if (!heatherMat) {
+            heatherMat = new StandardMaterial(`natHeather-${key}`, scene);
+            const src = mm.material as unknown as { albedoTexture?: Texture; getActiveTextures?: () => Texture[] };
+            const tex = src?.albedoTexture ?? src?.getActiveTextures?.()?.[0];
+            if (tex) {
+              tex.hasAlpha = true;
+              heatherMat.diffuseTexture = tex;
+              heatherMat.opacityTexture = tex;
+              heatherMat.useAlphaFromDiffuseTexture = true;
+            }
+            heatherMat.emissiveColor = c3(0x5a5a5a); // lift so the cards aren't dark under the sun
+            heatherMat.specularColor = c3(0x000000);
+            heatherMat.backFaceCulling = false;
+            heatherMat.transparencyMode = 1; // ALPHATEST — crisp grass-card cutout
+          }
+          mat = heatherMat;
+        } else {
+          mat = pickMat(mm.material?.name ?? '', key, mm.name);
+        }
         mm.material = mat;
         const g = byMat.get(mat.name);
         if (g) g.push(mm);

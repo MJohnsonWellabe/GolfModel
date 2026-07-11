@@ -71,6 +71,11 @@ export interface CourseTheme {
   /** Flower mesh mix (defaults to FLOWER_KEYS). More variety = more bloom
    *  shapes; with lushGrass they also render multi-colored. */
   flowerKeys?: readonly string[];
+  /** PHOTO-textured heather / links-fescue card mix planted as the dense
+   *  `tallGrass` fields (links courses). Unlike grassKeys these keep their own
+   *  image texture (natureModels heather path) so the fescue/heather reads real,
+   *  incl. the purple heather bloom. */
+  heatherKeys?: readonly string[];
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -205,7 +210,10 @@ export const DEFAULT_THEME: CourseTheme = {
   // gameplay distance and are no longer defaults (grass tufts stay cards but
   // only ever SHORT, where they read as ground texture).
   flowerKeys: ['flower_f', 'flower_g', 'flower_h'],
-  bushKeys: ['bush_kenney_a', 'bush_kenney_b'],
+  // Rounded 3D shrubs only: bush_kenney_a (Bush_Common) + bush_kenney_c (a
+  // flowering shrub). The old bush_kenney_b was a spiky agave-like plant that
+  // read badly in the rough (playtest) and was dropped as a default.
+  bushKeys: ['bush_kenney_a', 'bush_kenney_c'],
   grassKeys: ['grass_g', 'grass_h', 'grass_i']
 };
 
@@ -240,6 +248,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bushKeys'
     | 'grassKeys'
     | 'flowerKeys'
+    | 'heatherKeys'
     | 'lushGrass'
     | 'edgeWobble'
     | 'stripeStrength'
@@ -301,6 +310,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.bushKeys = strings(spec.bushKeys) ?? DEFAULT_THEME.bushKeys;
   t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
+  t.heatherKeys = strings(spec.heatherKeys);
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
   if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;

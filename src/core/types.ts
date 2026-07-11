@@ -229,6 +229,11 @@ export interface CourseData {
   holes: HoleData[];
   /** Optional per-course art overrides — see core/rendering/Theme.ts. */
   theme?: Record<string, string | number | string[]>;
+  /** Per-course wind band (mph). A windswept links sets a high floor so the
+   *  wind is always a factor (e.g. Port Johnson minWind 20). Defaults: min 2,
+   *  max PHYSICS.maxWind. */
+  minWind?: number;
+  maxWind?: number;
 }
 
 export interface Wind {

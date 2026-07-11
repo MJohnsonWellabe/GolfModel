@@ -34,11 +34,19 @@ export interface RoundSimResult {
 export interface SimulateHoleOpts {
   rng: Rng;
   wind?: Wind;
+  /** Per-course wind band (mph); defaults 2..20. */
+  windMin?: number;
+  windMax?: number;
 }
 
 export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleOpts): HoleSimResult {
   const { rng } = opts;
-  const wind = opts.wind ?? { angle: rng() * Math.PI * 2, speed: Math.round(2 + rng() * 18) };
+  const wMin = opts.windMin ?? 2;
+  const wMax = opts.windMax ?? 20;
+  const wind = opts.wind ?? {
+    angle: rng() * Math.PI * 2,
+    speed: Math.round(wMin + rng() * Math.max(0, wMax - wMin))
+  };
   const engine = new PhysicsEngine(hole, buildHeightField(hole), rng);
   const ai = new AIController(golfer, new FireSystem(), engine, rng);
 
@@ -81,7 +89,9 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
 export function simulateRound(course: CourseData, golfer: Golfer, seed: number, holeCount?: number): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
-  const results = holes.map((h) => simulateHole(h, golfer, { rng }));
+  const results = holes.map((h) =>
+    simulateHole(h, golfer, { rng, windMin: course.minWind, windMax: course.maxWind })
+  );
   const total = results.reduce((a, r) => a + r.strokes, 0);
   const par = holes.reduce((a, h) => a + h.par, 0);
   return { holes: results, total, par, toPar: total - par };
