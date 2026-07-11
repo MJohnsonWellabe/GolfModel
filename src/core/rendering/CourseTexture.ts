@@ -219,11 +219,14 @@ export function renderCourseCanvas(
   // Flower-garden mulch beds: paint the rough turf under a bed as dirt so the
   // blooms rise out of earth, not grass. Precompute the (rotated) ellipses; the
   // hot loop tints matching rough texels brown.
+  // Pad the dirt ellipse a little beyond the bloom footprint so the mulch frames
+  // every flower (blooms jitter off their grid cell) with a rounded earth border.
+  const GARDEN_DIRT_PAD = 12;
   const gardens = (hole.gardens ?? []).map((g) => ({
     cx: g.cx,
     cy: g.cy,
-    rx: g.rx,
-    ry: g.ry,
+    rx: g.rx + GARDEN_DIRT_PAD,
+    ry: g.ry + GARDEN_DIRT_PAD,
     cr: Math.cos(g.rot ?? 0),
     sr: Math.sin(g.rot ?? 0)
   }));

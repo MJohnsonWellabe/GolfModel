@@ -104,7 +104,12 @@ const MEADOW_MANIFEST = {
 const KENNEY_MANIFEST = {
   flower_f: 'Flower_3_Group',
   flower_g: 'Flower_4_Group',
-  flower_h: 'Plant_1'
+  flower_h: 'Plant_1',
+  // True 3D bushes/ferns (rounded volumes, ~300-900 tris) that replace the
+  // mixed-quality forest-pack shrubs course-wide.
+  bush_kenney_a: 'Bush_Common',
+  bush_kenney_b: 'Plant_1_Big',
+  fern_kenney: 'Fern_1'
 };
 
 const fbx2gltf = path.join(

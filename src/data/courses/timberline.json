@@ -37,7 +37,7 @@
       "tree_aspen"
     ],
     "scatterKeys": [
-      "fern_a",
+      "fern_kenney",
       "stump_a",
       "log_a",
       "tree_fallen",
@@ -65,12 +65,8 @@
       "flower_c"
     ],
     "bushKeys": [
-      "bush_juniper",
-      "bush_c",
-      "bush_a",
-      "bush_berry",
-      "bush_currant",
-      "bush_raspberry"
+      "bush_kenney_a",
+      "bush_kenney_b"
     ],
     "sandSculpt": 0.7,
     "horizonTint": "#e6f3fb",
@@ -601,13 +597,13 @@
       "gardens": [
         {
           "cx": 468,
-          "cy": 330,
-          "rx": 104,
-          "ry": 50,
+          "cy": 326,
+          "rx": 110,
+          "ry": 58,
           "rot": 0.35,
           "density": 10.0,
           "bloomChance": 0.95,
-          "bushChance": 0.06,
+          "bushChance": 0.05,
           "flowerKeys": ["flower_f", "flower_g", "flower_h", "flower_e", "flower_a"]
         }
       ],

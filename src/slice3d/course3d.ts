@@ -1102,13 +1102,10 @@ export function buildCourse(
           const cap = lush ? 4.6 : 3.4;
           if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
           else if (roll < 0.55 && bushSet.length) {
-            // Same proto-choice hash place() used (jitter 7) so the classic
-            // bush_a/b courses keep their exact historical layout. Low
-            // sprawlers (juniper: 1.5x0.9 footprint) get a knee-high target —
-            // height-scaling a wide-low mesh to bush height reads as a
-            // fairway-swallowing blob.
+            // The tall leafy plant (bush_kenney_b) stands a touch higher than the
+            // rounded shrub; both stay knee-to-waist so they never read as walls.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
-            const bh = e.key === 'bush_juniper' ? 1.5 + hash2(jy, jx) * 0.7 : 3.2 + hash2(jy, jx) * 1.6;
+            const bh = 3.2 + (e.key === 'bush_kenney_b' ? 1.0 : 0) + hash2(jy, jx) * 1.6;
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
           // Flowers: multi-colored + a wider band when lush (patchier bloom).
@@ -1200,7 +1197,7 @@ export function buildCourse(
             // A scatter of low bushes gives the bed structure/edging.
             if (!bushSet.length) continue;
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
-            const bh = e.key === 'bush_juniper' ? 1.6 + hash2(jy, jx) * 0.7 : 3.0 + hash2(jy, jx) * 1.5;
+            const bh = 3.0 + (e.key === 'bush_kenney_b' ? 1.0 : 0) + hash2(jy, jx) * 1.5;
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
             continue;
           }
