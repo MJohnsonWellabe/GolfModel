@@ -1,6 +1,7 @@
 import {
   AnimationGroup,
   Color3,
+  LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
   Quaternion,
@@ -26,6 +27,13 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 
 /** Overall golfer size multiplier (applied to the root, scaling body + club). */
 const GOLFER_SCALE = 1.4;
+// Real club-model placement (wrist-local). Tuned so the grip sits in the hands
+// and the club hangs down and slightly forward/out to address the ball.
+const CLUB_LEN = 1.9;
+const CLUB_MIRROR = 1;
+const CLUB_TILT_X = 0.32;
+const CLUB_TILT_Y = 0;
+const CLUB_TILT_Z = -0.34;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
@@ -68,6 +76,11 @@ export class Golfer3D {
   private wristPivot!: TransformNode;
   private shaftMat: StandardMaterial | null = null;
   private clubHeadMat: StandardMaterial | null = null;
+  /** Procedural fallback club parts (shaft + head box), hidden once the real
+   *  club model finishes loading. */
+  private proceduralClub: Mesh[] = [];
+  private clubModel: Mesh | null = null;
+  private pendingClubSkin: number | undefined;
   private torso!: TransformNode;
   private head!: TransformNode;
   private hips!: TransformNode;
@@ -206,11 +219,68 @@ export class Golfer3D {
     clubHead.material = this.clubHeadMat;
     clubHead.position = new Vector3(0.48, -1.32, 0.44);
     clubHead.parent = this.wristPivot;
+    this.proceduralClub = [shaft, clubHead];
+    this.loadClubModel(scene, shadows);
   }
 
-  /** Tint the (procedural) club — shaft gets the chosen colour, the head a
-   *  darker shade of it so the two-tone read survives. Cosmetic only. */
+  /**
+   * Swap the procedural box+cylinder for the real club model once it loads.
+   * Parented to the same wristPivot, so the swing/pose animation is untouched.
+   * The model is normalized so its GRIP sits at the hands and it hangs down and
+   * slightly forward toward the ball; a flat steel material carries the clubskin
+   * tint. The procedural club stays visible until (and if) the model arrives.
+   */
+  private loadClubModel(scene: Scene, shadows: ShadowGenerator): void {
+    void LoadAssetContainerAsync('models/equipment/club.glb', scene)
+      .then((container) => {
+        container.addAllToScene();
+        const parts = container.meshes.filter(
+          (mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0
+        );
+        const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
+        if (!merged) return;
+        const mat = m(scene, 'clubModelMat', 0xc2cad2, 0.7);
+        merged.material = mat;
+        this.clubHeadMat = mat;
+        this.shaftMat = mat;
+        // Normalize: scale to club length, bring the GRIP (top, max-y) to the
+        // holder origin and centre it, so it hangs straight down; the holder
+        // then tilts it forward/out to address the ball.
+        const bb = merged.getBoundingInfo().boundingBox;
+        const min = bb.minimum;
+        const max = bb.maximum;
+        const s = CLUB_LEN / Math.max(0.001, max.y - min.y);
+        merged.scaling = new Vector3(s * CLUB_MIRROR, s, s);
+        merged.position = new Vector3(
+          (-(min.x + max.x) / 2) * s * CLUB_MIRROR,
+          -max.y * s,
+          (-(min.z + max.z) / 2) * s
+        );
+        const holder = new TransformNode('clubHolder', scene);
+        holder.parent = this.wristPivot;
+        holder.position = new Vector3(0.12, -0.05, 0.2);
+        holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
+        merged.parent = holder;
+        merged.receiveShadows = false;
+        shadows.addShadowCaster(merged);
+        this.clubModel = merged;
+        this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
+        if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
+      })
+      .catch(() => {
+        /* keep the procedural club if the model fails to load */
+      });
+  }
+
+  /** Tint the club with the equipped clubskin colour. The real model is one flat
+   *  steel piece (whole club takes the colour); the procedural fallback keeps its
+   *  two-tone (shaft the colour, head a darker shade). Cosmetic only. */
   setClubSkin(color: number): void {
+    this.pendingClubSkin = color;
+    if (this.clubModel) {
+      if (this.clubHeadMat) this.clubHeadMat.diffuseColor = c3(color);
+      return;
+    }
     if (this.shaftMat) this.shaftMat.diffuseColor = c3(color);
     if (this.clubHeadMat) this.clubHeadMat.diffuseColor = c3(color).scale(0.55);
   }
