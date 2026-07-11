@@ -29,7 +29,7 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 const GOLFER_SCALE = 1.4;
 // Real club-model placement (wrist-local). Tuned so the grip sits in the hands
 // and the club hangs down and slightly forward/out to address the ball.
-const CLUB_LEN = 2.15;
+const CLUB_LEN = 2.5;
 const CLUB_MIRROR = 1;
 const CLUB_TILT_X = 0.32;
 const CLUB_TILT_Y = 0;
@@ -37,8 +37,10 @@ const CLUB_TILT_Z = -0.34;
 /** Cross-section fattening for the imported club: real clubs model a
  *  pencil-thin shaft that reads as a wire at the gameplay camera ("too small
  *  and skinny"), so widen X/Z (not length) to give it an arcadey, chunky
- *  presence. Length still tracks CLUB_LEN. */
-const CLUB_GIRTH = 2.3;
+ *  presence. Length still tracks CLUB_LEN. Doubled (2.3→4.6) per playtest
+ *  ("2x thickness") so the club reads clearly even at address, behind the
+ *  golfer, from the aiming camera. */
+const CLUB_GIRTH = 4.6;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
