@@ -141,8 +141,6 @@ export interface Course3D {
   pin: Mesh[];
   /** Translucent contour grid over the green, shown only while putting. */
   puttGrid: Mesh;
-  /** Soft highlight ring around the green complex, shown while aiming full shots. */
-  greenRing: Mesh;
   /**
    * Cosmetic ground height (world units) at a world point — the raised green
    * plateau and tee platform. Physics stays flat; ball/golfer/aim visuals add
@@ -979,8 +977,18 @@ export function buildCourse(
     // first-shot camera (playtest: "the bar doesn't move smoothly"). placeProto
     // now enqueues a thunk; a per-frame drain plants a bounded batch, so the
     // forest fills in over ~a second of flyover without ever stalling a frame.
+    // Two queues, both drained under ONE per-frame time budget:
+    //  - popQueue: PLACEMENT rows (the surfaceAt grid scans that decide where a
+    //    prop goes). This used to run as one synchronous burst the moment the
+    //    glbs resolved — thousands of surfaceAt() cells — which landed right on
+    //    the first shot on the heaviest holes and hitched the rAF swing meter
+    //    (playtest: "the bar still isn't smooth on the first shot", Timberline
+    //    h1/h3). Rows now run a few per frame; each enqueues its instance thunks.
+    //  - plantQueue: the createInstance work, as before.
     const plantQueue: Array<() => void> = [];
-    const PLANTS_PER_FRAME = 140;
+    const popQueue: Array<() => void> = [];
+    let plantHead = 0;
+    let popHead = 0;
     let n = 0;
     const placeProto = (proto: NatureProto, x: number, y: number, targetH: number, tint?: Color4): void => {
       plantQueue.push(() => {
@@ -1010,15 +1018,24 @@ export function buildCourse(
         }
       });
     };
+    // Time-sliced drain: run placement rows first (they enqueue instance thunks),
+    // then the instances, all bounded to BUDGET_MS/frame so nothing the scatter
+    // does can ever block a frame long enough to hitch the meter. Index cursors
+    // (not shift()) keep the walk O(n). Fills in over ~1–2s of flyover.
+    const BUDGET_MS = 3.5;
     const drain = scene.onBeforeRenderObservable.add(() => {
-      let budget = PLANTS_PER_FRAME;
-      while (budget-- > 0) {
-        const job = plantQueue.shift();
-        if (!job) {
-          scene.onBeforeRenderObservable.remove(drain);
-          return;
+      const t0 = performance.now();
+      for (;;) {
+        let batch = 32; // amortize the performance.now() cost over a small batch
+        while (batch-- > 0) {
+          if (popHead < popQueue.length) popQueue[popHead++]();
+          else if (plantHead < plantQueue.length) plantQueue[plantHead++]();
+          else {
+            scene.onBeforeRenderObservable.remove(drain);
+            return;
+          }
         }
-        job();
+        if (performance.now() - t0 >= BUDGET_MS) return;
       }
     });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
@@ -1082,7 +1099,13 @@ export function buildCourse(
     // hazards (extra trunks with zero collision footprint). Collision
     // (PhysicsEngine) and the baked ground shadow (bakeGroundShadows) call
     // collectTreeBlobs without it, so a hazard's hitbox never moves/densifies.
-    for (const b of collectTreeBlobs(hole, theme.blossomChance, true)) plantTree(b);
+    const treeBlobs = collectTreeBlobs(hole, theme.blossomChance, true);
+    for (let i = 0; i < treeBlobs.length; i += 40) {
+      const start = i;
+      popQueue.push(() => {
+        for (let j = start; j < Math.min(start + 40, treeBlobs.length); j++) plantTree(treeBlobs[j]);
+      });
+    }
 
     // Backdrop woods (scenery only — never on a playable surface): a wall of
     // trees behind the green and deep bands down both outer margins. Forest
@@ -1098,15 +1121,18 @@ export function buildCourse(
     ];
     for (const band of treeless ? [] : bands) {
       for (let yy = band.y0; yy < band.y1; yy += band.step) {
-        for (let xx = band.x0; xx < band.x1; xx += band.step) {
-          if (blobHash(xx + 13, yy + 29) < 0.25) continue; // organic gaps
-          const jx = xx + (blobHash(xx, yy) - 0.5) * 44;
-          const jy = yy + (blobHash(yy, xx) - 0.5) * 44;
-          const s = engine.surfaceAt(jx, jy);
-          if (s === 'green' || s === 'fringe' || s === 'fairway' || s === 'sand' || s === 'water') continue;
-          if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 130) continue;
-          plantTree({ x: jx, y: jy, r: 15 + blobHash(xx + 7, yy + 3) * 12, kind: 0, tint: 1 });
-        }
+        const yRow = yy;
+        popQueue.push(() => {
+          for (let xx = band.x0; xx < band.x1; xx += band.step) {
+            if (blobHash(xx + 13, yRow + 29) < 0.25) continue; // organic gaps
+            const jx = xx + (blobHash(xx, yRow) - 0.5) * 44;
+            const jy = yRow + (blobHash(yRow, xx) - 0.5) * 44;
+            const s = engine.surfaceAt(jx, jy);
+            if (s === 'green' || s === 'fringe' || s === 'fairway' || s === 'sand' || s === 'water') continue;
+            if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 130) continue;
+            plantTree({ x: jx, y: jy, r: 15 + blobHash(xx + 7, yRow + 3) * 12, kind: 0, tint: 1 });
+          }
+        });
       }
     }
 
@@ -1129,20 +1155,22 @@ export function buildCourse(
       });
     const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
     for (let yy = 0; yy < h; yy += tuftStep) {
+      const yRow = yy;
+      popQueue.push(() => {
       for (let xx = 0; xx < w; xx += tuftStep) {
-        const surf = engine.surfaceAt(xx, yy);
+        const surf = engine.surfaceAt(xx, yRow);
         if (surf !== 'rough' && surf !== 'fairway') continue;
-        if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
-        if (inGarden(xx, yy)) continue;
+        if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;
+        if (inGarden(xx, yRow)) continue;
         // Keep tall grass off the mown tee pad (it reads as short, clean turf)
         // and out of the tee approach — a tuft right in front of the camera
         // reads huge at address.
-        if (inTeePad(hole, xx, yy)) continue;
-        if (Math.hypot(xx - hole.tee.x, yy - hole.tee.y) < 55) continue;
-        const jx = xx + (hash2(xx, yy) - 0.5) * 26;
-        const jy = yy + (hash2(yy + 5, xx) - 0.5) * 26;
+        if (inTeePad(hole, xx, yRow)) continue;
+        if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 55) continue;
+        const jx = xx + (hash2(xx, yRow) - 0.5) * 26;
+        const jy = yRow + (hash2(yRow + 5, xx) - 0.5) * 26;
         if (engine.surfaceAt(jx, jy) !== surf) continue;
-        const roll = hash2(xx + 91, yy + 47);
+        const roll = hash2(xx + 91, yRow + 47);
         // Lush grass (theme.lushGrass): per-tuft color variation, a denser
         // fairway carpet, and a taller rough cap. Undefined = historical.
         const lush = theme.lushGrass;
@@ -1190,6 +1218,7 @@ export function buildCourse(
           }
         }
       }
+      });
     }
 
     // Links TALL GRASS (theme.tallGrass): sparse, wind-blown marram/fescue in the
@@ -1205,13 +1234,15 @@ export function buildCourse(
       // to just cards if none of these prototypes loaded for the course.
       const clump3d = pick(['fern_kenney', 'bush_kenney_b']);
       for (let yy = 0; yy < h; yy += tgStep) {
+        const yRow = yy;
+        popQueue.push(() => {
         for (let xx = 0; xx < w; xx += tgStep) {
-          if (engine.surfaceAt(xx, yy) !== 'rough') continue;
-          if (inTeePad(hole, xx, yy)) continue;
-          if (Math.hypot(xx - hole.tee.x, yy - hole.tee.y) < 70) continue;
-          if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 90) continue;
-          const jx = xx + (hash2(xx + 13, yy) - 0.5) * tgStep * 0.9;
-          const jy = yy + (hash2(yy + 13, xx) - 0.5) * tgStep * 0.9;
+          if (engine.surfaceAt(xx, yRow) !== 'rough') continue;
+          if (inTeePad(hole, xx, yRow)) continue;
+          if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 70) continue;
+          if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 90) continue;
+          const jx = xx + (hash2(xx + 13, yRow) - 0.5) * tgStep * 0.9;
+          const jy = yRow + (hash2(yRow + 13, xx) - 0.5) * tgStep * 0.9;
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
           // ~30% of clumps are 3D meshes (kept a touch shorter so a leafy bush
@@ -1222,28 +1253,31 @@ export function buildCourse(
             place(grasses, jx, jy, tall, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
           }
         }
+        });
       }
       // Fescue growing THROUGH the waste bunkers: still plain sand for physics,
       // but scruffy grass clumps rise out of it so it reads as a natural blowout.
       if (theme.tallGrass.waste) {
         for (const hz of hole.hazards) {
           if (hz.type !== 'bunker' || !hz.waste) continue;
-          const xs = hz.polygon.map((p) => p[0]);
-          const ys = hz.polygon.map((p) => p[1]);
-          const bcx = xs.reduce((a, b) => a + b, 0) / xs.length;
-          const bcy = ys.reduce((a, b) => a + b, 0) / ys.length;
-          const step = 22;
-          for (let yy = Math.min(...ys); yy < Math.max(...ys); yy += step) {
-            for (let xx = Math.min(...xs); xx < Math.max(...xs); xx += step) {
-              const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
-              const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
-              if (!pointInPolygon(jx, jy, hz.polygon)) continue;
-              // Leave the middle open so the sand still reads as a playable trap.
-              if (Math.hypot(jx - bcx, jy - bcy) < 12) continue;
-              if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
-              place(grasses, jx, jy, cap * (0.5 + hash2(jx, jy) * 0.35), 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+          popQueue.push(() => {
+            const xs = hz.polygon.map((p) => p[0]);
+            const ys = hz.polygon.map((p) => p[1]);
+            const bcx = xs.reduce((a, b) => a + b, 0) / xs.length;
+            const bcy = ys.reduce((a, b) => a + b, 0) / ys.length;
+            const step = 22;
+            for (let yy = Math.min(...ys); yy < Math.max(...ys); yy += step) {
+              for (let xx = Math.min(...xs); xx < Math.max(...xs); xx += step) {
+                const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
+                const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
+                if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+                // Leave the middle open so the sand still reads as a playable trap.
+                if (Math.hypot(jx - bcx, jy - bcy) < 12) continue;
+                if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
+                place(grasses, jx, jy, cap * (0.5 + hash2(jx, jy) * 0.35), 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+              }
             }
-          }
+          });
         }
       }
     }
@@ -1279,10 +1313,11 @@ export function buildCourse(
       flower_a: [2.2, 3.2]
     };
     for (const g of hole.gardens ?? []) {
+      popQueue.push(() => {
       const bedFlowers = (g.flowerKeys ?? theme.flowerKeys ?? FLOWER_KEYS)
         .map((k) => ({ k, proto: protos.get(k) }))
         .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
-      if (!bedFlowers.length) continue;
+      if (!bedFlowers.length) return;
       // A bed can override the rainbow with its OWN colorway (e.g. white + pink
       // by every Wildwood green) — cycled across the bed with no species
       // preference so any bloom mesh takes the color.
@@ -1341,12 +1376,14 @@ export function buildCourse(
           placeProto(e.proto, jx, jy, bh, lush ? band.hue : undefined);
         }
       }
+      });
     }
 
     // Weathered stones ring each bunker's outside edge (theme.bunkerStones):
     // sparse, on the surrounding rough only (never sand/fairway/green), so a
     // trap reads as dug into the terrain rather than laid onto it.
     if (theme.bunkerStones) {
+      popQueue.push(() => {
       const stones = pickKeyed(STONE_KEYS);
       for (const hz of hole.hazards) {
         if (!stones.length) break;
@@ -1367,6 +1404,7 @@ export function buildCourse(
           placed++;
         }
       }
+      });
     }
   });
 
@@ -1409,26 +1447,9 @@ export function buildCourse(
   cup.material = mat(scene, 'cupMat', 0x0c2410, { emissive: 0x081a0b });
   cup.position = w2b(hole.pin.x, hole.pin.y, pinBaseH + 0.06);
 
-  // Aim-mode highlight: a soft ring around the whole green complex so the
-  // target reads from any distance in the setup/aerial views.
-  const greenRing = MeshBuilder.CreateTorus('greenRing', { diameter: 2, thickness: 0.055, tessellation: 64 }, scene);
-  greenRing.scaling = new Vector3(hole.green.rx + FRINGE_MARGIN + 9, 18, hole.green.ry + FRINGE_MARGIN + 9);
-  if (hole.green.rot) greenRing.rotation.y = hole.green.rot;
-  greenRing.position = w2b(
-    hole.green.cx,
-    hole.green.cy,
-    GREEN_RAISE + 0.4 + engine.groundAt(hole.green.cx, hole.green.cy)
-  );
-  const ringMat = new StandardMaterial('greenRingMat', scene);
-  ringMat.emissiveColor = new Color3(1, 0.93, 0.55);
-  ringMat.disableLighting = true;
-  ringMat.alpha = 0.5;
-  greenRing.material = ringMat;
-  scene.onBeforeRenderObservable.add(() => {
-    if (!greenRing.isEnabled()) return;
-    ringMat.alpha = 0.38 + 0.16 * Math.sin(animTime() * 2.2);
-  });
-  greenRing.setEnabled(false);
+  // (The old gold "green target ring" torus was removed — playtest: it read as a
+  // glitchy beige ring around the green in the tee/aerial views. The pin marker
+  // and, while putting, the white cupRing/cupBeacon are the target aids now.)
 
   // ----------------------------------------------------------------- petals
   // A sparse drift of blossom petals around the camera keeps the air alive
@@ -1599,7 +1620,6 @@ export function buildCourse(
     shadows,
     pin: [pole, flag],
     puttGrid,
-    greenRing,
     /** Re-point the putt grid + break dots down the golfer→hole line (one axis
      *  at the cup, the perpendicular for horizontal break). Call each putt. */
     orientPuttAids: (ballX: number, ballY: number): void => {

@@ -90,6 +90,10 @@ const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
 const aimReadoutEl = document.getElementById('aimReadout')!;
 
+/** Within this ball→pin distance (yards), a non-putt (short chip/pitch) also
+ *  shows the putting break grid so you can read the green you're landing on. */
+const CHIP_GRID_YDS = 14;
+
 /** RGB hex → Babylon Color3. */
 function c3(hex: number): Color3 {
   return new Color3(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
@@ -911,9 +915,16 @@ class HoleScene {
   }
 
   /** Show/hide the putt grid, and when putting re-point it (and the break
-   *  dots) down the golfer→hole line so break reads along/across your putt. */
+   *  dots) down the golfer→hole line so break reads along/across your putt.
+   *  Also shown on a SHORT chip (ball close to the pin, off the tee) so you can
+   *  read the green you're pitching onto (playtest: "chipping from really close
+   *  I want to see the putting grid"). */
   private syncPuttGrid(): void {
-    const on = this.aim.isPutting;
+    const toPinYds =
+      Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y) /
+      PX_PER_YARD;
+    const closeChip = !this.ai && this.state.lie !== 'tee' && toPinYds <= CHIP_GRID_YDS;
+    const on = this.aim.isPutting || closeChip;
     this.puttGrid.setEnabled(on);
     if (on) this.course3d.orientPuttAids(this.state.ballPos.x, this.state.ballPos.y);
   }
@@ -956,10 +967,6 @@ class HoleScene {
     this.golfer.aiming = true;
     this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
     this.syncPuttGrid();
-    // The green highlight ring is a from-the-tee target aid; hide it in the
-    // top-down aerial view, where its raised emissive torus aliased into a
-    // "glitchy beige ring" around the green (playtest).
-    this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting && !this.aerial);
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
@@ -1097,7 +1104,6 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
     this.aim.cycleClub(dir, this.ctx());
     this.syncPuttGrid();
-    this.course3d.greenRing.setEnabled(!this.aim.isPutting && !this.aerial);
     this.setPinPulled(this.aim.isPutting);
     this.armMeter();
     this.updateStrikeUI();
@@ -1160,9 +1166,6 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai) return;
     this.aerial = !this.aerial;
     aerialBtn.classList.toggle('on', this.aerial);
-    // Hide the green highlight ring in aerial (it aliases into a glitchy beige
-    // ring top-down); the scaled aim-target ring still frames the target.
-    this.course3d.greenRing.setEnabled(!this.aim.isPutting && !this.aerial);
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }
@@ -1244,7 +1247,6 @@ class HoleScene {
     this.state.phase = 'swinging';
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
-    this.course3d.greenRing.setEnabled(false);
     this.aerial = false;
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';

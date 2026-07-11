@@ -516,13 +516,18 @@ export class PhysicsEngine {
           // increase rollout. Backspin should reduce rollout.")
           // Ceiling 1.5 (was 2): even a stray high topspin can't more-than-double
           // the bounce retention and quadruple the roll-out (input is capped too).
-          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, 0.05, 1.5);
+          // A WOOD checks and rolls out; it never bites to a dead stop. Floor
+          // its bounce retention higher and exclude it from the suck-back below
+          // (playtest: "backspin on woods shouldn't stop the ball in its tracks")
+          // — irons/wedges still bite normally.
+          const isWood = clubFamily(club) === 'wood';
+          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, isWood ? 0.4 : 0.05, 1.5);
           const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin) * spinKeep;
           vx *= keep;
           vy *= keep;
           vz = 0;
-          // Strong backspin on the short stuff bites and sucks back
-          if (spin.top < -0.35 && (surf === 'green' || surf === 'fringe') && spinEff > 0.4) {
+          // Strong backspin on the short stuff bites and sucks back (irons/wedges only)
+          if (!isWood && spin.top < -0.35 && (surf === 'green' || surf === 'fringe') && spinEff > 0.4) {
             const hs = Math.hypot(vx, vy) || 1;
             const bite = PHYSICS.backspinBite * (-spin.top - 0.35) * spinEff * 1.54;
             vx = (-vx / hs) * bite;

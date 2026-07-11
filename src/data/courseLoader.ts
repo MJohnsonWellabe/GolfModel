@@ -60,7 +60,10 @@ export function compileRibbon(ribbon: FairwayRibbon, roundCaps = false): Polygon
 
 /** Compile a course authoring file into the runtime CourseData. */
 export function loadCourse(data: CourseAuthoring): CourseData {
-  const roundCaps = data.roundFairwayCaps === true;
+  // Rounded tee/green fairway ends are now the default for EVERY course
+  // (playtest: "fairway N/S ends should always be rounded" / "fairways too
+  // square"); a course may still opt out with `roundFairwayCaps: false`.
+  const roundCaps = data.roundFairwayCaps !== false;
   return {
     ...data,
     holes: data.holes.map((h) => {

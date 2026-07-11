@@ -103,17 +103,21 @@ export const PHYSICS = {
   /** Flight-collision radius as a multiple of a tree's canopy-shadow radius.
    *  Tuned by playtest ping-pong: 1.15 was too grabby (glancing clips
    *  stopped drives), 0.85 too forgiving (balls sailed through the woods) —
-   *  at 1.0 the canopy shadow is the honest hitbox. Recovery shots still get
+   *  at 1.0 the canopy shadow is the honest hitbox. Nudged to 0.95 on playtest
+   *  ("the tree hitboxes feel too severe again"). Recovery shots still get
    *  treeRecoveryMult on top. */
-  treeCanopyMult: 1.0,
+  treeCanopyMult: 0.95,
   /** Extra collision-radius scale applied to RECOVERY shots (stroke >= 1, i.e.
    *  the 2nd/3rd shot around a tree). Makes escaping a tree you're stuck under
-   *  much more forgiving than the tee shot that put you there. */
-  treeRecoveryMult: 0.6,
+   *  much more forgiving than the tee shot that put you there — lowered to 0.55
+   *  so "once you're in the trees" plays less punishing. */
+  treeRecoveryMult: 0.55,
   /** A ball that strikes a tree keeps this fraction of its impact speed… */
   treeDamp: 0.35,
-  /** …capped here (world px/s) — a fast liner drops dead, a slow one dribbles. */
-  treeKillSpeed: 30,
+  /** …capped here (world px/s) — a fast liner drops dead, a slow one dribbles.
+   *  Nudged to 38 so a clipped ball keeps a little more pace instead of dropping
+   *  stone dead at the trunk (playtest: in-trees too severe). */
+  treeKillSpeed: 38,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
   /** Cup radius, world px — HONEST: this is BOTH the drawn hole (course3d) and

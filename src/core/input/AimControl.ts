@@ -34,8 +34,10 @@ const YAW_PER_PX = 0.0017;
 const PUTT_YAW_PER_PX = 0.00045;
 /** World px of aim distance per vertical screen px dragged. */
 const DIST_PER_PX = 0.6;
-/** Finer pace drag for putts (short distances magnify every px). */
-const PUTT_DIST_PER_PX = 0.22;
+/** Finer pace drag for putts (short distances magnify every px). Lowered again
+ *  on playtest ("putting aim up/down still moves too fast") for finer distance
+ *  control. */
+const PUTT_DIST_PER_PX = 0.12;
 
 /**
  * Shot setup: which club, where you're aiming, and the preview arc.
@@ -225,7 +227,12 @@ export class AimControl {
       hole: this.hole,
       preview: true,
       spin: shape,
-      launchMult
+      launchMult,
+      // Match the ACTUAL shot's tree hitbox: a recovery shot (strokes >= 1) uses
+      // the smaller `treeRecoveryMult` canopy, so the preview must too — else the
+      // aim line predicts a tree contact the real forgiving shot clears (playtest:
+      // "shows I'll hit a tree from under it, but I don't once I'm already in").
+      stroke: ctx.strokes
     });
     this.previewPath = outcome.path;
   }
