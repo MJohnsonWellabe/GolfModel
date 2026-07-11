@@ -255,7 +255,9 @@ export function renderCourseCanvas(
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
       const maxR = Math.max(...z.polygon.map((p) => Math.hypot(p[0] - bcx, p[1] - bcy)));
-      return { cx: bcx, cy: bcy, maxR };
+      // bbox for a cheap per-texel reject — a bunker can only dish texels within
+      // maxR of its centre, so most of a hazard-dense hole's traps skip instantly.
+      return { cx: bcx, cy: bcy, maxR, x0: bcx - maxR, y0: bcy - maxR, x1: bcx + maxR, y1: bcy + maxR };
     });
 
   // Flower-garden mulch beds: paint the rough turf under a bed as dirt so the
@@ -466,9 +468,13 @@ export function renderCourseCanvas(
           }
         }
         if (sculpt > 0) {
-          // Radial darkening toward the bunker centre: a dished hollow.
+          // Radial darkening toward the bunker centre: a dished hollow. Only a
+          // bunker whose bbox contains the texel can reach it (dist <= maxR).
           let d = 1;
-          for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          for (const bk of bunkers) {
+            if (wx < bk.x0 || wx > bk.x1 || wy < bk.y0 || wy > bk.y1) continue;
+            d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          }
           light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
         }
       }
@@ -614,7 +620,9 @@ export function renderGreenPatch(
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
       const maxR = Math.max(...z.polygon.map((p) => Math.hypot(p[0] - bcx, p[1] - bcy)));
-      return { cx: bcx, cy: bcy, maxR };
+      // bbox for a cheap per-texel reject — a bunker can only dish texels within
+      // maxR of its centre, so most of a hazard-dense hole's traps skip instantly.
+      return { cx: bcx, cy: bcy, maxR, x0: bcx - maxR, y0: bcy - maxR, x1: bcx + maxR, y1: bcy + maxR };
     });
 
   // Rasterized classification at full patch resolution (same native-fill
@@ -658,7 +666,10 @@ export function renderGreenPatch(
         }
         if (sculpt > 0) {
           let d = 1;
-          for (const bk of bunkers) d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          for (const bk of bunkers) {
+            if (wx < bk.x0 || wx > bk.x1 || wy < bk.y0 || wy > bk.y1) continue;
+            d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
+          }
           light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
         }
       }

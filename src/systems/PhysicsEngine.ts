@@ -262,28 +262,42 @@ export class PhysicsEngine {
     const h = this.hole;
     const hz = h.hazards;
     if (pointInGreen(x, y, h.green)) return 'green';
-    // Scoring bunkers win over fringe/water; a coastal BEACH band is deferred
-    // until AFTER water so it only reads as sand where it sits on land.
+    // ONE pass over the hazards (instead of four separate typed loops) — the
+    // scatter calls this tens of thousands of times on hazard-dense holes and
+    // the common rough/fairway point used to walk every hazard three or four
+    // times. Record which categories the point falls in, then resolve by the
+    // fixed precedence below. A scoring bunker beats everything but the green,
+    // so stop early once one is found.
+    let scoringBunker = false;
+    let water = false;
+    let trees = false;
+    let beach = false;
     for (let i = 0; i < hz.length; i++) {
-      if (hz[i].type === 'bunker' && !hz[i].beach && this.inHazard(i, x, y)) return 'sand';
+      const t = hz[i].type;
+      if (t === 'bunker') {
+        if (!this.inHazard(i, x, y)) continue;
+        if (hz[i].beach) beach = true;
+        else {
+          scoringBunker = true;
+          break;
+        }
+      } else if (t === 'water') {
+        if (this.inHazard(i, x, y)) water = true;
+      } else if (t === 'trees' || t === 'building') {
+        if (this.inHazard(i, x, y)) trees = true;
+      }
     }
+    // Precedence: green > scoring-bunker > fringe > water > trees > fairway >
+    // BEACH > rough. Beach comes last so a coastal band only replaces rough (the
+    // sea, woods and maintained turf all win the overlap, so it never traps play).
+    if (scoringBunker) return 'sand';
     if (pointInGreen(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
-    for (let i = 0; i < hz.length; i++) {
-      if (hz[i].type === 'water' && this.inHazard(i, x, y)) return 'water';
-    }
-    for (let i = 0; i < hz.length; i++) {
-      if ((hz[i].type === 'trees' || hz[i].type === 'building') && this.inHazard(i, x, y)) return 'trees';
-    }
+    if (water) return 'water';
+    if (trees) return 'trees';
     for (const poly of h.fairway) {
       if (pointInPolygon(x, y, poly)) return 'fairway';
     }
-    // Beach sand: a coastal band lining the water, classified LAST before rough
-    // so it only ever replaces ROUGH — the sea (water), the woods and the
-    // maintained fairway/green all win the overlap. A beach never eats a
-    // landing area, so it lines the shore without trapping play.
-    for (let i = 0; i < hz.length; i++) {
-      if (hz[i].type === 'bunker' && hz[i].beach && this.inHazard(i, x, y)) return 'sand';
-    }
+    if (beach) return 'sand';
     return 'rough';
   }
 
