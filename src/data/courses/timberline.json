@@ -156,33 +156,30 @@
       "hazards": [
         {
           "type": "trees",
-          "renderOffset": [
-            45,
-            0
-          ],
+          "spacing": 44,
           "polygon": [
             [
-              418,
-              688
+              470,
+              668
             ],
             [
-              450,
-              684
+              482,
+              660
+            ],
+            [
+              484,
+              642
+            ],
+            [
+              474,
+              628
+            ],
+            [
+              460,
+              634
             ],
             [
               458,
-              650
-            ],
-            [
-              446,
-              616
-            ],
-            [
-              414,
-              620
-            ],
-            [
-              402,
               652
             ]
           ]
@@ -218,7 +215,7 @@
         },
         {
           "type": "trees",
-          "spacing": 30,
+          "spacing": 38,
           "polygon": [
             [
               140,
@@ -257,7 +254,7 @@
         },
         {
           "type": "trees",
-          "spacing": 30,
+          "spacing": 38,
           "polygon": [
             [
               770,
@@ -385,8 +382,8 @@
       "green": {
         "cx": 452,
         "cy": 440,
-        "rx": 82,
-        "ry": 56,
+        "rx": 58,
+        "ry": 40,
         "rot": 0.4
       },
       "slope": {
@@ -394,8 +391,8 @@
         "strength": 0.34
       },
       "pin": {
-        "x": 448,
-        "y": 452
+        "x": 450,
+        "y": 448
       },
       "fairway": [
         {
@@ -425,24 +422,24 @@
           "type": "bunker",
           "polygon": [
             [
-              368,
-              470
+              386,
+              458
             ],
             [
-              402,
-              460
+              420,
+              448
             ],
             [
-              418,
-              480
+              436,
+              468
             ],
             [
-              402,
-              502
+              420,
+              490
             ],
             [
-              370,
-              496
+              388,
+              484
             ]
           ]
         },
@@ -450,24 +447,24 @@
           "type": "bunker",
           "polygon": [
             [
-              500,
-              402
+              479,
+              409
             ],
             [
-              536,
-              392
+              515,
+              399
             ],
             [
-              552,
-              414
+              531,
+              421
             ],
             [
-              536,
-              436
+              515,
+              443
             ],
             [
-              504,
-              430
+              483,
+              437
             ]
           ]
         },
@@ -569,28 +566,28 @@
           "type": "trees",
           "polygon": [
             [
-              300,
-              380
+              330,
+              398
             ],
             [
-              372,
-              360
+              402,
+              378
             ],
             [
-              396,
-              300
+              426,
+              318
             ],
             [
-              340,
-              268
+              370,
+              286
             ],
             [
-              284,
-              300
+              314,
+              318
             ],
             [
-              274,
-              348
+              304,
+              366
             ]
           ],
           "visualSpacing": 22
@@ -598,15 +595,21 @@
       ],
       "gardens": [
         {
-          "cx": 468,
-          "cy": 326,
-          "rx": 110,
-          "ry": 58,
+          "cx": 460,
+          "cy": 350,
+          "rx": 90,
+          "ry": 50,
           "rot": 0.35,
-          "density": 10.0,
+          "density": 10,
           "bloomChance": 0.95,
           "bushChance": 0.05,
-          "flowerKeys": ["flower_f", "flower_g", "flower_h", "flower_e", "flower_a"]
+          "flowerKeys": [
+            "flower_f",
+            "flower_g",
+            "flower_h",
+            "flower_e",
+            "flower_a"
+          ]
         }
       ],
       "aiTargets": [],
@@ -622,7 +625,7 @@
           "x": 452,
           "y": 440,
           "h": 1.6,
-          "r": 106,
+          "r": 80,
           "shape": "plateau"
         }
       ]
@@ -899,205 +902,189 @@
         },
         {
           "type": "trees",
-          "spacing": 36,
+          "spacing": 60,
           "visualSpacing": 24,
           "polygon": [
             [
-              null,
-              null
+              321,
+              1388
             ],
             [
-              null,
-              null
+              317,
+              1208
             ],
             [
-              null,
-              null
+              317,
+              1038
             ],
             [
-              null,
-              null
+              321,
+              946
             ],
             [
-              null,
-              null
+              315,
+              862
             ],
             [
-              null,
-              null
+              135,
+              858
             ],
             [
-              null,
-              null
+              141,
+              941
             ],
             [
-              null,
-              null
+              137,
+              1032
             ],
             [
-              null,
-              null
+              137,
+              1199
             ],
             [
-              null,
-              null
+              141,
+              1378
             ]
           ]
         },
         {
           "type": "trees",
-          "spacing": 36,
+          "spacing": 60,
           "visualSpacing": 24,
           "polygon": [
             [
-              null,
-              null
+              399,
+              1392
             ],
             [
-              null,
-              null
+              423,
+              1212
             ],
             [
-              null,
-              null
+              435,
+              1042
             ],
             [
-              null,
-              null
+              437,
+              950
             ],
             [
-              null,
-              null
+              447,
+              866
             ],
             [
-              null,
-              null
+              577,
+              869
             ],
             [
-              null,
-              null
+              567,
+              953
             ],
             [
-              null,
-              null
+              565,
+              1046
             ],
             [
-              null,
-              null
+              553,
+              1218
             ],
             [
-              null,
-              null
+              529,
+              1399
             ]
           ]
         },
         {
           "type": "trees",
-          "spacing": 36,
+          "spacing": 60,
           "visualSpacing": 24,
           "polygon": [
             [
-              null,
-              null
+              355,
+              804
             ],
             [
-              null,
-              null
+              471,
+              755
             ],
             [
-              null,
-              null
+              588,
+              691
             ],
             [
-              null,
-              null
+              709,
+              616
             ],
             [
-              null,
-              null
+              757,
+              549
             ],
             [
-              null,
-              null
+              718,
+              437
             ],
             [
-              null,
-              null
+              625,
+              492
             ],
             [
-              null,
-              null
+              509,
+              564
             ],
             [
-              null,
-              null
+              403,
+              621
             ],
             [
-              null,
-              null
-            ],
-            [
-              null,
-              null
-            ],
-            [
-              null,
-              null
+              295,
+              666
             ]
           ]
         },
         {
           "type": "trees",
-          "spacing": 36,
+          "spacing": 60,
           "visualSpacing": 24,
           "polygon": [
             [
-              null,
-              null
+              407,
+              924
             ],
             [
-              null,
-              null
+              529,
+              869
             ],
             [
-              null,
-              null
+              652,
+              793
             ],
             [
-              null,
-              null
+              771,
+              708
             ],
             [
-              null,
-              null
+              854,
+              683
             ],
             [
-              null,
-              null
+              942,
+              763
             ],
             [
-              null,
-              null
+              855,
+              832
             ],
             [
-              null,
-              null
+              731,
+              920
             ],
             [
-              null,
-              null
+              597,
+              1003
             ],
             [
-              null,
-              null
-            ],
-            [
-              null,
-              null
-            ],
-            [
-              null,
-              null
+              467,
+              1062
             ]
           ]
         },
