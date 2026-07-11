@@ -1199,6 +1199,11 @@ export function buildCourse(
     if (theme.tallGrass) {
       const { cap, density } = theme.tallGrass;
       const tgStep = 40 / Math.sqrt(Math.max(0.15, density));
+      // Genuinely-3D clumps (ferns, leafy bushes) mixed through the fescue so
+      // the tall grass reads as volumetric tussocks rather than a field of flat
+      // cards (playtest: links tall grass "needs more dense" and 3D). Falls back
+      // to just cards if none of these prototypes loaded for the course.
+      const clump3d = pick(['fern_kenney', 'bush_kenney_b']);
       for (let yy = 0; yy < h; yy += tgStep) {
         for (let xx = 0; xx < w; xx += tgStep) {
           if (engine.surfaceAt(xx, yy) !== 'rough') continue;
@@ -1209,7 +1214,13 @@ export function buildCourse(
           const jy = yy + (hash2(yy + 13, xx) - 0.5) * tgStep * 0.9;
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
-          place(grasses, jx, jy, tall, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+          // ~30% of clumps are 3D meshes (kept a touch shorter so a leafy bush
+          // doesn't tower); the rest stay wispy fescue cards.
+          if (clump3d.length && hash2(jx + 9, jy + 4) < 0.3) {
+            place(clump3d, jx, jy, tall * 0.8, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+          } else {
+            place(grasses, jx, jy, tall, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
+          }
         }
       }
       // Fescue growing THROUGH the waste bunkers: still plain sand for physics,
