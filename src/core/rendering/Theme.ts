@@ -286,7 +286,14 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   // never sees them — read them from the spec explicitly.
   const strings = (v: unknown): string[] | undefined =>
     Array.isArray(v) && v.length > 0 && v.every((s) => typeof s === 'string') ? v : undefined;
-  t.treeKeys = strings(spec.treeKeys);
+  // treeKeys is special: an explicitly authored EMPTY array means "this course
+  // has NO trees" (a treeless links), distinct from omitting the key (which
+  // inherits the generic species). Preserve the empty array so course3d can
+  // skip both the rough scatter trees and the backdrop woods.
+  t.treeKeys =
+    Array.isArray(spec.treeKeys) && (spec.treeKeys as unknown[]).every((s) => typeof s === 'string')
+      ? (spec.treeKeys as string[])
+      : undefined;
   t.accentTreeKeys = strings(spec.accentTreeKeys);
   t.scatterKeys = strings(spec.scatterKeys);
   // bush/grass/flower keys are defaulted (unified system), so fall back to the

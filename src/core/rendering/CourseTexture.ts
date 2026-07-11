@@ -90,7 +90,20 @@ function rasterizeClassGrid(
     ctx.ellipse(g.cx, g.cy, g.rx + margin, g.ry + margin, g.rot ?? 0, 0, Math.PI * 2);
     ctx.fill();
   };
+  // Drawn in order; the LAST layer to paint a texel wins. The resulting
+  // precedence must match PhysicsEngine.surfaceAt exactly:
+  //   green > scoring-bunker > fringe > water > trees > fairway > BEACH > rough.
+  // Beach sand is a coastal band that lines the shore over ROUGH only, so it is
+  // painted FIRST (everything else overwrites it); only unpainted rough shows
+  // through, giving a beach that never eats a fairway/green/landing area.
   const layers: Array<[number, () => void]> = [
+    [
+      4,
+      (): void =>
+        hole.hazards.forEach((hz) => {
+          if (hz.type === 'bunker' && hz.beach) poly(hz.polygon);
+        })
+    ],
     [1, (): void => hole.fairway.forEach(poly)],
     [
       6,
@@ -111,7 +124,7 @@ function rasterizeClassGrid(
       4,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'bunker') poly(hz.polygon);
+          if (hz.type === 'bunker' && !hz.beach) poly(hz.polygon);
         })
     ],
     [2, (): void => ell(0)]
@@ -217,7 +230,9 @@ export function renderCourseCanvas(
   // radial depth shading inside the hot texel loop.
   const sculpt = theme.sandSculpt;
   const bunkers = hole.hazards
-    .filter((z) => z.type === 'bunker')
+    // Beach bands are flat coastal sand, not dished traps — exclude them from
+    // the radial depth-dish (they keep the ripple grain from the sand class).
+    .filter((z) => z.type === 'bunker' && !z.beach)
     .map((z) => {
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
@@ -574,7 +589,9 @@ export function renderGreenPatch(
   // sculpting or a shading seam appears at the green-mesh skirt.
   const sculpt = theme.sandSculpt;
   const bunkers = hole.hazards
-    .filter((z) => z.type === 'bunker')
+    // Beach bands are flat coastal sand, not dished traps — exclude them from
+    // the radial depth-dish (they keep the ripple grain from the sand class).
+    .filter((z) => z.type === 'bunker' && !z.beach)
     .map((z) => {
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;

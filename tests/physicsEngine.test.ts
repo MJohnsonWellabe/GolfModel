@@ -70,6 +70,30 @@ const HOLE: HoleData = {
         [1250, 600],
         [1150, 600]
       ]
+    },
+    {
+      // Beach band spanning rough (x<800) and fairway (x>800): the beach reads
+      // as sand ONLY over the rough; the maintained fairway wins the overlap.
+      type: 'bunker',
+      beach: true,
+      polygon: [
+        [600, 900],
+        [900, 900],
+        [900, 1000],
+        [600, 1000]
+      ]
+    },
+    {
+      // Beach band overlapping the island water: the sea always wins, so this
+      // reads as water, never sand.
+      type: 'bunker',
+      beach: true,
+      polygon: [
+        [860, 160],
+        [1000, 160],
+        [1000, 260],
+        [860, 260]
+      ]
     }
   ],
   aiTargets: []
@@ -102,6 +126,16 @@ describe('surfaceAt priority', () => {
     expect(engine.surfaceAt(1200, 550)).toBe('sand');
     expect(engine.surfaceAt(1000, 1000)).toBe('fairway');
     expect(engine.surfaceAt(300, 1000)).toBe('rough');
+  });
+
+  it('a beach band reads as sand over rough but loses to fairway and water', () => {
+    // Over rough → the shore reads as sand.
+    expect(engine.surfaceAt(650, 950)).toBe('sand');
+    // Same band over the maintained fairway → still fairway (beach never eats
+    // a landing area).
+    expect(engine.surfaceAt(850, 950)).toBe('fairway');
+    // A beach drawn over the water → the sea wins.
+    expect(engine.surfaceAt(900, 200)).toBe('water');
   });
 });
 

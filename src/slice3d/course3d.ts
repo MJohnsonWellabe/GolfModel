@@ -1086,14 +1086,17 @@ export function buildCourse(
 
     // Backdrop woods (scenery only — never on a playable surface): a wall of
     // trees behind the green and deep bands down both outer margins. Forest
-    // themes tighten the grid via backdropTreeStep for a denser wall.
+    // themes tighten the grid via backdropTreeStep for a denser wall. A
+    // treeless course (authored `treeKeys: []`, e.g. an open links) skips the
+    // enclosing woods entirely — its horizon is sea/dunes, not a treeline.
+    const treeless = trees.length === 0 && accents.length === 0;
     const bStep = theme.backdropTreeStep;
     const bands = [
       { x0: 40, x1: 860, y0: -190, y1: 180, step: bStep ?? 60 },
       { x0: -180, x1: 160, y0: 140, y1: h + 80, step: bStep ? Math.round(bStep * 1.23) : 74 },
       { x0: 740, x1: 1080, y0: 140, y1: h + 80, step: bStep ? Math.round(bStep * 1.23) : 74 }
     ];
-    for (const band of bands) {
+    for (const band of treeless ? [] : bands) {
       for (let yy = band.y0; yy < band.y1; yy += band.step) {
         for (let xx = band.x0; xx < band.x1; xx += band.step) {
           if (blobHash(xx + 13, yy + 29) < 0.25) continue; // organic gaps
@@ -1336,7 +1339,7 @@ export function buildCourse(
       const stones = pickKeyed(STONE_KEYS);
       for (const hz of hole.hazards) {
         if (!stones.length) break;
-        if (hz.type !== 'bunker') continue;
+        if (hz.type !== 'bunker' || hz.beach) continue; // beaches carry no stone rim
         const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
         const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
         let placed = 0;

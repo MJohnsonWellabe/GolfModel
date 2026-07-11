@@ -148,6 +148,16 @@ export interface Hazard {
    * trap. Cosmetic only; the grass carries no collision.
    */
   waste?: boolean;
+  /**
+   * Bunker only: a coastal BEACH band, not a scoring bunker. Physics-wise it is
+   * still sand (a ball plugs the same), but it is classified LAST before rough
+   * in surfaceAt / the class grid / the bake — so a shore band drawn over the
+   * water reads as sand only where it overlaps ROUGH: the sea (water), the
+   * woods and the maintained fairway/green all win the overlap. Used to line an
+   * ocean/pond with beach sand without a separate surface type, without ever
+   * eating a landing area. Cosmetically identical to a normal bunker.
+   */
+  beach?: boolean;
 }
 
 export interface GreenSlope {

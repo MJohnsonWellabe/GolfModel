@@ -225,8 +225,10 @@ export class PhysicsEngine {
   surfaceAt(x: number, y: number): Surface {
     const h = this.hole;
     if (pointInEllipse(x, y, h.green)) return 'green';
+    // Scoring bunkers win over fringe/water; a coastal BEACH band is deferred
+    // until AFTER water so it only reads as sand where it sits on land.
     for (const hz of h.hazards) {
-      if (hz.type === 'bunker' && pointInPolygon(x, y, hz.polygon)) return 'sand';
+      if (hz.type === 'bunker' && !hz.beach && pointInPolygon(x, y, hz.polygon)) return 'sand';
     }
     if (pointInEllipse(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
     for (const hz of h.hazards) {
@@ -239,6 +241,13 @@ export class PhysicsEngine {
     }
     for (const poly of h.fairway) {
       if (pointInPolygon(x, y, poly)) return 'fairway';
+    }
+    // Beach sand: a coastal band lining the water, classified LAST before rough
+    // so it only ever replaces ROUGH — the sea (water), the woods and the
+    // maintained fairway/green all win the overlap. A beach never eats a
+    // landing area, so it lines the shore without trapping play.
+    for (const hz of h.hazards) {
+      if (hz.type === 'bunker' && hz.beach && pointInPolygon(x, y, hz.polygon)) return 'sand';
     }
     return 'rough';
   }
