@@ -9,7 +9,7 @@
  * the normal setup wizard and nothing here has any effect.
  */
 
-export type ShotCam = 'tee' | 'aerial' | 'approach' | 'green';
+export type ShotCam = 'tee' | 'aerial' | 'approach' | 'green' | 'club';
 
 export interface ShotParams {
   /** 1-based hole number to load directly (undefined = normal boot). */
@@ -27,7 +27,8 @@ function parse(): ShotParams {
   const cam = q.get('cam');
   return {
     hole: holeRaw ? Math.max(1, parseInt(holeRaw, 10) || 1) : undefined,
-    cam: cam === 'aerial' || cam === 'approach' || cam === 'green' ? cam : 'tee',
+    cam:
+      cam === 'aerial' || cam === 'approach' || cam === 'green' || cam === 'club' ? cam : 'tee',
     course: q.get('course') || undefined,
     freeze: q.get('freeze') === '1'
   };

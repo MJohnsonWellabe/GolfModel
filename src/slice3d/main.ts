@@ -611,6 +611,16 @@ class HoleScene {
     return this.course3d.groundHeightAt(x, y);
   }
 
+  /** Test-only: current refresh rates of the two per-frame RTTs the perf pacing
+   *  freezes while the meter is live (0 = frozen). Lets the perf spec assert the
+   *  freeze mechanism engages/disengages with the meter deterministically. */
+  perfRefreshRates(): { shadow: number | null; mirror: number | null } {
+    return {
+      shadow: this.course3d.shadows.getShadowMap()?.refreshRate ?? null,
+      mirror: this.course3d.waterMirror?.refreshRate ?? null
+    };
+  }
+
   /** A competitor is finished on the hole when holed or at the stroke cap. */
   private compDone(c: (typeof this.comps)[number]): boolean {
     return c.holed || c.strokes >= RULES.maxStrokes;
@@ -879,6 +889,14 @@ class HoleScene {
     } else if (cam === 'aerial') {
       this.aerial = true;
       this.setCamSetup();
+    } else if (cam === 'club') {
+      // Golfer/club close-up: side-on view of the golfer at address so the whole
+      // club (grip to head) reads against the sky (equipment QA).
+      const f = this.fwd3(this.aim.yaw);
+      const side = new Vector3(-f.z, 0, f.x);
+      const base = w2b(h.tee.x, h.tee.y, this.gh(h.tee.x, h.tee.y));
+      this.camTarget.pos = base.add(f.scale(7.5)).add(side.scale(3.2)).add(new Vector3(0, 2.4, 0));
+      this.camTarget.look = base.add(f.scale(0.6)).add(new Vector3(0, 1.2, 0));
     }
     // 'tee' keeps the default post-intro framing from beginTurn/dropAt.
     this.camera.position.copyFrom(this.camTarget.pos);
@@ -2781,6 +2799,8 @@ function exposeDebug(): void {
         state: current.state,
         scene: current.scene,
         mode: round.mode,
+        renderPacing,
+        perfRefreshRates: () => current?.perfRefreshRates(),
         bodiesReady: current.bodiesReady,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         poseActive: (p: number) => current?.poseActive(p),

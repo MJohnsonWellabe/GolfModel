@@ -1,0 +1,467 @@
+{
+  "accessors": [
+    {
+      "bufferView": 2,
+      "componentType": 5126,
+      "count": 280,
+      "max": [
+        10.400857925415039,
+        26.896608352661133,
+        -2.391618251800537
+      ],
+      "min": [
+        -1.4599037170410156,
+        -0.08858299255371094,
+        -7.131137847900391
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 3360,
+      "componentType": 5126,
+      "count": 280,
+      "max": [
+        0.9798515439033508,
+        0.9998894333839417,
+        0.9991110563278198
+      ],
+      "min": [
+        -0.9978317618370056,
+        -0.998571515083313,
+        -0.9841617345809937
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "componentType": 5126,
+      "count": 280,
+      "max": [
+        0.991549015045166,
+        0.49708881974220276
+      ],
+      "min": [
+        0.0,
+        0.0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "componentType": 5125,
+      "count": 648,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 6720,
+      "componentType": 5126,
+      "count": 284,
+      "max": [
+        0.2478501796722412,
+        37.77621841430664,
+        -1.1334477663040161
+      ],
+      "min": [
+        -4.059304237365723,
+        22.237272262573242,
+        -3.505056142807007
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 10128,
+      "componentType": 5126,
+      "count": 284,
+      "max": [
+        0.9731205105781555,
+        0.9860609769821167,
+        0.9934695959091187
+      ],
+      "min": [
+        -0.9620441794395447,
+        -0.9860614538192749,
+        -0.9942090511322021
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 2240,
+      "componentType": 5126,
+      "count": 284,
+      "max": [
+        1.0,
+        0.9640713334083557
+      ],
+      "min": [
+        0.0,
+        0.10785770416259766
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 2592,
+      "componentType": 5125,
+      "count": 600,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 13536,
+      "componentType": 5126,
+      "count": 398,
+      "max": [
+        -3.6142802238464355,
+        26.783580780029297,
+        4.887400150299072
+      ],
+      "min": [
+        -9.509483337402344,
+        1.6242690086364746,
+        -0.25171995162963867
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 18312,
+      "componentType": 5126,
+      "count": 398,
+      "max": [
+        0.9534091353416443,
+        0.9999392032623291,
+        0.9892327785491943
+      ],
+      "min": [
+        -0.953386664390564,
+        -0.9999436736106873,
+        -0.9681408405303955
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 4512,
+      "componentType": 5126,
+      "count": 398,
+      "max": [
+        0.8385106921195984,
+        1.0
+      ],
+      "min": [
+        0.0,
+        0.0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 4992,
+      "componentType": 5125,
+      "count": 1344,
+      "type": "SCALAR"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 23088,
+      "componentType": 5126,
+      "count": 296,
+      "max": [
+        -5.268917083740234,
+        37.46770477294922,
+        2.892331600189209
+      ],
+      "min": [
+        -7.282113552093506,
+        23.430538177490234,
+        0.9176394939422607
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 2,
+      "byteOffset": 26640,
+      "componentType": 5126,
+      "count": 296,
+      "max": [
+        0.9759300947189331,
+        0.9999039173126221,
+        0.9373226165771484
+      ],
+      "min": [
+        -0.9759257435798645,
+        -0.9999039769172668,
+        -0.9373237490653992
+      ],
+      "type": "VEC3"
+    },
+    {
+      "bufferView": 1,
+      "byteOffset": 7696,
+      "componentType": 5126,
+      "count": 296,
+      "max": [
+        0.9282371401786804,
+        0.5957187414169312
+      ],
+      "min": [
+        0.10819654911756516,
+        0.0
+      ],
+      "type": "VEC2"
+    },
+    {
+      "bufferView": 0,
+      "byteOffset": 10368,
+      "componentType": 5125,
+      "count": 624,
+      "type": "SCALAR"
+    }
+  ],
+  "asset": {
+    "extras": {
+      "author": "MrPuppet (https://sketchfab.com/MrPuppet)",
+      "license": "CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)",
+      "source": "https://sketchfab.com/3d-models/golf-clubs-592b0ea274394a99a4edd5091d74de25",
+      "title": "Golf Clubs"
+    },
+    "generator": "Sketchfab-12.98.0",
+    "version": "2.0"
+  },
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 12864,
+      "name": "floatBufferViews",
+      "target": 34963
+    },
+    {
+      "buffer": 0,
+      "byteLength": 10064,
+      "byteOffset": 12864,
+      "byteStride": 8,
+      "name": "floatBufferViews",
+      "target": 34962
+    },
+    {
+      "buffer": 0,
+      "byteLength": 30192,
+      "byteOffset": 22928,
+      "byteStride": 12,
+      "name": "floatBufferViews",
+      "target": 34962
+    }
+  ],
+  "buffers": [
+    {
+      "byteLength": 53120,
+      "uri": "scene.bin"
+    }
+  ],
+  "materials": [
+    {
+      "doubleSided": true,
+      "name": "blinn1",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.5,
+          0.5,
+          0.5,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.8495267627673782
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "phong1",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.0,
+          0.0,
+          0.449,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.9402351063950487
+      }
+    },
+    {
+      "doubleSided": true,
+      "name": "phong2",
+      "pbrMetallicRoughness": {
+        "baseColorFactor": [
+          0.0,
+          0.627,
+          0.0,
+          1.0
+        ],
+        "metallicFactor": 0.0,
+        "roughnessFactor": 0.8680821594471632
+      }
+    }
+  ],
+  "meshes": [
+    {
+      "name": "golf_club_01_blinn1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 1,
+            "POSITION": 0,
+            "TEXCOORD_0": 2
+          },
+          "indices": 3,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "golf_club_01_phong1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 5,
+            "POSITION": 4,
+            "TEXCOORD_0": 6
+          },
+          "indices": 7,
+          "material": 1,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "golf_club_02_blinn1_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 9,
+            "POSITION": 8,
+            "TEXCOORD_0": 10
+          },
+          "indices": 11,
+          "material": 0,
+          "mode": 4
+        }
+      ]
+    },
+    {
+      "name": "golf_club_02_phong2_0",
+      "primitives": [
+        {
+          "attributes": {
+            "NORMAL": 13,
+            "POSITION": 12,
+            "TEXCOORD_0": 14
+          },
+          "indices": 15,
+          "material": 2,
+          "mode": 4
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "children": [
+        1
+      ],
+      "matrix": [
+        1.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        2.220446049250313e-16,
+        -1.0,
+        0.0,
+        0.0,
+        1.0,
+        2.220446049250313e-16,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "Sketchfab_model"
+    },
+    {
+      "children": [
+        2
+      ],
+      "matrix": [
+        0.009999999776482582,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.009999999776482582,
+        0.0,
+        0.0,
+        -0.009999999776482582,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "name": "c664c13f47c44256882ae8626aa9f84e.fbx"
+    },
+    {
+      "children": [
+        3,
+        6
+      ],
+      "name": "RootNode"
+    },
+    {
+      "children": [
+        4,
+        5
+      ],
+      "name": "golf_club_01"
+    },
+    {
+      "mesh": 0,
+      "name": "golf_club_01_blinn1_0"
+    },
+    {
+      "mesh": 1,
+      "name": "golf_club_01_phong1_0"
+    },
+    {
+      "children": [
+        7,
+        8
+      ],
+      "name": "golf_club_02"
+    },
+    {
+      "mesh": 2,
+      "name": "golf_club_02_blinn1_0"
+    },
+    {
+      "mesh": 3,
+      "name": "golf_club_02_phong2_0"
+    }
+  ],
+  "scene": 0,
+  "scenes": [
+    {
+      "name": "Sketchfab_Scene",
+      "nodes": [
+        0
+      ]
+    }
+  ]
+}

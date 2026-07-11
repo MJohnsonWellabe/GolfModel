@@ -1,0 +1,11 @@
+Model Information:
+* title:	Golf Clubs
+* source:	https://sketchfab.com/3d-models/golf-clubs-592b0ea274394a99a4edd5091d74de25
+* author:	MrPuppet (https://sketchfab.com/MrPuppet)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Golf Clubs" (https://sketchfab.com/3d-models/golf-clubs-592b0ea274394a99a4edd5091d74de25) by MrPuppet (https://sketchfab.com/MrPuppet) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

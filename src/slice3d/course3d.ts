@@ -139,6 +139,9 @@ function makeWaterNormalTexture(scene: Scene): DynamicTexture {
 export interface Course3D {
   sun: DirectionalLight;
   shadows: ShadowGenerator;
+  /** The shared planar water reflection (waterReflect themes with a pond),
+   *  frozen while the swing meter is live so its RTT can't hitch the bar. */
+  waterMirror: MirrorTexture | null;
   /** Flagstick meshes — hidden while putting, like the pulled pin in EG. */
   pin: Mesh[];
   /** Translucent contour grid over the green, shown only while putting. */
@@ -523,6 +526,10 @@ export function buildCourse(
       let stable = 0;
       const fill = scene.onBeforeRenderObservable.add(() => {
         if (!waterMirror) return;
+        // The mirror is frozen while the meter is live (see perf pacing below),
+        // so don't spend a per-frame scene.meshes.filter + array alloc rebuilding
+        // a render list nothing will draw until the shot goes.
+        if (renderPacing.meterActive) return;
         const list = scene.meshes.filter(isReflectable);
         if (list.length === lastCount) {
           // Instances arrive in one synchronous burst after the glb resolves;
@@ -1029,10 +1036,14 @@ export function buildCourse(
     // does can ever block a frame long enough to hitch the meter. Index cursors
     // (not shift()) keep the walk O(n). Fills in over ~1–2s of flyover.
     const BUDGET_MS = 3.5;
+    // While the meter is live the camera is parked and the heavy per-frame GPU
+    // costs (water mirror + shadow map) are frozen below, so the frame has ample
+    // headroom — keep trickling scenery in on a small budget instead of a hard
+    // pause. This fills scenery during the long aim window (fixes "nothing loads
+    // left/right of the hole") without the drain ever hitching the bar.
+    const AIM_BUDGET_MS = 1.0;
     const drain = scene.onBeforeRenderObservable.add(() => {
-      // Yield the whole frame to the swing meter while it's live so the bar never
-      // stutters; the scatter resumes filling in the instant the player swings.
-      if (renderPacing.meterActive) return;
+      const budget = renderPacing.meterActive ? AIM_BUDGET_MS : BUDGET_MS;
       const t0 = performance.now();
       for (;;) {
         let batch = 32; // amortize the performance.now() cost over a small batch
@@ -1044,7 +1055,32 @@ export function buildCourse(
             return;
           }
         }
-        if (performance.now() - t0 >= BUDGET_MS) return;
+        if (performance.now() - t0 >= budget) return;
+      }
+    });
+    // ---------------------------------------------- parked-camera perf pacing
+    // The swing-meter stutter on the water holes (Timberline h1/h3, Wildwood h3,
+    // Port Johnson h3) was never the scatter drain — it is the two dominant
+    // per-frame GPU costs: the planar water-reflection RTT (re-renders every
+    // scatter instance) and the 1024² shadow map (full regen every frame). While
+    // the meter is live the camera is parked at address and the only animating
+    // thing is the 2D bar, so freeze both — each captures one fresh frame
+    // (REFRESHRATE_RENDER_ONCE) then holds — and restore their live cadence the
+    // instant the ball is struck and the flight camera takes over.
+    const shadowMap = shadows.getShadowMap();
+    let pacingFrozen = false;
+    scene.onBeforeRenderObservable.add(() => {
+      if (renderPacing.meterActive === pacingFrozen) return;
+      pacingFrozen = renderPacing.meterActive;
+      if (waterMirror) {
+        waterMirror.refreshRate = pacingFrozen
+          ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
+          : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
+      }
+      if (shadowMap) {
+        shadowMap.refreshRate = pacingFrozen
+          ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
+          : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYFRAME;
       }
     });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
@@ -1704,6 +1740,7 @@ export function buildCourse(
   return {
     sun,
     shadows,
+    waterMirror,
     pin: [pole, flag],
     puttGrid,
     /** Re-point the putt grid + break dots down the golfer→hole line (one axis

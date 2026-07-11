@@ -29,11 +29,16 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 const GOLFER_SCALE = 1.4;
 // Real club-model placement (wrist-local). Tuned so the grip sits in the hands
 // and the club hangs down and slightly forward/out to address the ball.
-const CLUB_LEN = 1.9;
+const CLUB_LEN = 2.15;
 const CLUB_MIRROR = 1;
 const CLUB_TILT_X = 0.32;
 const CLUB_TILT_Y = 0;
 const CLUB_TILT_Z = -0.34;
+/** Cross-section fattening for the imported club: real clubs model a
+ *  pencil-thin shaft that reads as a wire at the gameplay camera ("too small
+ *  and skinny"), so widen X/Z (not length) to give it an arcadey, chunky
+ *  presence. Length still tracks CLUB_LEN. */
+const CLUB_GIRTH = 2.3;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
@@ -250,11 +255,11 @@ export class Golfer3D {
         const min = bb.minimum;
         const max = bb.maximum;
         const s = CLUB_LEN / Math.max(0.001, max.y - min.y);
-        merged.scaling = new Vector3(s * CLUB_MIRROR, s, s);
+        merged.scaling = new Vector3(s * CLUB_GIRTH * CLUB_MIRROR, s, s * CLUB_GIRTH);
         merged.position = new Vector3(
-          (-(min.x + max.x) / 2) * s * CLUB_MIRROR,
+          (-(min.x + max.x) / 2) * s * CLUB_GIRTH * CLUB_MIRROR,
           -max.y * s,
-          (-(min.z + max.z) / 2) * s
+          (-(min.z + max.z) / 2) * s * CLUB_GIRTH
         );
         const holder = new TransformNode('clubHolder', scene);
         holder.parent = this.wristPivot;
@@ -266,6 +271,14 @@ export class Golfer3D {
         this.clubModel = merged;
         this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
         if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
+        // The club glb resolves AFTER `ready` (it's a separate fire-and-forget
+        // load), so the shared warmupShaders pass in main.ts misses it — and its
+        // shader would then compile on the FIRST swing, the exact hole-1 meter
+        // hitch. Compile it here, the instant it lands, so the cost falls in the
+        // flyover instead of on the live meter.
+        void (mat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
+          .forceCompilationAsync?.(merged)
+          .catch(() => undefined);
       })
       .catch(() => {
         /* keep the procedural club if the model fails to load */

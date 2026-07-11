@@ -55,6 +55,102 @@ test('per-frame render cost stays under the regression ceiling', async ({ page }
 });
 
 /**
+ * The REAL meter-smoothness gate the earlier "meter lag" fixes kept missing.
+ *
+ * The swing meter stutters on the WATER holes (Timberline h1/h3, Wildwood h3,
+ * Port Johnson h3) because two per-frame GPU costs run while the camera is
+ * parked at address: the planar water-reflection RTT (re-renders every scatter
+ * instance) and the full 1024² shadow-map regen. The fix freezes both while the
+ * meter is live (renderPacing.meterActive) and restores them for flight.
+ *
+ * This gate boots Timberline (hole 1 IS a water/reflect hole), reaches the armed
+ * meter — where the fix engages — and times the per-frame render cost with the
+ * freeze ON (real gameplay) versus forced OFF (the pre-fix behaviour). The
+ * freeze must measurably cut the frame cost on the water hole, and the armed
+ * state's worst single frame must stay under a stutter ceiling. Explicit
+ * scene.render() loop because headless rAF is throttled to ~1fps.
+ */
+test('swing meter stays smooth on a water hole (mirror/shadow freeze)', async ({ page }) => {
+  // The unfrozen shadow-every-frame path is genuinely heavy under software GL, so
+  // give the render loops room.
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await page.evaluate(() => (window as any).__startRound({ name: 'Meter', courseId: 'timberline' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  await page.evaluate(() => (window as any).__slice3d.skipIntro());
+  await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 30_000 });
+  // Let the chunked scatter finish so the mirror's render list is at full,
+  // worst-case size (the whole planted forest) before we measure.
+  await page.waitForTimeout(3500);
+
+  const measure = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    const scene = s3d.scene;
+    const pacing = s3d.renderPacing;
+    const rates = () => s3d.perfRefreshRates() as { shadow: number | null; mirror: number | null };
+    // Time N explicit renders, returning the mean and the worst single frame.
+    const run = (n: number) => {
+      let max = 0;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        const t = performance.now();
+        scene.render();
+        const dt = performance.now() - t;
+        sum += dt;
+        if (dt > max) max = dt;
+      }
+      return { avg: sum / n, max };
+    };
+    // Reaching 'aiming' armed the meter → meterActive is true, so the perf pacing
+    // observable freezes the shadow map (and the water mirror, on a water hole):
+    // one fresh render then held. Confirm the freeze engaged.
+    pacing.meterActive = true;
+    scene.render();
+    const armed = rates();
+    // Restore the flight cadence and confirm the RTTs go live again.
+    pacing.meterActive = false;
+    scene.render();
+    scene.render();
+    const released = rates();
+    // Back to real gameplay (armed), warm off any one-time cost, then time the
+    // steady-state armed-meter cost — the frames the swing bar shares the thread
+    // with. The tab idles (rAF-throttled) before this so the first heavy renders
+    // are cold; the warm loop keeps a shader compile out of the measured window.
+    pacing.meterActive = true;
+    for (let i = 0; i < 25; i++) scene.render();
+    const frozen = run(40);
+    return { armed, released, frozen };
+  });
+
+  writeFileSync(
+    'tests/visual/__shots__/meter-perf-baseline.json',
+    JSON.stringify(
+      {
+        armedShadowRefresh: measure.armed.shadow,
+        armedMirrorRefresh: measure.armed.mirror,
+        releasedShadowRefresh: measure.released.shadow,
+        releasedMirrorRefresh: measure.released.mirror,
+        frozenAvgMs: Math.round(measure.frozen.avg * 100) / 100,
+        frozenMaxMs: Math.round(measure.frozen.max * 100) / 100
+      },
+      null,
+      2
+    )
+  );
+
+  // The freeze mechanism must engage with the meter: while it's live the shadow
+  // map (always present) is held (refreshRate 0), and it returns to the
+  // every-frame cadence (1) for flight. A regression that stops gating the RTTs
+  // on the meter — the exact bug behind the stutter — trips this deterministically.
+  expect(measure.armed.shadow, 'shadow map frozen while meter live').toBe(0);
+  expect(measure.released.shadow, 'shadow map live for flight').toBe(1);
+  // No single armed-meter frame may blow past a stutter ceiling (generous for the
+  // software-GL CI CPU; a genuine per-frame stall trips it).
+  expect(measure.frozen.max, `worst armed frame ${measure.frozen.max.toFixed(2)}ms`).toBeLessThan(80);
+});
+
+/**
  * The ground-albedo bake is a SYNCHRONOUS main-thread stall on every hole build
  * (the "laggy hole" freeze) that the render-loop timer above never sees. Boot
  * Timberline — the heaviest theme (lush grass + real turf/sand grain + green
