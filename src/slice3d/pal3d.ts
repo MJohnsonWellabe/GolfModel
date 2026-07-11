@@ -165,10 +165,13 @@ export class Pal3D {
 
   /** Send the pal to its perch beside the ball: off the golfer's far side AND
    *  forward down the target line so it sits up-screen, clear of the swing bar.
+   *  `extraForward` pushes it further out into the fairway (used on tee shots,
+   *  where the wide-open view has room and the pal reads better further ahead).
    *  Called at each address. */
-  setTarget(ballX: number, ballY: number, yaw: number): void {
-    const ox = Math.cos(yaw + Math.PI / 2) * PERCH_OFFSET + Math.cos(yaw) * PERCH_FORWARD;
-    const oy = Math.sin(yaw + Math.PI / 2) * PERCH_OFFSET + Math.sin(yaw) * PERCH_FORWARD;
+  setTarget(ballX: number, ballY: number, yaw: number, extraForward = 0): void {
+    const fwd = PERCH_FORWARD + extraForward;
+    const ox = Math.cos(yaw + Math.PI / 2) * PERCH_OFFSET + Math.cos(yaw) * fwd;
+    const oy = Math.sin(yaw + Math.PI / 2) * PERCH_OFFSET + Math.sin(yaw) * fwd;
     this.moveTo(ballX + ox, ballY + oy, Math.atan2(-oy, -ox));
   }
 

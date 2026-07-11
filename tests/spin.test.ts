@@ -130,6 +130,35 @@ describe('spin physics', () => {
     expect(kickYd).toBeGreaterThan(2);
   });
 
+  it('breaks to the aimed side even in a crosswind (kick follows the shot line)', () => {
+    // A stiff left-to-right crosswind drifts the ball right in the air; the green
+    // kick must still break in the SPIN direction relative to the AIM (right
+    // swipe = right of the shot), not perpendicular to the wind-drifted landing
+    // velocity — the "swipe right, breaks left" playtest bug.
+    const wind = { angle: 0, speed: 16 }; // pushes +x
+    const shot = (side: number) =>
+      greenEngine.simulate({
+        origin: { x: 1500, y: 2800 },
+        aimAngle: -Math.PI / 2,
+        swing: { power: 0.9, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
+        club: clubById('pw'),
+        golfer: GOLFER,
+        fireBoost: 0,
+        lie: 'fairway',
+        wind,
+        hole: greenHole,
+        preview: true,
+        spin: { side, top: 0 }
+      });
+    const right = shot(1);
+    const none = shot(0);
+    const left = shot(-1);
+    // Relative to the SAME wind-drifted no-spin baseline, +side lands further
+    // right and -side further left.
+    expect(right.finalPos.x).toBeGreaterThan(none.finalPos.x + 3);
+    expect(left.finalPos.x).toBeLessThan(none.finalPos.x - 3);
+  });
+
   it('low trajectory cuts wind better than high (Phase 2 altitude wind)', () => {
     const windy = { angle: 0, speed: 15 }; // pure crosswind toward +x
     const shot = (mult: number) =>

@@ -883,7 +883,9 @@ class HoleScene {
     if (this.turnIdx !== 0 || !this.pal) return;
     const bp = this.state.ballPos;
     if (this.aim.isPutting) this.pal.setCupTarget(this.hole.pin.x, this.hole.pin.y, bp.x, bp.y);
-    else this.pal.setTarget(bp.x, bp.y, this.aim.yaw);
+    // On the tee shot, send the pal further out into the fairway (the wide open
+    // view has room and it reads better ahead of the golfer).
+    else this.pal.setTarget(bp.x, bp.y, this.aim.yaw, this.state.lie === 'tee' ? 14 : 0);
   }
 
   /** Show/hide the putt grid, and when putting re-point it (and the break
@@ -932,7 +934,10 @@ class HoleScene {
     this.golfer.aiming = true;
     this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
     this.syncPuttGrid();
-    this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
+    // The green highlight ring is a from-the-tee target aid; hide it in the
+    // top-down aerial view, where its raised emissive torus aliased into a
+    // "glitchy beige ring" around the green (playtest).
+    this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting && !this.aerial);
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
@@ -1001,12 +1006,18 @@ class HoleScene {
     const target =
       this.aim.isPutting || landIdx < 0 ? this.aim.aimPoint(this.state.ballPos) : path![landIdx];
     const curved = !this.aim.isPutting && landIdx > 4;
+    // Shot shape now breaks the ball ON the green bounce (the air path is
+    // straight), so to preview a draw/fade the dots must trace PAST carry-landing
+    // into the on-green release where the curve actually is. Only when a side
+    // shape is dialed in; the ring/readout stay at carry distance either way.
+    const shaped = !this.aim.isPutting && this.strike.shapeSpin.side !== 0;
+    const dotsEndIdx = shaped && landIdx >= 0 && path ? path.length - 1 : landIdx;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
       let dx: number;
       let dy: number;
       if (curved) {
-        const p = path![Math.min(landIdx, Math.round(f * landIdx))];
+        const p = path![Math.min(dotsEndIdx, Math.round(f * dotsEndIdx))];
         dx = p.x;
         dy = p.y;
       } else {
@@ -1035,15 +1046,17 @@ class HoleScene {
     const distLabel = this.aim.isPutting ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`;
     let elevFt: number;
     if (this.aim.isPutting) {
-      // Greens are flat-topped plateaus, so the terrain heightfield reads level
-      // on the green — derive uphill/downhill from the authored green break
-      // instead (slope.angle points DOWNHILL). Playtest FB9: the putt readout
-      // must show up/down.
-      const s = this.hole.slope;
+      // Read up/downhill from the SAME slope field the ball actually rolls
+      // through (slopeAccelAlong — what breakAccel integrates and the AI paces
+      // off), not a loose geometric projection, so the read is CONSISTENT with
+      // what the putt does. Sized so the player's rule of thumb — "aim ~1 ft
+      // longer for every 2 in uphill" — holes the putt for any length or slope:
+      // the shown rise is 2× the extra aim the pace model needs (extra fraction
+      // = -aPar/μ, μ = green friction), which is why 2 in → +1 ft, 4 in → +2 ft.
       const len = Math.hypot(dxp, dyp) || 1;
-      const distFt = (len / PX_PER_YARD) * 3;
-      const downhill = (dxp * Math.cos(s.angle) + dyp * Math.sin(s.angle)) / len;
-      elevFt = -downhill * distFt * s.strength * 0.09; // strength 1.0 ≈ a 9% grade
+      const aPar = this.engine2d.slopeAccelAlong(this.state.ballPos, Math.atan2(dyp, dxp), len);
+      const extraAimFt = len * (-aPar / PHYSICS.friction.green) * 1.5; // +uphill ⇒ aim longer
+      elevFt = extraAimFt / 6; // rise(ft) = 2·extraAim(in) → shown as inches below
     } else {
       // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)
       elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;
@@ -1066,7 +1079,7 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
     this.aim.cycleClub(dir, this.ctx());
     this.syncPuttGrid();
-    this.course3d.greenRing.setEnabled(!this.aim.isPutting);
+    this.course3d.greenRing.setEnabled(!this.aim.isPutting && !this.aerial);
     this.setPinPulled(this.aim.isPutting);
     this.armMeter();
     this.updateStrikeUI();
@@ -1129,6 +1142,9 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai) return;
     this.aerial = !this.aerial;
     aerialBtn.classList.toggle('on', this.aerial);
+    // Hide the green highlight ring in aerial (it aliases into a glitchy beige
+    // ring top-down); the scaled aim-target ring still frames the target.
+    this.course3d.greenRing.setEnabled(!this.aim.isPutting && !this.aerial);
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }

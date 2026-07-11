@@ -17,20 +17,25 @@ export interface AIOpponent extends Golfer {
 
 export const OPPONENTS: AIOpponent[] = [
   {
+    // id kept as 'sunny' — it's persisted in profiles as opponentId, so renaming
+    // the id would orphan saved rival selections. Display name is JD.
     id: 'sunny',
-    name: 'Sunny',
+    name: 'JD',
     color: 0xe8a13a,
-    character: 'sunny',
+    character: 'milo',
     difficulty: 'Easy',
-    tagline: 'Plays it safe, smiles a lot',
-    personality: { aggression: 0.2, layupBias: 0.8, pinHunting: 0.2 },
-    stats: { drivingPower: 74, drivingAccuracy: 76, approach: 74, chipping: 72, putting: 74 }
+    tagline: '100% swing, about 60% idea where it goes',
+    // A big, aggressive bomber who sprays it — long off the tee, wild everywhere.
+    personality: { aggression: 0.65, layupBias: 0.25, pinHunting: 0.45 },
+    // Maxed distance, limited accuracy, solid-but-not-special elsewhere — overall
+    // ≈ Sergio (OVR ~82), but the wildness makes him beatable (the Easy slot).
+    stats: { drivingPower: 100, drivingAccuracy: 62, approach: 82, chipping: 82, putting: 82 }
   },
   {
     id: 'sergio',
     name: 'Sergio',
     color: 0xe0b03a,
-    character: 'rio',
+    character: 'enzo',
     difficulty: 'Medium',
     tagline: 'Fairways and greens, never a gamble',
     personality: { aggression: 0.35, layupBias: 0.7, pinHunting: 0.35 },
@@ -40,7 +45,7 @@ export const OPPONENTS: AIOpponent[] = [
     id: 'phil',
     name: 'Phil',
     color: 0x3a3f4a,
-    character: 'dez',
+    character: 'cole',
     difficulty: 'Hard',
     tagline: 'Short-game gambler — attacks every flag',
     personality: { aggression: 0.75, layupBias: 0.25, pinHunting: 0.9 },
@@ -50,7 +55,7 @@ export const OPPONENTS: AIOpponent[] = [
     id: 'tiger',
     name: 'Tiger',
     color: 0xcc2222,
-    character: 'kuro',
+    character: 'knox',
     difficulty: 'Legend',
     tagline: 'Relentless. Goes for everything, makes everything',
     personality: { aggression: 0.9, layupBias: 0.1, pinHunting: 0.8 },

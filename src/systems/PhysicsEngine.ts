@@ -503,12 +503,16 @@ export class PhysicsEngine {
           }
           // Side spin breaks the ball sideways ON the bounce (green/fringe) —
           // this is where a fade/draw shows up now that the air path is straight.
-          // +side kicks right of the line, matching the strike-dot convention.
+          // Break perpendicular to the SHOT LINE (the aim `dir`), NOT the
+          // instantaneous landing velocity: wind and shape can drift the landing
+          // velocity so a velocity-based kick sometimes broke the wrong way
+          // (playtest "swipe right, breaks left"). +side = the player's RIGHT of
+          // the shot they aimed (a right swipe/arrow → breaks right), matching
+          // the aim convention (drag right aims toward +x).
           if (spin.side !== 0 && (surf === 'green' || surf === 'fringe') && spinEff > 0.2) {
-            const hs = Math.hypot(vx, vy) || 1;
             const kick = spin.side * spinEff * PHYSICS.sideSpinKick;
-            const px = -vy / hs;
-            const py = vx / hs;
+            const px = -Math.sin(dir);
+            const py = Math.cos(dir);
             vx += px * kick;
             vy += py * kick;
           }

@@ -118,9 +118,14 @@ export class AimControl {
    *  the AI follows) so a tee shot on a dogleg aims down the leg, not across
    *  the corner. Putts still default at the cup. */
   resetAim(ctx: ShotContext): void {
-    const aimTarget = this.isPutting ? this.hole.pin : this.nextRoutePoint(ctx.ball);
-    this.yaw = angleTo(ctx.ball, aimTarget);
     const pinDist = dist(ctx.ball, this.hole.pin);
+    // Approach shots aim AT THE FLAG: once the green is within the current club's
+    // reach, point at the pin (2nd/3rd shots hunt the flag). Only long tee/second
+    // shots that can't get home default down the fairway route, so a dogleg tee
+    // shot still aims down the leg rather than over the corner.
+    const canReachGreen = pinDist <= this.maxCarryPx(ctx);
+    const aimTarget = this.isPutting || canReachGreen ? this.hole.pin : this.nextRoutePoint(ctx.ball);
+    this.yaw = angleTo(ctx.ball, aimTarget);
     // Putts default the aim spot AT the cup, so a perfect stroke rolls the
     // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
     // The player drags the aim past the hole to add pace. Full shots keep the

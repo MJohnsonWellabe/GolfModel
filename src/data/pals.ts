@@ -30,7 +30,10 @@ const def = (key: PalKey, name: string, targetHeight: number, icon: string): Pal
   icon
 });
 
-export const PALS: PalDef[] = [def('fox', 'Foxy', 2.4, '🦊'), def('dragon', 'Ember', 3.0, '🐉')];
+// Sizes bumped +50% (playtest — pals read too small next to the golfer): fox
+// 2.4 -> 3.6, dragon 3.0 -> 4.5 (golfers stand 5.2). setSizeMult keeps the
+// putting-view shrink proportional.
+export const PALS: PalDef[] = [def('fox', 'Foxy', 3.6, '🦊'), def('dragon', 'Ember', 4.5, '🐉')];
 
 export function palByKey(key: string | undefined): PalDef | undefined {
   return PALS.find((p) => p.key === key);

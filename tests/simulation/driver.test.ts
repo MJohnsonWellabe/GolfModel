@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
+import { PhysicsEngine, effectiveCarryYards } from '../../src/systems/PhysicsEngine';
 import { buildHeightField } from '../../src/systems/HeightField';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
@@ -48,4 +48,29 @@ describe('driver distance stays sane with capped topspin', () => {
       }
     }
   });
+});
+
+/**
+ * Playtest check ("woods out of the fairway go too short"): document, not change
+ * (Matt's call). A wood's carry from the ROUGH vs a clean tee/fairway lie is
+ * governed by PHYSICS.lieDistance (the wood-family driveDistanceScale applies to
+ * both, so it cancels in the ratio). This locks the current ~25% rough loss so a
+ * future retune is a deliberate, visible edit rather than a silent drift.
+ */
+describe('wood carry by lie (documented)', () => {
+  for (const clubId of ['driver', '3w']) {
+    it(`${clubId} keeps a sane fraction of its tee carry from the fairway and rough`, () => {
+      const club = clubById(clubId);
+      const g = golferWith(90);
+      const tee = effectiveCarryYards(club, g, 0, 'tee');
+      const fairway = effectiveCarryYards(club, g, 0, 'fairway');
+      const rough = effectiveCarryYards(club, g, 0, 'rough');
+      // A clean fairway lie plays the same as the tee (no penalty).
+      expect(fairway / tee).toBeCloseTo(1, 5);
+      // Rough currently costs ~25% (lieDistance.rough = 0.75). Guard a band so an
+      // accidental change trips the test; tightening toward ≤10% is a config edit.
+      expect(rough / tee).toBeGreaterThan(0.7);
+      expect(rough / tee).toBeLessThan(0.8);
+    });
+  }
 });
