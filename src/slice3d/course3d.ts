@@ -1646,6 +1646,61 @@ export function buildCourse(
     }
   }
 
+  // ------------------------------------------------------- ocean rock cliffs
+  // A `cliff` water hazard (Port Johnson's links coast): the shoreline edges are
+  // extruded into a rock-textured headland face dropping from the turf down into
+  // the sea, so the left of the hole reads as ocean cliffs, not a flat pond. Only
+  // in-world edges get a face (the ocean runs off-world on its far sides). Physics
+  // still reads the polygon as water.
+  const cliffs = hole.hazards.filter((hz) => hz.type === 'water' && hz.cliff);
+  if (cliffs.length) {
+    const cliffMat = new StandardMaterial('oceanCliff', scene);
+    cliffMat.diffuseTexture = new Texture('textures/rock_wall.jpg', scene);
+    cliffMat.bumpTexture = new Texture('textures/rock_normal.png', scene);
+    cliffMat.specularColor = new Color3(0.06, 0.06, 0.06);
+    cliffMat.backFaceCulling = false;
+    const CLIFF_TOP = 2.4;
+    const CLIFF_BOT = -18;
+    const inWorld = (p: number[]): boolean => p[0] > 4 && p[0] < w - 4 && p[1] > 4 && p[1] < h - 4;
+    for (const hz of cliffs) {
+      const poly = hz.polygon;
+      const positions: number[] = [];
+      const indices: number[] = [];
+      const uvs: number[] = [];
+      let uRun = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        // Only face the shoreline the player can see — skip edges that run along
+        // the off-world side of the ocean.
+        if (!inWorld(a) && !inWorld(b)) continue;
+        const topA = w2b(a[0], a[1], CLIFF_TOP);
+        const topB = w2b(b[0], b[1], CLIFF_TOP);
+        const botA = w2b(a[0], a[1], CLIFF_BOT);
+        const botB = w2b(b[0], b[1], CLIFF_BOT);
+        const base = positions.length / 3;
+        for (const v of [topA, topB, botB, botA]) positions.push(v.x, v.y, v.z);
+        const segU = Math.hypot(b[0] - a[0], b[1] - a[1]) / 40;
+        uvs.push(uRun, 1, uRun + segU, 1, uRun + segU, 0, uRun, 0);
+        uRun += segU;
+        indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+      }
+      if (!positions.length) continue;
+      const cliff = new Mesh(`cliff-${Math.round(poly[0][0])}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      vd.uvs = uvs;
+      const normals: number[] = [];
+      VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(cliff);
+      cliff.material = cliffMat;
+      cliff.isPickable = false;
+      cliff.freezeWorldMatrix();
+    }
+  }
+
   // -------------------------------------------------------------------- pin
   // The pin lives on a root node that scales with camera distance (with a
   // minimum on-screen size), so the flag stays findable even on a 560yd tee
