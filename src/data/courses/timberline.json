@@ -16,8 +16,9 @@
     "greenLight": "#a2e478",
     "sand": "#e1c890",
     "sandDark": "#c3a670",
-    "water": "#356f9e",
-    "waterDeep": "#254f74",
+    "water": "#2f83c0",
+    "waterDeep": "#1d5488",
+    "waterReflect": true,
     "treeCanopy": "#173d1f",
     "treeCanopyLight": "#245c2c",
     "treeTrunk": "#513f2c",
@@ -717,6 +718,47 @@
         }
       ],
       "hazards": [
+        {
+          "type": "water",
+          "polygon": [
+            [
+              290,
+              768
+            ],
+            [
+              335,
+              778
+            ],
+            [
+              345,
+              812
+            ],
+            [
+              332,
+              852
+            ],
+            [
+              300,
+              892
+            ],
+            [
+              252,
+              888
+            ],
+            [
+              226,
+              852
+            ],
+            [
+              232,
+              804
+            ],
+            [
+              258,
+              782
+            ]
+          ]
+        },
         {
           "type": "bunker",
           "polygon": [

@@ -28,6 +28,12 @@ export interface CourseTheme {
   sandDark: number;
   water: number;
   waterDeep: number;
+  /** Opt in to real planar reflections on this course's ponds (Babylon
+   *  MirrorTexture — tree/sky mirror). Off by default: courses without it keep
+   *  the cheap RTT-free water (depth tint + specular sheen), mobile-safe. */
+  waterReflect?: boolean;
+  /** Reflection blend strength 0..1 for waterReflect ponds (default 0.62). */
+  waterReflectStrength?: number;
   treeCanopy: number;
   treeCanopyLight: number;
   treeTrunk: number;
@@ -198,6 +204,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandGrainTile'
     | 'bunkerStones'
     | 'horizonTint'
+    | 'waterReflect'
+    | 'waterReflectStrength'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -246,5 +254,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (spec.bunkerStones === true) t.bunkerStones = true;
   if (spec.horizonTint !== undefined) t.horizonTint = parseColor(spec.horizonTint, 0xe8ddc4);
+  if (spec.waterReflect === true) t.waterReflect = true;
+  if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
   return t;
 }

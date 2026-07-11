@@ -1,12 +1,17 @@
 import {
+  AbstractMesh,
   Color3,
   Color4,
   DirectionalLight,
   DynamicTexture,
+  FresnelParameters,
   HemisphericLight,
   Mesh,
   MeshBuilder,
+  MirrorTexture,
   ParticleSystem,
+  Plane,
+  RenderTargetTexture,
   Scene,
   ShadowGenerator,
   StandardMaterial,
@@ -461,10 +466,58 @@ export function buildCourse(
   // (scrolling normal map), and a fresnel sky sheen. All StandardMaterial +
   // vertex colors: no RTT reflections, mobile-safe.
   const waterNormalTex = makeWaterNormalTexture(scene);
+  // Optional real planar reflections (theme.waterReflect): one shared mirror per
+  // hole — every pond sits on the same y=level plane — kept mobile-friendly with
+  // a low resolution, an every-other-frame refresh, and a render list curated to
+  // the horizon silhouettes that actually read in a reflection.
+  const reflectStrength = theme.waterReflectStrength ?? 0.62;
+  let waterMirror: MirrorTexture | null = null;
   let wi = 0;
   for (const hz of hole.hazards) {
     if (hz.type !== 'water') continue;
     const level = hz.level ?? 0.35;
+    if (theme.waterReflect && !waterMirror) {
+      waterMirror = new MirrorTexture('waterMirror', { ratio: 0.35 }, scene, false);
+      waterMirror.mirrorPlane = new Plane(0, -1, 0, level);
+      waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
+      // A light blur hides the low reflection resolution without smearing the
+      // pines to mush; the scrolling bump map adds the ripple break-up.
+      waterMirror.adaptiveBlurKernel = 4;
+      waterMirror.renderList = [];
+      // Reflected silhouettes: the sky dome, any backdrop peaks, the clouds
+      // (mesh cloud* or the painted cumulus/cirrus billboards), and the
+      // tree/scatter INSTANCES (nat*, NOT the parked natProto-* sources — a
+      // MirrorTexture only draws instances that are themselves in the list). The
+      // water meshes are excluded on purpose: listing them would feed the mirror
+      // texture back into itself. Instances plant asynchronously (glb load), so
+      // rebuild the list until their count stops growing, then latch.
+      const isReflectable = (m: AbstractMesh): boolean => {
+        const nm = m.name;
+        return (
+          nm === 'sky' ||
+          nm.startsWith('peak') ||
+          nm.startsWith('cloud') ||
+          nm.startsWith('cumulus') ||
+          nm.startsWith('cirrus') ||
+          (nm.startsWith('nat') && !nm.startsWith('natProto'))
+        );
+      };
+      let lastCount = -1;
+      let stable = 0;
+      const fill = scene.onBeforeRenderObservable.add(() => {
+        if (!waterMirror) return;
+        const list = scene.meshes.filter(isReflectable);
+        if (list.length === lastCount) {
+          // Instances arrive in one synchronous burst after the glb resolves;
+          // once the count holds for a few frames the forest is fully planted.
+          if (++stable > 4 && lastCount > 0) scene.onBeforeRenderObservable.remove(fill);
+          return;
+        }
+        lastCount = list.length;
+        stable = 0;
+        waterMirror.renderList = list;
+      });
+    }
     const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
     const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
     // Fan: deep center + shore ring + a mid ring for the depth gradient
@@ -512,11 +565,27 @@ export function buildCourse(
     waterMesh.hasVertexAlpha = true;
     const wm = new StandardMaterial(`waterMat${wi}`, scene);
     wm.diffuseColor = new Color3(1, 1, 1); // vertex colors carry the tint
-    wm.emissiveColor = c3(shade(theme.waterDeep, 0.45));
+    // With a live mirror the reflection carries most of the brightness, so the
+    // baseline emissive drops to keep the depth tint readable underneath it.
+    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.3 : 0.45));
     wm.specularColor = new Color3(0.75, 0.85, 0.95);
     wm.specularPower = 110;
     wm.alpha = 0.95;
     wm.bumpTexture = waterNormalTex;
+    if (waterMirror) {
+      // Fresnel: near-grazing (distant) water reads as a bright mirror; looked at
+      // steeply (close) the reflection fades so the depth-tinted body shows —
+      // how the reference ponds behave. The scrolling bump map ripples the mirror
+      // so highlights shimmer instead of reading as a flat mirror sheet.
+      wm.reflectionTexture = waterMirror;
+      const fr = new FresnelParameters();
+      fr.bias = 0.18;
+      fr.power = 2;
+      fr.leftColor = new Color3(reflectStrength, reflectStrength, reflectStrength);
+      const dim = reflectStrength * 0.22;
+      fr.rightColor = new Color3(dim, dim, dim);
+      wm.reflectionFresnelParameters = fr;
+    }
     waterMesh.material = wm;
     scene.onBeforeRenderObservable.add(() => {
       const t = animTime();
