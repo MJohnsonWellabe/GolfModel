@@ -170,6 +170,10 @@ export interface GardenBed extends EllipseArea {
    *  used here must resolve to loaded prototypes (course3d unions them into the
    *  nature download set). */
   flowerKeys?: string[];
+  /** Bloom colors ("#rrggbb") for THIS bed, cycled across it, overriding the
+   *  default left→right rainbow. Lets each green wear its own colorway (e.g.
+   *  white + pink). Omitted = the rainbow. */
+  colors?: string[];
 }
 
 export interface HoleData {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import sablebay from '../../src/data/courses/sablebay.json';
 import timberline from '../../src/data/courses/timberline.json';
+import wildwood from '../../src/data/courses/wildwood.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
@@ -42,5 +43,14 @@ describe('new course playability', () => {
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeLessThan(6);
+  }, 20000);
+
+  it('Wildwood Glen plays to a sane average and every hole finishes', () => {
+    // Small greens + greenside sand (Bethpage redesign) demand accuracy without
+    // becoming unfair — the gate catches a green that got too small to hit.
+    const { mean, everyHoled } = meanToPar(wildwood as unknown as CourseAuthoring);
+    expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
+    expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
+    expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeLessThan(6);
   }, 20000);
 });

@@ -1183,8 +1183,15 @@ export function buildCourse(
         .map((k) => ({ k, proto: protos.get(k) }))
         .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
       if (!bedFlowers.length) continue;
+      // A bed can override the rainbow with its OWN colorway (e.g. white + pink
+      // by every Wildwood green) — cycled across the bed with no species
+      // preference so any bloom mesh takes the color.
+      const bands: Array<{ hue: Color4; prefer: string[] }> =
+        g.colors && g.colors.length
+          ? g.colors.map((c) => ({ hue: Color4.FromColor3(c3(parseInt(c.replace('#', ''), 16))), prefer: [] }))
+          : BANDS;
       // Species that only belong in their own band (never scattered generically).
-      const banded = new Set(BANDS.flatMap((b) => b.prefer));
+      const banded = new Set(bands.flatMap((b) => b.prefer));
       const generic = bedFlowers.filter((e) => !banded.has(e.k));
       const step = tuftStep / Math.sqrt(g.density ?? 1);
       const bloom = g.bloomChance ?? 0.85;
@@ -1222,7 +1229,7 @@ export function buildCourse(
           // of the color bands, with a little hash dither so band seams feather
           // instead of drawing a hard line.
           const t = (lx + 1) / 2 + (hash2(jx + 5, jy - 11) - 0.5) * 0.06;
-          const band = BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(t * BANDS.length)))];
+          const band = bands[Math.min(bands.length - 1, Math.max(0, Math.floor(t * bands.length)))];
           const prefer = band.prefer.map((k) => bedFlowers.find((e) => e.k === k)).filter(Boolean) as Array<{
             k: string;
             proto: NatureProto;

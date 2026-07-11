@@ -23,7 +23,9 @@
     "haze": "#d3e7f2",
     "hazeStrength": 0.5,
     "backdrop": "sea",
-    "blossomChance": 0.05
+    "blossomChance": 0.05,
+    "scatterKeys": ["stone_a", "stone_b", "stone_c"],
+    "backdropTreeStep": 92
   },
   "holes": [
     {
