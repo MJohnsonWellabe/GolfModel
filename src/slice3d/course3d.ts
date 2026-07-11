@@ -33,7 +33,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { pointInPolygon } from '../utils/Geometry';
+import { greenBoundaryScale, pointInPolygon } from '../utils/Geometry';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -163,7 +163,9 @@ export interface Course3D {
 const GREEN_RAISE = 0.55;
 const TEE_TOP = 1.15;
 
-/** Ellipse "radius factor" — <=1 inside, grows outward; rotation-aware. */
+/** Irregular-green "radius factor" — <=1 inside, grows outward; rotation-aware.
+ *  Divides by the shared boundary wobble so the raised plateau (greenLift) follows
+ *  the SAME undulating edge the physics surface test and the albedo bake use. */
 function ellipseFactor(x: number, y: number, g: HoleData['green'], margin = 0): number {
   let px = x - g.cx;
   let py = y - g.cy;
@@ -176,7 +178,8 @@ function ellipseFactor(x: number, y: number, g: HoleData['green'], margin = 0): 
   }
   const dx = px / (g.rx + margin);
   const dy = py / (g.ry + margin);
-  return Math.sqrt(dx * dx + dy * dy);
+  const w = greenBoundaryScale(Math.atan2(py, px), g);
+  return Math.sqrt(dx * dx + dy * dy) / w;
 }
 
 /** Green plateau lift profile shared by the plateau mesh and groundHeightAt. */
@@ -379,8 +382,15 @@ export function buildCourse(
       uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
     };
     const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
-      const lx = Math.cos(theta) * rxx;
-      const ly = Math.sin(theta) * ryy;
+      // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
+      // local angle so the plateau/skirt mesh traces the same irregular edge the
+      // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
+      // the angle, so mesh and point-in-green agree exactly).
+      const lx0 = Math.cos(theta) * rxx;
+      const ly0 = Math.sin(theta) * ryy;
+      const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+      const lx = lx0 * w;
+      const ly = ly0 * w;
       const c = Math.cos(g.rot ?? 0);
       const s = Math.sin(g.rot ?? 0);
       return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];

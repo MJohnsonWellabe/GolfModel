@@ -2,7 +2,7 @@ import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
 import { collectTreeBlobs, TreeBlob } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
-import { clamp, dist, pointInEllipse, pointInPolygon } from '../utils/Geometry';
+import { clamp, dist, pointInGreen, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
   Golfer,
@@ -252,13 +252,13 @@ export class PhysicsEngine {
   surfaceAt(x: number, y: number): Surface {
     const h = this.hole;
     const hz = h.hazards;
-    if (pointInEllipse(x, y, h.green)) return 'green';
+    if (pointInGreen(x, y, h.green)) return 'green';
     // Scoring bunkers win over fringe/water; a coastal BEACH band is deferred
     // until AFTER water so it only reads as sand where it sits on land.
     for (let i = 0; i < hz.length; i++) {
       if (hz[i].type === 'bunker' && !hz[i].beach && this.inHazard(i, x, y)) return 'sand';
     }
-    if (pointInEllipse(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
+    if (pointInGreen(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
     for (let i = 0; i < hz.length; i++) {
       if (hz[i].type === 'water' && this.inHazard(i, x, y)) return 'water';
     }

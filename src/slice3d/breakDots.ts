@@ -10,6 +10,7 @@ import {
 import { isFrozen } from '../core/debugFlags';
 import { HoleData } from '../core/types';
 import { PhysicsEngine } from '../systems/PhysicsEngine';
+import { pointInGreen } from '../utils/Geometry';
 import { hash2 } from './natureModels';
 
 /**
@@ -73,18 +74,10 @@ export function buildBreakDots(
   const maxR = Math.max(g.rx, g.ry);
   const half = maxR + 6;
   const count = Math.max(150, Math.min(350, Math.round((Math.PI * g.rx * g.ry) / 40)));
-  const greenC = Math.cos(g.rot ?? 0);
-  const greenS = Math.sin(g.rot ?? 0);
-  // Is a world point inside the green (slightly inset from the fringe edge)?
-  const insideGreen = (wx: number, wy: number): boolean => {
-    const dx = wx - g.cx;
-    const dy = wy - g.cy;
-    const lx = greenC * dx + greenS * dy; // rotate into the green's own frame
-    const ly = -greenS * dx + greenC * dy;
-    const rx = g.rx - 2;
-    const ry = g.ry - 2;
-    return (lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) <= 1;
-  };
+  // Is a world point inside the irregular green (slightly inset from the fringe
+  // edge)? Shares the wobble helper so the break-dot cloud clips to the SAME edge
+  // the green is drawn and played on.
+  const insideGreen = (wx: number, wy: number): boolean => pointInGreen(wx, wy, g, -2);
 
   // Soft round sprite shared by every dot.
   const tex = new DynamicTexture('breakDotTex', { width: 32, height: 32 }, scene, true);

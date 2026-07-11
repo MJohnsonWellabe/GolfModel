@@ -4,6 +4,7 @@ import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
 import { CHECKER_ROTATION, mowCheckerboard, mowStripe } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
+import { greenBoundaryScale } from '../../utils/Geometry';
 
 // Tree blobs now live in a rendering-independent module so the physics engine
 // can share them for per-trunk collision. Re-exported here so existing
@@ -85,10 +86,27 @@ function rasterizeClassGrid(
     ctx.fill();
   };
   const g = hole.green;
+  // Irregular green boundary: sample the wobbled edge (the SAME shared wobble the
+  // physics test, plateau mesh, and putt aids use) as a fine polygon so the baked
+  // albedo of the green (id2) and its fringe (id3) match the surface played. A
+  // plain ctx.ellipse would draw a perfect oval the physics no longer agrees with.
   const ell = (margin: number): void => {
-    ctx.beginPath();
-    ctx.ellipse(g.cx, g.cy, g.rx + margin, g.ry + margin, g.rot ?? 0, 0, Math.PI * 2);
-    ctx.fill();
+    const rxx = g.rx + margin;
+    const ryy = g.ry + margin;
+    const c = Math.cos(g.rot ?? 0);
+    const s = Math.sin(g.rot ?? 0);
+    const N = 72;
+    const pts: number[][] = [];
+    for (let i = 0; i < N; i++) {
+      const th = (i / N) * Math.PI * 2;
+      const lx0 = Math.cos(th) * rxx;
+      const ly0 = Math.sin(th) * ryy;
+      const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+      const lx = lx0 * w;
+      const ly = ly0 * w;
+      pts.push([g.cx + lx * c - ly * s, g.cy + lx * s + ly * c]);
+    }
+    poly(pts);
   };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
   // precedence must match PhysicsEngine.surfaceAt exactly:

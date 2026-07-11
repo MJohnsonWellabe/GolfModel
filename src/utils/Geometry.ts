@@ -37,6 +37,52 @@ export function pointInEllipse(
   return dx * dx + dy * dy <= 1;
 }
 
+/**
+ * Deterministic radial wobble factor for a green boundary at local angle
+ * `theta` (radians, measured in the green's own un-rotated frame). Real greens
+ * are not perfect circles or ovals — this multiplies the ellipse radius by
+ * `1 + Σ aᵢ·sin(kᵢθ+φᵢ)` over two low harmonics (k=2,3) so the edge undulates
+ * smoothly and stays star-convex + puttable (|wobble| ≲ 0.16). Amplitudes and
+ * phases are seeded from the green's own placement so EVERY consumer — the
+ * physics surface test, the albedo bake, the plateau mesh, the putt aids —
+ * derives the identical boundary and the sand drawn always matches the sand
+ * played.
+ */
+export function greenBoundaryScale(theta: number, e: EllipseArea): number {
+  const h1 = Math.sin(e.cx * 12.9898 + e.cy * 78.233 + (e.rot ?? 0) * 5.17) * 43758.5453;
+  const f1 = h1 - Math.floor(h1);
+  const h2 = Math.sin(e.cx * 39.3468 + e.cy * 11.135 + (e.rot ?? 0) * 2.71) * 24634.6345;
+  const f2 = h2 - Math.floor(h2);
+  const a2 = 0.055 + f1 * 0.05; // ~0.055..0.105
+  const a3 = 0.03 + f2 * 0.045; // ~0.03..0.075
+  const p2 = f1 * Math.PI * 2;
+  const p3 = f2 * Math.PI * 2;
+  return 1 + a2 * Math.sin(2 * theta + p2) + a3 * Math.sin(3 * theta + p3);
+}
+
+/**
+ * Point inside an irregular (wobbled) green, with optional margin added to both
+ * radii (for the fringe). Same rotated-ellipse test as `pointInEllipse` but the
+ * boundary radius is scaled by `greenBoundaryScale` at the point's angle, so the
+ * edge reads as a real green instead of a perfect ellipse. Star-convex boundary
+ * ⇒ the per-angle radius test is exact.
+ */
+export function pointInGreen(x: number, y: number, e: EllipseArea, margin = 0): boolean {
+  let px = x - e.cx;
+  let py = y - e.cy;
+  if (e.rot) {
+    const c = Math.cos(-e.rot);
+    const s = Math.sin(-e.rot);
+    const rx0 = px * c - py * s;
+    py = px * s + py * c;
+    px = rx0;
+  }
+  const dx = px / (e.rx + margin);
+  const dy = py / (e.ry + margin);
+  const w = greenBoundaryScale(Math.atan2(py, px), e);
+  return dx * dx + dy * dy <= w * w;
+}
+
 export function dist(a: Point, b: Point): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
