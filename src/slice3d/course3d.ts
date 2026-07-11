@@ -1192,7 +1192,29 @@ export function buildCourse(
       if (!set.length) return;
       placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH, tint);
     };
+    // Cherry-blossom prototype (Wildwood's spring-parkland identity): one clone
+    // of a rounded broadleaf with its canopy repainted soft pink, planted for any
+    // `blossom` trees hazard. Built once; the trunk (natBark) stays brown.
+    let blossomProto: NatureProto | null = null;
+    {
+      const src = trees.find((t) => /maple|oak|tree_a|tree_b|poplar|aspen/.test(t.key)) ?? trees[0];
+      if (src) {
+        const pink = mat(scene, 'natBlossom', 0xf4a6c8, { emissive: shade(0xf4a6c8, 0.5) });
+        const parts = src.proto.parts.map((p, i) => {
+          const cl = p.clone(`blossomPart${i}`, null) as Mesh;
+          cl.setEnabled(false);
+          if ((p.material?.name ?? '') !== 'natBark') cl.material = pink;
+          return cl;
+        });
+        blossomProto = { parts, height: src.proto.height };
+      }
+    }
     const plantTree = (b: TreeBlob): void => {
+      // A blossom-hazard trunk uses the pink-canopy prototype (Wildwood).
+      if (b.blossom && blossomProto) {
+        placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0));
+        return;
+      }
       // Accent species (e.g. birch among Timberline's pines) on ~15% of trees.
       const set = accents.length && hash2(b.x * 1.7, b.y * 0.9) < 0.15 ? accents : trees;
       if (!set.length) return;
@@ -1414,6 +1436,22 @@ export function buildCourse(
       // = fraction of cells kept (higher = denser).
       const sandStep = theme.sandPlantStep ?? 82;
       const keep = theme.sandPlantKeep ?? 0.5;
+      // Keep the aloe out of the WATER and the WOODS (playtest: "don't put the
+      // aloe in the woods / in the water"). The sand under an authored tree band
+      // reads as beach 'sand', and the shore reads 'sand' right up to the water
+      // line, so a plain surface test isn't enough — exclude a margin around
+      // every water/trees hazard (sample the point + its 4 neighbours).
+      const wt = hole.hazards.filter((z) => z.type === 'water' || z.type === 'trees');
+      const AVOID = 34;
+      const nearWaterOrWoods = (px: number, py: number): boolean =>
+        wt.some(
+          (z) =>
+            pointInPolygon(px, py, z.polygon) ||
+            pointInPolygon(px + AVOID, py, z.polygon) ||
+            pointInPolygon(px - AVOID, py, z.polygon) ||
+            pointInPolygon(px, py + AVOID, z.polygon) ||
+            pointInPolygon(px, py - AVOID, z.polygon)
+        );
       for (let yy = 0; yy < h; yy += sandStep) {
         const yRow = yy;
         popQueue.push(() => {
@@ -1425,6 +1463,7 @@ export function buildCourse(
             const jx = xx + (hash2(xx, yRow) - 0.5) * sandStep * 0.7;
             const jy = yRow + (hash2(yRow + 3, xx) - 0.5) * sandStep * 0.7;
             if (engine.surfaceAt(jx, jy) !== 'sand') continue;
+            if (nearWaterOrWoods(jx, jy)) continue;
             // A tint is REQUIRED for lush (tintable) prototypes — without it the
             // instanced color buffer defaults to black. Wiregrass reads olive.
             place(sandPlants, jx, jy, 2.2 + hash2(jx, jy) * 1.8, 3, theme.lushGrass ? bushTint(jx, jy) : undefined);

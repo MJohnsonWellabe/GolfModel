@@ -166,6 +166,20 @@ export interface Hazard {
    * are cosmetic. Links courses only.
    */
   wall?: boolean;
+  /**
+   * Trees only, VISUAL: a cherry-blossom grove — the canopy is tinted soft pink
+   * instead of green (course3d builds one pink-canopy prototype and plants this
+   * hazard's trunks from it). Collision/shadows are unchanged. Used for Wildwood
+   * Glen's spring-parkland identity (a stand behind a green).
+   */
+  blossom?: boolean;
+  /**
+   * Water only, VISUAL: an ocean-edge ROCK CLIFF. Instead of the flat pond fan,
+   * course3d extrudes the polygon's outer edge up into a rock-textured headland
+   * wall dropping to the sea, with scattered shore boulders. Physics still reads
+   * the polygon as water. Used for Port Johnson's links coastline.
+   */
+  cliff?: boolean;
 }
 
 export interface GreenSlope {
