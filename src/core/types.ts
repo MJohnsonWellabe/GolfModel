@@ -150,6 +150,31 @@ export interface GreenSlope {
   strength: number;
 }
 
+/**
+ * A hand-placed, purely decorative flower bed — a dense drift of blooms at an
+ * authored spot (e.g. behind a green). Reuses the green's ellipse footprint.
+ *
+ * Gardens are art, NOT gameplay: they carry no collision and are invisible to
+ * PhysicsEngine/AI (unlike a `trees` hazard). Only the 3D scatter in
+ * course3d.ts reads them, and it plants blooms on the `rough` surface only, so
+ * a bed never buries the green, fringe, bunkers, or a tree's hitbox.
+ */
+export interface GardenBed extends EllipseArea {
+  /** Grid-density multiplier vs the course's base tuft grid (default 1). */
+  density?: number;
+  /** Fraction of cells that get a bloom, 0..1 (default 0.85). */
+  bloomChance?: number;
+  /** Fraction of cells that get a low bush for structure, 0..1 (default 0.1). */
+  bushChance?: number;
+  /** World-units per single-color "drift" — blooms cluster by color in patches
+   *  this size so the bed reads as organized beds, not random speckle (default 42). */
+  driftSize?: number;
+  /** Bloom model keys to plant; falls back to the theme's flowerKeys. Any keys
+   *  used here must resolve to loaded prototypes (course3d unions them into the
+   *  nature download set). */
+  flowerKeys?: string[];
+}
+
 export interface HoleData {
   number: number;
   /** Famous-hole nickname shown on the hole banner. */
@@ -167,6 +192,8 @@ export interface HoleData {
   /** One or more fairway polygons. */
   fairway: Polygon[];
   hazards: Hazard[];
+  /** Decorative flower beds (no collision) — see GardenBed. */
+  gardens?: GardenBed[];
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */

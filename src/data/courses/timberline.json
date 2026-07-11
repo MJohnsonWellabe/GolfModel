@@ -598,6 +598,20 @@
           "visualSpacing": 22
         }
       ],
+      "gardens": [
+        {
+          "cx": 468,
+          "cy": 332,
+          "rx": 98,
+          "ry": 48,
+          "rot": 0.35,
+          "density": 3.0,
+          "bloomChance": 0.86,
+          "bushChance": 0.12,
+          "driftSize": 42,
+          "flowerKeys": ["flower_e", "flower_c", "flower_b", "flower_d", "flower_a"]
+        }
+      ],
       "aiTargets": [],
       "elevation": [
         {

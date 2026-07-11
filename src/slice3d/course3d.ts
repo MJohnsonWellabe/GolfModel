@@ -618,7 +618,9 @@ export function buildCourse(
       ...(theme.cloudKeys ?? []),
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
-      ...(theme.flowerKeys ?? FLOWER_KEYS)
+      ...(theme.flowerKeys ?? FLOWER_KEYS),
+      // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
+      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
     ])
   ];
 
@@ -1113,6 +1115,71 @@ export function buildCourse(
                     : 2.4 + hash2(jx + 7, jy) * 1.1;
             placeProto(e.proto, jx, jy, sh);
           }
+        }
+      }
+    }
+
+    // Hand-placed flower beds (hole.gardens): a dense, color-ORGANIZED drift of
+    // blooms at an authored spot — e.g. behind the green. Unlike the ambient
+    // rough scatter above, a bed clusters blooms by color into ~driftSize
+    // patches (one species+hue per patch) so it reads as designed beds rather
+    // than random speckle. Decor only: planted on the rough surface, never on
+    // the green/fringe/sand/water or a tree hitbox, and invisible to physics/AI
+    // (gardens carry no collision — see types.ts GardenBed).
+    //
+    // Each bloom species maps to a fixed natural hue + height band; the theme's
+    // lit near-white flower material multiplies by the hue so it reads true.
+    const BLOOM_SPECS: Record<string, { hue: Color4; hMin: number; hMax: number }> = {
+      flower_e: { hue: new Color4(0.98, 0.84, 0.3, 1), hMin: 4.0, hMax: 5.4 }, // sunflower — tall gold
+      flower_c: { hue: new Color4(0.72, 0.55, 0.92, 1), hMin: 2.2, hMax: 3.1 }, // lavender — purple
+      flower_b: { hue: new Color4(0.95, 0.5, 0.55, 1), hMin: 1.7, hMax: 2.6 }, // wildflower — red-pink
+      flower_d: { hue: new Color4(0.97, 0.97, 0.99, 1), hMin: 1.7, hMax: 2.6 }, // wildflower — white
+      flower_a: { hue: new Color4(0.98, 0.66, 0.4, 1), hMin: 1.7, hMax: 2.6 } // orange
+    };
+    for (const g of hole.gardens ?? []) {
+      const bedFlowers = (g.flowerKeys ?? theme.flowerKeys ?? FLOWER_KEYS)
+        .map((k) => ({ k, proto: protos.get(k) }))
+        .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
+      if (!bedFlowers.length) continue;
+      const step = tuftStep / Math.sqrt(g.density ?? 1);
+      const bloom = g.bloomChance ?? 0.85;
+      const bushCh = g.bushChance ?? 0.1;
+      const drift = g.driftSize ?? 42;
+      const rot = g.rot ?? 0;
+      const cosr = Math.cos(rot);
+      const sinr = Math.sin(rot);
+      const lush = theme.lushGrass;
+      for (let yy = g.cy - g.ry; yy <= g.cy + g.ry; yy += step) {
+        for (let xx = g.cx - g.rx; xx <= g.cx + g.rx; xx += step) {
+          // Inside the (possibly rotated) ellipse footprint.
+          const dx = xx - g.cx;
+          const dy = yy - g.cy;
+          const lx = (dx * cosr + dy * sinr) / g.rx;
+          const ly = (-dx * sinr + dy * cosr) / g.ry;
+          if (lx * lx + ly * ly > 1) continue;
+          const jx = xx + (hash2(xx, yy) - 0.5) * step * 0.8;
+          const jy = yy + (hash2(yy + 5, xx) - 0.5) * step * 0.8;
+          // Rough only — never bury the green/fringe/sand/water or a tree hitbox.
+          if (engine.surfaceAt(jx, jy) !== 'rough') continue;
+          // Keep a clean turf collar between the putting surface and the bed.
+          if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 82) continue;
+          const roll = hash2(jx + 51, jy + 23);
+          if (roll < bushCh) {
+            // A scatter of low bushes gives the bed structure/edging.
+            if (!bushSet.length) continue;
+            const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
+            const bh = e.key === 'bush_juniper' ? 1.6 + hash2(jy, jx) * 0.7 : 3.0 + hash2(jy, jx) * 1.5;
+            placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
+            continue;
+          }
+          if (roll >= bloom + bushCh) continue;
+          // Color drift: one species (hence one hue) per driftSize patch, so
+          // blooms cluster into coherent single-color beds.
+          const zone = hash2(Math.floor(xx / drift) * 13 + 1, Math.floor(yy / drift) * 7 + 3);
+          const e = bedFlowers[Math.floor(zone * bedFlowers.length) % bedFlowers.length];
+          const spec = BLOOM_SPECS[e.k];
+          const bh = spec ? spec.hMin + hash2(jx + 3, jy) * (spec.hMax - spec.hMin) : 1.7 + hash2(jx + 3, jy);
+          placeProto(e.proto, jx, jy, bh, lush ? (spec ? spec.hue : flowerTint(jx, jy)) : undefined);
         }
       }
     }

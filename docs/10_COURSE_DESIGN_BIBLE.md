@@ -457,6 +457,21 @@ Spectators (future).
 
 Small details create immersion.
 
+## Flower gardens (`gardens`)
+
+Beyond the ambient wildflowers scattered across the rough, a hole may author
+one or more **`gardens`** — hand-placed, purely decorative flower beds at a
+specific spot (e.g. behind a green). A garden is an ellipse
+(`cx, cy, rx, ry, rot`) plus density/mix knobs (`density`, `bloomChance`,
+`bushChance`, `driftSize`, `flowerKeys`); see `types.ts` `GardenBed`.
+
+Unlike a `trees` hazard, a garden is **art, not gameplay**: it carries no
+collision and is invisible to physics and the AI. The 3D scatter plants blooms
+on the `rough` surface only, so a bed never buries the green, fringe, bunkers,
+or a tree's hitbox. Blooms cluster by color into `driftSize` patches so a bed
+reads as organized beds of color rather than random speckle. First used behind
+Timberline hole 2 ("The Hollow").
+
 ---
 
 # Difficulty Curve

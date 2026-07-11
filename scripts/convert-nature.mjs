@@ -83,7 +83,9 @@ const MEADOW_MANIFEST = {
   grass_h: 'SM_Grass_03.fbx',
   grass_i: 'SM_Grass_Shorts.fbx',
   flower_b: 'SM_Wild_Flower_02.fbx',
-  flower_c: 'SM_Lavender.fbx'
+  flower_c: 'SM_Lavender.fbx',
+  flower_d: 'SM_Wild_Flower_01.fbx',
+  flower_e: 'SM_Sunflower_LOD.fbx'
 };
 
 const fbx2gltf = path.join(
