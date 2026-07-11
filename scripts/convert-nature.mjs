@@ -14,7 +14,7 @@
 // per course theme at load, same as the fantastic-nature props.
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, statSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,7 @@ import { MeshoptSimplifier } from 'meshoptimizer';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACK = path.join(root, 'asset-packs', 'forest-nature-fbx');
 const MEADOW = path.join(root, 'asset-packs', 'meadow-fbx');
+const KIT = path.join(root, 'asset-packs', 'nature-kit-glb');
 const OUT = path.join(root, 'assets', 'models', 'nature');
 
 /**
@@ -83,7 +84,32 @@ const MEADOW_MANIFEST = {
   grass_h: 'SM_Grass_03.fbx',
   grass_i: 'SM_Grass_Shorts.fbx',
   flower_b: 'SM_Wild_Flower_02.fbx',
-  flower_c: 'SM_Lavender.fbx'
+  flower_c: 'SM_Lavender.fbx',
+  flower_d: 'SM_Wild_Flower_01.fbx',
+  flower_e: 'SM_Sunflower_LOD.fbx'
+};
+
+/**
+ * Kenney nature-kit (asset-packs/nature-kit-glb) — genuinely 3D low-poly
+ * flowers/plants (real volume, ~300-1700 tris) as opposed to the meadow pack's
+ * flat crossed cards. Used for dense authored flower gardens where blooms are
+ * seen up close and must read as rounded 3D shapes from every angle.
+ *
+ * The kit ships glTF + .bin but its texture PNGs are absent from the pack; we
+ * recolor by material slot at load time anyway, so we strip every image/texture
+ * reference (point the buffer at the original .bin) and run the light cleanup.
+ * outKey -> pack file stem. Recolored via natureModels.ts pickMat: flower_* →
+ * the two-sided lit flower material (tintable per instance).
+ */
+const KENNEY_MANIFEST = {
+  flower_f: 'Flower_3_Group',
+  flower_g: 'Flower_4_Group',
+  flower_h: 'Plant_1',
+  // True 3D bushes/ferns (rounded volumes, ~300-900 tris) that replace the
+  // mixed-quality forest-pack shrubs course-wide.
+  bush_kenney_a: 'Bush_Common',
+  bush_kenney_b: 'Plant_1_Big',
+  fern_kenney: 'Fern_1'
 };
 
 const fbx2gltf = path.join(
@@ -152,12 +178,43 @@ async function convertOne(packDir, key, entry, light) {
   console.log(`${key}.glb  ${kb} KB  [${mats}]`);
 }
 
+/** Convert one Kenney nature-kit glTF: strip its (absent) textures, then run
+ *  the same light cleanup the meadow cards get. Geometry only — recolored by
+ *  slot at load, so the missing PNGs never matter. */
+async function convertKenneyOne(key, stem) {
+  const gj = JSON.parse(readFileSync(path.join(KIT, `${stem}.gltf`), 'utf8'));
+  delete gj.images;
+  delete gj.textures;
+  delete gj.samplers;
+  for (const m of gj.materials ?? []) {
+    if (m.pbrMetallicRoughness) {
+      delete m.pbrMetallicRoughness.baseColorTexture;
+      delete m.pbrMetallicRoughness.metallicRoughnessTexture;
+    }
+    delete m.normalTexture;
+    delete m.occlusionTexture;
+    delete m.emissiveTexture;
+  }
+  // Resolve the .bin by absolute path so the rewritten glTF reads from anywhere.
+  for (const b of gj.buffers ?? []) if (b.uri) b.uri = path.join(KIT, b.uri);
+  const tmp = path.join(work, `${stem}.gltf`);
+  writeFileSync(tmp, JSON.stringify(gj));
+  const document = await io.read(tmp);
+  await document.transform(dedup(), weld(), prune(), quantize());
+  const out = path.join(OUT, `${key}.glb`);
+  await io.write(out, document);
+  console.log(`${key}.glb  ${Math.round(statSync(out).size / 1024)} KB  [kenney ${stem}]`);
+}
+
 try {
   for (const [key, entry] of Object.entries(MANIFEST)) {
     await convertOne(PACK, key, entry, false);
   }
   for (const [key, entry] of Object.entries(MEADOW_MANIFEST)) {
     await convertOne(MEADOW, key, entry, true);
+  }
+  for (const [key, stem] of Object.entries(KENNEY_MANIFEST)) {
+    await convertKenneyOne(key, stem);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

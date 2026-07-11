@@ -618,7 +618,9 @@ export function buildCourse(
       ...(theme.cloudKeys ?? []),
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
-      ...(theme.flowerKeys ?? FLOWER_KEYS)
+      ...(theme.flowerKeys ?? FLOWER_KEYS),
+      // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
+      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
     ])
   ];
 
@@ -955,9 +957,11 @@ export function buildCourse(
         inst.position = pos;
         inst.rotation = new Vector3(0, rotY, 0);
         inst.parent = treeRoot;
-        // Per-tuft tint (lush grass only; the buffer is registered on grass
-        // prototypes in natureModels when grassLit) breaks the flat one-color read.
-        if (tint) inst.instancedBuffers.color = tint;
+        // Per-tuft tint (lush grass only; the 'color' buffer is registered on
+        // tintable prototype parts in natureModels when grassLit) breaks the flat
+        // one-color read. For split flowers only the petal part is tintable, so a
+        // hue colors the bloom while the stem part stays green.
+        if (tint && (part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint;
       }
     };
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
@@ -1050,12 +1054,26 @@ export function buildCourse(
     // stones/bushes on the rough; short, dense tufts on the fairway; nothing on
     // the green (mown smooth) — so fairway/rough/green read differently up close.
     // tuftDensity 1 keeps the exact historical 34-unit grid (hash-stable).
+    // A flower bed replaces the turf with mulch + blooms, so keep the ambient
+    // grass/scatter out of any garden footprint — no green tufts poking through
+    // the dirt.
+    const inGarden = (x: number, y: number): boolean =>
+      (hole.gardens ?? []).some((g) => {
+        const dx = x - g.cx;
+        const dy = y - g.cy;
+        const cr = Math.cos(g.rot ?? 0);
+        const sr = Math.sin(g.rot ?? 0);
+        const lx = (dx * cr + dy * sr) / g.rx;
+        const ly = (-dx * sr + dy * cr) / g.ry;
+        return lx * lx + ly * ly <= 1;
+      });
     const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
     for (let yy = 0; yy < h; yy += tuftStep) {
       for (let xx = 0; xx < w; xx += tuftStep) {
         const surf = engine.surfaceAt(xx, yy);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
+        if (inGarden(xx, yy)) continue;
         // Keep tall grass off the mown tee pad (it reads as short, clean turf)
         // and out of the tee approach — a tuft right in front of the camera
         // reads huge at address.
@@ -1084,13 +1102,10 @@ export function buildCourse(
           const cap = lush ? 4.6 : 3.4;
           if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
           else if (roll < 0.55 && bushSet.length) {
-            // Same proto-choice hash place() used (jitter 7) so the classic
-            // bush_a/b courses keep their exact historical layout. Low
-            // sprawlers (juniper: 1.5x0.9 footprint) get a knee-high target —
-            // height-scaling a wide-low mesh to bush height reads as a
-            // fairway-swallowing blob.
+            // The tall leafy plant (bush_kenney_b) stands a touch higher than the
+            // rounded shrub; both stay knee-to-waist so they never read as walls.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
-            const bh = e.key === 'bush_juniper' ? 1.5 + hash2(jy, jx) * 0.7 : 3.2 + hash2(jy, jx) * 1.6;
+            const bh = 3.2 + (e.key === 'bush_kenney_b' ? 1.0 : 0) + hash2(jy, jx) * 1.6;
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
           // Flowers: multi-colored + a wider band when lush (patchier bloom).
@@ -1113,6 +1128,94 @@ export function buildCourse(
                     : 2.4 + hash2(jx + 7, jy) * 1.1;
             placeProto(e.proto, jx, jy, sh);
           }
+        }
+      }
+    }
+
+    // Hand-placed flower beds (hole.gardens): a dense, color-ORGANIZED sweep of
+    // blooms at an authored spot — e.g. behind the green. Unlike the ambient
+    // rough scatter above, a bed paints a left→right rainbow: each bloom's hue
+    // comes from its horizontal position across the bed (pink · purple · blue ·
+    // green · yellow · white), so the whole bed reads as designed color beds
+    // rather than random speckle. Decor only: planted on the rough surface,
+    // never on the green/fringe/sand/water or a tree hitbox, and invisible to
+    // physics/AI (gardens carry no collision — see types.ts GardenBed).
+    //
+    // The blooms are the genuinely-3D nature-kit meshes (flower_f/g/h clusters,
+    // flower_e sunflower); the theme's lit two-sided flower material multiplies
+    // by the band hue so each reads as its true color. Some bands prefer a
+    // species (sunflowers in the yellow band, leafy plants in the green band).
+    const BANDS: Array<{ hue: Color4; prefer: string[] }> = [
+      { hue: new Color4(0.98, 0.46, 0.66, 1), prefer: [] }, // pink
+      { hue: new Color4(0.66, 0.42, 0.92, 1), prefer: [] }, // purple
+      { hue: new Color4(0.42, 0.6, 0.98, 1), prefer: [] }, // blue
+      { hue: new Color4(0.44, 0.82, 0.46, 1), prefer: ['flower_h'] }, // green — leafy plant
+      { hue: new Color4(0.98, 0.85, 0.32, 1), prefer: ['flower_e'] }, // yellow — sunflower
+      { hue: new Color4(0.98, 0.98, 1.0, 1), prefer: [] } // white
+    ];
+    // Per-species target height band (world units): sunflowers stand tall at the
+    // back, clusters/plants sit knee-to-waist high.
+    const BLOOM_H: Record<string, [number, number]> = {
+      flower_e: [4.0, 5.4],
+      flower_f: [2.2, 3.2],
+      flower_g: [2.4, 3.4],
+      flower_h: [2.0, 2.9],
+      flower_a: [2.2, 3.2]
+    };
+    for (const g of hole.gardens ?? []) {
+      const bedFlowers = (g.flowerKeys ?? theme.flowerKeys ?? FLOWER_KEYS)
+        .map((k) => ({ k, proto: protos.get(k) }))
+        .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
+      if (!bedFlowers.length) continue;
+      // Species that only belong in their own band (never scattered generically).
+      const banded = new Set(BANDS.flatMap((b) => b.prefer));
+      const generic = bedFlowers.filter((e) => !banded.has(e.k));
+      const step = tuftStep / Math.sqrt(g.density ?? 1);
+      const bloom = g.bloomChance ?? 0.85;
+      const bushCh = g.bushChance ?? 0.1;
+      const rot = g.rot ?? 0;
+      const cosr = Math.cos(rot);
+      const sinr = Math.sin(rot);
+      const lush = theme.lushGrass;
+      for (let yy = g.cy - g.ry; yy <= g.cy + g.ry; yy += step) {
+        for (let xx = g.cx - g.rx; xx <= g.cx + g.rx; xx += step) {
+          // Inside the (possibly rotated) ellipse footprint. lx is the position
+          // along the bed's major axis, normalized to [-1, 1].
+          const dx = xx - g.cx;
+          const dy = yy - g.cy;
+          const lx = (dx * cosr + dy * sinr) / g.rx;
+          const ly = (-dx * sinr + dy * cosr) / g.ry;
+          if (lx * lx + ly * ly > 1) continue;
+          const jx = xx + (hash2(xx, yy) - 0.5) * step * 0.8;
+          const jy = yy + (hash2(yy + 5, xx) - 0.5) * step * 0.8;
+          // Rough only — never bury the green/fringe/sand/water or a tree hitbox.
+          if (engine.surfaceAt(jx, jy) !== 'rough') continue;
+          // Keep a clean turf collar between the putting surface and the bed.
+          if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 82) continue;
+          const roll = hash2(jx + 51, jy + 23);
+          if (roll < bushCh) {
+            // A scatter of low bushes gives the bed structure/edging.
+            if (!bushSet.length) continue;
+            const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
+            const bh = 3.0 + (e.key === 'bush_kenney_b' ? 1.0 : 0) + hash2(jy, jx) * 1.5;
+            placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
+            continue;
+          }
+          if (roll >= bloom + bushCh) continue;
+          // Rainbow by position: map the point along the bed's major axis to one
+          // of the color bands, with a little hash dither so band seams feather
+          // instead of drawing a hard line.
+          const t = (lx + 1) / 2 + (hash2(jx + 5, jy - 11) - 0.5) * 0.06;
+          const band = BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(t * BANDS.length)))];
+          const prefer = band.prefer.map((k) => bedFlowers.find((e) => e.k === k)).filter(Boolean) as Array<{
+            k: string;
+            proto: NatureProto;
+          }>;
+          const pool = prefer.length ? prefer : generic.length ? generic : bedFlowers;
+          const e = pool[Math.floor(hash2(jx + 9, jy - 5) * pool.length) % pool.length];
+          const [hmin, hmax] = BLOOM_H[e.k] ?? [2.0, 2.8];
+          const bh = hmin + hash2(jx + 3, jy) * (hmax - hmin);
+          placeProto(e.proto, jx, jy, bh, lush ? band.hue : undefined);
         }
       }
     }

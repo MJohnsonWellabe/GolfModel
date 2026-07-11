@@ -4,7 +4,9 @@ import {
   LoadAssetContainerAsync,
   Mesh,
   Scene,
-  StandardMaterial
+  StandardMaterial,
+  VertexBuffer,
+  VertexData
 } from '@babylonjs/core';
 
 /**
@@ -126,6 +128,19 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
   const barkMat = flat(scene, 'natBark', palette.bark);
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
+  // Bushes and ferns are crossed/low-poly cards too. On a lush course give them
+  // the same LIT, two-sided treatment grass and flowers get (twoSidedLighting +
+  // emissive floor) so they self-shade and catch the sun as rounded 3D volumes
+  // instead of reading as flat single-lit slabs. Non-lush courses keep the plain
+  // flat material, so their look is unchanged. Trees keep foliageMat (their big
+  // canopies already read as volumes and drive baked shadows).
+  const bushMat = palette.grassLit ? litGrass(scene, 'natBushLit', palette.foliage) : foliageMat;
+  const bushLightMat = palette.grassLit ? litGrass(scene, 'natBushLLit', palette.foliageLight) : foliageLightMat;
+  const fernMat = palette.grassLit ? litGrass(scene, 'natFernLit', palette.foliage) : foliageMat;
+  // Flower stems/leaves stay green while the petals take the per-instance hue:
+  // each flower prototype is split by height (see splitFlowerByHeight) into a
+  // green stem part (this material) and a tintable petal part (flowerMat).
+  const stemMat = palette.grassLit ? litGrass(scene, 'natStem', 0x4c8f3a) : flat(scene, 'natStem', 0x4c8f3a);
   // Grass tufts and flowers are crossed flat cards — plain lit shading turns the
   // back-facing half black, so by default render them unlit in flat palette
   // colors. When grassLit, grass instead uses a LIT, two-sided material
@@ -149,12 +164,12 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
     // Forest-pack floor props ship one generic "MainMaterial" slot for the
     // whole mesh, so the prop key decides: deadwood is bark, plants foliage.
     if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
-    if (key.startsWith('fern')) return foliageMat;
+    if (key.startsWith('fern')) return fernMat;
     // Berry-type bushes (blackberry/currant/raspberry) read lighter, like the
     // fruit rows they are; the plain shrubs stay deep foliage green.
     if (key.startsWith('bush_berry') || key.startsWith('bush_c') || key.startsWith('bush_currant') || key.startsWith('bush_raspberry'))
-      return foliageLightMat;
-    if (key.startsWith('bush_juniper')) return foliageMat;
+      return bushLightMat;
+    if (key.startsWith('bush')) return bushMat;
     if (key.startsWith('cloud')) return cloudMat;
     // Conifer glbs ship trunk + foliage as two NODES sharing one needles
     // material; the SM_-prefixed node is the trunk (verified via bounds).
@@ -222,19 +237,25 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       const parts: Mesh[] = [];
       let minY = Infinity;
       let maxY = -Infinity;
+      const isFlower = key.startsWith('flower');
       for (const group of byMat.values()) {
         const merged = Mesh.MergeMeshes(group, true, true, undefined, false, false);
         if (!merged) continue;
-        merged.name = `natProto-${key}-${merged.material?.name ?? 'm'}`;
-        merged.isPickable = false;
         merged.refreshBoundingInfo();
         const bb = merged.getBoundingInfo().boundingBox;
         minY = Math.min(minY, bb.minimum.y);
         maxY = Math.max(maxY, bb.maximum.y);
-        // Park below ground (kept enabled — Babylon only draws an instanced
-        // mesh's instances while its source mesh is enabled).
-        merged.position.y = -9000;
-        parts.push(merged);
+        // Flowers split into a green stem (lower ~40%) + tintable petals (upper)
+        // so a per-instance hue colors only the bloom, not the whole plant.
+        const pieces = isFlower ? splitFlowerByHeight(merged, scene, stemMat, 0.42) : [merged];
+        pieces.forEach((p, i) => {
+          p.name = `natProto-${key}-${p.material?.name ?? 'm'}${isFlower ? `-${i}` : ''}`;
+          p.isPickable = false;
+          // Park below ground (kept enabled — Babylon only draws an instanced
+          // mesh's instances while its source mesh is enabled).
+          p.position.y = -9000;
+          parts.push(p);
+        });
       }
       if (parts.length) out.set(key, { parts, height: maxY - minY || 1 });
     })
@@ -243,13 +264,67 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
   // prototype mesh before any instance is created (course3d sets each instance's
   // .instancedBuffers.color). Register once here when lush — grass/flowers get
   // varied hues, bushes a subtle green variance so scatter stops reading flat.
+  // For split flowers only the PETAL part (material === flowerMat) is tintable;
+  // the green stem part keeps stemMat and is left untinted.
   if (palette.grassLit) {
     for (const [key, proto] of out) {
       if (!(key.startsWith('grass') || key.startsWith('flower') || key.startsWith('bush'))) continue;
-      for (const part of proto.parts) part.registerInstancedBuffer('color', 4);
+      for (const part of proto.parts) {
+        if (key.startsWith('flower') && part.material?.name !== flowerMat.name) continue;
+        part.registerInstancedBuffer('color', 4);
+        (part as Mesh & { tintable?: boolean }).tintable = true;
+      }
     }
   }
   return out;
+}
+
+/**
+ * Split a merged flower mesh into a green STEM part (lower triangles) and a
+ * tintable PETAL part (upper triangles), by triangle-centroid height. The
+ * petal part keeps the source (flower) material so a per-instance color tints
+ * only the bloom; the stem part gets stemMat and stays green. Both parts share
+ * the full vertex range, so scaling/height are unchanged. Returns [merged] if
+ * the geometry can't be read (falls back to the old whole-plant behavior).
+ */
+function splitFlowerByHeight(src: Mesh, scene: Scene, stemMat: StandardMaterial, frac: number): Mesh[] {
+  const pos = src.getVerticesData(VertexBuffer.PositionKind);
+  const nor = src.getVerticesData(VertexBuffer.NormalKind);
+  const idx = src.getIndices();
+  const petalMat = src.material;
+  if (!pos || !idx || !petalMat) return [src];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 1; i < pos.length; i += 3) {
+    if (pos[i] < lo) lo = pos[i];
+    if (pos[i] > hi) hi = pos[i];
+  }
+  const thr = lo + frac * (hi - lo);
+  const stemIdx: number[] = [];
+  const petalIdx: number[] = [];
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t];
+    const b = idx[t + 1];
+    const c = idx[t + 2];
+    const cy = (pos[a * 3 + 1] + pos[b * 3 + 1] + pos[c * 3 + 1]) / 3;
+    (cy > thr ? petalIdx : stemIdx).push(a, b, c);
+  }
+  if (!stemIdx.length || !petalIdx.length) return [src]; // all one side — leave whole
+  const make = (indices: number[], mat: StandardMaterial | typeof petalMat): Mesh => {
+    const m = new Mesh('flowerPart', scene);
+    const vd = new VertexData();
+    vd.positions = pos;
+    if (nor) vd.normals = nor;
+    vd.indices = indices;
+    vd.applyToMesh(m);
+    m.material = mat;
+    m.refreshBoundingInfo();
+    return m;
+  };
+  const stem = make(stemIdx, stemMat);
+  const petal = make(petalIdx, petalMat);
+  src.dispose();
+  return [stem, petal];
 }
 
 function unlit(scene: Scene, name: string, color: number): StandardMaterial {

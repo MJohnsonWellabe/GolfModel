@@ -216,6 +216,21 @@ export function renderCourseCanvas(
       return { cx: bcx, cy: bcy, maxR };
     });
 
+  // Flower-garden mulch beds: paint the rough turf under a bed as dirt so the
+  // blooms rise out of earth, not grass. Precompute the (rotated) ellipses; the
+  // hot loop tints matching rough texels brown.
+  // Pad the dirt ellipse a little beyond the bloom footprint so the mulch frames
+  // every flower (blooms jitter off their grid cell) with a rounded earth border.
+  const GARDEN_DIRT_PAD = 12;
+  const gardens = (hole.gardens ?? []).map((g) => ({
+    cx: g.cx,
+    cy: g.cy,
+    rx: g.rx + GARDEN_DIRT_PAD,
+    ry: g.ry + GARDEN_DIRT_PAD,
+    cr: Math.cos(g.rot ?? 0),
+    sr: Math.sin(g.rot ?? 0)
+  }));
+
   // Edge-wobble amplitude multiplier (default 1 → historical subtle ripple).
   const ew = theme.edgeWobble ?? 1;
   const realGrain = Boolean(theme.turfGrainKey);
@@ -290,6 +305,22 @@ export function renderCourseCanvas(
           teeInset = TEE_HALF - Math.max(Math.abs(along), Math.abs(perp));
         }
       }
+      // Garden dirt: rough texels inside a bed become mulch. Tested on the
+      // jittered coords so the dirt edge wobbles organically like other surfaces.
+      let dirt = false;
+      if (cls === 0 && gardens.length) {
+        for (const gd of gardens) {
+          const dx = jx - gd.cx;
+          const dy = jy - gd.cy;
+          const elx = (dx * gd.cr + dy * gd.sr) / gd.rx;
+          const ely = (-dx * gd.sr + dy * gd.cr) / gd.ry;
+          if (elx * elx + ely * ely <= 1) {
+            dirt = true;
+            break;
+          }
+        }
+      }
+
       const [r, g, b] = palette[cls];
 
       // Real-asset turf grain (theme.turfGrainKey/roughGrainKey) replaces the
@@ -389,9 +420,20 @@ export function renderCourseCanvas(
       }
 
       const i = (py * w + px) * 4;
-      data[i] = Math.min(255, r * light);
-      data[i + 1] = Math.min(255, g * light);
-      data[i + 2] = Math.min(255, b * light);
+      if (dirt) {
+        // Chunky bark-mulch: a warm brown with strong per-texel grain and the
+        // odd lighter fleck so it reads as soil/bark, not a flat brown disc.
+        const mg = grain(px, py); // 0..0.5
+        const fleck = texelHash(px + 5, py + 9) > 0.87 ? 1.35 : 1;
+        const li = (0.78 + mg * 0.8) * fleck;
+        data[i] = Math.min(255, 86 * li);
+        data[i + 1] = Math.min(255, 63 * li);
+        data[i + 2] = Math.min(255, 42 * li);
+      } else {
+        data[i] = Math.min(255, r * light);
+        data[i + 1] = Math.min(255, g * light);
+        data[i + 2] = Math.min(255, b * light);
+      }
       data[i + 3] = 255;
     }
   }
