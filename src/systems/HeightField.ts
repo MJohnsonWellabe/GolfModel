@@ -89,8 +89,26 @@ export class HeightField {
   }
 }
 
-/** Compile a hole's authored elevation (null when the hole is flat). */
+/** Compile a hole's authored elevation (null when the hole is flat).
+ *  Revetted bunkers (hazard.wall) inject a sunken negative plateau so the floor
+ *  sits below the turf — both the physics and the rendered ground share it, and
+ *  course3d builds the stone wall ring around the resulting pit. */
 export function buildHeightField(hole: HoleData): HeightField | null {
-  if (!hole.elevation || hole.elevation.length === 0) return null;
-  return new HeightField(hole.elevation, hole.world.width, hole.world.height);
+  const pts: ElevationPoint[] = [...(hole.elevation ?? [])];
+  for (const hz of hole.hazards) {
+    if (hz.type !== 'bunker' || !hz.wall) continue;
+    const xs = hz.polygon.map((p) => p[0]);
+    const ys = hz.polygon.map((p) => p[1]);
+    const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const r = Math.max(...hz.polygon.map((p) => Math.hypot(p[0] - cx, p[1] - cy)));
+    // A flat sunken floor (plateau) a touch WIDER than the trap so the whole
+    // sand sits low and the skirt (where the wall stands) hugs the rim.
+    pts.push({ x: cx, y: cy, h: -WALL_DEPTH, r: r + 6, shape: 'plateau' });
+  }
+  if (pts.length === 0) return null;
+  return new HeightField(pts, hole.world.width, hole.world.height);
 }
+
+/** Depth (world units) a revetted bunker floor sinks below the turf rim. */
+export const WALL_DEPTH = 3.4;

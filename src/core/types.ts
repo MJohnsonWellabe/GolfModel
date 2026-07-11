@@ -158,6 +158,14 @@ export interface Hazard {
    * eating a landing area. Cosmetically identical to a normal bunker.
    */
   beach?: boolean;
+  /**
+   * Bunker only, VISUAL: a St-Andrews-style REVETTED pot bunker. The floor is
+   * sunk (a negative plateau injected into the height field) and a stacked
+   * stone/turf wall ring is built around the rim (course3d), so it reads as a
+   * deep walled trap. Physics is unchanged (still a sand plug); the depth/wall
+   * are cosmetic. Links courses only.
+   */
+  wall?: boolean;
 }
 
 export interface GreenSlope {

@@ -35,6 +35,7 @@ import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern'
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { pointInPolygon } from '../utils/Geometry';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
+import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { buildBreakDots } from './breakDots';
 import {
@@ -1405,6 +1406,54 @@ export function buildCourse(
       });
     }
   });
+
+  // ---------------------------------------------------- revetted bunker walls
+  // St-Andrews-style pot bunkers (hazard.wall): the height field already sank
+  // the floor (WALL_DEPTH below the turf); here we build the stacked-stone wall
+  // face standing around the rim so it reads as a deep, walled trap you have to
+  // pitch out of. Visual only — physics is the usual sand plug.
+  const wallBunkers = hole.hazards.filter((hz) => hz.type === 'bunker' && hz.wall);
+  if (wallBunkers.length) {
+    const wallMat = new StandardMaterial('revetWall', scene);
+    wallMat.diffuseTexture = new Texture('textures/rock_wall.jpg', scene);
+    wallMat.bumpTexture = new Texture('textures/rock_normal.png', scene);
+    wallMat.specularColor = new Color3(0.08, 0.08, 0.08);
+    wallMat.backFaceCulling = false;
+    for (const hz of wallBunkers) {
+      const poly = hz.polygon;
+      const positions: number[] = [];
+      const indices: number[] = [];
+      const uvs: number[] = [];
+      let uRun = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        const topA = w2b(a[0], a[1], heightAt(a[0], a[1]) + 0.2);
+        const topB = w2b(b[0], b[1], heightAt(b[0], b[1]) + 0.2);
+        const botA = topA.add(new Vector3(0, -WALL_DEPTH - 0.3, 0));
+        const botB = topB.add(new Vector3(0, -WALL_DEPTH - 0.3, 0));
+        const base = positions.length / 3;
+        for (const v of [topA, topB, botB, botA]) positions.push(v.x, v.y, v.z);
+        const segU = Math.hypot(b[0] - a[0], b[1] - a[1]) / 12; // ~12px per stone course
+        const vTop = (WALL_DEPTH + 0.3) / 1.8; // stacked courses ~1.8 units tall
+        uvs.push(uRun, vTop, uRun + segU, vTop, uRun + segU, 0, uRun, 0);
+        uRun += segU;
+        indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+      }
+      const wall = new Mesh(`revet-${Math.round(poly[0][0])}-${Math.round(poly[0][1])}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      vd.uvs = uvs;
+      const normals: number[] = [];
+      VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(wall);
+      wall.material = wallMat;
+      wall.isPickable = false;
+      wall.freezeWorldMatrix();
+    }
+  }
 
   // -------------------------------------------------------------------- pin
   // The pin lives on a root node that scales with camera distance (with a
