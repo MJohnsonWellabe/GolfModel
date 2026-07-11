@@ -76,6 +76,12 @@ export interface CourseTheme {
    *  image texture (natureModels heather path) so the fescue/heather reads real,
    *  incl. the purple heather bloom. */
   heatherKeys?: readonly string[];
+  /** Native plants scattered ON exposed sand (Pinehurst-style wiregrass/bush
+   *  clumps in the waste). Opt-in — undefined leaves the sand bare. */
+  sandPlantKeys?: readonly string[];
+  /** Sea backdrop dune line. Defaults on; set false for an open-ocean horizon
+   *  of nothing but flat water and sky (Sable Bay). */
+  seaDunes?: boolean;
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -253,6 +259,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'grassKeys'
     | 'flowerKeys'
     | 'heatherKeys'
+    | 'sandPlantKeys'
+    | 'seaDunes'
     | 'lushGrass'
     | 'edgeWobble'
     | 'stripeStrength'
@@ -315,6 +323,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.heatherKeys = strings(spec.heatherKeys);
+  t.sandPlantKeys = strings(spec.sandPlantKeys);
+  if (spec.seaDunes === false) t.seaDunes = false;
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
   if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;

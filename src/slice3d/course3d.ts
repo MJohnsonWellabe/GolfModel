@@ -637,6 +637,7 @@ export function buildCourse(
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
       ...(theme.heatherKeys ?? []),
+      ...(theme.sandPlantKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
     ])
@@ -900,16 +901,20 @@ export function buildCourse(
     seaMat.specularPower = 64;
     sea.material = seaMat;
     sea.applyFog = true;
-    // Low sandy dune line so the course doesn't end in a hard edge
-    const duneMat = mat(scene, 'dune', theme.sand, { emissive: shade(theme.sand, 0.6) });
-    for (let i = -4; i <= 4; i++) {
-      const d = MeshBuilder.CreateCylinder(
-        `dune${i}`,
-        { diameterTop: 0, diameterBottom: 900 + Math.abs(i) * 120, height: 90 + ((i * 29) % 40), tessellation: 5 },
-        scene
-      );
-      d.material = duneMat;
-      d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
+    // Low sandy dune line so the course doesn't end in a hard edge. An open-ocean
+    // course (theme.seaDunes === false, e.g. Sable Bay's island in the sea) skips
+    // it entirely so the horizon is nothing but flat blue water and sky.
+    if (theme.seaDunes !== false) {
+      const duneMat = mat(scene, 'dune', theme.sand, { emissive: shade(theme.sand, 0.6) });
+      for (let i = -4; i <= 4; i++) {
+        const d = MeshBuilder.CreateCylinder(
+          `dune${i}`,
+          { diameterTop: 0, diameterBottom: 900 + Math.abs(i) * 120, height: 90 + ((i * 29) % 40), tessellation: 5 },
+          scene
+        );
+        d.material = duneMat;
+        d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
+      }
     }
   } else if (theme.backdrop === 'none') {
     // No backdrop scenery: the dense conifer wall (backdropTreeStep) plus open
@@ -953,6 +958,9 @@ export function buildCourse(
     const bushSet = pickKeyed(theme.bushKeys ?? BUSH_KEYS);
     const grasses = pick(theme.grassKeys ?? GRASS_KEYS);
     const flowers = pick(theme.flowerKeys ?? FLOWER_KEYS);
+    // Native plants that dot exposed SAND (Pinehurst-style wiregrass/bush clumps
+    // in the waste); opt-in per course via theme.sandPlantKeys.
+    const sandPlants = pick(theme.sandPlantKeys ?? []);
     // Trees do NOT cast dynamic shadows: their drop shadows are already baked
     // into the course texture (collectTreeBlobs), and adding the native-scale
     // prototypes as shadow casters would blow up the directional light's
@@ -1284,6 +1292,31 @@ export function buildCourse(
             }
           });
         }
+      }
+    }
+
+    // Native plants scattered ON the sand (Pinehurst No. 2 waste look): sparse,
+    // low wiregrass/bush clumps rising out of the exposed sand so a giant beach
+    // reads as vegetated links waste rather than bare sand. Visual only; kept off
+    // the tee/pin and thinned to occasional clumps so it never becomes a carpet.
+    if (sandPlants.length) {
+      const sandStep = 82;
+      for (let yy = 0; yy < h; yy += sandStep) {
+        const yRow = yy;
+        popQueue.push(() => {
+          for (let xx = 0; xx < w; xx += sandStep) {
+            if (engine.surfaceAt(xx, yRow) !== 'sand') continue;
+            if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;
+            if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 60) continue;
+            if (hash2(xx + 41, yRow + 19) > 0.5) continue; // thin to sparse clumps
+            const jx = xx + (hash2(xx, yRow) - 0.5) * sandStep * 0.7;
+            const jy = yRow + (hash2(yRow + 3, xx) - 0.5) * sandStep * 0.7;
+            if (engine.surfaceAt(jx, jy) !== 'sand') continue;
+            // A tint is REQUIRED for lush (tintable) prototypes — without it the
+            // instanced color buffer defaults to black. Wiregrass reads olive.
+            place(sandPlants, jx, jy, 2.2 + hash2(jx, jy) * 1.8, 3, theme.lushGrass ? bushTint(jx, jy) : undefined);
+          }
+        });
       }
     }
 
