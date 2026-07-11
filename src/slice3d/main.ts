@@ -2879,7 +2879,7 @@ function renderSteps(): void {
     .map(
       (label, i) =>
         `<div class="sdot${i === sel.step ? ' on' : i < sel.step ? ' done' : ''}">` +
-        `<span class="num">${i < sel.step ? '✓' : i + 1}</span>${label}</div>`
+        `<span class="num">${i < sel.step ? '✓' : i + 1}</span><span class="lbl">${label}</span></div>`
     )
     .join('');
 }
