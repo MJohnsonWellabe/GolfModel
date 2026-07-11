@@ -79,6 +79,10 @@ export interface CourseTheme {
   /** Native plants scattered ON exposed sand (Pinehurst-style wiregrass/bush
    *  clumps in the waste). Opt-in — undefined leaves the sand bare. */
   sandPlantKeys?: readonly string[];
+  /** Waste-plant scatter grid pitch (px). Smaller = denser. Default 82. */
+  sandPlantStep?: number;
+  /** Fraction of waste-plant grid cells kept (0..1). Higher = denser. Default 0.5. */
+  sandPlantKeep?: number;
   /** Sea backdrop dune line. Defaults on; set false for an open-ocean horizon
    *  of nothing but flat water and sky (Sable Bay). */
   seaDunes?: boolean;
@@ -260,6 +264,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'flowerKeys'
     | 'heatherKeys'
     | 'sandPlantKeys'
+    | 'sandPlantStep'
+    | 'sandPlantKeep'
     | 'seaDunes'
     | 'lushGrass'
     | 'edgeWobble'
@@ -324,6 +330,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.heatherKeys = strings(spec.heatherKeys);
   t.sandPlantKeys = strings(spec.sandPlantKeys);
+  if (typeof spec.sandPlantStep === 'number') t.sandPlantStep = spec.sandPlantStep;
+  if (typeof spec.sandPlantKeep === 'number') t.sandPlantKeep = spec.sandPlantKeep;
   if (spec.seaDunes === false) t.seaDunes = false;
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;

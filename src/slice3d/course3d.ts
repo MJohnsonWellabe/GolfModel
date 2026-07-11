@@ -266,6 +266,11 @@ export function buildCourse(
     const out = Math.hypot(dx, dy);
     const terrain = engine.groundAt(wx, wy);
     if (out <= 0) return terrain;
+    // A sea-backdrop course must NOT raise a scenery mound beyond the world edge:
+    // that ramp reads as a false shore ("a little green like it's land" behind an
+    // island green). Keep the out-of-bounds ground flat so the extended ocean +
+    // backdrop sea are all that shows on the horizon.
+    if (theme.backdrop === 'sea') return terrain;
     const t = Math.min(1, out / 140);
     return terrain + t * (6 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5 + smoothNoise(wx, wy) * 2.2);
   };
@@ -945,9 +950,12 @@ export function buildCourse(
       const mastMat = mat(scene, 'boatMast', 0x8a6a45);
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
-        const sc = 18 + ((i * 37) % 8); // sail height in world units (~18-24)
-        const bx = hole.pin.x + (t - 0.5) * 1500 + ((i * 53) % 120) - 60;
-        const by = hole.pin.y - 640 - ((i * 71) % 300);
+        const sc = 34 + ((i * 37) % 12); // sail height in world units (~34-46)
+        // Keep the pair near the green's line (the tee/approach view is portrait,
+        // so its horizontal field is narrow) but just off the island so they read
+        // as boats sitting on the open sea a short way behind the green.
+        const bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
+        const by = hole.pin.y - 205 - ((i * 71) % 150); // behind the green, on the sea
         const yaw = (((i * 41) % 100) / 100) * Math.PI * 2;
         const boat = new TransformNode(`boat${i}`, scene);
         boat.position = w2b(bx, by, 0.35);
@@ -1393,7 +1401,12 @@ export function buildCourse(
     // reads as vegetated links waste rather than bare sand. Visual only; kept off
     // the tee/pin and thinned to occasional clumps so it never becomes a carpet.
     if (sandPlants.length) {
-      const sandStep = 82;
+      // Waste-plant density is per-course: a Pinehurst waste can be sparse
+      // accent clumps (default) or a dense aloe-dotted expanse (Sable Bay wants
+      // "way more"). sandPlantStep = grid pitch (smaller = denser), sandPlantKeep
+      // = fraction of cells kept (higher = denser).
+      const sandStep = theme.sandPlantStep ?? 82;
+      const keep = theme.sandPlantKeep ?? 0.5;
       for (let yy = 0; yy < h; yy += sandStep) {
         const yRow = yy;
         popQueue.push(() => {
@@ -1401,7 +1414,7 @@ export function buildCourse(
             if (engine.surfaceAt(xx, yRow) !== 'sand') continue;
             if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;
             if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 60) continue;
-            if (hash2(xx + 41, yRow + 19) > 0.5) continue; // thin to sparse clumps
+            if (hash2(xx + 41, yRow + 19) > keep) continue; // thin to clumps
             const jx = xx + (hash2(xx, yRow) - 0.5) * sandStep * 0.7;
             const jy = yRow + (hash2(yRow + 3, xx) - 0.5) * sandStep * 0.7;
             if (engine.surfaceAt(jx, jy) !== 'sand') continue;
