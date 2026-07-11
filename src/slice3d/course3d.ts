@@ -1054,12 +1054,26 @@ export function buildCourse(
     // stones/bushes on the rough; short, dense tufts on the fairway; nothing on
     // the green (mown smooth) — so fairway/rough/green read differently up close.
     // tuftDensity 1 keeps the exact historical 34-unit grid (hash-stable).
+    // A flower bed replaces the turf with mulch + blooms, so keep the ambient
+    // grass/scatter out of any garden footprint — no green tufts poking through
+    // the dirt.
+    const inGarden = (x: number, y: number): boolean =>
+      (hole.gardens ?? []).some((g) => {
+        const dx = x - g.cx;
+        const dy = y - g.cy;
+        const cr = Math.cos(g.rot ?? 0);
+        const sr = Math.sin(g.rot ?? 0);
+        const lx = (dx * cr + dy * sr) / g.rx;
+        const ly = (-dx * sr + dy * cr) / g.ry;
+        return lx * lx + ly * ly <= 1;
+      });
     const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
     for (let yy = 0; yy < h; yy += tuftStep) {
       for (let xx = 0; xx < w; xx += tuftStep) {
         const surf = engine.surfaceAt(xx, yy);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yy - hole.pin.y) < 110) continue;
+        if (inGarden(xx, yy)) continue;
         // Keep tall grass off the mown tee pad (it reads as short, clean turf)
         // and out of the tee approach — a tuft right in front of the camera
         // reads huge at address.
