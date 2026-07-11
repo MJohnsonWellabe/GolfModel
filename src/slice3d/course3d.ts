@@ -1270,7 +1270,7 @@ export function buildCourse(
             const ys = hz.polygon.map((p) => p[1]);
             const bcx = xs.reduce((a, b) => a + b, 0) / xs.length;
             const bcy = ys.reduce((a, b) => a + b, 0) / ys.length;
-            const step = 22;
+            const step = 15;
             for (let yy = Math.min(...ys); yy < Math.max(...ys); yy += step) {
               for (let xx = Math.min(...xs); xx < Math.max(...xs); xx += step) {
                 const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;

@@ -577,7 +577,9 @@ class HoleScene {
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
     // Pause the scatter drain so it can't hitch the live meter (Timberline h1/h3).
-    renderPacing.meterActive = true;
+    // NOT in a frozen screenshot capture — there the meter never animates and the
+    // scatter must be allowed to finish filling for the shot.
+    renderPacing.meterActive = !isFrozen();
   }
 
   /**

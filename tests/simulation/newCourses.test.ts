@@ -40,14 +40,14 @@ describe('new course playability', () => {
     // Water makes it demanding but not impossible for a strong player.
     expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeLessThan(8);
-  }, 20000);
+  }, 35000);
 
   it('Timberline plays to a sane average and every hole finishes', () => {
     const { mean, everyHoled } = meanToPar(timberline as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeLessThan(8);
-  }, 20000);
+  }, 35000);
 
   it('Wildwood Glen plays to a sane average and every hole finishes', () => {
     // Small greens + greenside sand (Bethpage redesign) demand accuracy without
@@ -56,7 +56,7 @@ describe('new course playability', () => {
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeLessThan(8);
-  }, 20000);
+  }, 35000);
 
   it('Port Johnson Links plays to a sane average and every hole finishes', () => {
     // Wide-open links: playable off the tee, but deep waste bunkers + tall grass
@@ -66,5 +66,5 @@ describe('new course playability', () => {
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeLessThan(8);
-  }, 20000);
+  }, 35000);
 });

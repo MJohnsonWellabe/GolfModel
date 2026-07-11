@@ -147,6 +147,11 @@ export class PhysicsEngine {
    *  aerial-swipe re-integrate of the same shot. */
   private shotTreeMult: number = PHYSICS.treeCanopyMult;
 
+  /** Per-hazard bounding box [minX,minY,maxX,maxY], aligned with hole.hazards —
+   *  a cheap reject before the O(vertices) point-in-polygon test in surfaceAt,
+   *  which is called on every physics sample and every scatter cell. */
+  private readonly hzBox: Array<[number, number, number, number]>;
+
   constructor(
     private readonly hole: HoleData,
     private readonly hf: HeightField | null = null,
@@ -154,6 +159,28 @@ export class PhysicsEngine {
     private readonly rng: Rng = Math.random
   ) {
     this.treeTrunks = collectTreeBlobs(hole);
+    this.hzBox = hole.hazards.map((hz) => {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const [px, py] of hz.polygon) {
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+      return [minX, minY, maxX, maxY];
+    });
+  }
+
+  /** Point-in-hazard with a bounding-box reject first (see hzBox). */
+  private inHazard(i: number, x: number, y: number): boolean {
+    const b = this.hzBox[i];
+    return (
+      x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3] &&
+      pointInPolygon(x, y, this.hole.hazards[i].polygon)
+    );
   }
 
   /** Terrain height under a world point (0 on flat/legacy holes). */
@@ -224,20 +251,19 @@ export class PhysicsEngine {
    */
   surfaceAt(x: number, y: number): Surface {
     const h = this.hole;
+    const hz = h.hazards;
     if (pointInEllipse(x, y, h.green)) return 'green';
     // Scoring bunkers win over fringe/water; a coastal BEACH band is deferred
     // until AFTER water so it only reads as sand where it sits on land.
-    for (const hz of h.hazards) {
-      if (hz.type === 'bunker' && !hz.beach && pointInPolygon(x, y, hz.polygon)) return 'sand';
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i].type === 'bunker' && !hz[i].beach && this.inHazard(i, x, y)) return 'sand';
     }
     if (pointInEllipse(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
-    for (const hz of h.hazards) {
-      if (hz.type === 'water' && pointInPolygon(x, y, hz.polygon)) return 'water';
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i].type === 'water' && this.inHazard(i, x, y)) return 'water';
     }
-    for (const hz of h.hazards) {
-      if ((hz.type === 'trees' || hz.type === 'building') && pointInPolygon(x, y, hz.polygon)) {
-        return 'trees';
-      }
+    for (let i = 0; i < hz.length; i++) {
+      if ((hz[i].type === 'trees' || hz[i].type === 'building') && this.inHazard(i, x, y)) return 'trees';
     }
     for (const poly of h.fairway) {
       if (pointInPolygon(x, y, poly)) return 'fairway';
@@ -246,8 +272,8 @@ export class PhysicsEngine {
     // so it only ever replaces ROUGH — the sea (water), the woods and the
     // maintained fairway/green all win the overlap. A beach never eats a
     // landing area, so it lines the shore without trapping play.
-    for (const hz of h.hazards) {
-      if (hz.type === 'bunker' && hz.beach && pointInPolygon(x, y, hz.polygon)) return 'sand';
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i].type === 'bunker' && hz[i].beach && this.inHazard(i, x, y)) return 'sand';
     }
     return 'rough';
   }
@@ -275,10 +301,11 @@ export class PhysicsEngine {
    * still plugs (it out-ranks the shore sand).
    */
   private isFirmSand(x: number, y: number): boolean {
+    const hz = this.hole.hazards;
     let firm = false;
-    for (const hz of this.hole.hazards) {
-      if (hz.type !== 'bunker' || !pointInPolygon(x, y, hz.polygon)) continue;
-      if (hz.beach || hz.waste) firm = true;
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i].type !== 'bunker' || !this.inHazard(i, x, y)) continue;
+      if (hz[i].beach || hz[i].waste) firm = true;
       else return false; // a real scoring bunker here → it plugs
     }
     return firm;
