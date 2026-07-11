@@ -8,6 +8,45 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-11 (latest+11): course-graphics redesign, gameplay fixes, unified look, 4th course
+
+A large playtest-driven pass across visuals, gameplay and content.
+
+- **Green mowing columns.** Greens now paint straight two-tone columns
+  (`mowStripe`, new `greenColumns`/`greenMowTile` theme knobs) running in the
+  direction of play — the green's answer to the fairway's mowing — in BOTH the
+  ground bake and the green-complex patch (seam-matched).
+- **Hole-1 first-shot lag fixed.** The ground bake now uses an ADAPTIVE scale
+  (texel-budget cap in `course3d.ts`) instead of a fixed ×2, bounding the
+  synchronous stall on any world size (and halving load time), and the
+  address-time shaders (golfer/aim/ball) are warmed during the intro flyover so
+  the first swing on hole 1 is smooth (only hole 1 paid the first-compile cost).
+  Perf gate now records + bounds the bake time.
+- **Timberline holes.** Hole-1 fairway tree collides where it's drawn (the
+  `renderOffset` hitbox bug — baked the offset in); hole-2 green shrunk ~½ with
+  its bunkers/garden/back-stand pulled in; hole-3's five `[null,null]` tree bands
+  authored into real flanking woods (sparse collision, dense visuals).
+- **Gameplay.** JD replaces Sunny (100 power, wild; skins Tiger→Knox,
+  Sergio→Enzo, Phil→Cole, JD→Milo). Side spin breaks perpendicular to the SHOT
+  LINE (robust to wind drift — "swipe right, breaks left") and is ~25% weaker
+  (`sideSpinKick` 45). Aim dots trace through the on-green release so a
+  draw/fade shows again. Approach shots aim at the flag once the green's in
+  reach. Putt uphill/downhill readout is derived from the same slope the ball
+  rolls through, sized to the "+1 ft aim per 2 in uphill" rule. Aerial view hides
+  the emissive green ring (the glitchy "beige ring"). Pals +50% and further up
+  the fairway off the tee. Steps ribbon wraps/condenses across all modes.
+- **Unified premium look.** The polished rendering system (lush grass, real
+  grain, sculpted bunkers, wispy sky, flowers, green columns) promoted into
+  `DEFAULT_THEME`, so every course inherits it while keeping its own palette /
+  species / backdrop / density; `horizonTint` derives from each course's sky.
+- **Course redesigns + new course.** Wildwood Glen → Bethpage-style (small
+  greens, greenside sand, long holes, white/pink greenside gardens via a new
+  per-bed `colors`); Sable Bay → Pebble-Beach shore rocks. New **Port Johnson
+  Links** (4th course): wide, windy, flat ocean links with tall fescue
+  (`theme.tallGrass`) and deep `waste:true` bunkers grass grows through. The
+  Appendix-A scoring gate now measures the tier curve GAME-WIDE across all
+  courses (courses now have distinct, deliberate difficulties).
+
 # Update — 2026-07-10 (latest+10): playtest batch 2 — spin/bunker physics, bunker outlines, Timberline holes 2/3
 
 - **Spin acts on the ground, not the air.** Side spin no longer curves the ball

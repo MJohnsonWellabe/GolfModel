@@ -41,10 +41,18 @@ No gameplay feature should require rewriting core systems.
 
 # Core Technology Stack
 
+> **Stack note (current):** the game shipped on **Babylon.js** (true 3D), not
+> Phaser. The 2D Phaser front-end was retired early in the v2 pivot. The 3D game
+> lives in `src/slice3d/`; a pure engine-agnostic gameplay core (physics, aim,
+> AI, courses) sits under it. Treat the "Phaser scene" language below as historic
+> intent — the *responsibilities* still map onto the Babylon scenes/overlays, but
+> the framework is Babylon + a single `index.html` overlay UI. Backend is a single
+> Firebase Realtime Database over REST (no Firestore).
+
 Frontend
 
 - TypeScript
-- Phaser 3
+- Babylon.js (true 3D; was Phaser 3 in the retired 2D build)
 - Vite
 
 Backend

@@ -9,13 +9,16 @@ can read, per-hole wind, shot shaping and a putting break grid. A pure,
 engine-agnostic gameplay core (physics, aiming, AI, courses, progression) sits
 under the 3D presentation and is exercised head-out by the simulation tests.
 
-**Three 3-hole courses:**
+**Four 3-hole courses**, each with its own identity and the shared premium look
+(lush grass, real turf/sand grain, sculpted bunkers, two-tone striped greens,
+wispy sky):
 
 | Course | Character |
 | --- | --- |
-| **Wildwood Glen** | Parkland — a gentle, welcoming opener |
-| **Sable Bay** | Coastal — water in play on every hole, an island-green par 3 |
+| **Wildwood Glen** | Parkland — Bethpage-style: small greens, greenside sand, long holes, white-and-pink flower gardens by every green |
+| **Sable Bay** | Coastal — water in play on every hole, an island-green par 3, Pebble-Beach rocks along the shore |
 | **Timberline** | Forest — tight, tree-lined corridors and a tree in the middle of the fairway |
+| **Port Johnson Links** | Links — wide, windy, flat holes down an ocean coast; tall fescue and huge deep waste bunkers |
 
 The project's vision, design and roadmap live in [`docs/`](docs/) — start with
 [`docs/01_PROJECT_VISION.md`](docs/01_PROJECT_VISION.md). The living technical
@@ -46,7 +49,7 @@ review is [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md).
 | Mode | Rules |
 | --- | --- |
 | Solo | Stroke play over 3 holes |
-| 1 v 1 | Stroke play vs an AI rival (Sunny, Sergio, Phil or Tiger) |
+| 1 v 1 | Stroke play vs an AI rival (JD, Sergio, Phil or Tiger) |
 | Scramble | Team up with an AI partner — both hit, play the better ball |
 | Tournaments | Async online events: everyone plays one shared-seed round, lowest total wins |
 | Ace Challenge | Tee off a par 3 on repeat, chasing an all-time hole-in-one leaderboard |

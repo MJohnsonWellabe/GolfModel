@@ -261,14 +261,29 @@ props (`treeKeys`, plus `accentTreeKeys` for ~15% rare mix-ins and
 - **Timberline** — conifer forest: spruce, tall spruce, pine; birch
   accents; ferns, stumps and logs on the forest floor; denser backdrop
   wall (`backdropTreeStep`).
-- **Wildwood Glen** — broadleaf parkland: oak, maple, birch, aspen,
-  poplar plus the original generic trees; ferns and berry bushes in the
-  rough.
-- **Sable Bay** — sparse coastal: the generic wind-shaped set; the sea is
-  the scenery.
+- **Wildwood Glen** — broadleaf parkland (Bethpage-style championship):
+  oak, maple, birch, aspen, poplar plus the original generic trees, planted
+  denser than before (dense `visualSpacing`, escapable collision `spacing`);
+  white-and-pink flower gardens by every green (per-bed `colors`); no conifers.
+- **Sable Bay** — sparse coastal: the generic wind-shaped set plus scattered
+  shore rocks (`stone_*` in `scatterKeys`); the sea is the scenery.
+- **Port Johnson Links** — open links: a couple of wind-bent broadleaf only,
+  a very sparse backdrop (`backdropTreeStep: 120`); the character comes from the
+  turf, the sky and the sand, not trees.
 
 Species is art only — it never changes physics. Density does (see the
 Course Design Bible's `spacing` rule).
+
+## The shared premium look (all courses)
+
+The polished rendering system — lush lit grass, real turf/rough/sand grain,
+sculpted deep bunkers, wispy painted sky, flower scatter, and **two-tone
+straight mowing columns on the greens** (`greenColumns`, a light/dark stripe
+running in the direction of play, the green's answer to the fairway's mowing) —
+lives in `DEFAULT_THEME` so every course inherits it. Courses override only the
+palette, tree species, backdrop and density for their identity. `theme.tallGrass`
+adds links marram/fescue (tall rough tufts, and grass growing through
+`waste: true` bunkers).
 
 Canopies should feel full.
 
@@ -371,8 +386,11 @@ block (see `src/data/courses/*.json`, rendered by `src/slice3d/course3d.ts`):
   The warm sun disc stays for sunlight. Note this leans brighter/cooler than
   the generic "mountain course = cool, avoid oversaturation" guideline, by
   design from sky references.
-- Other courses are untouched: mesh clouds when a theme sets `cloudKeys`,
-  else the historical painted puff billboards (`cloudStyle` unset).
+- All courses now share the soft **wispy** painted clouds by default
+  (`cloudStyle` promoted to `DEFAULT_THEME`), and `horizonTint` derives from each
+  course's own `skyBottom`, so the sunlit horizon band reads right under a
+  `peaks`, `sea` or `none` backdrop. Sable Bay and **Port Johnson Links** use the
+  `sea` backdrop (a horizon sea plane + low dunes) — the ocean is the scenery.
 
 ---
 
