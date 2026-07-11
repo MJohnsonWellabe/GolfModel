@@ -59,6 +59,8 @@ import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
 import { buildHeightField } from '../systems/HeightField';
 import { TurnManager } from '../systems/TurnManager';
+import { drawWind } from '../systems/RoundSimulator';
+import { shouldShowPuttGrid } from '../core/puttAids';
 import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
@@ -90,9 +92,6 @@ const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
 const aimReadoutEl = document.getElementById('aimReadout')!;
 
-/** Within this ball→pin distance (yards), a non-putt (short chip/pitch) also
- *  shows the putting break grid so you can read the green you're landing on. */
-const CHIP_GRID_YDS = 14;
 
 /** RGB hex → Babylon Color3. */
 function c3(hex: number): Color3 {
@@ -201,10 +200,10 @@ preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · curving wooded holes, an island par 3, flower gardens', icon: '🌳' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water on every hole, beach sand, island par 3', icon: '🌊' },
-  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight, tree-lined and demanding', icon: '🌲' },
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, deep bunkers by the sea', icon: '🏴' }
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳' },
+  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊' },
+  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲' },
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴' }
 ];
 
 /** Resolve a course by its display name (tournament entries carry the name). */
@@ -268,12 +267,11 @@ function todayKey(): string {
 function windForHole(idx: number): Wind {
   if (!round.holeWinds[idx]) {
     const rng = round.seed !== undefined ? mulberry32(round.seed * 1000 + idx) : Math.random;
-    const minW = round.course.minWind ?? 2;
-    const maxW = round.course.maxWind ?? PHYSICS.maxWind;
-    round.holeWinds[idx] = {
-      angle: rng() * Math.PI * 2,
-      speed: Math.round(minW + rng() * Math.max(0, maxW - minW))
-    };
+    round.holeWinds[idx] = drawWind(
+      rng,
+      round.course.minWind ?? 2,
+      round.course.maxWind ?? PHYSICS.maxWind
+    );
   }
   return round.holeWinds[idx];
 }
@@ -925,8 +923,12 @@ class HoleScene {
     const toPinYds =
       Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y) /
       PX_PER_YARD;
-    const closeChip = !this.ai && this.state.lie !== 'tee' && toPinYds <= CHIP_GRID_YDS;
-    const on = this.aim.isPutting || closeChip;
+    const on = shouldShowPuttGrid({
+      isPutting: this.aim.isPutting,
+      isAI: !!this.ai,
+      lie: this.state.lie,
+      toPinYds
+    });
     this.puttGrid.setEnabled(on);
     if (on) this.course3d.orientPuttAids(this.state.ballPos.x, this.state.ballPos.y);
   }

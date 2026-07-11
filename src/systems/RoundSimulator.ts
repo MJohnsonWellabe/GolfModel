@@ -39,14 +39,22 @@ export interface SimulateHoleOpts {
   windMax?: number;
 }
 
+/**
+ * Draw a hole's wind from a course's band. Shared by the headless simulator and
+ * the live round (main.ts windForHole) so both floor the speed at the same
+ * per-course minimum — a links like Port Johnson (minWind 20) is always breezy,
+ * never dead calm. `windMin`/`windMax` default to the game-wide 2..20 mph band.
+ */
+export function drawWind(rng: Rng, windMin = 2, windMax = 20): Wind {
+  return {
+    angle: rng() * Math.PI * 2,
+    speed: Math.round(windMin + rng() * Math.max(0, windMax - windMin))
+  };
+}
+
 export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleOpts): HoleSimResult {
   const { rng } = opts;
-  const wMin = opts.windMin ?? 2;
-  const wMax = opts.windMax ?? 20;
-  const wind = opts.wind ?? {
-    angle: rng() * Math.PI * 2,
-    speed: Math.round(wMin + rng() * Math.max(0, wMax - wMin))
-  };
+  const wind = opts.wind ?? drawWind(rng, opts.windMin, opts.windMax);
   const engine = new PhysicsEngine(hole, buildHeightField(hole), rng);
   const ai = new AIController(golfer, new FireSystem(), engine, rng);
 

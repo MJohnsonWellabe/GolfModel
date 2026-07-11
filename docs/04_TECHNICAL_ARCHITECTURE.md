@@ -266,6 +266,27 @@ Course data should be reusable.
 
 Adding a new course should require minimal code changes.
 
+## Authoring knobs (v2)
+
+All data-driven — a new course adds no code:
+
+- **Fairways** are ribbons: a `centerline` polyline + per-vertex `width`. Ends
+  round off by default (`roundFairwayCaps`) so no fairway has square N/S caps.
+- **Hazards** carry flags: `water` / `bunker` / `trees` / `building`, plus
+  `wall: true` (revetted pot bunker — sunk floor + stacked-stone wall ring),
+  `waste: true` (giant links waste bunker), `beach: true` (shore sand that
+  never eats a landing area), and the render-only `visualOnly` / `visualSpacing`
+  / `renderOffset` for trees (collision always reads the true `spacing`).
+- **Gardens** are decorative flower beds (no collision): an ellipse with
+  `density` / `bloomChance` / `bushChance` and either a `colors` palette
+  (recolours 3D bloom meshes) or explicit `flowerKeys`. Beds paint their turf
+  as mulch, so keep them round and full — a long thin strip reads as bare dirt.
+- **Elevation** is HeightField control points (`x,y,h,r,shape`) shared by physics
+  and the rendered ground; a negative-`h` point digs a bunker/hollow.
+- **Wind band** is per-course (`minWind` / `maxWind`, mph) — a links stays breezy.
+- **Theme** overrides drive the look (grass/bush/flower/heather keys, tallGrass
+  fescue fields, sculpt/grain knobs); unset fields inherit `DEFAULT_THEME`.
+
 ---
 
 # Golfer Data
@@ -324,6 +345,17 @@ Slope
 
 The renderer should never perform gameplay calculations.
 
+Implementation notes (v2):
+
+- Spin at landing splits by club family. Woods keep a `spinKeep` floor and are
+  exempt from the green/fringe backspin bite, so a driven wood releases forward
+  instead of stopping dead; irons still check up on backspin.
+- Tree collision hits the actual trunks (`collectTreeBlobs`), not the whole tree
+  polygon, and the trunk hitbox shrinks for recovery shots (`stroke >= 1`) — the
+  aim preview forwards the stroke count so its line matches the real shot.
+- Wind is drawn once per hole from the course band via the shared `drawWind`
+  helper (used by both the headless simulator and the live round).
+
 ---
 
 # Camera System
@@ -373,6 +405,17 @@ Sky
 HUD
 
 Rendering code should never affect gameplay outcomes.
+
+Implementation notes (v2):
+
+- Scatter population (trees, grass tufts, tall fescue, gardens, stones) is
+  time-sliced across frames via a placement/instance queue drained under a fixed
+  per-frame budget, so a heavy hole fills in over ~1–2s of flyover instead of
+  hitching the swing meter on the first shot.
+- Revetted pot bunkers render a stacked-stone wall ring (rock texture, VertexData)
+  around the HeightField hollow the same hazard digs.
+- Fescue/heather use photo-textured cards with an alpha-cutout material (distinct
+  from the geometry-cut grass tufts, which recolour by material slot).
 
 ---
 

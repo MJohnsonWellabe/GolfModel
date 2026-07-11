@@ -15,10 +15,10 @@ two-tone striped greens, genuinely-3D flora, wispy sky):
 
 | Course | Character |
 | --- | --- |
-| **Wildwood Glen** | Parkland — Bethpage-style: small greens, greenside sand, curving tree-lined holes through dense woods, an island-green par 3, and white-and-pink flower gardens by every green |
-| **Sable Bay** | Coastal — water in play on every hole with beach sand lining every shore, and an island-green par 3 |
-| **Timberline** | Forest — tight, tree-lined corridors and a tree in the middle of the fairway |
-| **Port Johnson Links** | Links — a treeless, windswept ocean coast: tall 3D fescue, huge deep waste bunkers, the sea in play down each hole, and an S-shaped par 5 |
+| **Wildwood Glen** | Parkland — Bethpage-style: small greens, greenside sand, tight tree-lined holes with creeks and ponds in play, a forced-carry par 3, and mixed wildflower beds dotting the rough |
+| **Sable Bay** | Coastal — water in play on every hole with giant waste bunkers and beach sand lining every shore, and a true island green ringed by a sand collar |
+| **Timberline** | Forest — tight spruce corridors, a dogleg-left off a lone fairway pine, and a squeezed short par 3 |
+| **Port Johnson Links** | Links — a treeless, windswept ocean coast: dense 3D fescue, revetted pot bunkers (a Principal's-Nose driving decision), the sea in play down each hole, and an S-shaped par 5 |
 
 The project's vision, design and roadmap live in [`docs/`](docs/) — start with
 [`docs/01_PROJECT_VISION.md`](docs/01_PROJECT_VISION.md). The living technical
