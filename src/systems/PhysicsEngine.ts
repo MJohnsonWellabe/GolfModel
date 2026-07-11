@@ -268,6 +268,22 @@ export class PhysicsEngine {
     return false;
   }
 
+  /**
+   * Sand that PLAYS FIRM — a coastal beach or a links waste area rather than a
+   * maintained scoring bunker. A ball bounces and runs across it (no dead plug);
+   * only a true scoring bunker plugs. A scoring bunker overlapping the beach
+   * still plugs (it out-ranks the shore sand).
+   */
+  private isFirmSand(x: number, y: number): boolean {
+    let firm = false;
+    for (const hz of this.hole.hazards) {
+      if (hz.type !== 'bunker' || !pointInPolygon(x, y, hz.polygon)) continue;
+      if (hz.beach || hz.waste) firm = true;
+      else return false; // a real scoring bunker here → it plugs
+    }
+    return firm;
+  }
+
   /** Buildings stay solid across their whole footprint (no gaps to thread). */
   private inBuilding(x: number, y: number): boolean {
     return this.hole.hazards.some(
@@ -504,9 +520,11 @@ export class PhysicsEngine {
             path.push({ x, y, z: 0 });
             break;
           }
-          // Sand plugs: a ball that lands in a bunker stops dead where it lands —
-          // it never bounces or rolls out (playtest). No penalty, just a plug.
-          if (surf === 'sand') {
+          // Scoring-bunker sand plugs: a ball that lands stops dead where it
+          // lands — never bounces or rolls out (playtest). A firm beach / links
+          // waste does NOT plug: it bounces and runs like firm ground (below).
+          const firmSand = surf === 'sand' && this.isFirmSand(x, y);
+          if (surf === 'sand' && !firmSand) {
             vx = 0;
             vy = 0;
             path.push({ x, y, z: 0 });
@@ -522,7 +540,8 @@ export class PhysicsEngine {
           // — irons/wedges still bite normally.
           const isWood = clubFamily(club) === 'wood';
           const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, isWood ? 0.4 : 0.05, 1.5);
-          const keep = (PHYSICS.bounce[surf] ?? 0.4) * (1 - club.spin) * spinKeep;
+          const bnc = firmSand ? PHYSICS.firmSand.bounce : PHYSICS.bounce[surf] ?? 0.4;
+          const keep = bnc * (1 - club.spin) * spinKeep;
           vx *= keep;
           vy *= keep;
           vz = 0;
@@ -559,10 +578,12 @@ export class PhysicsEngine {
         waterPenalty = true;
         break;
       }
-      // A ball that rolls into a bunker from outside stops the instant it
+      // A ball that rolls into a SCORING bunker from outside stops the instant it
       // reaches the sand (checked BEFORE slope accel, so a sloped bunker can't
-      // re-accelerate it back out) — bunkers never let a ball roll through.
-      if (surf === 'sand') {
+      // re-accelerate it back out). A firm beach / links waste lets it run on —
+      // its high drag (below) brings it to rest without a dead stop.
+      const firmRoll = surf === 'sand' && this.isFirmSand(x, y);
+      if (surf === 'sand' && !firmRoll) {
         vx = 0;
         vy = 0;
         break;
@@ -629,7 +650,7 @@ export class PhysicsEngine {
         path.push({ x, y, z: 0 });
       }
       if (speed <= PHYSICS.rollStopSpeed) break;
-      const decel = PHYSICS.friction[surf] ?? 400;
+      const decel = firmRoll ? PHYSICS.firmSand.friction : PHYSICS.friction[surf] ?? 400;
       const newSpeed = Math.max(0, speed - decel * dt);
       vx = (vx / speed) * newSpeed;
       vy = (vy / speed) * newSpeed;

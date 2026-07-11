@@ -1,7 +1,10 @@
 import { Surface } from './types';
 
-/** Distance (yards) inside which a greenside chip shows the putting-read grid. */
-export const CHIP_GRID_YDS = 14;
+/** Distance (yards) inside which a greenside chip/pitch shows the putting-read
+ *  grid. Covers the short game (chips and short pitches), not just tap-in range,
+ *  so you can read the green you're landing on (playtest: grid wasn't showing on
+ *  ordinary short chips). */
+export const CHIP_GRID_YDS = 30;
 
 /**
  * Whether the putting-read grid should be visible for the current shot. Always

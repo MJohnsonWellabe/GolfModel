@@ -193,6 +193,11 @@ export const PHYSICS = {
     water: 0,
     trees: 0.08
   } as Record<string, number>,
+  /** Firm coastal beach / links WASTE sand — a through-the-green surface you can
+   *  run a ball across, unlike a plugging scoring bunker. Reads as sand (same
+   *  colour/lie) but bounces and rolls like a firm, draggy fairway so a course
+   *  can be "mostly sand" off the fairway without becoming unfinishable. */
+  firmSand: { bounce: 0.28, friction: 620 },
   /** Distance multiplier when hitting FROM a surface. */
   lieDistance: {
     tee: 1.0,

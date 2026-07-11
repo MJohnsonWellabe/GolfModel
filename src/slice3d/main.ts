@@ -2364,6 +2364,13 @@ function renderPalsStep(): void {
   );
 }
 
+/** Compact date for a record row ("Jul 11 '26"). */
+function fmtRecordDate(epochMs: number): string {
+  const dt = new Date(epochMs);
+  const mon = dt.toLocaleDateString(undefined, { month: 'short' });
+  return `${mon} ${dt.getDate()} '${String(dt.getFullYear()).slice(-2)}`;
+}
+
 /** Course whose records are open in the overlay (defaults to the round's). */
 let recCourseId: string | null = null;
 
@@ -2405,6 +2412,7 @@ async function renderRecords(): Promise<void> {
               `<div class="recRow"><span class="recRk">${rank}</span>` +
               `<span class="recNm">${r.names}</span>` +
               `<span class="recTot">${r.total} (${sign})</span>` +
+              `<span class="recDate">${fmtRecordDate(r.d)}</span>` +
               `<span class="recHoles">${r.holes.join('-')}</span></div>`
             );
           })
@@ -2932,6 +2940,21 @@ const MODES: Array<{ id: GameMode; name: string; desc: string; icon: string }> =
   { id: 'aces', name: 'Ace Challenge', desc: 'Tee off a par 3 over and over — chase a hole-in-one.', icon: '🎯' }
 ];
 
+function randomOf<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** Randomize every choice EXCEPT the mode (course, character, style, and the
+ *  rival/partner for versus modes), keeping the player's name. Powers the
+ *  "Surprise Me" quick-start: pick a mode, tap once, and play. */
+function randomizeSelections(): void {
+  sel.courseId = randomOf(COURSE_LIST).id;
+  const ownedChars = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
+  sel.character = (ownedChars.length ? randomOf(ownedChars) : CHARACTERS[0]).key as CharacterKey;
+  sel.archetype = randomOf(ARCHETYPES).id as ArchetypeId;
+  if (sel.mode !== 'solo' && sel.mode !== 'aces') sel.opponentId = randomOf(OPPONENTS).id;
+}
+
 function renderMode(): void {
   stepBodyEl.innerHTML =
     `<div class="stepTitle">How do you want to play?</div>` +
@@ -2942,7 +2965,8 @@ function renderMode(): void {
         `<div class="ahead"><span class="an">${m.icon} ${m.name}</span></div>` +
         `<div class="stepHint" style="margin:6px 0 0">${m.desc}</div></div>`
     ).join('') +
-    `</div>`;
+    `</div>` +
+    `<button id="surpriseBtn" class="surpriseBtn">🎲 Surprise Me — random course &amp; golfer, start now</button>`;
   stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.mode = (el as HTMLElement).dataset.mode as GameMode;
@@ -2951,6 +2975,10 @@ function renderMode(): void {
       updateNav();
     })
   );
+  stepBodyEl.querySelector('#surpriseBtn')!.addEventListener('pointerdown', () => {
+    randomizeSelections();
+    startRound();
+  });
 }
 
 function renderCourse(): void {

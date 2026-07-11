@@ -120,6 +120,48 @@ describe('stroke count shrinks the tree hitbox (preview accuracy)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Firm beach / links waste sand plays firm — a ball runs across it — while a
+// scoring bunker still plugs the ball dead. Lets a course be "mostly sand" off
+// the fairway without becoming unfinishable.
+// ---------------------------------------------------------------------------
+describe('beach/waste sand runs; scoring bunkers plug', () => {
+  // A ball rolling along the ground crosses from fairway into a sand band that
+  // sits between it and the pin. A scoring bunker stops it dead at the edge; a
+  // firm beach / waste lets it run on into the sand.
+  const rollThrough = (flags: { beach?: boolean; waste?: boolean }): number => {
+    const hole: HoleData = {
+      ...OPEN, green: { cx: 1000, cy: 100, rx: 40, ry: 40 }, pin: { x: 1000, y: 100 },
+      // Fairway only by the green — the ball rolls over ROUGH into the sand band,
+      // so the band reads as sand (a beach yields to fairway, never eats a
+      // landing area, so it must sit over rough to read as shore sand).
+      fairway: [[[900, 0], [1100, 0], [1100, 300], [900, 300]]],
+      hazards: [{ type: 'bunker', ...flags, polygon: [[700, 700], [1300, 700], [1300, 1000], [700, 1000]] }]
+    };
+    const eng = new PhysicsEngine(hole);
+    // A firm putt from just short of the sand band, struck hard at the far pin so
+    // it reaches the band edge with real pace: a scoring bunker halts it at the
+    // edge, firm sand lets it run on into the band.
+    const out = eng.simulate({
+      origin: { x: 1000, y: 1080 }, aimAngle: -Math.PI / 2, swing: PERFECT(1),
+      club: clubById('putter'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true
+    });
+    return 1080 - out.finalPos.y; // forward travel toward the pin (px)
+  };
+
+  it('a firm beach lets the ball run further than a scoring bunker halts it', () => {
+    const scoring = rollThrough({});
+    const beach = rollThrough({ beach: true });
+    const waste = rollThrough({ waste: true });
+    // The scoring bunker arrests the ball at/near the sand edge (~y1000, ~120px);
+    // the firm surfaces carry it deep into the band.
+    expect(beach).toBeGreaterThan(scoring + 40);
+    expect(waste).toBeGreaterThan(scoring + 40);
+    // beach and waste share the firm-sand physics, so they behave the same.
+    expect(Math.abs(beach - waste)).toBeLessThan(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Greenside chip shows the putting-read grid.
 // ---------------------------------------------------------------------------
 describe('shouldShowPuttGrid', () => {

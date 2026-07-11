@@ -1107,9 +1107,11 @@ export function buildCourse(
     // Backdrop woods (scenery only — never on a playable surface): a wall of
     // trees behind the green and deep bands down both outer margins. Forest
     // themes tighten the grid via backdropTreeStep for a denser wall. A
-    // treeless course (authored `treeKeys: []`, e.g. an open links) skips the
-    // enclosing woods entirely — its horizon is sea/dunes, not a treeline.
-    const treeless = trees.length === 0 && accents.length === 0;
+    // treeless course (authored `treeKeys: []`, e.g. an open links) OR any
+    // sea-backdrop coast skips the enclosing woods entirely — its horizon is
+    // ocean/dunes and sky, not a treeline (even when the hole itself uses a few
+    // authored trees for framing).
+    const treeless = (trees.length === 0 && accents.length === 0) || theme.backdrop === 'sea';
     const bStep = theme.backdropTreeStep;
     const bands = [
       { x0: 40, x1: 860, y0: -190, y1: 180, step: bStep ?? 60 },
