@@ -10,15 +10,15 @@ engine-agnostic gameplay core (physics, aiming, AI, courses, progression) sits
 under the 3D presentation and is exercised head-out by the simulation tests.
 
 **Four 3-hole courses**, each with its own identity and the shared premium look
-(lush grass, real turf/sand grain, sculpted bunkers, two-tone striped greens,
-wispy sky):
+(lush grass, real turf/sand grain, sculpted bunkers, checkerboard fairways,
+two-tone striped greens, genuinely-3D flora, wispy sky):
 
 | Course | Character |
 | --- | --- |
-| **Wildwood Glen** | Parkland — Bethpage-style: small greens, greenside sand, long holes, white-and-pink flower gardens by every green |
-| **Sable Bay** | Coastal — water in play on every hole, an island-green par 3, Pebble-Beach rocks along the shore |
+| **Wildwood Glen** | Parkland — Bethpage-style: small greens, greenside sand, curving tree-lined holes through dense woods, an island-green par 3, and white-and-pink flower gardens by every green |
+| **Sable Bay** | Coastal — water in play on every hole with beach sand lining every shore, and an island-green par 3 |
 | **Timberline** | Forest — tight, tree-lined corridors and a tree in the middle of the fairway |
-| **Port Johnson Links** | Links — wide, windy, flat holes down an ocean coast; tall fescue and huge deep waste bunkers |
+| **Port Johnson Links** | Links — a treeless, windswept ocean coast: tall 3D fescue, huge deep waste bunkers, the sea in play down each hole, and an S-shaped par 5 |
 
 The project's vision, design and roadmap live in [`docs/`](docs/) — start with
 [`docs/01_PROJECT_VISION.md`](docs/01_PROJECT_VISION.md). The living technical
@@ -30,12 +30,13 @@ review is [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md).
   target distance. The aim dots ignore wind and slope, so you read the
   hold-off yourself.
 - **Shape the shot:** drag the dot on the strike pad. Right of centre draws
-  (right-to-left), left fades, low launches high, high launches low. The aim
-  dots curve to preview the shape.
+  (right-to-left), left fades, low launches high, high launches low. The shape
+  bends the ball's FLIGHT — the aim dots curve to preview the arc.
 - **Swing:** tap **SWING** and stop the meter in the perfect band for power and
   accuracy. The perfect band narrows on bad lies and with longer clubs (but not
   off the tee).
-- **Spin in flight:** during the slowed ball flight, swipe to add spin — it
+- **Spin in flight:** during the slowed ball flight, swipe to add spin — a
+  landing kick that breaks the ball toward the swipe as it hits the green. It
   never caps, so keep swiping for more.
 - **Putt:** read the break grid and the elevation readout at the aim point;
   pace and slope decide the miss, not luck.

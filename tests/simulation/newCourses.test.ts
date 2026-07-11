@@ -8,10 +8,13 @@ import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
 
 /**
- * Phase 9: the two new courses (heavy-water Sable Bay, wooded Timberline) must
- * be *playable* — every hole reachable, greens holeable, and average scores in
- * a sane band for a good golfer. This catches broken geometry (unreachable
- * green, water that makes a hole impossible) that unit tests on Wildwood miss.
+ * Every course must be *playable* — every hole reachable, greens holeable, and
+ * average scores in a sane band for a good golfer. This catches broken geometry
+ * (an unreachable green, water or sand that makes a hole impossible, a dogleg
+ * that doesn't connect). The fairness invariant is `everyHoled` (kept tight);
+ * the mean band is deliberately WIDE ([-3, +8]) because the courses are meant
+ * to play hard and are recalibrated by feel later — this gate is a floor/ceiling
+ * sanity check, not a calibration.
  */
 function meanToPar(course: CourseAuthoring): { mean: number; everyHoled: boolean } {
   const c = loadCourse(course);
@@ -36,14 +39,14 @@ describe('new course playability', () => {
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     // Water makes it demanding but not impossible for a strong player.
     expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeLessThan(6);
+    expect(mean, `Sable Bay mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 20000);
 
   it('Timberline plays to a sane average and every hole finishes', () => {
     const { mean, everyHoled } = meanToPar(timberline as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeLessThan(6);
+    expect(mean, `Timberline mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 20000);
 
   it('Wildwood Glen plays to a sane average and every hole finishes', () => {
@@ -52,7 +55,7 @@ describe('new course playability', () => {
     const { mean, everyHoled } = meanToPar(wildwood as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeLessThan(6);
+    expect(mean, `Wildwood mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 20000);
 
   it('Port Johnson Links plays to a sane average and every hole finishes', () => {
@@ -62,6 +65,6 @@ describe('new course playability', () => {
     const { mean, everyHoled } = meanToPar(portjohnson as unknown as CourseAuthoring);
     expect(everyHoled, 'every hole holes out within the stroke cap').toBe(true);
     expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeLessThan(6);
+    expect(mean, `Port Johnson mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 20000);
 });

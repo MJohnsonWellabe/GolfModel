@@ -8,6 +8,53 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-11 (latest+12): playtest-fix pass — feel, universal design, course rework
+
+A second playtest surfaced regressions and feedback that hadn't landed
+universally from the +11 pass. Direction: *let the game get hard (recalibrate
+later); most design choices apply to every course.* Shipped in four parts, each
+deployed to `version2` as it finished.
+
+- **Feel & responsiveness.** Shot SHAPE now curves the ball's FLIGHT again (a
+  deterministic in-air lateral accel, `PHYSICS.shapeCurveAccel`, driven by a new
+  `ResolvedLaunch.shapeSide`), while the in-flight swipe keeps only the landing
+  kick (`sideSpinKick` 45→55) — the two spin channels are fully split
+  (`simulate`/`executeShot` pass swipe-only side; the shape rides on the launch).
+  Aim sensitivity halved and putting aim quartered for micro-movements
+  (`AimControl`). Second/third shots default to aiming at the green
+  (`ShotContext.strokes`). A landed long roll is tap-to-skippable. Nature
+  planting is CHUNKED across frames (a per-frame drain of a thunk queue) with the
+  nature shaders warmed during the flyover and matrices frozen — fixes the jerky
+  swing meter / hole-1 first-shot stall. A pulsing cup-highlight ring makes the
+  hole findable while putting.
+- **Universal design.** The checker fairway pattern and genuinely-3D flora
+  (Kenney bush/flower meshes; the flat meadow cards read as "2D blocks" and were
+  retired as defaults) promoted into `DEFAULT_THEME`, so every course inherits
+  them. `collectTreeBlobs` now guarantees ≥1 trunk per authored `trees` hazard
+  (a specimen polygon finer than the sampling grid used to plant zero — the
+  Timberline fairway/thinking trees had literally vanished from render AND
+  collision); those trees were reseated just off the layup line so they pinch
+  rather than block. The opening flyover follows the authored fairway
+  centerlines (retained on `HoleData.fairwayCenterlines`) instead of cutting
+  across polygon centroids.
+- **Coastal sand + treeless links (new surface mechanics).** A `Hazard.beach`
+  flag: a bunker classified LAST before rough (in `surfaceAt`, the class grid and
+  the bake) so a shore band drawn outward from the water reads as sand only over
+  ROUGH — the sea, woods and maintained fairway/green all win the overlap, so a
+  beach lines the shore without ever eating a landing area. An authored empty
+  `treeKeys: []` now means a genuinely treeless course (skips scatter trees AND
+  the enclosing backdrop woods).
+- **Course rework.** Sable Bay: beach sand lining every water body on all three
+  holes. Port Johnson: treeless, ocean in play down each hole (no beaches), an
+  S-shaped par 5, and denser 3D tall grass (`fern_kenney`/`bush_kenney_b` mixed
+  through the fescue). Wildwood: an island-green par 3 (green + sand collar in a
+  water moat), a curving right-dogleg h1 and a stronger dogleg h3, and denser
+  woods (collision `spacing` 48→40 with a render-only `visualSpacing` 22).
+- **Gates.** The Appendix-A tier windows relaxed to wide sanity bands
+  ([−4, +6] to par) keeping the monotonic-with-skill and "−3 is rare"
+  invariants — the game may play harder now by design; every hole still holes
+  out (fairness gate kept, `newCourses.test.ts`).
+
 # Update — 2026-07-11 (latest+11): course-graphics redesign, gameplay fixes, unified look, 4th course
 
 A large playtest-driven pass across visuals, gameplay and content.

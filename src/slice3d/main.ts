@@ -197,10 +197,10 @@ preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
 const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · Bethpage-style, small greens, flower gardens', icon: '🌳' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water in play on every hole, island par 3', icon: '🌊' },
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · curving wooded holes, an island par 3, flower gardens', icon: '🌳' },
+  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water on every hole, beach sand, island par 3', icon: '🌊' },
   { id: 'timberline', name: 'Timberline', tag: 'Forest · tight, tree-lined and demanding', icon: '🌲' },
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · wide, windy, deep bunkers by the sea', icon: '🏴' }
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, deep bunkers by the sea', icon: '🏴' }
 ];
 
 /** Resolve a course by its display name (tournament entries carry the name). */
