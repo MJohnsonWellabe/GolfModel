@@ -601,15 +601,14 @@
       "gardens": [
         {
           "cx": 468,
-          "cy": 332,
-          "rx": 98,
-          "ry": 48,
+          "cy": 330,
+          "rx": 104,
+          "ry": 50,
           "rot": 0.35,
-          "density": 3.0,
-          "bloomChance": 0.86,
-          "bushChance": 0.12,
-          "driftSize": 42,
-          "flowerKeys": ["flower_e", "flower_c", "flower_b", "flower_d", "flower_a"]
+          "density": 4.5,
+          "bloomChance": 0.9,
+          "bushChance": 0.08,
+          "flowerKeys": ["flower_f", "flower_g", "flower_h", "flower_e", "flower_a"]
         }
       ],
       "aiTargets": [],

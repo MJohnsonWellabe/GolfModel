@@ -126,6 +126,15 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
   const barkMat = flat(scene, 'natBark', palette.bark);
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
+  // Bushes and ferns are crossed/low-poly cards too. On a lush course give them
+  // the same LIT, two-sided treatment grass and flowers get (twoSidedLighting +
+  // emissive floor) so they self-shade and catch the sun as rounded 3D volumes
+  // instead of reading as flat single-lit slabs. Non-lush courses keep the plain
+  // flat material, so their look is unchanged. Trees keep foliageMat (their big
+  // canopies already read as volumes and drive baked shadows).
+  const bushMat = palette.grassLit ? litGrass(scene, 'natBushLit', palette.foliage) : foliageMat;
+  const bushLightMat = palette.grassLit ? litGrass(scene, 'natBushLLit', palette.foliageLight) : foliageLightMat;
+  const fernMat = palette.grassLit ? litGrass(scene, 'natFernLit', palette.foliage) : foliageMat;
   // Grass tufts and flowers are crossed flat cards — plain lit shading turns the
   // back-facing half black, so by default render them unlit in flat palette
   // colors. When grassLit, grass instead uses a LIT, two-sided material
@@ -149,12 +158,12 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
     // Forest-pack floor props ship one generic "MainMaterial" slot for the
     // whole mesh, so the prop key decides: deadwood is bark, plants foliage.
     if (key.startsWith('stump') || key.startsWith('log')) return barkMat;
-    if (key.startsWith('fern')) return foliageMat;
+    if (key.startsWith('fern')) return fernMat;
     // Berry-type bushes (blackberry/currant/raspberry) read lighter, like the
     // fruit rows they are; the plain shrubs stay deep foliage green.
     if (key.startsWith('bush_berry') || key.startsWith('bush_c') || key.startsWith('bush_currant') || key.startsWith('bush_raspberry'))
-      return foliageLightMat;
-    if (key.startsWith('bush_juniper')) return foliageMat;
+      return bushLightMat;
+    if (key.startsWith('bush')) return bushMat;
     if (key.startsWith('cloud')) return cloudMat;
     // Conifer glbs ship trunk + foliage as two NODES sharing one needles
     // material; the SM_-prefixed node is the trunk (verified via bounds).

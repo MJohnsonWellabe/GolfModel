@@ -166,9 +166,6 @@ export interface GardenBed extends EllipseArea {
   bloomChance?: number;
   /** Fraction of cells that get a low bush for structure, 0..1 (default 0.1). */
   bushChance?: number;
-  /** World-units per single-color "drift" — blooms cluster by color in patches
-   *  this size so the bed reads as organized beds, not random speckle (default 42). */
-  driftSize?: number;
   /** Bloom model keys to plant; falls back to the theme's flowerKeys. Any keys
    *  used here must resolve to loaded prototypes (course3d unions them into the
    *  nature download set). */

@@ -1119,39 +1119,55 @@ export function buildCourse(
       }
     }
 
-    // Hand-placed flower beds (hole.gardens): a dense, color-ORGANIZED drift of
+    // Hand-placed flower beds (hole.gardens): a dense, color-ORGANIZED sweep of
     // blooms at an authored spot — e.g. behind the green. Unlike the ambient
-    // rough scatter above, a bed clusters blooms by color into ~driftSize
-    // patches (one species+hue per patch) so it reads as designed beds rather
-    // than random speckle. Decor only: planted on the rough surface, never on
-    // the green/fringe/sand/water or a tree hitbox, and invisible to physics/AI
-    // (gardens carry no collision — see types.ts GardenBed).
+    // rough scatter above, a bed paints a left→right rainbow: each bloom's hue
+    // comes from its horizontal position across the bed (pink · purple · blue ·
+    // green · yellow · white), so the whole bed reads as designed color beds
+    // rather than random speckle. Decor only: planted on the rough surface,
+    // never on the green/fringe/sand/water or a tree hitbox, and invisible to
+    // physics/AI (gardens carry no collision — see types.ts GardenBed).
     //
-    // Each bloom species maps to a fixed natural hue + height band; the theme's
-    // lit near-white flower material multiplies by the hue so it reads true.
-    const BLOOM_SPECS: Record<string, { hue: Color4; hMin: number; hMax: number }> = {
-      flower_e: { hue: new Color4(0.98, 0.84, 0.3, 1), hMin: 4.0, hMax: 5.4 }, // sunflower — tall gold
-      flower_c: { hue: new Color4(0.72, 0.55, 0.92, 1), hMin: 2.2, hMax: 3.1 }, // lavender — purple
-      flower_b: { hue: new Color4(0.95, 0.5, 0.55, 1), hMin: 1.7, hMax: 2.6 }, // wildflower — red-pink
-      flower_d: { hue: new Color4(0.97, 0.97, 0.99, 1), hMin: 1.7, hMax: 2.6 }, // wildflower — white
-      flower_a: { hue: new Color4(0.98, 0.66, 0.4, 1), hMin: 1.7, hMax: 2.6 } // orange
+    // The blooms are the genuinely-3D nature-kit meshes (flower_f/g/h clusters,
+    // flower_e sunflower); the theme's lit two-sided flower material multiplies
+    // by the band hue so each reads as its true color. Some bands prefer a
+    // species (sunflowers in the yellow band, leafy plants in the green band).
+    const BANDS: Array<{ hue: Color4; prefer: string[] }> = [
+      { hue: new Color4(0.98, 0.46, 0.66, 1), prefer: [] }, // pink
+      { hue: new Color4(0.66, 0.42, 0.92, 1), prefer: [] }, // purple
+      { hue: new Color4(0.42, 0.6, 0.98, 1), prefer: [] }, // blue
+      { hue: new Color4(0.44, 0.82, 0.46, 1), prefer: ['flower_h'] }, // green — leafy plant
+      { hue: new Color4(0.98, 0.85, 0.32, 1), prefer: ['flower_e'] }, // yellow — sunflower
+      { hue: new Color4(0.98, 0.98, 1.0, 1), prefer: [] } // white
+    ];
+    // Per-species target height band (world units): sunflowers stand tall at the
+    // back, clusters/plants sit knee-to-waist high.
+    const BLOOM_H: Record<string, [number, number]> = {
+      flower_e: [4.0, 5.4],
+      flower_f: [2.2, 3.2],
+      flower_g: [2.4, 3.4],
+      flower_h: [2.0, 2.9],
+      flower_a: [2.2, 3.2]
     };
     for (const g of hole.gardens ?? []) {
       const bedFlowers = (g.flowerKeys ?? theme.flowerKeys ?? FLOWER_KEYS)
         .map((k) => ({ k, proto: protos.get(k) }))
         .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
       if (!bedFlowers.length) continue;
+      // Species that only belong in their own band (never scattered generically).
+      const banded = new Set(BANDS.flatMap((b) => b.prefer));
+      const generic = bedFlowers.filter((e) => !banded.has(e.k));
       const step = tuftStep / Math.sqrt(g.density ?? 1);
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;
-      const drift = g.driftSize ?? 42;
       const rot = g.rot ?? 0;
       const cosr = Math.cos(rot);
       const sinr = Math.sin(rot);
       const lush = theme.lushGrass;
       for (let yy = g.cy - g.ry; yy <= g.cy + g.ry; yy += step) {
         for (let xx = g.cx - g.rx; xx <= g.cx + g.rx; xx += step) {
-          // Inside the (possibly rotated) ellipse footprint.
+          // Inside the (possibly rotated) ellipse footprint. lx is the position
+          // along the bed's major axis, normalized to [-1, 1].
           const dx = xx - g.cx;
           const dy = yy - g.cy;
           const lx = (dx * cosr + dy * sinr) / g.rx;
@@ -1173,13 +1189,20 @@ export function buildCourse(
             continue;
           }
           if (roll >= bloom + bushCh) continue;
-          // Color drift: one species (hence one hue) per driftSize patch, so
-          // blooms cluster into coherent single-color beds.
-          const zone = hash2(Math.floor(xx / drift) * 13 + 1, Math.floor(yy / drift) * 7 + 3);
-          const e = bedFlowers[Math.floor(zone * bedFlowers.length) % bedFlowers.length];
-          const spec = BLOOM_SPECS[e.k];
-          const bh = spec ? spec.hMin + hash2(jx + 3, jy) * (spec.hMax - spec.hMin) : 1.7 + hash2(jx + 3, jy);
-          placeProto(e.proto, jx, jy, bh, lush ? (spec ? spec.hue : flowerTint(jx, jy)) : undefined);
+          // Rainbow by position: map the point along the bed's major axis to one
+          // of the color bands, with a little hash dither so band seams feather
+          // instead of drawing a hard line.
+          const t = (lx + 1) / 2 + (hash2(jx + 5, jy - 11) - 0.5) * 0.06;
+          const band = BANDS[Math.min(BANDS.length - 1, Math.max(0, Math.floor(t * BANDS.length)))];
+          const prefer = band.prefer.map((k) => bedFlowers.find((e) => e.k === k)).filter(Boolean) as Array<{
+            k: string;
+            proto: NatureProto;
+          }>;
+          const pool = prefer.length ? prefer : generic.length ? generic : bedFlowers;
+          const e = pool[Math.floor(hash2(jx + 9, jy - 5) * pool.length) % pool.length];
+          const [hmin, hmax] = BLOOM_H[e.k] ?? [2.0, 2.8];
+          const bh = hmin + hash2(jx + 3, jy) * (hmax - hmin);
+          placeProto(e.proto, jx, jy, bh, lush ? band.hue : undefined);
         }
       }
     }
