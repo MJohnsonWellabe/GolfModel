@@ -61,6 +61,7 @@ import { buildHeightField } from '../systems/HeightField';
 import { TurnManager } from '../systems/TurnManager';
 import { drawWind } from '../systems/RoundSimulator';
 import { shouldShowPuttGrid } from '../core/puttAids';
+import { renderPacing } from './renderPacing';
 import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
@@ -575,6 +576,8 @@ class HoleScene {
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
+    // Pause the scatter drain so it can't hitch the live meter (Timberline h1/h3).
+    renderPacing.meterActive = true;
   }
 
   /**
@@ -934,6 +937,9 @@ class HoleScene {
   }
 
   beginTurn(): void {
+    // Default the scatter drain back on; armMeter re-pauses it for a human's
+    // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
+    renderPacing.meterActive = false;
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     if (this.tm.isScramble) {
       // Scramble: both teammates attempt from the shared team ball; the
@@ -1249,6 +1255,7 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
+    renderPacing.meterActive = false; // meter's done — let the scatter finish filling
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
     this.aerial = false;

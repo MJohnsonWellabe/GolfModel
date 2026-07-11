@@ -709,21 +709,27 @@ export class PhysicsEngine {
       waterPenalty = true;
       finalPos = this.dropPoint(path, origin);
       surface = this.surfaceAt(finalPos.x, finalPos.y);
-      path.push({ x: finalPos.x, y: finalPos.y, z: 0 });
+      // NOTE: the drop is NOT appended to `path`. Playback animates `path`, so
+      // appending it made the ball fly to the splash and then visibly SNAP
+      // backward to the drop (playtest: "landed close, lagged back ~118 ft").
+      // The path now ends at the splash; the caller places the ball at
+      // `finalPos` after the splash, which reads as a clean drop.
     }
 
     return { path, finalPos, surface, waterPenalty, hitTrees, holed };
   }
 
-  /** Walk the trajectory backwards to the last dry point for a water drop. */
+  /**
+   * Where a ball that finished in water is dropped: the point it last crossed
+   * the hazard margin — the last trajectory sample that wasn't water, projected
+   * to the ground (finalPos is 2D). This is the margin for both a roll-in (the
+   * last grounded sample) and a carry-in (the last airborne sample before the
+   * splash). Falls back to the spot the shot was played from if the very first
+   * sample is already wet.
+   */
   private dropPoint(path: TrajectoryPoint[], origin: Point): Point {
     for (let i = path.length - 1; i >= 0; i--) {
       const p = path[i];
-      if (p.z === 0 || i === 0) {
-        const surf = this.surfaceAt(p.x, p.y);
-        if (surf !== 'water') return { x: p.x, y: p.y };
-      }
-      // Also accept airborne samples projected to the ground when dry.
       if (this.surfaceAt(p.x, p.y) !== 'water') return { x: p.x, y: p.y };
     }
     return { x: origin.x, y: origin.y };

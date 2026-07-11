@@ -220,7 +220,7 @@
         {
           "type": "trees",
           "spacing": 38,
-          "visualSpacing": 14,
+          "visualSpacing": 18,
           "polygon": [
             [
               417.0,
@@ -267,7 +267,7 @@
         {
           "type": "trees",
           "spacing": 38,
-          "visualSpacing": 14,
+          "visualSpacing": 18,
           "polygon": [
             [
               483.0,
@@ -314,7 +314,7 @@
         {
           "type": "trees",
           "spacing": 28,
-          "visualSpacing": 14,
+          "visualSpacing": 18,
           "polygon": [
             [
               120,

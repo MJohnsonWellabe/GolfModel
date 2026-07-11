@@ -162,6 +162,32 @@ describe('beach/waste sand runs; scoring bunkers plug', () => {
 });
 
 // ---------------------------------------------------------------------------
+// A ball that finishes in water drops on dry land at the hazard margin, and the
+// drop is NOT appended to the animated path — so the ball never visibly snaps
+// backward from near the pin (playtest: "landed close, lagged back ~118 ft").
+// ---------------------------------------------------------------------------
+describe('water penalty drops cleanly without a backward teleport', () => {
+  it('finishes dry, and the path ends at the splash (drop not appended)', () => {
+    const hole: HoleData = {
+      ...OPEN, green: { cx: 1000, cy: 100, rx: 40, ry: 40 }, pin: { x: 1000, y: 100 },
+      hazards: [{ type: 'water', polygon: [[600, 150], [1400, 150], [1400, 950], [600, 950]] }]
+    };
+    const eng = new PhysicsEngine(hole);
+    const out = eng.simulate({
+      origin: { x: 1000, y: 1000 }, aimAngle: -Math.PI / 2, swing: PERFECT(0.6),
+      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true
+    });
+    expect(out.waterPenalty).toBe(true);
+    expect(out.surface).not.toBe('water'); // dropped on dry land
+    // The last animated sample is the splash (in water); the dry drop point is
+    // finalPos, applied AFTER playback — never a trailing backward path sample.
+    const last = out.path[out.path.length - 1];
+    expect(eng.surfaceAt(last.x, last.y)).toBe('water');
+    expect(last.x === out.finalPos.x && last.y === out.finalPos.y).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Greenside chip shows the putting-read grid.
 // ---------------------------------------------------------------------------
 describe('shouldShowPuttGrid', () => {

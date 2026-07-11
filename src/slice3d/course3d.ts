@@ -38,6 +38,7 @@ import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { buildBreakDots } from './breakDots';
+import { renderPacing } from './renderPacing';
 import {
   BUSH_KEYS,
   CONIFER_KEYS,
@@ -1021,6 +1022,9 @@ export function buildCourse(
     // (not shift()) keep the walk O(n). Fills in over ~1–2s of flyover.
     const BUDGET_MS = 3.5;
     const drain = scene.onBeforeRenderObservable.add(() => {
+      // Yield the whole frame to the swing meter while it's live so the bar never
+      // stutters; the scatter resumes filling in the instant the player swings.
+      if (renderPacing.meterActive) return;
       const t0 = performance.now();
       for (;;) {
         let batch = 32; // amortize the performance.now() cost over a small batch
