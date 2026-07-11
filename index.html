@@ -688,6 +688,9 @@
         text-align: left;
         /* Room so the scroll shadow doesn't clip selected cards */
         padding: 2px;
+        /* Native vertical panning so a drag over a character/pal card scrolls
+           instead of selecting (matches the store). */
+        touch-action: pan-y;
       }
       .stepTitle {
         font-size: 19px;
@@ -775,6 +778,17 @@
         font-weight: 700;
         color: #cfe3ca;
         margin-top: 4px;
+      }
+      /* Pals wizard step: emoji tile in place of the character portrait. */
+      .charCard .palPickIcon {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        border-radius: 9px;
+        background: linear-gradient(180deg, #123f24, #0b2c17);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
       }
       .charCard.sel {
         border-color: #ffd54f;
@@ -933,7 +947,6 @@
       /* Records overlay */
       #records,
       #store,
-      #pals,
       #tournaments,
       #aces {
         position: fixed;
@@ -1157,6 +1170,9 @@
       .storeScroll {
         flex: 1 1 auto;
         overflow-y: auto;
+        /* Let the browser own vertical panning so a drag that starts on a card
+           scrolls natively (and cancels the card's pointer) instead of buying. */
+        touch-action: pan-y;
       }
       .storeTab {
         font-size: 12px;
@@ -1461,7 +1477,6 @@
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
-          <button id="palsLink" class="recordsLink">🐾 Pals</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🏁 Tournaments</button>
         </div>
@@ -1469,7 +1484,6 @@
     </div>
     <div id="records"></div>
     <div id="store"></div>
-    <div id="pals"></div>
     <div id="tournaments"></div>
     <div id="aces"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>

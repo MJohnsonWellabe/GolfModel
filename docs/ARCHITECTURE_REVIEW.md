@@ -8,6 +8,29 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-10 (latest+10): playtest batch 2 — spin/bunker physics, bunker outlines, Timberline holes 2/3
+
+- **Spin acts on the ground, not the air.** Side spin no longer curves the ball
+  mid-flight (`PhysicsEngine.integrateLaunch` in-air side block removed); a
+  fade/draw flies straight and breaks sideways only when it bites the
+  green/fringe (`sideSpinKick` landing kick beside the backspin check).
+- **Bunkers plug dead.** A ball landing in sand stops where it lands; one
+  rolling in from outside stops the instant it reaches sand (checked before
+  slope accel). Bunker visuals stripped to plain sand: removed the baked dark
+  AO ring (bunkers only; ponds keep it) and the raised tube-lip geometry.
+- **Timberline holes 2 & 3 re-cut for tight corridors.** Flanking woods pulled
+  to ~6yd off the fairway via a centerline-offset generator
+  (`scratchpad/genhole`/`buildh3`), so both holes read as tree-lined. Hole 3
+  redesigned: green relocated up-right to extend leg 2 (now a genuine long
+  approach after the dogleg; ~542yd total), a generous corner landing bowl, a
+  tighter front crescent bunker (no longer a full ring — fixes the "odd green
+  from aerial"), a fairway tree in each leg with a playable gap, and the inside
+  of the dogleg SET BACK (you cut over it; hugging it made the corner
+  unnavigable). Outside lines stay tight, inside opens — tuned with a 120×3
+  Monte-Carlo shot tracer so every hole still holes out within the stroke cap
+  (playability gate green, mean still &lt; 6). Tree HITBOXES left unchanged per
+  Matt ("they're good now").
+
 # Update — 2026-07-10 (latest+9): playtest fixes — green rendering, hole builds ~3× faster, dogleg flyover, honest tree hitbox
 
 - **The "odd green from aerial" was two real bugs, both fixed.** (1) The green

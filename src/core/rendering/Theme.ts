@@ -34,8 +34,9 @@ export interface CourseTheme {
   /** Atmospheric haze tint + strength (0..1) near the horizon. */
   haze: number;
   hazeStrength: number;
-  /** Horizon scenery: layered mountain ridges or a sea horizon with dunes. */
-  backdrop: 'peaks' | 'sea';
+  /** Horizon scenery: layered mountain ridges, a sea horizon with dunes, or
+   *  'none' (no backdrop scenery — a dense treeline + open sky is the scenery). */
+  backdrop: 'peaks' | 'sea' | 'none';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
   /** Ground-scatter density multiplier (grass tufts/bushes/flowers); 1 = default. */
@@ -85,6 +86,13 @@ export interface CourseTheme {
   mowTile?: number;
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
+  /**
+   * Cloud rendering style for the course sky. 'wispy' paints soft, feathered,
+   * semi-transparent cumulus + cirrus billboards (reference-style, see-through)
+   * and ignores cloudKeys. Unset falls back to mesh clouds when cloudKeys is
+   * set, else the painted puff billboards. Art-only.
+   */
+  cloudStyle?: 'puffy' | 'wispy';
   /**
    * Real turf grain: a texture path (assets/textures/*.jpg) sampled by the
    * ground bake instead of coded procedural noise. Undefined = the original
@@ -180,6 +188,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'mowPattern'
     | 'mowTile'
     | 'cloudKeys'
+    | 'cloudStyle'
     | 'turfGrainKey'
     | 'turfNormalKey'
     | 'fairwayGrainTile'
@@ -205,7 +214,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     ) {
       if (typeof v === 'number') t[key] = v;
     } else if (key === 'backdrop') {
-      if (v === 'peaks' || v === 'sea') t.backdrop = v;
+      if (v === 'peaks' || v === 'sea' || v === 'none') t.backdrop = v;
     } else {
       t[key] = parseColor(v, t[key]);
     }
@@ -221,6 +230,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.grassKeys = strings(spec.grassKeys);
   t.flowerKeys = strings(spec.flowerKeys);
   t.cloudKeys = strings(spec.cloudKeys);
+  if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
   if (spec.lushGrass === true) t.lushGrass = true;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;

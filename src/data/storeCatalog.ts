@@ -67,12 +67,14 @@ const BALL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> =
   ['purple', 'Amethyst', 0x9a5cd0, 'special', 300]
 ];
 
+// Saturated tints so an unlit streak reads clearly as its color, not a pale
+// wash (playtest: trails all looked like the white default).
 const TRAIL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> = [
-  ['blue', 'Comet', 0x6fb0ff, 'common', 100],
-  ['gold', 'Gilded', 0xffd54f, 'rare', 200],
-  ['pink', 'Sakura', 0xff8fc4, 'common', 100],
-  ['green', 'Emerald', 0x66d96a, 'rare', 200],
-  ['fire', 'Inferno', 0xff6a1a, 'special', 300]
+  ['blue', 'Comet', 0x3d8bff, 'common', 100],
+  ['gold', 'Gilded', 0xffc21f, 'rare', 200],
+  ['pink', 'Sakura', 0xff5fb0, 'common', 100],
+  ['green', 'Emerald', 0x2ecc40, 'rare', 200],
+  ['fire', 'Inferno', 0xff5a12, 'special', 300]
 ];
 
 const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [

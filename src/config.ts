@@ -219,10 +219,12 @@ export const PHYSICS = {
     water: 1.0,
     trees: 0.4
   } as Record<string, number>,
-  /** Sideways curve acceleration (px/s²) at full side spin, before the
-   *  per-club effectiveness scaling. Tuned up repeatedly on playtest feedback so
-   *  a chosen draw/fade produces a strong, obvious, usable bend on every club. */
-  sideSpinAccel: 156,
+  /** Sideways KICK velocity (px/s) at full side spin when the ball lands on the
+   *  green/fringe, before per-club effectiveness scaling. Playtest: side spin
+   *  must NOT curve the ball in the air — a fade/draw flies straight and only
+   *  breaks sideways when it bites the green (like a real ball). Sized so a
+   *  full-spin wedge releases a few yards to its shape on the bounce. */
+  sideSpinKick: 60,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */

@@ -27,6 +27,11 @@ import { w2b } from './course3d';
  *  (who stands 2.9 units the other way). Far enough to never crowd the swing,
  *  close enough to read as "sitting with you". */
 const PERCH_OFFSET = 5.5;
+/** Forward offset DOWN the target line (away from the camera behind the ball)
+ *  so the pal sits higher up-screen, clear of the swing-bar UI (playtest). */
+const PERCH_FORWARD = 4.5;
+/** Off-to-the-side distance the pal sits from the cup while its owner putts. */
+const CUP_OFFSET = 3.0;
 /** Chase stiffness: fraction-per-second decay toward the perch (~95% in 1.5s). */
 const CHASE_RATE = 2.0;
 /** Beyond this the pal teleports instead of sprinting across the hole (new
@@ -71,6 +76,10 @@ export class Pal3D {
   private cur = { x: 0, y: 0 };
   private target = { x: 0, y: 0, heading: 0 };
   private placed = false;
+  /** True while the owner is addressing a shot — the pal does a little
+   *  turn-toward/away sway (it has no animation clips, so it's procedural). */
+  private aiming = false;
+  private aimSway = 0;
 
   constructor(
     scene: Scene,
@@ -120,9 +129,16 @@ export class Pal3D {
       this.root.rotation.y += dr * Math.min(1, dt * 6);
       this.root.position = w2b(this.cur.x, this.cur.y, this.groundH(this.cur.x, this.cur.y));
       // Idle life: soft bob + a whisper of sway (the models ship no clips).
+      // While the owner sets up, the pal turns side to side and toward/away
+      // from the camera — a bit of personality during the address (playtest).
+      // Ease the sway amplitude in/out so it starts and stops smoothly.
+      const target = this.aiming ? 1 : 0;
+      this.aimSway += (target - this.aimSway) * Math.min(1, dt * 4);
       if (this.bobPivot) {
         this.bobPivot.position.y = Math.abs(Math.sin(this.idleTime * 1.6)) * 0.1;
         this.bobPivot.rotation.z = Math.sin(this.idleTime * 0.9) * 0.02;
+        // Yaw sway (turn left/right → shows each side and faces toward/away).
+        this.bobPivot.rotation.y = Math.sin(this.idleTime * 1.5) * 0.7 * this.aimSway;
       }
     });
   }
@@ -147,22 +163,41 @@ export class Pal3D {
     return root;
   }
 
-  /** Send the pal to its perch beside the ball: PERCH_OFFSET units off the
-   *  golfer's far side, facing the ball. Called at each address. */
+  /** Send the pal to its perch beside the ball: off the golfer's far side AND
+   *  forward down the target line so it sits up-screen, clear of the swing bar.
+   *  Called at each address. */
   setTarget(ballX: number, ballY: number, yaw: number): void {
-    const ox = Math.cos(yaw + Math.PI / 2) * PERCH_OFFSET;
-    const oy = Math.sin(yaw + Math.PI / 2) * PERCH_OFFSET;
-    this.target.x = ballX + ox;
-    this.target.y = ballY + oy;
-    // Face from perch toward the ball.
-    this.target.heading = Math.atan2(-oy, -ox);
+    const ox = Math.cos(yaw + Math.PI / 2) * PERCH_OFFSET + Math.cos(yaw) * PERCH_FORWARD;
+    const oy = Math.sin(yaw + Math.PI / 2) * PERCH_OFFSET + Math.sin(yaw) * PERCH_FORWARD;
+    this.moveTo(ballX + ox, ballY + oy, Math.atan2(-oy, -ox));
+  }
+
+  /** While the owner putts, the pal trots over and sits just beside the cup,
+   *  facing back down the putt line to watch. */
+  setCupTarget(pinX: number, pinY: number, ballX: number, ballY: number): void {
+    const putt = Math.atan2(pinY - ballY, pinX - ballX);
+    const ox = Math.cos(putt + Math.PI / 2) * CUP_OFFSET;
+    const oy = Math.sin(putt + Math.PI / 2) * CUP_OFFSET;
+    // Face back toward the ball/golfer (down the putt line).
+    this.moveTo(pinX + ox, pinY + oy, putt + Math.PI);
+  }
+
+  private moveTo(x: number, y: number, heading: number): void {
+    this.target.x = x;
+    this.target.y = y;
+    this.target.heading = heading;
     if (!this.placed) {
-      this.cur.x = this.target.x;
-      this.cur.y = this.target.y;
-      this.root.rotation.y = this.target.heading + Math.PI / 2;
+      this.cur.x = x;
+      this.cur.y = y;
+      this.root.rotation.y = heading + Math.PI / 2;
       this.placed = true;
       if (this.loaded) this.root.setEnabled(true);
     }
+  }
+
+  /** Toggle the address-time dance. */
+  setAiming(on: boolean): void {
+    this.aiming = on;
   }
 
   /** Mirror the golfer's putting-view shrink so the pal doesn't dwarf a

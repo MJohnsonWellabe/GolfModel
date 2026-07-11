@@ -20,6 +20,7 @@ describe('theme knobs', () => {
     expect(t.mowPattern).toBeUndefined(); // diagonal stripe, not checkerboard
     expect(t.mowTile).toBeUndefined();
     expect(t.cloudKeys).toBeUndefined(); // painted billboard clouds
+    expect(t.cloudStyle).toBeUndefined(); // puffy mesh-cloud layout
     expect(t.hazeStrength).toBe(DEFAULT_THEME.hazeStrength);
     expect(t.turfGrainKey).toBeUndefined(); // coded grain(), not a real texture
     expect(t.turfNormalKey).toBeUndefined(); // coded sine-wave bump
@@ -48,6 +49,7 @@ describe('theme knobs', () => {
         mowPattern: 'checker',
         mowTile: 30,
         cloudKeys: ['cloud_a', 'cloud_b', 'cloud_c'],
+        cloudStyle: 'wispy',
         turfGrainKey: 'textures/turf_grain.jpg',
         turfNormalKey: 'textures/turf_normal.jpg',
         fairwayGrainTile: 6,
@@ -71,6 +73,7 @@ describe('theme knobs', () => {
     expect(t.mowPattern).toBe('checker');
     expect(t.mowTile).toBe(30);
     expect(t.cloudKeys).toEqual(['cloud_a', 'cloud_b', 'cloud_c']);
+    expect(t.cloudStyle).toBe('wispy');
     expect(t.turfGrainKey).toBe('textures/turf_grain.jpg');
     expect(t.turfNormalKey).toBe('textures/turf_normal.jpg');
     expect(t.fairwayGrainTile).toBe(6);

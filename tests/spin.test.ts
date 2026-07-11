@@ -83,31 +83,51 @@ describe('spin physics', () => {
     expect(back.finalPos.y).toBeGreaterThan(land.y + 1); // rolled back toward the tee
   });
 
-  it('side spin curves the ball in the correct direction', () => {
+  // Side spin no longer curves the ball in the AIR — it flies straight and only
+  // breaks sideways when it bites the green (playtest). These shots are aimed at
+  // a green sized to catch the wedge landing so the on-green kick is exercised.
+  const greenHole: HoleData = { ...HOLE, green: { cx: 1500, cy: 2560, rx: 340, ry: 340 }, pin: { x: 1500, y: 2560 } };
+  const greenEngine = new PhysicsEngine(greenHole, null, () => 0.5);
+  function shootGreen(clubId: string, power: number, spin: { side: number; top: number }) {
+    return greenEngine.simulate({
+      origin: { x: 1500, y: 2800 },
+      aimAngle: -Math.PI / 2,
+      swing: { power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
+      club: clubById(clubId),
+      golfer: GOLFER,
+      fireBoost: 0,
+      lie: 'fairway',
+      wind: { angle: 0, speed: 0 },
+      hole: greenHole,
+      preview: true,
+      spin
+    });
+  }
+
+  it('side spin does NOT curve the ball in the air (straight flight)', () => {
+    // A shot that lands short of any green (on fairway) must not bend — the old
+    // in-air curve is gone, so fade/straight/draw land at essentially the same x.
     const fade = shoot('7i', 0.9, { side: 1, top: 0 });
     const straight = shoot('7i', 0.9, { side: 0, top: 0 });
     const draw = shoot('7i', 0.9, { side: -1, top: 0 });
-    // Aiming -y (north): +side bends right of the line = +x
+    expect(Math.abs(fade.finalPos.x - straight.finalPos.x)).toBeLessThan(1.5);
+    expect(Math.abs(draw.finalPos.x - straight.finalPos.x)).toBeLessThan(1.5);
+  });
+
+  it('side spin breaks the ball sideways when it lands on the green', () => {
+    const fade = shootGreen('pw', 0.9, { side: 1, top: 0 });
+    const straight = shootGreen('pw', 0.9, { side: 0, top: 0 });
+    const draw = shootGreen('pw', 0.9, { side: -1, top: 0 });
+    // Aiming -y (north): +side kicks right of the line = +x on the bounce.
     expect(fade.finalPos.x).toBeGreaterThan(straight.finalPos.x + 3);
     expect(draw.finalPos.x).toBeLessThan(straight.finalPos.x - 3);
   });
 
-  it('a wedge answers spin far more than a driver (effectiveness table)', () => {
-    // Same carry (~150yd) via power scaling, same full side spin
-    const wedgeCurve = Math.abs(shoot('pw', 1.0, { side: 1, top: 0 }).finalPos.x - 1500);
-    const driverCurve = Math.abs(shoot('driver', 0.42, { side: 1, top: 0 }).finalPos.x - 1500);
-    expect(wedgeCurve).toBeGreaterThan(driverCurve * 1.5);
-  });
-
-  it('shot shaping bends visibly but not cartoonishly: max wedge curve is strong yet bounded', () => {
-    // Playtest FB: shot-shaping impact was doubled (config sideSpinAccel) so a
-    // chosen draw/fade produces an obvious, usable bend. The ceiling still
-    // guards the GDD's "spin should never feel exaggerated" — a full-spin wedge
-    // curves ~20yd, not off the map.
-    const fade = shoot('pw', 0.9, { side: 1, top: 0 });
-    const curveYd = Math.abs(fade.finalPos.x - 1500) / 2;
-    expect(curveYd).toBeLessThan(26);
-    expect(curveYd).toBeGreaterThan(8);
+  it('the green kick is visible but bounded (not cartoonish)', () => {
+    const fade = shootGreen('pw', 0.9, { side: 1, top: 0 });
+    const kickYd = Math.abs(fade.finalPos.x - 1500) / 2;
+    expect(kickYd).toBeLessThan(26);
+    expect(kickYd).toBeGreaterThan(2);
   });
 
   it('low trajectory cuts wind better than high (Phase 2 altitude wind)', () => {

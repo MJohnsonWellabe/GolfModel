@@ -841,6 +841,23 @@ class HoleScene {
     this.balls.forEach((b) => b.scaling.setAll(this.ballScale));
   }
 
+  /** Perch the human player's pal for this shot: beside the ball on a full
+   *  shot, or over by the cup when putting. AI turns get no pal. */
+  private perchPal(): void {
+    if (this.turnIdx !== 0 || !this.pal) return;
+    const bp = this.state.ballPos;
+    if (this.aim.isPutting) this.pal.setCupTarget(this.hole.pin.x, this.hole.pin.y, bp.x, bp.y);
+    else this.pal.setTarget(bp.x, bp.y, this.aim.yaw);
+  }
+
+  /** Show/hide the putt grid, and when putting re-point it (and the break
+   *  dots) down the golfer→hole line so break reads along/across your putt. */
+  private syncPuttGrid(): void {
+    const on = this.aim.isPutting;
+    this.puttGrid.setEnabled(on);
+    if (on) this.course3d.orientPuttAids(this.state.ballPos.x, this.state.ballPos.y);
+  }
+
   beginTurn(): void {
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     if (this.tm.isScramble) {
@@ -871,12 +888,14 @@ class HoleScene {
     this.applyViewScale(this.aim.isPutting);
     const bp = this.state.ballPos;
     this.golfer.placeAt(bp.x, bp.y, this.aim.yaw, this.gh(bp.x, bp.y));
-    // The pal trots over to its perch beside its owner's ball (their turn only).
-    if (this.turnIdx === 0) this.pal?.setTarget(bp.x, bp.y, this.aim.yaw);
+    // The pal trots over to its perch (beside the ball, or by the cup when
+    // putting) and does its little address dance (their turn only).
+    this.perchPal();
+    this.pal?.setAiming(this.turnIdx === 0 && !this.ai);
     this.golfer.setPose(0);
     this.golfer.aiming = true;
     this.ball.position = w2b(bp.x, bp.y, this.ballRestH() + this.gh(bp.x, bp.y));
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.course3d.greenRing.setEnabled(!this.ai && !this.aim.isPutting);
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
@@ -925,7 +944,14 @@ class HoleScene {
     const bx = this.state.ballPos.x;
     const by = this.state.ballPos.y;
     const span = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
-    const dotScale = this.aerial ? Math.min(9, Math.max(4, span / 120)) : 1;
+    // Putting: shrink the ball→cup aiming dots (and target ring) so the line is
+    // a fine string of dots, not fat discs that hide the read (playtest). The
+    // moving break-flow dots (breakDots.ts) are a separate mesh, unaffected.
+    const dotScale = this.aerial
+      ? Math.min(9, Math.max(4, span / 120))
+      : this.aim.isPutting
+        ? 0.42
+        : 1;
     // Full shots: the dots/ring/readout mark the CARRY-LANDING (where the ball
     // first touches down, ~320yd for a big-hitter driver) — not the post-rollout
     // resting spot. So the number reads as carry (matches the GDD/expectation)
@@ -1003,7 +1029,7 @@ class HoleScene {
   private cycleClub(dir: number): void {
     if (this.state.phase !== 'aiming' || this.ai || meter.isActive) return;
     this.aim.cycleClub(dir, this.ctx());
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.course3d.greenRing.setEnabled(!this.aim.isPutting);
     this.setPinPulled(this.aim.isPutting);
     this.armMeter();
@@ -1083,7 +1109,7 @@ class HoleScene {
     this.aim.yaw = decision.aimAngle;
     this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
     this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
-    this.puttGrid.setEnabled(this.aim.isPutting);
+    this.syncPuttGrid();
     this.setPinPulled(this.aim.isPutting);
     this.setCamSetup();
     this.updateHud();
@@ -1146,6 +1172,7 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
+    this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
     this.course3d.greenRing.setEnabled(false);
     this.aerial = false;
@@ -1224,9 +1251,13 @@ class HoleScene {
         // tint (AI keeps plain white). Phase 6 fire + Phase 7 store.
         const onFire = this.fires[this.turnIdx].isOnFire;
         const tint = this.comps[this.turnIdx].isAI ? 0xffffff : equippedColor(profile, 'trail', 0xffffff);
+        // Unlit: the trail glows its own tint instead of being washed toward
+        // white by the sun's diffuse term, so Comet reads blue, Ember orange,
+        // etc. (playtest: "trails all look like the white default").
+        tmat.disableLighting = true;
         tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : c3(tint);
-        tmat.diffuseColor = tmat.emissiveColor;
-        tmat.alpha = onFire ? 0.55 : 0.35;
+        tmat.diffuseColor = new Color3(0, 0, 0);
+        tmat.alpha = onFire ? 0.6 : 0.55;
         trail.material = tmat;
       }
       this.flight = {
@@ -1442,7 +1473,7 @@ class HoleScene {
       // Horizontal rotates the aim; vertical moves it nearer/farther.
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
-      if (this.turnIdx === 0) this.pal?.setTarget(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw);
+      this.perchPal();
       this.setCamSetup();
       this.updateAimVisuals();
       this.updateHud();
@@ -2043,6 +2074,36 @@ function statCell(value: number | string, label: string): string {
 }
 
 const storeEl = document.getElementById('store')!;
+
+/** Distance (px) a pointer may drift between down and up and still count as a
+ *  tap rather than a scroll — mirrors AimControl's DRAG_DEAD_ZONE. */
+const TAP_SLOP = 12;
+
+/** Bind a scroll-safe tap: fires `fn` only when the pointer is released near
+ *  where it went down. A drag to scroll a list that happens to start on a card
+ *  moves past TAP_SLOP (or cancels the pointer for a native pan), so it no
+ *  longer buys/equips — the store's #1 playtest annoyance (batch 2). */
+function onTap(el: Element, fn: () => void): void {
+  let sx = 0;
+  let sy = 0;
+  let armed = false;
+  el.addEventListener('pointerdown', (e) => {
+    const pe = e as PointerEvent;
+    sx = pe.clientX;
+    sy = pe.clientY;
+    armed = true;
+  });
+  el.addEventListener('pointerup', (e) => {
+    if (!armed) return;
+    armed = false;
+    const pe = e as PointerEvent;
+    if (Math.hypot(pe.clientX - sx, pe.clientY - sy) <= TAP_SLOP) fn();
+  });
+  el.addEventListener('pointercancel', () => {
+    armed = false;
+  });
+}
+
 /** The Characters store section starts collapsed to two rows (playtest FB9). */
 let storeCharsExpanded = false;
 /** Character cards shown before "See more" (two rows of the 3-wide grid). */
@@ -2131,7 +2192,7 @@ function renderStore(): void {
     renderStore();
   };
   storeEl.querySelectorAll('.storeCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    onTap(el, () => {
       const id = (el as HTMLElement).dataset.item!;
       const item = STORE_CATALOG.find((i) => i.id === id)!;
       if (isOwned(p, item)) {
@@ -2174,32 +2235,28 @@ function renderStore(): void {
   });
 }
 
-const palsEl = document.getElementById('pals')!;
-
-/** Pals overlay: choose which companion follows you around the course. */
-function renderPals(): void {
+/** Pals wizard step (right after Character): choose the companion that follows
+ *  you around the course. Selecting equips it immediately (persist + cloud). */
+function renderPalsStep(): void {
   const p = profile;
   const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(p, i));
   const equippedId = p.cosmetics.equipped.pal;
   const card = (id: string | null, name: string, icon: string): string => {
     const selected = id === null ? !equippedId : equippedId === id;
     return (
-      `<div class="storeCard palCard ${selected ? 'equipped' : 'owned'}" data-pal="${id ?? ''}">` +
-      `<div class="swatch palSwatch">${icon}</div>` +
-      `<div class="sName">${name}</div>` +
-      `<div class="sPrice">${selected ? 'Selected' : 'Tap to select'}</div></div>`
+      `<div class="charCard palPick${selected ? ' sel' : ''}" data-pal="${id ?? ''}">` +
+      `<div class="palPickIcon">${icon}</div><div class="cn">${name}</div></div>`
     );
   };
-  palsEl.style.display = 'flex';
-  palsEl.innerHTML =
-    `<div class="storeInner"><h2>Pals</h2>` +
-    `<div class="palsBlurb">A pal follows you around the course and sits with you while you hit. Just for fun — more pals coming to the store.</div>` +
-    `<div class="storeScroll"><div class="storeGrid">` +
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Pick a pal</div>` +
+    `<div class="stepHint">A companion that follows you around the course — just for fun.</div>` +
+    `<div class="charGrid">` +
     card(null, 'No Pal', '❌') +
     ownedPals.map((i) => card(i.id, i.name, palByKey(i.pal)?.icon ?? '🐾')).join('') +
-    `</div></div><button id="palsBack">Back</button></div>`;
-  palsEl.querySelectorAll('.palCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    `</div>`;
+  stepBodyEl.querySelectorAll('.palPick').forEach((el) =>
+    onTap(el, () => {
       const id = (el as HTMLElement).dataset.pal!;
       if (id) equip(p, id);
       else delete p.cosmetics.equipped.pal;
@@ -2209,12 +2266,9 @@ function renderPals(): void {
           applyCloudMerge(p, res.profile);
           showCloudStatus(res.status, true);
         });
-      renderPals();
+      renderPalsStep();
     })
   );
-  document.getElementById('palsBack')!.addEventListener('pointerdown', () => {
-    palsEl.style.display = 'none';
-  });
 }
 
 /** Course whose records are open in the overlay (defaults to the round's). */
@@ -2739,8 +2793,8 @@ const sel = {
  *  the Ace Challenge the Course step chooses which course's par 3 you tee off. */
 function stepLabels(): string[] {
   return sel.mode === 'solo' || sel.mode === 'aces'
-    ? ['Mode', 'Course', 'Name', 'Character', 'Style']
-    : ['Mode', 'Course', 'Name', 'Character', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
+    ? ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style']
+    : ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
 }
 
 const STAT_KEYS: Array<[StatKey, string]> = [
@@ -2900,7 +2954,7 @@ function renderCharacter(): void {
       .join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => {
+    onTap(el, () => {
       sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
       renderCharacter();
     })
@@ -2938,6 +2992,7 @@ function renderStepBody(): void {
   else if (label === 'Course') renderCourse();
   else if (label === 'Name') renderName();
   else if (label === 'Character') renderCharacter();
+  else if (label === 'Pals') renderPalsStep();
   else if (label === 'Style') renderArchetype();
   else renderOpponent();
 }
@@ -3068,7 +3123,6 @@ function renderAcctMenu(): void {
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('palsLink')!.addEventListener('pointerdown', () => renderPals());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 renderAcctMenu();
