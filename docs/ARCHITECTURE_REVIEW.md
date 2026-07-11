@@ -706,12 +706,16 @@ Graphics 2.0 (post-1B, after playtest feedback):
   (default 1) scales the fairway/rough swing per course, while the green stays
   subtle. `theme.mowPattern: 'checker'` (with `mowTile`) swaps the fairway's
   single-direction diagonal stripe for a hard-edged two-tone checkerboard (rows
-  AND columns, aligned to the tee→pin axis) via the shared `mowPattern.ts`
-  helper — and the 3D fairway grass carpet (`course3d.ts`) samples the SAME
-  helper so the tufts reinforce the cells instead of speckling random brightness
-  over them (the earlier reason the pattern wouldn't read). Timberline enables
-  it; its turf palette is brightened/saturated toward the reference look while
-  keeping rough clearly darker than fairway (the aerial grayscale-separation bar).
+  AND columns) via the shared `mowPattern.ts` helper — and the 3D fairway grass
+  carpet (`course3d.ts`) samples the SAME helper so the tufts reinforce the
+  cells instead of speckling random brightness over them (the earlier reason
+  the pattern wouldn't read). The grid is rotated `CHECKER_ROTATION` (45°) off
+  the raw tee→pin axis so it reads as a diamond pattern rather than squares
+  aligned straight along/across the fairway; both call sites add the same
+  exported constant so the ground bake and grass tufts rotate identically.
+  Timberline enables it; its turf palette is brightened/saturated toward the
+  reference look while keeping rough clearly darker than fairway (the aerial
+  grayscale-separation bar).
 - **Mesh ground** (`core/rendering/GroundMesh.ts`): the perspective ground is
   a frustum-shaped ortho Mesh whose vertices are placed by the game's own
   `Projection` every frame — textured terrain that never lags the camera and

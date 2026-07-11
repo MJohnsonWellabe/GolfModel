@@ -26,7 +26,7 @@ import {
   TEXTURE_PAD,
   TreeBlob
 } from '../core/rendering/CourseTexture';
-import { mowCheckerboard } from '../core/rendering/mowPattern';
+import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { FRINGE_MARGIN, PhysicsEngine } from '../systems/PhysicsEngine';
 import { HoleData } from '../core/types';
@@ -806,7 +806,7 @@ export function buildCourse(
     // reinforces the cells instead of speckling random brightness over them and
     // washing the pattern out. Light cell brighter, dark cell darker, with a
     // whisper of per-tuft jitter so cells aren't dead flat.
-    const checkerAxis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+    const checkerAxis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x) + CHECKER_ROTATION;
     const cax = Math.cos(checkerAxis);
     const cay = Math.sin(checkerAxis);
     const mowTile = theme.mowTile ?? 30;

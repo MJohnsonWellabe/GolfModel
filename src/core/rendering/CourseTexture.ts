@@ -2,7 +2,7 @@ import { FRINGE_MARGIN, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
-import { mowCheckerboard } from './mowPattern';
+import { CHECKER_ROTATION, mowCheckerboard } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
 
 // Tree blobs now live in a rendering-independent module so the physics engine
@@ -195,6 +195,11 @@ export function renderCourseCanvas(
   const ay = Math.sin(axis);
   const dax = Math.cos(axis + Math.PI / 4);
   const day = Math.sin(axis + Math.PI / 4);
+  // Checkerboard basis: rotated off the raw tee->pin axis so squares read as a
+  // diamond grid. Kept separate from dax/day above (the unrelated diagonal-
+  // stripe fallback) even though the angle happens to match today.
+  const chax = Math.cos(axis + CHECKER_ROTATION);
+  const chay = Math.sin(axis + CHECKER_ROTATION);
   // Tee-pad centre (see inTeePad) precomputed so the hot texel loop stays cheap.
   const tcx = hole.tee.x - ax * TEE_HALF * 0.55;
   const tcy = hole.tee.y - ay * TEE_HALF * 0.55;
@@ -331,11 +336,12 @@ export function renderCourseCanvas(
         const contrast = stripeContrast[cls] * damp * boost;
         let band: number;
         if (cls === 1 && theme.mowPattern === 'checker') {
-          // Fairway checkerboard: a hard-edged two-tone grid aligned to the
-          // tee→pin axis (rows AND columns) — NOT the diagonal `along` above.
-          // The 3D grass carpet samples the same function so ground and tufts
-          // show the same distinct cells.
-          band = mowCheckerboard(wx * ax + wy * ay, -wx * ay + wy * ax, theme.mowTile ?? 30);
+          // Fairway checkerboard: a hard-edged two-tone diamond grid rotated
+          // CHECKER_ROTATION off the tee→pin axis — NOT the diagonal `along`
+          // above (a different, unrelated 45°). The 3D grass carpet samples the
+          // same function with the same rotation so ground and tufts show the
+          // same distinct cells.
+          band = mowCheckerboard(wx * chax + wy * chay, -wx * chay + wy * chax, theme.mowTile ?? 30);
           // Bias the swing UP: light cells pop at full contrast, dark cells only
           // dip ~half as far so the darkest cell stays clearly above the rough
           // (the aerial grayscale-separation bar) while still reading two-tone.

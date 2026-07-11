@@ -25,3 +25,12 @@ export function mowCheckerboard(along: number, across: number, tile: number, sha
   const sq = (t: number): number => Math.max(-1, Math.min(1, Math.sin((t / tile) * Math.PI) * sharp));
   return sq(along) * sq(across);
 }
+
+/**
+ * Checkerboard axis rotation: a diamond grid (squares on point) instead of
+ * squares aligned straight along/across the fairway. Both call sites
+ * (CourseTexture's bake and course3d's grass-tuft tint) must add this to the
+ * hole axis before projecting, or the ground diamonds and grass-tuft diamonds
+ * rotate out of sync with each other.
+ */
+export const CHECKER_ROTATION = Math.PI / 4;
