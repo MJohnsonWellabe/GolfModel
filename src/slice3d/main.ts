@@ -1330,13 +1330,19 @@ class HoleScene {
         // tint (AI keeps plain white). Phase 6 fire + Phase 7 store.
         const onFire = this.fires[this.turnIdx].isOnFire;
         const tint = this.comps[this.turnIdx].isAI ? 0xffffff : equippedColor(profile, 'trail', 0xffffff);
+        const isDefaultTrail = tint === 0xffffff;
         // Unlit: the trail glows its own tint instead of being washed toward
         // white by the sun's diffuse term, so Comet reads blue, Ember orange,
         // etc. (playtest: "trails all look like the white default").
         tmat.disableLighting = true;
-        tmat.emissiveColor = onFire ? new Color3(1, 0.55, 0.15) : c3(tint);
+        // An equipped trail colour ALWAYS wins — a hot streak only recolours the
+        // plain default trail to a fiery orange; a chosen colour (e.g. blue
+        // Comet) keeps its hue and simply burns brighter, so a paid cosmetic is
+        // never overridden (playtest: "my blue comet trail shows up as red").
+        const base = onFire && isDefaultTrail ? new Color3(1, 0.55, 0.15) : c3(tint);
+        tmat.emissiveColor = onFire && !isDefaultTrail ? base.scale(1.4) : base;
         tmat.diffuseColor = new Color3(0, 0, 0);
-        tmat.alpha = onFire ? 0.6 : 0.55;
+        tmat.alpha = onFire ? 0.62 : 0.55;
         trail.material = tmat;
       }
       this.flight = {
