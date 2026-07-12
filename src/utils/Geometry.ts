@@ -320,8 +320,11 @@ function distToSegment(x: number, y: number, x1: number, y1: number, x2: number,
   return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
 }
 
-/** Shortest distance from (x,y) to the nearest edge of a polygon's boundary. */
-function distToPolygonEdges(x: number, y: number, poly: Polygon): number {
+/** Shortest distance from (x,y) to the nearest edge of a polygon's boundary.
+ *  Zero on an edge; positive both inside and outside — pair with `pointInPolygon`
+ *  for a signed test, or with a margin for a "within N of the shape" test
+ *  (e.g. PhysicsEngine's water-edge margin). */
+export function distToPolygon(x: number, y: number, poly: Polygon): number {
   let min = Infinity;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
     min = Math.min(min, distToSegment(x, y, poly[i][0], poly[i][1], poly[j][0], poly[j][1]));
@@ -352,7 +355,7 @@ function findDeepestPoint(poly: Polygon): Point | null {
     for (let j = 0; j <= GRID; j++) {
       const y = minY + ((maxY - minY) * j) / GRID;
       if (!pointInPolygon(x, y, poly)) continue;
-      const d = distToPolygonEdges(x, y, poly);
+      const d = distToPolygon(x, y, poly);
       if (d > bestD) {
         bestD = d;
         best = { x, y };

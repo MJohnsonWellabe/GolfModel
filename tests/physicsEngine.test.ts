@@ -137,6 +137,21 @@ describe('surfaceAt priority', () => {
     // A beach drawn over the water → the sea wins.
     expect(engine.surfaceAt(900, 200)).toBe('water');
   });
+
+  it('water penalizes a ROUGH band just OUTSIDE the polygon (the wobble-painted blue)', () => {
+    // The bake paints blue up to ~20px past the water polygon, so a ball
+    // resting in that band over ROUGH read as land (playtest Timberline h3:
+    // "landed on blue, no penalty, played off it"). The collision carries a
+    // WATER_EDGE_MARGIN (~12px) that upgrades ONLY rough. The creek spans
+    // x 700..1300, y 1450..1550; the fairway is x 800..1200, so x=750 near the
+    // creek edge is rough.
+    expect(engine.surfaceAt(750, 1445)).toBe('water'); // ~5px outside, over rough → water
+    // ...but well clear of the shore is dry, no false penalties.
+    expect(engine.surfaceAt(750, 1430)).toBe('rough'); // ~20px outside → land
+    // A FAIRWAY lie hugging the water stays playable — the margin never eats a
+    // maintained surface (a fairway can run right along a pond).
+    expect(engine.surfaceAt(1000, 1442)).toBe('fairway'); // 8px outside but on fairway
+  });
 });
 
 describe('bunker dead-stop', () => {
