@@ -47,3 +47,36 @@ export function mowStripe(coord: number, tile: number, sharp = 8): number {
  * rotate out of sync with each other.
  */
 export const CHECKER_ROTATION = Math.PI / 4;
+
+/**
+ * Green two-tone mix factor in [0, 1] (0 = dark tone, 1 = light) for a world
+ * point, per the theme's greenMowPattern. Shared by BOTH green painters (the
+ * main course bake and the high-res green-complex patch) — they must sample
+ * the identical field or the patch seams against the ground at the fringe.
+ * `ax/ay` is the tee→pin unit axis, `gcx/gcy` the green centre (for 'rings').
+ */
+export function greenMowT(
+  pattern: 'columns' | 'checker' | 'rings' | 'diagonal',
+  wx: number,
+  wy: number,
+  ax: number,
+  ay: number,
+  tile: number,
+  gcx: number,
+  gcy: number
+): number {
+  if (pattern === 'checker') {
+    const along = wx * ax + wy * ay;
+    const across = -wx * ay + wy * ax;
+    return (mowCheckerboard(along, across, tile) + 1) / 2;
+  }
+  if (pattern === 'rings') {
+    return (mowStripe(Math.hypot(wx - gcx, wy - gcy), tile) + 1) / 2;
+  }
+  if (pattern === 'diagonal') {
+    const d = wx * Math.cos(Math.PI / 4) + wy * Math.sin(Math.PI / 4);
+    return (mowStripe(d, tile) + 1) / 2;
+  }
+  // 'columns': bands running in the play direction (flip along the across axis)
+  return (mowStripe(-wx * ay + wy * ax, tile) + 1) / 2;
+}

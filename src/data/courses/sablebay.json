@@ -54,7 +54,7 @@
       "tree_spruce",
       "tree_spruce_tall"
     ],
-    "mowPattern": "straight",
+    "mowPattern": "diag45",
     "accentTreeKeys": [
       "tree_palm",
       "tree_palm_b"
@@ -63,7 +63,9 @@
       "reed_cattail",
       "grass_g",
       "stone_a"
-    ]
+    ],
+    "mowWidth": 9,
+    "greenMowPattern": "rings"
   },
   "holes": [
     {

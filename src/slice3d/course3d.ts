@@ -50,9 +50,13 @@ import {
   loadNaturePrototypes,
   NaturePalette,
   NatureProto,
-  STONE_KEYS,
-  TREE_KEYS
+  STONE_KEYS
 } from './natureModels';
+
+/** Default species mix for themes without an explicit treeKeys: the quality
+ *  forest-pack broadleafs. The old generic tree_a-d "blob" trees are retired
+ *  everywhere (playtest: "our lowest quality assets") — nothing places them. */
+const DEFAULT_TREE_MIX = ['tree_oak', 'tree_maple', 'tree_birch', 'tree_aspen'] as const;
 
 /** 2D world (x, y) + height h → Babylon (y-up, world y becomes -z). */
 export function w2b(x: number, y: number, h = 0): Vector3 {
@@ -688,7 +692,7 @@ export function buildCourse(
   const usesBlossom = (theme.blossomChance ?? 0) > 0 || hole.hazards.some((hz) => hz.type === 'trees' && hz.blossom);
   const natKeys = [
     ...new Set<string>([
-      ...(theme.treeKeys ?? TREE_KEYS),
+      ...(theme.treeKeys ?? DEFAULT_TREE_MIX),
       ...(theme.accentTreeKeys ?? []),
       ...(theme.scatterKeys ?? []),
       ...(theme.bushKeys ?? BUSH_KEYS),
@@ -1168,7 +1172,7 @@ export function buildCourse(
         .filter((e): e is { key: string; proto: NatureProto } => !!e.proto);
     // Species mix is per-course art direction (conifers on Timberline,
     // broadleaf on Wildwood); themes without a mix keep the generic trees.
-    const trees = pickKeyed(theme.treeKeys ?? TREE_KEYS);
+    const trees = pickKeyed(theme.treeKeys ?? DEFAULT_TREE_MIX);
     const accents = pickKeyed(theme.accentTreeKeys ?? []);
     const scatter = pickKeyed(theme.scatterKeys ?? []);
     const conifers = new Set<string>(CONIFER_KEYS);
@@ -1330,14 +1334,21 @@ export function buildCourse(
     const dax2 = Math.cos(holeAxis + Math.PI / 4);
     const day2 = Math.sin(holeAxis + Math.PI / 4);
     const mowTile = theme.mowTile ?? 30;
+    // Stripe patterns share the SAME band width the ground bake uses
+    // (theme.mowWidth) or the carpet stripes drift off the painted ones.
+    const mowW = theme.mowWidth ?? mowTile * 2.4;
     const fairwayTint = (x: number, y: number): Color4 => {
       let band: number;
       if (theme.mowPattern === 'cross') {
         band = mowCheckerboard(x * hax + y * hay, -x * hay + y * hax, mowTile);
       } else if (theme.mowPattern === 'straight') {
-        band = Math.sin(((x * hax + y * hay) / (mowTile * 2.4)) * Math.PI) > 0 ? 1 : -1;
+        band = Math.sin(((x * hax + y * hay) / mowW) * Math.PI) > 0 ? 1 : -1;
       } else if (theme.mowPattern === 'diagonal') {
-        band = Math.sin(((x * dax2 + y * day2) / (mowTile * 2.4)) * Math.PI) > 0 ? 1 : -1;
+        band = Math.sin(((x * dax2 + y * day2) / mowW) * Math.PI) > 0 ? 1 : -1;
+      } else if (theme.mowPattern === 'ns') {
+        band = Math.sin((x / mowW) * Math.PI) > 0 ? 1 : -1;
+      } else if (theme.mowPattern === 'diag45') {
+        band = Math.sin((((x + y) * 0.7071) / mowW) * Math.PI) > 0 ? 1 : -1;
       } else {
         band = mowCheckerboard(x * cax + y * cay, -x * cay + y * cax, mowTile);
       }
@@ -1374,7 +1385,7 @@ export function buildCourse(
     // pink-repainted clone of a broadleaf if it isn't loaded for this course.
     let blossomProto: NatureProto | null = protos.get('tree_sakura') ?? null;
     if (!blossomProto) {
-      const src = trees.find((t) => /maple|oak|tree_a|tree_b|poplar|aspen/.test(t.key)) ?? trees[0];
+      const src = trees.find((t) => /maple|oak|poplar|aspen/.test(t.key)) ?? trees[0];
       if (src) {
         const pink = mat(scene, 'natBlossom', 0xf4a6c8, { emissive: shade(0xf4a6c8, 0.5) });
         const parts = src.proto.parts.map((p, i) => {
@@ -1857,7 +1868,9 @@ export function buildCourse(
             const [x1, y1] = hz.polygon[i];
             const [x2, y2] = hz.polygon[(i + 1) % n];
             const segLen = Math.hypot(x2 - x1, y2 - y1);
-            const steps = Math.max(1, Math.round(segLen / 9));
+            // /6 (was /9) + skip 0.92 (was 0.85): "reeds look great and could
+            // be far more dense" — a fuller, still-broken band.
+            const steps = Math.max(1, Math.round(segLen / 6));
             // Edge normal; land side resolved by probing both sides.
             let nx = -(y2 - y1) / (segLen || 1);
             let ny = (x2 - x1) / (segLen || 1);
@@ -1872,7 +1885,7 @@ export function buildCourse(
               const px = x1 + (x2 - x1) * t;
               const py = y1 + (y2 - y1) * t;
               const roll = hash2(px * 2.1, py * 1.7);
-              if (roll > 0.85) continue; // broken clumps, not a hedge
+              if (roll > 0.92) continue; // broken clumps, not a hedge
               const off = 1.5 + hash2(px + 9, py - 4) * 2.5;
               const ox = px + nx * off + (hash2(px, py + 7) - 0.5) * 2;
               const oy = py + ny * off + (hash2(py, px - 5) - 0.5) * 2;
