@@ -142,10 +142,15 @@ export interface Hazard {
    */
   visualOnly?: boolean;
   /**
-   * Bunker only, VISUAL: a links "waste" bunker — still plain sand for physics
-   * (a ball still plugs, no separate hazard type), but tall fescue is scattered
-   * through it so it reads as a scruffy natural blowout rather than a manicured
-   * trap. Cosmetic only; the grass carries no collision.
+   * Bunker only: a links "waste" bunker. Still plain sand for physics where it
+   * doesn't overlap anything else, and tall fescue is scattered through it so
+   * it reads as a scruffy natural blowout rather than a manicured trap. Unlike
+   * a scoring bunker, waste is classified BELOW fairway and trees in surfaceAt
+   * / the class grid / the bake (still above rough, like beach) — so a fairway
+   * ribbon or a treeline drawn to overlap a waste polygon wins the overlap.
+   * Lets a waste band read as a genuine natural landscape feature (fairway
+   * "islands" in the sand, woods spilling into it) instead of a hazard that
+   * eats anything it's drawn under.
    */
   waste?: boolean;
   /**

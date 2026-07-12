@@ -1414,6 +1414,11 @@ export function buildCourse(
                 const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
                 const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
                 if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+                // A fairway ribbon or treeline can now be drawn over part of a
+                // waste polygon (fairway "islands" in the sand) — surfaceAt
+                // resolves those in the fairway/trees' favour, so skip fescue
+                // there instead of poking grass tufts up through mown turf.
+                if (engine.surfaceAt(jx, jy) !== 'sand') continue;
                 // Leave the middle open so the sand still reads as a playable trap.
                 if (Math.hypot(jx - bcx, jy - bcy) < 12) continue;
                 if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps

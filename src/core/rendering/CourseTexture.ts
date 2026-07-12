@@ -117,16 +117,19 @@ function rasterizeClassGrid(
   };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
   // precedence must match PhysicsEngine.surfaceAt exactly:
-  //   green > scoring-bunker > fringe > water > trees > fairway > BEACH > rough.
-  // Beach sand is a coastal band that lines the shore over ROUGH only, so it is
-  // painted FIRST (everything else overwrites it); only unpainted rough shows
-  // through, giving a beach that never eats a fairway/green/landing area.
+  //   green > scoring-bunker > fringe > water > trees > fairway > WASTE/BEACH > rough.
+  // Beach/waste sand line the shore or sprawl through rough only, so they're
+  // painted FIRST (everything else overwrites them); only unpainted rough
+  // shows through, giving sand that never eats a fairway/treeline/green — a
+  // fairway ribbon or a woods polygon drawn over a waste band reads as fairway
+  // or woods, not sand (visual pass 7: "fairway islands", "woods aren't an
+  // island in sand").
   const layers: Array<[number, () => void]> = [
     [
       4,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'bunker' && hz.beach) poly(hz.polygon);
+          if (hz.type === 'bunker' && (hz.beach || hz.waste)) poly(hz.polygon);
         })
     ],
     [1, (): void => hole.fairway.forEach(poly)],
@@ -150,7 +153,7 @@ function rasterizeClassGrid(
       4,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'bunker' && !hz.beach) poly(hz.polygon);
+          if (hz.type === 'bunker' && !hz.beach && !hz.waste) poly(hz.polygon);
         })
     ],
     [2, (): void => ell(0)]
