@@ -1921,6 +1921,70 @@ export function buildCourse(
     }
   }
 
+  // --------------------------------------------------------- dry-stone walls
+  // A `building` hazard is solid in physics (flight below treeHeight is
+  // knocked down anywhere on the footprint) and bakes a footprint + sun
+  // shadow, but never had a 3D body. Stand each one up as a dry-stone wall:
+  // the polygon rim extruded from the turf to a low stone height with a flat
+  // capstone run — Port Johnson's "Old Wall" landmark behind the 3rd green
+  // (the St Andrews road-wall backstop). CONVEX footprints only (the cap
+  // fans from vertex 0); author a bent wall as convex quads end-to-end.
+  const buildings = hole.hazards.filter((hz) => hz.type === 'building');
+  if (buildings.length) {
+    const stoneMat = new StandardMaterial('dryStoneWall', scene);
+    stoneMat.diffuseTexture = new Texture('textures/rock_wall.jpg', scene);
+    stoneMat.bumpTexture = new Texture('textures/rock_normal.png', scene);
+    stoneMat.specularColor = new Color3(0.07, 0.07, 0.07);
+    stoneMat.backFaceCulling = false;
+    const WALL_H = 3.0; // stacked stone about golfer hip height
+    for (const hz of buildings) {
+      const poly = hz.polygon;
+      const positions: number[] = [];
+      const indices: number[] = [];
+      const uvs: number[] = [];
+      let uRun = 0;
+      const top: Vector3[] = [];
+      for (let i = 0; i < poly.length; i++) {
+        const a = poly[i];
+        const b = poly[(i + 1) % poly.length];
+        const topA = w2b(a[0], a[1], heightAt(a[0], a[1]) + WALL_H);
+        const topB = w2b(b[0], b[1], heightAt(b[0], b[1]) + WALL_H);
+        const botA = w2b(a[0], a[1], heightAt(a[0], a[1]) - 0.4);
+        const botB = w2b(b[0], b[1], heightAt(b[0], b[1]) - 0.4);
+        top.push(topA);
+        const base = positions.length / 3;
+        for (const v of [topA, topB, botB, botA]) positions.push(v.x, v.y, v.z);
+        const segU = Math.hypot(b[0] - a[0], b[1] - a[1]) / 12; // ~12px per stone course
+        const vTop = (WALL_H + 0.4) / 1.8; // stacked courses ~1.8 units tall
+        uvs.push(uRun, vTop, uRun + segU, vTop, uRun + segU, 0, uRun, 0);
+        uRun += segU;
+        indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+      }
+      // Flat capstone (fan — convex footprints only).
+      const capBase = positions.length / 3;
+      for (const v of top) {
+        positions.push(v.x, v.y, v.z);
+        uvs.push(v.x / 12, v.z / 12);
+      }
+      for (let i = 1; i < top.length - 1; i++) {
+        indices.push(capBase, capBase + i, capBase + i + 1);
+      }
+      const wall = new Mesh(`drystone-${Math.round(poly[0][0])}-${Math.round(poly[0][1])}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      vd.uvs = uvs;
+      const normals: number[] = [];
+      VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(wall);
+      wall.material = stoneMat;
+      wall.isPickable = false;
+      shadows.addShadowCaster(wall);
+      wall.freezeWorldMatrix();
+    }
+  }
+
   // ------------------------------------------------------- ocean rock cliffs
   // A `cliff` water hazard (Port Johnson's links coast): the shoreline edges are
   // extruded into a rock-textured headland face dropping from the turf down into

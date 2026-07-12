@@ -1,8 +1,8 @@
 {
   "armedShadowRefresh": 0,
-  "armedMirrorRefresh": null,
+  "armedMirrorRefresh": 0,
   "releasedShadowRefresh": 1,
-  "releasedMirrorRefresh": null,
-  "frozenAvgMs": 10.02,
-  "frozenMaxMs": 36.5
+  "releasedMirrorRefresh": 2,
+  "frozenAvgMs": 9.95,
+  "frozenMaxMs": 39.5
 }
