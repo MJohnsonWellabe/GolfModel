@@ -1639,16 +1639,29 @@ export function buildCourse(
         .map((k) => ({ k, proto: protos.get(k) }))
         .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
       if (!bedFlowers.length) return;
-      // A bed can override the rainbow with its OWN colorway (e.g. white + pink
-      // by every Wildwood green) — cycled across the bed with no species
-      // preference so any bloom mesh takes the color.
+      // Colorway precedence: this bed's own `colors` > the course theme's
+      // `gardenColors` (a course with a floral identity states it once and
+      // every bed follows) > the generic rainbow BANDS. Cycled across the bed
+      // with no species preference so any bloom mesh takes the color.
+      const colorway = g.colors && g.colors.length ? g.colors : theme.gardenColors;
       const bands: Array<{ hue: Color4; prefer: string[] }> =
-        g.colors && g.colors.length
-          ? g.colors.map((c) => ({ hue: Color4.FromColor3(c3(parseInt(c.replace('#', ''), 16))), prefer: [] }))
+        colorway && colorway.length
+          ? colorway.map((c) => ({ hue: Color4.FromColor3(c3(parseInt(c.replace('#', ''), 16))), prefer: [] }))
           : BANDS;
       // Species that only belong in their own band (never scattered generically).
       const banded = new Set(bands.flatMap((b) => b.prefer));
-      const generic = bedFlowers.filter((e) => !banded.has(e.k));
+      let generic = bedFlowers.filter((e) => !banded.has(e.k));
+      // A DESIGNED colorway bed only plants tintable blooms: photo-textured
+      // flowers (coreopsis) keep their natural petal color no matter what hue
+      // the band asks for, so one yellow photo species scattered through a
+      // pink/white azalea bed breaks the whole read. Textured species still
+      // appear in the ambient rough scatter and in rainbow (BANDS) beds.
+      if (colorway && colorway.length) {
+        const tintable = generic.filter((e) =>
+          e.proto.parts.some((p) => (p as Mesh & { tintable?: boolean }).tintable)
+        );
+        if (tintable.length) generic = tintable;
+      }
       const step = tuftStep / Math.sqrt(g.density ?? 1);
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;

@@ -45,6 +45,11 @@
       "flower_g",
       "flower_h",
       "flower_coreopsis"
+    ],
+    "gardenColors": [
+      "#f4a6c8",
+      "#ffffff",
+      "#e8bfd8"
     ]
   },
   "holes": [
@@ -417,15 +422,7 @@
           "rot": 0.4,
           "density": 13,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 566,
@@ -435,11 +432,7 @@
           "rot": 0.0,
           "density": 18,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 572,
@@ -449,11 +442,7 @@
           "rot": 0.0,
           "density": 18,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 576,
@@ -463,11 +452,7 @@
           "rot": 0.0,
           "density": 18,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 566,
@@ -477,11 +462,7 @@
           "rot": 0.0,
           "density": 18,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         }
       ]
     },
@@ -830,15 +811,7 @@
           "rot": 0.0,
           "density": 15,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 392,
@@ -848,11 +821,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 390,
@@ -862,11 +831,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 392,
@@ -876,11 +841,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 510,
@@ -890,11 +851,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 512,
@@ -904,11 +861,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         },
         {
           "cx": 510,
@@ -918,11 +871,7 @@
           "rot": 0.0,
           "density": 19,
           "bloomChance": 0.96,
-          "bushChance": 0.04,
-          "colors": [
-            "#f4a6c8",
-            "#ffffff"
-          ]
+          "bushChance": 0.04
         }
       ]
     },
@@ -1583,15 +1532,7 @@
           "rot": -1.599,
           "density": 12,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 476,
@@ -1601,15 +1542,7 @@
           "rot": -1.884,
           "density": 12,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 408,
@@ -1619,15 +1552,7 @@
           "rot": -1.941,
           "density": 12,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 294,
@@ -1637,15 +1562,7 @@
           "rot": -1.93,
           "density": 12,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         },
         {
           "cx": 372,
@@ -1655,15 +1572,7 @@
           "rot": 0.3,
           "density": 12,
           "bloomChance": 0.95,
-          "bushChance": 0.05,
-          "colors": [
-            "#7d5fbf",
-            "#f2c744",
-            "#ffffff",
-            "#5f93d6",
-            "#e8743b",
-            "#d94f8a"
-          ]
+          "bushChance": 0.05
         }
       ]
     }

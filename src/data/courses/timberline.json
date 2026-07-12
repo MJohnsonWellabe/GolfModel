@@ -36,6 +36,11 @@
       "tree_birch",
       "tree_aspen"
     ],
+    "gardenColors": [
+      "#ffffff",
+      "#9db8e8",
+      "#a58fd6"
+    ],
     "scatterKeys": [
       "fern_kenney",
       "stump_a",
