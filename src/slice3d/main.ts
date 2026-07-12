@@ -47,7 +47,7 @@ import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
-import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
+import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
@@ -353,6 +353,9 @@ class HoleScene {
     dir: number;
     isPutt: boolean;
     landed: boolean;
+    /** Where the ball first touched down — the roll-tracking camera measures
+     *  how far the rollout has traveled from here. */
+    landPos: { x: number; y: number } | null;
     trail: TrailMesh | null;
     /** Resolved launch + live spin so swipes can re-shape the flight. */
     launch: import('../systems/PhysicsEngine').ResolvedLaunch | null;
@@ -1095,8 +1098,21 @@ class HoleScene {
       landIdx = path.findIndex((p, i) => i > 0 && p.z <= 0.01);
       if (landIdx < 0) landIdx = path.length - 1;
     }
-    const target =
-      this.aim.isPutting || landIdx < 0 ? this.aim.aimPoint(this.state.ballPos) : path![landIdx];
+    // Interpolate the true touchdown between the discrete 1/60s path samples:
+    // a driver covers ~2-3yd per sample near landing, so snapping the readout/
+    // ring to whole samples made the aim number hop ~5yd at a time while
+    // dragging (playtest). The z-crossing fraction pins the exact ground point.
+    let target: { x: number; y: number };
+    if (this.aim.isPutting || landIdx < 0) {
+      target = this.aim.aimPoint(this.state.ballPos);
+    } else if (landIdx > 0 && path![landIdx - 1].z > 0.01) {
+      const a = path![landIdx - 1];
+      const b = path![landIdx];
+      const t = (a.z - 0.01) / Math.max(1e-6, a.z - b.z);
+      target = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+    } else {
+      target = path![landIdx];
+    }
     const curved = !this.aim.isPutting && landIdx > 4;
     this.aimDots.forEach((dot, i) => {
       const f = (i + 1) / (this.aimDots.length + 1);
@@ -1417,6 +1433,7 @@ class HoleScene {
         dir: this.aim.yaw,
         isPutt: club.id === 'putter',
         landed: false,
+        landPos: null,
         trail,
         launch: shaping ? launch : null,
         spin
@@ -1686,6 +1703,12 @@ class HoleScene {
       this.swipeLast = null;
       return;
     }
+    // The swipe window closes at the TRUE bounce sample, not the playback-
+    // detected landing (which lags it by a few samples): re-integrating with
+    // new spin re-shapes the bounce, and re-shaping a bounce the player has
+    // ALREADY WATCHED teleports the ball ("spun just as it landed and it
+    // ended up 48ft away" — the spin retroactively rewrote the landing).
+    if (Math.floor(fl.progress) >= fl.landIdx - 2) return;
     const dx = e.clientX - this.swipeLast.x;
     const dy = e.clientY - this.swipeLast.y;
     this.swipeLast = { x: e.clientX, y: e.clientY };
@@ -1805,6 +1828,7 @@ class HoleScene {
         }
         if (!this.flight.landed && p.z <= 0.01 && i > 4) {
           this.flight.landed = true;
+          this.flight.landPos = { x: p.x, y: p.y };
           if (!this.flight.isPutt) {
             this.setCamLanding({ x: p.x, y: p.y }, this.flight.dir);
             this.landingPuff(p.x, p.y, this.engine2d.surfaceAt(p.x, p.y) === 'sand');
@@ -1814,6 +1838,20 @@ class HoleScene {
             if (this.flight.outcome.path.length - i > 70 && !this.flight.outcome.holed) {
               promptEl.textContent = 'tap to skip the roll ⏩';
             }
+          }
+        } else if (this.flight.landed && !this.flight.isPutt && this.flight.landPos) {
+          // Track the ROLLING ball, not the landing spot: a checked-up wedge
+          // stays framed, but a spun/topspin rollout used to run clean out of
+          // the landing camera's frame (playtest: "the camera should track
+          // where the ball goes, not where it lands"). Look always follows the
+          // ball; once the roll travels meaningfully past the touchdown, the
+          // camera body starts trailing it too (same offset as setCamLanding,
+          // smoothed by the normal camera lerp so short rolls never jitter).
+          const rollDist = Math.hypot(bx - this.flight.landPos.x, by - this.flight.landPos.y);
+          this.camTarget.look = w2b(bx, by, this.gh(bx, by));
+          if (rollDist > 22) {
+            const f = this.fwd3(this.flight.dir);
+            this.camTarget.pos = w2b(bx, by, this.gh(bx, by)).subtract(f.scale(26)).add(new Vector3(0, 9, 0));
           }
         } else if (!this.flight.landed && !this.flight.isPutt) {
           const o = this.flight.outcome;
@@ -2117,7 +2155,10 @@ function rewardStripHtml(events: RewardEvent[]): string {
   const levels = events.filter((e) => e.kind === 'levelUp');
   if (levels.length) html += `<div class="rwLine level">⭐ Level ${(levels[levels.length - 1] as { level: number }).level}!</div>`;
   const daily = events.find((e) => e.kind === 'daily') as { name: string; streak: number } | undefined;
-  if (daily) html += `<div class="rwLine daily">✅ Daily done: ${daily.name} · 🔥 ${daily.streak}-day streak</div>`;
+  // The daily's coin bounty is inside the round's coin total; call it out so
+  // completing the challenge visibly PAYS (playtest: "they should give you
+  // j-coins when you complete" — they did, invisibly).
+  if (daily) html += `<div class="rwLine daily">✅ Daily done: ${daily.name} (+${COINS.daily} 🪙) · 🔥 ${daily.streak}-day streak</div>`;
   for (const a of events.filter((e): e is Extract<RewardEvent, { kind: 'achievement' }> => e.kind === 'achievement')) {
     html += `<div class="rwLine ach">🏅 ${a.name} — ${a.desc}</div>`;
   }
@@ -2145,6 +2186,7 @@ function renderProfile(): void {
     statCell(Math.round(s.longestDriveYds), 'Long drive') +
     statCell(s.chipIns, 'Chip-ins') +
     statCell(s.wins, 'Wins') +
+    statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
     `</div>` +
     `<div class="achList">` +
     ACHIEVEMENTS.map((a) => {
@@ -2985,10 +3027,14 @@ function statBars(stats: GolferStats, signature?: StatKey, base?: GolferStats): 
     STAT_KEYS.map(([k, label]) => {
       const delta = base ? stats[k] - base[k] : 0;
       const deltaHtml = delta > 0 ? `<span class="svup">+${delta}</span>` : '';
+      // Upgrades can push a stat past the 100 ceiling; the number keeps the
+      // familiar 0-100 scale and the badge carries the full upgrade ("100+3"),
+      // so a maxed stat still visibly shows what the purchase bought.
+      const shown = Math.min(100, stats[k]);
       return (
         `<div class="stat${k === signature ? ' sig' : ''}"><span class="sl">${label}</span>` +
-        `<span class="sbar"><i style="width:${stats[k]}%"></i></span>` +
-        `<span class="sv">${stats[k]}${deltaHtml}</span></div>`
+        `<span class="sbar"><i style="width:${shown}%"></i></span>` +
+        `<span class="sv">${shown}${deltaHtml}</span></div>`
       );
     }).join('') +
     `</div>`

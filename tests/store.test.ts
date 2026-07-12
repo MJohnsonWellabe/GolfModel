@@ -53,11 +53,13 @@ describe('purchases', () => {
     expect(buyItem(p, 'up_driver_1').ok).toBe(true);
     expect(buyItem(p, 'up_driver_2').ok).toBe(true);
     expect(p.clubUpgrades.driver).toBe(2);
-    // +6 driving power/accuracy vs the base archetype
+    // +6 driving power/accuracy vs the base archetype — upgrades push PAST
+    // the 100 rating ceiling (a maxed archetype still benefits; the UI shows
+    // it as "100+6"), bounded only by the 110 sanity cap.
     const base = assembleGolfer('A', 'chip', 'bigHitter');
     const upgraded = assembleGolfer('A', 'chip', 'bigHitter', p.clubUpgrades);
-    expect(upgraded.stats.drivingPower).toBe(Math.min(100, base.stats.drivingPower + 6));
-    expect(upgraded.stats.drivingAccuracy).toBe(Math.min(100, base.stats.drivingAccuracy + 6));
+    expect(upgraded.stats.drivingPower).toBe(Math.min(110, base.stats.drivingPower + 6));
+    expect(upgraded.stats.drivingAccuracy).toBe(Math.min(110, base.stats.drivingAccuracy + 6));
   });
 
   it('equipping requires ownership', () => {
@@ -81,9 +83,12 @@ describe('purchases', () => {
 });
 
 describe('applyClubUpgrades', () => {
-  it('caps stats at 100', () => {
+  it('carries upgrades past the 100 ceiling, bounded at 110', () => {
     const stats = { drivingPower: 99, drivingAccuracy: 50, approach: 50, chipping: 50, putting: 50 };
     const out = applyClubUpgrades(stats, { driver: 2 });
-    expect(out.drivingPower).toBe(100);
+    // 99 + 6 = 105: the purchase is never a silent no-op near the ceiling.
+    expect(out.drivingPower).toBe(105);
+    const maxed = applyClubUpgrades({ ...stats, drivingPower: 109 }, { driver: 2 });
+    expect(maxed.drivingPower).toBe(110); // sanity bound
   });
 });

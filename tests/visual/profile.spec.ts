@@ -6,12 +6,13 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
   await page.waitForSelector('#profileLink');
   await page.evaluate(() => (document.getElementById('profileLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#resetRecords');
-  // First tap only reveals the confirm/cancel — no wipe yet.
+  // First tap only opens the confirm modal — no wipe yet.
   await page.evaluate(() => (document.getElementById('resetRecords') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#resetYes');
-  await expect(page.locator('.resetWarn')).toBeVisible();
-  // Cancel returns to the normal profile view.
+  await expect(page.locator('.storeConfirmBox .scTitle')).toContainText('Reset Records?');
+  // Cancel removes the modal and returns to the normal profile view.
   await page.evaluate(() => (document.getElementById('resetNo') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForFunction(() => !document.querySelector('.storeConfirmBox'));
   await page.waitForSelector('#resetRecords');
 });
 
