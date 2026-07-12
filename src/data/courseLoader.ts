@@ -1,5 +1,5 @@
 import { CourseData, HoleData, Polygon } from '../core/types';
-import { catmullRom, clipPolyOffGreen, offsetPolyline, roundPolygon } from '../utils/Geometry';
+import { catmullRom, clipPolyOffGreen, offsetPolyline, pointInPolygon, roundPolygon } from '../utils/Geometry';
 import { FRINGE_VISUAL } from '../systems/PhysicsEngine';
 
 /**
@@ -68,6 +68,43 @@ function isRibbon(f: FairwaySpec): f is FairwayRibbon {
   return !Array.isArray(f);
 }
 
+/**
+ * Authoring lint: a bunker polygon overlapping a compiled fairway resolves
+ * two OPPOSITE ways depending on the flag, and only some of those are ever
+ * authored intent. `waste: true` LOSES to fairway — ANY overlap silently
+ * swallows the sand (Sable Bay h1's "crossing" waste never touched a ball),
+ * so any contact warns. A regular bunker WINS the overlap: fully INSIDE the
+ * fairway it's a legitimate links pot (mid-fairway sand, the Principal's
+ * Nose pattern) and stays silent — but a PARTIAL straddle bites a scalloped
+ * notch out of the fairway's boundary (Sable Bay h3), which never looks
+ * authored, so that warns. Vertex + edge-midpoint containment both ways is
+ * enough resolution for hand-authored shapes.
+ */
+function warnBunkerFairwayOverlap(courseName: string, holeNumber: number, hzIdx: number, waste: boolean, bunker: Polygon, fairways: Polygon[]): void {
+  const probes: Array<[number, number]> = [];
+  for (let i = 0; i < bunker.length; i++) {
+    const [ax, ay] = bunker[i];
+    const [bx, by] = bunker[(i + 1) % bunker.length];
+    probes.push([ax, ay], [(ax + bx) / 2, (ay + by) / 2]);
+  }
+  for (const fw of fairways) {
+    const inside = probes.filter(([x, y]) => pointInPolygon(x, y, fw)).length;
+    const fwVertexInBunker = fw.some(([x, y]) => pointInPolygon(x, y, bunker));
+    const partial = (inside > 0 && inside < probes.length) || fwVertexInBunker;
+    const bad = waste ? inside > 0 || fwVertexInBunker : partial;
+    if (bad) {
+      console.warn(
+        `[courseLoader] ${courseName} hole ${holeNumber}: bunker #${hzIdx} ${waste ? 'overlaps' : 'straddles the edge of'} a fairway — ` +
+          (waste
+            ? 'waste sand LOSES to fairway, so the overlapped sand is silently unplayable.'
+            : 'a regular bunker BEATS fairway, so the straddle bites a notch out of the fairway shape.') +
+          ' Offset the bunker polygon clear of the fairway ribbon (a regular bunker FULLY inside the fairway is fine — links pot).'
+      );
+      return;
+    }
+  }
+}
+
 /** Compile one ribbon spec into a closed polygon. */
 export function compileRibbon(ribbon: FairwayRibbon, roundCaps = false): Polygon {
   const { centerline, width } = ribbon;
@@ -95,9 +132,13 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       // polygons) so the flyover can trace the real fairway route. Raw v1
       // polygon fairways contribute nothing here.
       const centerlines = h.fairway.filter(isRibbon).map((f) => f.centerline);
+      const fairways = h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f));
+      h.hazards.forEach((hz, i) => {
+        if (hz.type === 'bunker' && !hz.beach) warnBunkerFairwayOverlap(data.name, h.number, i, !!hz.waste, hz.polygon, fairways);
+      });
       return {
       ...h,
-      fairway: h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f)),
+      fairway: fairways,
       ...(centerlines.length ? { fairwayCenterlines: centerlines } : {}),
       // Round every bunker outline once, here at the single compile choke point,
       // so physics (surfaceAt), the texture bake and the 3D scatter all read the
