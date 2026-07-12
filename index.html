@@ -891,10 +891,17 @@
         background: linear-gradient(90deg, #eab63a, #ffe08a);
       }
       .stat .sv {
-        width: 18px;
+        width: 34px;
         text-align: right;
         color: #eef5ea;
         font-variant-numeric: tabular-nums;
+      }
+      /* Purchased club-upgrade delta on a stat (e.g. "83+3") — confirms a
+       * Store upgrade actually lifted the number the player is looking at. */
+      .stat .svup {
+        color: #7fe89a;
+        font-weight: 700;
+        margin-left: 1px;
       }
       /* Nav */
       #navRow {
