@@ -143,7 +143,7 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
         blobs.push({
           x: jx + offX,
           y: jy + offY,
-          r: 15 + blobHash(xx + 7, yy + 3) * 12,
+          r: hz.treeR ?? 15 + blobHash(xx + 7, yy + 3) * 12,
           kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32,
           blossom: hz.blossom
@@ -165,7 +165,7 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
       blobs.push({
         x: cx + offX,
         y: cy + offY,
-        r: 15 + blobHash(cx + 7, cy + 3) * 12,
+        r: hz.treeR ?? 15 + blobHash(cx + 7, cy + 3) * 12,
         kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
         tint: 0.82 + blobHash(cx + 3, cy + 11) * 0.32,
         blossom: hz.blossom
