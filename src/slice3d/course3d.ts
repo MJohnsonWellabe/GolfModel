@@ -35,7 +35,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { greenBoundaryScale, pointInGreen, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
+import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -184,12 +184,22 @@ function ellipseFactor(x: number, y: number, g: HoleData['green'], margin = 0): 
   return Math.sqrt(dx * dx + dy * dy) / w;
 }
 
-/** Green plateau lift profile shared by the plateau mesh and groundHeightAt. */
+/** Green plateau lift profile shared by the plateau mesh and groundHeightAt.
+ *  A lobed green (hole.green2) lifts the UNION: whichever lobe the point is
+ *  deepest inside wins, so the two plateaus merge into one raised surface. */
 function greenLift(x: number, y: number, hole: HoleData): number {
-  const f = ellipseFactor(x, y, hole.green);
+  let f = ellipseFactor(x, y, hole.green);
+  let ref = hole.green;
+  if (hole.green2) {
+    const f2 = ellipseFactor(x, y, hole.green2);
+    if (f2 < f) {
+      f = f2;
+      ref = hole.green2;
+    }
+  }
   if (f <= 1) return GREEN_RAISE;
   // Approximate world distance beyond the green edge, smooth over the fringe
-  const beyond = (f - 1) * Math.min(hole.green.rx, hole.green.ry);
+  const beyond = (f - 1) * Math.min(ref.rx, ref.ry);
   const s = Math.min(1, beyond / FRINGE_VISUAL);
   const t = 1 - s * s * (3 - 2 * s); // smoothstep down
   return GREEN_RAISE * t;
@@ -374,79 +384,15 @@ export function buildCourse(
   // green stays crisp at putting-camera distance. Physics remains flat — the
   // ball/golfer add groundHeightAt() when rendered.
   {
-    const g = hole.green;
     const ANG = 56;
     // Ring radii factors: flat top out to the green edge, then skirt rings
     // stepping across the fringe down to ground level (slightly below to tuck)
     const topT = [0, 0.45, 0.8, 1];
     const skirtS = [0.18, 0.45, 0.72, 1, 1.18];
+    // ONE shared texture patch covers every lobe (renderGreenPatch sizes its
+    // canvas to the union bbox), so a two-lobe green reads as one continuous
+    // mown surface — the mow columns run unbroken across the waist.
     const patch = renderGreenPatch(hole, theme, engine, FRINGE_VISUAL + 8, 6);
-    const positions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    const pushVert = (wx: number, wy: number, hgt: number): void => {
-      positions.push(wx, hgt + engine.groundAt(wx, wy), -wy);
-      uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
-    };
-    const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
-      // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
-      // local angle so the plateau/skirt mesh traces the same irregular edge the
-      // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
-      // the angle, so mesh and point-in-green agree exactly).
-      const lx0 = Math.cos(theta) * rxx;
-      const ly0 = Math.sin(theta) * ryy;
-      const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
-      const lx = lx0 * w;
-      const ly = ly0 * w;
-      const c = Math.cos(g.rot ?? 0);
-      const s = Math.sin(g.rot ?? 0);
-      return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
-    };
-    // Center vertex + top rings at full raise
-    pushVert(g.cx, g.cy, GREEN_RAISE);
-    const rings: Array<{ rx: number; ry: number; h: number }> = [];
-    for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
-    for (const s of skirtS) {
-      const beyond = s * FRINGE_VISUAL;
-      const tt = Math.min(1, s);
-      const fall = 1 - tt * tt * (3 - 2 * tt);
-      rings.push({
-        rx: g.rx + beyond,
-        ry: g.ry + beyond,
-        h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
-      });
-    }
-    rings.forEach((ring) => {
-      for (let a = 0; a < ANG; a++) {
-        const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
-        pushVert(wx, wy, ring.h);
-      }
-    });
-    // Fan from center to ring 0
-    for (let a = 0; a < ANG; a++) indices.push(0, 1 + ((a + 1) % ANG), 1 + a);
-    // Ring-to-ring quads
-    for (let r = 0; r < rings.length - 1; r++) {
-      const base0 = 1 + r * ANG;
-      const base1 = 1 + (r + 1) * ANG;
-      for (let a = 0; a < ANG; a++) {
-        const a2 = (a + 1) % ANG;
-        indices.push(base0 + a, base1 + a2, base1 + a);
-        indices.push(base0 + a, base0 + a2, base1 + a2);
-      }
-    }
-    const greenMesh = new Mesh('greenComplex', scene);
-    const vd = new VertexData();
-    vd.positions = positions;
-    vd.uvs = uvs;
-    vd.indices = indices;
-    // Straight-up normals everywhere: the raised plateau must LIGHT like the
-    // flat ground around it. Geometric normals made the sun-facing side of the
-    // skirt blow out into a bright cream ring around every green (the aerial
-    // "odd green" playtest report) and showed the skirt rings as facet bands.
-    const normals: number[] = [];
-    for (let i = 0; i < positions.length; i += 3) normals.push(0, 1, 0);
-    vd.normals = normals;
-    vd.applyToMesh(greenMesh);
     const patchTex = new DynamicTexture('greenPatch', { width: patch.canvas.width, height: patch.canvas.height }, scene, true);
     patchTex.getContext().drawImage(patch.canvas, 0, 0);
     patchTex.update(false);
@@ -460,8 +406,83 @@ export function buildCourse(
     greenNormal.vScale = 26;
     greenNormal.level = 0.45; // mown-smooth: subtler grain than the ground
     gm.bumpTexture = greenNormal;
-    greenMesh.material = gm;
-    greenMesh.receiveShadows = true;
+    // A lobed green (hole.green2) builds one plateau per lobe. Both sit at
+    // GREEN_RAISE; the second rides a hair higher so the overlap region never
+    // z-fights — 0.03 world units is invisible at gameplay scale but decisive
+    // for the depth buffer. Where lobe B's skirt falls inside lobe A it dips
+    // below A's top and hides, so the union silhouette is what reads.
+    const lobes = hole.green2 ? [hole.green, hole.green2] : [hole.green];
+    lobes.forEach((g, li) => {
+      const lift = li * 0.03;
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      const indices: number[] = [];
+      const pushVert = (wx: number, wy: number, hgt: number): void => {
+        positions.push(wx, hgt + lift + engine.groundAt(wx, wy), -wy);
+        uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
+      };
+      const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
+        // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
+        // local angle so the plateau/skirt mesh traces the same irregular edge the
+        // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
+        // the angle, so mesh and point-in-green agree exactly).
+        const lx0 = Math.cos(theta) * rxx;
+        const ly0 = Math.sin(theta) * ryy;
+        const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+        const lx = lx0 * w;
+        const ly = ly0 * w;
+        const c = Math.cos(g.rot ?? 0);
+        const s = Math.sin(g.rot ?? 0);
+        return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
+      };
+      // Center vertex + top rings at full raise
+      pushVert(g.cx, g.cy, GREEN_RAISE);
+      const rings: Array<{ rx: number; ry: number; h: number }> = [];
+      for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
+      for (const s of skirtS) {
+        const beyond = s * FRINGE_VISUAL;
+        const tt = Math.min(1, s);
+        const fall = 1 - tt * tt * (3 - 2 * tt);
+        rings.push({
+          rx: g.rx + beyond,
+          ry: g.ry + beyond,
+          h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
+        });
+      }
+      rings.forEach((ring) => {
+        for (let a = 0; a < ANG; a++) {
+          const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
+          pushVert(wx, wy, ring.h);
+        }
+      });
+      // Fan from center to ring 0
+      for (let a = 0; a < ANG; a++) indices.push(0, 1 + ((a + 1) % ANG), 1 + a);
+      // Ring-to-ring quads
+      for (let r = 0; r < rings.length - 1; r++) {
+        const base0 = 1 + r * ANG;
+        const base1 = 1 + (r + 1) * ANG;
+        for (let a = 0; a < ANG; a++) {
+          const a2 = (a + 1) % ANG;
+          indices.push(base0 + a, base1 + a2, base1 + a);
+          indices.push(base0 + a, base0 + a2, base1 + a2);
+        }
+      }
+      const greenMesh = new Mesh(li === 0 ? 'greenComplex' : `greenComplex${li + 1}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.uvs = uvs;
+      vd.indices = indices;
+      // Straight-up normals everywhere: the raised plateau must LIGHT like the
+      // flat ground around it. Geometric normals made the sun-facing side of the
+      // skirt blow out into a bright cream ring around every green (the aerial
+      // "odd green" playtest report) and showed the skirt rings as facet bands.
+      const normals: number[] = [];
+      for (let i = 0; i < positions.length; i += 3) normals.push(0, 1, 0);
+      vd.normals = normals;
+      vd.applyToMesh(greenMesh);
+      greenMesh.material = gm;
+      greenMesh.receiveShadows = true;
+    });
   }
 
   // ----------------------------------------------------------- tee platform
@@ -664,6 +685,7 @@ export function buildCourse(
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
       ...(theme.heatherKeys ?? []),
+      ...(theme.shorelineKeys ?? []),
       ...(theme.sandPlantKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
@@ -925,10 +947,18 @@ export function buildCourse(
     const sea = MeshBuilder.CreateGround('sea', { width: 14000, height: 8000, subdivisions: 1 }, scene);
     sea.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, -8);
     const seaMat = new StandardMaterial('seaMat', scene);
-    seaMat.diffuseColor = c3(theme.water);
-    seaMat.emissiveColor = c3(shade(theme.waterDeep, 0.7));
-    seaMat.specularColor = new Color3(0.5, 0.6, 0.7);
-    seaMat.specularPower = 64;
+    // The backdrop sea was badly overlit: full theme.water diffuse under
+    // sun+hemi (combined ~1.4 on an upward-facing plane) PLUS a 0.7-shaded
+    // emissive PLUS a broad grazing specular clamped G/B at 255 and painted a
+    // hard saturated cyan band along the horizon of every sea-backdrop hole
+    // (visual audit: "flat cyan stripe"). Rebalanced so the LIT total lands on
+    // the same deep ocean blue the in-play water reads as, and the far edge
+    // fades into haze via fog instead of blooming: darker diffuse, faint
+    // emissive floor, and a tight high-power glint instead of plane-wide spec.
+    seaMat.diffuseColor = c3(shade(theme.waterDeep, 0.75));
+    seaMat.emissiveColor = c3(shade(theme.waterDeep, 0.28));
+    seaMat.specularColor = new Color3(0.14, 0.15, 0.16);
+    seaMat.specularPower = 220;
     sea.material = seaMat;
     sea.applyFog = true;
     // Low sandy dune line so the course doesn't end in a hard edge. An open-ocean
@@ -1327,7 +1357,7 @@ export function buildCourse(
           // Never plant a tree on the green or its collar (playtest: "no trees on
           // the fringe anywhere"). Uses the wider lie collar so trunks stay well
           // clear of the putting surface, not just off the mown ring.
-          if (pointInGreen(b.x, b.y, hole.green, FRINGE_MARGIN)) continue;
+          if (pointInGreens(b.x, b.y, hole.green, hole.green2, FRINGE_MARGIN)) continue;
           plantTree(b);
         }
       });
@@ -1631,16 +1661,29 @@ export function buildCourse(
         .map((k) => ({ k, proto: protos.get(k) }))
         .filter((e): e is { k: string; proto: NatureProto } => !!e.proto);
       if (!bedFlowers.length) return;
-      // A bed can override the rainbow with its OWN colorway (e.g. white + pink
-      // by every Wildwood green) — cycled across the bed with no species
-      // preference so any bloom mesh takes the color.
+      // Colorway precedence: this bed's own `colors` > the course theme's
+      // `gardenColors` (a course with a floral identity states it once and
+      // every bed follows) > the generic rainbow BANDS. Cycled across the bed
+      // with no species preference so any bloom mesh takes the color.
+      const colorway = g.colors && g.colors.length ? g.colors : theme.gardenColors;
       const bands: Array<{ hue: Color4; prefer: string[] }> =
-        g.colors && g.colors.length
-          ? g.colors.map((c) => ({ hue: Color4.FromColor3(c3(parseInt(c.replace('#', ''), 16))), prefer: [] }))
+        colorway && colorway.length
+          ? colorway.map((c) => ({ hue: Color4.FromColor3(c3(parseInt(c.replace('#', ''), 16))), prefer: [] }))
           : BANDS;
       // Species that only belong in their own band (never scattered generically).
       const banded = new Set(bands.flatMap((b) => b.prefer));
-      const generic = bedFlowers.filter((e) => !banded.has(e.k));
+      let generic = bedFlowers.filter((e) => !banded.has(e.k));
+      // A DESIGNED colorway bed only plants tintable blooms: photo-textured
+      // flowers (coreopsis) keep their natural petal color no matter what hue
+      // the band asks for, so one yellow photo species scattered through a
+      // pink/white azalea bed breaks the whole read. Textured species still
+      // appear in the ambient rough scatter and in rainbow (BANDS) beds.
+      if (colorway && colorway.length) {
+        const tintable = generic.filter((e) =>
+          e.proto.parts.some((p) => (p as Mesh & { tintable?: boolean }).tintable)
+        );
+        if (tintable.length) generic = tintable;
+      }
       const step = tuftStep / Math.sqrt(g.density ?? 1);
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;
@@ -1725,6 +1768,70 @@ export function buildCourse(
     // turf. Waste/beach/wall bunkers are excluded — waste already gets fescue
     // growing through the sand itself (tallGrass.waste), and walls/beaches
     // don't want a soft edge.
+    // Shoreline margin scatter (theme.shorelineKeys — opt-in per course): real
+    // water always announces its edge, but every waterline in the game met the
+    // turf as two flat colors (visual audit: "shorelines have no margin"). Walk
+    // each water polygon's perimeter and plant a thin, broken band of reeds/
+    // tall grass with occasional stones just up the bank. Per-EDGE normals
+    // (not centroid direction — a winding creek is concave, so "away from
+    // centroid" points the wrong way along half its length), with the land
+    // side found by probing surfaceAt on both sides of the edge. Planted on
+    // rough only, so fairway/green/sand edges at the water stay clean.
+    if (theme.shorelineKeys && theme.shorelineKeys.length) {
+      popQueue.push(() => {
+        const keyed = pickKeyed(theme.shorelineKeys ?? []);
+        const plants = keyed.filter((e) => !e.key.startsWith('stone'));
+        const stones = keyed.filter((e) => e.key.startsWith('stone'));
+        if (!plants.length && !stones.length) return;
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'water') continue;
+          const n = hz.polygon.length;
+          for (let i = 0; i < n; i++) {
+            const [x1, y1] = hz.polygon[i];
+            const [x2, y2] = hz.polygon[(i + 1) % n];
+            const segLen = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.round(segLen / 9));
+            // Edge normal; land side resolved by probing both sides.
+            let nx = -(y2 - y1) / (segLen || 1);
+            let ny = (x2 - x1) / (segLen || 1);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            if (engine.surfaceAt(mx + nx * 4, my + ny * 4) === 'water') {
+              nx = -nx;
+              ny = -ny;
+            }
+            for (let s = 0; s < steps; s++) {
+              const t = (s + 0.5) / steps;
+              const px = x1 + (x2 - x1) * t;
+              const py = y1 + (y2 - y1) * t;
+              const roll = hash2(px * 2.1, py * 1.7);
+              if (roll > 0.85) continue; // broken clumps, not a hedge
+              const off = 1.5 + hash2(px + 9, py - 4) * 2.5;
+              const ox = px + nx * off + (hash2(px, py + 7) - 0.5) * 2;
+              const oy = py + ny * off + (hash2(py, px - 5) - 0.5) * 2;
+              // Rough or woods-floor banks both take the band (a creek running
+              // through trees still fringes its edge); fairway/green/sand
+              // shores stay clean so the mown line meets the water crisply.
+              const surf = engine.surfaceAt(ox, oy);
+              if (surf !== 'rough' && surf !== 'trees') continue;
+              if (stones.length && roll < 0.13) {
+                const e = stones[Math.floor(hash2(ox + 1, oy + 2) * stones.length) % stones.length];
+                placeProto(e.proto, ox, oy, 0.8 + hash2(ox, oy + 9) * 0.8);
+              } else if (plants.length) {
+                const e = plants[Math.floor(hash2(ox + 4, oy - 3) * plants.length) % plants.length];
+                // Warm golden reed tint (not the ambient grassTint): the band
+                // has to READ at gameplay distance, and green-on-green clumps
+                // vanish against the rough. Golden marsh grass pops against
+                // both the water and the bank.
+                const lum = 0.95 + hash2(ox * 1.3, oy * 0.9) * 0.35;
+                const reed = new Color4(lum * 1.18, lum * 1.02, lum * 0.52, 1);
+                placeProto(e.proto, ox, oy, 4.2 + hash2(ox - 2, oy + 5) * 2.0, theme.lushGrass ? reed : undefined);
+              }
+            }
+          }
+        }
+      });
+    }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
         const heatherSet = pick(theme.heatherKeys ?? []);

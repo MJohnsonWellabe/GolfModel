@@ -71,11 +71,24 @@ export interface CourseTheme {
   /** Flower mesh mix (defaults to FLOWER_KEYS). More variety = more bloom
    *  shapes; with lushGrass they also render multi-colored. */
   flowerKeys?: readonly string[];
+  /** Course-wide default colorway ("#rrggbb") for hand-placed garden beds.
+   *  A bed without its own `colors` inherits this, so a course with a floral
+   *  identity (Wildwood's azalea pink/white) states it ONCE and every bed
+   *  follows — the generic rainbow only appears where a course sets nothing
+   *  (visual audit: 7 of Wildwood's beds had drifted off-palette). A bed may
+   *  still override per-hole with its own `colors`. */
+  gardenColors?: readonly string[];
   /** PHOTO-textured heather / links-fescue card mix planted as the dense
    *  `tallGrass` fields (links courses). Unlike grassKeys these keep their own
    *  image texture (natureModels heather path) so the fescue/heather reads real,
    *  incl. the purple heather bloom. */
   heatherKeys?: readonly string[];
+  /** Waterline margin scatter (opt-in): a thin broken band of these species
+   *  planted just up the bank of every water hazard, so water announces its
+   *  edge instead of meeting turf as two flat colors. `stone_*` keys mix in
+   *  as occasional boulders; everything else plants as reed-height clumps.
+   *  Omit for clean-shored courses (links ocean). */
+  shorelineKeys?: readonly string[];
   /** Native plants scattered ON exposed sand (Pinehurst-style wiregrass/bush
    *  clumps in the waste). Opt-in — undefined leaves the sand bare. */
   sandPlantKeys?: readonly string[];
@@ -267,7 +280,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bushKeys'
     | 'grassKeys'
     | 'flowerKeys'
+    | 'gardenColors'
     | 'heatherKeys'
+    | 'shorelineKeys'
     | 'sandPlantKeys'
     | 'sandPlantStep'
     | 'sandPlantKeep'
@@ -334,7 +349,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.bushKeys = strings(spec.bushKeys) ?? DEFAULT_THEME.bushKeys;
   t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
+  t.gardenColors = strings(spec.gardenColors);
   t.heatherKeys = strings(spec.heatherKeys);
+  t.shorelineKeys = strings(spec.shorelineKeys);
   t.sandPlantKeys = strings(spec.sandPlantKeys);
   if (typeof spec.sandPlantStep === 'number') t.sandPlantStep = spec.sandPlantStep;
   if (typeof spec.sandPlantKeep === 'number') t.sandPlantKeep = spec.sandPlantKeep;

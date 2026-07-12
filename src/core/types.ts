@@ -231,6 +231,12 @@ export interface HoleData {
   /** Footprint (world px) of the built tee platform; default when omitted. */
   teeBox?: { w: number; d: number };
   green: EllipseArea;
+  /** Optional SECOND green lobe, unioned with `green` by every consumer
+   *  (physics surface test, fringe, both bakes, plateau mesh, putt aids).
+   *  Two overlapping ellipses make kidney/L-shaped greens — real pin-position
+   *  strategy (a back lobe tucked behind a bunker) that a single ellipse
+   *  can't express. The pin may sit in either lobe. */
+  green2?: EllipseArea;
   /** Break on the putting surface. */
   slope: GreenSlope;
   pin: Point;

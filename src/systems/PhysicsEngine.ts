@@ -2,7 +2,7 @@ import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
 import { collectTreeBlobs, TreeBlob } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
-import { clamp, dist, pointInGreen, pointInPolygon } from '../utils/Geometry';
+import { clamp, dist, pointInGreens, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
   Golfer,
@@ -261,7 +261,7 @@ export class PhysicsEngine {
   surfaceAt(x: number, y: number): Surface {
     const h = this.hole;
     const hz = h.hazards;
-    if (pointInGreen(x, y, h.green)) return 'green';
+    if (pointInGreens(x, y, h.green, h.green2)) return 'green';
     // ONE pass over the hazards (instead of four separate typed loops) — the
     // scatter calls this tens of thousands of times on hazard-dense holes and
     // the common rough/fairway point used to walk every hazard three or four
@@ -295,7 +295,7 @@ export class PhysicsEngine {
     // all win the overlap, so a fairway "island" or a treeline can be drawn
     // straight over sand without it eating the landing area or the woods.
     if (scoringBunker) return 'sand';
-    if (pointInGreen(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
+    if (pointInGreens(x, y, h.green, h.green2, FRINGE_MARGIN)) return 'fringe';
     if (water) return 'water';
     if (trees) return 'trees';
     for (const poly of h.fairway) {
