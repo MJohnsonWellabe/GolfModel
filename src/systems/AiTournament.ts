@@ -3,6 +3,7 @@ import { CourseData, Golfer } from '../core/types';
 import { mulberry32 } from '../utils/Random';
 import { simulateRound } from './RoundSimulator';
 
+
 /**
  * AI Tournament (the mode that replaced the Ace Challenge): the player grinds
  * three rounds on three different courses against a field of AI pros. The AI
@@ -76,6 +77,18 @@ export function createAiTournament(
 }
 
 /**
+ * "Tournament form": the raw simulator plays the AI conservatively (no spin
+ * control, no green-reading), so its per-round means sit around E to +0.6 —
+ * far behind a decent human's ~-1.5. Each difficulty tier gets a mean shift
+ * (stochastically rounded to whole strokes with the tournament's own seeded
+ * rng, so the DISTRIBUTION keeps the sim's natural variance) that lands the
+ * field in the calibrated band: JD ≈ -0.3, Sergio ≈ -0.8, Phil ≈ -1.4,
+ * Tiger ≈ -2.0 per round — Tiger usually leads, but sd ~1.3-1.6 means
+ * usually, not always.
+ */
+const FORM_SHIFT: Record<string, number> = { Easy: 0.9, Medium: 1.3, Hard: 1.5, Legend: 1.6 };
+
+/**
  * Record the player's just-finished round and produce the field's scores for
  * the same course. Per-entrant seeds mix the tournament seed with the round
  * and entrant indices (large primes keep the simulator's mulberry streams
@@ -89,8 +102,14 @@ export function completeRound(t: AiTournamentState, courses: Record<string, Cour
   t.player.toPars.push(playerToPar);
   t.field.forEach((e, i) => {
     const res = simulateRound(course, e.golfer, t.seed + t.played * 7919 + i * 104729, RULES.holesPerRound);
-    e.rounds.push(res.total);
-    e.toPars.push(res.toPar);
+    const base = FORM_SHIFT[e.difficulty] ?? 1;
+    const rng = mulberry32((t.seed ^ 0x9e3779b9) + t.played * 6151 + i * 3079);
+    const shift = Math.floor(base) + (rng() < base % 1 ? 1 : 0);
+    // Never shift a round below one stroke per hole (absurd floor, unreachable
+    // in practice — pure belt-and-braces for tiny custom courses).
+    const total = Math.max(RULES.holesPerRound, res.total - shift);
+    e.rounds.push(total);
+    e.toPars.push(res.toPar - (res.total - total));
   });
   t.played++;
 }
