@@ -154,6 +154,9 @@ export const STORE_CATALOG: StoreItem[] = [
   ),
   { id: 'pal_fox', kind: 'pal', name: 'Foxy', price: 0, rarity: 'common', pal: 'fox' },
   { id: 'pal_dragon', kind: 'pal', name: 'Ember', price: 0, rarity: 'common', pal: 'dragon' },
+  { id: 'pal_gecko', kind: 'pal', name: 'Zippy', price: 100, rarity: 'common', pal: 'gecko' },
+  { id: 'pal_crab', kind: 'pal', name: 'Clawdia', price: 200, rarity: 'rare', pal: 'crab' },
+  { id: 'pal_trex', kind: 'pal', name: 'Rexy', price: 300, rarity: 'special', pal: 'trex' },
   { id: 'clubskin_steel', kind: 'clubskin', name: 'Steel Clubs', price: 0, rarity: 'common', color: 0x9aa6b2 },
   ...CLUBSKIN_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `clubskin_${id}`, kind: 'clubskin', name, price, rarity, color })
