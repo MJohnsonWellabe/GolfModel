@@ -1,3 +1,4 @@
+import earcut from 'earcut';
 import { EllipseArea, Point, Polygon } from '../core/types';
 
 /** Ray-casting point-in-polygon test. */
@@ -258,4 +259,105 @@ export function offsetPolyline(line: Point[], halfWidths: number[], roundCaps = 
   const outS = unit(line[0].x - line[1].x, line[0].y - line[1].y);
   const startCap = arc(line[0].x, line[0].y, normS, outS, hwS);
   return [...left, ...endCap, ...right.reverse(), ...startCap];
+}
+
+/** Shortest distance from (x,y) to a line segment. */
+function distToSegment(x: number, y: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len2 = dx * dx + dy * dy || 1e-9;
+  const t = Math.max(0, Math.min(1, ((x - x1) * dx + (y - y1) * dy) / len2));
+  return Math.hypot(x - (x1 + t * dx), y - (y1 + t * dy));
+}
+
+/** Shortest distance from (x,y) to the nearest edge of a polygon's boundary. */
+function distToPolygonEdges(x: number, y: number, poly: Polygon): number {
+  let min = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    min = Math.min(min, distToSegment(x, y, poly[i][0], poly[i][1], poly[j][0], poly[j][1]));
+  }
+  return min;
+}
+
+/**
+ * Approximate "pole of inaccessibility" — the interior point deepest inside
+ * the polygon (farthest from any edge) — via a coarse grid search over the
+ * bounding box. Robust for any simple polygon shape, including winding/
+ * concave ones (a meandering creek) where the centroid can sit outside the
+ * shape entirely. Returns null if nothing inside the polygon is found (a
+ * degenerate/zero-area input).
+ */
+function findDeepestPoint(poly: Polygon): Point | null {
+  const xs = poly.map((p) => p[0]);
+  const ys = poly.map((p) => p[1]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const GRID = 22;
+  let best: Point | null = null;
+  let bestD = -Infinity;
+  for (let i = 0; i <= GRID; i++) {
+    const x = minX + ((maxX - minX) * i) / GRID;
+    for (let j = 0; j <= GRID; j++) {
+      const y = minY + ((maxY - minY) * j) / GRID;
+      if (!pointInPolygon(x, y, poly)) continue;
+      const d = distToPolygonEdges(x, y, poly);
+      if (d > bestD) {
+        bestD = d;
+        best = { x, y };
+      }
+    }
+  }
+  return best;
+}
+
+export interface DepthTriangulation {
+  /** Every vertex the triangulation draws, in [x, y] world pairs. Includes a
+   *  duplicated boundary vertex if a deep point was spliced in (see deepIndex). */
+  points: number[][];
+  /** Triangle index triplets into `points`, winding-consistent with the input polygon. */
+  triangles: number[];
+  /** Index into `points` of the interior "deepest" vertex, or null if the
+   *  polygon was too thin/degenerate for one to be found (uniform color then). */
+  deepIndex: number | null;
+}
+
+/**
+ * Triangulate a (possibly concave/winding) polygon for correct full-area
+ * coverage, via earcut — the shore-to-centroid "fan" a hand-plotted pond
+ * outline can get away with breaks down for a non-star-shaped shape (a
+ * meandering creek, an inlet): the fan's triangles cut across dry land at
+ * concave bends and leave gaps at the concavities themselves, showing the
+ * ground through the water in patches. Also locates one interior "deepest"
+ * point (see findDeepestPoint) and splices it into the ring as a zero-width
+ * slit from its nearest boundary vertex — earcut has no native support for
+ * a free interior Steiner point, but a slit is a standard, robust way to
+ * hand it one — so callers can still paint a shore→deep-water color
+ * gradient instead of a flat single tone.
+ */
+export function triangulatePolygonWithDepth(poly: Polygon): DepthTriangulation {
+  const deep = findDeepestPoint(poly);
+  if (!deep) {
+    const flat = poly.flatMap((p) => p);
+    return { points: poly.map((p) => [p[0], p[1]]), triangles: earcut(flat), deepIndex: null };
+  }
+  let nearestI = 0;
+  let nearestD = Infinity;
+  for (let i = 0; i < poly.length; i++) {
+    const d = Math.hypot(poly[i][0] - deep.x, poly[i][1] - deep.y);
+    if (d < nearestD) {
+      nearestD = d;
+      nearestI = i;
+    }
+  }
+  const points = [
+    ...poly.slice(0, nearestI + 1).map((p) => [p[0], p[1]]),
+    [deep.x, deep.y],
+    [poly[nearestI][0], poly[nearestI][1]],
+    ...poly.slice(nearestI + 1).map((p) => [p[0], p[1]])
+  ];
+  const deepIndex = nearestI + 1;
+  const flat = points.flatMap((p) => p);
+  return { points, triangles: earcut(flat), deepIndex };
 }

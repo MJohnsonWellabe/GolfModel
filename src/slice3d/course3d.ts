@@ -35,7 +35,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { greenBoundaryScale, pointInGreen, pointInPolygon } from '../utils/Geometry';
+import { greenBoundaryScale, pointInGreen, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -564,43 +564,33 @@ export function buildCourse(
         waterMirror.renderList = list;
       });
     }
-    const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
-    const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
-    // Fan: deep center + shore ring + a mid ring for the depth gradient
-    const positions: number[] = [cx, level, -cy];
+    // Triangulate the ACTUAL hazard outline (earcut) rather than fanning from
+    // the polygon's centroid — the fan assumes the shape is star-convex from
+    // its center, which breaks for a winding/concave outline (a meandering
+    // creek, a harbour inlet): the fan's triangles cut across dry land at
+    // concave bends and leave gaps at the concavities, showing bare ground
+    // through the water in patches ("water still doesn't look right").
+    // triangulatePolygonWithDepth also locates one interior "deepest" point
+    // (farthest from every edge) so the pond can still shade darker toward
+    // its center and lighter toward the shore, same visual intent as before.
+    const ring = hz.polygon;
+    const { points, triangles, deepIndex } = triangulatePolygonWithDepth(ring);
+    const positions: number[] = [];
     const colors: number[] = [];
-    const uvs: number[] = [cx / 90, cy / 90];
+    const uvs: number[] = [];
     const deep = c3(theme.waterDeep);
     // Shore edge: a subtly DARKER, more opaque band (like the bank shadow real
     // water carries at its edge), not the old lightened translucent ring that
     // read as a weird light-blue halo on narrow creeks (Wildwood h1).
     const shore = c3(shade(theme.water, 0.9));
-    colors.push(deep.r, deep.g, deep.b, 0.94);
-    const ring = hz.polygon;
-    const n = ring.length;
-    for (const [x, y] of ring) {
-      // mid ring vertex (60% toward shore): main body color
-      const mx = cx + (x - cx) * 0.6;
-      const my = cy + (y - cy) * 0.6;
-      positions.push(mx, level, -my);
-      uvs.push(mx / 90, my / 90);
-      const body = c3(theme.water);
-      colors.push(body.r, body.g, body.b, 0.88);
-    }
-    for (const [x, y] of ring) {
+    points.forEach(([x, y], i) => {
       positions.push(x, level, -y);
       uvs.push(x / 90, y / 90);
-      colors.push(shore.r, shore.g, shore.b, 0.72); // firm, slightly-darker shoreline
-    }
-    const indices: number[] = [];
-    for (let i = 0; i < n; i++) {
-      const i2 = (i + 1) % n;
-      // center fan to mid ring
-      indices.push(0, 1 + i2, 1 + i);
-      // mid ring to shore ring quads
-      indices.push(1 + i, 1 + n + i2, 1 + n + i);
-      indices.push(1 + i, 1 + i2, 1 + n + i2);
-    }
+      const col = i === deepIndex ? deep : shore;
+      const a = i === deepIndex ? 0.94 : 0.78;
+      colors.push(col.r, col.g, col.b, a);
+    });
+    const indices: number[] = triangles;
     const waterMesh = new Mesh(`water${wi++}`, scene);
     const vd = new VertexData();
     vd.positions = positions;
@@ -621,6 +611,10 @@ export function buildCourse(
     wm.specularPower = 110;
     wm.alpha = 0.95;
     wm.bumpTexture = waterNormalTex;
+    // The earcut winding direction follows the authored polygon's own winding
+    // (not guaranteed same-handed as the old fan code assumed) — double-sided
+    // so the surface is never accidentally backface-culled from above.
+    wm.backFaceCulling = false;
     if (waterMirror) {
       // Fresnel: near-grazing (distant) water reads as a bright mirror; looked at
       // steeply (close) the reflection fades so the depth-tinted body shows —
