@@ -1010,12 +1010,12 @@ export function buildCourse(
         // instant placeholder hull/mast/sail AND (via avgSc below, the same
         // formula) the real ship model's normalizing scale, so nothing pops
         // in size when the uploaded model swaps in.
-        const sc = 2 * (34 + ((i * 37) % 12));
+        const sc = 4 * (34 + ((i * 37) % 12));
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
         const bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
-        const by = hole.pin.y - 205 - ((i * 71) % 150); // behind the green, on the sea
+        const by = hole.pin.y - 250 - ((i * 71) % 170); // behind the green, on the sea (pushed out for the 4x hulls)
         const yaw = (((i * 41) % 100) / 100) * Math.PI * 2;
         const boat = new TransformNode(`boat${i}`, scene);
         boat.position = w2b(bx, by, 0.35);
@@ -1098,7 +1098,7 @@ export function buildCourse(
             p.isPickable = false;
           }
           const length = Math.max(0.001, maxX - minX);
-          const avgSc = 2 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now doubled) placeholder sc spread
+          const avgSc = 4 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now 4x) placeholder sc spread
           const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
           // Instances don't inherit the source mesh's own transform — the
           // normalizing scale/centering has to go on each INSTANCE, same as
@@ -1137,6 +1137,58 @@ export function buildCourse(
       dome.scaling = new Vector3(1.4, 0.16 + ((Math.abs(i) * 7) % 5) * 0.01, 1);
       dome.position = w2b(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
     }
+  }
+
+  // Decorative static props (hole.props — e.g. the wooden footbridge out to
+  // Sable Bay h2's island green). Render-only: no physics footprint. The
+  // model keeps its own textured materials (the wood IS the look); its long
+  // axis is measured and scaled to the authored `len`, then yawed by `rot`.
+  for (const pr of hole.props ?? []) {
+    void LoadAssetContainerAsync(`models/props/${pr.key}.glb`, scene)
+      .then((container) => {
+        container.addAllToScene();
+        const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
+        for (const p of parts) p.bakeCurrentTransformIntoVertices();
+        const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, true) : null;
+        if (!merged) return;
+        merged.refreshBoundingInfo();
+        // Source packs arrive in arbitrary up-conventions (this one stood its
+        // bridges on end), so orient by MEASURED extents: lay the longest
+        // axis flat along local X (the span) before anything else.
+        const bb0 = merged.getBoundingInfo().boundingBox;
+        const ex = bb0.maximum.x - bb0.minimum.x;
+        const ey = bb0.maximum.y - bb0.minimum.y;
+        const ez = bb0.maximum.z - bb0.minimum.z;
+        if (ey >= ex && ey >= ez) merged.rotation = new Vector3(0, 0, Math.PI / 2);
+        else if (ez >= ex && ez >= ey) merged.rotation = new Vector3(0, Math.PI / 2, 0);
+        merged.bakeCurrentTransformIntoVertices();
+        merged.refreshBoundingInfo();
+        const bb = merged.getBoundingInfo().boundingBox;
+        const long = bb.maximum.x - bb.minimum.x || 1;
+        const s = (pr.len ?? 60) / long;
+        // Span scales to the authored length; HEIGHT and deck WIDTH cap in
+        // absolute world units — stretching a small footbridge across 65yd
+        // of water at uniform scale turned its railings into golfer-dwarfing
+        // walls. Local Y is height, local Z the deck width (the yaw below
+        // only reorients the span).
+        const hExt = bb.maximum.y - bb.minimum.y || 1;
+        const wExt = bb.maximum.z - bb.minimum.z || 1;
+        const ys = Math.min(s, 8 / hExt);
+        const zs = Math.min(s, 14 / wExt);
+        merged.scaling = new Vector3(s, ys, zs);
+        merged.rotation = new Vector3(0, pr.rot ?? 0, 0);
+        // Deck at bank height: drop the underside just below the local
+        // ground so the legs stand in the water on a crossing.
+        const gh = heightAt(pr.x, pr.y);
+        merged.position = w2b(pr.x, pr.y, gh - bb.minimum.y * ys - 1.2);
+        merged.isPickable = false;
+        merged.receiveShadows = false;
+        shadows.addShadowCaster(merged);
+        merged.freezeWorldMatrix();
+      })
+      .catch(() => {
+        /* decorative — a failed load just means no prop */
+      });
   }
 
   // ------------------------------------------------------------------ trees
@@ -1409,8 +1461,10 @@ export function buildCourse(
         placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0), undefined, register);
         return;
       }
-      // Accent species (e.g. birch among Timberline's pines) on ~15% of trees.
-      const set = accents.length && hash2(b.x * 1.7, b.y * 0.9) < 0.15 ? accents : trees;
+      // Accent species (e.g. birch among Timberline's pines) on ~15% of trees;
+      // hazards authored `accent: true` ALWAYS plant from the accent set
+      // (deliberate specimens — Sable Bay's fairway/island palms).
+      const set = accents.length && (b.accent || hash2(b.x * 1.7, b.y * 0.9) < 0.15) ? accents : trees;
       if (!set.length) return;
       const e = set[Math.floor(hash2(b.x, b.y) * set.length) % set.length];
       // Conifer silhouettes are tall and narrow; at broadleaf target heights
