@@ -115,13 +115,20 @@ export interface CourseTheme {
    *  broadcast look); the green stays subtle regardless. Real-photo courses
    *  read very muted stripes without this because the turf grain damps them. */
   stripeStrength?: number;
-  /** Fairway mow pattern. Unset = the historical single-direction diagonal
-   *  stripe. `'checker'` = a hard-edged two-tone checkerboard (rows AND
-   *  columns) aligned to the tee→pin axis; the 3D fairway grass carpet follows
-   *  the same pattern so the two tones read as distinct cells, not undulation. */
-  mowPattern?: 'checker';
-  /** Checkerboard cell width in world units (mowPattern='checker'). Default 30
-   *  — small enough that 2–3 cells span a fairway. Ignored otherwise. */
+  /** Fairway mow pattern — each course gets its own so the four don't all read
+   *  identically (playtest: "the current schema fits wildwood best"):
+   *  unset/`'diagonal'` = the historical single-direction 45° diagonal
+   *  stripe; `'checker'` = a hard-edged diamond checkerboard (rows AND
+   *  columns rotated 45° off the tee→pin axis); `'straight'` = parallel
+   *  bands running straight along the tee→pin axis (classic seaside links
+   *  mowing); `'cross'` = the same checkerboard grid as `'checker'` but
+   *  axis-ALIGNED (0°) instead of rotated — reads as small aligned squares
+   *  rather than diamonds. The 3D fairway grass carpet follows the same
+   *  pattern so the two tones read as distinct cells/bands, not undulation. */
+  mowPattern?: 'checker' | 'straight' | 'cross' | 'diagonal';
+  /** Checkerboard/band cell width in world units (mowPattern='checker'/
+   *  'cross'/'straight'). Default 30 — small enough that 2-3 cells span a
+   *  fairway. Ignored for the 'diagonal' default. */
   mowTile?: number;
   /** Greens: paint straight two-tone MOWING COLUMNS (bands running in the
    *  direction of play, alternating `greenLight`/`green`) instead of the default
@@ -219,9 +226,11 @@ export const DEFAULT_THEME: CourseTheme = {
   stripeStrength: 1.15,
   cloudStyle: 'wispy',
   bunkerStones: true,
-  // The fairway mowing DIAMONDS and the greens' two-tone COLUMNS are universal
-  // design language, not a per-course signature (playtest: every course should
-  // have "the fairway pattern").
+  // The greens' two-tone COLUMNS are universal design language. The fairway
+  // mow pattern used to be too, but each course now picks its own (playtest:
+  // "the current schema fits wildwood best" — differentiate the other three)
+  // — this default just covers a course that doesn't set one, and happens to
+  // match Wildwood's own explicit choice.
   mowPattern: 'checker',
   mowTile: 30,
   greenColumns: true,
@@ -361,7 +370,14 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;
-  if (spec.mowPattern === 'checker') t.mowPattern = 'checker';
+  if (
+    spec.mowPattern === 'checker' ||
+    spec.mowPattern === 'straight' ||
+    spec.mowPattern === 'cross' ||
+    spec.mowPattern === 'diagonal'
+  ) {
+    t.mowPattern = spec.mowPattern;
+  }
   if (typeof spec.mowTile === 'number') t.mowTile = spec.mowTile;
   if (typeof spec.greenColumns === 'boolean') t.greenColumns = spec.greenColumns;
   if (typeof spec.greenMowTile === 'number') t.greenMowTile = spec.greenMowTile;
