@@ -1711,6 +1711,51 @@ export function buildCourse(
       }
       });
     }
+    // Fescue lining the HOLE-SIDE lip of every scoring bunker (theme.
+    // bunkerLipFescue — Sable Bay's Pinehurst trademark): a bunker should read
+    // as sand carved out of a fescue-edged dune, not a clean disc dropped onto
+    // turf. Waste/beach/wall bunkers are excluded — waste already gets fescue
+    // growing through the sand itself (tallGrass.waste), and walls/beaches
+    // don't want a soft edge.
+    if (theme.bunkerLipFescue) {
+      popQueue.push(() => {
+        const heatherSet = pick(theme.heatherKeys ?? []);
+        const fescueSet = heatherSet.length ? heatherSet : grasses;
+        if (!fescueSet.length) return;
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'bunker' || hz.waste || hz.beach || hz.wall) continue;
+          const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
+          const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
+          const gx = hole.green.cx - cx;
+          const gy = hole.green.cy - cy;
+          const glen = Math.hypot(gx, gy) || 1;
+          const gux = gx / glen;
+          const guy = gy / glen;
+          const n = hz.polygon.length;
+          for (let i = 0; i < n; i++) {
+            const [x1, y1] = hz.polygon[i];
+            const [x2, y2] = hz.polygon[(i + 1) % n];
+            const segLen = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.round(segLen / 7));
+            for (let s = 0; s < steps; s++) {
+              const t = s / steps;
+              const px = x1 + (x2 - x1) * t;
+              const py = y1 + (y2 - y1) * t;
+              const nx = px - cx;
+              const ny = py - cy;
+              const nlen = Math.hypot(nx, ny) || 1;
+              // Hole-side arc only — the lip nearer the green, not the whole rim.
+              if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
+              if (hash2(px * 1.9, py * 2.3) > 0.55) continue; // thin, natural clumps
+              const ox = px + (nx / nlen) * 2.5;
+              const oy = py + (ny / nlen) * 2.5;
+              if (engine.surfaceAt(ox, oy) !== 'rough') continue;
+              place(fescueSet, ox, oy, 2.4 + hash2(ox + 3, oy) * 1.0);
+            }
+          }
+        }
+      });
+    }
   });
 
   // ---------------------------------------------------- revetted bunker walls
