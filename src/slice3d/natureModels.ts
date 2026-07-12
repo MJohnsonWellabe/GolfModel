@@ -317,6 +317,12 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // Park below ground (kept enabled — Babylon only draws an instanced
           // mesh's instances while its source mesh is enabled).
           p.position.y = -9000;
+          // Tag species that actually read in a blurred water reflection
+          // (tree canopies, cloud meshes) — course3d's mirror render-list
+          // filter uses this instead of blindly including every instance, so
+          // the thousands of grass/flower/heather cards a dense hole scatters
+          // don't get re-rendered into the mirror's RTT every other frame.
+          p.metadata = { reflect: key.startsWith('tree') || key.startsWith('cloud') };
           parts.push(p);
         });
       }

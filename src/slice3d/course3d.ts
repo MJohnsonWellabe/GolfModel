@@ -6,6 +6,7 @@ import {
   DynamicTexture,
   FresnelParameters,
   HemisphericLight,
+  InstancedMesh,
   LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
@@ -529,14 +530,19 @@ export function buildCourse(
       // rebuild the list until their count stops growing, then latch.
       const isReflectable = (m: AbstractMesh): boolean => {
         const nm = m.name;
-        return (
-          nm === 'sky' ||
-          nm.startsWith('peak') ||
-          nm.startsWith('cloud') ||
-          nm.startsWith('cumulus') ||
-          nm.startsWith('cirrus') ||
-          (nm.startsWith('nat') && !nm.startsWith('natProto'))
-        );
+        if (nm === 'sky' || nm.startsWith('peak') || nm.startsWith('cloud') || nm.startsWith('cumulus') || nm.startsWith('cirrus')) {
+          return true;
+        }
+        // Nature instances: only species tagged reflect=true (trees, cloud
+        // meshes — see natureModels.ts) feed the mirror. At a 0.35 RTT ratio
+        // plus adaptive blur, individual grass/flower/heather cards never
+        // resolve anyway — they're pure re-render cost on a dense hole's
+        // thousands of ground-scatter instances (the water-hole meter lag).
+        if (nm.startsWith('nat') && !nm.startsWith('natProto')) {
+          const src = (m as InstancedMesh).sourceMesh;
+          return src?.metadata?.reflect === true;
+        }
+        return false;
       };
       let lastCount = -1;
       let stable = 0;

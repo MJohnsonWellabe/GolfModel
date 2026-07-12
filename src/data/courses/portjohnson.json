@@ -30,8 +30,8 @@
     "sandSculpt": 0.4,
     "edgeWobble": 2.2,
     "tallGrass": {
-      "cap": 6,
-      "density": 15.0,
+      "cap": 6.5,
+      "density": 8.0,
       "waste": true
     },
     "scatterKeys": [
