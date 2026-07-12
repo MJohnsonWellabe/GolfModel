@@ -83,6 +83,12 @@ export interface CourseTheme {
    *  image texture (natureModels heather path) so the fescue/heather reads real,
    *  incl. the purple heather bloom. */
   heatherKeys?: readonly string[];
+  /** Waterline margin scatter (opt-in): a thin broken band of these species
+   *  planted just up the bank of every water hazard, so water announces its
+   *  edge instead of meeting turf as two flat colors. `stone_*` keys mix in
+   *  as occasional boulders; everything else plants as reed-height clumps.
+   *  Omit for clean-shored courses (links ocean). */
+  shorelineKeys?: readonly string[];
   /** Native plants scattered ON exposed sand (Pinehurst-style wiregrass/bush
    *  clumps in the waste). Opt-in — undefined leaves the sand bare. */
   sandPlantKeys?: readonly string[];
@@ -276,6 +282,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'flowerKeys'
     | 'gardenColors'
     | 'heatherKeys'
+    | 'shorelineKeys'
     | 'sandPlantKeys'
     | 'sandPlantStep'
     | 'sandPlantKeep'
@@ -344,6 +351,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.gardenColors = strings(spec.gardenColors);
   t.heatherKeys = strings(spec.heatherKeys);
+  t.shorelineKeys = strings(spec.shorelineKeys);
   t.sandPlantKeys = strings(spec.sandPlantKeys);
   if (typeof spec.sandPlantStep === 'number') t.sandPlantStep = spec.sandPlantStep;
   if (typeof spec.sandPlantKeep === 'number') t.sandPlantKeep = spec.sandPlantKeep;

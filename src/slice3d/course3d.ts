@@ -664,6 +664,7 @@ export function buildCourse(
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
       ...(theme.heatherKeys ?? []),
+      ...(theme.shorelineKeys ?? []),
       ...(theme.sandPlantKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
@@ -1746,6 +1747,70 @@ export function buildCourse(
     // turf. Waste/beach/wall bunkers are excluded — waste already gets fescue
     // growing through the sand itself (tallGrass.waste), and walls/beaches
     // don't want a soft edge.
+    // Shoreline margin scatter (theme.shorelineKeys — opt-in per course): real
+    // water always announces its edge, but every waterline in the game met the
+    // turf as two flat colors (visual audit: "shorelines have no margin"). Walk
+    // each water polygon's perimeter and plant a thin, broken band of reeds/
+    // tall grass with occasional stones just up the bank. Per-EDGE normals
+    // (not centroid direction — a winding creek is concave, so "away from
+    // centroid" points the wrong way along half its length), with the land
+    // side found by probing surfaceAt on both sides of the edge. Planted on
+    // rough only, so fairway/green/sand edges at the water stay clean.
+    if (theme.shorelineKeys && theme.shorelineKeys.length) {
+      popQueue.push(() => {
+        const keyed = pickKeyed(theme.shorelineKeys ?? []);
+        const plants = keyed.filter((e) => !e.key.startsWith('stone'));
+        const stones = keyed.filter((e) => e.key.startsWith('stone'));
+        if (!plants.length && !stones.length) return;
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'water') continue;
+          const n = hz.polygon.length;
+          for (let i = 0; i < n; i++) {
+            const [x1, y1] = hz.polygon[i];
+            const [x2, y2] = hz.polygon[(i + 1) % n];
+            const segLen = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.round(segLen / 9));
+            // Edge normal; land side resolved by probing both sides.
+            let nx = -(y2 - y1) / (segLen || 1);
+            let ny = (x2 - x1) / (segLen || 1);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            if (engine.surfaceAt(mx + nx * 4, my + ny * 4) === 'water') {
+              nx = -nx;
+              ny = -ny;
+            }
+            for (let s = 0; s < steps; s++) {
+              const t = (s + 0.5) / steps;
+              const px = x1 + (x2 - x1) * t;
+              const py = y1 + (y2 - y1) * t;
+              const roll = hash2(px * 2.1, py * 1.7);
+              if (roll > 0.85) continue; // broken clumps, not a hedge
+              const off = 1.5 + hash2(px + 9, py - 4) * 2.5;
+              const ox = px + nx * off + (hash2(px, py + 7) - 0.5) * 2;
+              const oy = py + ny * off + (hash2(py, px - 5) - 0.5) * 2;
+              // Rough or woods-floor banks both take the band (a creek running
+              // through trees still fringes its edge); fairway/green/sand
+              // shores stay clean so the mown line meets the water crisply.
+              const surf = engine.surfaceAt(ox, oy);
+              if (surf !== 'rough' && surf !== 'trees') continue;
+              if (stones.length && roll < 0.13) {
+                const e = stones[Math.floor(hash2(ox + 1, oy + 2) * stones.length) % stones.length];
+                placeProto(e.proto, ox, oy, 0.8 + hash2(ox, oy + 9) * 0.8);
+              } else if (plants.length) {
+                const e = plants[Math.floor(hash2(ox + 4, oy - 3) * plants.length) % plants.length];
+                // Warm golden reed tint (not the ambient grassTint): the band
+                // has to READ at gameplay distance, and green-on-green clumps
+                // vanish against the rough. Golden marsh grass pops against
+                // both the water and the bank.
+                const lum = 0.95 + hash2(ox * 1.3, oy * 0.9) * 0.35;
+                const reed = new Color4(lum * 1.18, lum * 1.02, lum * 0.52, 1);
+                placeProto(e.proto, ox, oy, 4.2 + hash2(ox - 2, oy + 5) * 2.0, theme.lushGrass ? reed : undefined);
+              }
+            }
+          }
+        }
+      });
+    }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
         const heatherSet = pick(theme.heatherKeys ?? []);

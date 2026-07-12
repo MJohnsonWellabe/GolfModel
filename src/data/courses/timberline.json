@@ -41,6 +41,12 @@
       "#9db8e8",
       "#a58fd6"
     ],
+    "shorelineKeys": [
+      "grass_g",
+      "stone_a",
+      "stone_b",
+      "stone_c"
+    ],
     "scatterKeys": [
       "fern_kenney",
       "stump_a",

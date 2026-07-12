@@ -50,6 +50,11 @@
       "#f4a6c8",
       "#ffffff",
       "#e8bfd8"
+    ],
+    "shorelineKeys": [
+      "grass_g",
+      "grass_h",
+      "stone_a"
     ]
   },
   "holes": [
