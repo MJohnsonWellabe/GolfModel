@@ -1001,7 +1001,12 @@ export function buildCourse(
       const placeholders: Mesh[] = [];
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
-        const sc = 34 + ((i * 37) % 12); // sail height in world units (~34-46)
+        // Sail height in world units — doubled (playtest: "boat assets need to
+        // be 2x as big") from the original ~34-46 spread. Feeds both the
+        // instant placeholder hull/mast/sail AND (via avgSc below, the same
+        // formula) the real ship model's normalizing scale, so nothing pops
+        // in size when the uploaded model swaps in.
+        const sc = 2 * (34 + ((i * 37) % 12));
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
@@ -1089,7 +1094,7 @@ export function buildCourse(
             p.isPickable = false;
           }
           const length = Math.max(0.001, maxX - minX);
-          const avgSc = 34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12); // matches the placeholder sc spread
+          const avgSc = 2 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now doubled) placeholder sc spread
           const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
           // Instances don't inherit the source mesh's own transform — the
           // normalizing scale/centering has to go on each INSTANCE, same as
