@@ -1,0 +1,11 @@
+Model Information:
+* title:	Cute pug
+* source:	https://sketchfab.com/3d-models/cute-pug-f9c8c8ff399948d2bd0203642e4e23a1
+* author:	ordenmoria (https://sketchfab.com/ordenmoria)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Cute pug" (https://sketchfab.com/3d-models/cute-pug-f9c8c8ff399948d2bd0203642e4e23a1) by ordenmoria (https://sketchfab.com/ordenmoria) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
