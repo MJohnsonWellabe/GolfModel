@@ -66,6 +66,13 @@ function distToFairway(x: number, y: number, fairway: readonly Polygon[]): numbe
  */
 export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = false): TreeBlob[] {
   const blobs: TreeBlob[] = [];
+  // Trees never grow in water: any trunk whose FINAL position lands inside a
+  // water hazard is skipped — render, bake shadow and collision together, so
+  // an authored woods polygon may safely overlap a pond/creek (the overlap is
+  // simply empty) instead of every course pass hand-carving polygons around
+  // the waterline (recurring playtest bug: "there are trees in the pond").
+  const waterPolys = hole.hazards.filter((z) => z.type === 'water').map((z) => z.polygon);
+  const inWater = (x: number, y: number): boolean => waterPolys.some((w) => pointInPolygon(x, y, w));
   for (const hz of hole.hazards) {
     if (hz.type !== 'trees') continue;
     if (hz.visualOnly && !forRender) continue;
@@ -131,6 +138,7 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           keepThreshold = Math.min(keepThreshold, 1 - t * (1 - FAIRWAY_THIN_FLOOR));
         }
         if (keepThreshold < 1 && blobHash(jx * 1.7, jy * 3.1) > keepThreshold) continue;
+        if (inWater(jx + offX, jy + offY)) continue;
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
           x: jx + offX,
@@ -148,9 +156,11 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     // collision (playtest: Timberline h1's fairway tree had no hitbox and no
     // mesh). Guarantee at least one trunk per authored hazard by planting it at
     // the polygon centroid, deterministically sized/tinted from that centroid.
-    if (blobs.length === before) {
-      const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
-      const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
+    const ccx = xs.reduce((a, b) => a + b, 0) / xs.length;
+    const ccy = ys.reduce((a, b) => a + b, 0) / ys.length;
+    if (blobs.length === before && !inWater(ccx + offX, ccy + offY)) {
+      const cx = ccx;
+      const cy = ccy;
       const k = blobHash(cx + 31, cy + 17);
       blobs.push({
         x: cx + offX,
