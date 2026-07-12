@@ -24,7 +24,7 @@
     "haze": "#d3e7f2",
     "hazeStrength": 0.5,
     "backdrop": "sea",
-    "blossomChance": 0.05,
+    "blossomChance": 0.0,
     "scatterKeys": [
       "stone_a",
       "stone_b",
@@ -32,11 +32,23 @@
     ],
     "backdropTreeStep": 92,
     "sandPlantKeys": [
-      "fern_kenney"
+      "fern_kenney",
+      "bush_kenney_a",
+      "bush_juniper"
     ],
     "seaDunes": false,
-    "sandPlantStep": 44,
-    "sandPlantKeep": 0.92
+    "sandPlantStep": 38,
+    "sandPlantKeep": 0.95,
+    "heatherKeys": [
+      "heather_fescue_a",
+      "heather_fescue_b",
+      "heather_fescue_c"
+    ],
+    "bunkerLipFescue": true,
+    "tallGrass": {
+      "cap": 4.5,
+      "density": 4.0
+    }
   },
   "holes": [
     {

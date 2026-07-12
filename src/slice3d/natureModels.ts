@@ -68,6 +68,14 @@ export const CLOUD_KEYS = [
  *  are chunky slabs at turf scale, so ground scatter no longer uses them. */
 export const GRASS_KEYS = ['grass_c', 'grass_d', 'grass_e', 'grass_f'] as const;
 export const FLOWER_KEYS = ['flower_a'] as const;
+/** Uploaded, PHOTO-textured props (see TEXTURED_KEYS below) — not in any
+ *  default key array; a course opts in explicitly (theme.treeKeys/flowerKeys,
+ *  a GardenBed.flowerKeys, or course3d wiring the sakura into the blossom
+ *  system) so every other course's prop set stays byte-identical. The ship
+ *  model is a separate direct load in course3d (replacing the procedural
+ *  sailboat) — it isn't instanced scatter, so it never goes through this
+ *  prototype pipeline at all. */
+export const UPLOADED_KEYS = ['tree_sakura', 'flower_coreopsis'] as const;
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -80,7 +88,8 @@ const ALL_KEYS = [
   ...EXTRA_BUSH_KEYS,
   ...CLOUD_KEYS,
   ...GRASS_KEYS,
-  ...FLOWER_KEYS
+  ...FLOWER_KEYS,
+  ...UPLOADED_KEYS
 ];
 
 export interface NaturePalette {
@@ -227,37 +236,56 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       // vertex data plus its own transform. Keeping one mesh per material
       // avoids the multi-material instancing path.
       const byMat = new Map<string, Mesh[]>();
-      // Heather/links-fescue cards are PHOTO-textured (a real grass/heather
-      // image with alpha), unlike every other prop which is recolored by slot.
-      // Keep their imported texture on a flat, alpha-tested, self-lit material so
-      // the photo reads true (and the purple heather stays purple).
+      // Heather and the uploaded sakura/coreopsis are PHOTO-textured (a real
+      // image with alpha) — unlike every other prop, which is recolored flat
+      // by slot, these keep their imported texture on a flat, alpha-tested,
+      // self-lit material so the photo reads true (purple heather stays
+      // purple; a blossom or petal photo isn't tinted away). Heather ships
+      // ONE texture shared by every primitive; the uploads ship several
+      // distinct materials (trunk vs blossom canopy, stem vs petal…), so each
+      // SOURCE material name gets its own cached textured material rather
+      // than collapsing to one.
       const isHeather = key.startsWith('heather');
-      let heatherMat: StandardMaterial | undefined;
+      const keepTexture = isHeather || (UPLOADED_KEYS as readonly string[]).includes(key);
+      const texturedMats = new Map<string, StandardMaterial>();
+      const buildTexturedMat = (mm: Mesh, matName: string): StandardMaterial => {
+        const tm = new StandardMaterial(`natTex-${key}-${matName}`, scene);
+        const src = mm.material as unknown as { albedoTexture?: Texture; getActiveTextures?: () => Texture[] };
+        const tex = src?.albedoTexture ?? src?.getActiveTextures?.()?.[0];
+        if (tex) {
+          // Cut the card down to its true silhouette using the photo's OWN
+          // alpha channel. IMPORTANT: use ONLY the diffuse alpha — an extra
+          // opacityTexture here fought this and left the whole opaque quad
+          // showing (the "golden block" playtest bug). ALPHATEST (not blend)
+          // so instanced cards need no depth sorting.
+          tex.hasAlpha = true;
+          tm.diffuseTexture = tex;
+          tm.useAlphaFromDiffuseTexture = true;
+          tm.diffuseTexture.getAlphaFromRGB = false;
+        }
+        tm.emissiveColor = c3(0x5a5a5a); // lift so the texture isn't dark under the sun
+        tm.specularColor = c3(0x000000);
+        tm.backFaceCulling = false;
+        tm.transparencyMode = 1; // ALPHATEST — crisp cutout
+        tm.alphaCutOff = 0.4;
+        // Explicit depth write: the only cutout-alpha materials in the nature
+        // set, so occlusion against opaque trees/props is never ambiguous.
+        tm.forceDepthWrite = true;
+        return tm;
+      };
       raw.forEach((mm) => {
         let mat: StandardMaterial;
-        if (isHeather) {
-          if (!heatherMat) {
-            heatherMat = new StandardMaterial(`natHeather-${key}`, scene);
-            const src = mm.material as unknown as { albedoTexture?: Texture; getActiveTextures?: () => Texture[] };
-            const tex = src?.albedoTexture ?? src?.getActiveTextures?.()?.[0];
-            if (tex) {
-              // Cut the rectangular card down to the grass-blade silhouette using
-              // the photo's OWN alpha channel. IMPORTANT: use ONLY the diffuse
-              // alpha — an extra opacityTexture here fought this and left the whole
-              // opaque quad showing (the "golden block" playtest bug). ALPHATEST
-              // (not blend) so thousands of instanced cards need no depth sorting.
-              tex.hasAlpha = true;
-              heatherMat.diffuseTexture = tex;
-              heatherMat.useAlphaFromDiffuseTexture = true;
-              heatherMat.diffuseTexture.getAlphaFromRGB = false;
-            }
-            heatherMat.emissiveColor = c3(0x5a5a5a); // lift so the cards aren't dark under the sun
-            heatherMat.specularColor = c3(0x000000);
-            heatherMat.backFaceCulling = false;
-            heatherMat.transparencyMode = 1; // ALPHATEST — crisp grass-card cutout
-            heatherMat.alphaCutOff = 0.4;
+        if (keepTexture) {
+          // Heather cards all share one texture per key; the uploads keep
+          // one material PER SOURCE slot (trunk stays opaque bark-brown-ish,
+          // canopy/petals keep their real photo).
+          const matKey = isHeather ? key : (mm.material?.name ?? key);
+          let tm = texturedMats.get(matKey);
+          if (!tm) {
+            tm = buildTexturedMat(mm, matKey);
+            texturedMats.set(matKey, tm);
           }
-          mat = heatherMat;
+          mat = tm;
         } else {
           mat = pickMat(mm.material?.name ?? '', key, mm.name);
         }
@@ -270,7 +298,9 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       const parts: Mesh[] = [];
       let minY = Infinity;
       let maxY = -Infinity;
-      const isFlower = key.startsWith('flower');
+      // Textured flowers (coreopsis) keep their real petal photo/tint as-is —
+      // splitting into a tintable petal half would recolor a photograph.
+      const isFlower = key.startsWith('flower') && !keepTexture;
       for (const group of byMat.values()) {
         const merged = Mesh.MergeMeshes(group, true, true, undefined, false, false);
         if (!merged) continue;
@@ -287,6 +317,12 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // Park below ground (kept enabled — Babylon only draws an instanced
           // mesh's instances while its source mesh is enabled).
           p.position.y = -9000;
+          // Tag species that actually read in a blurred water reflection
+          // (tree canopies, cloud meshes) — course3d's mirror render-list
+          // filter uses this instead of blindly including every instance, so
+          // the thousands of grass/flower/heather cards a dense hole scatters
+          // don't get re-rendered into the mirror's RTT every other frame.
+          p.metadata = { reflect: key.startsWith('tree') || key.startsWith('cloud') };
           parts.push(p);
         });
       }

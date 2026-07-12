@@ -272,11 +272,13 @@ export class PhysicsEngine {
     let water = false;
     let trees = false;
     let beach = false;
+    let waste = false;
     for (let i = 0; i < hz.length; i++) {
       const t = hz[i].type;
       if (t === 'bunker') {
         if (!this.inHazard(i, x, y)) continue;
         if (hz[i].beach) beach = true;
+        else if (hz[i].waste) waste = true;
         else {
           scoringBunker = true;
           break;
@@ -288,8 +290,10 @@ export class PhysicsEngine {
       }
     }
     // Precedence: green > scoring-bunker > fringe > water > trees > fairway >
-    // BEACH > rough. Beach comes last so a coastal band only replaces rough (the
-    // sea, woods and maintained turf all win the overlap, so it never traps play).
+    // WASTE/BEACH > rough. Beach/waste come last so a coastal band or a links
+    // waste sprawl only replaces rough — the sea, woods and maintained turf
+    // all win the overlap, so a fairway "island" or a treeline can be drawn
+    // straight over sand without it eating the landing area or the woods.
     if (scoringBunker) return 'sand';
     if (pointInGreen(x, y, h.green, FRINGE_MARGIN)) return 'fringe';
     if (water) return 'water';
@@ -297,7 +301,7 @@ export class PhysicsEngine {
     for (const poly of h.fairway) {
       if (pointInPolygon(x, y, poly)) return 'fairway';
     }
-    if (beach) return 'sand';
+    if (beach || waste) return 'sand';
     return 'rough';
   }
 
@@ -624,6 +628,23 @@ export class PhysicsEngine {
 
       // Rolling phase -----------------------------------------------------
       const surf = this.surfaceAt(x, y);
+      // A ball still rolling with real pace that reaches an actual trunk is
+      // damped exactly like a flight-phase strike (playtest: "I hit through
+      // it every time" on a corner tree — a low runner that landed just short
+      // of the canopy used to roll straight through it untouched, because
+      // only the airborne path was ever checked against nearTree(); the high
+      // `friction.trees` alone slows a roll, it doesn't stop one). Gated on
+      // `surf === 'trees'` so the existing surface precedence still governs
+      // (a green/bunker/water point never gets treated as a tree hit here).
+      if (surf === 'trees' && (this.nearTree(x, y) || this.inBuilding(x, y))) {
+        hitTrees = true;
+        const speed0 = Math.hypot(vx, vy);
+        if (speed0 > 0) {
+          const out = Math.min(speed0 * PHYSICS.treeDamp, PHYSICS.treeKillSpeed);
+          vx = (vx / speed0) * out;
+          vy = (vy / speed0) * out;
+        }
+      }
       if (surf === 'water') {
         waterPenalty = true;
         break;

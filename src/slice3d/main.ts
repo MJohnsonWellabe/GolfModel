@@ -1113,13 +1113,19 @@ class HoleScene {
       // Read up/downhill from the SAME slope field the ball actually rolls
       // through (slopeAccelAlong — what breakAccel integrates and the AI paces
       // off), not a loose geometric projection, so the read is CONSISTENT with
-      // what the putt does. Sized so the player's rule of thumb — "aim ~1 ft
-      // longer for every 2 in uphill" — holes the putt for any length or slope:
-      // the shown rise is 2× the extra aim the pace model needs (extra fraction
-      // = -aPar/μ, μ = green friction), which is why 2 in → +1 ft, 4 in → +2 ft.
-      const len = Math.hypot(dxp, dyp) || 1;
-      const aPar = this.engine2d.slopeAccelAlong(this.state.ballPos, Math.atan2(dyp, dxp), len);
-      const extraAimFt = len * (-aPar / PHYSICS.friction.green) * 1.5; // +uphill ⇒ aim longer
+      // what the putt does. Measured along ball→CUP at the cup distance — a
+      // stable terrain read that doesn't change as the player drags the aim
+      // marker (dragging used to inflate the shown rise, FB feedback "putting
+      // distance on hills seems off"). Sized so the player's rule of thumb —
+      // "aim ~1 ft longer for every 2 in uphill" — holes the putt for any
+      // length or slope: the shown rise is 2× the extra aim the pace model
+      // needs (extra fraction = -aPar/μ, μ = green friction), which is why
+      // 2 in → +1 ft, 4 in → +2 ft, 2 ft → +12 ft.
+      const pdx = this.hole.pin.x - bx;
+      const pdy = this.hole.pin.y - by;
+      const cupLen = Math.hypot(pdx, pdy) || 1;
+      const aPar = this.engine2d.slopeAccelAlong(this.state.ballPos, Math.atan2(pdy, pdx), cupLen);
+      const extraAimFt = cupLen * (-aPar / PHYSICS.friction.green) * 1.5; // +uphill ⇒ aim longer
       elevFt = extraAimFt / 6; // rise(ft) = 2·extraAim(in) → shown as inches below
     } else {
       // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)

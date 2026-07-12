@@ -4,12 +4,12 @@ import { FRINGE_VISUAL } from '../systems/PhysicsEngine';
 
 /**
  * Bunkers that run under the green get sliced flat along the green's rim (the
- * green wins surface precedence). Carve their green-facing edge back to hug the
- * collar so they read as natural sand ending BEFORE the green. Gated to one
- * representative hole for a look-approval before it goes universal.
- * TODO(pass6): once approved, drop the gate and clip every hole's bunkers.
+ * green wins surface precedence). Carve their green-facing edge back to hug
+ * the collar so they read as natural sand ending BEFORE the green — was
+ * gated to Wildwood hole 3 for a look-approval; approved (visual pass 7:
+ * Timberline hole 2's greenside bunkers were being "eaten" by the green the
+ * same way), so it now applies to every hole.
  */
-const BUNKER_CLIP_HOLES: Array<{ course: string; hole: number }> = [{ course: 'Wildwood Glen', hole: 3 }];
 
 /**
  * Course authoring format (schema v2) → runtime `CourseData` compiler.
@@ -50,6 +50,20 @@ const RIBBON_SAMPLES = 9;
  *  a general rule for all courses (authored bunkers are sharp-cornered polys). */
 const BUNKER_ROUND_ITERATIONS = 2;
 
+/** Chaikin passes applied to every water outline — a lighter touch than
+ *  bunkers (blunt stream-end caps just need their straight chop softened
+ *  into a taper, not the fully organic bunker-lip look). */
+const WATER_ROUND_ITERATIONS = 1;
+
+// Treeline visual rounding lives in CourseTexture's ground-color/shadow bake
+// ONLY (not here). Trees hazards drive per-trunk collision via a grid sampled
+// off the polygon's exact bounding box (treeField.collectTreeBlobs) — a
+// narrow authored corridor (e.g. Timberline's "Pine Alley") can have as
+// little as a couple of world px of margin between two facing woods, and
+// even a small Chaikin nudge there was enough to occasionally wall off the
+// AI's escape route (playability sim caught it). The baked ground patch
+// doesn't have that fragility, so it gets the soft edge instead.
+
 function isRibbon(f: FairwaySpec): f is FairwayRibbon {
   return !Array.isArray(f);
 }
@@ -88,10 +102,15 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       // Round every bunker outline once, here at the single compile choke point,
       // so physics (surfaceAt), the texture bake and the 3D scatter all read the
       // same soft-edged ring — the sand drawn and the sand played can't diverge.
+      // Water gets the same treatment: hand-plotted shorelines end in blunt,
+      // few-point caps (a stream mouth chopped off in 2-3 points) that read as
+      // an abrupt straight edge ("water just abruptly ends") — water has none
+      // of the trunk-sampling fragility that kept trees off this path (its
+      // physics is a plain point-in-polygon test), so rounding it is safe.
       hazards: h.hazards.map((hz) => {
+        if (hz.type === 'water') return { ...hz, polygon: roundPolygon(hz.polygon, WATER_ROUND_ITERATIONS) };
         if (hz.type !== 'bunker') return hz;
-        const clip = BUNKER_CLIP_HOLES.some((t) => t.course === data.name && t.hole === h.number);
-        const base = clip ? clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL) : hz.polygon;
+        const base = clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL);
         return { ...hz, polygon: roundPolygon(base, BUNKER_ROUND_ITERATIONS) };
       })
       };

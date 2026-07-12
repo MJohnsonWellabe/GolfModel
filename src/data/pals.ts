@@ -8,7 +8,7 @@
  * The starter pair is free and owned by default; future pals arrive as priced
  * `pal` items in the store catalog.
  */
-export type PalKey = 'fox' | 'dragon';
+export type PalKey = 'fox' | 'dragon' | 'gecko' | 'trex' | 'crab';
 
 export interface PalDef {
   key: PalKey;
@@ -32,8 +32,15 @@ const def = (key: PalKey, name: string, targetHeight: number, icon: string): Pal
 
 // Sizes bumped +50% (playtest — pals read too small next to the golfer): fox
 // 2.4 -> 3.6, dragon 3.0 -> 4.5 (golfers stand 5.2). setSizeMult keeps the
-// putting-view shrink proportional.
-export const PALS: PalDef[] = [def('fox', 'Foxy', 3.6, '🦊'), def('dragon', 'Ember', 4.5, '🐉')];
+// putting-view shrink proportional. Gecko/trex/crab sized the same way —
+// low-slung critters shorter, the trex the tallest pal in the roster.
+export const PALS: PalDef[] = [
+  def('fox', 'Foxy', 3.6, '🦊'),
+  def('dragon', 'Ember', 4.5, '🐉'),
+  def('gecko', 'Zippy', 2.6, '🦎'),
+  def('trex', 'Rexy', 4.8, '🦖'),
+  def('crab', 'Clawdia', 2.4, '🦀')
+];
 
 export function palByKey(key: string | undefined): PalDef | undefined {
   return PALS.find((p) => p.key === key);

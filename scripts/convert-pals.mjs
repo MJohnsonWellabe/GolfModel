@@ -21,15 +21,25 @@ const SRC = path.join(root, 'asset-packs', 'pals');
 const OUT = path.join(root, 'assets', 'models', 'pals');
 
 /**
- * outKey -> { src, ratio, error }. The dragon is a 200k-tri AI scan and needs
- * a hard decimation to sit next to ~10k-tri golfers; the fox is hand-modeled
- * at 20k and only gets a trim. Both drop normal maps: pals are small stylized
- * pets read at fairway distance, and the fox's 2048px normal PNG alone was
- * 4.8MB of its 6.7MB payload.
+ * outKey -> { src, ratio, error, skipSimplify?, baseColor? }. The dragon and
+ * crab are AI/photogrammetry scans (200k / 60k tris) and need a hard
+ * decimation to sit next to ~10k-tri golfers; the fox is hand-modeled at 20k
+ * and only gets a trim. All drop normal maps: pals are small stylized pets
+ * read at fairway distance, and the fox's 2048px normal PNG alone was 4.8MB
+ * of its 6.7MB payload.
+ *
+ * `skipSimplify` bypasses the decimate step entirely — for a low-tri SKINNED
+ * mesh (the trex) simplification isn't needed and risks the joint-weight
+ * remap. `baseColor` injects a flat PBR material on any primitive that ships
+ * without one (also the trex — a bare glTF default material renders as
+ * near-black metal without this).
  */
 const MANIFEST = {
   fox: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001 },
-  dragon: { src: 'dragon_raw.glb', ratio: 0.13, error: 0.02 }
+  dragon: { src: 'dragon_raw.glb', ratio: 0.13, error: 0.02 },
+  gecko: { src: 'gecko_raw.glb', ratio: 0.7, error: 0.001 },
+  trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.42, 0.48, 0.28, 1] },
+  crab: { src: 'mystery_raw.glb', ratio: 0.16, error: 0.02 }
 };
 
 const io = new NodeIO();
@@ -46,7 +56,7 @@ function triCount(document) {
   return Math.round(tris);
 }
 
-for (const [key, { src, ratio, error }] of Object.entries(MANIFEST)) {
+for (const [key, { src, ratio, error, skipSimplify, baseColor }] of Object.entries(MANIFEST)) {
   const document = await io.read(path.join(SRC, src));
   const before = triCount(document);
 
@@ -55,14 +65,19 @@ for (const [key, { src, ratio, error }] of Object.entries(MANIFEST)) {
     mat.setOcclusionTexture(null);
   }
 
-  await document.transform(
-    dedup(),
-    weld(),
-    simplify({ simplifier: MeshoptSimplifier, ratio, error, lockBorder: false }),
-    prune(),
-    textureCompress({ encoder: sharp, targetFormat: 'jpeg', quality: 85, resize: [1024, 1024] }),
-    quantize()
-  );
+  if (baseColor) {
+    const mat = document.createMaterial(`${key}Skin`).setBaseColorFactor(baseColor).setMetallicFactor(0).setRoughnessFactor(0.85);
+    for (const mesh of document.getRoot().listMeshes()) {
+      for (const prim of mesh.listPrimitives()) {
+        if (!prim.getMaterial()) prim.setMaterial(mat);
+      }
+    }
+  }
+
+  const steps = [dedup(), weld()];
+  if (!skipSimplify) steps.push(simplify({ simplifier: MeshoptSimplifier, ratio, error, lockBorder: false }));
+  steps.push(prune(), textureCompress({ encoder: sharp, targetFormat: 'jpeg', quality: 85, resize: [1024, 1024] }), quantize());
+  await document.transform(...steps);
 
   const out = path.join(OUT, `${key}.glb`);
   await io.write(out, document);

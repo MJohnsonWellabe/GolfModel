@@ -4,7 +4,14 @@ import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
 import { CHECKER_ROTATION, mowCheckerboard, mowStripe } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
-import { greenBoundaryScale } from '../../utils/Geometry';
+import { greenBoundaryScale, roundPolygon } from '../../utils/Geometry';
+
+/** Chaikin passes applied to the BAKED woods ground-color patch only — the
+ *  authored hazard polygon (collision, AI risk-probing, trunk sampling) stays
+ *  exact; only the ground-texture silhouette gets soft edges, so a tight
+ *  authored corridor can't lose its margin from a cosmetic pass (visual pass
+ *  7: "woods need rounded edges, not abrupt rectangles"). */
+const TREES_BAKE_ROUND_ITERATIONS = 2;
 
 // Tree blobs now live in a rendering-independent module so the physics engine
 // can share them for per-trunk collision. Re-exported here so existing
@@ -110,16 +117,19 @@ function rasterizeClassGrid(
   };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
   // precedence must match PhysicsEngine.surfaceAt exactly:
-  //   green > scoring-bunker > fringe > water > trees > fairway > BEACH > rough.
-  // Beach sand is a coastal band that lines the shore over ROUGH only, so it is
-  // painted FIRST (everything else overwrites it); only unpainted rough shows
-  // through, giving a beach that never eats a fairway/green/landing area.
+  //   green > scoring-bunker > fringe > water > trees > fairway > WASTE/BEACH > rough.
+  // Beach/waste sand line the shore or sprawl through rough only, so they're
+  // painted FIRST (everything else overwrites them); only unpainted rough
+  // shows through, giving sand that never eats a fairway/treeline/green — a
+  // fairway ribbon or a woods polygon drawn over a waste band reads as fairway
+  // or woods, not sand (visual pass 7: "fairway islands", "woods aren't an
+  // island in sand").
   const layers: Array<[number, () => void]> = [
     [
       4,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'bunker' && hz.beach) poly(hz.polygon);
+          if (hz.type === 'bunker' && (hz.beach || hz.waste)) poly(hz.polygon);
         })
     ],
     [1, (): void => hole.fairway.forEach(poly)],
@@ -127,7 +137,8 @@ function rasterizeClassGrid(
       6,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'trees' || hz.type === 'building') poly(hz.polygon);
+          if (hz.type === 'trees') poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
+          else if (hz.type === 'building') poly(hz.polygon);
         })
     ],
     [
@@ -142,7 +153,7 @@ function rasterizeClassGrid(
       4,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'bunker' && !hz.beach) poly(hz.polygon);
+          if (hz.type === 'bunker' && !hz.beach && !hz.waste) poly(hz.polygon);
         })
     ],
     [2, (): void => ell(0)]
@@ -535,7 +546,14 @@ function bakeGroundShadows(
 ): void {
   const lean = theme.sunX > 360 ? -1 : 1;
   ctx.fillStyle = 'rgba(10, 24, 12, 0.30)';
-  for (const t of collectTreeBlobs(hole)) {
+  // forRender: true — must match course3d's 3D tree placement exactly (same
+  // call, same args) so every baked shadow has a visible trunk sitting on it.
+  // The two used to share the same default sampling, but the render pass's
+  // edge-fade thinning (a denser floor for collision than for what's drawn)
+  // now keeps FEWER trunks at a treeline's edge than collision/bake do —
+  // passing the bake set through untouched left orphaned shadow patches at
+  // the fade edge with no visible trunk above them.
+  for (const t of collectTreeBlobs(hole, theme.blossomChance, true)) {
     ctx.beginPath();
     ctx.ellipse(
       (t.x + pad + lean * t.r * 0.75) * scale,

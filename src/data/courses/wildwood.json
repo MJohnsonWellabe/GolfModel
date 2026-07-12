@@ -13,18 +13,19 @@
     "fringe": "#79c455",
     "green": "#9fdf6a",
     "greenLight": "#b3e87d",
-    "sand": "#eddbaa",
-    "sandDark": "#cfb883",
-    "water": "#3b84c4",
-    "waterDeep": "#2a5f94",
+    "sand": "#f2ecdc",
+    "sandDark": "#ddd0b4",
+    "water": "#2f8fd6",
+    "waterDeep": "#1e6aa8",
     "waterReflect": true,
+    "waterReflectStrength": 0.7,
     "treeCanopy": "#35673a",
     "treeCanopyLight": "#4a8a4f",
     "treeTrunk": "#7a6049",
     "haze": "#dfece8",
     "hazeStrength": 0.5,
     "backdrop": "peaks",
-    "blossomChance": 0.15,
+    "blossomChance": 0.22,
     "treeKeys": [
       "tree_oak",
       "tree_maple",
@@ -38,6 +39,12 @@
       "fern_kenney",
       "bush_kenney_a",
       "bush_kenney_c"
+    ],
+    "flowerKeys": [
+      "flower_f",
+      "flower_g",
+      "flower_h",
+      "flower_coreopsis"
     ]
   },
   "holes": [
@@ -333,22 +340,12 @@
           "spacing": 40,
           "visualSpacing": 22,
           "polygon": [
-            [
-              196,
-              340
-            ],
-            [
-              350,
-              340
-            ],
-            [
-              350,
-              1090
-            ],
-            [
-              196,
-              1090
-            ]
+            [196, 1090], [196, 340],
+            [441.6, 370], [395.4, 400], [406.7, 430], [417.9, 460], [425.8, 490],
+            [420.8, 520], [415.8, 550], [402.3, 580], [383.6, 610], [365, 640],
+            [347.1, 670], [339.9, 700], [332.8, 730], [325.6, 760], [318.5, 790],
+            [311.3, 820], [306.8, 850], [307, 880], [307.3, 910], [307.5, 940],
+            [307.8, 970], [308.1, 1000], [309, 1030], [310, 1060], [311, 1090]
           ]
         },
         {
@@ -356,22 +353,10 @@
           "spacing": 40,
           "visualSpacing": 22,
           "polygon": [
-            [
-              596,
-              320
-            ],
-            [
-              772,
-              320
-            ],
-            [
-              772,
-              1090
-            ],
-            [
-              596,
-              1090
-            ]
+            [596, 320],
+            [772, 320],
+            [772, 1090],
+            [596, 1090]
           ]
         }
       ],
@@ -430,7 +415,7 @@
           "rx": 90,
           "ry": 44,
           "rot": 0.4,
-          "density": 10,
+          "density": 13,
           "bloomChance": 0.95,
           "bushChance": 0.05,
           "colors": [
@@ -448,7 +433,7 @@
           "rx": 26,
           "ry": 52,
           "rot": 0.0,
-          "density": 14,
+          "density": 18,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -462,7 +447,7 @@
           "rx": 26,
           "ry": 52,
           "rot": 0.0,
-          "density": 14,
+          "density": 18,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -476,7 +461,7 @@
           "rx": 26,
           "ry": 52,
           "rot": 0.0,
-          "density": 14,
+          "density": 18,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -490,7 +475,7 @@
           "rx": 26,
           "ry": 48,
           "rot": 0.0,
-          "density": 14,
+          "density": 18,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -798,7 +783,7 @@
           "blossom": true,
           "visualOnly": true,
           "spacing": 30,
-          "visualSpacing": 26,
+          "visualSpacing": 32,
           "polygon": [
             [
               372,
@@ -843,7 +828,7 @@
           "rx": 92,
           "ry": 42,
           "rot": 0.0,
-          "density": 12,
+          "density": 15,
           "bloomChance": 0.95,
           "bushChance": 0.05,
           "colors": [
@@ -861,7 +846,7 @@
           "rx": 24,
           "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -875,7 +860,7 @@
           "rx": 24,
           "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -885,11 +870,11 @@
         },
         {
           "cx": 392,
-          "cy": 560,
-          "rx": 22,
-          "ry": 60,
+          "cy": 555,
+          "rx": 24,
+          "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -903,7 +888,7 @@
           "rx": 24,
           "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -917,7 +902,7 @@
           "rx": 24,
           "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [
@@ -927,11 +912,11 @@
         },
         {
           "cx": 510,
-          "cy": 560,
-          "rx": 22,
-          "ry": 60,
+          "cy": 555,
+          "rx": 24,
+          "ry": 72,
           "rot": 0.0,
-          "density": 14,
+          "density": 19,
           "bloomChance": 0.96,
           "bushChance": 0.04,
           "colors": [

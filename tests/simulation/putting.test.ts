@@ -86,6 +86,80 @@ describe('putting — a perfect read + stroke is reliable', () => {
   });
 });
 
+/**
+ * Uphill pace rule (visual pass 7): the ▲uphill readout is sized so "aim +6 ft
+ * per 1 ft of shown rise" holes the putt (2 ft → +12 ft, 4 in → +2 ft). These
+ * sims putt straight uphill with the authored green slope, aim exactly the
+ * rule's extra distance, and assert the ball finishes at the hole — and that
+ * WITHOUT the extra aim it comes up clearly short. Rise here is what the
+ * readout shows: cupLenPx · (slopeAccel·strength/μ) · 1.5 / 6.
+ */
+describe('putting — uphill rule: +6 ft aim per 1 ft shown rise', () => {
+  // Solve authored slope strength so the readout shows `riseFt` for a putt of
+  // `cupFt`: rise = cupPx·(85·strength/150)·1.5/6 ⇒ strength = rise·900/(cup·85).
+  const strengthFor = (cupFt: number, riseFt: number): number => (riseFt * 900) / (cupFt * 85);
+
+  function uphillPutt(
+    cupFt: number,
+    riseFt: number,
+    extraAimFt: number,
+    rng: () => number
+  ): { holed: boolean; finishFt: number } {
+    // Downhill accel points +y (back at the golfer): putting toward -y is uphill.
+    const upHole = openHole({ slope: { angle: Math.PI / 2, strength: strengthFor(cupFt, riseFt) } });
+    const origin = { x: upHole.pin.x, y: upHole.pin.y + ftToPx(cupFt) };
+    const distPx = ftToPx(cupFt + extraAimFt);
+    const out = new PhysicsEngine(upHole, null, rng).simulate({
+      origin,
+      aimAngle: -Math.PI / 2,
+      swing: PERFECT_SWING(distPx / CARRY_PX),
+      club: putter,
+      golfer,
+      fireBoost: 0,
+      lie: 'green',
+      wind: NO_WIND,
+      hole: upHole
+    });
+    return { holed: out.holed, finishFt: Math.abs((out.finalPos.y - upHole.pin.y) / 2) * 3 };
+  }
+
+  function medianFinish(cupFt: number, riseFt: number, extraAimFt: number, n = 400): number {
+    const rng = mulberry32(777 + cupFt * 13 + Math.round(riseFt * 12));
+    const errs: number[] = [];
+    for (let i = 0; i < n; i++) errs.push(uphillPutt(cupFt, riseFt, extraAimFt, rng).finishFt);
+    errs.sort((a, b) => a - b);
+    return errs[Math.floor(n / 2)];
+  }
+
+  function uphillMakeRate(cupFt: number, riseFt: number, extraAimFt: number, n = 400): number {
+    const rng = mulberry32(4242 + cupFt * 13 + Math.round(riseFt * 12));
+    let holed = 0;
+    for (let i = 0; i < n; i++) if (uphillPutt(cupFt, riseFt, extraAimFt, rng).holed) holed++;
+    return (100 * holed) / n;
+  }
+
+  it('2 ft of rise holes with +12 ft of aim (30-ft putt)', () => {
+    expect(medianFinish(30, 2, 12)).toBeLessThanOrEqual(2.5);
+    expect(uphillMakeRate(30, 2, 12)).toBeGreaterThanOrEqual(40);
+  });
+
+  it('4 in of rise holes with +2 ft of aim (20-ft putt)', () => {
+    expect(medianFinish(20, 1 / 3, 2)).toBeLessThanOrEqual(2);
+    expect(uphillMakeRate(20, 1 / 3, 2)).toBeGreaterThanOrEqual(50);
+  });
+
+  it('1 ft of rise holes with +6 ft of aim (15-ft putt)', () => {
+    expect(medianFinish(15, 1, 6)).toBeLessThanOrEqual(2);
+    expect(uphillMakeRate(15, 1, 6)).toBeGreaterThanOrEqual(50);
+  });
+
+  it('without the extra aim, the same uphill putts come up clearly short', () => {
+    // Flat-pace aim on a 2-ft rise finishes well short of the rule-aimed putt.
+    expect(medianFinish(30, 2, 0)).toBeGreaterThanOrEqual(8);
+    expect(uphillMakeRate(30, 2, 0)).toBeLessThanOrEqual(5);
+  });
+});
+
 describe('putting — mishits are punished', () => {
   it('an average (good-band) stroke holes far less than a perfect one', () => {
     for (const ft of [10, 20, 30]) {

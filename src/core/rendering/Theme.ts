@@ -86,6 +86,11 @@ export interface CourseTheme {
   /** Sea backdrop dune line. Defaults on; set false for an open-ocean horizon
    *  of nothing but flat water and sky (Sable Bay). */
   seaDunes?: boolean;
+  /** Line the hole-side lip of every scoring (non-waste/beach/wall) bunker
+   *  with a thin band of fescue (heatherKeys, or grassKeys if unset) — a
+   *  links/Pinehurst trademark: the bunker reads carved into rough, not a
+   *  clean sand disc dropped onto turf. Cosmetic only. */
+  bunkerLipFescue?: boolean;
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -284,6 +289,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandGrainKey'
     | 'sandGrainTile'
     | 'bunkerStones'
+    | 'bunkerLipFescue'
     | 'horizonTint'
     | 'waterReflect'
     | 'waterReflectStrength'
@@ -351,6 +357,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainKey === 'string') t.sandGrainKey = spec.sandGrainKey;
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
+  if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
   // fixed cream that only suits the parkland default.

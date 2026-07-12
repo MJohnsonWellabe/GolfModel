@@ -6,6 +6,8 @@ import {
   DynamicTexture,
   FresnelParameters,
   HemisphericLight,
+  InstancedMesh,
+  LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
   MirrorTexture,
@@ -33,7 +35,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { greenBoundaryScale, pointInGreen, pointInPolygon } from '../utils/Geometry';
+import { greenBoundaryScale, pointInGreen, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -528,14 +530,19 @@ export function buildCourse(
       // rebuild the list until their count stops growing, then latch.
       const isReflectable = (m: AbstractMesh): boolean => {
         const nm = m.name;
-        return (
-          nm === 'sky' ||
-          nm.startsWith('peak') ||
-          nm.startsWith('cloud') ||
-          nm.startsWith('cumulus') ||
-          nm.startsWith('cirrus') ||
-          (nm.startsWith('nat') && !nm.startsWith('natProto'))
-        );
+        if (nm === 'sky' || nm.startsWith('peak') || nm.startsWith('cloud') || nm.startsWith('cumulus') || nm.startsWith('cirrus')) {
+          return true;
+        }
+        // Nature instances: only species tagged reflect=true (trees, cloud
+        // meshes — see natureModels.ts) feed the mirror. At a 0.35 RTT ratio
+        // plus adaptive blur, individual grass/flower/heather cards never
+        // resolve anyway — they're pure re-render cost on a dense hole's
+        // thousands of ground-scatter instances (the water-hole meter lag).
+        if (nm.startsWith('nat') && !nm.startsWith('natProto')) {
+          const src = (m as InstancedMesh).sourceMesh;
+          return src?.metadata?.reflect === true;
+        }
+        return false;
       };
       let lastCount = -1;
       let stable = 0;
@@ -557,43 +564,33 @@ export function buildCourse(
         waterMirror.renderList = list;
       });
     }
-    const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
-    const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
-    // Fan: deep center + shore ring + a mid ring for the depth gradient
-    const positions: number[] = [cx, level, -cy];
+    // Triangulate the ACTUAL hazard outline (earcut) rather than fanning from
+    // the polygon's centroid — the fan assumes the shape is star-convex from
+    // its center, which breaks for a winding/concave outline (a meandering
+    // creek, a harbour inlet): the fan's triangles cut across dry land at
+    // concave bends and leave gaps at the concavities, showing bare ground
+    // through the water in patches ("water still doesn't look right").
+    // triangulatePolygonWithDepth also locates one interior "deepest" point
+    // (farthest from every edge) so the pond can still shade darker toward
+    // its center and lighter toward the shore, same visual intent as before.
+    const ring = hz.polygon;
+    const { points, triangles, deepIndex } = triangulatePolygonWithDepth(ring);
+    const positions: number[] = [];
     const colors: number[] = [];
-    const uvs: number[] = [cx / 90, cy / 90];
+    const uvs: number[] = [];
     const deep = c3(theme.waterDeep);
     // Shore edge: a subtly DARKER, more opaque band (like the bank shadow real
     // water carries at its edge), not the old lightened translucent ring that
     // read as a weird light-blue halo on narrow creeks (Wildwood h1).
     const shore = c3(shade(theme.water, 0.9));
-    colors.push(deep.r, deep.g, deep.b, 0.94);
-    const ring = hz.polygon;
-    const n = ring.length;
-    for (const [x, y] of ring) {
-      // mid ring vertex (60% toward shore): main body color
-      const mx = cx + (x - cx) * 0.6;
-      const my = cy + (y - cy) * 0.6;
-      positions.push(mx, level, -my);
-      uvs.push(mx / 90, my / 90);
-      const body = c3(theme.water);
-      colors.push(body.r, body.g, body.b, 0.88);
-    }
-    for (const [x, y] of ring) {
+    points.forEach(([x, y], i) => {
       positions.push(x, level, -y);
       uvs.push(x / 90, y / 90);
-      colors.push(shore.r, shore.g, shore.b, 0.72); // firm, slightly-darker shoreline
-    }
-    const indices: number[] = [];
-    for (let i = 0; i < n; i++) {
-      const i2 = (i + 1) % n;
-      // center fan to mid ring
-      indices.push(0, 1 + i2, 1 + i);
-      // mid ring to shore ring quads
-      indices.push(1 + i, 1 + n + i2, 1 + n + i);
-      indices.push(1 + i, 1 + i2, 1 + n + i2);
-    }
+      const col = i === deepIndex ? deep : shore;
+      const a = i === deepIndex ? 0.94 : 0.78;
+      colors.push(col.r, col.g, col.b, a);
+    });
+    const indices: number[] = triangles;
     const waterMesh = new Mesh(`water${wi++}`, scene);
     const vd = new VertexData();
     vd.positions = positions;
@@ -614,6 +611,10 @@ export function buildCourse(
     wm.specularPower = 110;
     wm.alpha = 0.95;
     wm.bumpTexture = waterNormalTex;
+    // The earcut winding direction follows the authored polygon's own winding
+    // (not guaranteed same-handed as the old fan code assumed) — double-sided
+    // so the surface is never accidentally backface-culled from above.
+    wm.backFaceCulling = false;
     if (waterMirror) {
       // Fresnel: near-grazing (distant) water reads as a bright mirror; looked at
       // steeply (close) the reflection fades so the depth-tinted body shows —
@@ -651,6 +652,7 @@ export function buildCourse(
   // Only download the props this course's theme actually places (about half
   // the catalog) — both loadNaturePrototypes calls MUST share this set since
   // the loader caches per scene on the first call.
+  const usesBlossom = (theme.blossomChance ?? 0) > 0 || hole.hazards.some((hz) => hz.type === 'trees' && hz.blossom);
   const natKeys = [
     ...new Set<string>([
       ...(theme.treeKeys ?? TREE_KEYS),
@@ -664,7 +666,10 @@ export function buildCourse(
       ...(theme.heatherKeys ?? []),
       ...(theme.sandPlantKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
-      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
+      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
+      // The real sakura model backs the blossom system wherever it's used
+      // (see blossomProto below) — load it whenever this hole/course needs one.
+      ...(usesBlossom ? ['tree_sakura'] : [])
     ])
   ];
 
@@ -941,13 +946,17 @@ export function buildCourse(
         d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
       }
     }
-    // Decorative sailboats on the open sea behind the green (hole.sailboats). A
-    // dark low hull, a thin mast, and a double-sided triangular sail — sized to
-    // read as distant boats, parked a few hundred yards past the pin on the water.
+    // Decorative sailboats on the open sea behind the green (hole.sailboats).
+    // A procedural low hull + mast + triangular sail is the instant
+    // placeholder (same look as before); the uploaded ship model swaps in
+    // once it loads and the placeholders are disposed — same positions/
+    // rotations, so nothing shifts when it arrives.
     if (hole.sailboats && hole.sailboats > 0) {
       const hullMat = mat(scene, 'boatHull', 0x3a4756, { emissive: 0x1c2530 });
       const sailMat = mat(scene, 'boatSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
       const mastMat = mat(scene, 'boatMast', 0x8a6a45);
+      const boats: TransformNode[] = [];
+      const placeholders: Mesh[] = [];
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
         const sc = 34 + ((i * 37) % 12); // sail height in world units (~34-46)
@@ -960,6 +969,7 @@ export function buildCourse(
         const boat = new TransformNode(`boat${i}`, scene);
         boat.position = w2b(bx, by, 0.35);
         boat.rotation = new Vector3(0, yaw, 0);
+        boats.push(boat);
         const hull = MeshBuilder.CreateBox(
           `boatHull${i}`,
           { width: 0.95 * sc, height: 0.18 * sc, depth: 0.34 * sc },
@@ -968,6 +978,7 @@ export function buildCourse(
         hull.material = hullMat;
         hull.position = new Vector3(0, 0.09 * sc, 0);
         hull.parent = boat;
+        placeholders.push(hull);
         const mast = MeshBuilder.CreateCylinder(
           `boatMast${i}`,
           { diameter: 0.035 * sc, height: 1.08 * sc, tessellation: 5 },
@@ -976,6 +987,7 @@ export function buildCourse(
         mast.material = mastMat;
         mast.position = new Vector3(0, 0.6 * sc, 0);
         mast.parent = boat;
+        placeholders.push(mast);
         const sail = new Mesh(`boatSail${i}`, scene);
         const svd = new VertexData();
         svd.positions = [0.02 * sc, 0.16 * sc, 0, 0.02 * sc, sc, 0, 0.62 * sc, 0.2 * sc, 0];
@@ -986,7 +998,77 @@ export function buildCourse(
         svd.applyToMesh(sail);
         sail.material = sailMat;
         sail.parent = boat;
+        placeholders.push(sail);
       }
+      void LoadAssetContainerAsync('models/nature/ship.glb', scene)
+        .then((container) => {
+          container.addAllToScene();
+          const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
+          if (!parts.length) return;
+          // Hard-map the source PBR materials by luminance — the scan ships no
+          // semantic naming, but its palette is cleanly separable: one bright
+          // near-white slot (the sail/cloth) and several dark wood/trim tones.
+          // Each raw part is instanced directly (no MergeMeshes): the source
+          // primitives don't share one vertex-attribute layout (a bare-bones
+          // sail plane vs. the hull's full attribute set), which MergeMeshes
+          // requires — and at ~10 parts × 1-2 boats/hole, the extra draw
+          // calls from skipping the merge are irrelevant.
+          const shipHull = mat(scene, 'shipHull', 0x3a2a1c, { emissive: 0x1a120b });
+          const shipTrim = mat(scene, 'shipTrim', 0xc9a876, { emissive: 0x6b5636 });
+          const shipSail = mat(scene, 'shipSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let minZ = Infinity;
+          let maxZ = -Infinity;
+          for (const p of parts) {
+            const src = p.material as StandardMaterial | null;
+            const c = src?.diffuseColor;
+            const luma = c ? c.r * 0.3 + c.g * 0.59 + c.b * 0.11 : 0;
+            p.material = luma > 0.5 ? shipSail : luma > 0.2 ? shipTrim : shipHull;
+            // An InstancedMesh shares only the source's LOCAL vertex data —
+            // the source's own parent-node transform (the glTF's "pirate
+            // ship" root, here just an identity node, but not guaranteed by
+            // every future ship asset) never composes into an instance. Bake
+            // it into the vertices now (same effect MergeMeshes's world-matrix
+            // bake has elsewhere in this file) so the world-space bounding
+            // box computed below is what instances will actually render.
+            p.bakeCurrentTransformIntoVertices();
+            p.refreshBoundingInfo();
+            const bb = p.getBoundingInfo().boundingBox;
+            minX = Math.min(minX, bb.minimum.x);
+            maxX = Math.max(maxX, bb.maximum.x);
+            minY = Math.min(minY, bb.minimum.y);
+            minZ = Math.min(minZ, bb.minimum.z);
+            maxZ = Math.max(maxZ, bb.maximum.z);
+            // Babylon only draws an instanced mesh's instances while its
+            // SOURCE stays enabled — park it far below the course instead of
+            // disabling it (same pattern as the nature prop prototypes).
+            p.isPickable = false;
+          }
+          const length = Math.max(0.001, maxX - minX);
+          const avgSc = 34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12); // matches the placeholder sc spread
+          const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
+          // Instances don't inherit the source mesh's own transform — the
+          // normalizing scale/centering has to go on each INSTANCE, same as
+          // every prototype placement in this file (placeProto above).
+          const cx = (minX + maxX) / 2;
+          const cz = (minZ + maxZ) / 2;
+          for (const boat of boats) {
+            for (let i = 0; i < parts.length; i++) {
+              const inst = parts[i].createInstance(`${boat.name}Model${i}`);
+              inst.parent = boat;
+              inst.scaling.setAll(s);
+              inst.position = new Vector3(-cx * s, -minY * s, -cz * s);
+              inst.freezeWorldMatrix();
+            }
+          }
+          for (const p of parts) p.position.y -= 9000;
+          placeholders.forEach((m) => m.dispose());
+        })
+        .catch(() => {
+          /* keep the procedural placeholders if the model fails to load */
+        });
     }
   } else if (theme.backdrop === 'none') {
     // No backdrop scenery: the dense conifer wall (backdropTreeStep) plus open
@@ -1192,11 +1274,13 @@ export function buildCourse(
       if (!set.length) return;
       placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH, tint);
     };
-    // Cherry-blossom prototype (Wildwood's spring-parkland identity): one clone
-    // of a rounded broadleaf with its canopy repainted soft pink, planted for any
-    // `blossom` trees hazard. Built once; the trunk (natBark) stays brown.
-    let blossomProto: NatureProto | null = null;
-    {
+    // Cherry-blossom prototype (Wildwood's spring-parkland identity), planted
+    // for any `blossom` trees hazard AND for the theme.blossomChance mix-in
+    // (treeField kind 3). Prefer the real uploaded sakura model — genuine
+    // blossom-photo canopy instead of a flat pink tint — falling back to a
+    // pink-repainted clone of a broadleaf if it isn't loaded for this course.
+    let blossomProto: NatureProto | null = protos.get('tree_sakura') ?? null;
+    if (!blossomProto) {
       const src = trees.find((t) => /maple|oak|tree_a|tree_b|poplar|aspen/.test(t.key)) ?? trees[0];
       if (src) {
         const pink = mat(scene, 'natBlossom', 0xf4a6c8, { emissive: shade(0xf4a6c8, 0.5) });
@@ -1210,8 +1294,11 @@ export function buildCourse(
       }
     }
     const plantTree = (b: TreeBlob): void => {
-      // A blossom-hazard trunk uses the pink-canopy prototype (Wildwood).
-      if (b.blossom && blossomProto) {
+      // A blossom-hazard trunk (b.blossom) OR a theme.blossomChance mix-in
+      // trunk (kind 3, treeField.collectTreeBlobs) uses the blossom prototype
+      // — ordinary woods get an occasional cherry tree scattered through them
+      // (Wildwood's spring-parkland identity), not just the dedicated groves.
+      if ((b.blossom || b.kind === 3) && blossomProto) {
         placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0));
         return;
       }
@@ -1294,6 +1381,26 @@ export function buildCourse(
         const ly = (-dx * sr + dy * cr) / g.ry;
         return lx * lx + ly * ly <= 1;
       });
+    // A tree hazard's authored polygon marks where TRUNKS may land, but the
+    // rendered CANOPY overhangs up to ~27 world units past a trunk near the
+    // boundary — so ground scatter (grass/flowers/bushes) planted right up to
+    // the polygon edge can end up sitting visually under a canopy from above
+    // (aerial "plants rendering over trees" — no depth-sort bug, the canopy
+    // genuinely extends past the hazard the scatter was excluded from). Give
+    // scatter the same clearance the sand-plant guard already uses for
+    // woods/water (nearWaterOrWoods below), so beds and tufts stop short of
+    // a treeline's true visual edge, not just its authored footprint.
+    const treesHz = hole.hazards.filter((z) => z.type === 'trees');
+    const TREE_CLEARANCE = 22;
+    const nearTrees = (px: number, py: number): boolean =>
+      treesHz.some(
+        (z) =>
+          pointInPolygon(px, py, z.polygon) ||
+          pointInPolygon(px + TREE_CLEARANCE, py, z.polygon) ||
+          pointInPolygon(px - TREE_CLEARANCE, py, z.polygon) ||
+          pointInPolygon(px, py + TREE_CLEARANCE, z.polygon) ||
+          pointInPolygon(px, py - TREE_CLEARANCE, z.polygon)
+      );
     const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
     for (let yy = 0; yy < h; yy += tuftStep) {
       const yRow = yy;
@@ -1330,7 +1437,10 @@ export function buildCourse(
           // playtest) — the 3D bushes/flowers carry the visual interest instead.
           const cap = lush ? 3.4 : 3.0;
           if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
-          else if (roll < 0.55 && bushSet.length) {
+          // Bushes/flowers are tall enough to visually crowd under a canopy's
+          // true (overhanging) edge, so they respect the tree clearance;
+          // forest-floor litter below is deliberately allowed close to trees.
+          else if (roll < 0.55 && bushSet.length && !nearTrees(jx, jy)) {
             // The tall leafy plant (bush_kenney_b) stands a touch higher than the
             // rounded shrub; both stay knee-to-waist so they never read as walls.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
@@ -1338,7 +1448,7 @@ export function buildCourse(
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
           // Flowers: multi-colored + a wider band when lush (patchier bloom).
-          else if (roll < (lush ? 0.64 : 0.59))
+          else if (roll < (lush ? 0.64 : 0.59) && !nearTrees(jx, jy))
             place(flowers, jx, jy, 1.6 + hash2(jx + 3, jy) * 0.9, 13, lush ? flowerTint(jx, jy) : undefined);
           // Forest-floor props (ferns/stumps/logs/deadwood) where the theme
           // asks for them — rare, visual only (never physics). Heights are
@@ -1355,7 +1465,15 @@ export function buildCourse(
                   : e.key.startsWith('stone')
                     ? 0.8 + hash2(jx, jy + 9) * 0.9
                     : 2.4 + hash2(jx + 7, jy) * 1.1;
-            placeProto(e.proto, jx, jy, sh);
+            // A theme can list a tintable species (a bush/flower/grass key) in
+            // scatterKeys alongside plain forest-floor props (ferns, stumps,
+            // stones) — its prototype parts are still registered for the
+            // per-instance 'color' buffer (natureModels), so leaving it unset
+            // here rendered those instances solid black (visual pass 7 audit:
+            // an unexplained black blob sitting alone in open rough). Passing
+            // a tint is a no-op for the untintable props (the tintable check
+            // in placeProto only applies it where registered).
+            placeProto(e.proto, jx, jy, sh, lush ? bushTint(jx, jy) : undefined);
           }
         }
       }
@@ -1414,6 +1532,11 @@ export function buildCourse(
                 const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
                 const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
                 if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+                // A fairway ribbon or treeline can now be drawn over part of a
+                // waste polygon (fairway "islands" in the sand) — surfaceAt
+                // resolves those in the fairway/trees' favour, so skip fescue
+                // there instead of poking grass tufts up through mown turf.
+                if (engine.surfaceAt(jx, jy) !== 'sand') continue;
                 // Leave the middle open so the sand still reads as a playable trap.
                 if (Math.hypot(jx - bcx, jy - bcy) < 12) continue;
                 if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
@@ -1594,6 +1717,51 @@ export function buildCourse(
           placed++;
         }
       }
+      });
+    }
+    // Fescue lining the HOLE-SIDE lip of every scoring bunker (theme.
+    // bunkerLipFescue — Sable Bay's Pinehurst trademark): a bunker should read
+    // as sand carved out of a fescue-edged dune, not a clean disc dropped onto
+    // turf. Waste/beach/wall bunkers are excluded — waste already gets fescue
+    // growing through the sand itself (tallGrass.waste), and walls/beaches
+    // don't want a soft edge.
+    if (theme.bunkerLipFescue) {
+      popQueue.push(() => {
+        const heatherSet = pick(theme.heatherKeys ?? []);
+        const fescueSet = heatherSet.length ? heatherSet : grasses;
+        if (!fescueSet.length) return;
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'bunker' || hz.waste || hz.beach || hz.wall) continue;
+          const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
+          const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
+          const gx = hole.green.cx - cx;
+          const gy = hole.green.cy - cy;
+          const glen = Math.hypot(gx, gy) || 1;
+          const gux = gx / glen;
+          const guy = gy / glen;
+          const n = hz.polygon.length;
+          for (let i = 0; i < n; i++) {
+            const [x1, y1] = hz.polygon[i];
+            const [x2, y2] = hz.polygon[(i + 1) % n];
+            const segLen = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.round(segLen / 7));
+            for (let s = 0; s < steps; s++) {
+              const t = s / steps;
+              const px = x1 + (x2 - x1) * t;
+              const py = y1 + (y2 - y1) * t;
+              const nx = px - cx;
+              const ny = py - cy;
+              const nlen = Math.hypot(nx, ny) || 1;
+              // Hole-side arc only — the lip nearer the green, not the whole rim.
+              if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
+              if (hash2(px * 1.9, py * 2.3) > 0.55) continue; // thin, natural clumps
+              const ox = px + (nx / nlen) * 2.5;
+              const oy = py + (ny / nlen) * 2.5;
+              if (engine.surfaceAt(ox, oy) !== 'rough') continue;
+              place(fescueSet, ox, oy, 2.4 + hash2(ox + 3, oy) * 1.0);
+            }
+          }
+        }
       });
     }
   });
