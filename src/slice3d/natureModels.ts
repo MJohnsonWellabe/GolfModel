@@ -256,6 +256,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
             heatherMat.backFaceCulling = false;
             heatherMat.transparencyMode = 1; // ALPHATEST — crisp grass-card cutout
             heatherMat.alphaCutOff = 0.4;
+            // Explicit depth write: the only cutout-alpha material in the nature
+            // set, so make its occlusion against opaque trees/props unambiguous
+            // rather than relying on the engine's ALPHATEST default.
+            heatherMat.forceDepthWrite = true;
           }
           mat = heatherMat;
         } else {

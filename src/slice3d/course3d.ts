@@ -1294,6 +1294,26 @@ export function buildCourse(
         const ly = (-dx * sr + dy * cr) / g.ry;
         return lx * lx + ly * ly <= 1;
       });
+    // A tree hazard's authored polygon marks where TRUNKS may land, but the
+    // rendered CANOPY overhangs up to ~27 world units past a trunk near the
+    // boundary — so ground scatter (grass/flowers/bushes) planted right up to
+    // the polygon edge can end up sitting visually under a canopy from above
+    // (aerial "plants rendering over trees" — no depth-sort bug, the canopy
+    // genuinely extends past the hazard the scatter was excluded from). Give
+    // scatter the same clearance the sand-plant guard already uses for
+    // woods/water (nearWaterOrWoods below), so beds and tufts stop short of
+    // a treeline's true visual edge, not just its authored footprint.
+    const treesHz = hole.hazards.filter((z) => z.type === 'trees');
+    const TREE_CLEARANCE = 22;
+    const nearTrees = (px: number, py: number): boolean =>
+      treesHz.some(
+        (z) =>
+          pointInPolygon(px, py, z.polygon) ||
+          pointInPolygon(px + TREE_CLEARANCE, py, z.polygon) ||
+          pointInPolygon(px - TREE_CLEARANCE, py, z.polygon) ||
+          pointInPolygon(px, py + TREE_CLEARANCE, z.polygon) ||
+          pointInPolygon(px, py - TREE_CLEARANCE, z.polygon)
+      );
     const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
     for (let yy = 0; yy < h; yy += tuftStep) {
       const yRow = yy;
@@ -1330,7 +1350,10 @@ export function buildCourse(
           // playtest) — the 3D bushes/flowers carry the visual interest instead.
           const cap = lush ? 3.4 : 3.0;
           if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
-          else if (roll < 0.55 && bushSet.length) {
+          // Bushes/flowers are tall enough to visually crowd under a canopy's
+          // true (overhanging) edge, so they respect the tree clearance;
+          // forest-floor litter below is deliberately allowed close to trees.
+          else if (roll < 0.55 && bushSet.length && !nearTrees(jx, jy)) {
             // The tall leafy plant (bush_kenney_b) stands a touch higher than the
             // rounded shrub; both stay knee-to-waist so they never read as walls.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
@@ -1338,7 +1361,7 @@ export function buildCourse(
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
           // Flowers: multi-colored + a wider band when lush (patchier bloom).
-          else if (roll < (lush ? 0.64 : 0.59))
+          else if (roll < (lush ? 0.64 : 0.59) && !nearTrees(jx, jy))
             place(flowers, jx, jy, 1.6 + hash2(jx + 3, jy) * 0.9, 13, lush ? flowerTint(jx, jy) : undefined);
           // Forest-floor props (ferns/stumps/logs/deadwood) where the theme
           // asks for them — rare, visual only (never physics). Heights are
