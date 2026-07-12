@@ -1315,20 +1315,35 @@ export function buildCourse(
       const warm = hash2(x + 13, y - 9); // 0..1
       return new Color4(lum * (1 + warm * 0.2), lum, lum * (1 - warm * 0.12), 1);
     };
-    // Fairway checkerboard tint (theme.mowPattern==='checker'): the tuft carpet
-    // follows the SAME two-tone grid the ground bake paints, so the grass
-    // reinforces the cells instead of speckling random brightness over them and
-    // washing the pattern out. Light cell brighter, dark cell darker, with a
-    // whisper of per-tuft jitter so cells aren't dead flat.
-    const checkerAxis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x) + CHECKER_ROTATION;
+    // Fairway mow-pattern tint: the tuft carpet follows the SAME bands the
+    // ground bake paints (per theme.mowPattern — see CourseTexture's matching
+    // branch), so the grass reinforces the cells/stripes instead of speckling
+    // random brightness over them and washing the pattern out. Light band
+    // brighter, dark band darker, with a whisper of per-tuft jitter so bands
+    // aren't dead flat.
+    const holeAxis = Math.atan2(hole.pin.y - hole.tee.y, hole.pin.x - hole.tee.x);
+    const checkerAxis = holeAxis + CHECKER_ROTATION;
     const cax = Math.cos(checkerAxis);
     const cay = Math.sin(checkerAxis);
+    const hax = Math.cos(holeAxis);
+    const hay = Math.sin(holeAxis);
+    const dax2 = Math.cos(holeAxis + Math.PI / 4);
+    const day2 = Math.sin(holeAxis + Math.PI / 4);
     const mowTile = theme.mowTile ?? 30;
     const fairwayTint = (x: number, y: number): Color4 => {
-      const band = mowCheckerboard(x * cax + y * cay, -x * cay + y * cax, mowTile);
-      // Light cells brighten fully; dark cells only dip a little so the fairway
-      // carpet stays clearly above the rough in grayscale (matches the biased
-      // ground bake in CourseTexture).
+      let band: number;
+      if (theme.mowPattern === 'cross') {
+        band = mowCheckerboard(x * hax + y * hay, -x * hay + y * hax, mowTile);
+      } else if (theme.mowPattern === 'straight') {
+        band = Math.sin(((x * hax + y * hay) / (mowTile * 2.4)) * Math.PI) > 0 ? 1 : -1;
+      } else if (theme.mowPattern === 'diagonal') {
+        band = Math.sin(((x * dax2 + y * day2) / (mowTile * 2.4)) * Math.PI) > 0 ? 1 : -1;
+      } else {
+        band = mowCheckerboard(x * cax + y * cay, -x * cay + y * cax, mowTile);
+      }
+      // Light cells/bands brighten fully; dark ones only dip a little so the
+      // fairway carpet stays clearly above the rough in grayscale (matches
+      // the biased ground bake in CourseTexture).
       const lum = (band > 0 ? 1.12 : 0.95) + (hash2(x * 1.7, y * 0.7) - 0.5) * 0.08;
       return new Color4(lum, lum, lum * 0.98, 1);
     };
@@ -1507,9 +1522,10 @@ export function buildCourse(
         if (surf === 'fairway') {
           // Short, dense mown tufts (kept low so they never block the ball read);
           // lush lays a denser carpet so the fairway isn't a bare painted surface.
-          // When the theme mows a checkerboard, the fairway carpet follows it so
-          // the tufts read as the same two tones instead of random speckle.
-          const fTint = lush ? (theme.mowPattern === 'checker' ? fairwayTint(jx, jy) : tint) : undefined;
+          // The fairway carpet follows whichever mow pattern the theme paints
+          // (checker/cross/straight/diagonal) so the tufts read as the same
+          // bands instead of random speckle.
+          const fTint = lush ? fairwayTint(jx, jy) : undefined;
           if (roll < (lush ? 0.9 : 0.62)) place(grasses, jx, jy, 0.85 + hash2(jx, jy) * 0.6, 3, fTint);
         } else {
           // Longer rough grass, plus the occasional bush/flower — knee-high at

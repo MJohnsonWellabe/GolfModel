@@ -43,7 +43,8 @@
       "heather_fescue_c",
       "heather_purple"
     ],
-    "seaDunes": false
+    "seaDunes": false,
+    "mowPattern": "diagonal"
   },
   "holes": [
     {

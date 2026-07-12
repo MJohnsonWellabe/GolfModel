@@ -477,6 +477,18 @@ export function renderCourseCanvas(
           // dip ~half as far so the darkest cell stays clearly above the rough
           // (the aerial grayscale-separation bar) while still reading two-tone.
           if (band < 0) band *= 0.45;
+        } else if (cls === 1 && theme.mowPattern === 'cross') {
+          // Same checkerboard grid as 'checker' but AXIS-ALIGNED (0°, the raw
+          // tee→pin along/across) instead of rotated — small aligned squares
+          // in a crosshatch grid rather than diamonds on point.
+          band = mowCheckerboard(wx * ax + wy * ay, -wx * ay + wy * ax, theme.mowTile ?? 30);
+          if (band < 0) band *= 0.45;
+        } else if (cls === 1 && theme.mowPattern === 'straight') {
+          // Parallel bands running straight up the tee→pin axis (0°) — the
+          // classic seaside-links single-direction mow, as opposed to the
+          // 45°-diagonal default.
+          const phase = Math.sin(((wx * ax + wy * ay) / sw) * Math.PI);
+          band = Math.tanh(phase * 2.4) / 0.9837;
         } else {
           // A raw sine reads as a gentle light↔dark undulation, not two mown
           // tones. Square the band on fairway/rough (tanh flattens each half
