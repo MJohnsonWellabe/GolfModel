@@ -135,6 +135,15 @@ export interface Hazard {
    */
   visualSpacing?: number;
   /**
+   * Trees only: canopy radius override for a SPECIMEN hazard (a polygon small
+   * enough that its single trunk comes from the centroid fallback). Without
+   * it the radius is hashed from the centroid position, so nudging a
+   * showpiece tree a few yards silently rerolls its size (playtest: "the
+   * tree in front of the green shrunk down" after a hitbox move). Applies to
+   * render, bake shadow and collision together — size is gameplay.
+   */
+  treeR?: number;
+  /**
    * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
    * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
    * contributes trunks when rendering. Use this for a second, denser/closer
