@@ -52,4 +52,13 @@ test('AI tournament boots round 1 of a three-course rota', async ({ page }) => {
     (window as any).__slice3d.scene.meshes.filter((m: { name: string }) => /^ball\d$/.test(m.name)).length
   );
   expect(balls).toBe(1);
+  // The mid-round leaderboard button shows during tournament play and opens
+  // the standings (names only — no difficulty tiers on the board).
+  await expect(page.locator('#tourBoardBtn')).toBeVisible();
+  await page.evaluate(() => (document.getElementById('tourBoardBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForSelector('.storeConfirmBox .tourHeadRow');
+  const board = await page.locator('.storeConfirmBox').textContent();
+  expect(board).toContain('Tournament');
+  expect(board).not.toMatch(/Legend|Easy|Medium|Hard/);
+  await page.evaluate(() => (document.getElementById('tourBoardClose') as HTMLElement).dispatchEvent(new Event('pointerdown')));
 });

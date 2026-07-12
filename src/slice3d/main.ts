@@ -86,6 +86,7 @@ const swingBtn = document.getElementById('swingBtn')!;
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
+const tourBoardBtn = document.getElementById('tourBoardBtn')!;
 const skipBtn = document.getElementById('skipBtn')!;
 const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
@@ -1042,6 +1043,7 @@ class HoleScene {
       this.aimRoot.setEnabled(false);
       clubBar.style.display = 'none';
       aerialBtn.style.display = 'none';
+      tourBoardBtn.style.display = 'none';
       this.aiTurn();
       return;
     }
@@ -1049,6 +1051,8 @@ class HoleScene {
     this.armMeter();
     clubBar.style.display = 'flex';
     aerialBtn.style.display = 'block';
+    // Tournament rounds keep the live leaderboard one tap away (🏆).
+    tourBoardBtn.style.display = aiTour ? 'block' : 'none';
     this.updateStrikeUI();
     this.refreshClubBar();
   }
@@ -1336,6 +1340,7 @@ class HoleScene {
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
+    tourBoardBtn.style.display = 'none';
     shotShapeEl.style.display = 'none';
     aimReadoutEl.style.display = 'none';
     this.aimReadoutWorld = null;
@@ -2830,17 +2835,18 @@ function startAiTourRound(): void {
   playHole();
 }
 
-/** Standings table for the summary screen: cumulative to-par, player row
- *  highlighted, AI difficulty as a quiet tag. */
+/** Standings table for the summary screen and the mid-round leaderboard:
+ *  cumulative to-par, player row highlighted. Names only — the field's
+ *  Easy/Hard/Legend tiers stay off the board (playtest: a leaderboard
+ *  lists golfers, not difficulty settings). */
 function aiTourStandingsHtml(t: AiTournamentState): string {
   const rows = aiTourStandings(t)
     .map((r, i) => {
       const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
       const rank = i === 0 ? '🏆' : `${i + 1}.`;
-      const tag = r.difficulty ? ` <span class="tourDiff">${r.difficulty}</span>` : '';
       return (
         `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
-        `<span class="recNm">${escapeHtml(r.name)}${tag}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}</span>` +
         `<span class="recTot">${r.total} (${sign})</span></div>`
       );
     })
@@ -2850,6 +2856,27 @@ function aiTourStandingsHtml(t: AiTournamentState): string {
     : `🏆 Tournament — after round ${t.played}/${t.courseIds.length}`;
   const nextCourse = isFinal(t) ? '' : `<div class="recSub">Next round: ${escapeHtml(COURSES[t.courseIds[t.played]]?.name ?? '')}</div>`;
   return `<div class="tourResult"><div class="tourHeadRow">${head}</div>${rows}${nextCourse}</div>`;
+}
+
+/** Mid-round leaderboard overlay (the 🏆 HUD button during tournament play):
+ *  standings through the completed rounds, plus where the player currently
+ *  sits in round N. Dismisses on any tap. */
+function showAiTourBoard(): void {
+  if (!aiTour) return;
+  const modal = document.createElement('div');
+  modal.className = 'storeConfirm';
+  modal.style.zIndex = '30';
+  const roundNo = Math.min(aiTour.played + 1, aiTour.courseIds.length);
+  modal.innerHTML =
+    `<div class="storeConfirmBox">` +
+    aiTourStandingsHtml(aiTour) +
+    `<div class="recSub">You're playing round ${roundNo} of ${aiTour.courseIds.length} — scores post when the round ends.</div>` +
+    `<div class="btnRow"><button id="tourBoardClose">Close</button></div></div>`;
+  modal.addEventListener('pointerdown', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+  document.body.appendChild(modal);
+  modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
 }
 
 engine3d.runRenderLoop(() => current?.render());
@@ -3377,6 +3404,7 @@ document.getElementById('recordsLink')!.addEventListener('pointerdown', () => re
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
+tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
