@@ -1,6 +1,6 @@
 {
-  "loadMs": 6476,
-  "bakeMs": 1123,
-  "msPerFrame": 10.07,
-  "estFpsHeadless": 99
+  "loadMs": 7197,
+  "bakeMs": 1132,
+  "msPerFrame": 14.57,
+  "estFpsHeadless": 69
 }

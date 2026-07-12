@@ -1,5 +1,5 @@
 import { pointInPolygon } from '../utils/Geometry';
-import { HoleData } from '../core/types';
+import { HoleData, Polygon } from '../core/types';
 
 /**
  * Per-tree canopy blobs for a hole — the single source of truth for where the
@@ -26,6 +26,29 @@ export interface TreeBlob {
 export function blobHash(x: number, y: number): number {
   const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
   return s - Math.floor(s);
+}
+
+function distToSeg(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq)) : 0;
+  return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+/** Distance from a point to the nearest fairway polygon (0 if inside one). */
+function distToFairway(x: number, y: number, fairway: readonly Polygon[]): number {
+  let best = Infinity;
+  for (const poly of fairway) {
+    if (pointInPolygon(x, y, poly)) return 0;
+    for (let i = 0; i < poly.length; i++) {
+      const [ax, ay] = poly[i];
+      const [bx, by] = poly[(i + 1) % poly.length];
+      const d = distToSeg(x, y, ax, ay, bx, by);
+      if (d < best) best = d;
+    }
+  }
+  return best;
 }
 
 /**
@@ -73,12 +96,25 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     const fade = Math.min(maxX - minX, maxY - minY) > FADE * 4.5;
     const fadeFloor = forRender ? 0.3 : 0.7;
     const fadeSlope = (1 - fadeFloor) / 4;
+    // Depth-of-woods thinning (render only): a corridor wants to read DENSE
+    // right at the fairway edge (the "walled in" look) but doesn't need that
+    // same density purely as distant backdrop — the extra trunks back there
+    // are never seen up close, just paid for every frame (Timberline hole 1's
+    // "only hole with a performance problem" despite a similar tree layout to
+    // hole 3: its woods carry a much tighter authored spacing over a large
+    // area). Keep-probability falls off linearly with distance from the
+    // nearest fairway polygon, floored so the backdrop still reads as woods,
+    // never patchy. Collision/bake are unaffected (playability unchanged).
+    const FAIRWAY_THIN_NEAR = 70;
+    const FAIRWAY_THIN_FAR = 320;
+    const FAIRWAY_THIN_FLOOR = 0.22;
     const before = blobs.length;
     for (let yy = minY; yy < maxY; yy += step) {
       for (let xx = minX; xx < maxX; xx += step) {
         const jx = xx + (blobHash(xx, yy) - 0.5) * jitter;
         const jy = yy + (blobHash(yy, xx) - 0.5) * jitter;
         if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+        let keepThreshold = 1;
         if (fade) {
           const depth =
             (pointInPolygon(jx + FADE, jy, hz.polygon) ? 1 : 0) +
@@ -87,8 +123,14 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
             (pointInPolygon(jx, jy - FADE, hz.polygon) ? 1 : 0);
           // Interior (4/4 probes inside) always keeps; the outermost band
           // dissolves organically (render keeps ~30%, collision ~70%).
-          if (blobHash(jx * 1.7, jy * 3.1) > fadeFloor + fadeSlope * depth) continue;
+          keepThreshold = Math.min(keepThreshold, fadeFloor + fadeSlope * depth);
         }
+        if (forRender && hole.fairway.length) {
+          const fd = distToFairway(jx, jy, hole.fairway);
+          const t = Math.max(0, Math.min(1, (fd - FAIRWAY_THIN_NEAR) / (FAIRWAY_THIN_FAR - FAIRWAY_THIN_NEAR)));
+          keepThreshold = Math.min(keepThreshold, 1 - t * (1 - FAIRWAY_THIN_FLOOR));
+        }
+        if (keepThreshold < 1 && blobHash(jx * 1.7, jy * 3.1) > keepThreshold) continue;
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
           x: jx + offX,
