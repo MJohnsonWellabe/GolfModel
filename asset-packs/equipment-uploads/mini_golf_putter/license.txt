@@ -1,0 +1,11 @@
+Model Information:
+* title:	Mini Golf Putter
+* source:	https://sketchfab.com/3d-models/mini-golf-putter-a314bc7f887b41f58638364e39a1435b
+* author:	cswindley (https://sketchfab.com/cswindley)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Mini Golf Putter" (https://sketchfab.com/3d-models/mini-golf-putter-a314bc7f887b41f58638364e39a1435b) by cswindley (https://sketchfab.com/cswindley) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
