@@ -1,4 +1,4 @@
-# Johnson's Golf - Master Vision and Development Prompt
+# Bite-Sized Links - Master Vision and Development Prompt
 
 I want you to stop thinking of this as a series of isolated coding tasks.
 

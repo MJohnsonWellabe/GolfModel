@@ -1,6 +1,6 @@
 # 01_PROJECT_VISION.md
 
-## Johnson's Golf
+## Bite-Sized Links
 
 ### Project Vision Document
 
