@@ -22,7 +22,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -61,7 +61,7 @@ import { TurnManager } from '../systems/TurnManager';
 import { drawWind } from '../systems/RoundSimulator';
 import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
-import { dist } from '../utils/Geometry';
+import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
@@ -177,6 +177,9 @@ interface RoundState {
   activePlayer: number;
   /** Wind per hole index — generated once so 1v1 players share conditions. */
   holeWinds: Wind[];
+  /** Randomized cup position per hole index — generated once (seeded for
+   *  tournaments so every entrant plays the same pins, fresh for casual). */
+  holePins: Point[];
   /** Shared RNG seed for tournament rounds → identical conditions for every
    *  entrant (undefined for casual rounds, which roll fresh wind). */
   seed?: number;
@@ -227,7 +230,8 @@ const round: RoundState = {
   holeIdx: 0,
   players: [{ golfer: assembleGolfer('Player', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }],
   activePlayer: 0,
-  holeWinds: []
+  holeWinds: [],
+  holePins: []
 };
 
 /** Shot-based round stats accumulated for the HUMAN player during play
@@ -277,6 +281,19 @@ function windForHole(idx: number): Wind {
   return round.holeWinds[idx];
 }
 
+/** Randomized cup for a hole index — generated once per round and cached (like
+ *  wind). Seeded off the tournament seed so every entrant plays IDENTICAL pins
+ *  (the promise the tournaments UI already makes); a fresh random pin for
+ *  casual rounds. Kept clear of the green's rim by randomPinForGreen. */
+function pinForHole(idx: number): Point {
+  if (!round.holePins[idx]) {
+    const h = round.course.holes[idx];
+    const rng = round.seed !== undefined ? mulberry32(round.seed * 2003 + idx * 97 + 7) : Math.random;
+    round.holePins[idx] = randomPinForGreen(h.green, h.green2, rng);
+  }
+  return round.holePins[idx];
+}
+
 /** Score vs par across a participant's completed holes, broadcast style. */
 function scoreToPar(p: Participant): string {
   let diff = 0;
@@ -297,7 +314,10 @@ class HoleScene {
   private engine2d: PhysicsEngine;
   /** Flat, no-slope, windless engine that backs the aim preview (FB1). */
   private previewEngine: PhysicsEngine;
-  private hole = round.course.holes[round.holeIdx];
+  // Shallow-clone the hole with a randomized cup so every consumer (physics,
+  // AI, aim, flag/cup mesh, HUD) reads the SAME pin — without mutating the
+  // shared COURSES singleton. The authored `pin` is the fallback.
+  private hole: HoleData = { ...round.course.holes[round.holeIdx], pin: pinForHole(round.holeIdx) };
   private theme = resolveTheme(round.course);
   private golfers: Golfer3D[] = [];
   private balls: Mesh[] = [];
@@ -2761,6 +2781,7 @@ function startTournamentRound(meta: Tournament): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  round.holePins = [];
   round.seed = meta.seed;
   round.tournament = { code: meta.code, name: meta.name };
   shotAcc = freshShotAcc();
@@ -2829,6 +2850,7 @@ function startAiTourRound(): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  round.holePins = [];
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
@@ -3304,6 +3326,7 @@ function startRound(): void {
   round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
+  round.holePins = [];
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
@@ -3427,6 +3450,7 @@ async function startShotCapture(): Promise<void> {
   round.activePlayer = 0;
   // Fixed wind so the HUD chip (and any wind-driven visuals) never varies
   round.holeWinds = round.course.holes.map(() => ({ angle: 0.9, speed: 8 }));
+  round.holePins = round.course.holes.map((h) => ({ ...h.pin }));
   round.players = [
     { golfer: assembleGolfer('Shot', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }
   ];

@@ -135,6 +135,40 @@ export function pointInGreens(
 }
 
 /**
+ * A randomized cup position that sits comfortably INSIDE a hole's green (both
+ * lobes), clear of the rim by a margin so a struck approach can actually hold
+ * near it. Rejection-samples the green(s') bounding box, accepting the first
+ * candidate inside `pointInGreens` shrunk by `edge` px; falls back to the green
+ * centre if the (tiny/degenerate) green never yields one. Deterministic for a
+ * given `rng` — pass a seeded generator for tournament parity, `Math.random`
+ * for a fresh casual pin.
+ */
+export function randomPinForGreen(green: EllipseArea, green2: EllipseArea | undefined, rng: () => number = Math.random): Point {
+  // Keep the cup a sensible distance off the edge, but never more than a small
+  // green can spare (a 34px-radius green can't give up 14px on every side).
+  const minR = Math.min(green.rx, green.ry, ...(green2 ? [green2.rx, green2.ry] : [Infinity]));
+  const edge = Math.min(14, minR * 0.35);
+  // Bounding box over both lobes (rotation-agnostic: use the max radius as the
+  // half-extent so the box always contains the rotated ellipse).
+  const lobes = green2 ? [green, green2] : [green];
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const e of lobes) {
+    const r = Math.max(e.rx, e.ry);
+    x0 = Math.min(x0, e.cx - r);
+    x1 = Math.max(x1, e.cx + r);
+    y0 = Math.min(y0, e.cy - r);
+    y1 = Math.max(y1, e.cy + r);
+  }
+  for (let i = 0; i < 120; i++) {
+    const x = x0 + rng() * (x1 - x0);
+    const y = y0 + rng() * (y1 - y0);
+    if (pointInGreens(x, y, green, green2, -edge)) return { x, y };
+  }
+  // Degenerate fallback: the authored centre (always inside its own lobe).
+  return { x: green.cx, y: green.cy };
+}
+
+/**
  * Push any polygon vertex that sits on the green + collar radially outward to
  * just past that boundary, so a bunker whose authored outline runs under the
  * green stops SHORT of it with its own organic edge — instead of being sliced
