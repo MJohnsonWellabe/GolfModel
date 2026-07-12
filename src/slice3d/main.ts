@@ -36,8 +36,6 @@ import {
   createTournament,
   fetchTournament,
   submitEntry,
-  submitAces,
-  fetchAces,
   makeTournamentCode,
   tournamentStandings,
   isEnded,
@@ -45,6 +43,7 @@ import {
   Tournament,
   TournamentEntry
 } from '../firebase/Tournaments';
+import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
@@ -377,12 +376,7 @@ class HoleScene {
    *  so the ball rests on the surface at either size. */
   private ballScale = 1;
 
-  constructor(
-    private onHoleComplete: (scores: number[]) => void,
-    /** Ace-challenge hook: when set, the attempt ends the instant the tee shot
-     *  comes to rest and reports whether it was holed (Phase 8). */
-    private onFirstShot?: (holed: boolean) => void
-  ) {
+  constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
     this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole));
     // Aim/preview run on a flat, no-slope engine so the aim line never
@@ -1207,7 +1201,6 @@ class HoleScene {
    * when the turn was consumed by the concession.
    */
   private tryGimme(): boolean {
-    if (this.onFirstShot) return false; // ace challenge is a single shot — never conceded
     if (this.state.lie !== 'green') return false;
     const ft = (dist(this.state.ballPos, this.hole.pin) / PX_PER_YARD) * 3;
     if (ft > HoleScene.GIMME_FEET) return false;
@@ -1468,17 +1461,6 @@ class HoleScene {
     if (this.state.strokes >= RULES.maxStrokes && !c.holed) {
       showMsg(`Pick up — max ${RULES.maxStrokes}`, 1600);
       this.golfer.react('deject');
-    }
-
-    // Ace challenge: one tee shot per attempt — report the result and end the
-    // attempt as soon as the ball settles, holed or not (Phase 8).
-    if (this.onFirstShot) {
-      this.state.phase = 'done';
-      const holed = outcome.holed;
-      setTimeout(() => {
-        if (!this.disposed) this.onFirstShot!(holed);
-      }, holed ? 2400 : 900);
-      return;
     }
 
     // Hole over when every competitor has holed / picked up; otherwise the
@@ -2026,22 +2008,51 @@ function showSummary(): void {
       showCloudStatus(res.status);
     });
 
+  // AI tournament round: fold this score in, simulate the field's rounds on
+  // the same course, and show the updated standings. On the final round the
+  // headline becomes the placement and the purse pays out.
+  let aiTourBlock = '';
+  let aiTourPurse = 0;
+  if (aiTour) {
+    completeRound(aiTour, COURSES, totals[0], totals[0] - totalPar);
+    aiTourBlock = aiTourStandingsHtml(aiTour);
+    if (isFinal(aiTour)) {
+      const rank = aiTourStandings(aiTour).findIndex((r) => r.isPlayer) + 1;
+      headline = rank === 1 ? '🏆 Tournament champion!' : `Tournament: ${ordinal(rank)} place`;
+      aiTourPurse = purseFor(rank);
+      profile.coins += aiTourPurse;
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(profile).then((res) => {
+          applyCloudMerge(profile, res.profile);
+          showCloudStatus(res.status, true);
+        });
+    } else {
+      headline = `Round ${aiTour.played}/${aiTour.courseIds.length} complete`;
+    }
+  }
   const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
   const signInNudge =
     !signedIn && authConfigured()
       ? `<div class="signInNudge">Sign in to keep these coins & save your progress.</div>`
       : '';
+  const purseLine = aiTourPurse ? `<div class="rwLine ach">💰 Tournament purse: +${aiTourPurse} 🪙</div>` : '';
+  // Mid-tournament the primary button advances the tournament, not the menu.
+  const midTour = aiTour && !isFinal(aiTour);
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
     `<div id="recBanner" class="recBanner"></div>` +
     `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    aiTourBlock +
     tourBlock +
     rewardStripHtml(events) +
+    purseLine +
     signInNudge +
     `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
     `<button id="profBtn" class="ghostBtn">Profile</button>` +
-    `<button id="againBtn">Menu</button></div>`;
+    (midTour ? `<button id="quitTourBtn" class="ghostBtn">Quit</button><button id="againBtn">Next Round →</button>` : `<button id="againBtn">Menu</button>`) +
+    `</div>`;
   summaryEl.style.display = 'block';
   // Tournament: submit this round as the player's entry (first score stands)
   // and show the live standings (Phase 8).
@@ -2049,6 +2060,16 @@ function showSummary(): void {
   document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
+    if (midTour) {
+      startAiTourRound();
+    } else {
+      aiTour = null; // a finished tournament is done — Menu starts fresh
+      showSetup();
+    }
+  });
+  document.getElementById('quitTourBtn')?.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    aiTour = null;
     showSetup();
   });
   document.getElementById('recBtn')!.addEventListener('pointerdown', () => renderRecords());
@@ -2531,16 +2552,8 @@ async function renderRecords(): Promise<void> {
 
 // ------------------------------------------------ Phase 8: tournaments + aces
 
-/** Index of a course's par 3 — the hole the Ace Challenge tees off. */
-function par3Index(course: CourseData): number {
-  return course.holes.findIndex((h) => h.par === 3);
-}
-
 function tournamentsEl(): HTMLElement {
   return document.getElementById('tournaments')!;
-}
-function acesEl(): HTMLElement {
-  return document.getElementById('aces')!;
 }
 function closeOverlay(el: HTMLElement): void {
   el.style.display = 'none';
@@ -2579,16 +2592,16 @@ function renderTournaments(preCode?: string): void {
   el.style.display = 'flex';
   if (!isShared()) {
     el.innerHTML =
-      `<div class="recInner"><h2>Tournaments</h2>` +
-      `<div class="recEmpty">Tournaments play over the shared leaderboard, which isn't configured on this build yet. ` +
+      `<div class="recInner"><h2>Online Tournaments</h2>` +
+      `<div class="recEmpty">Online tournaments play over the shared leaderboard, which isn't configured on this build yet. ` +
       `See docs/FIREBASE_SETUP.md to connect one.</div>` +
       `<button id="tourBack">Back</button></div>`;
     document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
     return;
   }
   el.innerHTML =
-    `<div class="recInner"><h2>🏁 Tournaments</h2>` +
-    `<div class="recSub">Everyone plays identical wind & pins. Lowest total wins.</div>` +
+    `<div class="recInner"><h2>🌐 Online Tournaments</h2>` +
+    `<div class="recSub">Challenge real players: everyone plays identical wind &amp; pins. Lowest total wins.</div>` +
     `<button id="tourCreate" class="tourAction">➕ Create a tournament</button>` +
     `<div class="tourJoin"><input id="tourCode" type="text" maxlength="9" placeholder="JG-XXXXXX" ` +
     `autocomplete="off" autocapitalize="characters" value="${preCode ? escapeHtml(preCode) : ''}" />` +
@@ -2740,52 +2753,30 @@ async function submitTournamentRound(code: string, record: RoundRecord, holeCoun
   el.innerHTML = renderStandingsHtml(data.meta, standings, myRank);
 }
 
-// ----- Ace challenge: tee off a par 3 on repeat, chase all-time hole-in-ones.
+// ----- AI Tournament: three rounds, three courses, an AI field you only ever
+// meet on the leaderboard (replaced the Ace Challenge). The player plays
+// normal solo rounds; after each one the field's scores for the same course
+// come from the real round simulator and the standings update.
 
-let acesSession: { attempts: number; aces: number } | null = null;
+let aiTour: AiTournamentState | null = null;
 
-async function renderAcesMenu(): Promise<void> {
-  const el = acesEl();
-  el.style.display = 'flex';
-  const par3 = round.course.holes.find((h) => h.par === 3);
-  el.innerHTML =
-    `<div class="recInner"><h2>🎯 Ace Challenge</h2>` +
-    `<div class="recSub">Tee off ${par3?.name ?? 'a par 3'} again and again. ` +
-    `Every hole-in-one counts toward the all-time board.</div>` +
-    `<button id="aceStart" class="tourAction">Start teeing off →</button>` +
-    `<div class="tourHeadRow">All-time aces</div>` +
-    `<div id="aceBoard" class="recList">${isShared() ? 'Loading…' : '📱 Connect online to compete on the global board.'}</div>` +
-    `<button id="aceBack">Back</button></div>`;
-  document.getElementById('aceBack')!.addEventListener('pointerdown', () => closeOverlay(el));
-  document.getElementById('aceStart')!.addEventListener('pointerdown', () => startAces());
-  if (isShared()) {
-    const recs = await fetchAces();
-    const board = document.getElementById('aceBoard');
-    if (board) {
-      board.innerHTML = recs.length
-        ? recs
-            .slice(0, 10)
-            .map((r, i) => {
-              const you = r.playerId === profile.id ? ' you' : '';
-              const rank = i === 0 ? '🏆' : `${i + 1}.`;
-              return `<div class="recRow${you}"><span class="recRk">${rank}</span><span class="recNm">${escapeHtml(r.name)}</span><span class="recTot">${r.aces} 🕳️</span></div>`;
-            })
-            .join('')
-        : `<div class="recEmpty">No aces recorded yet — go make history.</div>`;
-    }
-  }
+function startAiTournament(): void {
+  aiTour = createAiTournament(
+    COURSE_LIST.map((c) => c.id),
+    OPPONENTS,
+    Math.floor(Math.random() * 1e9)
+  );
+  startAiTourRound();
 }
 
-function startAces(): void {
-  // Tee off the selected course's par 3 (chosen on the wizard's Course step);
-  // falls back to Wildwood so the results-screen "tee off again" always works.
-  const course = COURSES[sel.courseId] ?? COURSES.wildwood;
-  const holeIdx = par3Index(course);
-  if (holeIdx < 0) return;
-  acesSession = { attempts: 0, aces: 0 };
-  round.course = course;
-  round.mode = 'solo'; // an ace attempt runs as a single solo hole internally
-  round.holeIdx = holeIdx;
+/** Play the tournament's next round as a normal solo round (round.mode stays
+ *  'solo', like online-tournament rounds) — finishRound spots the active
+ *  tournament and swaps the summary's footer for standings + Next Round. */
+function startAiTourRound(): void {
+  if (!aiTour) return;
+  round.course = COURSES[aiTour.courseIds[aiTour.played]] ?? COURSES.wildwood;
+  round.mode = 'solo';
+  round.holeIdx = 0;
   round.activePlayer = 0;
   round.holeWinds = [];
   round.seed = undefined;
@@ -2793,58 +2784,30 @@ function startAces(): void {
   shotAcc = freshShotAcc();
   const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
   round.players = [{ golfer, isAI: false, scores: [] }];
-  closeOverlay(acesEl());
   setupEl.style.display = 'none';
-  playAceAttempt();
+  playHole();
 }
 
-function playAceAttempt(): void {
-  current?.dispose();
-  // Fresh wind each attempt for variety.
-  round.holeWinds = [];
-  current = new HoleScene(
-    () => undefined,
-    (holed) => {
-      if (!acesSession) return;
-      acesSession.attempts++;
-      if (holed) {
-        acesSession.aces++;
-        profile.stats.holeInOnes++;
-        persistProfile();
-      }
-      showAceInterstitial(holed);
-    }
-  );
-  exposeDebug();
-}
-
-function showAceInterstitial(holed: boolean): void {
-  const s = acesSession!;
-  summaryEl.innerHTML =
-    `<h2>${holed ? '🕳️ ACE! 🎉' : 'No luck that time'}</h2>` +
-    `<div class="aceTally">Attempts: <b>${s.attempts}</b> · Aces: <b>${s.aces}</b></div>` +
-    `<div class="btnRow"><button id="aceAgain">Tee off again</button>` +
-    `<button id="aceDone" class="ghostBtn">Done</button></div>`;
-  summaryEl.style.display = 'block';
-  document.getElementById('aceAgain')!.addEventListener('pointerdown', () => {
-    summaryEl.style.display = 'none';
-    playAceAttempt();
-  });
-  document.getElementById('aceDone')!.addEventListener('pointerdown', () => {
-    summaryEl.style.display = 'none';
-    void endAces();
-  });
-}
-
-async function endAces(): Promise<void> {
-  const s = acesSession;
-  acesSession = null;
-  current?.dispose();
-  current = null;
-  if (s && s.aces > 0 && isShared()) {
-    await submitAces({ playerId: profile.id, name: profile.name || 'Player', aces: profile.stats.holeInOnes, updatedAt: Date.now() });
-  }
-  void renderAcesMenu();
+/** Standings table for the summary screen: cumulative to-par, player row
+ *  highlighted, AI difficulty as a quiet tag. */
+function aiTourStandingsHtml(t: AiTournamentState): string {
+  const rows = aiTourStandings(t)
+    .map((r, i) => {
+      const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
+      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      const tag = r.difficulty ? ` <span class="tourDiff">${r.difficulty}</span>` : '';
+      return (
+        `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}${tag}</span>` +
+        `<span class="recTot">${r.total} (${sign})</span></div>`
+      );
+    })
+    .join('');
+  const head = isFinal(t)
+    ? `🏆 Final standings`
+    : `🏆 Tournament — after round ${t.played}/${t.courseIds.length}`;
+  const nextCourse = isFinal(t) ? '' : `<div class="recSub">Next round: ${escapeHtml(COURSES[t.courseIds[t.played]]?.name ?? '')}</div>`;
+  return `<div class="tourResult"><div class="tourHeadRow">${head}</div>${rows}${nextCourse}</div>`;
 }
 
 engine3d.runRenderLoop(() => current?.render());
@@ -2989,10 +2952,12 @@ const sel = {
   opponentId: OPPONENTS[1].id
 };
 
-/** Solo & Ace rounds skip the rival step; 1v1/scramble add it at the end. On
- *  the Ace Challenge the Course step chooses which course's par 3 you tee off. */
+/** Solo rounds skip the rival step; 1v1/scramble add it at the end. The AI
+ *  Tournament also skips the Course step — its three-course rota is drawn
+ *  when the tournament starts. */
 function stepLabels(): string[] {
-  return sel.mode === 'solo' || sel.mode === 'aces'
+  if (sel.mode === 'aitour') return ['Mode', 'Name', 'Character', 'Pals', 'Style'];
+  return sel.mode === 'solo'
     ? ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style']
     : ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
 }
@@ -3044,7 +3009,7 @@ const MODES: Array<{ id: GameMode; name: string; desc: string; icon: string }> =
   { id: 'solo', name: 'Solo Round', desc: 'Three holes, you against the course.', icon: '⛳' },
   { id: '1v1', name: '1 vs 1', desc: 'Match an AI rival, lowest total wins.', icon: '⚔️' },
   { id: 'scramble', name: 'Scramble', desc: 'Team up with an AI partner — best ball counts.', icon: '🤝' },
-  { id: 'aces', name: 'Ace Challenge', desc: 'Tee off a par 3 over and over — chase a hole-in-one.', icon: '🎯' }
+  { id: 'aitour', name: 'AI Tournament', desc: 'Three rounds, three courses, a field of AI pros. Top the board.', icon: '🏆' }
 ];
 
 function randomOf<T>(arr: readonly T[]): T {
@@ -3059,7 +3024,7 @@ function randomizeSelections(): void {
   const ownedChars = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
   sel.character = (ownedChars.length ? randomOf(ownedChars) : CHARACTERS[0]).key as CharacterKey;
   sel.archetype = randomOf(ARCHETYPES).id as ArchetypeId;
-  if (sel.mode !== 'solo' && sel.mode !== 'aces') sel.opponentId = randomOf(OPPONENTS).id;
+  if (sel.mode === '1v1' || sel.mode === 'scramble') sel.opponentId = randomOf(OPPONENTS).id;
 }
 
 function renderMode(): void {
@@ -3089,17 +3054,13 @@ function renderMode(): void {
 }
 
 function renderCourse(): void {
-  const aces = sel.mode === 'aces';
   stepBodyEl.innerHTML =
-    `<div class="stepTitle">${aces ? 'Pick a par 3 to attack' : 'Choose your course'}</div>` +
+    `<div class="stepTitle">Choose your course</div>` +
     `<div class="modeGrid">` +
     COURSE_LIST.map((c) => {
       const course = COURSES[c.id];
-      const par3 = course.holes.find((h) => h.par === 3);
-      // Ace mode: the card names the course's par 3 (the hole you'll tee off);
-      // otherwise it shows the 3-hole par as usual.
-      const tag = aces ? `Par 3 · ${par3?.yardage ?? ''}yd` : `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
-      const sub = aces ? `${par3?.name ?? 'Par 3'} — ${c.name}` : c.tag;
+      const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
+      const sub = c.tag;
       return (
         `<div class="archCard modeCard${sel.courseId === c.id ? ' sel' : ''}" data-course="${c.id}">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
@@ -3260,6 +3221,8 @@ function updateDailyBanner(): void {
 }
 
 function startRound(): void {
+  // A fresh start from the menu abandons any half-finished AI tournament.
+  aiTour = null;
   round.course = COURSES[sel.courseId] ?? COURSES.wildwood;
   round.mode = sel.mode;
   round.holeIdx = 0;
@@ -3273,10 +3236,10 @@ function startRound(): void {
   profile.character = sel.character;
   profile.archetype = sel.archetype;
   persistProfile();
-  // Ace Challenge is a mode: hand off to the repeat-a-par-3 loop instead of a
-  // normal three-hole round (playtest FB9).
-  if (sel.mode === 'aces') {
-    startAces();
+  // The AI Tournament is a mode: hand off to the three-round loop instead of
+  // a single three-hole round.
+  if (sel.mode === 'aitour') {
+    startAiTournament();
     return;
   }
   const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades);
@@ -3291,6 +3254,17 @@ function startRound(): void {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
+}
+
+/** 1 → "1st", 2 → "2nd" … for tournament placements (field is tiny — no
+ *  need for the 11th/12th/13th special cases, but they're correct anyway). */
+function ordinal(n: number): string {
+  const rem10 = n % 10;
+  const rem100 = n % 100;
+  if (rem10 === 1 && rem100 !== 11) return `${n}st`;
+  if (rem10 === 2 && rem100 !== 12) return `${n}nd`;
+  if (rem10 === 3 && rem100 !== 13) return `${n}rd`;
+  return `${n}th`;
 }
 
 /**
@@ -3428,11 +3402,9 @@ else {
   startRound();
 };
 
-// Test hook: boot the ace challenge (Phase 8) without menu taps.
-(window as unknown as { __startAces: unknown }).__startAces = () => {
-  setupEl.style.display = 'none';
-  startAces();
-};
+// Test hook: expose the live AI-tournament state so specs can assert the
+// rota/standings without scraping the DOM (read-only snapshot).
+(window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
 
 // Test hook: grant session coins so specs can exercise the purchase flow
 // (signed-out play is ephemeral — nothing here persists or reaches the cloud).
