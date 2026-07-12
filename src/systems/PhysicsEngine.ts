@@ -593,7 +593,16 @@ export class PhysicsEngine {
           // (playtest: "backspin on woods shouldn't stop the ball in its tracks")
           // — irons/wedges still bite normally.
           const isWood = clubFamily(club) === 'wood';
-          const spinKeep = clamp(1 + spin.top * 0.55 * spinEff, isWood ? 0.4 : 0.05, 1.5);
+          let spinKeep = clamp(1 + spin.top * 0.55 * spinEff, isWood ? 0.4 : 0.05, 1.5);
+          // Sand absorbs a bounce's energy regardless of spin — the granular
+          // surface doesn't let a ball "check up" and run further the way a
+          // firm fairway bounce does. Backspin still DEADENS a sand landing
+          // (spinKeep < 1 stays in effect below), but topspin can no longer
+          // LIVEN one; without this a well-struck topspin wedge into a waste
+          // bunker could bounce and run believably far — reading as "spinning
+          // the ball out of the sand," which should never be possible
+          // (playtest report).
+          if (firmSand) spinKeep = Math.min(1, spinKeep);
           const bnc = firmSand ? PHYSICS.firmSand.bounce : PHYSICS.bounce[surf] ?? 0.4;
           const keep = bnc * (1 - club.spin) * spinKeep;
           vx *= keep;

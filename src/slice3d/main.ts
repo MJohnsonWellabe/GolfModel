@@ -362,6 +362,10 @@ class HoleScene {
   private disposed = false;
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
   private introTimers: ReturnType<typeof setTimeout>[] = [];
+  /** Set by skipIntro so the natureReady-gated travel schedule (a Promise
+   *  chain, not a plain timer skipIntro's clearTimeout can reach) bails out
+   *  instead of moving the camera after the player already has control. */
+  private introSkipped = false;
   private static BALL_REST = 0.5;
   /** Putting view uses honest, consistent real-world scale (config PUTT_VIEW):
    *  a ~6ft golfer and a ball sized to the cup (~2.5× the ball), so nothing on
@@ -824,45 +828,71 @@ class HoleScene {
     }
     stops.push({ x: h.pin.x, y: h.pin.y });
     const TRAVEL_MS = 3600;
-    let from = { x: h.tee.x, y: h.tee.y };
-    stops.forEach((stop, i) => {
-      const last = i === stops.length - 1;
-      const leg = this.fwd3(Math.atan2(stop.y - from.y, stop.x - from.x));
-      from = stop;
-      // Look ahead down the CURRENT leg (the next stop), not always at the
-      // pin — on a dogleg the pin sits behind the corner woods until the turn.
-      const ahead = last ? { x: h.pin.x, y: h.pin.y } : stops[i + 1];
-      this.introTimers.push(
-        setTimeout(
-          () => {
-            if (this.disposed) return;
-            this.camTarget.pos = w2b(stop.x, stop.y, last ? 82 : 52).subtract(leg.scale(last ? 26 : 30));
-            this.camTarget.look = w2b(ahead.x, ahead.y, this.gh(ahead.x, ahead.y));
-            this.camTarget.k = last ? 0.85 : 0.9;
-          },
-          TEE_HOLD_MS + (i * TRAVEL_MS) / stops.length
-        )
-      );
-    });
 
-    // Final waypoint: pull back to the tee-shot framing and hand over control.
-    this.introTimers.push(
-      setTimeout(() => {
-        if (this.disposed) return;
-        bannerEl.style.opacity = '0';
-        this.setCamSetup();
-        this.camTarget.k = 1.3;
+    // The travel sweep is what actually shows off the hole, so it must not
+    // start until the scatter (trees/bushes/flowers/grass) has finished
+    // planting — otherwise the camera glides over a course that's still
+    // filling in underneath it (playtest: "wasn't rendered until halfway
+    // through the flyover"). Scheduled relative to "now" (whenever that
+    // turns out to be) rather than a fixed offset from playIntro()'s call
+    // time; a MAX_NATURE_WAIT_MS cap keeps a stalled/failed load from
+    // hanging the flyover forever.
+    const MAX_NATURE_WAIT_MS = 2600;
+    let travelStarted = false;
+    const beginTravel = (): void => {
+      if (travelStarted || this.disposed || this.introSkipped) return;
+      travelStarted = true;
+      let from = { x: h.tee.x, y: h.tee.y };
+      stops.forEach((stop, i) => {
+        const last = i === stops.length - 1;
+        const leg = this.fwd3(Math.atan2(stop.y - from.y, stop.x - from.x));
+        from = stop;
+        // Look ahead down the CURRENT leg (the next stop), not always at the
+        // pin — on a dogleg the pin sits behind the corner woods until the turn.
+        const ahead = last ? { x: h.pin.x, y: h.pin.y } : stops[i + 1];
         this.introTimers.push(
-          setTimeout(() => {
-            if (!this.disposed) this.beginTurn();
-          }, 900)
+          setTimeout(
+            () => {
+              if (this.disposed) return;
+              this.camTarget.pos = w2b(stop.x, stop.y, last ? 82 : 52).subtract(leg.scale(last ? 26 : 30));
+              this.camTarget.look = w2b(ahead.x, ahead.y, this.gh(ahead.x, ahead.y));
+              this.camTarget.k = last ? 0.85 : 0.9;
+            },
+            (i * TRAVEL_MS) / stops.length
+          )
         );
-      }, TRAVEL_MS + TEE_HOLD_MS)
-    );
+      });
+
+      // Final waypoint: pull back to the tee-shot framing and hand over control.
+      this.introTimers.push(
+        setTimeout(() => {
+          if (this.disposed) return;
+          bannerEl.style.opacity = '0';
+          this.setCamSetup();
+          this.camTarget.k = 1.3;
+          this.introTimers.push(
+            setTimeout(() => {
+              if (!this.disposed) this.beginTurn();
+            }, 900)
+          );
+        }, TRAVEL_MS)
+      );
+    };
+    const teeHoldDone = new Promise<void>((resolve) => {
+      this.introTimers.push(setTimeout(resolve, TEE_HOLD_MS));
+    });
+    const natureReadyOrTimeout = Promise.race([
+      this.course3d.natureReady,
+      new Promise<void>((resolve) => {
+        this.introTimers.push(setTimeout(resolve, MAX_NATURE_WAIT_MS));
+      })
+    ]);
+    void Promise.all([teeHoldDone, natureReadyOrTimeout]).then(beginTravel);
   }
 
   /** Cancel the intro flyover and hand control over immediately. */
   skipIntro(): void {
+    this.introSkipped = true;
     this.introTimers.forEach((t) => clearTimeout(t));
     this.introTimers = [];
     bannerEl.style.opacity = '0';
@@ -1848,6 +1878,12 @@ class HoleScene {
         );
       }
     }
+
+    // Fade any tree canopy standing between the camera and the golfer (a torso-
+    // height point above the root, since the root sits at ground level) so the
+    // character never vanishes behind foliage the camera is looking through.
+    const golferHead = this.golfer.root.getAbsolutePosition().add(new Vector3(0, 3, 0));
+    this.course3d.updateTreeOcclusion(this.camera.position, golferHead);
   }
 
   render(): void {
@@ -1860,6 +1896,18 @@ class HoleScene {
   }
   swingActive(): void {
     this.golfer.swing();
+  }
+
+  /** Test hook: force the tree-occlusion fade with a synthetic camera position
+   *  and report how many ghost (translucent stand-in) meshes are currently
+   *  showing — lets Playwright verify the fade without needing the real
+   *  camera to be looking through a tree (Playwright verification). */
+  debugTreeOcclusion(camX: number, camY: number, camZ: number): number {
+    const gp = this.golfer.root.getAbsolutePosition();
+    const golferHead = new Vector3(gp.x, gp.y + 3, gp.z);
+    const cam = new Vector3(camX, camY, camZ);
+    for (let i = 0; i < 8; i++) this.course3d.updateTreeOcclusion(cam, golferHead);
+    return this.scene.meshes.filter((m) => m.name.startsWith('ghost')).length;
   }
 
   /** Test hook: place the current competitor's ball anywhere and re-tee. */
@@ -2820,7 +2868,8 @@ function exposeDebug(): void {
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
-        skipIntro: () => current?.skipIntro()
+        skipIntro: () => current?.skipIntro(),
+        debugTreeOcclusion: (x: number, y: number, z: number) => current?.debugTreeOcclusion(x, y, z)
       }
     : null;
 }

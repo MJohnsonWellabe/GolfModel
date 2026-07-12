@@ -30,7 +30,15 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 const GOLFER_SCALE = 1.4;
 // Real club-model placement (wrist-local). Tuned so the grip sits in the hands
 // and the club hangs down and slightly forward/out to address the ball.
-const CLUB_LEN = 2.0;
+// 1.3 (was 2.0): at the old length the ADDRESS_TILT_* pose (steep pitch, soling
+// the head behind the ball) put the head's bounding-box floor ~0.86 units below
+// the ground plane — nearly a full ball-diameter of clipping, worst at address/
+// putt where addressBlend is fully engaged (playtest: "clubhead is underground
+// when lining up a putt", "on other shots too"). Verified empirically (two
+// measurements of the head's world-space min Y at CLUB_LEN 2.0 and 1.6 fit a
+// line; solved for the length that lands the head just above ground) rather
+// than re-tuning ADDRESS_TILT_*, which the swing pose also shares.
+const CLUB_LEN = 1.3;
 const CLUB_MIRROR = 1;
 const CLUB_TILT_X = 0.32;
 const CLUB_TILT_Y = 0;

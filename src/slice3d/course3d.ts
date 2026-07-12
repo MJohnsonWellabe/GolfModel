@@ -159,6 +159,18 @@ export interface Course3D {
    *  from (ballX, ballY): one lattice axis runs at the cup, the other is the
    *  90° horizontal — how you read break. Call when a putt is addressed. */
   orientPuttAids: (ballX: number, ballY: number) => void;
+  /** Resolves once every tree/bush/flower/grass instance for this hole has
+   *  actually been planted (the chunked scatter drain has fully run) — wait
+   *  on this before starting camera work that shows off the whole hole (the
+   *  intro flyover), so nothing pops into view mid-sweep. */
+  natureReady: Promise<void>;
+  /** Fade any tree canopy standing between the camera and the golfer so the
+   *  character never disappears behind foliage the camera happens to be
+   *  looking through (playtest: "trees near the camera block your view of
+   *  your character"). Cheap to call every frame — the candidate list is
+   *  pre-filtered to canopies near the golfer, and the fade itself only
+   *  recomputes on a throttle while lerping every call for a smooth blend. */
+  updateTreeOcclusion: (camPos: Vector3, golferPos: Vector3) => void;
 }
 
 /** Visual raise of the green plateau and the tee platform top (world units). */
@@ -1125,6 +1137,22 @@ export function buildCourse(
   // from the same collectTreeBlobs() the baked texture drops shadows for, so
   // trunks land on their shadows. (Palette defined above the sky section.)
   const treeRoot = new TransformNode('nature', scene);
+  // Canopy occlusion candidates registry: declared here (not inside the async
+  // .then below) so updateTreeOcclusion can close over it and be returned
+  // synchronously — the array is populated gradually as nature props load and
+  // plant in, which the occlusion scan tolerates fine (it just sees more
+  // candidates over time).
+  const canopyOcclusion: Array<{ insts: InstancedMesh[]; x: number; y: number; r: number }> = [];
+  // Resolves once every tree/bush/flower/grass instance has actually been
+  // planted (the chunked plant/pop queue below has fully drained) — the
+  // flyover waits on this so the sweep never outruns the scatter and shows
+  // an empty course filling in mid-shot (playtest: "wasn't rendered until
+  // halfway through the flyover"). Declared here so it resolves even if
+  // natKeys is empty (no async load ever kicks off the drain below).
+  let resolveNatureReady: () => void = () => undefined;
+  const natureReady = new Promise<void>((resolve) => {
+    resolveNatureReady = resolve;
+  });
   void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
     const pick = (keys: readonly string[]): NatureProto[] =>
       keys.map((k) => protos.get(k)).filter((p): p is NatureProto => !!p);
@@ -1180,11 +1208,23 @@ export function buildCourse(
     let plantHead = 0;
     let popHead = 0;
     let n = 0;
-    const placeProto = (proto: NatureProto, x: number, y: number, targetH: number, tint?: Color4): void => {
+    // Canopy occlusion candidates (declared at the outer buildCourse scope,
+    // above): only trees/blossoms register here (via the onPlanted callback
+    // plantTree passes below) — grass, flowers and bushes never grow tall
+    // enough to hide the golfer, so they're left out of the scan entirely.
+    const placeProto = (
+      proto: NatureProto,
+      x: number,
+      y: number,
+      targetH: number,
+      tint?: Color4,
+      onPlanted?: (insts: InstancedMesh[]) => void
+    ): void => {
       plantQueue.push(() => {
         const s = targetH / proto.height;
         const pos = w2b(x, y, heightAt(x, y));
         const rotY = hash2(y, x) * Math.PI * 2;
+        const planted: InstancedMesh[] = [];
         // Instance every material part of the prop with one shared transform.
         for (const part of proto.parts) {
           const inst = part.createInstance(`nat${n++}`);
@@ -1205,7 +1245,9 @@ export function buildCourse(
           inst.freezeWorldMatrix();
           inst.doNotSyncBoundingInfo = true;
           inst.isPickable = false;
+          planted.push(inst);
         }
+        onPlanted?.(planted);
       });
     };
     // Time-sliced drain: run placement rows first (they enqueue instance thunks),
@@ -1229,6 +1271,7 @@ export function buildCourse(
           else if (plantHead < plantQueue.length) plantQueue[plantHead++]();
           else {
             scene.onBeforeRenderObservable.remove(drain);
+            resolveNatureReady();
             return;
           }
         }
@@ -1328,8 +1371,11 @@ export function buildCourse(
       // trunk (kind 3, treeField.collectTreeBlobs) uses the blossom prototype
       // — ordinary woods get an occasional cherry tree scattered through them
       // (Wildwood's spring-parkland identity), not just the dedicated groves.
+      const register = (insts: InstancedMesh[]): void => {
+        canopyOcclusion.push({ insts, x: b.x, y: b.y, r: Math.max(8, b.r) });
+      };
       if ((b.blossom || b.kind === 3) && blossomProto) {
-        placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0));
+        placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0), undefined, register);
         return;
       }
       // Accent species (e.g. birch among Timberline's pines) on ~15% of trees.
@@ -1340,7 +1386,7 @@ export function buildCourse(
       // they read squat, so they grow taller from the same canopy radius —
       // with per-tree jitter so a pine wall gets a ragged natural skyline.
       const hMul = conifers.has(e.key) ? 2.3 + hash2(b.x * 1.3, b.y * 2.1) * 0.7 : 2.0;
-      placeProto(e.proto, b.x, b.y, Math.max(24, b.r * hMul));
+      placeProto(e.proto, b.x, b.y, Math.max(24, b.r * hMul), undefined, register);
     };
 
     // forRender=true: the 3D trunks read any hz.renderOffset nudge (visual
@@ -2247,6 +2293,85 @@ export function buildCourse(
   };
   placeCupRing(puttAids.rot);
 
+  // ---------------------------------------------------- tree camera occlusion
+  // Regular (non-thin) InstancedMesh.visibility is a documented no-op in this
+  // Babylon build (it just proxies the SHARED source mesh's value, logging a
+  // warning on write) — there is no per-instance alpha in the instanced draw
+  // path. Genuine translucency needs a standalone mesh with its own material,
+  // so an occluding tree is swapped for a lazily-created, alpha-blended
+  // "ghost" clone of its source mesh (hide the instance, show the ghost) —
+  // bounded to the handful of trees ever near the camera at once, created and
+  // disposed on entry/exit rather than kept live for the whole course.
+  const FADE_ALPHA = 0.28;
+  const OCCLUSION_RECOMPUTE_EVERY = 6; // ~10Hz at 60fps
+  // Worst case (camera embedded deep in a dense forest wall) can otherwise
+  // pull in dozens of candidates — measured ~0.9ms per ghost clone+material
+  // swap, so an uncapped recompute frame could hitch. A close-range gameplay
+  // camera only ever needs a handful of trees faded for the effect to read;
+  // past this cap the scene is thick enough the fade wouldn't help anyway.
+  const MAX_GHOSTS_PER_PASS = 10;
+  const ghostMatCache = new Map<StandardMaterial, StandardMaterial>();
+  const ghostFor = (mat: StandardMaterial): StandardMaterial => {
+    let g = ghostMatCache.get(mat);
+    if (!g) {
+      g = mat.clone(`${mat.name}Ghost`);
+      g.alpha = FADE_ALPHA;
+      g.backFaceCulling = false;
+      ghostMatCache.set(mat, g);
+    }
+    return g;
+  };
+  const activeGhosts = new Map<InstancedMesh, Mesh>();
+  let occlusionFrame = 0;
+  const updateTreeOcclusion = (camPos: Vector3, golferPos: Vector3): void => {
+    occlusionFrame++;
+    if (occlusionFrame % OCCLUSION_RECOMPUTE_EVERY !== 0 || !canopyOcclusion.length) return;
+    const dx = golferPos.x - camPos.x;
+    const dz = golferPos.z - camPos.z;
+    const segLen = Math.hypot(dx, dz);
+    const nowOccluding = new Set<InstancedMesh>();
+    if (segLen > 0.5) {
+      const ux = dx / segLen;
+      const uz = dz / segLen;
+      for (const c of canopyOcclusion) {
+        if (nowOccluding.size >= MAX_GHOSTS_PER_PASS) break;
+        const tx = c.x - camPos.x;
+        const tz = -c.y - camPos.z; // w2b maps world y -> Babylon -z
+        // Cheap reject: a tree further from the camera than the golfer (plus
+        // its own canopy radius) can't sit "between" them.
+        if (tx * tx + tz * tz > (segLen + c.r) * (segLen + c.r)) continue;
+        const t = tx * ux + tz * uz; // projection onto the cam->golfer segment
+        if (t < segLen * 0.08 || t > segLen * 0.92) continue; // behind either end
+        const perp = Math.abs(tx * uz - tz * ux); // perpendicular offset from the line
+        if (perp < c.r) for (const m of c.insts) nowOccluding.add(m);
+      }
+    }
+    // Entering occlusion: hide the instance, show a translucent ghost.
+    for (const inst of nowOccluding) {
+      if (activeGhosts.has(inst) || !(inst.sourceMesh.material instanceof StandardMaterial)) continue;
+      const src = inst.sourceMesh;
+      const ghost = src.clone(`ghost${src.name}${activeGhosts.size}`, treeRoot);
+      ghost.position.copyFrom(inst.position);
+      ghost.rotation.copyFrom(inst.rotation);
+      ghost.scaling.copyFrom(inst.scaling);
+      ghost.material = ghostFor(src.material as StandardMaterial);
+      ghost.isPickable = false;
+      ghost.doNotSyncBoundingInfo = true;
+      ghost.receiveShadows = false;
+      ghost.computeWorldMatrix(true);
+      ghost.freezeWorldMatrix();
+      inst.isVisible = false;
+      activeGhosts.set(inst, ghost);
+    }
+    // Leaving occlusion: drop the ghost, show the instance again.
+    for (const [inst, ghost] of activeGhosts) {
+      if (nowOccluding.has(inst)) continue;
+      ghost.dispose();
+      inst.isVisible = true;
+      activeGhosts.delete(inst);
+    }
+  };
+
   return {
     sun,
     shadows,
@@ -2263,6 +2388,8 @@ export function buildCourse(
       placeCupRing(rot);
     },
     groundHeightAt: (x: number, y: number): number =>
-      engine.groundAt(x, y) + (onTeePlatform(x, y, hole) ? TEE_TOP : greenLift(x, y, hole))
+      engine.groundAt(x, y) + (onTeePlatform(x, y, hole) ? TEE_TOP : greenLift(x, y, hole)),
+    natureReady,
+    updateTreeOcclusion
   };
 }

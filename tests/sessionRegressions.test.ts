@@ -162,6 +162,49 @@ describe('beach/waste sand runs; scoring bunkers plug', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Spin must not liven a sand bounce. Firm (beach/waste) sand absorbs a bounce
+// regardless of spin — topspin can't make a ball "check up" and run further
+// out of sand the way it does on a firm fairway (playtest: "spun a ball out
+// of the sand, which shouldn't be possible"). Backspin may still deaden a
+// sand landing (spinKeep stays allowed to go below 1).
+// ---------------------------------------------------------------------------
+describe('sand bounces are spin-neutral', () => {
+  // A waste band directly under the landing zone (no fairway anywhere, so the
+  // firm/waste sand isn't shadowed by fairway's higher precedence) — a mid
+  // iron at half power lands inside it every time regardless of spin. Returns
+  // the forward roll-out (px) from the landing sample to the final rest spot.
+  const rollOutFrom = (spinTop: number): number => {
+    const hole: HoleData = {
+      ...OPEN, green: { cx: 1000, cy: 100, rx: 40, ry: 40 }, pin: { x: 1000, y: 100 },
+      fairway: [],
+      hazards: [{ type: 'bunker', waste: true, polygon: [[500, 1550], [1500, 1550], [1500, 1750], [500, 1750]] }]
+    };
+    const eng = new PhysicsEngine(hole);
+    const out = eng.simulate({
+      origin: { x: 1000, y: 1800 }, aimAngle: -Math.PI / 2, swing: PERFECT(0.5),
+      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true,
+      spin: { side: 0, top: spinTop }
+    });
+    expect(out.surface).toBe('sand');
+    return landingOf(out).y - out.finalPos.y;
+  };
+
+  it('full topspin does not bounce livelier off sand than a neutral strike', () => {
+    const neutral = rollOutFrom(0);
+    const topspin = rollOutFrom(1);
+    // Sand absorbs the bounce regardless of spin, so topspin gets no extra
+    // forward carry over the neutral strike's (already tiny) roll-out.
+    expect(Math.abs(topspin - neutral)).toBeLessThan(0.5);
+  });
+
+  it('backspin still deadens a sand bounce (rolls out less than neutral)', () => {
+    const neutral = rollOutFrom(0);
+    const backspin = rollOutFrom(-1);
+    expect(backspin).toBeLessThan(neutral);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // A ball that finishes in water drops on dry land at the hazard margin, and the
 // drop is NOT appended to the animated path — so the ball never visibly snaps
 // backward from near the pin (playtest: "landed close, lagged back ~118 ft").
