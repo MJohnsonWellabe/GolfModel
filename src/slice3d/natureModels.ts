@@ -367,6 +367,17 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         if (key.startsWith('flower') && part.material?.name !== flowerMat.name) continue;
         part.registerInstancedBuffer('color', 4);
         (part as Mesh & { tintable?: boolean }).tintable = true;
+        // The black-trunk fix above (`useVertexColors = false`) runs on every
+        // part before this loop, tree bark included — correct there (a baked
+        // COLOR_0 was multiplying tree_a/b's bark to pure black), but it also
+        // silently killed the instance-color tint this loop registers a
+        // buffer for: the buffer had real per-instance data (confirmed live —
+        // yellow/pink/purple hues), it just never reached the shader with
+        // useVertexColors off, so every "tinted" flower/grass/bush rendered
+        // in its flat base material color instead (visual audit: Timberline's
+        // garden read as solid white despite a 3-color themed bed). Re-enable
+        // it specifically for the parts that are actually tintable.
+        part.useVertexColors = true;
       }
     }
   }
