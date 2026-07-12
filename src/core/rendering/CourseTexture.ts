@@ -55,6 +55,33 @@ function grain(x: number, y: number): number {
   return texelHash(x, y) * 0.65 + texelHash(x >> 2, y >> 2) * 0.35;
 }
 
+/**
+ * Directional slope shading from the authored heightfield (engine.groundAt):
+ * mound flanks facing the sun lighten, far flanks darken — the low-raking-
+ * light read that makes links ground roll. The 3D mesh genuinely displaces,
+ * but the scene sun is near-vertical, so the Lambert contrast of a 2–4%
+ * slope is invisible; the bake carries the contrast instead (the same trick
+ * as the baked tree shadows). Returns a brightness factor around 1, clamped
+ * so no slope ever reads as a shadow or a highlight blowout. Shared by the
+ * terrain bake and the green patch so the two canvases can't seam where a
+ * mound skirt crosses the green apron.
+ */
+const SLOPE_SHADE_GAIN = 8;
+export function slopeShadeAt(engine: PhysicsEngine, theme: CourseTheme): (wx: number, wy: number) => number {
+  // Direction TO the sun in world px coords, matching course3d's sun: from
+  // the right when theme.sunX > 360, always from up-screen (low world y).
+  const sx = theme.sunX > 360 ? 0.45 : -0.45;
+  const sy = -0.35;
+  const D = 6; // finite-difference half-step, world px (HeightField cell = 8)
+  return (wx: number, wy: number): number => {
+    const hx = (engine.groundAt(wx + D, wy) - engine.groundAt(wx - D, wy)) / (2 * D);
+    const hy = (engine.groundAt(wx, wy + D) - engine.groundAt(wx, wy - D)) / (2 * D);
+    // Uphill normal (-hx, -hy) toward the sun → lit; away → shaded.
+    const s = 1 + (-hx * sx - hy * sy) * SLOPE_SHADE_GAIN;
+    return s < 0.78 ? 0.78 : s > 1.18 ? 1.18 : s;
+  };
+}
+
 /** Class id → Surface name (ids 0..6, the palette order below; 'tee' is a
  *  painted in-loop override, never a raster class). */
 const ID_SURFACE: Surface[] = ['rough', 'fairway', 'green', 'fringe', 'sand', 'water', 'trees'];
@@ -315,12 +342,17 @@ export function renderCourseCanvas(
   const lh = Math.ceil(h / LAT) + 1;
   const latX = new Float32Array(lw * lh);
   const latY = new Float32Array(lw * lh);
+  // Slope shading rides the same lattice (heights vary over ~40+ world px,
+  // far coarser than the lattice) — near-zero cost in the hot texel loop.
+  const latS = new Float32Array(lw * lh);
+  const shadeAt = slopeShadeAt(engine, theme);
   for (let ly = 0; ly < lh; ly++) {
     const wy = (ly * LAT) / scale - pad;
     for (let lx = 0; lx < lw; lx++) {
       const wx = (lx * LAT) / scale - pad;
       latX[ly * lw + lx] = Math.sin(wx * 0.019 + wy * 0.011) * 5 + Math.sin(wy * 0.034 - wx * 0.014) * 3;
       latY[ly * lw + lx] = Math.sin(wy * 0.018 - wx * 0.010) * 5 + Math.sin(wx * 0.032 + wy * 0.015) * 3;
+      latS[ly * lw + lx] = shadeAt(wx, wy);
     }
   }
 
@@ -456,6 +488,13 @@ export function renderCourseCanvas(
         // Green columns carry their two-tone in the base color, not a brightness
         // stripe — don't also modulate, or the columns muddy.
         if (!(greenCols && cls === 2)) light *= 1 + band * contrast;
+      }
+      // Rolling-ground shading (bilinear off the lattice, same weights as the
+      // wobble above). Water stays flat — it's a level plane, not terrain.
+      if (cls !== 5) {
+        light *=
+          (latS[i00] * (1 - tx) + latS[i10] * tx) * (1 - ty) +
+          (latS[i01] * (1 - tx) + latS[i11] * tx) * ty;
       }
       // Tee collar: a darker mown border framing the square pad.
       if (cls === 7 && teeInset >= 0 && teeInset < 7) light *= 0.72;
@@ -664,13 +703,35 @@ export function renderGreenPatch(
   const grid = rasterizeClassGrid(hole, w, w, 1 / scale, x0, y0);
   const rimStep = Math.max(1, Math.round(1.2 * scale));
 
+  // Same slope shading as the main bake, sampled on a coarse lattice (the
+  // patch is scale-6, so per-texel groundAt would be 36× wasted work).
+  const shadeAt = slopeShadeAt(engine, theme);
+  const SLAT = Math.max(1, Math.round(8 * scale)); // ~8 world px, in texels
+  const slw = Math.ceil(w / SLAT) + 1;
+  const latS = new Float32Array(slw * slw);
+  for (let ly = 0; ly < slw; ly++) {
+    for (let lx = 0; lx < slw; lx++) {
+      latS[ly * slw + lx] = shadeAt(x0 + (lx * SLAT) / scale, y0 + (ly * SLAT) / scale);
+    }
+  }
+
   for (let py = 0; py < w; py++) {
     const wy = y0 + py / scale;
+    const sly = Math.min(slw - 2, (py / SLAT) | 0);
+    const sty = py / SLAT - sly;
     for (let px = 0; px < w; px++) {
       const wx = x0 + px / scale;
       const surf = ID_SURFACE[grid[py * w + px]];
       let [r, gr, b] = cols[surf] ?? cols.rough;
       let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : surf === 'fringe' ? 0.11 : 0.14);
+      if (surf !== 'water') {
+        const slx = Math.min(slw - 2, (px / SLAT) | 0);
+        const stx = px / SLAT - slx;
+        const s00 = sly * slw + slx;
+        light *=
+          (latS[s00] * (1 - stx) + latS[s00 + 1] * stx) * (1 - sty) +
+          (latS[s00 + slw] * (1 - stx) + latS[s00 + slw + 1] * stx) * sty;
+      }
       if (surf === 'green' && greenCols) {
         // Two-tone columns (matches the main bake) — the pattern lives in the
         // base color, so the subtle along-axis sine below is skipped.

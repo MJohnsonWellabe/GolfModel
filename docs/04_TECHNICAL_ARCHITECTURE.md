@@ -289,7 +289,22 @@ All data-driven — a new course adds no code:
   (recolours 3D bloom meshes) or explicit `flowerKeys`. Beds paint their turf
   as mulch, so keep them round and full — a long thin strip reads as bare dirt.
 - **Elevation** is HeightField control points (`x,y,h,r,shape`) shared by physics
-  and the rendered ground; a negative-`h` point digs a bunker/hollow.
+  and the rendered ground; a negative-`h` point digs a bunker/hollow. Rolling
+  links ground is authored as fields of tight domes/hollows (r 40–70, h ±0.7–1.4)
+  along the corridor; the texture bake shades every slope directionally
+  (`slopeShadeAt` in CourseTexture — sun-side flanks lighten, far flanks darken),
+  which is what makes gentle terrain actually read on screen (the scene sun is
+  near-vertical, so mesh lighting alone shows almost nothing).
+- **Lobed greens**: `green2` on a hole adds a second wobbled ellipse whose UNION
+  with `green` is the putting surface — physics, fringe collar, bunker clipping,
+  texture bakes, plateau mesh and putt aids all read the union (`pointInGreens`).
+  First shipped use: Port Johnson h2's Redan kidney.
+- **Buildings** (`type: "building"` hazard) are solid across their footprint in
+  physics (flight below `treeHeight` is knocked down, lie plays as trees), bake
+  a footprint + sun shadow, and render as a dry-stone wall — the polygon rim
+  extruded to stone height with a flat capstone (rock_wall texture). Footprints
+  must be CONVEX (author a bent wall as convex quads end-to-end). First use:
+  the backstop wall behind Port Johnson h3's green.
 - **Wind band** is per-course (`minWind` / `maxWind`, mph) — a links stays breezy.
 - **Theme** overrides drive the look (grass/bush/flower/heather keys, tallGrass
   fescue fields, sculpt/grain knobs); unset fields inherit `DEFAULT_THEME`.
