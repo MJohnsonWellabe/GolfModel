@@ -4,12 +4,12 @@ import { FRINGE_VISUAL } from '../systems/PhysicsEngine';
 
 /**
  * Bunkers that run under the green get sliced flat along the green's rim (the
- * green wins surface precedence). Carve their green-facing edge back to hug the
- * collar so they read as natural sand ending BEFORE the green. Gated to one
- * representative hole for a look-approval before it goes universal.
- * TODO(pass6): once approved, drop the gate and clip every hole's bunkers.
+ * green wins surface precedence). Carve their green-facing edge back to hug
+ * the collar so they read as natural sand ending BEFORE the green — was
+ * gated to Wildwood hole 3 for a look-approval; approved (visual pass 7:
+ * Timberline hole 2's greenside bunkers were being "eaten" by the green the
+ * same way), so it now applies to every hole.
  */
-const BUNKER_CLIP_HOLES: Array<{ course: string; hole: number }> = [{ course: 'Wildwood Glen', hole: 3 }];
 
 /**
  * Course authoring format (schema v2) → runtime `CourseData` compiler.
@@ -110,8 +110,7 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       hazards: h.hazards.map((hz) => {
         if (hz.type === 'water') return { ...hz, polygon: roundPolygon(hz.polygon, WATER_ROUND_ITERATIONS) };
         if (hz.type !== 'bunker') return hz;
-        const clip = BUNKER_CLIP_HOLES.some((t) => t.course === data.name && t.hole === h.number);
-        const base = clip ? clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL) : hz.polygon;
+        const base = clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL);
         return { ...hz, polygon: roundPolygon(base, BUNKER_ROUND_ITERATIONS) };
       })
       };
