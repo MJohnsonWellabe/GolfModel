@@ -66,6 +66,12 @@ const ADDRESS_POS_Z = 0.15;
  *  instead of a boat-sized slab. */
 const CLUB_GIRTH = 4.6;
 const CLUB_HEAD_GIRTH = 1.35;
+/** Uniform head inflation about the head's own centroid ("putter head and
+ *  irons/driver should be bigger"): real club proportions read as a sliver
+ *  next to the game's comically-large ball (diameter ~0.77×CLUB_LEN), so the
+ *  head scales up in ALL axes — girth alone only widened it — and the whole
+ *  club re-shifts so the enlarged head still soles at -CLUB_LEN. */
+const CLUB_HEAD_SCALE = 2.4;
 /** Fraction of the club (from the head end) treated as the head for girth. */
 const CLUB_HEAD_FRAC = 0.16;
 /** Heading applied to the imported model so it addresses the ball, matching the
@@ -202,12 +208,9 @@ function normalizeClubGeometry(mesh: Mesh): void {
     const rx = m00 * dx + m01 * dy + m02 * dz;
     const ry = m10 * dx + m11 * dy + m12 * dz;
     const rz = m20 * dx + m21 * dy + m22 * dz;
-    const y = (ry - tMax) * scale; // grip top → 0, head → -CLUB_LEN
-    const f = Math.min(1, Math.max(0, (-y / CLUB_LEN - (1 - CLUB_HEAD_FRAC - 0.06)) / 0.12));
-    const girth = CLUB_GIRTH + (CLUB_HEAD_GIRTH - CLUB_GIRTH) * (f * f * (3 - 2 * f));
-    pos[i * 3] = rx * scale * girth;
-    pos[i * 3 + 1] = y;
-    pos[i * 3 + 2] = rz * scale * girth;
+    pos[i * 3] = rx;
+    pos[i * 3 + 1] = ry;
+    pos[i * 3 + 2] = rz;
     if (nrm) {
       const nx0 = nrm[i * 3];
       const ny0 = nrm[i * 3 + 1];
@@ -219,6 +222,82 @@ function normalizeClubGeometry(mesh: Mesh): void {
       nrm[i * 3] = nx / len;
       nrm[i * 3 + 1] = ny / len;
       nrm[i * 3 + 2] = nz / len;
+    }
+  }
+  // SQUARE THE FACE: after the axis alignment, the club's rotation AROUND the
+  // shaft is whatever the source happened to be authored at — which is exactly
+  // the "club looks twisted at address" bug when a new model comes in. The
+  // head is a one-sided lump (blade/mallet extending away from the hosel), so
+  // yaw the whole club about Y until the head's lateral centroid points +X
+  // (toe out to the golfer's right, face toward the ball line).
+  let hx = 0;
+  let hz = 0;
+  let hn = 0;
+  for (let i = 0; i < n; i++) {
+    if ((ts[i] - tMin) / span > 0.18) continue; // head = far (thick) end
+    hx += pos[i * 3];
+    hz += pos[i * 3 + 2];
+    hn++;
+  }
+  const hLen = Math.hypot(hx, hz);
+  if (hn && hLen > 1e-6) {
+    const ca = hx / hLen;
+    const sa = -(hz / hLen); // rotate head offset onto +X
+    for (let i = 0; i < n; i++) {
+      const x0 = pos[i * 3];
+      const z0 = pos[i * 3 + 2];
+      pos[i * 3] = ca * x0 - sa * z0;
+      pos[i * 3 + 2] = sa * x0 + ca * z0;
+      if (nrm) {
+        const nx0 = nrm[i * 3];
+        const nz0 = nrm[i * 3 + 2];
+        nrm[i * 3] = ca * nx0 - sa * nz0;
+        nrm[i * 3 + 2] = sa * nx0 + ca * nz0;
+      }
+    }
+  }
+  // Scale to CLUB_LEN with the grip top at the origin, and fatten the shaft
+  // (full CLUB_GIRTH) vs the head (CLUB_HEAD_GIRTH), blended at the hosel.
+  const blend = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const y = (pos[i * 3 + 1] - tMax) * scale; // grip top → 0, head → -CLUB_LEN
+    const f = Math.min(1, Math.max(0, (-y / CLUB_LEN - (1 - CLUB_HEAD_FRAC - 0.06)) / 0.12));
+    const s = f * f * (3 - 2 * f);
+    blend[i] = s;
+    const girth = CLUB_GIRTH + (CLUB_HEAD_GIRTH - CLUB_GIRTH) * s;
+    pos[i * 3] = pos[i * 3] * scale * girth;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = pos[i * 3 + 2] * scale * girth;
+  }
+  // Inflate the HEAD uniformly about its own centroid (CLUB_HEAD_SCALE), then
+  // shift the whole club so the enlarged head's sole returns to -CLUB_LEN —
+  // the holder's address pose keys off that depth.
+  if ((CLUB_HEAD_SCALE as number) !== 1) {
+    let hcx = 0;
+    let hcy = 0;
+    let hcz = 0;
+    let hw = 0;
+    for (let i = 0; i < n; i++) {
+      if (blend[i] < 0.98) continue;
+      hcx += pos[i * 3];
+      hcy += pos[i * 3 + 1];
+      hcz += pos[i * 3 + 2];
+      hw++;
+    }
+    if (hw > 0) {
+      hcx /= hw;
+      hcy /= hw;
+      hcz /= hw;
+      let minY = 0;
+      for (let i = 0; i < n; i++) {
+        const g = 1 + (CLUB_HEAD_SCALE - 1) * blend[i];
+        pos[i * 3] = hcx + (pos[i * 3] - hcx) * g;
+        pos[i * 3 + 1] = hcy + (pos[i * 3 + 1] - hcy) * g;
+        pos[i * 3 + 2] = hcz + (pos[i * 3 + 2] - hcz) * g;
+        if (pos[i * 3 + 1] < minY) minY = pos[i * 3 + 1];
+      }
+      const lift = -CLUB_LEN - minY; // >0 when the head grew past the sole line
+      for (let i = 0; i < n; i++) pos[i * 3 + 1] += lift * blend[i];
     }
   }
   mesh.setVerticesData(VertexBuffer.PositionKind, pos);
@@ -261,6 +340,9 @@ export class Golfer3D {
    *  club model finishes loading. */
   private proceduralClub: Mesh[] = [];
   private clubModel: Mesh | null = null;
+  private putterModel: Mesh | null = null;
+  private clubModelMat: StandardMaterial | null = null;
+  private clubKind: 'swing' | 'putter' = 'swing';
   private clubHolder: TransformNode | null = null;
   /** 1 = full address pose deltas applied, 0 = raw swing pose. */
   private addressBlend = 1;
@@ -413,57 +495,77 @@ export class Golfer3D {
   }
 
   /**
-   * Swap the procedural box+cylinder for the real club model once it loads.
-   * Parented to the same wristPivot, so the swing/pose animation is untouched.
-   * The model is normalized so its GRIP sits at the hands and it hangs down and
-   * slightly forward toward the ball; a flat steel material carries the clubskin
-   * tint. The procedural club stays visible until (and if) the model arrives.
+   * Swap the procedural box+cylinder for the real club models once they load.
+   * TWO models now ship (uploaded assets): a proper iron for every full swing
+   * and a real putter head for the green. Both parent to the same clubHolder
+   * on the wristPivot, so the swing/pose animation is untouched; setClubKind
+   * toggles which one shows. Each is normalized (grip at origin, hanging down
+   * -Y, face squared toward the ball line) and wears the flat steel material
+   * that carries the clubskin tint. The procedural club stays visible until
+   * (and if) the first model arrives.
    */
   private loadClubModel(scene: Scene, shadows: ShadowGenerator): void {
-    void LoadAssetContainerAsync('models/equipment/club.glb', scene)
-      .then((container) => {
-        container.addAllToScene();
-        const parts = container.meshes.filter(
-          (mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0
-        );
-        const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
-        if (!merged) return;
-        const mat = m(scene, 'clubModelMat', 0xc2cad2, 0.7);
-        merged.material = mat;
-        this.clubHeadMat = mat;
-        this.shaftMat = mat;
-        // Normalize the geometry itself: the source model is authored leaning
-        // diagonally (an address pose), so the old y-extent scale + whole-mesh
-        // X/Z girth smeared it into slabs at address. Straighten it along its
-        // principal axis (grip up at the origin, head down at -CLUB_LEN) and
-        // fatten only the shaft; the holder then poses a clean vertical club.
-        normalizeClubGeometry(merged);
-        merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
-        merged.position = Vector3.Zero();
-        const holder = new TransformNode('clubHolder', scene);
-        holder.parent = this.wristPivot;
-        holder.position = new Vector3(0.12, -0.05, 0.2);
-        holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
-        merged.parent = holder;
-        this.clubHolder = holder;
-        this.applyAddressClubPose();
-        merged.receiveShadows = false;
-        shadows.addShadowCaster(merged);
-        this.clubModel = merged;
-        this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
-        if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
-        // The club glb resolves AFTER `ready` (it's a separate fire-and-forget
-        // load), so the shared warmupShaders pass in main.ts misses it — and its
-        // shader would then compile on the FIRST swing, the exact hole-1 meter
-        // hitch. Compile it here, the instant it lands, so the cost falls in the
-        // flyover instead of on the live meter.
-        void (mat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
-          .forceCompilationAsync?.(merged)
-          .catch(() => undefined);
-      })
-      .catch(() => {
-        /* keep the procedural club if the model fails to load */
-      });
+    const loadOne = (file: string, kind: 'swing' | 'putter'): void => {
+      void LoadAssetContainerAsync(`models/equipment/${file}`, scene)
+        .then((container) => {
+          container.addAllToScene();
+          const parts = container.meshes.filter(
+            (mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0
+          );
+          const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
+          if (!merged) return;
+          const mat = this.clubModelMat ?? m(scene, 'clubModelMat', 0xc2cad2, 0.7);
+          this.clubModelMat = mat;
+          merged.material = mat;
+          this.clubHeadMat = mat;
+          this.shaftMat = mat;
+          // Normalize the geometry itself: source models arrive in arbitrary
+          // authored poses. Straighten along the principal axis (grip up at
+          // the origin, head down at -CLUB_LEN), square the face, and fatten
+          // only the shaft; the holder then poses a clean vertical club.
+          normalizeClubGeometry(merged);
+          merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
+          merged.position = Vector3.Zero();
+          if (!this.clubHolder) {
+            const holder = new TransformNode('clubHolder', scene);
+            holder.parent = this.wristPivot;
+            holder.position = new Vector3(0.12, -0.05, 0.2);
+            holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
+            this.clubHolder = holder;
+          }
+          merged.parent = this.clubHolder;
+          this.applyAddressClubPose();
+          merged.receiveShadows = false;
+          shadows.addShadowCaster(merged);
+          if (kind === 'putter') this.putterModel = merged;
+          else this.clubModel = merged;
+          merged.setEnabled(kind === this.clubKind);
+          this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
+          if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
+          // The club glb resolves AFTER `ready` (it's a separate fire-and-forget
+          // load), so the shared warmupShaders pass in main.ts misses it — and its
+          // shader would then compile on the FIRST swing, the exact hole-1 meter
+          // hitch. Compile it here, the instant it lands, so the cost falls in the
+          // flyover instead of on the live meter.
+          void (mat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
+            .forceCompilationAsync?.(merged)
+            .catch(() => undefined);
+        })
+        .catch(() => {
+          /* keep the procedural club if the model fails to load */
+        });
+    };
+    loadOne('iron.glb', 'swing');
+    loadOne('putter.glb', 'putter');
+  }
+
+  /** Show the putter on the green, the iron everywhere else. Cheap toggle —
+   *  main calls it whenever the selected club changes. */
+  setClubKind(kind: 'swing' | 'putter'): void {
+    if (kind === this.clubKind) return;
+    this.clubKind = kind;
+    this.clubModel?.setEnabled(kind === 'swing');
+    this.putterModel?.setEnabled(kind === 'putter');
   }
 
   /** Tint the club with the equipped clubskin colour. The real model is one flat
