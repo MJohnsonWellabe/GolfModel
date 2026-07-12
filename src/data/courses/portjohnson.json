@@ -44,7 +44,9 @@
       "heather_purple"
     ],
     "seaDunes": false,
-    "mowPattern": "diagonal"
+    "mowPattern": "diagonal",
+    "mowWidth": 24,
+    "greenMowPattern": "diagonal"
   },
   "holes": [
     {

@@ -2,7 +2,7 @@ import { FRINGE_VISUAL, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
 import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
-import { CHECKER_ROTATION, mowCheckerboard, mowStripe } from './mowPattern';
+import { CHECKER_ROTATION, greenMowT, mowCheckerboard } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
 import { greenBoundaryScale, roundPolygon } from '../../utils/Geometry';
 
@@ -279,6 +279,7 @@ export function renderCourseCanvas(
   // the identical field (renderGreenPatch) so the mesh and ground never seam.
   const greenCols = theme.greenColumns === true;
   const greenTile = theme.greenMowTile ?? 14;
+  const greenPat = theme.greenMowPattern ?? 'columns';
   const gCol0 = rgb(theme.greenLight);
   const gCol1 = rgb(theme.green);
   // Tee-pad centre (see inTeePad) precomputed so the hot texel loop stays cheap.
@@ -416,8 +417,7 @@ export function renderCourseCanvas(
       // band sign (mirrored in renderGreenPatch). The two-tone IS the pattern,
       // so the subtle green sine stripe below is skipped for these texels.
       if (greenCols && cls === 2) {
-        const across = -wx * ay + wy * ax;
-        const t = (mowStripe(across, greenTile) + 1) / 2; // 0 = dark, 1 = light
+        const t = greenMowT(greenPat, wx, wy, ax, ay, greenTile, hole.green.cx, hole.green.cy);
         r = gCol1[0] + (gCol0[0] - gCol1[0]) * t;
         g = gCol1[1] + (gCol0[1] - gCol1[1]) * t;
         b = gCol1[2] + (gCol0[2] - gCol1[2]) * t;
@@ -457,7 +457,9 @@ export function renderCourseCanvas(
       // grain still reads — but only partly (0.7), or the bold reference-style
       // bands wash out entirely on real-photo courses. theme.stripeStrength
       // (default 1) then scales the final swing per course for the broadcast look.
-      const sw = stripeWidth[cls];
+      // Per-course fairway stripe width (theme.mowWidth — "stripes only 3-5yd
+      // wide"); other surfaces keep the tuned defaults.
+      const sw = cls === 1 ? (theme.mowWidth ?? stripeWidth[1]) : stripeWidth[cls];
       if (sw > 0) {
         const along = cls === 1 ? wx * dax + wy * day : wx * ax + wy * ay;
         const damp = grainVal !== null ? 0.7 : 1;
@@ -488,6 +490,16 @@ export function renderCourseCanvas(
           // classic seaside-links single-direction mow, as opposed to the
           // 45°-diagonal default.
           const phase = Math.sin(((wx * ax + wy * ay) / sw) * Math.PI);
+          band = Math.tanh(phase * 2.4) / 0.9837;
+        } else if (cls === 1 && theme.mowPattern === 'ns') {
+          // North-south stripes in WORLD space (bands vary with world x), the
+          // same direction on every hole regardless of how it doglegs.
+          const phase = Math.sin((wx / sw) * Math.PI);
+          band = Math.tanh(phase * 2.4) / 0.9837;
+        } else if (cls === 1 && theme.mowPattern === 'diag45') {
+          // 45° to the WORLD GRID (not the tee→pin axis) — uniform diagonal
+          // stripes across the whole course.
+          const phase = Math.sin((((wx + wy) * 0.7071) / sw) * Math.PI);
           band = Math.tanh(phase * 2.4) / 0.9837;
         } else {
           // A raw sine reads as a gentle light↔dark undulation, not two mown
@@ -691,6 +703,7 @@ export function renderGreenPatch(
   // against the ground where the two canvases meet the fringe.
   const greenCols = theme.greenColumns === true;
   const greenTile = theme.greenMowTile ?? 14;
+  const greenPat = theme.greenMowPattern ?? 'columns';
   const gCol0 = rgb(theme.greenLight);
   const gCol1 = rgb(theme.green);
   // Greenside sand painted by this high-res patch must match the main bake's
@@ -745,10 +758,9 @@ export function renderGreenPatch(
           (latS[s00 + slw] * (1 - stx) + latS[s00 + slw + 1] * stx) * sty;
       }
       if (surf === 'green' && greenCols) {
-        // Two-tone columns (matches the main bake) — the pattern lives in the
+        // Two-tone pattern (matches the main bake) — the pattern lives in the
         // base color, so the subtle along-axis sine below is skipped.
-        const across = -wx * ay + wy * ax;
-        const t = (mowStripe(across, greenTile) + 1) / 2; // 0 = dark, 1 = light
+        const t = greenMowT(greenPat, wx, wy, ax, ay, greenTile, hole.green.cx, hole.green.cy);
         r = gCol1[0] + (gCol0[0] - gCol1[0]) * t;
         gr = gCol1[1] + (gCol0[1] - gCol1[1]) * t;
         b = gCol1[2] + (gCol0[2] - gCol1[2]) * t;

@@ -31,9 +31,7 @@
       "tree_maple",
       "tree_birch",
       "tree_aspen",
-      "tree_poplar",
-      "tree_a",
-      "tree_b"
+      "tree_poplar"
     ],
     "scatterKeys": [
       "fern_kenney",

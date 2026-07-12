@@ -125,11 +125,15 @@ export interface CourseTheme {
    *  axis-ALIGNED (0°) instead of rotated — reads as small aligned squares
    *  rather than diamonds. The 3D fairway grass carpet follows the same
    *  pattern so the two tones read as distinct cells/bands, not undulation. */
-  mowPattern?: 'checker' | 'straight' | 'cross' | 'diagonal';
+  mowPattern?: 'checker' | 'straight' | 'cross' | 'diagonal' | 'ns' | 'diag45';
   /** Checkerboard/band cell width in world units (mowPattern='checker'/
    *  'cross'/'straight'). Default 30 — small enough that 2-3 cells span a
    *  fairway. Ignored for the 'diagonal' default. */
   mowTile?: number;
+  /** Fairway STRIPE band width in world units for the stripe-style patterns
+   *  ('straight'/'diagonal'/'ns'/'diag45'). Unset falls back to the wide
+   *  legacy band (74). 2 world units = 1 yard, so 8 = 4yd stripes. */
+  mowWidth?: number;
   /** Greens: paint straight two-tone MOWING COLUMNS (bands running in the
    *  direction of play, alternating `greenLight`/`green`) instead of the default
    *  subtle single-tone undulation — the "little design like the fairways" look.
@@ -139,6 +143,12 @@ export interface CourseTheme {
   /** Green mowing-column band width in world units (greenColumns). Default 14 —
    *  tight enough that several columns span a green. */
   greenMowTile?: number;
+  /** Green two-tone GEOMETRY when greenColumns is on: 'columns' (default —
+   *  bands running in the play direction), 'checker' (axis-aligned mini
+   *  checkerboard), 'rings' (concentric bands around the green centre — the
+   *  classic seaside double-cut), 'diagonal' (45° bands). Per-course green
+   *  identity, the greens' answer to mowPattern. */
+  greenMowPattern?: 'columns' | 'checker' | 'rings' | 'diagonal';
   /** Mesh clouds (cloud_a..c) instead of the painted billboard puffs. */
   cloudKeys?: readonly string[];
   /**
@@ -301,8 +311,10 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'stripeStrength'
     | 'mowPattern'
     | 'mowTile'
+    | 'mowWidth'
     | 'greenColumns'
     | 'greenMowTile'
+    | 'greenMowPattern'
     | 'cloudKeys'
     | 'cloudStyle'
     | 'turfGrainKey'
@@ -374,13 +386,24 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     spec.mowPattern === 'checker' ||
     spec.mowPattern === 'straight' ||
     spec.mowPattern === 'cross' ||
-    spec.mowPattern === 'diagonal'
+    spec.mowPattern === 'diagonal' ||
+    spec.mowPattern === 'ns' ||
+    spec.mowPattern === 'diag45'
   ) {
     t.mowPattern = spec.mowPattern;
   }
   if (typeof spec.mowTile === 'number') t.mowTile = spec.mowTile;
+  if (typeof spec.mowWidth === 'number') t.mowWidth = spec.mowWidth;
   if (typeof spec.greenColumns === 'boolean') t.greenColumns = spec.greenColumns;
   if (typeof spec.greenMowTile === 'number') t.greenMowTile = spec.greenMowTile;
+  if (
+    spec.greenMowPattern === 'columns' ||
+    spec.greenMowPattern === 'checker' ||
+    spec.greenMowPattern === 'rings' ||
+    spec.greenMowPattern === 'diagonal'
+  ) {
+    t.greenMowPattern = spec.greenMowPattern;
+  }
   if (typeof spec.backdropTreeStep === 'number') t.backdropTreeStep = spec.backdropTreeStep;
   if (typeof spec.turfGrainKey === 'string') t.turfGrainKey = spec.turfGrainKey;
   if (typeof spec.turfNormalKey === 'string') t.turfNormalKey = spec.turfNormalKey;

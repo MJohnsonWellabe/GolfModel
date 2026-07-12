@@ -63,7 +63,7 @@
     "roughTuftHeight": 1.35,
     "edgeWobble": 2.4,
     "stripeStrength": 1.2,
-    "mowPattern": "cross",
+    "mowPattern": "ns",
     "mowTile": 30,
     "greenColumns": true,
     "greenMowTile": 14,
@@ -86,7 +86,9 @@
     "roughGrainKey": "textures/turf_grain_rough.jpg",
     "sandGrainKey": "textures/sand_ripple.jpg",
     "sandGrainTile": 18,
-    "bunkerStones": true
+    "bunkerStones": true,
+    "mowWidth": 8,
+    "greenMowPattern": "checker"
   },
   "holes": [
     {
