@@ -308,6 +308,20 @@ All data-driven — a new course adds no code:
 - **Wind band** is per-course (`minWind` / `maxWind`, mph) — a links stays breezy.
 - **Theme** overrides drive the look (grass/bush/flower/heather keys, tallGrass
   fescue fields, sculpt/grain knobs); unset fields inherit `DEFAULT_THEME`.
+- **Mow pattern** (`theme.mowPattern`: `'checker' | 'cross' | 'straight' |
+  'diagonal'`) picks the fairway's mown-band geometry in BOTH the 2D bake
+  (CourseTexture) and the 3D grass-carpet tint (course3d `fairwayTint`), so the
+  two always agree. Each course wears a different pattern + turf palette as
+  part of its identity: Wildwood keeps the default diamond checker, Timberline
+  an axis-aligned cross grid on cooler blue-greens, Sable Bay straight seaside
+  stripes on turquoise-leaning turf, Port Johnson the classic 45° links
+  diagonal.
+- **Scatter keys** (all opt-in per theme, all render-only): `shorelineKeys`
+  plants a broken reed/stone band just up the bank of every water edge that
+  meets rough (`reed_cattail` — the converted cattail upload — plus grass
+  tufts/stones); `accentTreeKeys` swaps ~15% of tree blobs to accent species
+  (Sable Bay mixes `tree_palm`/`tree_palm_b` into its shoreline pines);
+  `sandPlantKeys` dots waste sand with wiregrass clumps.
 
 ---
 
@@ -381,6 +395,10 @@ Implementation notes (v2):
   flight-phase strike, not just slowed by `friction.trees`).
 - Wind is drawn once per hole from the course band via the shared `drawWind`
   helper (used by both the headless simulator and the live round).
+- Sand bounces are spin-neutral for topspin: firm/waste sand caps `spinKeep`
+  at 1 so a spun ball can never bounce LIVELIER out of a bunker than a flat
+  one (backspin still deadens as before). Regression-tested with a
+  scale-invariant bounce-ratio check in `tests/sessionRegressions.test.ts`.
 
 ---
 
@@ -437,11 +455,35 @@ Implementation notes (v2):
 - Scatter population (trees, grass tufts, tall fescue, gardens, stones) is
   time-sliced across frames via a placement/instance queue drained under a fixed
   per-frame budget, so a heavy hole fills in over ~1–2s of flyover instead of
-  hitching the swing meter on the first shot.
+  hitching the swing meter on the first shot. The queue's completion resolves
+  `Course3D.natureReady`, which the flyover WAITS on (with a 2.6s cap) before
+  the travel leg starts — so the course never visibly pops in mid-flyover.
+- **Tree camera occlusion**: trees between the camera and the golfer fade to
+  ghosts (α≈0.28) so they never block the player's view of the character.
+  `InstancedMesh.visibility` is a documented no-op in Babylon, so the fade
+  swaps the instance to a cached ghost-material clone and back
+  (`updateTreeOcclusion`, recomputed every few frames, bounded per pass).
+- **Fairway-distance tree thinning** (`treeField.ts`): woods RENDER thinner
+  near the fairway edge and denser deep in the treeline (a smooth keep-ratio
+  ramp, render-only — collision trunks are untouched), which is what fixed
+  Timberline h1's draw-call spike without changing gameplay.
 - Revetted pot bunkers render a stacked-stone wall ring (rock texture, VertexData)
   around the HeightField hollow the same hazard digs.
 - Fescue/heather use photo-textured cards with an alpha-cutout material (distinct
   from the geometry-cut grass tufts, which recolour by material slot).
+- **Vertex-color gotcha**: recolored props are colored entirely by their
+  assigned material, but a baked COLOR_0 attribute MULTIPLIES it — tree_a/b
+  ship pure-black bark colors (the "black trunk" bug), so loads set
+  `useVertexColors = false`. Per-instance tinting (`registerInstancedBuffer
+  ('color')`) rides the SAME vertex-color path, so any part registered
+  tintable must set `useVertexColors = true` back on, or every tint silently
+  renders white (the "all-white garden" regression, fixed in natureModels).
+- Uploaded FBX props convert via `convert-nature.mjs` `UPLOAD_FBX_MANIFEST`:
+  the palm kit's single material is re-slotted geometrically (largest connected
+  component = trunk → `PalmTrunk`, frond islands → `PalmLeaves`) and the
+  cattail's five slots renamed so `pickMat` recolors blades green and seed
+  heads brown. Material slots must differ in some PBR property or
+  `dedup()` merges them back (names don't count).
 
 ---
 
@@ -680,7 +722,19 @@ Inventory should support future cosmetic additions without schema changes.
 
 # Tournament Structure
 
-Each tournament should contain:
+Two tournament systems exist:
+
+**AI Tournament** (a game mode, fully client-side — `src/systems/AiTournament.ts`):
+three rounds on a three-course rota drawn at start, against the AI-opponent
+field. The AI never plays on screen; after each of the player's rounds the
+field's scores for the same course come from the real round simulator
+(`simulateRound` with each opponent's stats), seeded at creation so quitting
+can't reroll them. Standings show between rounds; final placement pays a coin
+purse.
+
+**Online Tournaments** (shared-leaderboard events, below).
+
+Each online tournament should contain:
 
 Tournament ID
 

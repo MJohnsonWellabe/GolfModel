@@ -587,19 +587,26 @@ Different AI golfers should attack holes differently.
 
 Current:
 
-Solo
+Solo — three holes, you against the course.
 
-1 vs 1
+1 vs 1 — match an AI rival, lowest total wins.
 
-Ryder Cup
+Scramble — team up with an AI partner, best ball counts.
+
+AI Tournament — three rounds on a three-course rota against a field of AI
+pros. The AI never plays on screen: after each of the player's rounds the
+field's scores for the same course come from the real round simulator, and
+the leaderboard updates between rounds. Final placement pays a coin purse.
+(Replaced the Ace Challenge.)
+
+Online Tournaments — shareable-code events over the shared leaderboard;
+everyone plays identical wind and pins, lowest total wins.
 
 Future:
 
 Career
 
 Daily Challenge
-
-Weekly Tournament
 
 Closest to Pin
 
