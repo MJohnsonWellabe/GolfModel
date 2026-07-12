@@ -59,12 +59,36 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     const step = (forRender ? hz.visualSpacing : undefined) ?? hz.spacing ?? 52;
     const jitter = step * (36 / 52);
     const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : [0, 0];
+    // Natural edge thinning: woods should peter out toward their boundary
+    // instead of stopping on a ruler line (visual pass 7). Estimate how deep a
+    // trunk sits with four offset point-in-polygon probes and keep edge trunks
+    // with falling probability, gated by ONE deterministic hash for both
+    // passes. The render pass thins hard (the visible feathering); collision/
+    // bake keeps a higher floor so corridor walls still play like walls —
+    // and because the render threshold is always ≤ the collision one, every
+    // tree you can see still collides (extra edge hitboxes hide under the
+    // overlapping canopies beside them). Small specimen hazards (lone trees,
+    // pairs) skip the fade: they ARE their own edge.
+    const FADE = 20;
+    const fade = Math.min(maxX - minX, maxY - minY) > FADE * 4.5;
+    const fadeFloor = forRender ? 0.3 : 0.7;
+    const fadeSlope = (1 - fadeFloor) / 4;
     const before = blobs.length;
     for (let yy = minY; yy < maxY; yy += step) {
       for (let xx = minX; xx < maxX; xx += step) {
         const jx = xx + (blobHash(xx, yy) - 0.5) * jitter;
         const jy = yy + (blobHash(yy, xx) - 0.5) * jitter;
         if (!pointInPolygon(jx, jy, hz.polygon)) continue;
+        if (fade) {
+          const depth =
+            (pointInPolygon(jx + FADE, jy, hz.polygon) ? 1 : 0) +
+            (pointInPolygon(jx - FADE, jy, hz.polygon) ? 1 : 0) +
+            (pointInPolygon(jx, jy + FADE, hz.polygon) ? 1 : 0) +
+            (pointInPolygon(jx, jy - FADE, hz.polygon) ? 1 : 0);
+          // Interior (4/4 probes inside) always keeps; the outermost band
+          // dissolves organically (render keeps ~30%, collision ~70%).
+          if (blobHash(jx * 1.7, jy * 3.1) > fadeFloor + fadeSlope * depth) continue;
+        }
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
           x: jx + offX,

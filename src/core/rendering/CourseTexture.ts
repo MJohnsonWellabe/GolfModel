@@ -4,7 +4,14 @@ import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
 import { CHECKER_ROTATION, mowCheckerboard, mowStripe } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
-import { greenBoundaryScale } from '../../utils/Geometry';
+import { greenBoundaryScale, roundPolygon } from '../../utils/Geometry';
+
+/** Chaikin passes applied to the BAKED woods ground-color patch only — the
+ *  authored hazard polygon (collision, AI risk-probing, trunk sampling) stays
+ *  exact; only the ground-texture silhouette gets soft edges, so a tight
+ *  authored corridor can't lose its margin from a cosmetic pass (visual pass
+ *  7: "woods need rounded edges, not abrupt rectangles"). */
+const TREES_BAKE_ROUND_ITERATIONS = 2;
 
 // Tree blobs now live in a rendering-independent module so the physics engine
 // can share them for per-trunk collision. Re-exported here so existing
@@ -127,7 +134,8 @@ function rasterizeClassGrid(
       6,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'trees' || hz.type === 'building') poly(hz.polygon);
+          if (hz.type === 'trees') poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
+          else if (hz.type === 'building') poly(hz.polygon);
         })
     ],
     [

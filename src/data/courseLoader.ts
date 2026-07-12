@@ -50,6 +50,15 @@ const RIBBON_SAMPLES = 9;
  *  a general rule for all courses (authored bunkers are sharp-cornered polys). */
 const BUNKER_ROUND_ITERATIONS = 2;
 
+// Treeline visual rounding lives in CourseTexture's ground-color/shadow bake
+// ONLY (not here). Trees hazards drive per-trunk collision via a grid sampled
+// off the polygon's exact bounding box (treeField.collectTreeBlobs) — a
+// narrow authored corridor (e.g. Timberline's "Pine Alley") can have as
+// little as a couple of world px of margin between two facing woods, and
+// even a small Chaikin nudge there was enough to occasionally wall off the
+// AI's escape route (playability sim caught it). The baked ground patch
+// doesn't have that fragility, so it gets the soft edge instead.
+
 function isRibbon(f: FairwaySpec): f is FairwayRibbon {
   return !Array.isArray(f);
 }
