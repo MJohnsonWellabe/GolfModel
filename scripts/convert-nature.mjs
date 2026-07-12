@@ -28,6 +28,7 @@ const PACK = path.join(root, 'asset-packs', 'forest-nature-fbx');
 const MEADOW = path.join(root, 'asset-packs', 'meadow-fbx');
 const KIT = path.join(root, 'asset-packs', 'nature-kit-glb');
 const UPLOADS = path.join(root, 'asset-packs', 'nature-uploads');
+const UPLOADS_FBX = path.join(root, 'asset-packs', 'nature-uploads-fbx');
 const OUT = path.join(root, 'assets', 'models', 'nature');
 
 /**
@@ -128,6 +129,35 @@ const UPLOAD_MANIFEST = {
   ship: { src: 'ship.glb', ratio: 0.45 }
 };
 
+/**
+ * User-uploaded FBX props (asset-packs/nature-uploads-fbx/). Unlike the
+ * nature-uploads GLBs these ship NO usable textures (the palm kit's atlas PNG
+ * is a dead 70-byte placeholder), so they take the recolor-by-slot path like
+ * the forest pack — which means their material slots must carry names
+ * natureModels.ts pickMat understands ("*Leaves*" -> foliage, "*Trunk*" ->
+ * bark). The palm kit is one mesh per variant with a SINGLE material for
+ * trunk+fronds, so `splitPalm` re-slots it geometrically: the largest
+ * connected component (verified: the 125-tri trunk column; every frond is a
+ * separate 16-tri island, coconuts 4-tri) becomes PalmTrunk, the rest
+ * PalmLeaves. The cattail ships 5 distinct slots that just need renaming
+ * (leaves/stems -> ReedLeaves, the brown seed heads + tips -> ReedHeadTrunk).
+ */
+const UPLOAD_FBX_MANIFEST = {
+  tree_palm: { src: 'LowPoly_Palms.fbx', node: 'Palm1_VAR2', split: 'palm' },
+  tree_palm_b: { src: 'LowPoly_Palms.fbx', node: 'Palm1_VAR4', split: 'palm' },
+  reed_cattail: {
+    src: 'cattail.fbx',
+    ratio: 0.3,
+    rename: {
+      folhas: 'ReedLeaves',
+      cilinder: 'ReedStemLeaves',
+      curvedcilinder: 'ReedStemLeaves',
+      hotdog: 'ReedHeadTrunk',
+      corno: 'ReedHeadTrunk'
+    }
+  }
+};
+
 async function convertUploadOne(key, { src, ratio }) {
   const document = await io.read(path.join(UPLOADS, src));
   const before = triCount(document);
@@ -143,6 +173,138 @@ async function convertUploadOne(key, { src, ratio }) {
   await io.write(out, document);
   const kb = Math.round(statSync(out).size / 1024);
   console.log(`${key}.glb  ${kb} KB  tris ${before} -> ${triCount(document)}`);
+}
+
+/**
+ * Re-slot a single-material palm mesh into PalmTrunk + PalmLeaves primitives.
+ * Connected components are found by union-find over shared/coincident verts;
+ * the component with the most triangles is the trunk (the fronds and coconuts
+ * are small disconnected islands). Splitting at convert time keeps the
+ * runtime loader's one-prototype-per-material-slot model intact.
+ */
+function splitPalm(document, prim) {
+  const idx = prim.getIndices().getArray();
+  const pos = prim.getAttribute('POSITION').getArray();
+  const nVerts = pos.length / 3;
+  const parent = new Int32Array(nVerts).map((_, i) => i);
+  const find = (i) => {
+    while (parent[i] !== i) {
+      parent[i] = parent[parent[i]];
+      i = parent[i];
+    }
+    return i;
+  };
+  const uni = (a, b) => {
+    a = find(a);
+    b = find(b);
+    if (a !== b) parent[a] = b;
+  };
+  // Merge verts split by UV seams (identical positions) before walking tris.
+  const seen = new Map();
+  for (let i = 0; i < nVerts; i++) {
+    const k = `${pos[i * 3].toFixed(5)},${pos[i * 3 + 1].toFixed(5)},${pos[i * 3 + 2].toFixed(5)}`;
+    if (seen.has(k)) uni(i, seen.get(k));
+    else seen.set(k, i);
+  }
+  for (let t = 0; t < idx.length; t += 3) {
+    uni(idx[t], idx[t + 1]);
+    uni(idx[t], idx[t + 2]);
+  }
+  const triCountByComp = new Map();
+  for (let t = 0; t < idx.length; t += 3) {
+    const c = find(idx[t]);
+    triCountByComp.set(c, (triCountByComp.get(c) ?? 0) + 1);
+  }
+  let trunkComp = -1;
+  let best = -1;
+  for (const [c, n] of triCountByComp) {
+    if (n > best) {
+      best = n;
+      trunkComp = c;
+    }
+  }
+  const trunkIdx = [];
+  const leafIdx = [];
+  for (let t = 0; t < idx.length; t += 3) {
+    (find(idx[t]) === trunkComp ? trunkIdx : leafIdx).push(idx[t], idx[t + 1], idx[t + 2]);
+  }
+  const buffer = document.getRoot().listBuffers()[0];
+  const mkPrim = (indices, mat) => {
+    const acc = document
+      .createAccessor()
+      .setType('SCALAR')
+      .setArray(new Uint16Array(indices))
+      .setBuffer(buffer);
+    const p = document.createPrimitive().setIndices(acc).setMaterial(mat);
+    for (const sem of prim.listSemantics()) p.setAttribute(sem, prim.getAttribute(sem));
+    return p;
+  };
+  // Distinct baseColorFactors are load-bearing: dedup() collapses materials
+  // with identical properties (names don't count), which would silently merge
+  // the two slots back into one. The colors themselves are just a sane
+  // fallback — natureModels recolors both slots per course theme.
+  const trunkMat = document
+    .createMaterial('PalmTrunk')
+    .setRoughnessFactor(1)
+    .setMetallicFactor(0)
+    .setBaseColorFactor([0.45, 0.33, 0.22, 1]);
+  const leafMat = document
+    .createMaterial('PalmLeaves')
+    .setRoughnessFactor(1)
+    .setMetallicFactor(0)
+    .setBaseColorFactor([0.22, 0.5, 0.24, 1]);
+  const mesh = prim.listParents().find((p) => p.propertyType === 'Mesh');
+  mesh.addPrimitive(mkPrim(trunkIdx, trunkMat));
+  mesh.addPrimitive(mkPrim(leafIdx, leafMat));
+  mesh.removePrimitive(prim);
+  prim.dispose();
+}
+
+/** Convert one uploaded FBX prop: FBX2glTF, keep only the named node (palm
+ *  kits line all variants up in a row), recenter it at the origin, re-slot
+ *  materials (geometric palm split or plain rename), then the standard
+ *  cleanup. Textures are stripped — these props are recolored at load. */
+async function convertUploadFbxOne(key, { src, node, split, rename, ratio }) {
+  const raw = path.join(work, `upl_${key}.glb`);
+  execFileSync(fbx2gltf, ['--binary', '--input', path.join(UPLOADS_FBX, src), '--output', raw.replace(/\.glb$/, '')], {
+    stdio: ['ignore', 'ignore', 'inherit']
+  });
+  const document = await io.read(raw);
+  const root = document.getRoot();
+  if (node) {
+    for (const n of root.listNodes()) {
+      if (!n.getMesh()) continue;
+      if (n.getName() === node) n.setTranslation([0, 0, 0]);
+      else n.dispose();
+    }
+    for (const m of root.listMeshes()) if (m.getName() !== node) m.dispose();
+  }
+  if (split === 'palm') {
+    const prim = root.listMeshes()[0].listPrimitives()[0];
+    splitPalm(document, prim);
+  }
+  if (rename) {
+    for (const m of root.listMaterials()) {
+      const to = rename[m.getName()];
+      if (to) m.setName(to);
+    }
+  }
+  // Strip textures/images — recolor-by-slot never samples them, and the palm
+  // kit's atlas is a dead placeholder anyway.
+  for (const t of root.listTextures()) t.dispose();
+  const steps = [dedup(), weld()];
+  if (ratio) steps.push(simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.02, lockBorder: false }));
+  steps.push(prune(), quantize());
+  const before = triCount(document);
+  await document.transform(...steps);
+  const out = path.join(OUT, `${key}.glb`);
+  await io.write(out, document);
+  const kb = Math.round(statSync(out).size / 1024);
+  const mats = root
+    .listMaterials()
+    .map((m) => m.getName())
+    .join(', ');
+  console.log(`${key}.glb  ${kb} KB  tris ${before} -> ${triCount(document)}  [${mats}]`);
 }
 
 function triCount(document) {
@@ -262,6 +424,9 @@ try {
   }
   for (const [key, entry] of Object.entries(UPLOAD_MANIFEST)) {
     await convertUploadOne(key, entry);
+  }
+  for (const [key, entry] of Object.entries(UPLOAD_FBX_MANIFEST)) {
+    await convertUploadFbxOne(key, entry);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

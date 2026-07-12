@@ -54,7 +54,16 @@
       "tree_spruce",
       "tree_spruce_tall"
     ],
-    "mowPattern": "straight"
+    "mowPattern": "straight",
+    "accentTreeKeys": [
+      "tree_palm",
+      "tree_palm_b"
+    ],
+    "shorelineKeys": [
+      "reed_cattail",
+      "grass_g",
+      "stone_a"
+    ]
   },
   "holes": [
     {
