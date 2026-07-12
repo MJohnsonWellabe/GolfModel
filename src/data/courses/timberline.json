@@ -29,7 +29,6 @@
     "treeKeys": [
       "tree_spruce",
       "tree_spruce_tall",
-      "tree_pine",
       "tree_spruce_tall"
     ],
     "accentTreeKeys": [
@@ -234,7 +233,7 @@
         {
           "type": "trees",
           "spacing": 38,
-          "visualSpacing": 18,
+          "visualSpacing": 26,
           "polygon": [
             [
               417.0,
@@ -281,7 +280,7 @@
         {
           "type": "trees",
           "spacing": 38,
-          "visualSpacing": 18,
+          "visualSpacing": 26,
           "polygon": [
             [
               483.0,
@@ -328,7 +327,7 @@
         {
           "type": "trees",
           "spacing": 28,
-          "visualSpacing": 18,
+          "visualSpacing": 24,
           "polygon": [
             [
               120,
