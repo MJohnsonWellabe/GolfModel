@@ -136,6 +136,14 @@ export function loadNaturePrototypes(
 
 async function build(scene: Scene, palette: NaturePalette, keys: readonly string[]): Promise<Map<string, NatureProto>> {
   const barkMat = flat(scene, 'natBark', palette.bark);
+  // Trunks/branches are the one prop surface players study up close (the
+  // putting camera parks right under them). The handedness bake flips
+  // triangle winding, so without two-sided lighting a branch's visible faces
+  // can light as BACK faces (inverted normals → no sun) and go muddy-dark.
+  // Two-sided lighting flips the normal for back faces so bark reads lit
+  // wood from every side — scoped to bark alone (the confirmed win) rather
+  // than every flat prop.
+  barkMat.twoSidedLighting = true;
   const foliageMat = flat(scene, 'natFoliage', palette.foliage);
   const foliageLightMat = flat(scene, 'natFoliageL', palette.foliageLight);
   // Bushes and ferns are crossed/low-poly cards too. On a lush course give them
@@ -275,10 +283,18 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       };
       raw.forEach((mm) => {
         let mat: StandardMaterial;
-        if (keepTexture) {
+        const slotName = (mm.material?.name ?? '').toLowerCase();
+        if (keepTexture && key.startsWith('tree') && (slotName === 'tree' || slotName.includes('trunk') || slotName.includes('bark'))) {
+          // An uploaded tree's TRUNK slot: the sakura's trunk photo is
+          // near-black (it rendered as a solid silhouette at every camera —
+          // visual audit), and a photo trunk never matches the palette bark
+          // every other tree on the course wears anyway. Route trunk slots to
+          // the shared bark material; only the canopy/blossom cards keep
+          // their real photo (that's the part that carries the identity).
+          mat = barkMat;
+        } else if (keepTexture) {
           // Heather cards all share one texture per key; the uploads keep
-          // one material PER SOURCE slot (trunk stays opaque bark-brown-ish,
-          // canopy/petals keep their real photo).
+          // one material PER SOURCE slot, canopy/petals keep their real photo.
           const matKey = isHeather ? key : (mm.material?.name ?? key);
           let tm = texturedMats.get(matKey);
           if (!tm) {
@@ -314,6 +330,15 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         pieces.forEach((p, i) => {
           p.name = `natProto-${key}-${p.material?.name ?? 'm'}${isFlower ? `-${i}` : ''}`;
           p.isPickable = false;
+          // Recolored props are colored ENTIRELY by their assigned material —
+          // but some source glbs (the old generic pack: tree_a/tree_b) ship a
+          // baked COLOR_0 vertex attribute that multiplies the material, and
+          // tree_a/b's bark colors are pure BLACK (their foliage a 0.52 grey).
+          // That rendered every tree_a/b trunk as a flat black silhouette at
+          // any camera (visual audit: "trunks go black up close") — no amount
+          // of lighting can recover a ×0 vertex color. Photo-textured props
+          // (keepTexture) keep their authored attributes untouched.
+          if (!keepTexture) p.useVertexColors = false;
           // Park below ground (kept enabled — Babylon only draws an instanced
           // mesh's instances while its source mesh is enabled).
           p.position.y = -9000;

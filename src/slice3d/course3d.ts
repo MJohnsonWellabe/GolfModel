@@ -925,10 +925,18 @@ export function buildCourse(
     const sea = MeshBuilder.CreateGround('sea', { width: 14000, height: 8000, subdivisions: 1 }, scene);
     sea.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, -8);
     const seaMat = new StandardMaterial('seaMat', scene);
-    seaMat.diffuseColor = c3(theme.water);
-    seaMat.emissiveColor = c3(shade(theme.waterDeep, 0.7));
-    seaMat.specularColor = new Color3(0.5, 0.6, 0.7);
-    seaMat.specularPower = 64;
+    // The backdrop sea was badly overlit: full theme.water diffuse under
+    // sun+hemi (combined ~1.4 on an upward-facing plane) PLUS a 0.7-shaded
+    // emissive PLUS a broad grazing specular clamped G/B at 255 and painted a
+    // hard saturated cyan band along the horizon of every sea-backdrop hole
+    // (visual audit: "flat cyan stripe"). Rebalanced so the LIT total lands on
+    // the same deep ocean blue the in-play water reads as, and the far edge
+    // fades into haze via fog instead of blooming: darker diffuse, faint
+    // emissive floor, and a tight high-power glint instead of plane-wide spec.
+    seaMat.diffuseColor = c3(shade(theme.waterDeep, 0.75));
+    seaMat.emissiveColor = c3(shade(theme.waterDeep, 0.28));
+    seaMat.specularColor = new Color3(0.14, 0.15, 0.16);
+    seaMat.specularPower = 220;
     sea.material = seaMat;
     sea.applyFog = true;
     // Low sandy dune line so the course doesn't end in a hard edge. An open-ocean

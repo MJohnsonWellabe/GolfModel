@@ -42,9 +42,9 @@ const CLUB_TILT_Z = -0.34;
  * at address hovering toe-up short of the ball ("club at address looks bad").
  * These deltas sole the head flat behind the ball and square the toe without
  * touching the swing arc. */
-const ADDRESS_TILT_X = -1.168;
+const ADDRESS_TILT_X = -0.92;
 const ADDRESS_TILT_Y = 0.099;
-const ADDRESS_TILT_Z = 0.121;
+const ADDRESS_TILT_Z = 0.34;
 const ADDRESS_POS_X = 0.1;
 const ADDRESS_POS_Y = 0;
 const ADDRESS_POS_Z = 0.15;
