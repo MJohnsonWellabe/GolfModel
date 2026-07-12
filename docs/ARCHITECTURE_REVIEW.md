@@ -8,6 +8,102 @@ that feed Phase 1B and beyond.
 
 ---
 
+# Update — 2026-07-12 (latest+13): visual editing pass 7 — course identity, new assets, physics gaps
+
+A course-by-course art/feel pass driven by direct playtest notes on all four
+courses, plus two foundational bugs found and fixed along the way (not
+course-specific — both affect every hole that has the shape).
+
+- **Putting readout is now stable.** `updateAimReadout` used to derive the
+  "uphill/downhill Nft" HUD number from the length of the player's draggable
+  aim line, so it visibly changed as you dragged. It now measures slope along
+  the fixed ball→cup line (`slopeAccelAlong` at the pin's bearing/distance)
+  and reports `extraAimFt = cupLen * (-slopeAccel / PHYSICS.friction.green) *
+  1.5`, matching the game's own "aim ~6ft long per 1ft of shown rise" rule
+  under the constant-decel putting model. New cases in
+  `tests/simulation/putting.test.ts` assert the rule holes a putt at several
+  slope/distance combinations.
+- **Club at address.** `golfer3d.ts` blends a small address-only tilt/offset
+  onto the club holder (`ADDRESS_TILT_X/Y/Z`, `addressBlend`) that lerps out
+  as the swing starts, so the club soles naturally behind the ball at address
+  without changing the (already-good) in-swing pose. Club geometry is also
+  now PCA-normalized (`normalizeClubGeometry`) so an off-axis-authored
+  club.glb straightens onto -Y before the pose logic ever sees it.
+- **Rolling-phase tree collision gap (bug, all courses).** Tree collision was
+  only ever checked while the ball was airborne (`integrateLaunch`'s flight
+  loop) — a low runner that landed just short of a canopy and then rolled
+  through it was never checked at all; `friction.trees` slowed the roll but
+  nothing stopped or deflected it. The rolling phase now applies the same
+  trunk-proximity check and `treeDamp`/`treeKillSpeed` velocity cap the
+  flight phase already used, gated on `surf === 'trees'` so the existing
+  surface precedence is untouched.
+- **Bunker green-clip is now universal.** `clipPolyOffGreen` (bunkers that
+  run under a green get carved back to the collar) was gated to one Wildwood
+  hole for look-approval; it now applies to every hole's bunkers at the
+  single `courseLoader.ts` compile choke point, fixing greenside bunkers
+  that were visually "eaten" by the green elsewhere (Timberline hole 2).
+- **Tree ground-shadow/render alignment (bug).** The baked ground-shadow pass
+  (`CourseTexture.bakeGroundShadows`) sampled trunks with `collectTreeBlobs`'s
+  default (denser, collision-authoritative) grid, while the actual 3D tree
+  placement uses `forRender: true` (sparser at a treeline's fade edge). The
+  two used to share identical sampling; once render-side edge-fade thinning
+  was added they diverged, so a treeline's edge could bake a shadow for a
+  trunk that never got a visible canopy. The bake now passes `forRender:
+  true` too, matching the 3D placement call exactly.
+- **Black bush instances when a tintable species doubles as scatter (bug).**
+  A prototype's mesh parts get a per-instance `color` buffer registered
+  whenever its key starts with `grass`/`flower`/`bush` (`natureModels.ts`),
+  so ambient scatter can vary its tint. Wildwood's theme lists `bush_kenney_a`
+  in both `bushKeys` (tinted) and `scatterKeys` (the forest-floor-litter
+  path, which never set a tint) — once a part's color buffer is registered,
+  every instance of it must have one or it renders fully unlit black.
+  `course3d.ts`'s forest-floor placement now passes the same lush-gated tint
+  the ambient path uses; it's a no-op for genuinely untintable litter
+  (ferns/stumps/logs/stones never had the buffer registered).
+- **Course identity passes**, each verified with `tsc`, the full vitest
+  suite, and a 600-round `RoundSimulator` sweep against the pre-change
+  unfinished-hole rate:
+  - *Wildwood Glen*: white sand, crisper/reflective water, denser azalea/
+    cherry-blossom gardens on both fairway sides of holes 1–2, the sakura
+    tree asset wired into `blossomChance` mix-ins (previously dead theme
+    data — `course3d.ts` now loads `tree_sakura` whenever a course uses
+    blossoms and mixes it into ambient blossom rolls, not just authored
+    `blossom:true` hazards).
+  - *Sable Bay*: waste-bunker shrub/fescue trademark, fairway bunkers lined
+    with fescue on the green-side arc (`theme.bunkerLipFescue`), fairway
+    ribbons redrawn over former sand "islands," the island green stripped of
+    any turf that isn't green/fringe, a real ship model replacing the
+    procedural placeholder boats.
+  - *Timberline*: hole 2's green/bunkers resized to breathe post-clip; hole
+    3's corner pond pulled up against the dogleg elbow and its single lonely
+    corner tree replaced with a proper trunk grove so a corner-cut drive is
+    actually stopped ("I hit through it every time" — see the rolling-phase
+    fix above, which this hole's fix also depends on).
+  - *Port Johnson*: hole 1's dead-straight outer coastline reshaped into an
+    undulating shore; hole 2 ("The Redan") gained tight `wall:true` pot
+    bunkers hugging the green's own rotated-ellipse rim (previously every
+    bunker sat ~90yd short, an approach hazard rather than a greenside one).
+- **Waste-sand precedence** (`PhysicsEngine.surfaceAt` / `CourseTexture`'s
+  paint layers): a `waste: true` bunker now loses to fairway and trees drawn
+  over it (matching `beach`), so a fairway or treeline can be authored
+  straight over a waste sprawl without it eating the landing area — kills
+  the "fairway island in the sand" and "treeline island in the sand" look on
+  Sable Bay holes 1/3.
+- **Water polygon triangulation** (`Geometry.ts`'s new
+  `triangulatePolygonWithDepth`, via `earcut`): the old centroid-fan mesh
+  build produced gaps for any non-star-convex water shape (a winding creek,
+  an inlet) — confirmed on Wildwood hole 1's creek and Port Johnson's harbor.
+  Replaced with an earcut triangulation seeded from the polygon's deepest
+  interior point, fixing "water doesn't look right" across every course.
+- **New assets**: pals gecko/trex/crab (`pals.ts`, `storeCatalog.ts`); nature
+  uploads sakura tree, coreopsis flower, and a real ship model
+  (`convert-nature.mjs`'s new GLB-upload path, webp-compressed to keep
+  alpha); `natureModels.ts` generalized the heather-only "keep real texture"
+  path into a `TEXTURED_KEYS` set so any uploaded photo-textured prop can
+  opt out of the tint/recolor pipeline.
+
+---
+
 # Update — 2026-07-11 (latest+12): playtest-fix pass — feel, universal design, course rework
 
 A second playtest surfaced regressions and feedback that hadn't landed

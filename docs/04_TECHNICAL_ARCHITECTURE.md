@@ -277,6 +277,13 @@ All data-driven — a new course adds no code:
   `waste: true` (giant links waste bunker), `beach: true` (shore sand that
   never eats a landing area), and the render-only `visualOnly` / `visualSpacing`
   / `renderOffset` for trees (collision always reads the true `spacing`).
+  Surface precedence: green > scoring-bunker > fringe > water > trees >
+  fairway > waste/beach > rough — a fairway or treeline authored straight
+  over a waste sprawl always wins the overlap, so waste never eats a landing
+  area or creates a "fairway island in the sand" look. Bunkers that run under
+  a green get sliced back off the collar (`clipPolyOffGreen`, applied to
+  every hole at the `courseLoader.ts` compile step) so they read as sand
+  ending before the green, not fused into it.
 - **Gardens** are decorative flower beds (no collision): an ellipse with
   `density` / `bloomChance` / `bushChance` and either a `colors` palette
   (recolours 3D bloom meshes) or explicit `flowerKeys`. Beds paint their turf
@@ -353,6 +360,10 @@ Implementation notes (v2):
 - Tree collision hits the actual trunks (`collectTreeBlobs`), not the whole tree
   polygon, and the trunk hitbox shrinks for recovery shots (`stroke >= 1`) — the
   aim preview forwards the stroke count so its line matches the real shot.
+  Checked in both the flight phase (a rising or falling ball inside
+  `PHYSICS.treeHeight` of the ground) and the rolling phase (a runner that
+  lands short of a canopy and rolls into a trunk is damped exactly like a
+  flight-phase strike, not just slowed by `friction.trees`).
 - Wind is drawn once per hole from the course band via the shared `drawWind`
   helper (used by both the headless simulator and the live round).
 
