@@ -51,7 +51,7 @@ import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProf
 import { ACHIEVEMENTS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
+import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
 import { Pal3D } from './pal3d';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
@@ -3009,15 +3009,23 @@ function ovr(s: GolferStats): number {
   return Math.round((s.drivingPower + s.drivingAccuracy + s.approach + s.chipping + s.putting) / 5);
 }
 
-function statBars(stats: GolferStats, signature?: StatKey): string {
+/** `base` (unupgraded archetype stats), when given, renders a "+N" delta next
+ *  to any stat a purchased club upgrade actually lifted — otherwise a Driver
+ *  +3 purchase was invisible on the very screen where the player picks their
+ *  build (playtest: "I can't tell that the driver upgrade I purchased is
+ *  doing anything"). The bar itself always shows the true (upgraded) width. */
+function statBars(stats: GolferStats, signature?: StatKey, base?: GolferStats): string {
   return (
     `<div class="stats">` +
-    STAT_KEYS.map(
-      ([k, label]) =>
+    STAT_KEYS.map(([k, label]) => {
+      const delta = base ? stats[k] - base[k] : 0;
+      const deltaHtml = delta > 0 ? `<span class="svup">+${delta}</span>` : '';
+      return (
         `<div class="stat${k === signature ? ' sig' : ''}"><span class="sl">${label}</span>` +
         `<span class="sbar"><i style="width:${stats[k]}%"></i></span>` +
-        `<span class="sv">${stats[k]}</span></div>`
-    ).join('') +
+        `<span class="sv">${stats[k]}${deltaHtml}</span></div>`
+      );
+    }).join('') +
     `</div>`
   );
 }
@@ -3188,12 +3196,16 @@ function renderArchetype(): void {
     `<div class="archGrid">` +
     ARCHETYPES.map((a) => {
       const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
+      // Purchased club upgrades (Store > Driver/Irons/Wedges/Putter) apply to
+      // every archetype the player might pick, so the card must show the
+      // TRUE in-round stats, not the archetype's raw baseline.
+      const upgraded = applyClubUpgrades(a.stats, profile.clubUpgrades);
       return (
         `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
         `<div class="ahead"><span class="an">${a.name}</span>` +
         `<span class="atag">${a.tagline}</span>` +
-        `<span class="aovr">OVR ${ovr(a.stats)}</span></div>` +
-        statBars(a.stats, a.signature) +
+        `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
+        statBars(upgraded, a.signature, a.stats) +
         `</div>`
       );
     }).join('') +
@@ -3426,4 +3438,18 @@ else {
 // (signed-out play is ephemeral — nothing here persists or reaches the cloud).
 (window as unknown as { __grantCoins: unknown }).__grantCoins = (n: number) => {
   profile.coins += n;
+};
+
+// Test hook: set a club-upgrade tier directly (bypassing the store UI) and
+// re-render the current setup step, so specs can verify the archetype
+// screen reflects a purchased upgrade without driving the full store flow.
+(window as unknown as { __setClubUpgrade: unknown }).__setClubUpgrade = (family: string, tier: number) => {
+  profile.clubUpgrades[family] = tier;
+  renderStepBody();
+};
+
+// Test hook: jump the setup menu straight to the Style step.
+(window as unknown as { __gotoStyleStep: unknown }).__gotoStyleStep = () => {
+  sel.step = stepLabels().indexOf('Style');
+  renderStepBody();
 };
