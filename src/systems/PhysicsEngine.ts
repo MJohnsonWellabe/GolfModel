@@ -286,7 +286,9 @@ export class PhysicsEngine {
       } else if (t === 'water') {
         if (this.inHazard(i, x, y)) water = true;
       } else if (t === 'trees' || t === 'building') {
-        if (this.inHazard(i, x, y)) trees = true;
+        // keepGround woods leave the lie to whatever surface is beneath
+        // (Pinehurst-style trees standing in waste sand).
+        if (!hz[i].keepGround && this.inHazard(i, x, y)) trees = true;
       }
     }
     // Precedence: green > scoring-bunker > fringe > water > trees > fairway >

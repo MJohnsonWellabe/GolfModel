@@ -20,6 +20,9 @@ export interface TreeBlob {
   /** True for trunks from a `blossom` trees hazard — course3d plants these from
    *  the pink-canopy prototype. */
   blossom?: boolean;
+  /** True for trunks from an `accent: true` hazard — always planted from the
+   *  theme's accentTreeKeys set (deliberate palms etc.). */
+  accent?: boolean;
 }
 
 /** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
@@ -146,7 +149,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           r: hz.treeR ?? 15 + blobHash(xx + 7, yy + 3) * 12,
           kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32,
-          blossom: hz.blossom
+          blossom: hz.blossom,
+          accent: hz.accent
         });
       }
     }
@@ -168,7 +172,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
         r: hz.treeR ?? 15 + blobHash(cx + 7, cy + 3) * 12,
         kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
         tint: 0.82 + blobHash(cx + 3, cy + 11) * 0.32,
-        blossom: hz.blossom
+        blossom: hz.blossom,
+        accent: hz.accent
       });
     }
   }

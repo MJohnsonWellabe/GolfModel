@@ -144,6 +144,20 @@ export interface Hazard {
    */
   treeR?: number;
   /**
+   * Trees only: don't claim the GROUND under the polygon — the bake keeps
+   * painting whatever surface lies beneath (Sable Bay's Pinehurst waste:
+   * "trees planted directly in the sand, no break to the sand aesthetic")
+   * and the lie under the canopy is that surface too. Trunk collision is
+   * untouched — the ball still hits the trees, it just lies on sand.
+   */
+  keepGround?: boolean;
+  /**
+   * Trees only: plant every trunk from the theme's accentTreeKeys set
+   * (deliberate specimen placement — e.g. palms IN a fairway) instead of the
+   * usual ~15% random accent mix.
+   */
+  accent?: boolean;
+  /**
    * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
    * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
    * contributes trunks when rendering. Use this for a second, denser/closer
@@ -263,6 +277,11 @@ export interface HoleData {
   /** Number of decorative sailboats to scatter on the sea behind the green
    *  (sea-backdrop holes only, e.g. Sable Bay's island green). No collision. */
   sailboats?: number;
+  /** Decorative static props: model key under assets/models/props/, world
+   *  position, yaw, and the world-unit LENGTH the model's long axis scales
+   *  to (e.g. Sable Bay h2's wooden footbridge out to the island green).
+   *  Render-only — no physics footprint. */
+  props?: Array<{ key: string; x: number; y: number; rot?: number; len?: number }>;
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */

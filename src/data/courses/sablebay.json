@@ -50,8 +50,6 @@
       "density": 4
     },
     "treeKeys": [
-      "tree_pine",
-      "tree_spruce",
       "tree_spruce_tall"
     ],
     "mowPattern": "diag45",
@@ -228,8 +226,20 @@
               181.1
             ],
             [
-              398.4,
-              227.3
+              392,
+              178
+            ],
+            [
+              335,
+              195
+            ],
+            [
+              322,
+              232
+            ],
+            [
+              380,
+              248
             ]
           ]
         },
@@ -494,7 +504,8 @@
               632,
               320
             ]
-          ]
+          ],
+          "keepGround": true
         },
         {
           "type": "bunker",
@@ -639,6 +650,55 @@
             [
               618,
               260
+            ]
+          ],
+          "keepGround": true
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 20,
+          "polygon": [
+            [
+              416,
+              822
+            ],
+            [
+              432,
+              818
+            ],
+            [
+              436,
+              834
+            ],
+            [
+              420,
+              838
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 23,
+          "polygon": [
+            [
+              492,
+              588
+            ],
+            [
+              508,
+              584
+            ],
+            [
+              512,
+              600
+            ],
+            [
+              496,
+              604
             ]
           ]
         }
@@ -866,6 +926,54 @@
               1060
             ]
           ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 22,
+          "polygon": [
+            [
+              396,
+              386
+            ],
+            [
+              412,
+              382
+            ],
+            [
+              416,
+              398
+            ],
+            [
+              400,
+              402
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 19,
+          "polygon": [
+            [
+              498,
+              474
+            ],
+            [
+              514,
+              470
+            ],
+            [
+              518,
+              486
+            ],
+            [
+              502,
+              490
+            ]
+          ]
         }
       ],
       "aiTargets": [],
@@ -886,7 +994,16 @@
         }
       ],
       "gardens": [],
-      "sailboats": 2
+      "sailboats": 2,
+      "props": [
+        {
+          "key": "bridge",
+          "x": 450,
+          "y": 565,
+          "rot": 1.5708,
+          "len": 130
+        }
+      ]
     },
     {
       "number": 3,
@@ -1355,6 +1472,55 @@
             [
               750,
               1500
+            ]
+          ],
+          "keepGround": true
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 21,
+          "polygon": [
+            [
+              584,
+              952
+            ],
+            [
+              600,
+              948
+            ],
+            [
+              604,
+              964
+            ],
+            [
+              588,
+              968
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 24,
+          "polygon": [
+            [
+              496,
+              568
+            ],
+            [
+              512,
+              564
+            ],
+            [
+              516,
+              580
+            ],
+            [
+              500,
+              584
             ]
           ]
         }

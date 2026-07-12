@@ -167,7 +167,7 @@ function rasterizeClassGrid(
       6,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'trees') poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
+          if (hz.type === 'trees' && !hz.keepGround) poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
           else if (hz.type === 'building') poly(hz.polygon);
         })
     ],
@@ -292,7 +292,7 @@ export function renderCourseCanvas(
   const bunkers = hole.hazards
     // Beach bands are flat coastal sand, not dished traps — exclude them from
     // the radial depth-dish (they keep the ripple grain from the sand class).
-    .filter((z) => z.type === 'bunker' && !z.beach)
+    .filter((z) => z.type === 'bunker' && !z.beach && !z.waste)
     .map((z) => {
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
@@ -712,7 +712,7 @@ export function renderGreenPatch(
   const bunkers = hole.hazards
     // Beach bands are flat coastal sand, not dished traps — exclude them from
     // the radial depth-dish (they keep the ripple grain from the sand class).
-    .filter((z) => z.type === 'bunker' && !z.beach)
+    .filter((z) => z.type === 'bunker' && !z.beach && !z.waste)
     .map((z) => {
       const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
       const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
