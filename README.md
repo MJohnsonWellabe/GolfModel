@@ -1,4 +1,6 @@
-# Johnson's Golf
+# Bite-Sized Links
+
+_Three holes. Anytime._ (advertised as **BS Links**)
 
 A mobile-first, browser-based golf game in the spirit of Everybody's Golf /
 Hot Shots Golf and the classic Tiger Woods console games.
