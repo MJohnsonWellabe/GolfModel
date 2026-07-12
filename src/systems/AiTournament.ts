@@ -86,7 +86,7 @@ export function createAiTournament(
  * Tiger ≈ -2.0 per round — Tiger usually leads, but sd ~1.3-1.6 means
  * usually, not always.
  */
-const FORM_SHIFT: Record<string, number> = { Easy: 0.9, Medium: 1.3, Hard: 1.5, Legend: 1.6 };
+const FORM_SHIFT: Record<string, number> = { Easy: 2.0, Medium: 2.4, Hard: 2.6, Legend: 2.7 };
 
 /**
  * Record the player's just-finished round and produce the field's scores for

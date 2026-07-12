@@ -2,7 +2,7 @@ import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
 import { collectTreeBlobs, TreeBlob } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
-import { clamp, dist, pointInGreens, pointInPolygon } from '../utils/Geometry';
+import { clamp, dist, distToPolygon, pointInGreens, pointInPolygon } from '../utils/Geometry';
 import {
   ClubSpec,
   Golfer,
@@ -28,6 +28,13 @@ export const FRINGE_MARGIN = 32;
  *  than the FRINGE_MARGIN lie zone: a crisp mown collar with a wider first-cut
  *  of rough beyond it that still plays fringe — exactly like a real green. */
 export const FRINGE_VISUAL = 7;
+
+/** Collision margin (world px) added around every water polygon so the crisp
+ *  physics shape covers the wobble-painted visible blue (CourseTexture displaces
+ *  the water paint lookup by up to ~theme.edgeWobble × 9.5 px beyond the raw
+ *  polygon). ~12 px ≈ 6 yd covers the meaningful painted band without eating
+ *  dry lies well clear of the shore. Applied in surfaceAt via inWater. */
+export const WATER_EDGE_MARGIN = 12;
 
 /** Shortest distance from point (px,py) to the segment (ax,ay)-(bx,by), world
  *  px. Used for swept cup capture so a fast putt crossing the hole between two
@@ -304,7 +311,28 @@ export class PhysicsEngine {
       if (pointInPolygon(x, y, poly)) return 'fairway';
     }
     if (beach || waste) return 'sand';
+    // "Blue = penalty." The bake paints water through a wobble-displaced texture
+    // lookup (theme.edgeWobble) that extends the visible blue up to ~20px BEYOND
+    // the crisp water polygon, so a ball resting in that band over ROUGH read as
+    // land — no penalty, then you played off the "water" (playtest, Timberline
+    // h3). Upgrade only rough (never a playable fairway/green/sand lie that
+    // hugs the shore) within WATER_EDGE_MARGIN of a water edge.
+    if (this.nearWater(x, y)) return 'water';
     return 'rough';
+  }
+
+  /** Any water hazard within WATER_EDGE_MARGIN of (x, y) — used to reclassify a
+   *  rough lie sitting in the wobble-painted blue band (see surfaceAt). */
+  private nearWater(x: number, y: number): boolean {
+    const hz = this.hole.hazards;
+    const m = WATER_EDGE_MARGIN;
+    for (let i = 0; i < hz.length; i++) {
+      if (hz[i].type !== 'water') continue;
+      const b = this.hzBox[i];
+      if (x < b[0] - m || x > b[2] + m || y < b[1] - m || y > b[3] + m) continue;
+      if (distToPolygon(x, y, hz[i].polygon) <= m) return true;
+    }
+    return false;
   }
 
   /**
