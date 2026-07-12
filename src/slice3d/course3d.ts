@@ -35,7 +35,7 @@ import {
 } from '../core/rendering/CourseTexture';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
-import { greenBoundaryScale, pointInGreen, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
+import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -184,12 +184,22 @@ function ellipseFactor(x: number, y: number, g: HoleData['green'], margin = 0): 
   return Math.sqrt(dx * dx + dy * dy) / w;
 }
 
-/** Green plateau lift profile shared by the plateau mesh and groundHeightAt. */
+/** Green plateau lift profile shared by the plateau mesh and groundHeightAt.
+ *  A lobed green (hole.green2) lifts the UNION: whichever lobe the point is
+ *  deepest inside wins, so the two plateaus merge into one raised surface. */
 function greenLift(x: number, y: number, hole: HoleData): number {
-  const f = ellipseFactor(x, y, hole.green);
+  let f = ellipseFactor(x, y, hole.green);
+  let ref = hole.green;
+  if (hole.green2) {
+    const f2 = ellipseFactor(x, y, hole.green2);
+    if (f2 < f) {
+      f = f2;
+      ref = hole.green2;
+    }
+  }
   if (f <= 1) return GREEN_RAISE;
   // Approximate world distance beyond the green edge, smooth over the fringe
-  const beyond = (f - 1) * Math.min(hole.green.rx, hole.green.ry);
+  const beyond = (f - 1) * Math.min(ref.rx, ref.ry);
   const s = Math.min(1, beyond / FRINGE_VISUAL);
   const t = 1 - s * s * (3 - 2 * s); // smoothstep down
   return GREEN_RAISE * t;
@@ -374,79 +384,15 @@ export function buildCourse(
   // green stays crisp at putting-camera distance. Physics remains flat — the
   // ball/golfer add groundHeightAt() when rendered.
   {
-    const g = hole.green;
     const ANG = 56;
     // Ring radii factors: flat top out to the green edge, then skirt rings
     // stepping across the fringe down to ground level (slightly below to tuck)
     const topT = [0, 0.45, 0.8, 1];
     const skirtS = [0.18, 0.45, 0.72, 1, 1.18];
+    // ONE shared texture patch covers every lobe (renderGreenPatch sizes its
+    // canvas to the union bbox), so a two-lobe green reads as one continuous
+    // mown surface — the mow columns run unbroken across the waist.
     const patch = renderGreenPatch(hole, theme, engine, FRINGE_VISUAL + 8, 6);
-    const positions: number[] = [];
-    const uvs: number[] = [];
-    const indices: number[] = [];
-    const pushVert = (wx: number, wy: number, hgt: number): void => {
-      positions.push(wx, hgt + engine.groundAt(wx, wy), -wy);
-      uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
-    };
-    const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
-      // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
-      // local angle so the plateau/skirt mesh traces the same irregular edge the
-      // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
-      // the angle, so mesh and point-in-green agree exactly).
-      const lx0 = Math.cos(theta) * rxx;
-      const ly0 = Math.sin(theta) * ryy;
-      const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
-      const lx = lx0 * w;
-      const ly = ly0 * w;
-      const c = Math.cos(g.rot ?? 0);
-      const s = Math.sin(g.rot ?? 0);
-      return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
-    };
-    // Center vertex + top rings at full raise
-    pushVert(g.cx, g.cy, GREEN_RAISE);
-    const rings: Array<{ rx: number; ry: number; h: number }> = [];
-    for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
-    for (const s of skirtS) {
-      const beyond = s * FRINGE_VISUAL;
-      const tt = Math.min(1, s);
-      const fall = 1 - tt * tt * (3 - 2 * tt);
-      rings.push({
-        rx: g.rx + beyond,
-        ry: g.ry + beyond,
-        h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
-      });
-    }
-    rings.forEach((ring) => {
-      for (let a = 0; a < ANG; a++) {
-        const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
-        pushVert(wx, wy, ring.h);
-      }
-    });
-    // Fan from center to ring 0
-    for (let a = 0; a < ANG; a++) indices.push(0, 1 + ((a + 1) % ANG), 1 + a);
-    // Ring-to-ring quads
-    for (let r = 0; r < rings.length - 1; r++) {
-      const base0 = 1 + r * ANG;
-      const base1 = 1 + (r + 1) * ANG;
-      for (let a = 0; a < ANG; a++) {
-        const a2 = (a + 1) % ANG;
-        indices.push(base0 + a, base1 + a2, base1 + a);
-        indices.push(base0 + a, base0 + a2, base1 + a2);
-      }
-    }
-    const greenMesh = new Mesh('greenComplex', scene);
-    const vd = new VertexData();
-    vd.positions = positions;
-    vd.uvs = uvs;
-    vd.indices = indices;
-    // Straight-up normals everywhere: the raised plateau must LIGHT like the
-    // flat ground around it. Geometric normals made the sun-facing side of the
-    // skirt blow out into a bright cream ring around every green (the aerial
-    // "odd green" playtest report) and showed the skirt rings as facet bands.
-    const normals: number[] = [];
-    for (let i = 0; i < positions.length; i += 3) normals.push(0, 1, 0);
-    vd.normals = normals;
-    vd.applyToMesh(greenMesh);
     const patchTex = new DynamicTexture('greenPatch', { width: patch.canvas.width, height: patch.canvas.height }, scene, true);
     patchTex.getContext().drawImage(patch.canvas, 0, 0);
     patchTex.update(false);
@@ -460,8 +406,83 @@ export function buildCourse(
     greenNormal.vScale = 26;
     greenNormal.level = 0.45; // mown-smooth: subtler grain than the ground
     gm.bumpTexture = greenNormal;
-    greenMesh.material = gm;
-    greenMesh.receiveShadows = true;
+    // A lobed green (hole.green2) builds one plateau per lobe. Both sit at
+    // GREEN_RAISE; the second rides a hair higher so the overlap region never
+    // z-fights — 0.03 world units is invisible at gameplay scale but decisive
+    // for the depth buffer. Where lobe B's skirt falls inside lobe A it dips
+    // below A's top and hides, so the union silhouette is what reads.
+    const lobes = hole.green2 ? [hole.green, hole.green2] : [hole.green];
+    lobes.forEach((g, li) => {
+      const lift = li * 0.03;
+      const positions: number[] = [];
+      const uvs: number[] = [];
+      const indices: number[] = [];
+      const pushVert = (wx: number, wy: number, hgt: number): void => {
+        positions.push(wx, hgt + lift + engine.groundAt(wx, wy), -wy);
+        uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
+      };
+      const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
+        // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
+        // local angle so the plateau/skirt mesh traces the same irregular edge the
+        // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
+        // the angle, so mesh and point-in-green agree exactly).
+        const lx0 = Math.cos(theta) * rxx;
+        const ly0 = Math.sin(theta) * ryy;
+        const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+        const lx = lx0 * w;
+        const ly = ly0 * w;
+        const c = Math.cos(g.rot ?? 0);
+        const s = Math.sin(g.rot ?? 0);
+        return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
+      };
+      // Center vertex + top rings at full raise
+      pushVert(g.cx, g.cy, GREEN_RAISE);
+      const rings: Array<{ rx: number; ry: number; h: number }> = [];
+      for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
+      for (const s of skirtS) {
+        const beyond = s * FRINGE_VISUAL;
+        const tt = Math.min(1, s);
+        const fall = 1 - tt * tt * (3 - 2 * tt);
+        rings.push({
+          rx: g.rx + beyond,
+          ry: g.ry + beyond,
+          h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
+        });
+      }
+      rings.forEach((ring) => {
+        for (let a = 0; a < ANG; a++) {
+          const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
+          pushVert(wx, wy, ring.h);
+        }
+      });
+      // Fan from center to ring 0
+      for (let a = 0; a < ANG; a++) indices.push(0, 1 + ((a + 1) % ANG), 1 + a);
+      // Ring-to-ring quads
+      for (let r = 0; r < rings.length - 1; r++) {
+        const base0 = 1 + r * ANG;
+        const base1 = 1 + (r + 1) * ANG;
+        for (let a = 0; a < ANG; a++) {
+          const a2 = (a + 1) % ANG;
+          indices.push(base0 + a, base1 + a2, base1 + a);
+          indices.push(base0 + a, base0 + a2, base1 + a2);
+        }
+      }
+      const greenMesh = new Mesh(li === 0 ? 'greenComplex' : `greenComplex${li + 1}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.uvs = uvs;
+      vd.indices = indices;
+      // Straight-up normals everywhere: the raised plateau must LIGHT like the
+      // flat ground around it. Geometric normals made the sun-facing side of the
+      // skirt blow out into a bright cream ring around every green (the aerial
+      // "odd green" playtest report) and showed the skirt rings as facet bands.
+      const normals: number[] = [];
+      for (let i = 0; i < positions.length; i += 3) normals.push(0, 1, 0);
+      vd.normals = normals;
+      vd.applyToMesh(greenMesh);
+      greenMesh.material = gm;
+      greenMesh.receiveShadows = true;
+    });
   }
 
   // ----------------------------------------------------------- tee platform
@@ -1336,7 +1357,7 @@ export function buildCourse(
           // Never plant a tree on the green or its collar (playtest: "no trees on
           // the fringe anywhere"). Uses the wider lie collar so trunks stay well
           // clear of the putting surface, not just off the mown ring.
-          if (pointInGreen(b.x, b.y, hole.green, FRINGE_MARGIN)) continue;
+          if (pointInGreens(b.x, b.y, hole.green, hole.green2, FRINGE_MARGIN)) continue;
           plantTree(b);
         }
       });

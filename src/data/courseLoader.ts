@@ -151,8 +151,23 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       hazards: h.hazards.map((hz) => {
         if (hz.type === 'water') return { ...hz, polygon: roundPolygon(hz.polygon, WATER_ROUND_ITERATIONS) };
         if (hz.type !== 'bunker') return hz;
-        const base = clipPolyOffGreen(hz.polygon, h.green, FRINGE_VISUAL);
-        return { ...hz, polygon: roundPolygon(base, BUNKER_ROUND_ITERATIONS) };
+        // Clip greenside sand off EVERY lobe of the green (green2 included),
+        // then round, then clip AGAIN: clipPolyOffGreen only pushes VERTICES,
+        // so an edge running chord-wise through a lobe stays inside until the
+        // Chaikin pass has densified it — the post-round clip pushes those new
+        // chord vertices out to the collar, where they read as sand hugging
+        // the rim (the intended look). Two passes per clip on a lobed green:
+        // pushing a vertex out of one lobe can land it inside the other on a
+        // kidney's waist.
+        const clipAll = (poly: Polygon): Polygon => {
+          let out = poly;
+          for (let pass = 0; pass < (h.green2 ? 2 : 1); pass++) {
+            out = clipPolyOffGreen(out, h.green, FRINGE_VISUAL);
+            if (h.green2) out = clipPolyOffGreen(out, h.green2, FRINGE_VISUAL);
+          }
+          return out;
+        };
+        return { ...hz, polygon: clipAll(roundPolygon(clipAll(hz.polygon), BUNKER_ROUND_ITERATIONS)) };
       })
       };
     })

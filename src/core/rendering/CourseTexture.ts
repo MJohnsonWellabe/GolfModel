@@ -92,28 +92,31 @@ function rasterizeClassGrid(
     ctx.closePath();
     ctx.fill();
   };
-  const g = hole.green;
   // Irregular green boundary: sample the wobbled edge (the SAME shared wobble the
   // physics test, plateau mesh, and putt aids use) as a fine polygon so the baked
   // albedo of the green (id2) and its fringe (id3) match the surface played. A
   // plain ctx.ellipse would draw a perfect oval the physics no longer agrees with.
+  // A lobed green (hole.green2) paints BOTH lobes — the filled union is the green.
   const ell = (margin: number): void => {
-    const rxx = g.rx + margin;
-    const ryy = g.ry + margin;
-    const c = Math.cos(g.rot ?? 0);
-    const s = Math.sin(g.rot ?? 0);
-    const N = 72;
-    const pts: number[][] = [];
-    for (let i = 0; i < N; i++) {
-      const th = (i / N) * Math.PI * 2;
-      const lx0 = Math.cos(th) * rxx;
-      const ly0 = Math.sin(th) * ryy;
-      const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
-      const lx = lx0 * w;
-      const ly = ly0 * w;
-      pts.push([g.cx + lx * c - ly * s, g.cy + lx * s + ly * c]);
+    const lobes = hole.green2 ? [hole.green, hole.green2] : [hole.green];
+    for (const g of lobes) {
+      const rxx = g.rx + margin;
+      const ryy = g.ry + margin;
+      const c = Math.cos(g.rot ?? 0);
+      const s = Math.sin(g.rot ?? 0);
+      const N = 72;
+      const pts: number[][] = [];
+      for (let i = 0; i < N; i++) {
+        const th = (i / N) * Math.PI * 2;
+        const lx0 = Math.cos(th) * rxx;
+        const ly0 = Math.sin(th) * ryy;
+        const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+        const lx = lx0 * w;
+        const ly = ly0 * w;
+        pts.push([g.cx + lx * c - ly * s, g.cy + lx * s + ly * c]);
+      }
+      poly(pts);
     }
-    poly(pts);
   };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
   // precedence must match PhysicsEngine.surfaceAt exactly:
@@ -593,11 +596,23 @@ export function renderGreenPatch(
   margin: number,
   scale = 6
 ): { canvas: HTMLCanvasElement; x0: number; y0: number; w: number; h: number } {
-  const g = hole.green;
-  const reach = Math.max(g.rx, g.ry) + margin + 10;
-  const x0 = g.cx - reach;
-  const y0 = g.cy - reach;
-  const wWorld = reach * 2;
+  // Patch bounds cover the UNION of the green lobes (square, centered on the
+  // union bbox) so a second lobe still lands on the crisp high-res texture.
+  const lobes = hole.green2 ? [hole.green, hole.green2] : [hole.green];
+  let bx0 = Infinity;
+  let by0 = Infinity;
+  let bx1 = -Infinity;
+  let by1 = -Infinity;
+  for (const g of lobes) {
+    const r = Math.max(g.rx, g.ry) + margin + 10;
+    bx0 = Math.min(bx0, g.cx - r);
+    by0 = Math.min(by0, g.cy - r);
+    bx1 = Math.max(bx1, g.cx + r);
+    by1 = Math.max(by1, g.cy + r);
+  }
+  const wWorld = Math.max(bx1 - bx0, by1 - by0);
+  const x0 = (bx0 + bx1) / 2 - wWorld / 2;
+  const y0 = (by0 + by1) / 2 - wWorld / 2;
   const w = Math.round(wWorld * scale);
   const canvas = document.createElement('canvas');
   canvas.width = w;

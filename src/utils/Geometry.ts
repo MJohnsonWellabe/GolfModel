@@ -85,6 +85,23 @@ export function pointInGreen(x: number, y: number, e: EllipseArea, margin = 0): 
 }
 
 /**
+ * Point inside the UNION of a hole's green lobes (`green` plus the optional
+ * `green2`). The one boolean every gameplay consumer should use — a lobed
+ * (kidney/L-shaped) green is simply two overlapping wobbled ellipses, and the
+ * union of two star-convex-about-their-own-center shapes is exactly "inside
+ * either".
+ */
+export function pointInGreens(
+  x: number,
+  y: number,
+  green: EllipseArea,
+  green2: EllipseArea | undefined,
+  margin = 0
+): boolean {
+  return pointInGreen(x, y, green, margin) || (!!green2 && pointInGreen(x, y, green2, margin));
+}
+
+/**
  * Push any polygon vertex that sits on the green + collar radially outward to
  * just past that boundary, so a bunker whose authored outline runs under the
  * green stops SHORT of it with its own organic edge — instead of being sliced

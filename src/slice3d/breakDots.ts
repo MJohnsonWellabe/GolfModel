@@ -10,7 +10,7 @@ import {
 import { isFrozen } from '../core/debugFlags';
 import { HoleData } from '../core/types';
 import { PhysicsEngine } from '../systems/PhysicsEngine';
-import { pointInGreen } from '../utils/Geometry';
+import { pointInGreens } from '../utils/Geometry';
 import { hash2 } from './natureModels';
 
 /**
@@ -71,13 +71,18 @@ export function buildBreakDots(
   // Square lattice covering the green; the aim frame is generally NOT aligned
   // with the green ellipse, so coverage/clipping uses a true ellipse test
   // (insideGreen) rather than an axis-aligned chord.
-  const maxR = Math.max(g.rx, g.ry);
+  // Lattice extent covers the union of the lobes (green2 included) so the
+  // dot cloud reaches a second lobe's far edge.
+  const g2 = hole.green2;
+  const lobeReach = (e: typeof g): number =>
+    Math.hypot(e.cx - g.cx, e.cy - g.cy) + Math.max(e.rx, e.ry);
+  const maxR = Math.max(g.rx, g.ry, g2 ? lobeReach(g2) : 0);
   const half = maxR + 6;
   const count = Math.max(150, Math.min(350, Math.round((Math.PI * g.rx * g.ry) / 40)));
   // Is a world point inside the irregular green (slightly inset from the fringe
   // edge)? Shares the wobble helper so the break-dot cloud clips to the SAME edge
   // the green is drawn and played on.
-  const insideGreen = (wx: number, wy: number): boolean => pointInGreen(wx, wy, g, -2);
+  const insideGreen = (wx: number, wy: number): boolean => pointInGreens(wx, wy, g, hole.green2, -2);
 
   // Soft round sprite shared by every dot.
   const tex = new DynamicTexture('breakDotTex', { width: 32, height: 32 }, scene, true);
