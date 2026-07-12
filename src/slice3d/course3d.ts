@@ -1465,7 +1465,15 @@ export function buildCourse(
                   : e.key.startsWith('stone')
                     ? 0.8 + hash2(jx, jy + 9) * 0.9
                     : 2.4 + hash2(jx + 7, jy) * 1.1;
-            placeProto(e.proto, jx, jy, sh);
+            // A theme can list a tintable species (a bush/flower/grass key) in
+            // scatterKeys alongside plain forest-floor props (ferns, stumps,
+            // stones) — its prototype parts are still registered for the
+            // per-instance 'color' buffer (natureModels), so leaving it unset
+            // here rendered those instances solid black (visual pass 7 audit:
+            // an unexplained black blob sitting alone in open rough). Passing
+            // a tint is a no-op for the untintable props (the tintable check
+            // in placeProto only applies it where registered).
+            placeProto(e.proto, jx, jy, sh, lush ? bushTint(jx, jy) : undefined);
           }
         }
       }
