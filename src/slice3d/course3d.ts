@@ -6,6 +6,7 @@ import {
   DynamicTexture,
   FresnelParameters,
   HemisphericLight,
+  LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
   MirrorTexture,
@@ -651,6 +652,7 @@ export function buildCourse(
   // Only download the props this course's theme actually places (about half
   // the catalog) — both loadNaturePrototypes calls MUST share this set since
   // the loader caches per scene on the first call.
+  const usesBlossom = (theme.blossomChance ?? 0) > 0 || hole.hazards.some((hz) => hz.type === 'trees' && hz.blossom);
   const natKeys = [
     ...new Set<string>([
       ...(theme.treeKeys ?? TREE_KEYS),
@@ -664,7 +666,10 @@ export function buildCourse(
       ...(theme.heatherKeys ?? []),
       ...(theme.sandPlantKeys ?? []),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
-      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? [])
+      ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
+      // The real sakura model backs the blossom system wherever it's used
+      // (see blossomProto below) — load it whenever this hole/course needs one.
+      ...(usesBlossom ? ['tree_sakura'] : [])
     ])
   ];
 
@@ -941,13 +946,17 @@ export function buildCourse(
         d.position = w2b(hole.pin.x + i * 560 + 90, hole.pin.y - peakDist + 260 - Math.abs(i) * 120, 20);
       }
     }
-    // Decorative sailboats on the open sea behind the green (hole.sailboats). A
-    // dark low hull, a thin mast, and a double-sided triangular sail — sized to
-    // read as distant boats, parked a few hundred yards past the pin on the water.
+    // Decorative sailboats on the open sea behind the green (hole.sailboats).
+    // A procedural low hull + mast + triangular sail is the instant
+    // placeholder (same look as before); the uploaded ship model swaps in
+    // once it loads and the placeholders are disposed — same positions/
+    // rotations, so nothing shifts when it arrives.
     if (hole.sailboats && hole.sailboats > 0) {
       const hullMat = mat(scene, 'boatHull', 0x3a4756, { emissive: 0x1c2530 });
       const sailMat = mat(scene, 'boatSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
       const mastMat = mat(scene, 'boatMast', 0x8a6a45);
+      const boats: TransformNode[] = [];
+      const placeholders: Mesh[] = [];
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
         const sc = 34 + ((i * 37) % 12); // sail height in world units (~34-46)
@@ -960,6 +969,7 @@ export function buildCourse(
         const boat = new TransformNode(`boat${i}`, scene);
         boat.position = w2b(bx, by, 0.35);
         boat.rotation = new Vector3(0, yaw, 0);
+        boats.push(boat);
         const hull = MeshBuilder.CreateBox(
           `boatHull${i}`,
           { width: 0.95 * sc, height: 0.18 * sc, depth: 0.34 * sc },
@@ -968,6 +978,7 @@ export function buildCourse(
         hull.material = hullMat;
         hull.position = new Vector3(0, 0.09 * sc, 0);
         hull.parent = boat;
+        placeholders.push(hull);
         const mast = MeshBuilder.CreateCylinder(
           `boatMast${i}`,
           { diameter: 0.035 * sc, height: 1.08 * sc, tessellation: 5 },
@@ -976,6 +987,7 @@ export function buildCourse(
         mast.material = mastMat;
         mast.position = new Vector3(0, 0.6 * sc, 0);
         mast.parent = boat;
+        placeholders.push(mast);
         const sail = new Mesh(`boatSail${i}`, scene);
         const svd = new VertexData();
         svd.positions = [0.02 * sc, 0.16 * sc, 0, 0.02 * sc, sc, 0, 0.62 * sc, 0.2 * sc, 0];
@@ -986,7 +998,77 @@ export function buildCourse(
         svd.applyToMesh(sail);
         sail.material = sailMat;
         sail.parent = boat;
+        placeholders.push(sail);
       }
+      void LoadAssetContainerAsync('models/nature/ship.glb', scene)
+        .then((container) => {
+          container.addAllToScene();
+          const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
+          if (!parts.length) return;
+          // Hard-map the source PBR materials by luminance — the scan ships no
+          // semantic naming, but its palette is cleanly separable: one bright
+          // near-white slot (the sail/cloth) and several dark wood/trim tones.
+          // Each raw part is instanced directly (no MergeMeshes): the source
+          // primitives don't share one vertex-attribute layout (a bare-bones
+          // sail plane vs. the hull's full attribute set), which MergeMeshes
+          // requires — and at ~10 parts × 1-2 boats/hole, the extra draw
+          // calls from skipping the merge are irrelevant.
+          const shipHull = mat(scene, 'shipHull', 0x3a2a1c, { emissive: 0x1a120b });
+          const shipTrim = mat(scene, 'shipTrim', 0xc9a876, { emissive: 0x6b5636 });
+          const shipSail = mat(scene, 'shipSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
+          let minX = Infinity;
+          let maxX = -Infinity;
+          let minY = Infinity;
+          let minZ = Infinity;
+          let maxZ = -Infinity;
+          for (const p of parts) {
+            const src = p.material as StandardMaterial | null;
+            const c = src?.diffuseColor;
+            const luma = c ? c.r * 0.3 + c.g * 0.59 + c.b * 0.11 : 0;
+            p.material = luma > 0.5 ? shipSail : luma > 0.2 ? shipTrim : shipHull;
+            // An InstancedMesh shares only the source's LOCAL vertex data —
+            // the source's own parent-node transform (the glTF's "pirate
+            // ship" root, here just an identity node, but not guaranteed by
+            // every future ship asset) never composes into an instance. Bake
+            // it into the vertices now (same effect MergeMeshes's world-matrix
+            // bake has elsewhere in this file) so the world-space bounding
+            // box computed below is what instances will actually render.
+            p.bakeCurrentTransformIntoVertices();
+            p.refreshBoundingInfo();
+            const bb = p.getBoundingInfo().boundingBox;
+            minX = Math.min(minX, bb.minimum.x);
+            maxX = Math.max(maxX, bb.maximum.x);
+            minY = Math.min(minY, bb.minimum.y);
+            minZ = Math.min(minZ, bb.minimum.z);
+            maxZ = Math.max(maxZ, bb.maximum.z);
+            // Babylon only draws an instanced mesh's instances while its
+            // SOURCE stays enabled — park it far below the course instead of
+            // disabling it (same pattern as the nature prop prototypes).
+            p.isPickable = false;
+          }
+          const length = Math.max(0.001, maxX - minX);
+          const avgSc = 34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12); // matches the placeholder sc spread
+          const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
+          // Instances don't inherit the source mesh's own transform — the
+          // normalizing scale/centering has to go on each INSTANCE, same as
+          // every prototype placement in this file (placeProto above).
+          const cx = (minX + maxX) / 2;
+          const cz = (minZ + maxZ) / 2;
+          for (const boat of boats) {
+            for (let i = 0; i < parts.length; i++) {
+              const inst = parts[i].createInstance(`${boat.name}Model${i}`);
+              inst.parent = boat;
+              inst.scaling.setAll(s);
+              inst.position = new Vector3(-cx * s, -minY * s, -cz * s);
+              inst.freezeWorldMatrix();
+            }
+          }
+          for (const p of parts) p.position.y -= 9000;
+          placeholders.forEach((m) => m.dispose());
+        })
+        .catch(() => {
+          /* keep the procedural placeholders if the model fails to load */
+        });
     }
   } else if (theme.backdrop === 'none') {
     // No backdrop scenery: the dense conifer wall (backdropTreeStep) plus open
@@ -1192,11 +1274,13 @@ export function buildCourse(
       if (!set.length) return;
       placeProto(set[Math.floor(hash2(x + jitter, y - jitter) * set.length) % set.length], x, y, targetH, tint);
     };
-    // Cherry-blossom prototype (Wildwood's spring-parkland identity): one clone
-    // of a rounded broadleaf with its canopy repainted soft pink, planted for any
-    // `blossom` trees hazard. Built once; the trunk (natBark) stays brown.
-    let blossomProto: NatureProto | null = null;
-    {
+    // Cherry-blossom prototype (Wildwood's spring-parkland identity), planted
+    // for any `blossom` trees hazard AND for the theme.blossomChance mix-in
+    // (treeField kind 3). Prefer the real uploaded sakura model — genuine
+    // blossom-photo canopy instead of a flat pink tint — falling back to a
+    // pink-repainted clone of a broadleaf if it isn't loaded for this course.
+    let blossomProto: NatureProto | null = protos.get('tree_sakura') ?? null;
+    if (!blossomProto) {
       const src = trees.find((t) => /maple|oak|tree_a|tree_b|poplar|aspen/.test(t.key)) ?? trees[0];
       if (src) {
         const pink = mat(scene, 'natBlossom', 0xf4a6c8, { emissive: shade(0xf4a6c8, 0.5) });
@@ -1210,8 +1294,11 @@ export function buildCourse(
       }
     }
     const plantTree = (b: TreeBlob): void => {
-      // A blossom-hazard trunk uses the pink-canopy prototype (Wildwood).
-      if (b.blossom && blossomProto) {
+      // A blossom-hazard trunk (b.blossom) OR a theme.blossomChance mix-in
+      // trunk (kind 3, treeField.collectTreeBlobs) uses the blossom prototype
+      // — ordinary woods get an occasional cherry tree scattered through them
+      // (Wildwood's spring-parkland identity), not just the dedicated groves.
+      if ((b.blossom || b.kind === 3) && blossomProto) {
         placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0));
         return;
       }

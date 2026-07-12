@@ -19,13 +19,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { NodeIO } from '@gltf-transform/core';
-import { dedup, prune, quantize, simplify, weld } from '@gltf-transform/functions';
+import { dedup, prune, quantize, simplify, textureCompress, weld } from '@gltf-transform/functions';
 import { MeshoptSimplifier } from 'meshoptimizer';
+import sharp from 'sharp';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PACK = path.join(root, 'asset-packs', 'forest-nature-fbx');
 const MEADOW = path.join(root, 'asset-packs', 'meadow-fbx');
 const KIT = path.join(root, 'asset-packs', 'nature-kit-glb');
+const UPLOADS = path.join(root, 'asset-packs', 'nature-uploads');
 const OUT = path.join(root, 'assets', 'models', 'nature');
 
 /**
@@ -111,6 +113,48 @@ const KENNEY_MANIFEST = {
   bush_kenney_b: 'Plant_1_Big',
   fern_kenney: 'Fern_1'
 };
+
+/**
+ * User-uploaded GLB props (asset-packs/nature-uploads/) — already GLB, so no
+ * FBX2glTF step. Unlike the rest of the nature set these ship REAL textures
+ * that ARE the point (a sakura's blossom photo, a flower's petal photo), so
+ * natureModels.ts keeps them (see TEXTURED_KEYS) instead of recoloring by
+ * slot. webp (not jpeg) keeps the alpha channel these need for cutout leaves/
+ * petals. outKey -> { src, ratio }.
+ */
+const UPLOAD_MANIFEST = {
+  tree_sakura: { src: 'sakura.glb', ratio: 0.85 },
+  flower_coreopsis: { src: 'coreopsis.glb', ratio: 0.85 },
+  ship: { src: 'ship.glb', ratio: 0.45 }
+};
+
+async function convertUploadOne(key, { src, ratio }) {
+  const document = await io.read(path.join(UPLOADS, src));
+  const before = triCount(document);
+  await document.transform(
+    dedup(),
+    weld(),
+    simplify({ simplifier: MeshoptSimplifier, ratio, error: 0.01, lockBorder: false }),
+    prune(),
+    textureCompress({ encoder: sharp, targetFormat: 'webp', quality: 82, resize: [512, 512] }),
+    quantize()
+  );
+  const out = path.join(OUT, `${key}.glb`);
+  await io.write(out, document);
+  const kb = Math.round(statSync(out).size / 1024);
+  console.log(`${key}.glb  ${kb} KB  tris ${before} -> ${triCount(document)}`);
+}
+
+function triCount(document) {
+  let tris = 0;
+  for (const mesh of document.getRoot().listMeshes()) {
+    for (const prim of mesh.listPrimitives()) {
+      const idx = prim.getIndices();
+      tris += (idx ? idx.getCount() : prim.getAttribute('POSITION').getCount()) / 3;
+    }
+  }
+  return Math.round(tris);
+}
 
 const fbx2gltf = path.join(
   root,
@@ -215,6 +259,9 @@ try {
   }
   for (const [key, stem] of Object.entries(KENNEY_MANIFEST)) {
     await convertKenneyOne(key, stem);
+  }
+  for (const [key, entry] of Object.entries(UPLOAD_MANIFEST)) {
+    await convertUploadOne(key, entry);
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

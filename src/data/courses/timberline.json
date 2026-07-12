@@ -25,7 +25,7 @@
     "haze": "#dcecf5",
     "hazeStrength": 0.45,
     "backdrop": "none",
-    "blossomChance": 0.08,
+    "blossomChance": 0.0,
     "treeKeys": [
       "tree_spruce",
       "tree_spruce_tall",
