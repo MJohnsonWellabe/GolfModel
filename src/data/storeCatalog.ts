@@ -170,7 +170,7 @@ export const STORE_CATALOG: StoreItem[] = [
 
 export const STORE_BY_ID = new Map(STORE_CATALOG.map((i) => [i.id, i]));
 
-/** Per-family upgrade: which stats it lifts. Each tier adds +3, capped at 100. */
+/** Per-family upgrade: which stats it lifts. Each tier adds +3. */
 const FAMILY_STATS: Record<UpgradeFamily, Array<keyof GolferStats>> = {
   driver: ['drivingPower', 'drivingAccuracy'],
   irons: ['approach'],
@@ -178,13 +178,17 @@ const FAMILY_STATS: Record<UpgradeFamily, Array<keyof GolferStats>> = {
   putter: ['putting']
 };
 
-/** Apply the profile's purchased club upgrades to a base stat block. */
+/** Apply the profile's purchased club upgrades to a base stat block. Upgrades
+ *  push PAST the 100 rating ceiling (a Big Hitter's power reads "100+3" and
+ *  genuinely plays at 103) — a purchased upgrade must never be a silent no-op
+ *  on the archetype that already maxes that stat. 110 is a sanity bound the
+ *  current catalog can't reach, not a design target. */
 export function applyClubUpgrades(stats: GolferStats, clubUpgrades: Record<string, number>): GolferStats {
   const out = { ...stats };
   for (const [family, tier] of Object.entries(clubUpgrades)) {
     const keys = FAMILY_STATS[family as UpgradeFamily];
     if (!keys) continue;
-    for (const k of keys) out[k] = Math.min(100, out[k] + tier * 3);
+    for (const k of keys) out[k] = Math.min(110, out[k] + tier * 3);
   }
   return out;
 }
