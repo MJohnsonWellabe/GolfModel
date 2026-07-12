@@ -9,7 +9,8 @@ import {
   ShadowGenerator,
   StandardMaterial,
   TransformNode,
-  Vector3
+  Vector3,
+  VertexBuffer
 } from '@babylonjs/core';
 import { GolferLook } from '../core/types';
 import { CharacterInstance, instantiateCharacter } from './characterModels';
@@ -29,18 +30,36 @@ function m(scene: Scene, name: string, color: number, spec = 0.04): StandardMate
 const GOLFER_SCALE = 1.4;
 // Real club-model placement (wrist-local). Tuned so the grip sits in the hands
 // and the club hangs down and slightly forward/out to address the ball.
-const CLUB_LEN = 2.5;
+const CLUB_LEN = 2.0;
 const CLUB_MIRROR = 1;
 const CLUB_TILT_X = 0.32;
 const CLUB_TILT_Y = 0;
 const CLUB_TILT_Z = -0.34;
+/** Address-only deltas on the club holder (rotation radians / wrist-local
+ * position), blended out over the first ~100ms of the takeaway and back in
+ * when the golfer returns to address. CLUB_TILT_* alone is a compromise pose
+ * shared with the mid-swing pass through pose 0 (impact), which left the club
+ * at address hovering toe-up short of the ball ("club at address looks bad").
+ * These deltas sole the head flat behind the ball and square the toe without
+ * touching the swing arc. */
+const ADDRESS_TILT_X = -1.168;
+const ADDRESS_TILT_Y = 0.099;
+const ADDRESS_TILT_Z = 0.121;
+const ADDRESS_POS_X = 0.1;
+const ADDRESS_POS_Y = 0;
+const ADDRESS_POS_Z = 0.15;
 /** Cross-section fattening for the imported club: real clubs model a
  *  pencil-thin shaft that reads as a wire at the gameplay camera ("too small
  *  and skinny"), so widen X/Z (not length) to give it an arcadey, chunky
  *  presence. Length still tracks CLUB_LEN. Doubled (2.3→4.6) per playtest
  *  ("2x thickness") so the club reads clearly even at address, behind the
- *  golfer, from the aiming camera. */
+ *  golfer, from the aiming camera. Applied per-vertex to the SHAFT only —
+ *  the head keeps a mild widening (CLUB_HEAD_GIRTH) so it stays a club head
+ *  instead of a boat-sized slab. */
 const CLUB_GIRTH = 4.6;
+const CLUB_HEAD_GIRTH = 1.35;
+/** Fraction of the club (from the head end) treated as the head for girth. */
+const CLUB_HEAD_FRAC = 0.16;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
@@ -51,6 +70,153 @@ const MODEL_FACING = 0;
 const MODEL_TURN = 0.5;
 
 const DEFAULT_LOOK: GolferLook = { skin: 0xf0c8a0, shirt: 0x3f7bd0, hat: 0xf5f5f0, hair: 0x5a4632 };
+
+/**
+ * Rewrite the merged club mesh's vertices so the club hangs straight down the
+ * local -Y axis: grip top at the origin, head at y = -CLUB_LEN, shaft on the
+ * x=z=0 line. The source GLB is authored leaning diagonally, so this must be
+ * derived from the geometry: the principal axis via power iteration on the
+ * vertex covariance, the grip end identified as the THINNER of the two ends
+ * (the head is the wide one). Girth fattening is applied per-vertex — full
+ * CLUB_GIRTH on the shaft, CLUB_HEAD_GIRTH on the head, blended at the hosel —
+ * so the shaft reads chunky-arcadey without inflating the head into a slab.
+ */
+function normalizeClubGeometry(mesh: Mesh): void {
+  const pos = mesh.getVerticesData(VertexBuffer.PositionKind);
+  const nrm = mesh.getVerticesData(VertexBuffer.NormalKind);
+  if (!pos) return;
+  const n = pos.length / 3;
+  // Centroid + principal axis (power iteration on the covariance matrix).
+  let cx = 0;
+  let cy = 0;
+  let cz = 0;
+  for (let i = 0; i < n; i++) {
+    cx += pos[i * 3];
+    cy += pos[i * 3 + 1];
+    cz += pos[i * 3 + 2];
+  }
+  cx /= n;
+  cy /= n;
+  cz /= n;
+  let xx = 0;
+  let xy = 0;
+  let xz = 0;
+  let yy = 0;
+  let yz = 0;
+  let zz = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = pos[i * 3] - cx;
+    const dy = pos[i * 3 + 1] - cy;
+    const dz = pos[i * 3 + 2] - cz;
+    xx += dx * dx;
+    xy += dx * dy;
+    xz += dx * dz;
+    yy += dy * dy;
+    yz += dy * dz;
+    zz += dz * dz;
+  }
+  let ax = 0;
+  let ay = 1;
+  let az = 0;
+  for (let it = 0; it < 24; it++) {
+    const nx = xx * ax + xy * ay + xz * az;
+    const ny = xy * ax + yy * ay + yz * az;
+    const nz = xz * ax + yz * ay + zz * az;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    ax = nx / len;
+    ay = ny / len;
+    az = nz / len;
+  }
+  // Project vertices onto the axis; find the two ends and their perpendicular
+  // spread. The grip end is the thin one — point the axis grip-ward (+).
+  let tMin = Infinity;
+  let tMax = -Infinity;
+  const ts = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const t = (pos[i * 3] - cx) * ax + (pos[i * 3 + 1] - cy) * ay + (pos[i * 3 + 2] - cz) * az;
+    ts[i] = t;
+    if (t < tMin) tMin = t;
+    if (t > tMax) tMax = t;
+  }
+  const span = tMax - tMin || 1;
+  let loSpread = 0;
+  let loCount = 0;
+  let hiSpread = 0;
+  let hiCount = 0;
+  for (let i = 0; i < n; i++) {
+    const f = (ts[i] - tMin) / span;
+    if (f > 0.18 && f < 0.82) continue;
+    const dx = pos[i * 3] - cx;
+    const dy = pos[i * 3 + 1] - cy;
+    const dz = pos[i * 3 + 2] - cz;
+    const t = ts[i];
+    const px = dx - t * ax;
+    const py = dy - t * ay;
+    const pz = dz - t * az;
+    const r = Math.hypot(px, py, pz);
+    if (f <= 0.18) {
+      loSpread += r;
+      loCount++;
+    } else {
+      hiSpread += r;
+      hiCount++;
+    }
+  }
+  const loAvg = loCount ? loSpread / loCount : 0;
+  const hiAvg = hiCount ? hiSpread / hiCount : 0;
+  if (loAvg < hiAvg) {
+    // Grip is at the low end — flip the axis so + points at the grip.
+    ax = -ax;
+    ay = -ay;
+    az = -az;
+  }
+  // Rotation carrying the (unit) axis onto +Y, as a row-major 3x3 matrix.
+  const q = new Quaternion();
+  Quaternion.FromUnitVectorsToRef(new Vector3(ax, ay, az), Vector3.Up(), q);
+  const { x: qx, y: qy, z: qz, w: qw } = q;
+  const m00 = 1 - 2 * (qy * qy + qz * qz);
+  const m01 = 2 * (qx * qy - qz * qw);
+  const m02 = 2 * (qx * qz + qy * qw);
+  const m10 = 2 * (qx * qy + qz * qw);
+  const m11 = 1 - 2 * (qx * qx + qz * qz);
+  const m12 = 2 * (qy * qz - qx * qw);
+  const m20 = 2 * (qx * qz - qy * qw);
+  const m21 = 2 * (qy * qz + qx * qw);
+  const m22 = 1 - 2 * (qx * qx + qy * qy);
+  // Rotate about the centroid, then shift so the grip top sits at the origin
+  // with the shaft axis on x=z=0, and scale the length to CLUB_LEN. After the
+  // rotation, a vertex's Y equals its axis projection t (grip at t = tMax).
+  const scale = CLUB_LEN / span;
+  for (let i = 0; i < n; i++) {
+    const dx = pos[i * 3] - cx;
+    const dy = pos[i * 3 + 1] - cy;
+    const dz = pos[i * 3 + 2] - cz;
+    const rx = m00 * dx + m01 * dy + m02 * dz;
+    const ry = m10 * dx + m11 * dy + m12 * dz;
+    const rz = m20 * dx + m21 * dy + m22 * dz;
+    const y = (ry - tMax) * scale; // grip top → 0, head → -CLUB_LEN
+    const f = Math.min(1, Math.max(0, (-y / CLUB_LEN - (1 - CLUB_HEAD_FRAC - 0.06)) / 0.12));
+    const girth = CLUB_GIRTH + (CLUB_HEAD_GIRTH - CLUB_GIRTH) * (f * f * (3 - 2 * f));
+    pos[i * 3] = rx * scale * girth;
+    pos[i * 3 + 1] = y;
+    pos[i * 3 + 2] = rz * scale * girth;
+    if (nrm) {
+      const nx0 = nrm[i * 3];
+      const ny0 = nrm[i * 3 + 1];
+      const nz0 = nrm[i * 3 + 2];
+      const nx = m00 * nx0 + m01 * ny0 + m02 * nz0;
+      const ny = m10 * nx0 + m11 * ny0 + m12 * nz0;
+      const nz = m20 * nx0 + m21 * ny0 + m22 * nz0;
+      const len = Math.hypot(nx, ny, nz) || 1;
+      nrm[i * 3] = nx / len;
+      nrm[i * 3 + 1] = ny / len;
+      nrm[i * 3 + 2] = nz / len;
+    }
+  }
+  mesh.setVerticesData(VertexBuffer.PositionKind, pos);
+  if (nrm) mesh.setVerticesData(VertexBuffer.NormalKind, nrm);
+  mesh.refreshBoundingInfo();
+}
 
 /**
  * A playable golfer. Preferred body is a rigged chibi character model (the
@@ -87,6 +253,9 @@ export class Golfer3D {
    *  club model finishes loading. */
   private proceduralClub: Mesh[] = [];
   private clubModel: Mesh | null = null;
+  private clubHolder: TransformNode | null = null;
+  /** 1 = full address pose deltas applied, 0 = raw swing pose. */
+  private addressBlend = 1;
   private pendingClubSkin: number | undefined;
   private torso!: TransformNode;
   private head!: TransformNode;
@@ -173,6 +342,11 @@ export class Golfer3D {
         this.applyReaction();
         return;
       }
+      // Blend the address-only club deltas: out fast on takeaway (gone within
+      // ~100ms, long before impact), back in after the finish.
+      const blendTo = this.swinging ? 0 : 1;
+      this.addressBlend += (blendTo - this.addressBlend) * Math.min(1, dt * 14);
+      this.applyAddressClubPose();
       if (this.swinging) return;
       if (this.modelBacked) {
         this.wristPivot.rotation.x = this.aiming ? Math.sin(this.idleTime * 2.4) * 0.05 : 0;
@@ -250,24 +424,21 @@ export class Golfer3D {
         merged.material = mat;
         this.clubHeadMat = mat;
         this.shaftMat = mat;
-        // Normalize: scale to club length, bring the GRIP (top, max-y) to the
-        // holder origin and centre it, so it hangs straight down; the holder
-        // then tilts it forward/out to address the ball.
-        const bb = merged.getBoundingInfo().boundingBox;
-        const min = bb.minimum;
-        const max = bb.maximum;
-        const s = CLUB_LEN / Math.max(0.001, max.y - min.y);
-        merged.scaling = new Vector3(s * CLUB_GIRTH * CLUB_MIRROR, s, s * CLUB_GIRTH);
-        merged.position = new Vector3(
-          (-(min.x + max.x) / 2) * s * CLUB_GIRTH * CLUB_MIRROR,
-          -max.y * s,
-          (-(min.z + max.z) / 2) * s * CLUB_GIRTH
-        );
+        // Normalize the geometry itself: the source model is authored leaning
+        // diagonally (an address pose), so the old y-extent scale + whole-mesh
+        // X/Z girth smeared it into slabs at address. Straighten it along its
+        // principal axis (grip up at the origin, head down at -CLUB_LEN) and
+        // fatten only the shaft; the holder then poses a clean vertical club.
+        normalizeClubGeometry(merged);
+        merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
+        merged.position = Vector3.Zero();
         const holder = new TransformNode('clubHolder', scene);
         holder.parent = this.wristPivot;
         holder.position = new Vector3(0.12, -0.05, 0.2);
         holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
         merged.parent = holder;
+        this.clubHolder = holder;
+        this.applyAddressClubPose();
         merged.receiveShadows = false;
         shadows.addShadowCaster(merged);
         this.clubModel = merged;
@@ -477,6 +648,21 @@ export class Golfer3D {
   }
 
   // ------------------------------------------------------------------- swing
+
+  /** Apply the blended address deltas to the real club's holder. At rest
+   * (addressBlend 1) the head soles flat behind the ball; during the swing
+   * (blend → 0) the holder returns to the shared CLUB_TILT pose so the arc
+   * and impact look are untouched. No-op for the procedural fallback club. */
+  private applyAddressClubPose(): void {
+    if (!this.clubHolder) return;
+    const b = this.addressBlend;
+    this.clubHolder.rotation.set(
+      CLUB_TILT_X + ADDRESS_TILT_X * b,
+      CLUB_TILT_Y + ADDRESS_TILT_Y * b,
+      CLUB_TILT_Z + ADDRESS_TILT_Z * b
+    );
+    this.clubHolder.position.set(0.12 + ADDRESS_POS_X * b, -0.05 + ADDRESS_POS_Y * b, 0.2 + ADDRESS_POS_Z * b);
+  }
 
   /** Swing pose: -1 backswing top, 0 address/impact, +1 balanced finish. */
   setPose(pose: number): void {
