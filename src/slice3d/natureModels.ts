@@ -76,6 +76,13 @@ export const FLOWER_KEYS = ['flower_a'] as const;
  *  sailboat) — it isn't instanced scatter, so it never goes through this
  *  prototype pipeline at all. */
 export const UPLOADED_KEYS = ['tree_sakura', 'flower_coreopsis'] as const;
+/** Uploaded FBX props converted with re-slotted materials (see
+ *  convert-nature.mjs UPLOAD_FBX_MANIFEST): coastal palms (PalmTrunk +
+ *  PalmLeaves slots) and a cattail clump for water margins (ReedLeaves/
+ *  ReedStemLeaves green, ReedHeadTrunk brown seed heads). Opt-in only —
+ *  palms via theme.accentTreeKeys/treeKeys, cattails via theme.shorelineKeys. */
+export const PALM_KEYS = ['tree_palm', 'tree_palm_b'] as const;
+export const REED_KEYS = ['reed_cattail'] as const;
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -89,7 +96,9 @@ const ALL_KEYS = [
   ...CLOUD_KEYS,
   ...GRASS_KEYS,
   ...FLOWER_KEYS,
-  ...UPLOADED_KEYS
+  ...UPLOADED_KEYS,
+  ...PALM_KEYS,
+  ...REED_KEYS
 ];
 
 export interface NaturePalette {
@@ -195,6 +204,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
     if ((CONIFER_KEYS as readonly string[]).includes(key))
       return meshName.startsWith('SM_') ? barkMat : foliageMat;
     const n = slot.toLowerCase();
+    // Cattail clumps: brown seed heads (ReedHeadTrunk) on lighter marsh-green
+    // blades/stems — tree-canopy green would read as a dark smudge at the
+    // waterline the shoreline band plants them on.
+    if (key.startsWith('reed')) return n.includes('trunk') ? barkMat : fernMat;
     if (n.includes('wood')) return barkMat;
     if (n.includes('grass')) return grassMat;
     if (n.includes('stone')) return stoneMat;
