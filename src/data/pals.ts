@@ -8,7 +8,7 @@
  * The starter pair is free and owned by default; future pals arrive as priced
  * `pal` items in the store catalog.
  */
-export type PalKey = 'fox' | 'dragon' | 'gecko' | 'trex' | 'crab';
+export type PalKey = 'fox' | 'dragon' | 'gecko' | 'trex' | 'crab' | 'pug' | 'cat' | 'foxorange';
 
 export interface PalDef {
   key: PalKey;
@@ -39,7 +39,13 @@ export const PALS: PalDef[] = [
   def('dragon', 'Ember', 4.5, '🐉'),
   def('gecko', 'Zippy', 2.6, '🦎'),
   def('trex', 'Rexy', 4.8, '🦖'),
-  def('crab', 'Clawdia', 2.4, '🦀')
+  def('crab', 'Clawdia', 2.4, '🦀'),
+  def('pug', 'Pugsley', 2.6, '🐶'),
+  def('cat', 'Whiskers', 2.9, '🐱'),
+  // A warm red-fox recolor of the arctic fox (same mesh, coat re-chroma'd to
+  // orange at convert time → its own foxorange.glb) — a second fox option
+  // alongside the original, not a replacement.
+  def('foxorange', 'Rusty', 3.6, '🦊')
 ];
 
 export function palByKey(key: string | undefined): PalDef | undefined {

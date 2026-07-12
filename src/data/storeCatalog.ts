@@ -157,6 +157,11 @@ export const STORE_CATALOG: StoreItem[] = [
   { id: 'pal_gecko', kind: 'pal', name: 'Zippy', price: 100, rarity: 'common', pal: 'gecko' },
   { id: 'pal_crab', kind: 'pal', name: 'Clawdia', price: 200, rarity: 'rare', pal: 'crab' },
   { id: 'pal_trex', kind: 'pal', name: 'Rexy', price: 300, rarity: 'special', pal: 'trex' },
+  // The two newest pets + the orange fox recolor — cheapest tier so they're an
+  // easy first purchase (playtest: "add the new pals to the store, make them cheap").
+  { id: 'pal_pug', kind: 'pal', name: 'Pugsley', price: 100, rarity: 'common', pal: 'pug' },
+  { id: 'pal_cat', kind: 'pal', name: 'Whiskers', price: 100, rarity: 'common', pal: 'cat' },
+  { id: 'pal_foxorange', kind: 'pal', name: 'Rusty', price: 100, rarity: 'common', pal: 'foxorange' },
   { id: 'clubskin_steel', kind: 'clubskin', name: 'Steel Clubs', price: 0, rarity: 'common', color: 0x9aa6b2 },
   ...CLUBSKIN_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `clubskin_${id}`, kind: 'clubskin', name, price, rarity, color })

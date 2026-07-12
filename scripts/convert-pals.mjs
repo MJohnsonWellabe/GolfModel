@@ -32,14 +32,28 @@ const OUT = path.join(root, 'assets', 'models', 'pals');
  * mesh (the trex) simplification isn't needed and risks the joint-weight
  * remap. `baseColor` injects a flat PBR material on any primitive that ships
  * without one (also the trex — a bare glTF default material renders as
- * near-black metal without this).
+ * near-black metal without this). `recolor:[r,g,b]` (0-255) re-chromas the
+ * baked base-color textures via a luminance-preserving tint — it turns the
+ * arctic fox's grey coat orange while keeping every light/dark marking (a
+ * runtime albedo multiply can only darken, so a genuine recolor has to bake
+ * the texture; this ships the orange fox as its own glb reusing the same mesh).
  */
 const MANIFEST = {
   fox: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001 },
+  // Warm red-fox coat baked from the same mesh as the arctic fox — a second
+  // fox option, not a replacement (playtest: "an orange fox as a second fox").
+  foxorange: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001, recolor: [214, 126, 58] },
   dragon: { src: 'dragon_raw.glb', ratio: 0.13, error: 0.02 },
   gecko: { src: 'gecko_raw.glb', ratio: 0.7, error: 0.001 },
-  trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.42, 0.48, 0.28, 1] },
-  crab: { src: 'mystery_raw.glb', ratio: 0.16, error: 0.02 }
+  // Brighter leaf-green (was a muddy olive [0.42,0.48,0.28]) so the trex reads
+  // as a vivid green dino next to the gecko (playtest: "brighter green, closer
+  // to the gecko").
+  trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.3, 0.72, 0.34, 1] },
+  crab: { src: 'mystery_raw.glb', ratio: 0.16, error: 0.02 },
+  // Uploaded multi-file glTF pets → single web glb. Pug is a 87k-tri scan
+  // (hard decimation like the dragon); the toon cat is already light.
+  pug: { src: 'pug_raw/scene.gltf', ratio: 0.1, error: 0.02 },
+  cat: { src: 'cat_raw/scene.gltf', ratio: 0.85, error: 0.001 }
 };
 
 const io = new NodeIO();
@@ -56,7 +70,7 @@ function triCount(document) {
   return Math.round(tris);
 }
 
-for (const [key, { src, ratio, error, skipSimplify, baseColor }] of Object.entries(MANIFEST)) {
+for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor }] of Object.entries(MANIFEST)) {
   const document = await io.read(path.join(SRC, src));
   const before = triCount(document);
 
@@ -71,6 +85,18 @@ for (const [key, { src, ratio, error, skipSimplify, baseColor }] of Object.entri
       for (const prim of mesh.listPrimitives()) {
         if (!prim.getMaterial()) prim.setMaterial(mat);
       }
+    }
+  }
+
+  // Re-chroma the baked base-color textures BEFORE compression so the recolored
+  // pixels are what gets shrunk to jpeg. sharp.tint keeps luminance and swaps
+  // the chroma, so the coat's markings survive the color change (grey → orange).
+  if (recolor) {
+    for (const tex of document.getRoot().listTextures()) {
+      const img = tex.getImage();
+      if (!img) continue;
+      const out = await sharp(Buffer.from(img)).tint({ r: recolor[0], g: recolor[1], b: recolor[2] }).png().toBuffer();
+      tex.setImage(new Uint8Array(out)).setMimeType('image/png');
     }
   }
 
