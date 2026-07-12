@@ -35,7 +35,9 @@
       "waste": true
     },
     "scatterKeys": [
-      "fern_kenney"
+      "fern_kenney",
+      "stone_d",
+      "stone_e"
     ],
     "heatherKeys": [
       "heather_fescue_a",

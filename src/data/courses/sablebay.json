@@ -26,9 +26,11 @@
     "backdrop": "sea",
     "blossomChance": 0,
     "scatterKeys": [
+      "stone_d",
+      "stone_e",
+      "stone_f",
       "stone_a",
-      "stone_b",
-      "stone_c"
+      "stone_b"
     ],
     "backdropTreeStep": 92,
     "sandPlantKeys": [
@@ -60,7 +62,7 @@
     "shorelineKeys": [
       "reed_cattail",
       "grass_g",
-      "stone_a"
+      "stone_f"
     ],
     "mowWidth": 9,
     "greenMowPattern": "rings"

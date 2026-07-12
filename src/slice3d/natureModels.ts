@@ -83,6 +83,10 @@ export const UPLOADED_KEYS = ['tree_sakura', 'flower_coreopsis'] as const;
  *  palms via theme.accentTreeKeys/treeKeys, cattails via theme.shorelineKeys. */
 export const PALM_KEYS = ['tree_palm', 'tree_palm_b'] as const;
 export const REED_KEYS = ['reed_cattail'] as const;
+/** Uploaded granite boulders (stone_pack) — PHOTO-textured like the sakura,
+ *  so they keep their real rock texture instead of the flat stoneMat.
+ *  Opt-in via theme.scatterKeys/shorelineKeys (coastal courses). */
+export const GRANITE_KEYS = ['stone_d', 'stone_e', 'stone_f'] as const;
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -98,7 +102,8 @@ const ALL_KEYS = [
   ...FLOWER_KEYS,
   ...UPLOADED_KEYS,
   ...PALM_KEYS,
-  ...REED_KEYS
+  ...REED_KEYS,
+  ...GRANITE_KEYS
 ];
 
 export interface NaturePalette {
@@ -267,7 +272,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       // SOURCE material name gets its own cached textured material rather
       // than collapsing to one.
       const isHeather = key.startsWith('heather');
-      const keepTexture = isHeather || (UPLOADED_KEYS as readonly string[]).includes(key);
+      const keepTexture =
+        isHeather ||
+        (UPLOADED_KEYS as readonly string[]).includes(key) ||
+        (GRANITE_KEYS as readonly string[]).includes(key);
       const texturedMats = new Map<string, StandardMaterial>();
       const buildTexturedMat = (mm: Mesh, matName: string): StandardMaterial => {
         const tm = new StandardMaterial(`natTex-${key}-${matName}`, scene);
