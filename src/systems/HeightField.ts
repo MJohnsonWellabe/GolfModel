@@ -35,31 +35,33 @@ export class HeightField {
     this.gw = Math.ceil(width / CELL) + 1;
     this.gh = Math.ceil(height / CELL) + 1;
     this.grid = new Float32Array(this.gw * this.gh);
-    for (let gy = 0; gy < this.gh; gy++) {
-      for (let gx = 0; gx < this.gw; gx++) {
-        this.grid[gy * this.gw + gx] = HeightField.sample(points, gx * CELL, gy * CELL);
-      }
-    }
-  }
-
-  /** Analytic sum of the control-point bumps (used to fill the grid). */
-  private static sample(points: ElevationPoint[], x: number, y: number): number {
-    let h = 0;
+    // Splat each point into only the cells its radius touches — the old
+    // per-cell scan over EVERY point was O(grid × points), which turned the
+    // headless simulator's per-round field builds into the bottleneck once
+    // the rolling-hills pass multiplied the authored point counts (~70/hole).
+    // Same math, same result, ~50× less work.
     for (const p of points) {
-      const d = Math.hypot(x - p.x, y - p.y) / p.r;
-      if (d >= 1) continue;
-      let t: number;
-      if (p.shape === 'plateau') {
-        // Flat inner 55%, smoothstep skirt to the rim
-        const s = Math.min(1, Math.max(0, (d - 0.55) / 0.45));
-        t = 1 - s * s * (3 - 2 * s);
-      } else {
-        const s = 1 - d;
-        t = s * s * (3 - 2 * s); // smoothstep dome
+      const gx0 = Math.max(0, Math.floor((p.x - p.r) / CELL));
+      const gx1 = Math.min(this.gw - 1, Math.ceil((p.x + p.r) / CELL));
+      const gy0 = Math.max(0, Math.floor((p.y - p.r) / CELL));
+      const gy1 = Math.min(this.gh - 1, Math.ceil((p.y + p.r) / CELL));
+      for (let gy = gy0; gy <= gy1; gy++) {
+        for (let gx = gx0; gx <= gx1; gx++) {
+          const d = Math.hypot(gx * CELL - p.x, gy * CELL - p.y) / p.r;
+          if (d >= 1) continue;
+          let t: number;
+          if (p.shape === 'plateau') {
+            // Flat inner 55%, smoothstep skirt to the rim
+            const s = Math.min(1, Math.max(0, (d - 0.55) / 0.45));
+            t = 1 - s * s * (3 - 2 * s);
+          } else {
+            const s = 1 - d;
+            t = s * s * (3 - 2 * s); // smoothstep dome
+          }
+          this.grid[gy * this.gw + gx] += p.h * t;
+        }
       }
-      h += p.h * t;
     }
-    return h;
   }
 
   /** Bilinear height at a world point (clamped at the field edges). */

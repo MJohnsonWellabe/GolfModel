@@ -91,6 +91,27 @@ export function pointInGreen(x: number, y: number, e: EllipseArea, margin = 0): 
  * union of two star-convex-about-their-own-center shapes is exactly "inside
  * either".
  */
+/** Scalar green field for one lobe: ≥1 inside the (wobbled, margin-padded)
+ *  boundary, rising toward the centre, falling off outside. The building
+ *  block for the smooth lobe union below. */
+function greenFieldOne(x: number, y: number, e: EllipseArea, margin = 0): number {
+  let px = x - e.cx;
+  let py = y - e.cy;
+  if (e.rot) {
+    const c = Math.cos(-e.rot);
+    const s = Math.sin(-e.rot);
+    const rx0 = px * c - py * s;
+    py = px * s + py * c;
+    px = rx0;
+  }
+  const dx = px / (e.rx + margin);
+  const dy = py / (e.ry + margin);
+  const q = dx * dx + dy * dy;
+  if (q <= 1e-9) return Infinity;
+  const w = greenBoundaryScale(Math.atan2(py, px), e);
+  return (w * w) / q;
+}
+
 export function pointInGreens(
   x: number,
   y: number,
@@ -98,7 +119,19 @@ export function pointInGreens(
   green2: EllipseArea | undefined,
   margin = 0
 ): boolean {
-  return pointInGreen(x, y, green, margin) || (!!green2 && pointInGreen(x, y, green2, margin));
+  // Single lobe: the exact wobbled-ellipse test, bit-for-bit as before.
+  if (!green2) return pointInGreen(x, y, green, margin);
+  // Lobed greens: a METABALL union instead of a boolean OR — a plain union
+  // leaves a pinched crease where the two ellipse rims cross ("too clearly
+  // two separate things put together"). Summing the cubed fields keeps each
+  // lobe's own boundary essentially unchanged away from its partner (field³
+  // decays ~r⁶) while filleting the neck where both fields are near 1, so
+  // the waist reads as one continuously-mown surface. Every consumer
+  // (physics lie, fringe collar, bakes, plateau mesh, putt aids) reads this
+  // one function, so the softened shape stays consistent everywhere.
+  const fa = greenFieldOne(x, y, green, margin);
+  const fb = greenFieldOne(x, y, green2, margin);
+  return fa * fa * fa + fb * fb * fb >= 1;
 }
 
 /**
