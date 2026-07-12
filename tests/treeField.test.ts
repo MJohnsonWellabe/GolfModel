@@ -96,6 +96,27 @@ describe('collectTreeBlobs specimen-tree fallback', () => {
     expect(render[0].y).toBeCloseTo(collide[0].y);
   });
 
+  it('trunks never plant in water (render and collision together)', () => {
+    // A woods polygon deliberately overlapping a pond: every emitted trunk
+    // must land on dry ground, in BOTH passes, so a creek routed through a
+    // treeline never collects floating trees (recurring playtest bug).
+    const hole = {
+      ...holeWith(),
+      hazards: [
+        { type: 'trees', polygon: [[100, 100], [500, 100], [500, 500], [100, 500]], spacing: 40 },
+        { type: 'water', polygon: [[250, 100], [400, 100], [400, 500], [250, 500]] }
+      ]
+    } as unknown as HoleData;
+    for (const forRender of [false, true]) {
+      const blobs = collectTreeBlobs(hole, 0, forRender);
+      expect(blobs.length).toBeGreaterThan(10);
+      for (const b of blobs) {
+        const wet = b.x > 250 && b.x < 400;
+        expect(wet, `trunk at ${b.x.toFixed(1)},${b.y.toFixed(1)} (forRender=${forRender})`).toBe(false);
+      }
+    }
+  });
+
   it('every authored trees hazard on every course yields at least one trunk', () => {
     const courses = { timberline, wildwood, sablebay, portjohnson };
     for (const [id, json] of Object.entries(courses)) {
