@@ -546,7 +546,14 @@ function bakeGroundShadows(
 ): void {
   const lean = theme.sunX > 360 ? -1 : 1;
   ctx.fillStyle = 'rgba(10, 24, 12, 0.30)';
-  for (const t of collectTreeBlobs(hole)) {
+  // forRender: true — must match course3d's 3D tree placement exactly (same
+  // call, same args) so every baked shadow has a visible trunk sitting on it.
+  // The two used to share the same default sampling, but the render pass's
+  // edge-fade thinning (a denser floor for collision than for what's drawn)
+  // now keeps FEWER trunks at a treeline's edge than collision/bake do —
+  // passing the bake set through untouched left orphaned shadow patches at
+  // the fade edge with no visible trunk above them.
+  for (const t of collectTreeBlobs(hole, theme.blossomChance, true)) {
     ctx.beginPath();
     ctx.ellipse(
       (t.x + pad + lean * t.r * 0.75) * scale,
