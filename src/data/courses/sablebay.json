@@ -996,16 +996,7 @@
         }
       ],
       "gardens": [],
-      "sailboats": 2,
-      "props": [
-        {
-          "key": "bridge",
-          "x": 450,
-          "y": 565,
-          "rot": 1.5708,
-          "len": 130
-        }
-      ]
+      "sailboats": 2
     },
     {
       "number": 3,
@@ -1523,6 +1514,150 @@
             [
               500,
               584
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              598.7,
+              1338
+            ],
+            [
+              614.7,
+              1334
+            ],
+            [
+              614.7,
+              1322
+            ],
+            [
+              598.7,
+              1326
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              584.5,
+              1208
+            ],
+            [
+              600.5,
+              1204
+            ],
+            [
+              600.5,
+              1192
+            ],
+            [
+              584.5,
+              1196
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              560.5,
+              1078
+            ],
+            [
+              576.5,
+              1074
+            ],
+            [
+              576.5,
+              1062
+            ],
+            [
+              560.5,
+              1066
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              534.5,
+              948
+            ],
+            [
+              550.5,
+              944
+            ],
+            [
+              550.5,
+              932
+            ],
+            [
+              534.5,
+              936
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              499.5,
+              838
+            ],
+            [
+              515.5,
+              834
+            ],
+            [
+              515.5,
+              822
+            ],
+            [
+              499.5,
+              826
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "accent": true,
+          "keepGround": true,
+          "treeR": 18,
+          "polygon": [
+            [
+              454.5,
+              708
+            ],
+            [
+              470.5,
+              704
+            ],
+            [
+              470.5,
+              692
+            ],
+            [
+              454.5,
+              696
             ]
           ]
         }
