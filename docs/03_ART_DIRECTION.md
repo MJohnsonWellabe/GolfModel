@@ -164,7 +164,11 @@ Fairway
 
 Healthy green.
 
-Subtle mowing patterns.
+Subtle mowing patterns — and a DIFFERENT one per course (`theme.mowPattern`),
+part of each course's identity: Wildwood wears the diamond checkerboard,
+Timberline an axis-aligned cross grid, Sable Bay straight seaside stripes,
+Port Johnson the classic 45° links diagonal. Turf palettes shift with them
+(Timberline cooler blue-green, Sable Bay turquoise-leaning).
 
 Light texture variation.
 

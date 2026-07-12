@@ -321,6 +321,30 @@ recovery line must always exist (the Pine Alley precedent — an unavoidable
 centre block breaks this Bible). After densifying, verify the AI still
 finishes the hole near par.
 
+## Render-only knobs
+
+`visualSpacing` (render density decoupled from collision), `visualOnly`
+(props with no collision at all) and `renderOffset` (nudge the drawn trees a
+few units off the collision polygon — Timberline h2's specimen tree draws
+right of the green while its hitbox sits left) tune the LOOK without touching
+gameplay. Woods also thin automatically near the fairway edge (render-only,
+`treeField.ts`) so a dense treeline stays cheap where it meets the corridor.
+
+## Species & accents
+
+`theme.treeKeys` sets the course's species mix (conifers on Timberline and
+Sable Bay's Pinehurst-style pines, broadleaf on Wildwood).
+`theme.accentTreeKeys` swaps ~15% of blobs to accent species — Sable Bay
+mixes the uploaded low-poly palms into its shoreline pines. Trees in sand
+are reserved for Sable Bay's sparse Pinehurst lines; nowhere else.
+
+## Water margins
+
+`theme.shorelineKeys` plants a broken band of reeds (`reed_cattail`), grass
+tufts and stones just up the bank of any water edge that meets rough, so a
+waterline never reads as two flat colors meeting. Fairway/green/sand shores
+stay clean — the mown line meets the water crisply.
+
 ---
 
 # Rough
