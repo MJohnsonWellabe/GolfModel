@@ -33,13 +33,23 @@ test('scramble round boots with a partner', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('scramble');
 });
 
-test('ace challenge boots on the par 3', async ({ page }) => {
+test('AI tournament boots round 1 of a three-course rota', async ({ page }) => {
   await page.goto('/');
-  await page.waitForFunction(() => !!(window as any).__startAces);
-  await page.evaluate(() => (window as any).__startAces());
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'aitour' }));
   await page.waitForFunction(() => !!(window as any).__slice3d);
   await page.evaluate(() => (window as any).__slice3d.skipIntro());
   await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 20_000 });
-  // Cedar Carry (Wildwood's par 3) is hole index 1.
-  expect(await page.evaluate(() => (window as any).__slice3d.state.holeIdx)).toBe(1);
+  // The player's rounds run as ordinary solo rounds; only the leaderboard
+  // between rounds knows it's a tournament.
+  expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('solo');
+  const t = await page.evaluate(() => (window as any).__aiTour());
+  expect(t.played).toBe(0);
+  expect(t.courseIds.length).toBe(3);
+  expect(new Set(t.courseIds).size).toBe(3);
+  // Only the player tees it up — the field never plays on screen.
+  const balls = await page.evaluate(() =>
+    (window as any).__slice3d.scene.meshes.filter((m: { name: string }) => /^ball\d$/.test(m.name)).length
+  );
+  expect(balls).toBe(1);
 });

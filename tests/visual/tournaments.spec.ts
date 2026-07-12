@@ -1,29 +1,30 @@
 import { expect, test } from '@playwright/test';
 
-/** The tournaments + ace-challenge overlays open from the menu (Phase 8). With
- *  no Firebase configured they degrade to an honest "connect online" notice
+/** The online-tournaments overlay opens from the menu (Phase 8). With no
+ *  Firebase configured it degrades to an honest "connect online" notice
  *  rather than erroring. */
-test('tournaments overlay opens from the menu', async ({ page }) => {
+test('online tournaments overlay opens from the menu', async ({ page }) => {
   await page.goto('/');
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#tournaments .recInner');
-  await expect(page.locator('#tournaments h2')).toContainText('Tournaments');
+  await expect(page.locator('#tournaments h2')).toContainText('Online Tournaments');
   await page.screenshot({ path: 'tests/visual/__shots__/tournaments.png' });
 });
 
-test('ace challenge is a wizard mode that frames a par-3 choice', async ({ page }) => {
-  // Ace Challenge moved from a menu link to a game mode (after Scramble); the
-  // Course step then lets you choose which course's par 3 to tee off.
+test('AI tournament is a wizard mode that skips the course step', async ({ page }) => {
+  // The AI Tournament (which replaced the Ace Challenge) draws its own
+  // three-course rota, so selecting it jumps the wizard straight from Mode to
+  // Name — no Course step.
   await page.goto('/');
-  await page.waitForSelector('.modeCard[data-mode="aces"]');
+  await page.waitForSelector('.modeCard[data-mode="aitour"]');
   await page.evaluate(() =>
-    (document.querySelector('.modeCard[data-mode="aces"]') as HTMLElement).dispatchEvent(new Event('pointerdown'))
+    (document.querySelector('.modeCard[data-mode="aitour"]') as HTMLElement).dispatchEvent(new Event('pointerdown'))
   );
   await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
-  await page.waitForSelector('.modeCard[data-course]');
-  await expect(page.locator('.stepTitle')).toContainText('par 3');
-  await page.screenshot({ path: 'tests/visual/__shots__/aces.png' });
+  await page.waitForSelector('#nameInput');
+  await expect(page.locator('.stepTitle')).toContainText("Who's playing?");
+  await page.screenshot({ path: 'tests/visual/__shots__/aitour-wizard.png' });
 });
 
 /** Create a tournament against a mocked RTDB (via the ?lb= override) and verify

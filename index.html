@@ -985,8 +985,7 @@
       /* Records overlay */
       #records,
       #store,
-      #tournaments,
-      #aces {
+      #tournaments {
         position: fixed;
         inset: 0;
         background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
@@ -996,7 +995,7 @@
         z-index: 25;
         overflow-y: auto;
       }
-      /* Tournaments + Ace challenge overlays (Phase 8) */
+      /* Tournament overlays (online + AI standings, Phase 8) */
       .tourAction {
         display: block;
         width: 100%;
@@ -1100,13 +1099,11 @@
         background: rgba(255, 226, 138, 0.14);
         border-radius: 8px;
       }
-      .aceTally {
-        font-size: 18px;
-        color: #eef5ea;
-        margin: 8px 0 4px;
-      }
-      .aceTally b {
-        color: #ffe28a;
+      .tourDiff {
+        font-size: 11px;
+        color: #9fc2a9;
+        margin-left: 6px;
+        letter-spacing: 0.4px;
       }
       .menuLinks {
         display: flex;
@@ -1521,14 +1518,13 @@
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
-          <button id="tournyLink" class="recordsLink">🏁 Tournaments</button>
+          <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
         </div>
       </div>
     </div>
     <div id="records"></div>
     <div id="store"></div>
     <div id="tournaments"></div>
-    <div id="aces"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>
 </html>
