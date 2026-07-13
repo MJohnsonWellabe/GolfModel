@@ -175,6 +175,10 @@ export interface Course3D {
    *  pre-filtered to canopies near the golfer, and the fade itself only
    *  recomputes on a throttle while lerping every call for a smooth blend. */
   updateTreeOcclusion: (camPos: Vector3, golferPos: Vector3) => void;
+  /** Canopy occlusion candidates (world x,y + canopy radius). Exposed read-only
+   *  for the Playwright fade guard — asserts trees register (a course with zero
+   *  candidates can never fade, the Sable Bay palm regression). */
+  occlusionCandidates: () => Array<{ x: number; y: number; r: number; parts: number }>;
 }
 
 /** Visual raise of the green plateau and the tee platform top (world units). */
@@ -1521,10 +1525,12 @@ export function buildCourse(
       popQueue.push(() => {
         for (let j = start; j < Math.min(start + 40, treeBlobs.length); j++) {
           const b = treeBlobs[j];
-          // Never plant a tree on the green or its collar (playtest: "no trees on
-          // the fringe anywhere"). Uses the wider lie collar so trunks stay well
-          // clear of the putting surface, not just off the mown ring.
-          if (pointInGreens(b.x, b.y, hole.green, hole.green2, FRINGE_MARGIN)) continue;
+          // Never plant a GENERIC-woods tree on the green or its collar (playtest:
+          // "no trees on the fringe anywhere"). Deliberate ACCENT specimens are
+          // exempt — Sable Bay's island-green palms ring the sand collar right at
+          // the green edge on purpose, and this skip was silently deleting them
+          // (they never rendered and never registered for camera occlusion).
+          if (!b.accent && pointInGreens(b.x, b.y, hole.green, hole.green2, FRINGE_MARGIN)) continue;
           plantTree(b);
         }
       });
@@ -2427,7 +2433,7 @@ export function buildCourse(
   // bounded to the handful of trees ever near the camera at once, created and
   // disposed on entry/exit rather than kept live for the whole course.
   const FADE_ALPHA = 0.28;
-  const OCCLUSION_RECOMPUTE_EVERY = 6; // ~10Hz at 60fps
+  const OCCLUSION_RECOMPUTE_EVERY = 4; // ~15Hz at 60fps — snappier as the camera orbits on aim
   // Worst case (camera embedded deep in a dense forest wall) can otherwise
   // pull in dozens of candidates — measured ~0.9ms per ghost clone+material
   // swap, so an uncapped recompute frame could hitch. A close-range gameplay
@@ -2465,9 +2471,16 @@ export function buildCourse(
         // its own canopy radius) can't sit "between" them.
         if (tx * tx + tz * tz > (segLen + c.r) * (segLen + c.r)) continue;
         const t = tx * ux + tz * uz; // projection onto the cam->golfer segment
-        if (t < segLen * 0.08 || t > segLen * 0.92) continue; // behind either end
+        // Include a tree standing RIGHT at the golfer (t≈segLen) — the ball tucked
+        // under a trunk is the case that most needs the fade, and the old 0.92 cap
+        // excluded exactly that tree (playtest: "a tree behind the player should
+        // go transparent"). Only reject trees hugging the camera or clearly in
+        // FRONT of the golfer (t past the golfer, toward the hole).
+        if (t < segLen * 0.04 || t > segLen * 1.02) continue;
         const perp = Math.abs(tx * uz - tz * ux); // perpendicular offset from the line
-        if (perp < c.r) for (const m of c.insts) nowOccluding.add(m);
+        // 1.3× the canopy radius so a tree whose trunk sits just off the sightline
+        // but whose canopy arches over the golfer still fades.
+        if (perp < c.r * 1.3) for (const m of c.insts) nowOccluding.add(m);
       }
     }
     // Entering occlusion: hide the instance, show a translucent ghost.
@@ -2516,6 +2529,8 @@ export function buildCourse(
     // Scatter drain AND the ship swap-in — the flyover gate waits on both
     // (still bounded by main.ts's MAX_NATURE_WAIT_MS fallback).
     natureReady: Promise.all([natureReady, shipReady]).then(() => undefined),
-    updateTreeOcclusion
+    updateTreeOcclusion,
+    occlusionCandidates: (): Array<{ x: number; y: number; r: number; parts: number }> =>
+      canopyOcclusion.map((c) => ({ x: c.x, y: c.y, r: c.r, parts: c.insts.length }))
   };
 }

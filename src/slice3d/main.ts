@@ -2016,6 +2016,15 @@ class HoleScene {
     return this.scene.meshes.filter((m) => m.name.startsWith('ghost')).length;
   }
 
+  /** Read-only occlusion diagnostics for the Playwright fade guard. */
+  golferAbs(): { x: number; y: number; z: number } {
+    const p = this.golfer.root.getAbsolutePosition();
+    return { x: p.x, y: p.y, z: p.z };
+  }
+  occlusionCandidates(): Array<{ x: number; y: number; r: number; parts: number }> {
+    return this.course3d.occlusionCandidates();
+  }
+
   /** Test hook: place the current competitor's ball anywhere and re-tee. */
   dropAt(x: number, y: number): void {
     const c = this.comps[this.turnIdx];
@@ -3036,7 +3045,9 @@ function exposeDebug(): void {
         clubLab: (tuning: Partial<ClubTuning> | undefined, kind: 'swing' | 'driver' | 'putter') =>
           current?.clubLab(tuning, kind),
         clubLabView: (view: 'hero' | 'face' | 'edge') => current?.clubLabView(view),
-        debugTreeOcclusion: (x: number, y: number, z: number) => current?.debugTreeOcclusion(x, y, z)
+        debugTreeOcclusion: (x: number, y: number, z: number) => current?.debugTreeOcclusion(x, y, z),
+        golferAbs: () => current?.golferAbs(),
+        occlusionCandidates: () => current?.occlusionCandidates()
       }
     : null;
 }
@@ -3181,25 +3192,35 @@ function ovr(s: GolferStats): number {
   return Math.round((s.drivingPower + s.drivingAccuracy + s.approach + s.chipping + s.putting) / 5);
 }
 
-/** `base` (unupgraded archetype stats), when given, renders a "+N" delta next
- *  to any stat a purchased club upgrade actually lifted — otherwise a Driver
- *  +3 purchase was invisible on the very screen where the player picks their
- *  build (playtest: "I can't tell that the driver upgrade I purchased is
- *  doing anything"). The bar itself always shows the true (upgraded) width. */
-function statBars(stats: GolferStats, signature?: StatKey, base?: GolferStats): string {
+/** Which purchased club-upgrade family a stat row belongs to, so the card can
+ *  badge a boosted club. The driver upgrade still lifts the driving stats; the
+ *  iron/wedge/putter upgrades no longer touch stats at all (they widen the
+ *  swing-meter perfect zone), so a "+N" delta can't show them — the badge is
+ *  how the player sees those purchases on the select screen. */
+const STAT_UPGRADE_FAMILY: Record<string, string> = {
+  drivingPower: 'driver',
+  drivingAccuracy: 'driver',
+  approach: 'irons',
+  chipping: 'wedges',
+  putting: 'putter'
+};
+
+/** `clubUpgrades`, when given, badges each boosted stat with "+" (tier 1) or
+ *  "++" (tier 2) so a purchase is visible on the screen where the player picks
+ *  their build — including the iron/wedge/putter upgrades, which lift no stat
+ *  (playtest: "my putter/iron/wedge +3 aren't showing up in my stats"). The bar
+ *  always shows the true (capped) width. */
+function statBars(stats: GolferStats, signature?: StatKey, clubUpgrades?: Record<string, number>): string {
   return (
     `<div class="stats">` +
     STAT_KEYS.map(([k, label]) => {
-      const delta = base ? stats[k] - base[k] : 0;
-      const deltaHtml = delta > 0 ? `<span class="svup">+${delta}</span>` : '';
-      // Upgrades can push a stat past the 100 ceiling; the number keeps the
-      // familiar 0-100 scale and the badge carries the full upgrade ("100+3"),
-      // so a maxed stat still visibly shows what the purchase bought.
+      const tier = clubUpgrades ? clubUpgrades[STAT_UPGRADE_FAMILY[k]] ?? 0 : 0;
+      const badge = tier > 0 ? `<span class="svup">${'+'.repeat(Math.min(2, tier))}</span>` : '';
       const shown = Math.min(100, stats[k]);
       return (
         `<div class="stat${k === signature ? ' sig' : ''}"><span class="sl">${label}</span>` +
         `<span class="sbar"><i style="width:${shown}%"></i></span>` +
-        `<span class="sv">${shown}${deltaHtml}</span></div>`
+        `<span class="sv">${shown}${badge}</span></div>`
       );
     }).join('') +
     `</div>`
@@ -3377,7 +3398,7 @@ function renderArchetype(): void {
         `<div class="ahead"><span class="an">${a.name}</span>` +
         `<span class="atag">${a.tagline}</span>` +
         `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
-        statBars(upgraded, a.signature, a.stats) +
+        statBars(upgraded, a.signature, profile.clubUpgrades) +
         `</div>`
       );
     }).join('') +

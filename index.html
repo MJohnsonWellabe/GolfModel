@@ -906,13 +906,15 @@
         background: linear-gradient(90deg, #eab63a, #ffe08a);
       }
       .stat .sv {
-        width: 34px;
+        width: 46px;
         text-align: right;
         color: #eef5ea;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
       }
-      /* Purchased club-upgrade delta on a stat (e.g. "83+3") — confirms a
-       * Store upgrade actually lifted the number the player is looking at. */
+      /* Purchased club-upgrade badge on a stat: "+" for tier 1, "++" for tier 2
+       * — confirms a Store upgrade on the select screen even for the iron/wedge/
+       * putter upgrades, which lift no stat number. */
       .stat .svup {
         color: #7fe89a;
         font-weight: 700;

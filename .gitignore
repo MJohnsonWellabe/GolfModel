@@ -25,3 +25,4 @@ playwright-report/
 
 # Local dev-only screenshot harness (not product code)
 /capture-tmp.mjs
+/diag-tmp.mjs
