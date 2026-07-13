@@ -8,7 +8,16 @@
  * The starter pair is free and owned by default; future pals arrive as priced
  * `pal` items in the store catalog.
  */
-export type PalKey = 'fox' | 'dragon' | 'gecko' | 'trex' | 'crab' | 'pug' | 'cat' | 'foxorange';
+export type PalKey =
+  | 'fox'
+  | 'dragon'
+  | 'gecko'
+  | 'trex'
+  | 'crab'
+  | 'pug'
+  | 'cat'
+  | 'foxorange'
+  | 'geckoorange';
 
 export interface PalDef {
   key: PalKey;
@@ -47,7 +56,10 @@ export const PALS: PalDef[] = [
   // A warm red-fox recolor of the arctic fox (same mesh, coat re-chroma'd to
   // orange at convert time → its own foxorange.glb) — a second fox option
   // alongside the original, not a replacement.
-  def('foxorange', 'Rusty', 3.6, '🦊')
+  def('foxorange', 'Rusty', 3.6, '🦊'),
+  // Bright-orange gecko recolor (same mesh as Zippy) — the Season 1 pass
+  // level-50 exclusive; never sold in the store.
+  def('geckoorange', 'Mango', 2.6, '🦎')
 ];
 
 export function palByKey(key: string | undefined): PalDef | undefined {

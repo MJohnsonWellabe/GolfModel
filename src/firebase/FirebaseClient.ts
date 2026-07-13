@@ -75,6 +75,17 @@ async function ensureFirebase(): Promise<FirebaseHandles> {
   return handles;
 }
 
+/** Shared auth+db handles for sibling firebase modules (Purchases). Null when
+ *  auth is unconfigured or init fails — callers degrade to local-only. */
+export async function firebaseHandles(): Promise<FirebaseHandles | null> {
+  if (!authConfigured()) return null;
+  try {
+    return await ensureFirebase();
+  } catch {
+    return null;
+  }
+}
+
 /** The signed-in uid, or null when auth is unconfigured/unavailable. */
 export async function cloudUid(): Promise<string | null> {
   if (!authConfigured()) return null;

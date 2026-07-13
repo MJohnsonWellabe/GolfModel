@@ -45,11 +45,14 @@ import {
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, CloudSaveStatus, cloudSyncProfile, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, CloudSaveStatus, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
+import { addSeasonXp, claimReward, claimState, rewardLabel, seasonActive, seasonLevel } from '../systems/SeasonPassEngine';
+import { SEASON_1 } from '../data/seasonPass';
+import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
 import { Pal3D } from './pal3d';
@@ -2142,6 +2145,13 @@ function showSummary(): void {
   // Progression: build the round stats, award XP/coins/achievements/daily.
   const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
   const events = applyRound(profile, rstats, todayKey());
+  // Season pass: the round's XP also advances the pass track (accrues for
+  // everyone while the season runs; claiming needs the pass).
+  const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp');
+  if (roundXp) {
+    addSeasonXp(profile, SEASON_1, roundXp.amount, Date.now());
+    updateSeasonLink();
+  }
   persistProfile();
   if (signedIn)
     void cloudSyncProfile(profile).then((res) => {
@@ -2459,6 +2469,33 @@ function onTap(el: Element, fn: () => void): void {
   });
 }
 
+const seasonEl = document.getElementById('seasonPass')!;
+
+/** Throttle so overlay opens don't hammer the entitlements node. */
+let entitlementCheckAt = 0;
+
+/** Pull + apply any real-money purchases delivered by the Stripe webhook
+ *  (firebase/Purchases). Fire-and-forget: re-renders whichever overlay is
+ *  open when something new landed. */
+function refreshEntitlements(): void {
+  if (!signedIn) return;
+  const now = Date.now();
+  if (now - entitlementCheckAt < 15000) return;
+  entitlementCheckAt = now;
+  void claimEntitlements(profile).then((applied) => {
+    if (!applied.length) return;
+    persistProfile();
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
+    showMsg(`Purchase applied: ${applied.join(', ')} ✅`, 2600);
+    updateSeasonLink();
+    if (storeEl.style.display === 'flex') renderStore();
+    if (seasonEl.style.display === 'flex') renderSeasonPass();
+  });
+}
+
 /** The Characters store section starts collapsed to two rows (playtest FB9). */
 let storeCharsExpanded = false;
 /** Character cards shown before "See more" (two rows of the 3-wide grid). */
@@ -2469,6 +2506,7 @@ let pendingBuy: string | null = null;
 /** Store overlay (Phase 7): buy/equip cosmetics + club upgrades with coins. */
 function renderStore(): void {
   const p = profile;
+  refreshEntitlements();
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
   const card = (item: StoreItem): string => {
     const owned = isOwned(p, item);
@@ -2486,12 +2524,14 @@ function renderStore(): void {
     const price = equipped ? 'Equipped' : owned ? (isEquippableKind(item.kind) ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
     return `<div class="storeCard ${cls}" data-item="${item.id}">${label}<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`;
   };
+  // Season-pass exclusives never appear in the store (claim-only).
+  const forSale = STORE_CATALOG.filter((i) => !i.season);
   const section = (title: string, kind: StoreItem['kind']): string =>
-    `<div class="storeTab">${title}</div><div class="storeGrid">${STORE_CATALOG.filter((i) => i.kind === kind).map(card).join('')}</div>`;
+    `<div class="storeTab">${title}</div><div class="storeGrid">${forSale.filter((i) => i.kind === kind).map(card).join('')}</div>`;
   // Pals for sale only — the free starter pair lives in the Pals menu. Nothing
   // is priced yet, so this renders the coming-soon shelf.
   const palsSection = (): string => {
-    const priced = STORE_CATALOG.filter((i) => i.kind === 'pal' && i.price > 0);
+    const priced = forSale.filter((i) => i.kind === 'pal' && i.price > 0);
     return (
       `<div class="storeTab">Pals</div>` +
       (priced.length
@@ -2501,7 +2541,7 @@ function renderStore(): void {
   };
   // Characters collapse to two rows with a See-more toggle (there are 20+),
   // so the other categories stay reachable without a long scroll (FB9).
-  const charItems = STORE_CATALOG.filter((i) => i.kind === 'character');
+  const charItems = forSale.filter((i) => i.kind === 'character');
   const shownChars = storeCharsExpanded ? charItems : charItems.slice(0, STORE_CHAR_PREVIEW);
   const seeMore =
     charItems.length > STORE_CHAR_PREVIEW
@@ -2518,11 +2558,20 @@ function renderStore(): void {
       `<div class="btnRow"><button id="buyYes">Buy · ${pending.price} 🪙</button>` +
       `<button id="buyNo" class="ghostBtn">Cancel</button></div></div></div>`
     : '';
+  // Real-money coin top-up — shown only signed-in AND once the Stripe
+  // Payment Link is configured (docs/16_PAYMENTS.md).
+  const topUpSection =
+    signedIn && purchaseConfigured('coins1000')
+      ? `<div class="storeTab">Top Up</div><button id="topUpCoins" class="topUpCard">` +
+        `<span class="tuIcon">🪙</span><span class="tuName">${PRODUCTS.coins1000.name}</span>` +
+        `<span class="tuPrice">$${PRODUCTS.coins1000.usd}</span></button>`
+      : '';
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
     (!signedIn && authConfigured() ? `<div class="signInNudge">Sign in to earn coins & keep purchases.</div>` : '') +
     `<div class="storeScroll">` +
+    topUpSection +
     charactersSection +
     section('Outfit Colorways', 'outfit') +
     section('Ball Colors', 'ball') +
@@ -2536,6 +2585,14 @@ function renderStore(): void {
     seeMoreBtn.addEventListener('pointerdown', () => {
       storeCharsExpanded = !storeCharsExpanded;
       renderStore();
+    });
+  const topUpBtn = document.getElementById('topUpCoins');
+  if (topUpBtn)
+    onTap(topUpBtn, () => {
+      void cloudUid().then((uid) => {
+        if (uid) startPurchase('coins1000', uid);
+        else showMsg('Sign in first to buy coins', 1600);
+      });
     });
   const syncAfterChange = (): void => {
     persistProfile();
@@ -2587,6 +2644,111 @@ function renderStore(): void {
   document.getElementById('storeBack')!.addEventListener('pointerdown', () => {
     pendingBuy = null;
     storeEl.style.display = 'none';
+  });
+}
+
+// ------------------------------------------------------ Season Pass (S1)
+
+/** Reward page (0-9) the pass viewer shows; -1 = jump to current progress. */
+let spPage = -1;
+
+/** Keep the main-menu button honest: a plain "see the rewards" link before
+ *  purchase, a live progress tracker once the pass is owned. */
+function updateSeasonLink(): void {
+  const btn = document.getElementById('seasonLink');
+  if (!btn) return;
+  btn.textContent = profile.season.owned
+    ? `🎫 Season Pass — Lv ${seasonLevel(SEASON_1, profile.season.xp)}`
+    : '🎫 See Season Pass Rewards';
+}
+
+/** Season-pass overlay: 10 pages × 5 reward levels, progress bar, claim
+ *  buttons, and the purchase footer. Modeled on renderStore/renderRecords. */
+function renderSeasonPass(): void {
+  const p = profile;
+  const def = SEASON_1;
+  refreshEntitlements();
+  const lvl = seasonLevel(def, p.season.xp);
+  const active = seasonActive(def, Date.now());
+  if (spPage < 0) spPage = Math.min(9, Math.floor(Math.max(0, Math.min(lvl, def.levels - 1)) / 5));
+  const tabs = Array.from(
+    { length: def.levels / 5 },
+    (_, i) => `<button class="recTab spTab${i === spPage ? ' sel' : ''}" data-page="${i}">${i * 5 + 1}–${i * 5 + 5}</button>`
+  ).join('');
+  const intoLevel = p.season.xp - lvl * def.xpPerLevel;
+  const pct = lvl >= def.levels ? 100 : Math.round((intoLevel / def.xpPerLevel) * 100);
+  const cards = Array.from({ length: 5 }, (_, i) => {
+    const level = spPage * 5 + i + 1;
+    const { icon, name } = rewardLabel(def.rewards[level - 1]);
+    const state = claimState(p, def, level);
+    const stateHtml =
+      state === 'claimed'
+        ? `<div class="spState claimed">✓ Claimed</div>`
+        : state === 'claimable'
+          ? `<button class="spClaim" data-level="${level}">Claim</button>`
+          : state === 'needsPass'
+            ? `<div class="spState">🎫 Needs pass</div>`
+            : `<div class="spState">🔒 Locked</div>`;
+    const grand = level === def.levels ? ' grand' : '';
+    return (
+      `<div class="spCard ${state}${grand}"><div class="spLvl">Lv ${level}</div>` +
+      `<div class="spIcon">${icon}</div><div class="spName">${name}</div>${stateHtml}</div>`
+    );
+  }).join('');
+  const footer = p.season.owned
+    ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
+    : purchaseConfigured('seasonpass_s1')
+      ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>` +
+        (!signedIn && authConfigured()
+          ? `<div class="spNote">Sign in with Google first so the pass sticks to your account.</div>`
+          : '')
+      : `<div class="spNote">Pass purchases open soon — every round already counts toward the track.</div>`;
+  seasonEl.style.display = 'flex';
+  seasonEl.innerHTML =
+    `<div class="recInner"><h2>🎫 ${def.name}</h2>` +
+    `<div class="spSub">${active ? 'Runs through Nov 30 · play rounds to level the track' : 'Season over — earned rewards stay claimable'}</div>` +
+    `<div class="spProgress"><span class="spLvlBig">Lv ${lvl}<i>/${def.levels}</i></span>` +
+    `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
+    `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${def.xpPerLevel} XP`}</span></div>` +
+    `<div class="recTabs spTabs">${tabs}</div>` +
+    `<div class="spGrid">${cards}</div>` +
+    footer +
+    `<button id="spBack">Back</button></div>`;
+  seasonEl.querySelectorAll('.spTab').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      spPage = Number((el as HTMLElement).dataset.page);
+      renderSeasonPass();
+    })
+  );
+  seasonEl.querySelectorAll('.spClaim').forEach((el) =>
+    onTap(el, () => {
+      const level = Number((el as HTMLElement).dataset.level);
+      const r = claimReward(p, def, level);
+      if (!r.ok) {
+        showMsg(r.reason, 1400);
+        return;
+      }
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(p).then((res) => {
+          applyCloudMerge(p, res.profile);
+          showCloudStatus(res.status, true);
+        });
+      updateSeasonLink();
+      renderSeasonPass();
+    })
+  );
+  const buyBtn = document.getElementById('spBuy');
+  if (buyBtn)
+    onTap(buyBtn, () => {
+      void cloudUid().then((uid) => {
+        if (uid) startPurchase('seasonpass_s1', uid);
+        else showMsg('Sign in first — the pass attaches to your account', 1800);
+      });
+    });
+  document.getElementById('spBack')!.addEventListener('pointerdown', () => {
+    spPage = -1;
+    seasonEl.style.display = 'none';
   });
 }
 
@@ -3123,6 +3285,7 @@ async function adoptCloudAccount(): Promise<void> {
   saveProfile(profile); // cache the account locally for offline/reload
   showCloudStatus(res.status);
   syncSelFromProfile();
+  refreshEntitlements(); // deliver purchases made while away / on other devices
 }
 
 /** Sign out: return to a clean slate. Wipe the local view + persisted data so a
@@ -3145,6 +3308,7 @@ function syncSelFromProfile(): void {
   sel.name = profile.name;
   sel.character = (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey);
   sel.archetype = (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId);
+  updateSeasonLink();
 }
 
 /** Re-render the visible setup wizard so a sign-in/sign-out actually clears (or
@@ -3159,6 +3323,12 @@ function refreshWizardIfVisible(): void {
 void (async () => {
   if (authConfigured() && (await isSignedIn())) {
     await adoptCloudAccount();
+    // Stripe's success URL lands back here with ?purchase=success — the
+    // adopt above already kicked off the entitlement claim.
+    if (new URLSearchParams(window.location.search).get('purchase') === 'success') {
+      showMsg('Thanks! Applying your purchase…', 2200);
+      history.replaceState(null, '', window.location.pathname);
+    }
   }
   renderAcctMenu();
 })();
@@ -3571,8 +3741,10 @@ function renderAcctMenu(): void {
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
+document.getElementById('seasonLink')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
+updateSeasonLink();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));

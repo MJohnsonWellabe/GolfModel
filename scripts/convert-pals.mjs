@@ -45,6 +45,9 @@ const MANIFEST = {
   foxorange: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001, recolor: [214, 126, 58] },
   dragon: { src: 'dragon_raw.glb', ratio: 0.13, error: 0.02 },
   gecko: { src: 'gecko_raw.glb', ratio: 0.7, error: 0.001 },
+  // Bright-orange re-chroma of the gecko — the Season 1 pass level-50
+  // exclusive (never sold in the store), same mesh as Zippy.
+  geckoorange: { src: 'gecko_raw.glb', ratio: 0.7, error: 0.001, recolor: [255, 122, 26] },
   // Bright apple green — user-picked from a three-way comparison (Pass 10);
   // was vivid leaf [0.3,0.72,0.34], before that a muddy olive.
   trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.45, 0.85, 0.35, 1] },

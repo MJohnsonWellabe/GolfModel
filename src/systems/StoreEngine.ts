@@ -10,6 +10,9 @@ import { isEquippableKind, STORE_BY_ID, StoreItem } from '../data/storeCatalog';
 export type BuyResult = { ok: true } | { ok: false; reason: string };
 
 export function isOwned(profile: PlayerProfile, item: StoreItem): boolean {
+  // Season exclusives are price 0 but must be CLAIMED via the pass — only the
+  // free default items are auto-owned.
+  if (item.season) return profile.cosmetics.owned.includes(item.id);
   if (item.price === 0) return true;
   if (item.kind === 'clubUpgrade') {
     return (profile.clubUpgrades[item.upgrade!.family] ?? 0) >= item.upgrade!.tier;
@@ -18,6 +21,7 @@ export function isOwned(profile: PlayerProfile, item: StoreItem): boolean {
 }
 
 export function canBuy(profile: PlayerProfile, item: StoreItem): BuyResult {
+  if (item.season) return { ok: false, reason: 'Season Pass exclusive' };
   if (isOwned(profile, item)) return { ok: false, reason: 'Already owned' };
   if (profile.coins < item.price) return { ok: false, reason: 'Not enough coins' };
   if (item.kind === 'clubUpgrade') {

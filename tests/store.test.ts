@@ -140,3 +140,32 @@ describe('applyClubUpgrades', () => {
     expect(maxed.drivingPower).toBe(110); // sanity bound
   });
 });
+
+describe('season-pass exclusives (price 0, claim-only)', () => {
+  it('are NOT auto-owned despite the zero price', () => {
+    const p = defaultProfile();
+    const s1 = STORE_CATALOG.filter((i) => i.season);
+    expect(s1.length).toBeGreaterThanOrEqual(21); // 20 tints + the pal
+    for (const item of s1) {
+      expect(item.price).toBe(0);
+      expect(isOwned(p, item), item.id).toBe(false);
+    }
+  });
+
+  it('can never be coin-bought, only claimed', () => {
+    const p = defaultProfile();
+    p.coins = 10000;
+    const r = buyItem(p, 's1_ball_lagoon');
+    expect(r.ok).toBe(false);
+    expect(p.coins).toBe(10000);
+  });
+
+  it('equip works once granted by a pass claim', () => {
+    const p = defaultProfile();
+    expect(equip(p, 's1_ball_lagoon').ok).toBe(false); // not owned yet
+    p.cosmetics.owned.push('s1_ball_lagoon'); // what claimReward does
+    expect(equip(p, 's1_ball_lagoon').ok).toBe(true);
+    expect(p.cosmetics.equipped.ball).toBe('s1_ball_lagoon');
+    expect(equippedColor(p, 'ball', 0xffffff)).toBe(0x27d3c7);
+  });
+});
