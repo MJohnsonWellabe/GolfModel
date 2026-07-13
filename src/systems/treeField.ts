@@ -23,6 +23,8 @@ export interface TreeBlob {
   /** True for trunks from an `accent: true` hazard — always planted from the
    *  theme's accentTreeKeys set (deliberate palms etc.). */
   accent?: boolean;
+  /** Per-hazard accent fraction (types.ts accentChance) — a mixed line. */
+  accentChance?: number;
 }
 
 /** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
@@ -141,7 +143,10 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           keepThreshold = Math.min(keepThreshold, 1 - t * (1 - FAIRWAY_THIN_FLOOR));
         }
         if (keepThreshold < 1 && blobHash(jx * 1.7, jy * 3.1) > keepThreshold) continue;
-        if (inWater(jx + offX, jy + offY)) continue;
+        // Deliberate accent specimens are exempt from the water guard — the
+        // author placed them knowingly (e.g. island-green palms standing on
+        // sand that's painted OVER the surrounding water polygon).
+        if (!hz.accent && inWater(jx + offX, jy + offY)) continue;
         const k = blobHash(xx + 31, yy + 17);
         blobs.push({
           x: jx + offX,
@@ -150,7 +155,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32,
           blossom: hz.blossom,
-          accent: hz.accent
+          accent: hz.accent,
+          accentChance: hz.accentChance
         });
       }
     }
@@ -162,7 +168,7 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     // the polygon centroid, deterministically sized/tinted from that centroid.
     const ccx = xs.reduce((a, b) => a + b, 0) / xs.length;
     const ccy = ys.reduce((a, b) => a + b, 0) / ys.length;
-    if (blobs.length === before && !inWater(ccx + offX, ccy + offY)) {
+    if (blobs.length === before && (hz.accent || !inWater(ccx + offX, ccy + offY))) {
       const cx = ccx;
       const cy = ccy;
       const k = blobHash(cx + 31, cy + 17);
@@ -173,7 +179,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
         kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
         tint: 0.82 + blobHash(cx + 3, cy + 11) * 0.32,
         blossom: hz.blossom,
-        accent: hz.accent
+        accent: hz.accent,
+        accentChance: hz.accentChance
       });
     }
   }
