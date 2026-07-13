@@ -40,7 +40,9 @@ export const PALS: PalDef[] = [
   def('gecko', 'Zippy', 2.6, '🦎'),
   def('trex', 'Rexy', 6.2, '🦖'),
   def('crab', 'Clawdia', 3.1, '🦀'),
-  def('pug', 'Pugsley', 2.6, '🐶'),
+  // Pugsley bumped again 2.6 -> 3.4 (owner request: ~1.3x — the pug still read
+  // small next to the golfer even after the roster-wide +50% pass).
+  def('pug', 'Pugsley', 3.4, '🐶'),
   def('cat', 'Whiskers', 2.9, '🐱'),
   // A warm red-fox recolor of the arctic fox (same mesh, coat re-chroma'd to
   // orange at convert time → its own foxorange.glb) — a second fox option
