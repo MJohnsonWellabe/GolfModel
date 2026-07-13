@@ -9,11 +9,11 @@
  * function-write-only (admin SDK bypasses rules), so real-money grants are
  * authoritative and auditable.
  *
- * Which product was bought comes from the Payment Link's metadata
- * (`product: coins1000 | seasonpass_s1`) — Stripe copies Payment Link
- * metadata onto every checkout session it creates, so no price-id mapping
- * needs to live here. The uid arrives as client_reference_id (the game
- * appends it to the Payment Link URL).
+ * Which product was bought is inferred from the amount paid
+ * (`amount_total`: $10 → coins, $5 → pass), with the Payment Link's
+ * `product` metadata used as an override when present. Amount-based mapping
+ * means the two Payment Links need NO dashboard configuration. The uid
+ * arrives as client_reference_id (the game appends it to the link URL).
  */
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
@@ -31,6 +31,21 @@ const GRANTS = {
   coins1000: { product: 'coins1000', coins: 1000 },
   seasonpass_s1: { product: 'seasonpass_s1' }
 };
+
+/** Price paid (in cents) → product. $10.00 = 1000 coins; $5.00 = Season Pass. */
+const AMOUNT_TO_PRODUCT = {
+  1000: 'coins1000',
+  500: 'seasonpass_s1'
+};
+
+/** Resolve what a completed session bought: explicit metadata wins, else the
+ *  amount paid decides. Returns null for anything we don't recognize. */
+function grantForSession(session) {
+  const meta = session.metadata && session.metadata.product;
+  if (GRANTS[meta]) return GRANTS[meta];
+  const byAmount = AMOUNT_TO_PRODUCT[session.amount_total];
+  return byAmount ? GRANTS[byAmount] : null;
+}
 
 exports.stripeWebhook = onRequest(
   { secrets: [STRIPE_SECRET, STRIPE_WEBHOOK_SECRET], region: 'us-central1' },
@@ -59,13 +74,14 @@ exports.stripeWebhook = onRequest(
       return;
     }
     const uid = session.client_reference_id;
-    const grant = GRANTS[(session.metadata && session.metadata.product) || ''];
+    const grant = grantForSession(session);
     if (!uid || !grant) {
       // A paid session we can't attribute — surface it in the logs so the
       // owner can fulfil by hand from the Stripe dashboard email.
       console.error('unattributable purchase — fulfil manually:', {
         session: session.id,
         uid: uid || null,
+        amount_total: session.amount_total,
         metadata: session.metadata || null
       });
       res.json({ received: true, unattributed: true });

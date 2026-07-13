@@ -1,10 +1,107 @@
 # Real-Money Purchases — Stripe Setup Runbook
 
-How players buy **1000 J-Coins for $10** and the **Season Pass for $5**, and
-every console step needed to turn it on. Until the two Payment Link URLs are
-pasted into `src/firebase/Purchases.ts`, all purchase UI stays hidden and the
-game behaves exactly as before — the code ships dormant, like the Firebase
-auth layer did.
+How players buy **1000 J-Coins for $10** and the **Season Pass for $5**.
+
+The two live Payment Links are wired into `src/firebase/Purchases.ts`, so the
+buy buttons are live in the game. What remains is *fulfillment* — handing the
+coins/pass to the buyer after payment. There are two ways:
+
+- **Manual (works today, phone-only).** No deploy. After each sale you paste
+  one line into the Firebase console. Start here — see
+  **§Manual fulfillment (mobile)** below.
+- **Automatic (needs a one-time deploy from a computer).** A tiny webhook
+  delivers every purchase with no manual step — see **§Going automatic**.
+
+Both require the `entitlements` security-rule block to be published once
+(§Publish the rules).
+
+## Which link is which
+
+`PAYMENT_LINKS` in `src/firebase/Purchases.ts`:
+- `coins1000` → `https://buy.stripe.com/aFa4grgPc1cK5ZjfuF2B201` ($10)
+- `seasonpass_s1` → `https://buy.stripe.com/5kQcMX7eCdZw0EZfuF2B200` ($5)
+
+## Publish the rules (once, phone OK)
+
+Firebase console → Realtime Database → **Rules** → paste the full rule set
+from `docs/FIREBASE_SETUP.md` (it includes the `entitlements` block) → Publish.
+Without this, a granted purchase can't be read by the buyer's game.
+
+## Manual fulfillment (mobile)
+
+No webhook, no CLI — everything in the browser:
+
+1. A payment comes in. Open it in Stripe and copy its **`client_reference_id`**
+   — that is the buyer's account id (the game appends it to the checkout URL).
+2. Firebase console → Realtime Database → **Data** → add a child under
+   `entitlements`: key = the buyer's id, and under it a key like `manual1`:
+   - Coins: `{ "product": "coins1000", "coins": 1000, "created": 0 }`
+   - Pass:  `{ "product": "seasonpass_s1", "created": 0 }`
+   (The console writes as project admin, so the function-write-only rule does
+   not block *you* — only players.)
+3. The buyer's game applies it automatically next time they open the Store or
+   Season Pass (the claim loop polls those screens and sign-in).
+
+Fine for launch volume; move to automatic when the manual step gets old.
+
+## Going automatic
+
+Deploy the webhook (`functions/index.js`) so purchases fulfil with no manual
+step. **Product is inferred from the amount paid** ($10 → coins, $5 → pass),
+so the Payment Links need no extra dashboard config. Two deploy options:
+
+### Option A — GitHub Action (browser-only after setup)
+
+`.github/workflows/deploy-functions.yml` deploys the function on push once
+these repo secrets exist (GitHub → repo → Settings → Secrets and variables →
+Actions):
+- `FIREBASE_SERVICE_ACCOUNT` — a Firebase service-account key JSON (Firebase
+  console → Project settings → Service accounts → Generate new private key).
+- `STRIPE_SECRET` — your Stripe secret key (`sk_live_…`).
+- `STRIPE_WEBHOOK_SECRET` — the webhook signing secret (`whsec_…`, from the
+  webhook you create below; start with a placeholder, update after).
+
+The service account needs the Cloud Functions Admin, Cloud Run Admin, Service
+Account User, and Firebase Admin roles (grant in Google Cloud console → IAM if
+the first deploy reports a permission error). Trigger a deploy by re-running
+the workflow (Actions tab → Deploy Cloud Functions → Run workflow).
+
+### Option B — one-time CLI (from a computer)
+
+```
+npm i -g firebase-tools
+firebase login
+firebase functions:secrets:set STRIPE_SECRET            # paste sk_live_…
+firebase functions:secrets:set STRIPE_WEBHOOK_SECRET     # placeholder "whsec_tmp" for now
+cd functions && npm install && cd ..
+firebase deploy --only functions                         # note the printed function URL
+```
+
+### Then, either option — connect Stripe → the deployed function
+
+Stripe dashboard → Developers → **Webhooks** → Add endpoint:
+- URL: the function URL printed by the deploy
+  (`https://…cloudfunctions.net/stripeWebhook` or a `…run.app` URL).
+- Events: `checkout.session.completed` only.
+- Copy the endpoint's **signing secret** (`whsec_…`) into
+  `STRIPE_WEBHOOK_SECRET` (repo secret for Option A, or
+  `firebase functions:secrets:set` + redeploy for Option B).
+
+Optionally set each Payment Link's after-payment redirect to
+`https://bsgolf.fun/?purchase=success` for a nicer return (not required — the
+claim loop delivers on the next visit regardless).
+
+## ~~One-time setup~~ (superseded — see the sections above)
+
+### 1. Stripe (≈15 minutes)
+
+1. Create an account at dashboard.stripe.com and complete business/bank
+   verification (required before live payments pay out).
+2. **Products** → add two products, each with a one-time price:
+   - `1000 J-Coins` — $10.00
+   - `Season Pass — Season One` — $5.00
+3. **Payment Links** → create one link per product. On each link:
+   - **Metadata** (under advanced options): add key `product` with value
 
 ## How it works
 

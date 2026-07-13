@@ -1,0 +1,62 @@
+# Deploy the Stripe fulfillment webhook (functions/) to Firebase.
+#
+# DORMANT until three repo secrets exist (Settings → Secrets and variables →
+# Actions): FIREBASE_SERVICE_ACCOUNT (a Firebase service-account key JSON),
+# STRIPE_SECRET, and STRIPE_WEBHOOK_SECRET. Without them the job no-ops, so
+# this never blocks the Pages deploy. Full walkthrough: docs/16_PAYMENTS.md.
+#
+# Runs only when functions/ changes on version2, or on manual dispatch.
+name: Deploy Cloud Functions
+
+on:
+  push:
+    branches: [version2]
+    paths:
+      - 'functions/**'
+      - '.github/workflows/deploy-functions.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets are configured
+        id: gate
+        env:
+          SVC: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SVC" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret not set — skipping function deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Install function deps
+        if: steps.gate.outputs.ready == 'true'
+        run: npm install --prefix functions
+
+      - name: Write service-account key
+        if: steps.gate.outputs.ready == 'true'
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy webhook
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+          STRIPE_SECRET: ${{ secrets.STRIPE_SECRET }}
+          STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+        run: |
+          # Provision the two runtime secrets from repo secrets, then deploy.
+          printf '%s' "$STRIPE_SECRET" | npx firebase-tools functions:secrets:set STRIPE_SECRET --data-file - --project golfgame-9c11e
+          printf '%s' "$STRIPE_WEBHOOK_SECRET" | npx firebase-tools functions:secrets:set STRIPE_WEBHOOK_SECRET --data-file - --project golfgame-9c11e
+          npx firebase-tools deploy --only functions --project golfgame-9c11e --non-interactive

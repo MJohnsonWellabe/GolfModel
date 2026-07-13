@@ -29,8 +29,8 @@ export const PRODUCTS: Record<ProductId, { name: string; usd: number; coins?: nu
 /** Stripe Payment Link URLs (https://buy.stripe.com/…) — set per
  *  docs/16_PAYMENTS.md. Empty string = that product isn't purchasable yet. */
 export const PAYMENT_LINKS: Record<ProductId, string> = {
-  coins1000: '',
-  seasonpass_s1: ''
+  coins1000: 'https://buy.stripe.com/aFa4grgPc1cK5ZjfuF2B201',
+  seasonpass_s1: 'https://buy.stripe.com/5kQcMX7eCdZw0EZfuF2B200'
 };
 
 export function purchaseConfigured(product: ProductId): boolean {
