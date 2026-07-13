@@ -738,9 +738,13 @@ class HoleScene {
       return;
     }
     // Pitched-down vantage; pulled in a touch from behind/above the golfer so
-    // the (larger) golfer reads clearly while the fairway still shows.
+    // the (larger) golfer reads clearly while the fairway still shows. Look
+    // lead 50 (was 70): a nearer look point raises the ball/club in the
+    // portrait frame so the swing meter (pinned above the SWING button, which
+    // caps how low it can sit) no longer covers the club at address (playtest:
+    // "power meter blocks out the club").
     this.camTarget.pos = base.subtract(f.scale(26)).add(new Vector3(0, 18, 0));
-    this.camTarget.look = base.add(f.scale(70)).add(new Vector3(0, 1, 0));
+    this.camTarget.look = base.add(f.scale(50)).add(new Vector3(0, 1, 0));
     this.camTarget.k = 4;
     this.camTarget.fov = 1.05;
   }
@@ -3191,7 +3195,7 @@ function renderMode(): void {
         `<div class="stepHint" style="margin:6px 0 0">${m.desc}</div></div>`
     ).join('') +
     `</div>` +
-    `<button id="surpriseBtn" class="surpriseBtn">🎲 Surprise Me — random course &amp; golfer, start now</button>`;
+    `<button id="surpriseBtn" class="surpriseBtn">🎲 Play now. Random selections</button>`;
   stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.mode = (el as HTMLElement).dataset.mode as GameMode;

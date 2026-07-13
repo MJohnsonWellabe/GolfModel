@@ -1,6 +1,6 @@
 # 01_PROJECT_VISION.md
 
-## Bite-Sized Links
+## Bite-Sized Golf
 
 ### Project Vision Document
 
