@@ -2768,9 +2768,16 @@ function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myR
         })
         .join('')
     : `<div class="recEmpty">No scores yet — be the first!</div>`;
-  const status = isEnded(meta, Date.now()) ? 'Final' : 'In progress';
+  const ended = isEnded(meta, Date.now());
+  const status = ended ? 'Final' : 'In progress';
   const rank = myRank > 0 ? ` · You: ${myRank}/${standings.length}` : '';
-  return `<div class="tourHeadRow">🏁 ${escapeHtml(meta.name)} — ${status}${rank}</div>${rows}`;
+  // Surface the fixed facts every entrant plays under: which course (the
+  // creator's pick — everyone plays it), and when it locks. Lowest total wins,
+  // one entry each, first score stands (see the lifecycle note in the header).
+  const endTxt = new Date(meta.endsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const meta2 = `<div class="recSub tourMeta">⛳ ${escapeHtml(meta.course)} · ${meta.holes} holes · ` +
+    `${ended ? 'ended' : 'ends'} ${endTxt} · lowest total wins · one entry each</div>`;
+  return `<div class="tourHeadRow">🏁 ${escapeHtml(meta.name)} — ${status}${rank}</div>${meta2}${rows}`;
 }
 
 /** Start a solo round under a tournament's shared seed (Phase 8). */
