@@ -213,7 +213,7 @@ const SHAFT_DIA = 0.11;
  *  read as "toe pointed at the hole"; +0.4 turns the heel-toe axis back onto the
  *  perpendicular in THAT view so both heel and toe sit square behind the ball
  *  (playtest). Shared by driver/iron/putter — they use one head. */
-const FACE_SQUARE = 0.4;
+const FACE_SQUARE = 0.2;
 
 /**
  * Build a playable club from primitives, Mario-Golf style: a clean straight
@@ -765,7 +765,7 @@ export class Golfer3D {
    *  so longer heads need the golfer further out for the ball to sit visually
    *  in the MIDDLE of the face at address (playtest). Face centre offsets
    *  measured in club-local Z × GOLFER_SCALE. */
-  private static readonly STANCE_REACH = { swing: 0.1, putter: 0.2, driver: 0.41 } as const;
+  private static readonly STANCE_REACH = { swing: 0.1, putter: -0.15, driver: 0.41 } as const;
   /** Extra stance offset AWAY from the hole (world px, along −aim), per club:
    *  slides the clubhead back off the ball so its FACE sits just behind the ball
    *  (ball centered on the face, no clip / no see-through) rather than the head
