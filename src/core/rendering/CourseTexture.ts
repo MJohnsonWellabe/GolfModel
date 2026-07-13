@@ -4,7 +4,7 @@ import { HoleData, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
 import { CHECKER_ROTATION, greenMowT, mowCheckerboard } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
-import { greenBoundaryScale, roundPolygon } from '../../utils/Geometry';
+import { greenBoundaryScale, pointInGreens, roundPolygon } from '../../utils/Geometry';
 
 /** Chaikin passes applied to the BAKED woods ground-color patch only — the
  *  authored hazard polygon (collision, AI risk-probing, trunk sampling) stays
@@ -145,6 +145,40 @@ function rasterizeClassGrid(
       poly(pts);
     }
   };
+  // Lobed greens: the two ell() polygon fills give a boolean union with a
+  // pinched V crease at the waist, but the surface actually PLAYED is the
+  // smooth metaball union (pointInGreens) — which is a strict superset (sum
+  // of cubed fields ≥ each field alone), differing only near the neck where
+  // both lobes' fields are comparable. So after the fast canvas fill, add the
+  // fillet texels with a per-texel field test restricted to the intersection
+  // of the two lobes' padded bboxes (1.7× max radius covers the ~1.18×
+  // wobble times the fillet's reach; beyond it both fields are < 0.55 and
+  // the cubed sum can't reach 1). Keeps the bake off the per-texel-everything
+  // path this rasterizer exists to avoid.
+  const filletFill =
+    (id: number, margin: number) =>
+    (grid: Uint8Array): void => {
+      const g2 = hole.green2!;
+      const boxes = [hole.green, g2].map((g) => {
+        const r = Math.max(g.rx, g.ry) * 1.7 + margin + 4;
+        return { x0: g.cx - r, y0: g.cy - r, x1: g.cx + r, y1: g.cy + r };
+      });
+      const x0 = Math.max(boxes[0].x0, boxes[1].x0);
+      const y0 = Math.max(boxes[0].y0, boxes[1].y0);
+      const x1 = Math.min(boxes[0].x1, boxes[1].x1);
+      const y1 = Math.min(boxes[0].y1, boxes[1].y1);
+      if (x0 >= x1 || y0 >= y1) return;
+      const gx0 = Math.max(0, Math.floor((x0 - originX) / cell));
+      const gx1 = Math.min(gw - 1, Math.ceil((x1 - originX) / cell));
+      const gy0 = Math.max(0, Math.floor((y0 - originY) / cell));
+      const gy1 = Math.min(gh - 1, Math.ceil((y1 - originY) / cell));
+      for (let gy = gy0; gy <= gy1; gy++) {
+        const wy = originY + gy * cell;
+        for (let gx = gx0; gx <= gx1; gx++) {
+          if (pointInGreens(originX + gx * cell, wy, hole.green, g2, margin)) grid[gy * gw + gx] = id;
+        }
+      }
+    };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
   // precedence must match PhysicsEngine.surfaceAt exactly:
   //   green > scoring-bunker > fringe > water > trees > fairway > WASTE/BEACH > rough.
@@ -154,7 +188,7 @@ function rasterizeClassGrid(
   // fairway ribbon or a woods polygon drawn over a waste band reads as fairway
   // or woods, not sand (visual pass 7: "fairway islands", "woods aren't an
   // island in sand").
-  const layers: Array<[number, () => void]> = [
+  const layers: Array<[number, () => void, ((grid: Uint8Array) => void)?]> = [
     [
       4,
       (): void =>
@@ -178,7 +212,7 @@ function rasterizeClassGrid(
           if (hz.type === 'water') poly(hz.polygon);
         })
     ],
-    [3, (): void => ell(FRINGE_VISUAL)],
+    [3, (): void => ell(FRINGE_VISUAL), hole.green2 ? filletFill(3, FRINGE_VISUAL) : undefined],
     [
       4,
       (): void =>
@@ -186,10 +220,10 @@ function rasterizeClassGrid(
           if (hz.type === 'bunker' && !hz.beach && !hz.waste) poly(hz.polygon);
         })
     ],
-    [2, (): void => ell(0)]
+    [2, (): void => ell(0), hole.green2 ? filletFill(2, 0) : undefined]
   ];
   const grid = new Uint8Array(gw * gh); // starts all rough (0)
-  for (const [id, draw] of layers) {
+  for (const [id, draw, fillet] of layers) {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, gw, gh);
     worldTransform();
@@ -199,6 +233,7 @@ function rasterizeClassGrid(
     for (let i = 0; i < grid.length; i++) {
       if (data[i * 4 + 3] > 127) grid[i] = id;
     }
+    if (fillet) fillet(grid);
   }
   return grid;
 }
