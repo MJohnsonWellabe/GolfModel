@@ -208,6 +208,13 @@ export const DEFAULT_CLUB_TUNING: ClubTuning = {
  *  0.085; ×1.3 per playtest so the shaft carries the chunkier heads. */
 const SHAFT_DIA = 0.11;
 
+/** Face-square correction (radians) added to the head yaw. At 0 the head was
+ *  geometrically square but the low behind-the-golfer camera + the head's loft
+ *  read as "toe pointed at the hole"; +0.4 turns the heel-toe axis back onto the
+ *  perpendicular in THAT view so both heel and toe sit square behind the ball
+ *  (playtest). Shared by driver/iron/putter — they use one head. */
+const FACE_SQUARE = 0.4;
+
 /**
  * Build a playable club from primitives, Mario-Golf style: a clean straight
  * shaft with a dark grip and one simple blade head shared by ALL THREE clubs
@@ -273,7 +280,7 @@ function buildProceduralClub(
   // sits off local -Z at the sole, the hole direction is local -X, so parts
   // authored with their face on +Z get a -90° yaw (normal → -X).
   // The heads are deliberately big — arcade clubs next to the oversized ball.
-  const HEAD_YAW = -Math.PI / 2;
+  const HEAD_YAW = -Math.PI / 2 + FACE_SQUARE;
   const placeHeadPart = (part: Mesh, x: number, y: number, z: number, loft: number, yaw = HEAD_YAW): void => {
     part.rotationQuaternion = Quaternion.FromEulerAngles(loft, yaw, 0);
     part.position = new Vector3(x, y, z);
@@ -758,7 +765,7 @@ export class Golfer3D {
    *  so longer heads need the golfer further out for the ball to sit visually
    *  in the MIDDLE of the face at address (playtest). Face centre offsets
    *  measured in club-local Z × GOLFER_SCALE. */
-  private static readonly STANCE_REACH = { swing: 0.1, putter: -0.5, driver: 0.41 } as const;
+  private static readonly STANCE_REACH = { swing: 0.1, putter: 0.2, driver: 0.41 } as const;
   /** Extra stance offset AWAY from the hole (world px, along −aim), per club:
    *  slides the clubhead back off the ball so its FACE sits just behind the ball
    *  (ball centered on the face, no clip / no see-through) rather than the head
