@@ -42,7 +42,15 @@ export const BROADLEAF_KEYS = [
   'tree_aspen',
   'tree_poplar'
 ] as const;
-export const CONIFER_KEYS = ['tree_spruce', 'tree_spruce_tall', 'tree_pine'] as const;
+export const CONIFER_KEYS = [
+  'tree_spruce',
+  // Kenney low-poly pines, user-picked from an on-course catalog (Pass 10):
+  // k1 is the universal pine (Timberline mix), k3 is Sable Bay's exclusive
+  // "bare trunk to the top" pine. tree_pine and tree_spruce_tall are retired
+  // (playtest: "exactly the one I don't like — remove those universally").
+  'tree_pine_k1',
+  'tree_pine_k3'
+] as const;
 /** Forest-floor props for rough-only ground scatter (visual, never physics). */
 export const DEADWOOD_KEYS = ['stump_a', 'log_a'] as const;
 export const FERN_KEYS = ['fern_a'] as const;
@@ -203,11 +211,16 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       return bushLightMat;
     if (key.startsWith('bush')) return bushMat;
     if (key.startsWith('cloud')) return cloudMat;
-    // Conifer glbs ship trunk + foliage as two NODES sharing one needles
-    // material; the SM_-prefixed node is the trunk (verified via bounds).
-    // Keyed to conifers only — the old pack's single nodes are all SM_ENV_*.
-    if ((CONIFER_KEYS as readonly string[]).includes(key))
+    // Conifers: prefer real slot names when the model carries them (the
+    // Kenney pines ship Bark_NormalTree / Leaves_Pine); the FBX conifers ship
+    // trunk + foliage as two NODES sharing one needles material, where the
+    // SM_-prefixed node is the trunk (verified via bounds).
+    if ((CONIFER_KEYS as readonly string[]).includes(key)) {
+      const s = slot.toLowerCase();
+      if (s.includes('bark') || s.includes('trunk')) return barkMat;
+      if (s.includes('leav') || s.includes('needle')) return foliageMat;
       return meshName.startsWith('SM_') ? barkMat : foliageMat;
+    }
     const n = slot.toLowerCase();
     // Cattail clumps: brown seed heads (ReedHeadTrunk) on lighter marsh-green
     // blades/stems — tree-canopy green would read as a dark smudge at the
