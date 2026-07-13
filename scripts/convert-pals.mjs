@@ -45,11 +45,12 @@ const MANIFEST = {
   foxorange: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001, recolor: [214, 126, 58] },
   dragon: { src: 'dragon_raw.glb', ratio: 0.13, error: 0.02 },
   gecko: { src: 'gecko_raw.glb', ratio: 0.7, error: 0.001 },
-  // Brighter leaf-green (was a muddy olive [0.42,0.48,0.28]) so the trex reads
-  // as a vivid green dino next to the gecko (playtest: "brighter green, closer
-  // to the gecko").
-  trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.3, 0.72, 0.34, 1] },
-  crab: { src: 'mystery_raw.glb', ratio: 0.16, error: 0.02 },
+  // Bright apple green — user-picked from a three-way comparison (Pass 10);
+  // was vivid leaf [0.3,0.72,0.34], before that a muddy olive.
+  trex: { src: 'trex_raw.glb', skipSimplify: true, baseColor: [0.45, 0.85, 0.35, 1] },
+  // Rich red-orange re-chroma — unifies the shell (the original texture had a
+  // greenish belly patch); user-picked from a three-way comparison (Pass 10).
+  crab: { src: 'mystery_raw.glb', ratio: 0.16, error: 0.02, recolor: [225, 90, 45] },
   // Uploaded multi-file glTF pets → single web glb. Pug is a 87k-tri scan
   // (hard decimation like the dragon); the toon cat is already light.
   pug: { src: 'pug_raw/scene.gltf', ratio: 0.1, error: 0.02 },

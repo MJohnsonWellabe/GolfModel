@@ -38,8 +38,8 @@ export const PALS: PalDef[] = [
   def('fox', 'Foxy', 3.6, '🦊'),
   def('dragon', 'Ember', 4.5, '🐉'),
   def('gecko', 'Zippy', 2.6, '🦎'),
-  def('trex', 'Rexy', 4.8, '🦖'),
-  def('crab', 'Clawdia', 2.4, '🦀'),
+  def('trex', 'Rexy', 6.2, '🦖'),
+  def('crab', 'Clawdia', 3.1, '🦀'),
   def('pug', 'Pugsley', 2.6, '🐶'),
   def('cat', 'Whiskers', 2.9, '🐱'),
   // A warm red-fox recolor of the arctic fox (same mesh, coat re-chroma'd to
