@@ -208,29 +208,12 @@ export const DEFAULT_CLUB_TUNING: ClubTuning = {
  *  0.085; ×1.3 per playtest so the shaft carries the chunkier heads. */
 const SHAFT_DIA = 0.11;
 
-/** Face aim nudge (radians) about the WORLD VERTICAL, layered on top of the
- *  square-at-address head orientation (see bladeSquareQuat). 0 leaves the face
- *  pointing straight down the target line with heel and toe both on the
- *  perpendicular (measured: 90.0° to the aim, heel-toe level); positive turns
- *  the toe toward the hole, negative opens it. Shared by driver/iron/putter —
- *  they use one head. */
-const FACE_SQUARE = 0;
-
-/** Head orientation (club-holder-local) that renders the blade LEVEL and square
- *  to the aim line under the ADDRESS holder pose. Built by taking the desired
- *  world-square orientation and pre-undoing the holder's address tilt, so the
- *  head soles flat and perpendicular to the target line regardless of the shaft
- *  lean. `faceSquare` nudges the aim about the world vertical (pure left/right,
- *  no toe-up tilt); `loft` tips the face back. */
-function bladeSquareQuat(faceSquare: number, loft: number): Quaternion {
-  const holderAddress = Quaternion.FromEulerAngles(
-    CLUB_TILT_X + ADDRESS_TILT_X,
-    CLUB_TILT_Y + ADDRESS_TILT_Y,
-    CLUB_TILT_Z + ADDRESS_TILT_Z
-  );
-  const squareWorld = Quaternion.FromEulerAngles(loft, -Math.PI / 2 + faceSquare, 0);
-  return holderAddress.conjugate().multiply(squareWorld);
-}
+/** Face-square correction (radians) added to the head yaw. At 0 the head was
+ *  geometrically square but the low behind-the-golfer camera + the head's loft
+ *  read as "toe pointed at the hole"; +0.4 turns the heel-toe axis back onto the
+ *  perpendicular in THAT view so both heel and toe sit square behind the ball
+ *  (playtest). Shared by driver/iron/putter — they use one head. */
+const FACE_SQUARE = 0.2;
 
 /**
  * Build a playable club from primitives, Mario-Golf style: a clean straight
@@ -291,9 +274,14 @@ function buildProceduralClub(
   gripMesh.material = grip;
   parts.push(gripMesh);
 
-  // Simple shaft-aligned parts (the hosel collar). The heavy head geometry is
-  // oriented by the square-at-address quaternion below, not by this helper.
-  const placeHeadPart = (part: Mesh, x: number, y: number, z: number, loft: number, yaw = 0): void => {
+  // Both heads follow the same rule (playtest): a LONG FLAT FACE PLANE that
+  // sits behind the ball, PERPENDICULAR to the target line — the face normal
+  // points at the hole. Empirically mapped through the address pose: the ball
+  // sits off local -Z at the sole, the hole direction is local -X, so parts
+  // authored with their face on +Z get a -90° yaw (normal → -X).
+  // The heads are deliberately big — arcade clubs next to the oversized ball.
+  const HEAD_YAW = -Math.PI / 2 + FACE_SQUARE;
+  const placeHeadPart = (part: Mesh, x: number, y: number, z: number, loft: number, yaw = HEAD_YAW): void => {
     part.rotationQuaternion = Quaternion.FromEulerAngles(loft, yaw, 0);
     part.position = new Vector3(x, y, z);
     part.material = steel;
@@ -301,44 +289,32 @@ function buildProceduralClub(
   };
   // ONE head for all three clubs: the user-approved iron blade sub-assembly — a
   // lofted face slab shaped like a REAL iron (short heel tapering into the
-  // shaft, rising top line, rounded toe) plus an optional sole bar. The driver
-  // is the SAME assembly at driverHeadScale, anchored so its sole stays on the
-  // iron's sole line. The heads are deliberately big — arcade clubs next to the
-  // oversized ball.
+  // shaft, rising top line, rounded toe) plus an optional sole bar. The
+  // driver is the SAME assembly at driverHeadScale, anchored so its sole
+  // stays on the iron's sole line (the blade-local bottom sits ~0.20·s below
+  // the anchor, so the anchor drops by the scale growth).
+  // Offset a touch toward the golfer (+X) so the shaft visually enters the
+  // BACK of the head, and riding slightly high so the blade sits right
+  // behind the ball instead of digging in (playtest).
+  // The anchor's Z places the heel end of the outline (blade-local +0.475·s,
+  // which maps onto club -Z) right AT the shaft axis, tucked 0.04 so they
+  // visibly join — the whole head spreads away from the golfer (playtest:
+  // "no clubhead between the shaft and the golfer").
   const IRON_LOFT = -0.22;
-  // Square-at-address head orientation. Build the head LEVEL and perpendicular
-  // to the aim line in WORLD space (heel-toe horizontal, face down the target
-  // line), then express that in the club-holder's local frame by pre-undoing
-  // the holder's address tilt. This decouples the face aim from the shaft lean:
-  // the old head-yaw rotated the head about the holder's TILTED local-Y axis, so
-  // squaring the aim always dragged the heel-toe ~32° out of horizontal (read as
-  // "aiming way left" from the low behind-camera). FACE_SQUARE now rotates the
-  // face about the world vertical — a pure left/right aim nudge, no toe-up tilt.
-  const HEAD = bladeSquareQuat(FACE_SQUARE, IRON_LOFT);
-  // Keep the head CENTRED exactly where the previous build placed it, so every
-  // club's stance tuning (which centres the ball on the face) is preserved —
-  // only the ORIENTATION changes to square the face. The old build sat the blade
-  // origin at this point via a RY(π/2)·RX(loft) offset from base_old; anchoring
-  // the new (correctly-oriented) head on the same centre rotates the face into
-  // square about that point without moving the ball off the sweet spot.
-  const oldYaw = Math.PI / 2 + FACE_SQUARE;
-  const oz1 = 0.01 * s * Math.sin(IRON_LOFT);
-  const headCentre = new Vector3(
-    -0.1 + oz1 * Math.sin(oldYaw),
-    -CLUB_LEN + 0.27 - 0.2 * (s - 1) + 0.01 * s * Math.cos(IRON_LOFT),
-    0.475 * s - 0.04 + oz1 * Math.cos(oldYaw)
-  );
-  const centreRot = new Vector3(0, 0.01 * s, 0);
-  centreRot.rotateByQuaternionToRef(HEAD, centreRot);
-  const base = headCentre.subtract(centreRot);
-  // Rotate a blade-frame offset by the head's orientation, anchored at base.
+  const IRON_YAW = HEAD_YAW + Math.PI;
+  const base = new Vector3(-0.1, -CLUB_LEN + 0.27 - 0.2 * (s - 1), 0.475 * s - 0.04);
+  // Rotate a blade-frame offset by the blade's own orientation (RY·RX).
   const bladeOff = (ox: number, oy: number, oz: number): Vector3 => {
-    const v = new Vector3(ox, oy, oz);
-    v.rotateByQuaternionToRef(HEAD, v);
-    return base.add(v);
+    const y1 = oy * Math.cos(IRON_LOFT) - oz * Math.sin(IRON_LOFT);
+    const z1 = oy * Math.sin(IRON_LOFT) + oz * Math.cos(IRON_LOFT);
+    return new Vector3(
+      base.x + ox * Math.cos(IRON_YAW) + z1 * Math.sin(IRON_YAW),
+      base.y + y1,
+      base.z - ox * Math.sin(IRON_YAW) + z1 * Math.cos(IRON_YAW)
+    );
   };
   const bladePart = (part: Mesh, ox: number, oy: number, oz: number): void => {
-    part.rotationQuaternion = HEAD.clone();
+    part.rotationQuaternion = Quaternion.FromEulerAngles(IRON_LOFT, IRON_YAW, 0);
     part.position = bladeOff(ox * s, oy * s, oz * s);
     part.material = steel;
     parts.push(part);
