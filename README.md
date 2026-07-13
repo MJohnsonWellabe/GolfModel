@@ -1,6 +1,6 @@
-# Bite-Sized Links
+# Bite-Sized Golf
 
-_Three holes. Anytime._ (advertised as **BS Links**)
+_Three holes. Anytime._ (advertised as **BS Golf**)
 
 A mobile-first, browser-based golf game in the spirit of Everybody's Golf /
 Hot Shots Golf and the classic Tiger Woods console games.
