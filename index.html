@@ -446,11 +446,69 @@
       /* Fixed (non-scrolling) chrome around the scrollable step body (FB8) */
       #title,
       #subtitle,
+      #seasonBanner,
       #dailyBanner,
       #steps,
       #navRow,
       .recordsLink {
         flex: 0 0 auto;
+      }
+      /* Prominent Season Pass call-to-action on the main screen */
+      .seasonBanner {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        width: 100%;
+        margin: 0 0 12px;
+        padding: 12px 16px;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 213, 79, 0.55);
+        background: linear-gradient(120deg, rgba(255, 138, 60, 0.28), rgba(255, 213, 79, 0.16), rgba(154, 92, 208, 0.24));
+        color: #fff;
+        font-family: inherit;
+        cursor: pointer;
+        text-align: left;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+      }
+      .seasonBanner .sbIcon {
+        font-size: 26px;
+        flex: 0 0 auto;
+      }
+      .seasonBanner .sbMain {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .seasonBanner .sbTitle {
+        font-size: 15px;
+        font-weight: 900;
+        letter-spacing: 0.3px;
+      }
+      .seasonBanner .sbSub {
+        font-size: 12px;
+        color: #ffe9b8;
+        font-weight: 600;
+      }
+      .seasonBanner .sbBar {
+        display: block;
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.3);
+        overflow: hidden;
+      }
+      .seasonBanner .sbBar i {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #ffd54f, #ff8a3c);
+      }
+      .seasonBanner .sbGo {
+        flex: 0 0 auto;
+        font-size: 13px;
+        font-weight: 900;
+        color: #ffd54f;
       }
       /* Daily challenge banner (Phase 6) */
       #dailyBanner {
@@ -1498,20 +1556,74 @@
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 138, 60, 0.1));
         border-color: rgba(255, 213, 79, 0.6);
       }
-      .spLvl {
-        width: 46px;
-        font-weight: 800;
+      .spLvlBadge {
+        width: 34px;
+        flex: 0 0 auto;
+        font-weight: 900;
         color: #ffd54f;
         font-size: 13px;
+        text-align: center;
       }
-      .spIcon {
-        font-size: 22px;
+      /* Reward thumbnail — the "see what you get" preview */
+      .spThumb {
+        flex: 0 0 auto;
+        width: 52px;
+        height: 52px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 26px;
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        overflow: hidden;
+        position: relative;
+      }
+      .spThumb.tPortrait {
+        background: linear-gradient(180deg, #cfe3ca, #8fb598);
+      }
+      .spThumb.tPortrait img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: 50% 20%;
+      }
+      .spThumb.tSwatch span {
+        font-size: 20px;
+        filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.5));
+      }
+      .spThumb.tCoins,
+      .spThumb.tXp {
+        flex-direction: column;
+        font-size: 18px;
+        gap: 0;
+      }
+      .spThumb.tCoins b,
+      .spThumb.tXp b {
+        font-size: 11px;
+        color: #ffe28a;
+      }
+      .spThumb.tXp b {
+        color: #bfe0ff;
+      }
+      .spInfo {
+        flex: 1 1 auto;
+        min-width: 0;
       }
       .spName {
-        flex: 1 1 auto;
-        font-weight: 700;
+        font-weight: 800;
         color: #eef5ea;
         font-size: 14px;
+      }
+      .spTag {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        color: #9fc0a6;
+        text-transform: uppercase;
+      }
+      .spCard.grand .spTag {
+        color: #ffd54f;
       }
       .spState {
         font-size: 12px;
@@ -1674,6 +1786,7 @@
       <div id="setupInner">
         <div id="title">Bite-Sized Golf</div>
         <div id="subtitle">Three holes. Anytime.</div>
+        <button id="seasonBanner" class="seasonBanner"></button>
         <div id="dailyBanner"></div>
         <div id="steps"></div>
         <div id="stepBody"></div>
@@ -1685,7 +1798,6 @@
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
-          <button id="seasonLink" class="recordsLink">🎫 See Season Pass Rewards</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
         </div>
