@@ -815,3 +815,19 @@ Every future update follows the same loop:
    testers / 14 days closed-testing requirement (section 9.2) means you
    cannot reach production the same day the app is ready — plan the testing
    window into your launch timeline now, not after the app is built.
+
+---
+
+## Addendum (2026-07): real-money purchases and Play Billing
+
+The web game now sells a J-Coin top-up and the Season Pass via Stripe
+(docs/16_PAYMENTS.md). **Inside a Play-distributed Android app, Google
+requires Play Billing for digital goods — Stripe checkout is not allowed
+there.** Before shipping the TWA:
+
+- Either hide the purchase buttons in the TWA build, or integrate Play
+  Billing (Digital Goods API + Payment Request API work inside a TWA).
+- The RTDB `entitlements/{uid}` design is billing-provider-agnostic: Play
+  Billing fulfillment would simply be a second writer to the same node; the
+  game client's claim loop needs no changes.
+- Web purchases at bsgolf.fun stay on Stripe regardless.

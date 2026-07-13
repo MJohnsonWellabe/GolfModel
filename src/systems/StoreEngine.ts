@@ -4,7 +4,9 @@ import { isEquippableKind, STORE_BY_ID, StoreItem } from '../data/storeCatalog';
 /**
  * Pure store transactions (Phase 7): buy, own, equip. Coins never go
  * negative and an item can't be bought twice. Club upgrades must be bought
- * in tier order. No real money — J-Coins only.
+ * in tier order. J-Coins only in here — real money never touches the store
+ * engine (coin top-ups and the Season Pass go through firebase/Purchases +
+ * SeasonPassEngine), and season-exclusive items can't be bought at all.
  */
 
 export type BuyResult = { ok: true } | { ok: false; reason: string };

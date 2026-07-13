@@ -27,3 +27,6 @@ playwright-report/
 /capture-tmp.mjs
 /diag-tmp.mjs
 /pcap-tmp.mjs
+
+# Firebase CLI cache (functions deploys — docs/16_PAYMENTS.md)
+.firebase/

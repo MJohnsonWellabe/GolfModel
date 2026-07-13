@@ -4,11 +4,13 @@ import { CharacterKey } from './characters';
 import { PalKey } from './pals';
 
 /**
- * Gold-only store (docs 08): cosmetics + modest club upgrades bought with
- * J-Coins earned through play. No real money. Everything here uses assets the
- * game already ships — procedural ball/trail colors and the full 25-character
- * rigged roster (five free, the other twenty unlockable). Config only; the pure
- * `StoreEngine` runs the transactions.
+ * The store catalog (docs 08): cosmetics + modest club upgrades bought with
+ * J-Coins earned through play (real money exists only as a coin top-up and
+ * the Season Pass — docs 08 §Real-Money Purchases, firebase/Purchases.ts).
+ * Everything here uses assets the game already ships — procedural ball/trail
+ * colors and the full 25-character rigged roster (five free, the other twenty
+ * unlockable). Items flagged `season` are pass-claim-only, never sold. Config
+ * only; the pure `StoreEngine` runs the transactions.
  */
 
 export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin' | 'pal';

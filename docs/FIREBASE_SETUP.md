@@ -67,6 +67,17 @@ the shared leaderboard) — or any project you prefer.
        "aces": {
          ".read": true,
          "$player": { ".write": true }
+       },
+       "entitlements": {
+         "$uid": {
+           ".read": "auth != null && auth.uid === $uid",
+           "$purchaseId": {
+             ".write": false,
+             "claimed": {
+               ".write": "auth != null && auth.uid === $uid && newData.val() === true"
+             }
+           }
+         }
        }
      }
    }
@@ -75,7 +86,10 @@ the shared leaderboard) — or any project you prefer.
    supports Phase 8 — entries are write-once so posted scores can't be
    overwritten; `aces` is the all-time hole-in-one board. Profile data is
    strictly per-user. Without a rule, a path defaults to deny under locked
-   mode — the `aces` block is required or the ace leaderboard can't post.)
+   mode — the `aces` block is required or the ace leaderboard can't post.
+   `entitlements` records real-money purchases: written ONLY by the Stripe
+   webhook Cloud Function (admin SDK bypasses rules — docs/16_PAYMENTS.md);
+   a player can read their own and flip `claimed` to true, never back.)
 
 ## What the game then does (already implemented)
 
