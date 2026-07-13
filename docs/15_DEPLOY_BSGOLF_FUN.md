@@ -13,10 +13,11 @@ How the live game gets from this repo to the custom domain **bsgolf.fun**
   build works at `https://mjohnsonwellabe.github.io/GolfModel/` **and** at a
   custom-domain root — no config change needed to move domains.
 - `assets/` is the Vite public dir: everything in it is copied verbatim into
-  `dist/`. That's how `assets/CNAME` (containing `bsgolf.fun`) lands at the
-  root of every deploy — GitHub Pages reads that file to keep the custom
-  domain bound. **Don't delete it**; a deploy without CNAME silently unbinds
-  the domain.
+  `dist/`, so `assets/CNAME` (containing `bsgolf.fun`) lands at the root of
+  every deploy. With Actions-based deploys the domain binding actually lives
+  in Settings → Pages (the CNAME file is what keeps it bound on legacy
+  branch-based deploys) — shipping the file is harmless today and future-
+  proofs a switch back to branch deploys.
 
 ## One-time setup
 
