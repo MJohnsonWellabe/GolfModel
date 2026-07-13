@@ -46,7 +46,18 @@ test('create a tournament surfaces a shareable code', async ({ page }) => {
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#tourCreate');
   await page.evaluate(() => (document.getElementById('tourCreate') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  // Creating now starts with a course picker — everyone plays the creator's pick.
+  await page.waitForSelector('#tourBody .modeCard');
+  await page.evaluate(() => (document.querySelector('#tourBody .modeCard') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.tourCode');
   await expect(page.locator('.tourCode')).toHaveText(/^JG-[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/);
   await expect(page.locator('.tourShare')).toContainText('?t=JG-');
+
+  // "Play my round" routes through the setup wizard so the entrant picks their
+  // own golfer/pal/style; mode + course are locked, so the wizard opens on Name
+  // with no Mode or Course step.
+  await page.evaluate(() => (document.getElementById('tourPlay') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForSelector('#nameInput');
+  const steps = await page.$$eval('.sdot .lbl', (els) => els.map((e) => e.textContent));
+  expect(steps).toEqual(['Name', 'Character', 'Pals', 'Style']);
 });
