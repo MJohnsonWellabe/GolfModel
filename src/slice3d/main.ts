@@ -51,7 +51,7 @@ import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChal
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, rewardLabel, seasonActive, seasonLevel } from '../systems/SeasonPassEngine';
-import { SEASON_1 } from '../data/seasonPass';
+import { SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
@@ -2655,11 +2655,24 @@ let spPage = -1;
 /** Keep the main-menu button honest: a plain "see the rewards" link before
  *  purchase, a live progress tracker once the pass is owned. */
 function updateSeasonLink(): void {
-  const btn = document.getElementById('seasonLink');
+  const btn = document.getElementById('seasonBanner');
   if (!btn) return;
-  btn.textContent = profile.season.owned
-    ? `🎫 Season Pass — Lv ${seasonLevel(SEASON_1, profile.season.xp)}`
-    : '🎫 See Season Pass Rewards';
+  const lvl = seasonLevel(SEASON_1, profile.season.xp);
+  if (profile.season.owned) {
+    const into = profile.season.xp - lvl * SEASON_1.xpPerLevel;
+    const pct = lvl >= SEASON_1.levels ? 100 : Math.round((into / SEASON_1.xpPerLevel) * 100);
+    btn.innerHTML =
+      `<span class="sbIcon">🎫</span>` +
+      `<span class="sbMain"><span class="sbTitle">Season Pass · Level ${lvl}</span>` +
+      `<span class="sbBar"><i style="width:${pct}%"></i></span></span>` +
+      `<span class="sbGo">Track ›</span>`;
+  } else {
+    btn.innerHTML =
+      `<span class="sbIcon">🎫</span>` +
+      `<span class="sbMain"><span class="sbTitle">Season Pass — 50 Rewards</span>` +
+      `<span class="sbSub">See the rewards · you're Level ${lvl}/${SEASON_1.levels}</span></span>` +
+      `<span class="sbGo">See ›</span>`;
+  }
 }
 
 /** Season-pass overlay: 10 pages × 5 reward levels, progress bar, claim
@@ -2677,9 +2690,40 @@ function renderSeasonPass(): void {
   ).join('');
   const intoLevel = p.season.xp - lvl * def.xpPerLevel;
   const pct = lvl >= def.levels ? 100 : Math.round((intoLevel / def.xpPerLevel) * 100);
+  const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
+  const kindEmoji: Record<string, string> = { ball: '⛳', trail: '💫', outfit: '👕', clubskin: '🏌️' };
+  // A real visual preview of each reward so the track reads like a rewards
+  // gallery, not a list: character portraits, color swatches, pal/coin/XP thumbs.
+  const rewardThumb = (reward: SeasonReward): string => {
+    if ('coins' in reward) return `<div class="spThumb tCoins">🪙<b>${reward.coins}</b></div>`;
+    if ('xp' in reward) return `<div class="spThumb tXp">✨<b>${reward.xp}</b></div>`;
+    const item = STORE_BY_ID.get(reward.item);
+    if (!item) return `<div class="spThumb">🎁</div>`;
+    if (item.kind === 'character')
+      return `<div class="spThumb tPortrait"><img src="ui/characters/${item.character}.png" alt="" loading="lazy" /></div>`;
+    if (item.kind === 'pal') return `<div class="spThumb tPal">${palByKey(item.pal)?.icon ?? '🐾'}</div>`;
+    if (item.color !== undefined)
+      return `<div class="spThumb tSwatch" style="background:${hex(item.color)}"><span>${kindEmoji[item.kind] ?? '🎁'}</span></div>`;
+    return `<div class="spThumb">🎁</div>`;
+  };
+  const kindTag = (reward: SeasonReward): string => {
+    if ('coins' in reward) return 'J-Coins';
+    if ('xp' in reward) return 'XP boost';
+    const item = STORE_BY_ID.get(('item' in reward && reward.item) || '');
+    const tags: Record<string, string> = {
+      character: 'Character',
+      pal: 'Pal',
+      ball: 'Ball color',
+      trail: 'Trail color',
+      outfit: 'Character color',
+      clubskin: 'Club color'
+    };
+    return item ? tags[item.kind] ?? 'Reward' : 'Reward';
+  };
   const cards = Array.from({ length: 5 }, (_, i) => {
     const level = spPage * 5 + i + 1;
-    const { icon, name } = rewardLabel(def.rewards[level - 1]);
+    const reward = def.rewards[level - 1];
+    const { name } = rewardLabel(reward);
     const state = claimState(p, def, level);
     const stateHtml =
       state === 'claimed'
@@ -2688,11 +2732,14 @@ function renderSeasonPass(): void {
           ? `<button class="spClaim" data-level="${level}">Claim</button>`
           : state === 'needsPass'
             ? `<div class="spState">🎫 Needs pass</div>`
-            : `<div class="spState">🔒 Locked</div>`;
+            : `<div class="spState">🔒 Lv ${level}</div>`;
     const grand = level === def.levels ? ' grand' : '';
     return (
-      `<div class="spCard ${state}${grand}"><div class="spLvl">Lv ${level}</div>` +
-      `<div class="spIcon">${icon}</div><div class="spName">${name}</div>${stateHtml}</div>`
+      `<div class="spCard ${state}${grand}"><div class="spLvlBadge">${level === def.levels ? '★ 50' : level}</div>` +
+      rewardThumb(reward) +
+      `<div class="spInfo"><div class="spName">${name}</div><div class="spTag">${kindTag(reward)}</div></div>` +
+      stateHtml +
+      `</div>`
     );
   }).join('');
   const footer = p.season.owned
@@ -3741,7 +3788,7 @@ function renderAcctMenu(): void {
 
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('seasonLink')!.addEventListener('pointerdown', () => renderSeasonPass());
+document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 updateSeasonLink();

@@ -2467,16 +2467,24 @@ export function buildCourse(
         if (nowOccluding.size >= MAX_GHOSTS_PER_PASS) break;
         const tx = c.x - camPos.x;
         const tz = -c.y - camPos.z; // w2b maps world y -> Babylon -z
+        const camDist2 = tx * tx + tz * tz;
+        // Camera sitting INSIDE (or right at) a canopy fills the whole view with
+        // trunk/leaves — the ball-tucked-in-the-woods case (see playtest shots).
+        // The old between-cam-and-golfer test rejected exactly these trees (they
+        // hug the camera, t≈0), so fade them unconditionally now.
+        if (camDist2 < (c.r * 1.2) * (c.r * 1.2)) {
+          for (const m of c.insts) nowOccluding.add(m);
+          continue;
+        }
         // Cheap reject: a tree further from the camera than the golfer (plus
         // its own canopy radius) can't sit "between" them.
-        if (tx * tx + tz * tz > (segLen + c.r) * (segLen + c.r)) continue;
+        if (camDist2 > (segLen + c.r) * (segLen + c.r)) continue;
         const t = tx * ux + tz * uz; // projection onto the cam->golfer segment
-        // Include a tree standing RIGHT at the golfer (t≈segLen) — the ball tucked
-        // under a trunk is the case that most needs the fade, and the old 0.92 cap
-        // excluded exactly that tree (playtest: "a tree behind the player should
-        // go transparent"). Only reject trees hugging the camera or clearly in
-        // FRONT of the golfer (t past the golfer, toward the hole).
-        if (t < segLen * 0.04 || t > segLen * 1.02) continue;
+        // Reject only trees clearly BEHIND the camera (can't block the forward
+        // view) or clearly PAST the golfer toward the hole. A tree anywhere from
+        // just in front of the lens through to right at the golfer DOES fade —
+        // camera-hugging foliage is the worst offender when the ball is in trees.
+        if (t < -c.r || t > segLen * 1.02) continue;
         const perp = Math.abs(tx * uz - tz * ux); // perpendicular offset from the line
         // 1.3× the canopy radius so a tree whose trunk sits just off the sightline
         // but whose canopy arches over the golfer still fades.
