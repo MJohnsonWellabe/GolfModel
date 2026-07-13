@@ -22,3 +22,6 @@ Thumbs.db
 # Playwright artifacts (screenshots in tests/visual/__shots__ ARE committed)
 test-results/
 playwright-report/
+
+# Local dev-only screenshot harness (not product code)
+/capture-tmp.mjs
