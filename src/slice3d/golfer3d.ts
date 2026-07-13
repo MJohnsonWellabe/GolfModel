@@ -758,14 +758,12 @@ export class Golfer3D {
    *  so longer heads need the golfer further out for the ball to sit visually
    *  in the MIDDLE of the face at address (playtest). Face centre offsets
    *  measured in club-local Z × GOLFER_SCALE. */
-  private static readonly STANCE_REACH = { swing: 0.1, putter: 0.1, driver: 0.41 } as const;
-  /** Extra stance offset AWAY from the hole (world px, along −aim), per club.
-   *  Scooting the whole golfer+club back off the target line keeps the ball
-   *  centered on the face while lifting the (oversized) ball off the leading
-   *  edge, so it no longer clips through the head at address (playtest). The
-   *  putter is left at 0 — its address reads fine and this must not shift putt
-   *  feel. */
-  private static readonly STANCE_BACK = { swing: 1.6, putter: 0, driver: 1.6 } as const;
+  private static readonly STANCE_REACH = { swing: 0.1, putter: -0.5, driver: 0.41 } as const;
+  /** Extra stance offset AWAY from the hole (world px, along −aim), per club:
+   *  slides the clubhead back off the ball so its FACE sits just behind the ball
+   *  (ball centered on the face, no clip / no see-through) rather than the head
+   *  overlapping it. Tuned per club by playtest screenshots. */
+  private static readonly STANCE_BACK = { swing: 0.5, putter: 0.9, driver: 0.5 } as const;
 
   placeAt(ballX: number, ballY: number, yaw: number, groundH = 0): void {
     this.lastPlace = { ballX, ballY, yaw, groundH };
