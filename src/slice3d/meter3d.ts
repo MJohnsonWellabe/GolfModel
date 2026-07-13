@@ -5,6 +5,39 @@ import { Band, SwingResult } from '../core/types';
 /** Fixed accuracy target (fraction of the bar) — same as the 2D meter. */
 const ACCURACY_TARGET = 0.08;
 
+/**
+ * Advance a sweeping meter cursor by dtMs. Pure, so the per-frame renderer and
+ * the tap sampler share ONE integrator: a tap reads the cursor at the exact
+ * tap instant instead of the last rendered frame. Sampling only at frame
+ * boundaries quantized deliverable power to one frame-step (~7yd of driver
+ * carry at 30fps — playtest: "I can hit 265 or 258, nothing in between").
+ * `bounce` reflects off both ends (power sweep); without it the cursor just
+ * clamps (accuracy sweep runs down to 0 where the meter auto-misses).
+ */
+export function advanceCursor(
+  cursor: number,
+  dirSign: 1 | -1,
+  speed: number, // bar fraction per ms
+  dtMs: number,
+  bounce: boolean
+): { cursor: number; dirSign: 1 | -1 } {
+  let c = cursor + dirSign * speed * dtMs;
+  let d = dirSign;
+  if (bounce) {
+    // One reflection per end is plenty — a real frame gap is a tiny fraction
+    // of a sweep. (A pathological multi-sweep gap still lands in range.)
+    if (c > 1) {
+      c = 2 - c;
+      d = -1;
+    }
+    if (c < 0) {
+      c = -c;
+      d = 1;
+    }
+  }
+  return { cursor: clamp(c, 0, 1), dirSign: d };
+}
+
 export interface MeterContext {
   /** Governing accuracy stat 0..100 (widens the perfect band). */
   stat: number;
@@ -34,7 +67,7 @@ export class DomMeter {
   private markerEl: HTMLElement;
   private state: 'hidden' | 'idle' | 'power' | 'accuracy' | 'done' = 'hidden';
   private cursor = 0;
-  private dirSign = 1;
+  private dirSign: 1 | -1 = 1;
   private ctx: MeterContext = { stat: 80, powerTarget: 0.9, isPutt: false };
   private lockedPower = 0;
   private lockedPowerBand: Band = 'good';
@@ -100,6 +133,15 @@ export class DomMeter {
     cancelAnimationFrame(this.raf);
   }
 
+  /** Integrate the cursor up to `now` (shared by the frame renderer and the
+   *  tap handlers, so a tap samples the exact instant — see advanceCursor). */
+  private advance(now: number): void {
+    const r = advanceCursor(this.cursor, this.dirSign, this.sweepSpeed(), now - this.lastTs, this.state === 'power');
+    this.cursor = r.cursor;
+    this.dirSign = r.dirSign;
+    this.lastTs = now;
+  }
+
   /** Route a tap. Returns true if consumed. */
   handleTap(): boolean {
     switch (this.state) {
@@ -109,6 +151,7 @@ export class DomMeter {
         this.raf = requestAnimationFrame((t) => this.tick(t));
         return true;
       case 'power': {
+        this.advance(performance.now());
         this.lockedPower = this.cursor;
         this.lockedPowerBand = this.bandFor(this.cursor, this.targetBar());
         // Leave a marker where the power was locked so the player can read it
@@ -120,6 +163,7 @@ export class DomMeter {
         return true;
       }
       case 'accuracy':
+        this.advance(performance.now());
         this.lockAccuracy(this.cursor, false);
         return true;
       default:
@@ -179,19 +223,8 @@ export class DomMeter {
 
   private tick(ts: number): void {
     if (!this.isActive) return;
-    const delta = ts - this.lastTs;
-    this.lastTs = ts;
-    this.cursor += this.dirSign * this.sweepSpeed() * delta;
-    if (this.state === 'power') {
-      if (this.cursor >= 1) {
-        this.cursor = 1;
-        this.dirSign = -1;
-      } else if (this.cursor <= 0) {
-        this.cursor = 0;
-        this.dirSign = 1;
-      }
-    } else if (this.cursor <= 0) {
-      this.cursor = 0;
+    this.advance(ts);
+    if (this.state === 'accuracy' && this.cursor <= 0) {
       this.lockAccuracy(0, true);
       return;
     }
