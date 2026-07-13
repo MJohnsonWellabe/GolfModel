@@ -1,7 +1,6 @@
 import {
   AnimationGroup,
   Color3,
-  LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
   Quaternion,
@@ -10,7 +9,6 @@ import {
   StandardMaterial,
   TransformNode,
   Vector3,
-  VertexBuffer,
   VertexData
 } from '@babylonjs/core';
 import { GolferLook } from '../core/types';
@@ -40,7 +38,6 @@ const GOLFER_SCALE = 1.4;
 // line; solved for the length that lands the head just above ground) rather
 // than re-tuning ADDRESS_TILT_*, which the swing pose also shares.
 const CLUB_LEN = 1.3;
-const CLUB_MIRROR = 1;
 const CLUB_TILT_X = 0.32;
 const CLUB_TILT_Y = 0;
 const CLUB_TILT_Z = -0.34;
@@ -57,24 +54,6 @@ const ADDRESS_TILT_Z = 0.34;
 const ADDRESS_POS_X = 0.1;
 const ADDRESS_POS_Y = 0;
 const ADDRESS_POS_Z = 0.15;
-/** Cross-section fattening for the imported club: real clubs model a
- *  pencil-thin shaft that reads as a wire at the gameplay camera ("too small
- *  and skinny"), so widen X/Z (not length) to give it an arcadey, chunky
- *  presence. Length still tracks CLUB_LEN. Doubled (2.3→4.6) per playtest
- *  ("2x thickness") so the club reads clearly even at address, behind the
- *  golfer, from the aiming camera. Applied per-vertex to the SHAFT only —
- *  the head keeps a mild widening (CLUB_HEAD_GIRTH) so it stays a club head
- *  instead of a boat-sized slab. */
-const CLUB_GIRTH = 4.6;
-const CLUB_HEAD_GIRTH = 1.35;
-/** Uniform head inflation about the head's own centroid ("putter head and
- *  irons/driver should be bigger"): real club proportions read as a sliver
- *  next to the game's comically-large ball (diameter ~0.77×CLUB_LEN), so the
- *  head scales up in ALL axes — girth alone only widened it — and the whole
- *  club re-shifts so the enlarged head still soles at -CLUB_LEN. */
-const CLUB_HEAD_SCALE = 2.4;
-/** Fraction of the club (from the head end) treated as the head for girth. */
-const CLUB_HEAD_FRAC = 0.16;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
@@ -86,270 +65,56 @@ const MODEL_TURN = 0.5;
 
 const DEFAULT_LOOK: GolferLook = { skin: 0xf0c8a0, shirt: 0x3f7bd0, hat: 0xf5f5f0, hair: 0x5a4632 };
 
-/**
- * Rewrite the merged club mesh's vertices so the club hangs straight down the
- * local -Y axis: grip top at the origin, head at y = -CLUB_LEN, shaft on the
- * x=z=0 line. The source GLB is authored leaning diagonally, so this must be
- * derived from the geometry: the principal axis via power iteration on the
- * vertex covariance, the grip end identified as the THINNER of the two ends
- * (the head is the wide one). Girth fattening is applied per-vertex — full
- * CLUB_GIRTH on the shaft, CLUB_HEAD_GIRTH on the head, blended at the hosel —
- * so the shaft reads chunky-arcadey without inflating the head into a slab.
- */
-function normalizeClubGeometry(mesh: Mesh, faceYaw = 0): void {
-  const pos = mesh.getVerticesData(VertexBuffer.PositionKind);
-  const nrm = mesh.getVerticesData(VertexBuffer.NormalKind);
-  if (!pos) return;
-  const n = pos.length / 3;
-  // Centroid + principal axis (power iteration on the covariance matrix).
-  let cx = 0;
-  let cy = 0;
-  let cz = 0;
-  for (let i = 0; i < n; i++) {
-    cx += pos[i * 3];
-    cy += pos[i * 3 + 1];
-    cz += pos[i * 3 + 2];
-  }
-  cx /= n;
-  cy /= n;
-  cz /= n;
-  let xx = 0;
-  let xy = 0;
-  let xz = 0;
-  let yy = 0;
-  let yz = 0;
-  let zz = 0;
-  for (let i = 0; i < n; i++) {
-    const dx = pos[i * 3] - cx;
-    const dy = pos[i * 3 + 1] - cy;
-    const dz = pos[i * 3 + 2] - cz;
-    xx += dx * dx;
-    xy += dx * dy;
-    xz += dx * dz;
-    yy += dy * dy;
-    yz += dy * dz;
-    zz += dz * dz;
-  }
-  let ax = 0;
-  let ay = 1;
-  let az = 0;
-  for (let it = 0; it < 24; it++) {
-    const nx = xx * ax + xy * ay + xz * az;
-    const ny = xy * ax + yy * ay + yz * az;
-    const nz = xz * ax + yz * ay + zz * az;
-    const len = Math.hypot(nx, ny, nz) || 1;
-    ax = nx / len;
-    ay = ny / len;
-    az = nz / len;
-  }
-  // Project vertices onto the axis; find the two ends and their perpendicular
-  // spread. The grip end is the thin one — point the axis grip-ward (+).
-  let tMin = Infinity;
-  let tMax = -Infinity;
-  const ts = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const t = (pos[i * 3] - cx) * ax + (pos[i * 3 + 1] - cy) * ay + (pos[i * 3 + 2] - cz) * az;
-    ts[i] = t;
-    if (t < tMin) tMin = t;
-    if (t > tMax) tMax = t;
-  }
-  const span = tMax - tMin || 1;
-  let loSpread = 0;
-  let loCount = 0;
-  let hiSpread = 0;
-  let hiCount = 0;
-  for (let i = 0; i < n; i++) {
-    const f = (ts[i] - tMin) / span;
-    if (f > 0.18 && f < 0.82) continue;
-    const dx = pos[i * 3] - cx;
-    const dy = pos[i * 3 + 1] - cy;
-    const dz = pos[i * 3 + 2] - cz;
-    const t = ts[i];
-    const px = dx - t * ax;
-    const py = dy - t * ay;
-    const pz = dz - t * az;
-    const r = Math.hypot(px, py, pz);
-    if (f <= 0.18) {
-      loSpread += r;
-      loCount++;
-    } else {
-      hiSpread += r;
-      hiCount++;
-    }
-  }
-  const loAvg = loCount ? loSpread / loCount : 0;
-  const hiAvg = hiCount ? hiSpread / hiCount : 0;
-  if (loAvg < hiAvg) {
-    // Grip is at the low end — flip the axis so + points at the grip.
-    ax = -ax;
-    ay = -ay;
-    az = -az;
-  }
-  // Rotation carrying the (unit) axis onto +Y, as a row-major 3x3 matrix.
-  const q = new Quaternion();
-  Quaternion.FromUnitVectorsToRef(new Vector3(ax, ay, az), Vector3.Up(), q);
-  const { x: qx, y: qy, z: qz, w: qw } = q;
-  const m00 = 1 - 2 * (qy * qy + qz * qz);
-  const m01 = 2 * (qx * qy - qz * qw);
-  const m02 = 2 * (qx * qz + qy * qw);
-  const m10 = 2 * (qx * qy + qz * qw);
-  const m11 = 1 - 2 * (qx * qx + qz * qz);
-  const m12 = 2 * (qy * qz - qx * qw);
-  const m20 = 2 * (qx * qz - qy * qw);
-  const m21 = 2 * (qy * qz + qx * qw);
-  const m22 = 1 - 2 * (qx * qx + qy * qy);
-  // Rotate about the centroid, then shift so the grip top sits at the origin
-  // with the shaft axis on x=z=0, and scale the length to CLUB_LEN. After the
-  // rotation, a vertex's Y equals its axis projection t (grip at t = tMax).
-  const scale = CLUB_LEN / span;
-  for (let i = 0; i < n; i++) {
-    const dx = pos[i * 3] - cx;
-    const dy = pos[i * 3 + 1] - cy;
-    const dz = pos[i * 3 + 2] - cz;
-    const rx = m00 * dx + m01 * dy + m02 * dz;
-    const ry = m10 * dx + m11 * dy + m12 * dz;
-    const rz = m20 * dx + m21 * dy + m22 * dz;
-    pos[i * 3] = rx;
-    pos[i * 3 + 1] = ry;
-    pos[i * 3 + 2] = rz;
-    if (nrm) {
-      const nx0 = nrm[i * 3];
-      const ny0 = nrm[i * 3 + 1];
-      const nz0 = nrm[i * 3 + 2];
-      const nx = m00 * nx0 + m01 * ny0 + m02 * nz0;
-      const ny = m10 * nx0 + m11 * ny0 + m12 * nz0;
-      const nz = m20 * nx0 + m21 * ny0 + m22 * nz0;
-      const len = Math.hypot(nx, ny, nz) || 1;
-      nrm[i * 3] = nx / len;
-      nrm[i * 3 + 1] = ny / len;
-      nrm[i * 3 + 2] = nz / len;
-    }
-  }
-  // SQUARE THE FACE: after the axis alignment, the club's rotation AROUND the
-  // shaft is whatever the source happened to be authored at — which is exactly
-  // the "club looks twisted at address" bug when a new model comes in. The
-  // head is a one-sided lump (blade/mallet extending away from the hosel), so
-  // yaw the whole club about Y until the head's lateral centroid points +X
-  // (toe out to the golfer's right, face toward the ball line).
-  let hx = 0;
-  let hz = 0;
-  let hn = 0;
-  for (let i = 0; i < n; i++) {
-    if ((ts[i] - tMin) / span > 0.18) continue; // head = far (thick) end
-    hx += pos[i * 3];
-    hz += pos[i * 3 + 2];
-    hn++;
-  }
-  const hLen = Math.hypot(hx, hz);
-  if (hn && hLen > 1e-6) {
-    const ca = hx / hLen;
-    const sa = -(hz / hLen); // rotate head offset onto +X
-    for (let i = 0; i < n; i++) {
-      const x0 = pos[i * 3];
-      const z0 = pos[i * 3 + 2];
-      pos[i * 3] = ca * x0 - sa * z0;
-      pos[i * 3 + 2] = sa * x0 + ca * z0;
-      if (nrm) {
-        const nx0 = nrm[i * 3];
-        const nz0 = nrm[i * 3 + 2];
-        nrm[i * 3] = ca * nx0 - sa * nz0;
-        nrm[i * 3 + 2] = sa * nx0 + ca * nz0;
-      }
-    }
-  }
-  // Optional extra quarter-turn AFTER squaring. The squaring above points the
-  // head's LONG axis down the line — right for a blade iron, wrong for a
-  // putter, whose long axis is the face itself: it left the putter's TOE
-  // aimed at the cup (playtest). faceYaw spins the club about the shaft to
-  // put the face, not the toe, on the line.
-  if (faceYaw !== 0) {
-    const ca = Math.cos(faceYaw);
-    const sa = Math.sin(faceYaw);
-    for (let i = 0; i < n; i++) {
-      const x0 = pos[i * 3];
-      const z0 = pos[i * 3 + 2];
-      pos[i * 3] = ca * x0 - sa * z0;
-      pos[i * 3 + 2] = sa * x0 + ca * z0;
-      if (nrm) {
-        const nx0 = nrm[i * 3];
-        const nz0 = nrm[i * 3 + 2];
-        nrm[i * 3] = ca * nx0 - sa * nz0;
-        nrm[i * 3 + 2] = sa * nx0 + ca * nz0;
-      }
-    }
-  }
-  // Scale to CLUB_LEN with the grip top at the origin, and fatten the shaft
-  // (full CLUB_GIRTH) vs the head (CLUB_HEAD_GIRTH), blended at the hosel.
-  const blend = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const y = (pos[i * 3 + 1] - tMax) * scale; // grip top → 0, head → -CLUB_LEN
-    const f = Math.min(1, Math.max(0, (-y / CLUB_LEN - (1 - CLUB_HEAD_FRAC - 0.06)) / 0.12));
-    const s = f * f * (3 - 2 * f);
-    blend[i] = s;
-    const girth = CLUB_GIRTH + (CLUB_HEAD_GIRTH - CLUB_GIRTH) * s;
-    pos[i * 3] = pos[i * 3] * scale * girth;
-    pos[i * 3 + 1] = y;
-    pos[i * 3 + 2] = pos[i * 3 + 2] * scale * girth;
-  }
-  // Inflate the HEAD uniformly about its own centroid (CLUB_HEAD_SCALE), then
-  // shift the whole club so the enlarged head's sole returns to -CLUB_LEN —
-  // the holder's address pose keys off that depth.
-  if ((CLUB_HEAD_SCALE as number) !== 1) {
-    let hcx = 0;
-    let hcy = 0;
-    let hcz = 0;
-    let hw = 0;
-    for (let i = 0; i < n; i++) {
-      if (blend[i] < 0.98) continue;
-      hcx += pos[i * 3];
-      hcy += pos[i * 3 + 1];
-      hcz += pos[i * 3 + 2];
-      hw++;
-    }
-    if (hw > 0) {
-      hcx /= hw;
-      hcy /= hw;
-      hcz /= hw;
-      let minY = 0;
-      for (let i = 0; i < n; i++) {
-        const g = 1 + (CLUB_HEAD_SCALE - 1) * blend[i];
-        pos[i * 3] = hcx + (pos[i * 3] - hcx) * g;
-        pos[i * 3 + 1] = hcy + (pos[i * 3 + 1] - hcy) * g;
-        pos[i * 3 + 2] = hcz + (pos[i * 3 + 2] - hcz) * g;
-        if (pos[i * 3 + 1] < minY) minY = pos[i * 3 + 1];
-      }
-      const lift = -CLUB_LEN - minY; // >0 when the head grew past the sole line
-      for (let i = 0; i < n; i++) pos[i * 3 + 1] += lift * blend[i];
-    }
-  }
-  mesh.setVerticesData(VertexBuffer.PositionKind, pos);
-  if (nrm) mesh.setVerticesData(VertexBuffer.NormalKind, nrm);
-  mesh.refreshBoundingInfo();
-}
 
 /**
- * The iron blade's silhouette as an extruded outline — a REAL blade shape
+ * The blade head's silhouette as an extruded outline — a REAL blade shape
  * (playtest: "it shouldn't be a rectangle: taper towards the shaft, rounded
  * toe"). Part-local frame: +X is the heel/shaft end (short), -X the toe
  * (tall, rounded), Y up, thickness along Z. Front-face fan + back-face fan +
  * side wall quads; the outline is star-shaped about its centroid so a
  * centroid fan triangulates it safely.
+ *
+ * `half` is the half-thickness along Z and `scale` grows the silhouette
+ * uniformly — the driver reuses the iron's outline scaled up (ClubTuning).
+ * `heightScale` stretches the silhouette UPWARD only (anchored at the sole
+ * edge, y = -0.21·scale) so a taller head never digs into the ground.
+ * `shape` 'rect' swaps the blade silhouette for a perfect rectangle over the
+ * same span — no taper, no rounded toe (the putter, per playtest).
  */
-function createIronBlade(scene: Scene, name: string): Mesh {
+function createBladeHead(
+  scene: Scene,
+  name: string,
+  half: number,
+  scale: number,
+  heightScale: number,
+  shape: 'blade' | 'rect' = 'blade'
+): Mesh {
   // Counterclockwise viewed from the front (+Z): heel bottom → heel top →
   // top line rising to the toe → rounded toe arc → sole back to the heel.
-  const outline: Array<[number, number]> = [
-    [0.475, -0.21], // heel bottom (at the hosel)
-    [0.475, 0.03], // heel top — short: the blade tapers toward the shaft
-    [0.1, 0.19], // top line rising toward the toe
-    [-0.18, 0.23], // top of the toe
-    [-0.36, 0.19], // rounded toe arc...
-    [-0.45, 0.08],
-    [-0.475, -0.06],
-    [-0.43, -0.17],
-    [-0.34, -0.21] // toe bottom, sole runs back to the heel
-  ];
-  const h = 0.06; // half thickness
+  const SOLE_Y = -0.21;
+  const points: Array<[number, number]> =
+    shape === 'rect'
+      ? [
+          [0.475, -0.21],
+          [0.475, 0.23],
+          [-0.475, 0.23],
+          [-0.475, -0.21]
+        ]
+      : [
+          [0.475, -0.21], // heel bottom (at the hosel)
+          [0.475, 0.03], // heel top — short: the blade tapers toward the shaft
+          [0.1, 0.19], // top line rising toward the toe
+          [-0.18, 0.23], // top of the toe
+          [-0.36, 0.19], // rounded toe arc...
+          [-0.45, 0.08],
+          [-0.475, -0.06],
+          [-0.43, -0.17],
+          [-0.34, -0.21] // toe bottom, sole runs back to the heel
+        ];
+  const outline = points.map(
+    ([x, y]) => [x * scale, (SOLE_Y + (y - SOLE_Y) * heightScale) * scale] as [number, number]
+  );
+  const h = half; // half thickness
   const n = outline.length;
   // Vertices: front ring, back ring, front centroid, back centroid.
   let cx = 0;
@@ -388,36 +153,117 @@ function createIronBlade(scene: Scene, name: string): Mesh {
 }
 
 /**
+ * Tunable proportions for the procedural clubs. The IRON is the master shape
+ * (playtest: "the iron we built is the starting point"); the DRIVER is that
+ * same head scaled up ~30% on a longer shaft, so the pair reads as a family.
+ * Kept as data (not scattered literals) so the club lab (`rebuildClubs`) can
+ * preview variants live for art review.
+ */
+export interface ClubTuning {
+  /** Iron blade half-thickness (front-to-back). The whole head should read
+   *  barely thicker than the shaft (SHAFT_DIA) per playtest. */
+  ironBladeHalf: number;
+  /** Iron sole bar behind the bottom edge (pre-scale height/depth/back
+   *  offset), or null for the flattest read — the blade alone is the head. */
+  ironSole: { height: number; depth: number; back: number } | null;
+  /** Upward-only stretch of the iron silhouette (sole edge stays put). */
+  ironHeadHeight: number;
+  /** Driver head size relative to the iron head (~1.45 per playtest). */
+  driverHeadScale: number;
+  /** Upward-only stretch of the driver silhouette — tall enough that the
+   *  head tops the (oversized) ball at address per playtest. */
+  driverHeadHeight: number;
+  /** Driver blade half-thickness BEFORE driverHeadScale. The driver keeps the
+   *  original chunky depth (0.06) so it still reads as a wood while the iron
+   *  goes thin. */
+  driverBladeHalf: number;
+  /** Driver sole bar, pre-scale — the deeper body behind the face. */
+  driverSole: { height: number; depth: number; back: number } | null;
+  /** Extra driver shaft length ABOVE the hands. Lengthening downward would
+   *  push the head underground / away from the ball, so the longer club grows
+   *  out the butt end past the grip (like a real address, where the butt
+   *  clears the top hand) and the head stays exactly where the iron soles. */
+  driverButtExtra: number;
+  /** Putter blade half-thickness — slimmer than even the razor iron. */
+  putterBladeHalf: number;
+  /** Height of the putter rectangle as a fraction of the blade silhouette's
+   *  full height (shorter top-to-bottom than the iron per playtest). */
+  putterHeadHeight: number;
+}
+
+export const DEFAULT_CLUB_TUNING: ClubTuning = {
+  ironBladeHalf: 0.045,
+  ironSole: null,
+  ironHeadHeight: 1.25,
+  driverHeadScale: 1.45,
+  driverHeadHeight: 1.2,
+  driverBladeHalf: 0.075,
+  driverSole: { height: 0.11, depth: 0.16, back: 0.04 },
+  driverButtExtra: 0.35,
+  putterBladeHalf: 0.03,
+  putterHeadHeight: 0.75
+};
+
+/** Shaft diameter — the iron head thickness is tuned against this. Was
+ *  0.085; ×1.3 per playtest so the shaft carries the chunkier heads. */
+const SHAFT_DIA = 0.11;
+
+/**
  * Build a playable club from primitives, Mario-Golf style: a clean straight
- * shaft with a dark grip and one simple chunky head — an angled blade for the
- * iron, a rounded wood for the driver (reference shots supplied in playtest;
- * four uploaded club models in a row failed to read right, so the clubs are
- * now OURS: every dimension is a tunable constant below).
+ * shaft with a dark grip and one simple blade head shared by ALL THREE clubs
+ * — the iron thin (barely thicker than the shaft), the driver the same head
+ * scaled up ~45% and chunkier on a longer shaft, the putter a slimmer,
+ * shorter PERFECT RECTANGLE of the same construction (reference shots
+ * supplied in playtest; uploaded club models in a row failed to read right,
+ * so the clubs are now OURS: every dimension is a tunable in ClubTuning).
  *
  * Local convention matches what the old model normalizer produced, so the
  * shared holder pose and swing animation are untouched: grip top at the
- * origin, shaft straight down -Y, sole at y = -CLUB_LEN, toe out along +X,
- * face toward the ball line (+Z after the address pose).
+ * origin (driver: at +driverButtExtra), shaft straight down -Y, sole at
+ * y = -CLUB_LEN, toe out along +X, face toward the ball line (+Z after the
+ * address pose).
  *
  * The steel material is shared (skin-tintable via setClubSkin); the grip keeps
  * its own fixed dark material through a multi-material merge.
  */
-function buildProceduralClub(scene: Scene, kind: 'iron' | 'driver', steel: StandardMaterial): Mesh {
+function buildProceduralClub(
+  scene: Scene,
+  kind: 'iron' | 'driver' | 'putter',
+  steel: StandardMaterial,
+  tuning: ClubTuning = DEFAULT_CLUB_TUNING
+): Mesh {
   const grip = m(scene, `${kind}Grip`, 0x2b2e33, 0.15);
   const parts: Mesh[] = [];
+  const spec = {
+    iron: { s: 1, half: tuning.ironBladeHalf, sole: tuning.ironSole, butt: 0, height: tuning.ironHeadHeight, shape: 'blade' as const },
+    driver: {
+      s: tuning.driverHeadScale,
+      half: tuning.driverBladeHalf * tuning.driverHeadScale,
+      sole: tuning.driverSole,
+      butt: tuning.driverButtExtra,
+      height: tuning.driverHeadHeight,
+      shape: 'blade' as const
+    },
+    putter: { s: 1, half: tuning.putterBladeHalf, sole: null, butt: 0, height: tuning.putterHeadHeight, shape: 'rect' as const }
+  }[kind];
+  const { s, butt } = spec;
+  const bladeHalf = spec.half;
+  const soleSpec = spec.sole;
 
-  // Shaft: grip top at y=0 down to the hosel. Thin but visible at gameplay
-  // distance (the old models' pencil shafts read as wires).
-  const shaftLen = CLUB_LEN - 0.14;
-  const shaft = MeshBuilder.CreateCylinder(`${kind}Shaft`, { diameter: 0.085, height: shaftLen, tessellation: 10 }, scene);
-  shaft.position = new Vector3(0, -shaftLen / 2, 0);
+  // Shaft: grip top just above the hands (driver: the extra length extends
+  // the BUTT end up past the hands — the head end never moves) down to the
+  // hosel. Thin but visible at gameplay distance (the old models' pencil
+  // shafts read as wires).
+  const shaftLen = CLUB_LEN - 0.14 + butt;
+  const shaft = MeshBuilder.CreateCylinder(`${kind}Shaft`, { diameter: SHAFT_DIA, height: shaftLen, tessellation: 10 }, scene);
+  shaft.position = new Vector3(0, butt - shaftLen / 2, 0);
   shaft.material = steel;
   parts.push(shaft);
 
   // Grip: a fatter dark sleeve over the top of the shaft.
   const gripLen = 0.34;
-  const gripMesh = MeshBuilder.CreateCylinder(`${kind}GripM`, { diameter: 0.125, height: gripLen, tessellation: 10 }, scene);
-  gripMesh.position = new Vector3(0, -gripLen / 2 + 0.01, 0);
+  const gripMesh = MeshBuilder.CreateCylinder(`${kind}GripM`, { diameter: 0.15, height: gripLen, tessellation: 10 }, scene);
+  gripMesh.position = new Vector3(0, butt - gripLen / 2 + 0.01, 0);
   gripMesh.material = grip;
   parts.push(gripMesh);
 
@@ -425,8 +271,7 @@ function buildProceduralClub(scene: Scene, kind: 'iron' | 'driver', steel: Stand
   // sits behind the ball, PERPENDICULAR to the target line — the face normal
   // points at the hole. Empirically mapped through the address pose: the ball
   // sits off local -Z at the sole, the hole direction is local -X, so parts
-  // authored with their face on +Z get a -90° yaw (normal → -X) and are
-  // PLACED along -Z (heel under the shaft, blade running away from the hole).
+  // authored with their face on +Z get a -90° yaw (normal → -X).
   // The heads are deliberately big — arcade clubs next to the oversized ball.
   const HEAD_YAW = -Math.PI / 2;
   const placeHeadPart = (part: Mesh, x: number, y: number, z: number, loft: number, yaw = HEAD_YAW): void => {
@@ -435,60 +280,53 @@ function buildProceduralClub(scene: Scene, kind: 'iron' | 'driver', steel: Stand
     part.material = steel;
     parts.push(part);
   };
-  if (kind === 'iron') {
-    // Blade: one long lofted slab; the big front face IS the face plane.
-    // Spun a further 180° in the hands vs the driver (playtest) so ITS face
-    // side is the one on the line.
-    // Offset a touch toward the golfer (+X) so the shaft visually enters the
-    // BACK of the head, and riding slightly high so the blade sits right
-    // behind the ball instead of digging in (playtest).
-    // The blade is a small sub-assembly shaped like a REAL iron: a thin
-    // lofted face slab, a thicker sole bar, and a muscle-back mass — thin top
-    // line, heavy bottom (playtest: "reshape the blade back to an actual iron
-    // blade shape"). All parts share the user-approved blade transform: the
-    // shaft junction at the blade's end, the head spreading toward the ball.
-    const IRON_LOFT = -0.22;
-    const IRON_YAW = HEAD_YAW + Math.PI;
-    const base = new Vector3(-0.1, -CLUB_LEN + 0.27, 0.36);
-    // Rotate a blade-frame offset by the blade's own orientation (RY·RX).
-    const bladeOff = (ox: number, oy: number, oz: number): Vector3 => {
-      const y1 = oy * Math.cos(IRON_LOFT) - oz * Math.sin(IRON_LOFT);
-      const z1 = oy * Math.sin(IRON_LOFT) + oz * Math.cos(IRON_LOFT);
-      return new Vector3(
-        base.x + ox * Math.cos(IRON_YAW) + z1 * Math.sin(IRON_YAW),
-        base.y + y1,
-        base.z - ox * Math.sin(IRON_YAW) + z1 * Math.cos(IRON_YAW)
-      );
-    };
-    const bladePart = (part: Mesh, ox: number, oy: number, oz: number): void => {
-      part.rotationQuaternion = Quaternion.FromEulerAngles(IRON_LOFT, IRON_YAW, 0);
-      part.position = bladeOff(ox, oy, oz);
-      part.material = steel;
-      parts.push(part);
-    };
-    // The blade itself: a custom extruded outline — short heel tapering into
-    // the shaft, rising top line, rounded toe (createIronBlade above).
-    const blade = createIronBlade(scene, `${kind}Blade`);
-    bladePart(blade, 0, 0.01, 0);
-    // A slim sole bar behind the bottom edge keeps the thick-bottom read.
-    const sole = MeshBuilder.CreateBox(`${kind}Sole`, { width: 0.7, height: 0.11, depth: 0.16 }, scene);
-    bladePart(sole, 0.05, -0.15, 0.04);
-    // Hosel: short neck joining the shaft bottom into the blade's back end.
-    const hosel = MeshBuilder.CreateCylinder(`${kind}Hosel`, { diameter: 0.1, height: 0.26, tessellation: 8 }, scene);
-    placeHeadPart(hosel, -0.03, -CLUB_LEN + 0.36, -0.02, 0);
-  } else {
-    // Driver: the same face-plane treatment, nearly upright (a driver's face
-    // is much less lofted), with a big rounded wood body tucked behind the
-    // plane on its -normal side (local +X), crown meeting the face top.
-    const loft = -0.1;
-    const face = MeshBuilder.CreateBox(`${kind}Face`, { width: 0.92, height: 0.5, depth: 0.12 }, scene);
-    placeHeadPart(face, 0, -CLUB_LEN + 0.25, -0.36, loft);
-    const head = MeshBuilder.CreateSphere(`${kind}Head`, { diameter: 1, segments: 12 }, scene);
-    head.scaling = new Vector3(0.62, 0.55, 0.95);
-    placeHeadPart(head, 0.22, -CLUB_LEN + 0.3, -0.36, loft);
-    const hosel = MeshBuilder.CreateCylinder(`${kind}Hosel`, { diameter: 0.1, height: 0.22, tessellation: 8 }, scene);
-    placeHeadPart(hosel, 0, -CLUB_LEN + 0.38, -0.04, 0);
+  // ONE head for all three clubs: the user-approved iron blade sub-assembly — a
+  // lofted face slab shaped like a REAL iron (short heel tapering into the
+  // shaft, rising top line, rounded toe) plus an optional sole bar. The
+  // driver is the SAME assembly at driverHeadScale, anchored so its sole
+  // stays on the iron's sole line (the blade-local bottom sits ~0.20·s below
+  // the anchor, so the anchor drops by the scale growth).
+  // Offset a touch toward the golfer (+X) so the shaft visually enters the
+  // BACK of the head, and riding slightly high so the blade sits right
+  // behind the ball instead of digging in (playtest).
+  // The anchor's Z places the heel end of the outline (blade-local +0.475·s,
+  // which maps onto club -Z) right AT the shaft axis, tucked 0.04 so they
+  // visibly join — the whole head spreads away from the golfer (playtest:
+  // "no clubhead between the shaft and the golfer").
+  const IRON_LOFT = -0.22;
+  const IRON_YAW = HEAD_YAW + Math.PI;
+  const base = new Vector3(-0.1, -CLUB_LEN + 0.27 - 0.2 * (s - 1), 0.475 * s - 0.04);
+  // Rotate a blade-frame offset by the blade's own orientation (RY·RX).
+  const bladeOff = (ox: number, oy: number, oz: number): Vector3 => {
+    const y1 = oy * Math.cos(IRON_LOFT) - oz * Math.sin(IRON_LOFT);
+    const z1 = oy * Math.sin(IRON_LOFT) + oz * Math.cos(IRON_LOFT);
+    return new Vector3(
+      base.x + ox * Math.cos(IRON_YAW) + z1 * Math.sin(IRON_YAW),
+      base.y + y1,
+      base.z - ox * Math.sin(IRON_YAW) + z1 * Math.cos(IRON_YAW)
+    );
+  };
+  const bladePart = (part: Mesh, ox: number, oy: number, oz: number): void => {
+    part.rotationQuaternion = Quaternion.FromEulerAngles(IRON_LOFT, IRON_YAW, 0);
+    part.position = bladeOff(ox * s, oy * s, oz * s);
+    part.material = steel;
+    parts.push(part);
+  };
+  const blade = createBladeHead(scene, `${kind}Blade`, bladeHalf, s, spec.height, spec.shape);
+  bladePart(blade, 0, 0.01, 0);
+  if (soleSpec) {
+    // A sole bar behind the bottom edge keeps the thick-bottom read (slim on
+    // the iron, deep on the driver so it still reads as a wood).
+    const sole = MeshBuilder.CreateBox(
+      `${kind}Sole`,
+      { width: 0.7 * s, height: soleSpec.height * s, depth: soleSpec.depth * s },
+      scene
+    );
+    bladePart(sole, 0.05, -0.15, soleSpec.back);
   }
+  // Hosel: short collar where the shaft plunges into the head's back end.
+  const hosel = MeshBuilder.CreateCylinder(`${kind}Hosel`, { diameter: 0.13, height: 0.26, tessellation: 8 }, scene);
+  placeHeadPart(hosel, -0.03, -CLUB_LEN + 0.36, -0.02, 0);
 
   // One mesh per club (single enable toggle + shadow caster), preserving the
   // per-part materials via a multi-material merge.
@@ -530,7 +368,7 @@ export class Golfer3D {
   private wristPivot!: TransformNode;
   /** The procedural iron (every full swing except the driver). */
   private clubModel: Mesh | null = null;
-  /** The putter model (putter.glb), swapped in on the green once loaded. */
+  /** The procedural putter (rectangular blade), shown on the green. */
   private putterModel: Mesh | null = null;
   /** The procedural rounded wood, shown when the driver is the selected club. */
   private driverModel: Mesh | null = null;
@@ -538,9 +376,10 @@ export class Golfer3D {
   private clubModelMat!: StandardMaterial;
   private clubKind: 'swing' | 'putter' | 'driver' = 'swing';
   private clubHolder: TransformNode | null = null;
+  /** Kept so rebuildClubs (club lab) can re-register shadow casters. */
+  private shadowGen: ShadowGenerator | null = null;
   /** 1 = full address pose deltas applied, 0 = raw swing pose. */
   private addressBlend = 1;
-  private pendingClubSkin: number | undefined;
   private torso!: TransformNode;
   private head!: TransformNode;
   private hips!: TransformNode;
@@ -649,6 +488,7 @@ export class Golfer3D {
   /** Shoulder pivot → wrist pivot → shaft + head, in the golfer's local frame.
    * Kept for every golfer — this is what actually animates the swing. */
   private buildClubRig(scene: Scene, shadows: ShadowGenerator, look: GolferLook): void {
+    this.shadowGen = shadows;
     const cast = (mesh: Mesh): Mesh => {
       shadows.addShadowCaster(mesh);
       return mesh;
@@ -681,58 +521,50 @@ export class Golfer3D {
     holder.position = new Vector3(0.12, -0.05, 0.2);
     holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
     this.clubHolder = holder;
-    // The playable clubs are PROCEDURAL (Mario-Golf-style: clean shaft + simple
-    // chunky head) — built synchronously so a club is always in hand, no
-    // placeholder needed. Only the putter still ships as a model (loaded async).
-    this.clubModelMat = m(scene, 'clubModelMat', 0xc2cad2, 0.7);
+    // ALL clubs are PROCEDURAL (Mario-Golf-style: clean shaft + one blade-head
+    // construction shared by iron/driver/putter) — built synchronously so a
+    // club is always in hand, no placeholder or async model load needed.
+    // Solid-silver steel (playtest: the lit/unlit split on the flat-shaded
+    // blade read "weird"): a strong emissive floor keeps every facet silver
+    // while a dimmed diffuse leaves just enough shading for form, and the
+    // specular stays low so no facet blows out to white.
+    this.clubModelMat = m(scene, 'clubModelMat', 0xc2cad2, 0.1);
+    this.clubModelMat.diffuseColor = c3(0xc2cad2).scale(0.45);
+    this.clubModelMat.emissiveColor = c3(0xc2cad2).scale(0.6);
     this.clubModel = cast(buildProceduralClub(scene, 'iron', this.clubModelMat));
     this.driverModel = cast(buildProceduralClub(scene, 'driver', this.clubModelMat));
-    for (const club of [this.clubModel, this.driverModel]) {
+    this.putterModel = cast(buildProceduralClub(scene, 'putter', this.clubModelMat));
+    for (const club of [this.clubModel, this.driverModel, this.putterModel]) {
       club.parent = holder;
       club.receiveShadows = false;
     }
     this.clubModel.setEnabled(this.clubKind === 'swing');
     this.driverModel.setEnabled(this.clubKind === 'driver');
+    this.putterModel.setEnabled(this.clubKind === 'putter');
     this.applyAddressClubPose();
-    this.loadClubModel(scene, shadows);
   }
 
-  /**
-   * Load the one remaining club MODEL: the putter (the iron and driver are
-   * procedural, built synchronously in buildClubRig). Normalized like before
-   * (grip at origin, hanging down -Y) plus a face-fix quarter turn: the
-   * squaring step points the head's long axis down the line, which for a
-   * putter blade aims the TOE at the hole (playtest) — the extra yaw turns the
-   * blade perpendicular so its FACE addresses the cup.
-   */
-  private loadClubModel(scene: Scene, shadows: ShadowGenerator): void {
-    void LoadAssetContainerAsync('models/equipment/putter.glb', scene)
-      .then((container) => {
-        container.addAllToScene();
-        const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
-        const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
-        if (!merged) return;
-        merged.material = this.clubModelMat;
-        normalizeClubGeometry(merged, Math.PI / 2);
-        merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
-        merged.position = Vector3.Zero();
-        merged.parent = this.clubHolder;
-        this.applyAddressClubPose();
-        merged.receiveShadows = false;
-        shadows.addShadowCaster(merged);
-        this.putterModel = merged;
-        merged.setEnabled(this.clubKind === 'putter');
-        if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
-        // The putter glb resolves AFTER `ready` (a separate fire-and-forget
-        // load), so the shared warmupShaders pass in main.ts misses it — compile
-        // its shader now so the cost falls in the flyover, not on the meter.
-        void (this.clubModelMat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
-          .forceCompilationAsync?.(merged)
-          .catch(() => undefined);
-      })
-      .catch(() => {
-        /* decorative: without the model the procedural iron stays in hand */
-      });
+  /** Rebuild the procedural clubs with proportion overrides. Art-lab hook
+   *  (screenshot harness / live tuning) — production callers never pass
+   *  overrides, so the defaults ARE the shipped clubs. */
+  rebuildClubs(overrides?: Partial<ClubTuning>): void {
+    if (!this.clubHolder) return;
+    const scene = this.root.getScene();
+    const tuning: ClubTuning = { ...DEFAULT_CLUB_TUNING, ...overrides };
+    this.clubModel?.dispose();
+    this.driverModel?.dispose();
+    this.putterModel?.dispose();
+    this.clubModel = buildProceduralClub(scene, 'iron', this.clubModelMat, tuning);
+    this.driverModel = buildProceduralClub(scene, 'driver', this.clubModelMat, tuning);
+    this.putterModel = buildProceduralClub(scene, 'putter', this.clubModelMat, tuning);
+    for (const club of [this.clubModel, this.driverModel, this.putterModel]) {
+      club.parent = this.clubHolder;
+      club.receiveShadows = false;
+      this.shadowGen?.addShadowCaster(club);
+    }
+    this.clubModel.setEnabled(this.clubKind === 'swing');
+    this.driverModel.setEnabled(this.clubKind === 'driver');
+    this.putterModel.setEnabled(this.clubKind === 'putter');
   }
 
   /** Show the putter on the green, the driver off the tee, the iron everywhere
@@ -743,14 +575,21 @@ export class Golfer3D {
     this.clubModel?.setEnabled(kind === 'swing');
     this.driverModel?.setEnabled(kind === 'driver');
     this.putterModel?.setEnabled(kind === 'putter');
+    // Stance reach differs per club — re-place so the ball stays centred on
+    // the new face even when the player switches clubs mid-aim.
+    if (this.lastPlace) {
+      const p = this.lastPlace;
+      this.placeAt(p.ballX, p.ballY, p.yaw, p.groundH);
+    }
   }
 
   /** Tint the clubs with the equipped clubskin colour. All clubs share one
    *  steel material (shaft + head take the colour; the dark grip sleeve keeps
-   *  its own material and stays put). Cosmetic only. */
+   *  its own material and stays put). Split across the same diffuse/emissive
+   *  balance as the stock silver so skins keep the solid, even read. */
   setClubSkin(color: number): void {
-    this.pendingClubSkin = color;
-    this.clubModelMat.diffuseColor = c3(color);
+    this.clubModelMat.diffuseColor = c3(color).scale(0.45);
+    this.clubModelMat.emissiveColor = c3(color).scale(0.6);
   }
 
   /** Tint the whole character kit by multiplying the 'characters' material's
@@ -910,12 +749,25 @@ export class Golfer3D {
   // -------------------------------------------------------------- placement
 
   /** Place the golfer beside the ball, facing along the 2D aim yaw. */
+  /** Last placeAt arguments, so a mid-aim club switch can re-place the golfer
+   *  at the stance distance that centres the ball on the new club's face. */
+  private lastPlace: { ballX: number; ballY: number; yaw: number; groundH: number } | null = null;
+
+  /** Per-club stance reach (world units on top of the base step): every head
+   *  pins its heel at the shaft with the face spreading away from the golfer,
+   *  so longer heads need the golfer further out for the ball to sit visually
+   *  in the MIDDLE of the face at address (playtest). Face centre offsets
+   *  measured in club-local Z × GOLFER_SCALE. */
+  private static readonly STANCE_REACH = { swing: 0.1, putter: 0.1, driver: 0.41 } as const;
+
   placeAt(ballX: number, ballY: number, yaw: number, groundH = 0): void {
+    this.lastPlace = { ballX, ballY, yaw, groundH };
     // Stand a step left of the ball; the stance offset scales with the body so
     // a shrunk (putting-view) golfer still addresses the ball at arm's length
     // instead of a step away.
-    const leftX = Math.cos(yaw + Math.PI / 2) * 2.9 * this.sizeMult;
-    const leftY = Math.sin(yaw + Math.PI / 2) * 2.9 * this.sizeMult;
+    const step = (2.9 + Golfer3D.STANCE_REACH[this.clubKind]) * this.sizeMult;
+    const leftX = Math.cos(yaw + Math.PI / 2) * step;
+    const leftY = Math.sin(yaw + Math.PI / 2) * step;
     this.root.position = w2b(ballX - leftX, ballY - leftY, groundH);
     this.root.rotation.y = yaw + Math.PI;
   }
