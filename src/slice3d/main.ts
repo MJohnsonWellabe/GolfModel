@@ -2702,12 +2702,29 @@ function renderTournaments(preCode?: string): void {
   if (preCode) void openTournament(preCode.toUpperCase());
 }
 
-/** Create a 7-day tournament, PUT it, and surface the shareable code. */
-async function createTournamentFlow(): Promise<void> {
+/** Step 1 of creating a tournament: let the creator pick the course everyone
+ *  will play (it's fixed for all entrants), then hand off to the PUT. */
+function createTournamentFlow(): void {
+  const body = document.getElementById('tourBody');
+  if (!body) return;
+  const cards = COURSE_LIST.map(
+    (c) =>
+      `<div class="archCard modeCard" data-course="${c.id}">` +
+      `<span class="modeIcon">${c.icon}</span><span class="modeName">${escapeHtml(c.name)}</span>` +
+      `<span class="modeTag">${escapeHtml(c.tag)}</span></div>`
+  ).join('');
+  body.innerHTML = `<div class="recSub">Pick the course — everyone who joins plays it.</div><div class="modeGrid">${cards}</div>`;
+  body.querySelectorAll('.modeCard').forEach((el) =>
+    el.addEventListener('pointerdown', () => void createTournamentWithCourse((el as HTMLElement).dataset.course!))
+  );
+}
+
+/** Step 2: PUT the 7-day tournament on the chosen course and surface the code. */
+async function createTournamentWithCourse(courseId: string): Promise<void> {
   const body = document.getElementById('tourBody');
   if (body) body.innerHTML = `<div class="recEmpty">Creating…</div>`;
   const now = Date.now();
-  const course = COURSES[sel.courseId] ?? COURSES.wildwood;
+  const course = COURSES[courseId] ?? COURSES.wildwood;
   const meta: Tournament = {
     code: makeTournamentCode(),
     name: `${(profile.name || 'Player')}'s Cup`,
@@ -2731,7 +2748,7 @@ async function createTournamentFlow(): Promise<void> {
     `<div class="recSub">Share this link — friends who open it join automatically.</div>` +
     `<div class="tourShare">${escapeHtml(shareUrl)}</div>` +
     `<button id="tourPlay" class="tourAction">Play my round →</button>`;
-  document.getElementById('tourPlay')!.addEventListener('pointerdown', () => startTournamentRound(meta));
+  document.getElementById('tourPlay')!.addEventListener('pointerdown', () => playTournament(meta));
 }
 
 /** Fetch a tournament and show its standings + a Play button. */
@@ -2752,7 +2769,7 @@ async function openTournament(code: string): Promise<void> {
   const note = ended ? `<div class="recSub">This tournament has ended.</div>` : alreadyEntered ? `<div class="recSub">You've already posted a score.</div>` : '';
   body.innerHTML = renderStandingsHtml(data.meta, standings, myRank) + note + playBtn;
   const pb = document.getElementById('tourPlay');
-  if (pb) pb.addEventListener('pointerdown', () => startTournamentRound(data.meta));
+  if (pb) pb.addEventListener('pointerdown', () => playTournament(data.meta));
 }
 
 function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myRank: number): string {
@@ -2783,7 +2800,27 @@ function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myR
   return `<div class="tourHeadRow">🏁 ${escapeHtml(meta.name)} — ${status}${rank}</div>${meta2}${rows}`;
 }
 
-/** Start a solo round under a tournament's shared seed (Phase 8). */
+/** A tournament the player has chosen to enter, held while they go through the
+ *  setup wizard (Name/Character/Pals/Style). Mode + course are locked to the
+ *  tournament; on "Tee off" the wizard starts the round for this meta with the
+ *  freshly-picked golfer, style, and equipped pal (not the last-used ones). */
+let pendingTournament: Tournament | null = null;
+
+/** Enter a tournament: lock the mode + course, then send the player through the
+ *  setup wizard so they pick their own golfer, pal, and style before teeing off
+ *  (the round itself still runs under the tournament's shared seed). */
+function playTournament(meta: Tournament): void {
+  pendingTournament = meta;
+  sel.mode = 'solo';
+  sel.courseId = courseIdByName(meta.course);
+  closeOverlay(tournamentsEl());
+  setupEl.style.display = 'flex';
+  updateDailyBanner();
+  goStep(0);
+}
+
+/** Start a solo round under a tournament's shared seed (Phase 8), with the
+ *  golfer/style picked in the wizard just now. */
 function startTournamentRound(meta: Tournament): void {
   rememberTournament(meta.code, meta.name);
   round.course = COURSES[courseIdByName(meta.course)];
@@ -2795,7 +2832,12 @@ function startTournamentRound(meta: Tournament): void {
   round.seed = meta.seed;
   round.tournament = { code: meta.code, name: meta.name };
   shotAcc = freshShotAcc();
-  const golfer = assembleGolfer(profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  // Persist the wizard's picks like a normal round so they stick next launch.
+  profile.name = sel.name;
+  profile.character = sel.character;
+  profile.archetype = sel.archetype;
+  persistProfile();
+  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
   round.players = [{ golfer, isAI: false, scores: [] }];
   closeOverlay(tournamentsEl());
   setupEl.style.display = 'none';
@@ -3060,6 +3102,9 @@ const sel = {
  *  Tournament also skips the Course step — its three-course rota is drawn
  *  when the tournament starts. */
 function stepLabels(): string[] {
+  // Entering an online tournament: mode + course are locked to the tournament,
+  // so the wizard is just the personal picks.
+  if (pendingTournament) return ['Name', 'Character', 'Pals', 'Style'];
   if (sel.mode === 'aitour') return ['Mode', 'Name', 'Character', 'Pals', 'Style'];
   return sel.mode === 'solo'
     ? ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style']
@@ -3312,6 +3357,7 @@ function goStep(n: number): void {
 }
 
 function showSetup(): void {
+  pendingTournament = null; // a normal menu open is not a tournament entry
   setupEl.style.display = 'flex';
   updateDailyBanner();
   goStep(0);
@@ -3445,7 +3491,11 @@ renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
-  else startRound();
+  else if (pendingTournament) {
+    const t = pendingTournament;
+    pendingTournament = null;
+    startTournamentRound(t);
+  } else startRound();
 });
 
 /**
