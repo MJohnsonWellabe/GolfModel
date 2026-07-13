@@ -45,10 +45,10 @@ const MANIFEST = {
   tree_maple: 'Maple/SM_Maple_LOD.fbx',
   tree_aspen: 'Aspen/SM_Aspen_LOD.fbx',
   tree_poplar: { src: 'Poplar/SM_Poplar_LOD.fbx', ratio: 0.42 },
-  // Conifers (Timberline mix)
+  // Conifers (Timberline mix). tree_spruce_tall + tree_pine retired in Pass
+  // 10 (playtest) in favor of the Kenney pines below — sources stay in the
+  // pack if they're ever wanted back.
   tree_spruce: 'Spruce/SM_Spruce_LOD.fbx',
-  tree_spruce_tall: 'Big Hight Spruce/SM_Hight_Spruce_LOD.fbx',
-  tree_pine: { src: 'Pine/SM_Pine_LOD.fbx', ratio: 0.4 },
   // Deadwood storytelling (rough scatter on forest courses)
   tree_fallen: 'Fallen/SM_Fallen_Tree_LOD.fbx',
   tree_broken: 'Broken/SM_Broken_Tree_LOD.fbx',
@@ -112,7 +112,13 @@ const KENNEY_MANIFEST = {
   // mixed-quality forest-pack shrubs course-wide.
   bush_kenney_a: 'Bush_Common',
   bush_kenney_b: 'Plant_1_Big',
-  fern_kenney: 'Fern_1'
+  fern_kenney: 'Fern_1',
+  // Kenney low-poly pines, user-picked from an on-course catalog (Pass 10):
+  // k1 = the universal pine, k3 = Sable Bay's bare-trunk pine. Their
+  // Bark_NormalTree / Leaves_Pine slots recolor per theme like the FBX
+  // conifers'. (Pine_2/4/5 were unpicked candidates.)
+  tree_pine_k1: 'Pine_1',
+  tree_pine_k3: 'Pine_3'
 };
 
 /**
@@ -392,7 +398,7 @@ async function convertKenneyOne(key, stem) {
   delete gj.images;
   delete gj.textures;
   delete gj.samplers;
-  for (const m of gj.materials ?? []) {
+  (gj.materials ?? []).forEach((m, i) => {
     if (m.pbrMetallicRoughness) {
       delete m.pbrMetallicRoughness.baseColorTexture;
       delete m.pbrMetallicRoughness.metallicRoughnessTexture;
@@ -400,7 +406,13 @@ async function convertKenneyOne(key, stem) {
     delete m.normalTexture;
     delete m.occlusionTexture;
     delete m.emissiveTexture;
-  }
+    // Distinct factor per slot: with the textures stripped, sibling materials
+    // (bark vs leaves) become byte-identical and dedup() would MERGE them —
+    // collapsing the tree onto one slot and losing the per-slot recolor. The
+    // factor is invisible (recolored at load); it only blocks the merge.
+    m.pbrMetallicRoughness = m.pbrMetallicRoughness ?? {};
+    m.pbrMetallicRoughness.baseColorFactor = [1, 1 - i * 0.004, 1 - i * 0.002, 1];
+  });
   // Resolve the .bin by absolute path so the rewritten glTF reads from anywhere.
   for (const b of gj.buffers ?? []) if (b.uri) b.uri = path.join(KIT, b.uri);
   const tmp = path.join(work, `${stem}.gltf`);
