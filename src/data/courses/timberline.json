@@ -2063,7 +2063,7 @@
         {
           "type": "trees",
           "spacing": 28,
-          "visualSpacing": 16,
+          "visualSpacing": 24,
           "polygon": [
             [
               150,
