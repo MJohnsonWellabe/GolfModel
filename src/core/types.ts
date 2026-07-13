@@ -46,6 +46,11 @@ export interface Golfer {
   /** Optional stylized look for the procedural fallback body (used only when
    * no character model is set or a model fails to load). */
   look?: GolferLook;
+  /** Purchased club upgrades (family → tier). Baked into `stats` for the
+   * rating/accuracy bump, and read again in effectiveCarryYards for the
+   * reliable per-family carry bonus (the stat bump alone is lost to the 100
+   * cap for a golfer who already maxes the governing stat). */
+  clubUpgrades?: Record<string, number>;
 }
 
 /** Overall rating shown on select screens — mean of the five stats. */

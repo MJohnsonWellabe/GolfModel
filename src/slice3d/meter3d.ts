@@ -38,6 +38,25 @@ export function advanceCursor(
   return { cursor: clamp(c, 0, 1), dirSign: d };
 }
 
+/**
+ * Base full-length sweep time (ms) for the power cursor at a governing stat —
+ * the time the cursor would take to travel the WHOLE bar (0→1). Only the
+ * golfer's governing stat nudges it (worse golfer = a hair slower); it never
+ * depends on the hole, the lie or the club, so a full-power swing takes the
+ * same time everywhere. Kept pure + exported so the perf test can assert that
+ * "going to a full meter" is near-identical on every shot on every hole.
+ */
+export function baseSweepMs(stat: number): number {
+  return SWING.sweepMs + ((100 - clamp(stat, 0, 100)) / 100) * SWING.sweepStatBonusMs;
+}
+
+/** Time (ms) to sweep from the start to the FULL-power mark — the duration of
+ *  "pulling the meter to full". This is the quantity that must stay ~constant
+ *  across every full shot (perf test in tests/meterTiming.test.ts). */
+export function fullMeterSweepMs(stat: number): number {
+  return baseSweepMs(stat) * SWING.fullPowerMark;
+}
+
 export interface MeterContext {
   /** Governing accuracy stat 0..100 (widens the perfect band). */
   stat: number;
@@ -110,7 +129,7 @@ export class DomMeter {
   }
 
   private sweepSpeed(): number {
-    let ms = SWING.sweepMs + ((100 - this.ctx.stat) / 100) * SWING.sweepStatBonusMs;
+    let ms = baseSweepMs(this.ctx.stat);
     if (this.ctx.isPutt) ms *= 1.2;
     if (this.state === 'accuracy') ms /= SWING.accuracySweepMult;
     return 1 / ms;

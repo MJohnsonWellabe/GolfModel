@@ -50,7 +50,7 @@ import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProf
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem } from '../data/storeCatalog';
+import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
 import { Pal3D } from './pal3d';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
@@ -595,11 +595,14 @@ class HoleScene {
       this.aim.isPutting ? 'putter' : this.aim.club.id === 'driver' ? 'driver' : 'swing'
     );
     const fire = this.fires[this.turnIdx];
+    // A purchased iron/wedge/putter upgrade widens the perfect zone; fire LAYERS
+    // over it (multiplied), so an on-fire upgraded club reads an even wider band.
+    const upgradeZone = upgradePerfectZoneMult(this.aim.club.id, this.curPart().golfer.clubUpgrades ?? {});
     meter.arm({
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
-      perfectMult: fire.perfectZoneMultiplier,
+      perfectMult: fire.perfectZoneMultiplier * upgradeZone,
       difficultyMult: this.swingDifficulty()
     });
     meterEl.style.display = 'block';
@@ -743,7 +746,10 @@ class HoleScene {
     // portrait frame so the swing meter (pinned above the SWING button, which
     // caps how low it can sit) no longer covers the club at address (playtest:
     // "power meter blocks out the club").
-    this.camTarget.pos = base.subtract(f.scale(26)).add(new Vector3(0, 18, 0));
+    // Camera dropped from +18 to +15: a lower, flatter vantage lifts the ball
+    // higher in the portrait frame so it clears the swing bar/meter at the
+    // bottom of the screen (playtest: "bar is still blocking address").
+    this.camTarget.pos = base.subtract(f.scale(26)).add(new Vector3(0, 15, 0));
     this.camTarget.look = base.add(f.scale(50)).add(new Vector3(0, 1, 0));
     this.camTarget.k = 4;
     this.camTarget.fov = 1.05;

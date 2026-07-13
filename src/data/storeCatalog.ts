@@ -1,4 +1,5 @@
 import { GolferStats } from '../core/types';
+import { SWING } from '../config';
 import { CharacterKey } from './characters';
 import { PalKey } from './pals';
 
@@ -175,19 +176,22 @@ export const STORE_CATALOG: StoreItem[] = [
 
 export const STORE_BY_ID = new Map(STORE_CATALOG.map((i) => [i.id, i]));
 
-/** Per-family upgrade: which stats it lifts. Each tier adds +3. */
-const FAMILY_STATS: Record<UpgradeFamily, Array<keyof GolferStats>> = {
-  driver: ['drivingPower', 'drivingAccuracy'],
-  irons: ['approach'],
-  wedges: ['chipping'],
-  putter: ['putting']
+/** Per-family upgrade stat lift. ONLY the driver lifts stats now: it buys
+ *  distance (effectiveCarryYards) and its bump also shows on the select card
+ *  and sharpens driving accuracy. The iron/wedge/putter upgrades deliberately
+ *  lift NO stat — they must not change how far those clubs go (playtest). Their
+ *  benefit is a wider swing-meter perfect zone instead (upgradePerfectZoneMult).
+ */
+const FAMILY_STATS: Partial<Record<UpgradeFamily, Array<keyof GolferStats>>> = {
+  driver: ['drivingPower', 'drivingAccuracy']
 };
 
-/** Apply the profile's purchased club upgrades to a base stat block. Upgrades
- *  push PAST the 100 rating ceiling (a Big Hitter's power reads "100+3" and
- *  genuinely plays at 103) — a purchased upgrade must never be a silent no-op
- *  on the archetype that already maxes that stat. 110 is a sanity bound the
- *  current catalog can't reach, not a design target. */
+/** Apply the profile's purchased club upgrades to a base stat block. Only the
+ *  DRIVER upgrade touches the stats, and it pushes PAST the 100 rating ceiling
+ *  (a Big Hitter's power reads "100+3") — the real carry gain comes from the
+ *  distance multiplier in effectiveCarryYards, since the stat is capped at 100
+ *  for distance. Iron/wedge/putter upgrades are no-ops here by design (see
+ *  FAMILY_STATS / upgradePerfectZoneMult). 110 is a sanity bound. */
 export function applyClubUpgrades(stats: GolferStats, clubUpgrades: Record<string, number>): GolferStats {
   const out = { ...stats };
   for (const [family, tier] of Object.entries(clubUpgrades)) {
@@ -196,4 +200,31 @@ export function applyClubUpgrades(stats: GolferStats, clubUpgrades: Record<strin
     for (const k of keys) out[k] = Math.min(110, out[k] + tier * 3);
   }
   return out;
+}
+
+/** Which upgrade family governs a club — mirrors the stat mapping in
+ *  PhysicsEngine.statsForClub (woods↔driver, wedges↔wedges, putter↔putter,
+ *  everything else↔irons). One source of truth for both the carry bonus
+ *  (driver) and the perfect-zone bonus (irons/wedges/putter). */
+export function upgradeFamilyForClub(clubId: string): UpgradeFamily {
+  if (clubId === 'driver' || clubId === '3w' || clubId === '5w') return 'driver';
+  if (clubId === 'putter') return 'putter';
+  if (clubId === 'pw' || clubId === 'sw') return 'wedges';
+  return 'irons';
+}
+
+/** Swing-meter perfect-zone multiplier a club earns from purchased upgrades.
+ *  Only the SHORT clubs (irons/wedges/putter) get it — the driver upgrade buys
+ *  distance instead (family 'driver' → 1). Tier 1 sits HALFWAY between a normal
+ *  meter and today's on-fire meter; tier 2 EQUALS today's on-fire widening.
+ *  Fire then LAYERS on top: the meter multiplies this by the live fire
+ *  multiplier, so an on-fire upgraded club gets an even wider perfect band
+ *  (playtest design). */
+export function upgradePerfectZoneMult(clubId: string, clubUpgrades: Record<string, number>): number {
+  const fam = upgradeFamilyForClub(clubId);
+  if (fam === 'driver') return 1;
+  const tier = clubUpgrades[fam] ?? 0;
+  if (tier <= 0) return 1;
+  const fire = SWING.firePerfectMult;
+  return tier === 1 ? 1 + (fire - 1) * 0.5 : fire;
 }

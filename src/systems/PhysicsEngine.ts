@@ -130,6 +130,26 @@ function clubFamily(club: ClubSpec): string {
   return 'iron';
 }
 
+/** Extra carry FRACTION each purchased DRIVER upgrade tier adds. The store's
+ *  "+3" driver (tier 1) carries 103% of stock, "+6" (tier 2) 106%. Applied as a
+ *  reliable distance multiplier because the upgrade's stat bump is swallowed by
+ *  the 100-rating cap for any golfer who already maxes driving power — a Big
+ *  Hitter's driver saw ZERO extra carry from a purchased upgrade (playtest: "the
+ *  +3 driver should increase the distance more"). */
+export const UPGRADE_CARRY_PER_TIER = 0.03;
+
+/** Per-club carry multiplier from the golfer's purchased upgrades. ONLY the
+ *  woods (the driver family) gain distance; the iron/wedge/putter upgrades
+ *  deliberately leave distance untouched and instead widen the swing-meter
+ *  perfect zone (storeCatalog.upgradePerfectZoneMult), so this returns 1 for
+ *  every non-wood club (playtest: "iron/wedge/putter upgrades shouldn't change
+ *  the distance you hit them"). */
+function upgradeCarryMult(club: ClubSpec, golfer: Golfer): number {
+  const ups = golfer.clubUpgrades;
+  if (!ups || clubFamily(club) !== 'wood') return 1;
+  return 1 + (ups.driver ?? 0) * UPGRADE_CARRY_PER_TIER;
+}
+
 /** Effective full-power carry (yards) for a club/golfer/lie combination. */
 export function effectiveCarryYards(
   club: ClubSpec,
@@ -147,7 +167,7 @@ export function effectiveCarryYards(
   // wedges and the putter are untouched so approach play and the GDD scoring
   // balance hold.
   const distScale = clubFamily(club) === 'wood' ? PHYSICS.driveDistanceScale : 1;
-  return club.baseDistance * statMult * lieMult * distScale;
+  return club.baseDistance * statMult * lieMult * distScale * upgradeCarryMult(club, golfer);
 }
 
 export class PhysicsEngine {

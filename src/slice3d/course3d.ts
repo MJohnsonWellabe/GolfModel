@@ -422,52 +422,30 @@ export function buildCourse(
     greenNormal.vScale = 26;
     greenNormal.level = 0.45; // mown-smooth: subtler grain than the ground
     gm.bumpTexture = greenNormal;
-    // A lobed green (hole.green2) builds one plateau per lobe. Both sit at
-    // GREEN_RAISE; the second rides a hair higher so the overlap region never
-    // z-fights — 0.03 world units is invisible at gameplay scale but decisive
-    // for the depth buffer. Where lobe B's skirt falls inside lobe A it dips
-    // below A's top and hides, so the union silhouette is what reads.
-    const lobes = hole.green2 ? [hole.green, hole.green2] : [hole.green];
-    lobes.forEach((g, li) => {
-      const lift = li * 0.03;
+    // Build one raised plateau from a boundary function `ringPoint(theta, scale,
+    // beyond) → [wx,wy]`: `scale` shrinks the boundary toward the centre for the
+    // flat-top rings, `beyond` pushes it outward (world px) for the fringe skirt.
+    const buildPlateau = (name: string, center: [number, number], ringPoint: (theta: number, scale: number, beyond: number) => [number, number]): void => {
       const positions: number[] = [];
       const uvs: number[] = [];
       const indices: number[] = [];
       const pushVert = (wx: number, wy: number, hgt: number): void => {
-        positions.push(wx, hgt + lift + engine.groundAt(wx, wy), -wy);
+        positions.push(wx, hgt + engine.groundAt(wx, wy), -wy);
         uvs.push((wx - patch.x0) / patch.w, (wy - patch.y0) / patch.h);
       };
-      const ringPoint = (theta: number, rxx: number, ryy: number): [number, number] => {
-        // Scale the ring radius by the shared boundary wobble at the point's ACTUAL
-        // local angle so the plateau/skirt mesh traces the same irregular edge the
-        // physics test and albedo bake use (star-convex ⇒ the scale cancels out of
-        // the angle, so mesh and point-in-green agree exactly).
-        const lx0 = Math.cos(theta) * rxx;
-        const ly0 = Math.sin(theta) * ryy;
-        const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
-        const lx = lx0 * w;
-        const ly = ly0 * w;
-        const c = Math.cos(g.rot ?? 0);
-        const s = Math.sin(g.rot ?? 0);
-        return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
-      };
-      // Center vertex + top rings at full raise
-      pushVert(g.cx, g.cy, GREEN_RAISE);
-      const rings: Array<{ rx: number; ry: number; h: number }> = [];
-      for (const t of topT.slice(1)) rings.push({ rx: g.rx * t, ry: g.ry * t, h: GREEN_RAISE });
+      // Center vertex + top rings at full raise, then skirt rings stepping down.
+      pushVert(center[0], center[1], GREEN_RAISE);
+      const rings: Array<{ scale: number; beyond: number; h: number }> = [];
+      for (const t of topT.slice(1)) rings.push({ scale: t, beyond: 0, h: GREEN_RAISE });
       for (const s of skirtS) {
         const beyond = s * FRINGE_VISUAL;
         const tt = Math.min(1, s);
         const fall = 1 - tt * tt * (3 - 2 * tt);
-        rings.push({
-          rx: g.rx + beyond,
-          ry: g.ry + beyond,
-          h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall
-        });
+        rings.push({ scale: 1, beyond, h: s >= 1.15 ? -0.25 : GREEN_RAISE * fall });
       }
       rings.forEach((ring) => {
         for (let a = 0; a < ANG; a++) {
-          const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.rx, ring.ry);
+          const [wx, wy] = ringPoint((a / ANG) * Math.PI * 2, ring.scale, ring.beyond);
           pushVert(wx, wy, ring.h);
         }
       });
@@ -483,7 +461,7 @@ export function buildCourse(
           indices.push(base0 + a, base0 + a2, base1 + a2);
         }
       }
-      const greenMesh = new Mesh(li === 0 ? 'greenComplex' : `greenComplex${li + 1}`, scene);
+      const greenMesh = new Mesh(name, scene);
       const vd = new VertexData();
       vd.positions = positions;
       vd.uvs = uvs;
@@ -498,7 +476,58 @@ export function buildCourse(
       vd.applyToMesh(greenMesh);
       greenMesh.material = gm;
       greenMesh.receiveShadows = true;
-    });
+    };
+
+    if (hole.green2) {
+      // Lobed green: ONE plateau traced from the ROUNDED metaball union (the same
+      // shape the paint and physics already use) instead of two raw ellipses.
+      // Two overlapping ellipse plateaus meet in two sharp concave "armpit" cusps
+      // where their rims cross; the union has no such points (playtest: "the two
+      // armpits come to a point — I'd rather they not"). The union is star-convex
+      // about the main green centre, so a single-centre fan traces it exactly —
+      // bisect pointInGreens for the boundary distance at each ring angle.
+      const gc: [number, number] = [hole.green.cx, hole.green.cy];
+      const reach =
+        Math.hypot(hole.green2.cx - gc[0], hole.green2.cy - gc[1]) +
+        Math.max(hole.green.rx, hole.green.ry, hole.green2.rx, hole.green2.ry) * 1.3 +
+        FRINGE_VISUAL +
+        8;
+      const boundaryR: number[] = [];
+      for (let a = 0; a < ANG; a++) {
+        const theta = (a / ANG) * Math.PI * 2;
+        const dx = Math.cos(theta);
+        const dy = Math.sin(theta);
+        let lo = 0;
+        let hi = reach;
+        for (let i = 0; i < 22; i++) {
+          const mid = (lo + hi) / 2;
+          if (pointInGreens(gc[0] + dx * mid, gc[1] + dy * mid, hole.green, hole.green2)) lo = mid;
+          else hi = mid;
+        }
+        boundaryR.push(lo);
+      }
+      buildPlateau('greenComplex', gc, (theta, scale, beyond) => {
+        const a = Math.round((theta / (Math.PI * 2)) * ANG) % ANG;
+        const R = boundaryR[a] * scale + beyond;
+        return [gc[0] + Math.cos(theta) * R, gc[1] + Math.sin(theta) * R];
+      });
+    } else {
+      // Single-lobe green: the wobbled ellipse, unchanged. `scale` multiplies the
+      // radii for the flat-top rings; `beyond` widens them for the fringe skirt.
+      const g = hole.green;
+      buildPlateau('greenComplex', [g.cx, g.cy], (theta, scale, beyond) => {
+        const rxx = g.rx * scale + beyond;
+        const ryy = g.ry * scale + beyond;
+        const lx0 = Math.cos(theta) * rxx;
+        const ly0 = Math.sin(theta) * ryy;
+        const w = greenBoundaryScale(Math.atan2(ly0, lx0), g);
+        const lx = lx0 * w;
+        const ly = ly0 * w;
+        const c = Math.cos(g.rot ?? 0);
+        const s = Math.sin(g.rot ?? 0);
+        return [g.cx + lx * c - ly * s, g.cy + lx * s + ly * c];
+      });
+    }
   }
 
   // ----------------------------------------------------------- tee platform
@@ -1010,12 +1039,12 @@ export function buildCourse(
       const placeholders: Mesh[] = [];
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
-        // Sail height in world units — doubled (playtest: "boat assets need to
-        // be 2x as big") from the original ~34-46 spread. Feeds both the
-        // instant placeholder hull/mast/sail AND (via avgSc below, the same
-        // formula) the real ship model's normalizing scale, so nothing pops
-        // in size when the uploaded model swaps in.
-        const sc = 4 * (34 + ((i * 37) % 12));
+        // Sail height in world units. Scaled up again to 8× the original ~34-46
+        // spread (playtest: "make the pirate ships 2x bigger" — the earlier 4×).
+        // Feeds both the instant placeholder hull/mast/sail AND (via avgSc below,
+        // the same formula) the real ship model's normalizing scale, so nothing
+        // pops in size when the uploaded model swaps in.
+        const sc = 8 * (34 + ((i * 37) % 12));
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
@@ -1103,7 +1132,7 @@ export function buildCourse(
             p.isPickable = false;
           }
           const length = Math.max(0.001, maxX - minX);
-          const avgSc = 4 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now 4x) placeholder sc spread
+          const avgSc = 8 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now 8x) placeholder sc spread
           const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
           // Instances don't inherit the source mesh's own transform — the
           // normalizing scale/centering has to go on each INSTANCE, same as

@@ -313,23 +313,22 @@ Cosmetics never affect gameplay.
 
 # Club Upgrades
 
-Club upgrades provide small gameplay bonuses.
+Club upgrades provide small gameplay bonuses. Two tiers per family.
 
-Driver
+**Driver — more distance.** Each tier adds a reliable +3% carry (tier 1 = 103%
+of stock, tier 2 = 106%), applied as a distance multiplier so it lands even for
+a golfer already maxed in driving power (whose rating is capped at 100 for the
+distance math). The driver bump also shows on the select card and sharpens
+driving accuracy.
 
-+3 Power
+**Irons / Wedges / Putter — a bigger swing-meter perfect zone, NOT more
+distance.** These upgrades must never change how far the club goes; instead they
+widen the power/accuracy perfect band:
 
-Irons
-
-+3 Approach
-
-Wedges
-
-+3 Chipping
-
-Putter
-
-+3 Putting
+- Tier 1: half-way between a normal meter and being on fire.
+- Tier 2: equal to today's on-fire widening.
+- Actually catching fire then LAYERS on top of the upgrade (the two multipliers
+  combine), for an even larger perfect zone than either alone.
 
 Equipped upgraded clubs should appear gold during gameplay.
 

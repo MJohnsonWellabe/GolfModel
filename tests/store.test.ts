@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { defaultProfile } from '../src/profile/Profile';
-import { STORE_CATALOG, STORE_BY_ID, applyClubUpgrades, DEFAULT_OWNED } from '../src/data/storeCatalog';
+import { STORE_CATALOG, STORE_BY_ID, applyClubUpgrades, DEFAULT_OWNED, upgradePerfectZoneMult } from '../src/data/storeCatalog';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../src/systems/StoreEngine';
 import { assembleGolfer } from '../src/data/golfers';
+import { effectiveCarryYards } from '../src/systems/PhysicsEngine';
+import { clubById } from '../src/data/clubs';
+import { SWING } from '../src/config';
 
 describe('store catalog', () => {
   it('ships at least 25 purchasable items with unique ids', () => {
@@ -60,6 +63,51 @@ describe('purchases', () => {
     const upgraded = assembleGolfer('A', 'chip', 'bigHitter', p.clubUpgrades);
     expect(upgraded.stats.drivingPower).toBe(Math.min(110, base.stats.drivingPower + 6));
     expect(upgraded.stats.drivingAccuracy).toBe(Math.min(110, base.stats.drivingAccuracy + 6));
+  });
+
+  it('only the DRIVER upgrade adds carry (+3% per tier); iron/wedge/putter never change distance', () => {
+    const driver = clubById('driver');
+    // Big Hitter maxes drivingPower (100), so the stat bump is entirely swallowed
+    // by the 100 cap in statsForClub — the upgrade used to add ZERO carry. The
+    // per-tier carry multiplier makes the "+3" driver play 103% (and +6 play 106%).
+    const stock = assembleGolfer('A', 'chip', 'bigHitter');
+    const tier1 = assembleGolfer('A', 'chip', 'bigHitter', { driver: 1 });
+    const tier2 = assembleGolfer('A', 'chip', 'bigHitter', { driver: 2 });
+    const base = effectiveCarryYards(driver, stock, 0, 'tee');
+    expect(effectiveCarryYards(driver, tier1, 0, 'tee') / base).toBeCloseTo(1.03, 5);
+    expect(effectiveCarryYards(driver, tier2, 0, 'tee') / base).toBeCloseTo(1.06, 5);
+
+    // Iron / wedge / putter upgrades must NOT change how far you hit them — their
+    // benefit is a wider swing-meter perfect zone, not distance.
+    const iron = clubById('7i');
+    expect(effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden', { irons: 2 }), 0, 'fairway')).toBe(
+      effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden'), 0, 'fairway')
+    );
+    const wedge = clubById('sw');
+    expect(effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame', { wedges: 2 }), 0, 'fairway')).toBe(
+      effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame'), 0, 'fairway')
+    );
+    const putter = clubById('putter');
+    expect(effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing', { putter: 2 }), 0, 'green')).toBe(
+      effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing'), 0, 'green')
+    );
+  });
+
+  it('iron/wedge/putter upgrades widen the swing-meter perfect zone (tier1 half-way to fire, tier2 = fire, fire layers)', () => {
+    const fire = SWING.firePerfectMult;
+    const halfway = 1 + (fire - 1) * 0.5;
+    // Iron club draws on the 'irons' family.
+    expect(upgradePerfectZoneMult('7i', {})).toBe(1);
+    expect(upgradePerfectZoneMult('7i', { irons: 1 })).toBeCloseTo(halfway, 10);
+    expect(upgradePerfectZoneMult('7i', { irons: 2 })).toBeCloseTo(fire, 10);
+    // Wedge + putter families.
+    expect(upgradePerfectZoneMult('sw', { wedges: 1 })).toBeCloseTo(halfway, 10);
+    expect(upgradePerfectZoneMult('putter', { putter: 2 })).toBeCloseTo(fire, 10);
+    // The driver upgrade buys distance, NOT a wider zone.
+    expect(upgradePerfectZoneMult('driver', { driver: 2 })).toBe(1);
+    // Fire layers over the upgrade at the meter: a tier-2 iron on fire reads the
+    // product (an even wider band than either alone).
+    expect(fire * upgradePerfectZoneMult('7i', { irons: 2 })).toBeCloseTo(fire * fire, 10);
   });
 
   it('equipping requires ownership', () => {

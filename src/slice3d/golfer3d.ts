@@ -53,7 +53,10 @@ const ADDRESS_TILT_Y = 0.099;
 const ADDRESS_TILT_Z = 0.34;
 const ADDRESS_POS_X = 0.1;
 const ADDRESS_POS_Y = 0;
-const ADDRESS_POS_Z = 0.15;
+// +Z pushes the club toward the ball line; pulled back from 0.15 so the sole
+// sits a touch further behind the (oversized) ball and the ball no longer clips
+// through the head at address (playtest: "ball clips through the clubs slightly").
+const ADDRESS_POS_Z = 0.08;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on

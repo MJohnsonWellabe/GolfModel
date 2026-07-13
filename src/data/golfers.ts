@@ -24,6 +24,10 @@ export function assembleGolfer(
     name: name.trim() || 'Player',
     color: arch.color,
     character,
-    stats: applyClubUpgrades(arch.stats, clubUpgrades)
+    stats: applyClubUpgrades(arch.stats, clubUpgrades),
+    // Carried through so effectiveCarryYards can apply the per-family carry
+    // bonus directly — the stat bump above is capped at 100 and vanishes for a
+    // golfer already maxed in the governing stat (e.g. a Big Hitter's driver).
+    clubUpgrades
   };
 }
