@@ -1463,8 +1463,10 @@ export function buildCourse(
       }
       // Accent species (e.g. birch among Timberline's pines) on ~15% of trees;
       // hazards authored `accent: true` ALWAYS plant from the accent set
-      // (deliberate specimens — Sable Bay's fairway/island palms).
-      const set = accents.length && (b.accent || hash2(b.x * 1.7, b.y * 0.9) < 0.15) ? accents : trees;
+      // (deliberate specimens — Sable Bay's fairway/island palms), and
+      // `accentChance` dials the mix per hazard (palm-heavy shore lines).
+      const roll = b.accentChance ?? 0.15;
+      const set = accents.length && (b.accent || hash2(b.x * 1.7, b.y * 0.9) < roll) ? accents : trees;
       if (!set.length) return;
       const e = set[Math.floor(hash2(b.x, b.y) * set.length) % set.length];
       // Conifer silhouettes are tall and narrow; at broadleaf target heights

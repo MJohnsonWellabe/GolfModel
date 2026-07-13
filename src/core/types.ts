@@ -158,6 +158,13 @@ export interface Hazard {
    */
   accent?: boolean;
   /**
+   * Trees only: fraction (0..1) of this hazard's trunks drawn from the
+   * theme's accentTreeKeys instead of treeKeys — a MIXED line (e.g. Sable
+   * Bay's palm-heavy shore line with some pines: 0.7). Overrides the default
+   * 15% roll; `accent: true` still forces 100%.
+   */
+  accentChance?: number;
+  /**
    * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
    * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
    * contributes trunks when rendering. Use this for a second, denser/closer
