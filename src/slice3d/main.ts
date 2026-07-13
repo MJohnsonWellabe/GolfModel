@@ -731,7 +731,10 @@ class HoleScene {
       // golfer, a small ball, a ~2ft cup — so a 30-ft putt looks like 30 ft.
       const d = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
       const back = 8 + d * 0.34;
-      const rise = 5 + d * 0.24;
+      // Lower vantage (was 5 + d*0.24) — like the driving view, a flatter eye
+      // line lifts the ball higher in the portrait frame so it clears the power
+      // meter/swing bar at the bottom (playtest: "meter should be below the ball").
+      const rise = 2.6 + d * 0.16;
       this.camTarget.pos = base.subtract(f.scale(back)).add(new Vector3(0, rise, 0));
       // Look most of the way to the cup so it sits high in the portrait frame,
       // with the whole ball→cup line below it.

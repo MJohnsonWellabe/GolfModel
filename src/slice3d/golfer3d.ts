@@ -53,10 +53,7 @@ const ADDRESS_TILT_Y = 0.099;
 const ADDRESS_TILT_Z = 0.34;
 const ADDRESS_POS_X = 0.1;
 const ADDRESS_POS_Y = 0;
-// +Z pushes the club toward the ball line; pulled back from 0.15 so the sole
-// sits a touch further behind the (oversized) ball and the ball no longer clips
-// through the head at address (playtest: "ball clips through the clubs slightly").
-const ADDRESS_POS_Z = 0.08;
+const ADDRESS_POS_Z = 0.15;
 /** Heading applied to the imported model so it addresses the ball, matching the
  * procedural body (whose root faces yaw+π after placeAt). Driven through the
  * model's rotationQuaternion — the glTF loader leaves a handedness quaternion on
@@ -762,6 +759,13 @@ export class Golfer3D {
    *  in the MIDDLE of the face at address (playtest). Face centre offsets
    *  measured in club-local Z × GOLFER_SCALE. */
   private static readonly STANCE_REACH = { swing: 0.1, putter: 0.1, driver: 0.41 } as const;
+  /** Extra stance offset AWAY from the hole (world px, along −aim), per club.
+   *  Scooting the whole golfer+club back off the target line keeps the ball
+   *  centered on the face while lifting the (oversized) ball off the leading
+   *  edge, so it no longer clips through the head at address (playtest). The
+   *  putter is left at 0 — its address reads fine and this must not shift putt
+   *  feel. */
+  private static readonly STANCE_BACK = { swing: 1.6, putter: 0, driver: 1.6 } as const;
 
   placeAt(ballX: number, ballY: number, yaw: number, groundH = 0): void {
     this.lastPlace = { ballX, ballY, yaw, groundH };
@@ -771,7 +775,12 @@ export class Golfer3D {
     const step = (2.9 + Golfer3D.STANCE_REACH[this.clubKind]) * this.sizeMult;
     const leftX = Math.cos(yaw + Math.PI / 2) * step;
     const leftY = Math.sin(yaw + Math.PI / 2) * step;
-    this.root.position = w2b(ballX - leftX, ballY - leftY, groundH);
+    // Scoot the whole golfer+club back off the target line (−aim) so the club
+    // sits behind the ball rather than through it (the ball stays put).
+    const back = Golfer3D.STANCE_BACK[this.clubKind] * this.sizeMult;
+    const backX = Math.cos(yaw) * back;
+    const backY = Math.sin(yaw) * back;
+    this.root.position = w2b(ballX - leftX - backX, ballY - leftY - backY, groundH);
     this.root.rotation.y = yaw + Math.PI;
   }
 
