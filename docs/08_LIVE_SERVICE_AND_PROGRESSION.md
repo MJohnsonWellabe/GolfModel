@@ -25,11 +25,17 @@ Johnson's Golf is not intended to be a live service in the traditional mobile ga
 There should be:
 
 - No energy system
-- No paywalls
+- No paywalls on playing golf
 - No forced advertisements
 - No pay-to-win upgrades
 - No loot boxes
 - No gambling mechanics
+
+Real money exists in exactly three places (see §Real-Money Purchases): a
+J-Coin top-up, the Season Pass, and nothing else. Every purchase is optional,
+priced up front, and buys cosmetics/progression flair — never exclusive
+gameplay power. Everything real money can buy with coins can also be earned
+by playing.
 
 Players should return because:
 
@@ -277,7 +283,42 @@ Future premium cosmetics may have separate pricing if desired, but gameplay must
 
 ---
 
-# Cosmetics
+# Real-Money Purchases
+
+Implemented via Stripe Payment Links + a fulfillment Cloud Function — the
+full runbook is `docs/16_PAYMENTS.md`. Two products only:
+
+- **1000 J-Coins — $10.** A convenience top-up of the same currency earned by
+  playing; it buys nothing coins can't already buy.
+- **Season Pass — $5 per season** (below).
+
+Purchases require a signed-in account (the entitlement attaches to the uid)
+and are recorded server-side under `entitlements/{uid}` — the only
+function-write-only node in the database.
+
+---
+
+# Season Pass
+
+A seasonal reward track layered on the XP players already earn — it never
+changes gameplay.
+
+- **Season One runs 2026-07-13 → 2026-11-30.** Config: `src/data/seasonPass.ts`.
+- **50 levels, one reward per level, shown as 10 pages of 5** in the Season
+  Pass overlay (main-menu button).
+- **Pass XP = round XP.** Every completed round's XP award also advances the
+  track (flat 2400 XP per level ⇒ ~1000 rounds to finish). XP granted BY the
+  track does not feed back into the track.
+- **Everyone accrues progress; claiming needs the $5 pass.** Buying late is
+  fine — every reached level becomes claimable at once. Earned rewards stay
+  claimable after the season ends; only accrual stops.
+- **Rewards:** 4 roster characters, 20 season-exclusive tints (ball / trail /
+  club / outfit), coin and XP drips, and the level-50 exclusive pal (Mango,
+  the bright-orange gecko). Season exclusives are catalog items flagged
+  `season: 's1'` — never sold in the store, never auto-owned despite their
+  zero price (StoreEngine guards + tests).
+- State lives on the profile (`season: { id, xp, claimed[], owned }`) and
+  merges like everything else: xp by max, claimed by union, owned by OR.
 
 Initial Categories:
 

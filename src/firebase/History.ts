@@ -15,6 +15,10 @@ export interface RoundRecord {
   total: number;
   toPar: number;
   holes: number[];
+  /** Total putts taken (absent on rounds recorded before putt tracking). */
+  putts?: number;
+  /** Putts taken per hole, parallel to holes[]. */
+  hputts?: number[];
 }
 
 const LOCAL_KEY = 'johnsons-golf-history-v1';

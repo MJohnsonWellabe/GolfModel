@@ -4,11 +4,13 @@ import { CharacterKey } from './characters';
 import { PalKey } from './pals';
 
 /**
- * Gold-only store (docs 08): cosmetics + modest club upgrades bought with
- * J-Coins earned through play. No real money. Everything here uses assets the
- * game already ships — procedural ball/trail colors and the full 25-character
- * rigged roster (five free, the other twenty unlockable). Config only; the pure
- * `StoreEngine` runs the transactions.
+ * The store catalog (docs 08): cosmetics + modest club upgrades bought with
+ * J-Coins earned through play (real money exists only as a coin top-up and
+ * the Season Pass — docs 08 §Real-Money Purchases, firebase/Purchases.ts).
+ * Everything here uses assets the game already ships — procedural ball/trail
+ * colors and the full 25-character rigged roster (five free, the other twenty
+ * unlockable). Items flagged `season` are pass-claim-only, never sold. Config
+ * only; the pure `StoreEngine` runs the transactions.
  */
 
 export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin' | 'pal';
@@ -32,6 +34,10 @@ export interface StoreItem {
   upgrade?: { family: UpgradeFamily; tier: number };
   /** pal: which companion this unlocks. */
   pal?: PalKey;
+  /** Season-pass exclusive: the season id ('s1'…). These items are price 0 but
+   *  NOT default-owned and can never be coin-bought — they are granted only by
+   *  claiming the matching pass reward (systems/SeasonPassEngine). */
+  season?: string;
 }
 
 /** Characters owned from the start (the rest are store unlocks). */
@@ -123,6 +129,38 @@ const CLUBSKIN_TINTS: Array<[string, string, number, StoreItem['rarity'], number
   ['gold', 'Gold Clubs', 0xf5c542, 'special', 300]
 ];
 
+// Season 1 pass-exclusive tints (data/seasonPass.ts places them on the reward
+// track). New hues, distinct from every store tint, so a pass reward always
+// reads as something the store can't sell.
+const S1_BALL_TINTS: Array<[string, string, number, StoreItem['rarity']]> = [
+  ['lagoon', 'Lagoon', 0x27d3c7, 'common'],
+  ['fuchsia', 'Fuchsia', 0xe040c0, 'common'],
+  ['copper', 'Copper', 0xc26f3a, 'rare'],
+  ['ice', 'Ice', 0xbfe8ff, 'rare'],
+  ['volt', 'Volt', 0xd6ff3a, 'special']
+];
+const S1_TRAIL_TINTS: Array<[string, string, number, StoreItem['rarity']]> = [
+  ['aurora', 'Aurora', 0x1fe0c0, 'common'],
+  ['violet', 'Violet Storm', 0xa04ef0, 'common'],
+  ['crimson', 'Crimson', 0xf03030, 'rare'],
+  ['frost', 'Frost', 0xbfe8ff, 'rare'],
+  ['sunset', 'Sunset', 0xff8a3c, 'special']
+];
+const S1_CLUBSKIN_TINTS: Array<[string, string, number, StoreItem['rarity']]> = [
+  ['copper', 'Copper Clubs', 0xc26f3a, 'common'],
+  ['rose', 'Rose Clubs', 0xd8688e, 'common'],
+  ['violet', 'Violet Clubs', 0x8a5cd0, 'rare'],
+  ['frost', 'Frost Clubs', 0xb8d4e8, 'rare'],
+  ['neon', 'Neon Clubs', 0x3af0a0, 'special']
+];
+const S1_OUTFIT_TINTS: Array<[string, string, number, StoreItem['rarity']]> = [
+  ['coral', 'Coral Kit', 0xd87a5a, 'common'],
+  ['teal', 'Teal Kit', 0x3aa8a0, 'common'],
+  ['lavender', 'Lavender Kit', 0x9a86d8, 'rare'],
+  ['ember', 'Ember Kit', 0xc25a3a, 'rare'],
+  ['ivory', 'Ivory Kit', 0xcfc9b8, 'special']
+];
+
 const UPGRADE_FAMILIES: Array<[UpgradeFamily, string]> = [
   ['driver', 'Driver'],
   ['irons', 'Irons'],
@@ -171,7 +209,22 @@ export const STORE_CATALOG: StoreItem[] = [
   ...UPGRADE_FAMILIES.flatMap(([family, label]): StoreItem[] => [
     { id: `up_${family}_1`, kind: 'clubUpgrade', name: `${label} +3`, price: 300, rarity: 'rare', upgrade: { family, tier: 1 } },
     { id: `up_${family}_2`, kind: 'clubUpgrade', name: `${label} +6`, price: 500, rarity: 'special', upgrade: { family, tier: 2 } }
-  ])
+  ]),
+  // Season 1 pass exclusives — claim-only (never rendered in the store, never
+  // coin-buyable; see StoreEngine.isOwned/canBuy season guards).
+  ...S1_BALL_TINTS.map(
+    ([id, name, color, rarity]): StoreItem => ({ id: `s1_ball_${id}`, kind: 'ball', name: `${name} Ball`, price: 0, rarity, color, season: 's1' })
+  ),
+  ...S1_TRAIL_TINTS.map(
+    ([id, name, color, rarity]): StoreItem => ({ id: `s1_trail_${id}`, kind: 'trail', name: `${name} Trail`, price: 0, rarity, color, season: 's1' })
+  ),
+  ...S1_CLUBSKIN_TINTS.map(
+    ([id, name, color, rarity]): StoreItem => ({ id: `s1_clubskin_${id}`, kind: 'clubskin', name, price: 0, rarity, color, season: 's1' })
+  ),
+  ...S1_OUTFIT_TINTS.map(
+    ([id, name, color, rarity]): StoreItem => ({ id: `s1_outfit_${id}`, kind: 'outfit', name, price: 0, rarity, color, season: 's1' })
+  ),
+  { id: 's1_pal_geckoorange', kind: 'pal', name: 'Mango', price: 0, rarity: 'special', pal: 'geckoorange', season: 's1' }
 ];
 
 export const STORE_BY_ID = new Map(STORE_CATALOG.map((i) => [i.id, i]));

@@ -4,12 +4,17 @@ import { isEquippableKind, STORE_BY_ID, StoreItem } from '../data/storeCatalog';
 /**
  * Pure store transactions (Phase 7): buy, own, equip. Coins never go
  * negative and an item can't be bought twice. Club upgrades must be bought
- * in tier order. No real money — J-Coins only.
+ * in tier order. J-Coins only in here — real money never touches the store
+ * engine (coin top-ups and the Season Pass go through firebase/Purchases +
+ * SeasonPassEngine), and season-exclusive items can't be bought at all.
  */
 
 export type BuyResult = { ok: true } | { ok: false; reason: string };
 
 export function isOwned(profile: PlayerProfile, item: StoreItem): boolean {
+  // Season exclusives are price 0 but must be CLAIMED via the pass — only the
+  // free default items are auto-owned.
+  if (item.season) return profile.cosmetics.owned.includes(item.id);
   if (item.price === 0) return true;
   if (item.kind === 'clubUpgrade') {
     return (profile.clubUpgrades[item.upgrade!.family] ?? 0) >= item.upgrade!.tier;
@@ -18,6 +23,7 @@ export function isOwned(profile: PlayerProfile, item: StoreItem): boolean {
 }
 
 export function canBuy(profile: PlayerProfile, item: StoreItem): BuyResult {
+  if (item.season) return { ok: false, reason: 'Season Pass exclusive' };
   if (isOwned(profile, item)) return { ok: false, reason: 'Already owned' };
   if (profile.coins < item.price) return { ok: false, reason: 'Not enough coins' };
   if (item.kind === 'clubUpgrade') {

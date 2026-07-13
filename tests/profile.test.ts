@@ -275,3 +275,38 @@ describe('resetProfileRecords', () => {
     expect(p.updatedAt).toBe(999);
   });
 });
+
+describe('season-pass state on the profile', () => {
+  it('migrateProfile backfills season for old saves and RTDB-sparse copies', () => {
+    const old = migrateProfile({ coins: 40 });
+    expect(old.season).toEqual({ id: 's1', xp: 0, claimed: [], owned: false });
+    // RTDB drops the empty claimed array — must coalesce, not throw
+    const sparse = migrateProfile({
+      season: { id: 's1', xp: 4800, owned: true } as unknown as PlayerProfile['season']
+    });
+    expect(sparse.season.claimed).toEqual([]);
+    expect(sparse.season.xp).toBe(4800);
+    expect(sparse.season.owned).toBe(true);
+  });
+
+  it('mergeProfiles: xp max, claimed union, owned OR, earliest purchase', () => {
+    const a = defaultProfile();
+    const b = defaultProfile();
+    a.season = { id: 's1', xp: 5000, claimed: [1, 2], owned: true, purchasedAt: 200 };
+    b.season = { id: 's1', xp: 7200, claimed: [2, 3], owned: false };
+    const m = mergeProfiles(a, b);
+    expect(m.season.xp).toBe(7200);
+    expect([...m.season.claimed].sort()).toEqual([1, 2, 3]);
+    expect(m.season.owned).toBe(true);
+    expect(m.season.purchasedAt).toBe(200);
+  });
+
+  it('mergeProfiles survives a cloud copy from before the pass existed', () => {
+    const a = defaultProfile();
+    a.season.xp = 2400;
+    const legacy = { ...defaultProfile(), season: undefined } as unknown as PlayerProfile;
+    const m = mergeProfiles(a, legacy);
+    expect(m.season.xp).toBe(2400);
+    expect(m.season.claimed).toEqual([]);
+  });
+});

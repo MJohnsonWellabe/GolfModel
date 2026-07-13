@@ -12,6 +12,19 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 
 export type CosmeticKind = 'character' | 'ball' | 'trail' | 'outfit' | 'clubskin' | 'pal';
 
+/** Season-pass progress (systems/SeasonPassEngine + data/seasonPass). */
+export interface SeasonState {
+  /** Which season this progress belongs to ('s1'…). */
+  id: string;
+  /** Pass XP accrued this season — grow-only, merges by max. */
+  xp: number;
+  /** Reward levels already claimed — merges by union. */
+  claimed: number[];
+  /** True once the pass is purchased — merges by OR. */
+  owned: boolean;
+  purchasedAt?: number;
+}
+
 export interface CareerStats {
   rounds: number;
   holesPlayed: number;
@@ -68,6 +81,7 @@ export interface PlayerProfile {
   /** Codes of tournaments the player created or played, newest first — the
    *  "My Tournaments" history (Phase 8 gap). */
   tournaments: Array<{ code: string; name: string }>;
+  season: SeasonState;
   updatedAt: number;
 }
 
@@ -134,6 +148,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     lastDailyDate: '',
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
     tournaments: [],
+    season: { id: 's1', xp: 0, claimed: [], owned: false },
     updatedAt: now
   };
 }
@@ -186,7 +201,13 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     stats: { ...base.stats, ...(parsed.stats ?? {}) },
     daily: { ...base.daily, ...(parsed.daily ?? {}) },
     settings: { ...base.settings, ...(parsed.settings ?? {}) },
-    tournaments: [...(parsed.tournaments ?? [])]
+    tournaments: [...(parsed.tournaments ?? [])],
+    // RTDB drops the empty claimed array — coalesce it back (like achievements).
+    season: {
+      ...base.season,
+      ...(parsed.season ?? {}),
+      claimed: [...(parsed.season?.claimed ?? [])]
+    }
   };
 }
 
@@ -303,6 +324,24 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     achievements: [...new Set([...(a.achievements ?? []), ...(b.achievements ?? [])])],
     stats,
     tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
+    season: mergeSeason(a.season, b.season),
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
+  };
+}
+
+/** Season progress merges like the rest: xp grow-only (max), claimed unions,
+ *  owned ORs, earliest purchase timestamp wins. Null-safe for cloud copies
+ *  from before the pass existed. */
+function mergeSeason(a?: SeasonState, b?: SeasonState): SeasonState {
+  const fresh: SeasonState = { id: 's1', xp: 0, claimed: [], owned: false };
+  const sa = a ?? fresh;
+  const sb = b ?? fresh;
+  const purchased = [sa.purchasedAt, sb.purchasedAt].filter((v): v is number => v != null);
+  return {
+    id: sa.id || sb.id || 's1',
+    xp: Math.max(sa.xp ?? 0, sb.xp ?? 0),
+    claimed: [...new Set([...(sa.claimed ?? []), ...(sb.claimed ?? [])])],
+    owned: (sa.owned ?? false) || (sb.owned ?? false),
+    ...(purchased.length ? { purchasedAt: Math.min(...purchased) } : {})
   };
 }

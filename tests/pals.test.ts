@@ -16,7 +16,8 @@ describe('pals data', () => {
     const items = STORE_CATALOG.filter((i) => i.kind === 'pal');
     expect(items.length).toBe(PALS.length);
     for (const item of items) {
-      expect(item.id).toBe(`pal_${item.pal}`);
+      // Store pals are pal_<key>; season-pass exclusives are s1_pal_<key>.
+      expect(item.id).toBe(item.season ? `${item.season}_pal_${item.pal}` : `pal_${item.pal}`);
       expect(palByKey(item.pal)).toBeDefined();
     }
   });

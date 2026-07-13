@@ -1009,6 +1009,7 @@
       /* Records overlay */
       #records,
       #store,
+      #seasonPass,
       #tournaments {
         position: fixed;
         inset: 0;
@@ -1434,6 +1435,154 @@
         gap: 7px;
         text-align: left;
       }
+      /* Season Pass overlay (Season 1): progress header, page tabs (reuses
+         .recTabs/.recTab), 5 reward cards per page, purchase footer. */
+      .spSub {
+        font-size: 13px;
+        color: #a9c9b0;
+        margin: 2px 0 12px;
+      }
+      .spProgress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0 0 6px;
+      }
+      .spProgress .xpBar {
+        flex: 1 1 auto;
+        margin: 0;
+      }
+      .spLvlBig {
+        font-size: 20px;
+        font-weight: 900;
+        color: #ffd54f;
+        white-space: nowrap;
+      }
+      .spLvlBig i {
+        font-style: normal;
+        font-size: 13px;
+        color: #a9c9b0;
+      }
+      .spXp {
+        font-size: 12px;
+        color: #a9c9b0;
+        white-space: nowrap;
+      }
+      .spTabs {
+        margin: 12px 0 12px;
+      }
+      .spGrid {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        text-align: left;
+        margin-bottom: 14px;
+      }
+      .spCard {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .spCard.claimable {
+        border-color: rgba(255, 213, 79, 0.55);
+        background: rgba(255, 213, 79, 0.1);
+      }
+      .spCard.claimed {
+        opacity: 0.65;
+      }
+      .spCard.grand {
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 138, 60, 0.1));
+        border-color: rgba(255, 213, 79, 0.6);
+      }
+      .spLvl {
+        width: 46px;
+        font-weight: 800;
+        color: #ffd54f;
+        font-size: 13px;
+      }
+      .spIcon {
+        font-size: 22px;
+      }
+      .spName {
+        flex: 1 1 auto;
+        font-weight: 700;
+        color: #eef5ea;
+        font-size: 14px;
+      }
+      .spState {
+        font-size: 12px;
+        font-weight: 700;
+        color: #a9c9b0;
+        white-space: nowrap;
+      }
+      .spState.claimed {
+        color: #8fd89a;
+      }
+      .spClaim {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #223;
+        font-weight: 800;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .spBuy {
+        display: block;
+        width: 100%;
+        padding: 13px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #223;
+        font-weight: 900;
+        font-size: 16px;
+        cursor: pointer;
+        margin: 2px 0 6px;
+      }
+      .spOwned {
+        font-size: 14px;
+        font-weight: 700;
+        color: #8fd89a;
+        margin: 4px 0 8px;
+      }
+      .spNote {
+        font-size: 12px;
+        color: #a9c9b0;
+        margin: 2px 0 8px;
+      }
+      /* Real-money coin top-up card in the store */
+      .topUpCard {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 213, 79, 0.45);
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.16), rgba(255, 213, 79, 0.05));
+        color: #eef5ea;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        margin-bottom: 6px;
+      }
+      .topUpCard .tuIcon {
+        font-size: 20px;
+      }
+      .topUpCard .tuName {
+        flex: 1 1 auto;
+        text-align: left;
+      }
+      .topUpCard .tuPrice {
+        font-weight: 900;
+        color: #ffd54f;
+      }
       .recRow {
         display: flex;
         align-items: center;
@@ -1536,6 +1685,7 @@
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="storeLink" class="recordsLink">🛍️ Store</button>
+          <button id="seasonLink" class="recordsLink">🎫 See Season Pass Rewards</button>
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
         </div>
@@ -1543,6 +1693,7 @@
     </div>
     <div id="records"></div>
     <div id="store"></div>
+    <div id="seasonPass"></div>
     <div id="tournaments"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>

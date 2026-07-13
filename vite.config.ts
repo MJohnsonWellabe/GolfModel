@@ -25,7 +25,9 @@ export default defineConfig({
         // The 3D game is the sole experience, served at the root URL.
         main: resolve(__dirname, 'index.html'),
         // Redirect stub preserving the old /slice3d.html bookmark
-        slice3d: resolve(__dirname, 'slice3d.html')
+        slice3d: resolve(__dirname, 'slice3d.html'),
+        // Owner-only stats dashboard (Google sign-in gated in-page)
+        admin: resolve(__dirname, 'admin.html')
       }
     }
   }
