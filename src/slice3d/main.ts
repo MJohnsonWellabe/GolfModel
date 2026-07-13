@@ -241,6 +241,8 @@ interface ShotAcc {
   fairwaysPossible: number;
   gir: number;
   puttsMade: number;
+  /** Putts TAKEN per hole number (puttsMade above counts only holed putts). */
+  holePutts: Record<number, number>;
   longestDriveYds: number;
   longestPuttMadeFt: number;
   chipIns: number;
@@ -252,6 +254,7 @@ function freshShotAcc(): ShotAcc {
     fairwaysPossible: 0,
     gir: 0,
     puttsMade: 0,
+    holePutts: {},
     longestDriveYds: 0,
     longestPuttMadeFt: 0,
     chipIns: 0,
@@ -1602,6 +1605,9 @@ class HoleScene {
       shotAcc.girHoles.add(this.hole.number);
       shotAcc.gir++;
     }
+    if (club.id === 'putter') {
+      shotAcc.holePutts[this.hole.number] = (shotAcc.holePutts[this.hole.number] ?? 0) + 1;
+    }
     if (outcome.holed && club.id === 'putter') {
       shotAcc.puttsMade++;
       shotAcc.longestPuttMadeFt = Math.max(shotAcc.longestPuttMadeFt, (dist(origin, this.hole.pin) / PX_PER_YARD) * 3);
@@ -2125,7 +2131,9 @@ function showSummary(): void {
     golferId: me.golfer.id,
     total: totals[0],
     toPar: totals[0] - totalPar,
-    holes: me.scores.slice(0, holes.length)
+    holes: me.scores.slice(0, holes.length),
+    putts: holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0),
+    hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0)
   };
   // Records/coins only persist for a signed-in account (account-gated model):
   // a signed-out round still plays and shows its rewards, but nothing is saved.

@@ -29,6 +29,20 @@ describe('bestRounds', () => {
   });
 });
 
+describe('putt fields', () => {
+  it('putts/hputts are optional — pre-tracking rounds and new rounds both serialize', () => {
+    const legacy = round({ id: 'legacy' });
+    const tracked = round({ id: 'tracked', putts: 5, hputts: [2, 1, 2] });
+    expect(legacy.putts).toBeUndefined();
+    const thawed = JSON.parse(JSON.stringify([legacy, tracked])) as RoundRecord[];
+    expect(thawed[0].hputts).toBeUndefined();
+    expect(thawed[1].putts).toBe(5);
+    expect(thawed[1].hputts).toEqual([2, 1, 2]);
+    // Mixed vintages still rank together
+    expect(bestRounds(thawed, 'Amen Corner', 'solo', 2).length).toBe(2);
+  });
+});
+
 describe('isNewRecord', () => {
   it('the first round on a course+mode is always a record', () => {
     const r = round({ id: 'only' });
