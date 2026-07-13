@@ -588,9 +588,12 @@ class HoleScene {
 
   /** Arm (or re-arm) the swing meter for the current aim/club/fire state. */
   private armMeter(): void {
-    // The golfer holds the right stick for the shot: real putter on the
-    // green, the iron everywhere else (both from the uploaded club models).
-    this.golfer.setClubKind(this.aim.isPutting ? 'putter' : 'swing');
+    // The golfer holds the right stick for the shot: real putter on the green,
+    // the wood driver when the driver's in hand, the iron everywhere else (all
+    // from the uploaded club models).
+    this.golfer.setClubKind(
+      this.aim.isPutting ? 'putter' : this.aim.club.id === 'driver' ? 'driver' : 'swing'
+    );
     const fire = this.fires[this.turnIdx];
     meter.arm({
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
