@@ -10,7 +10,8 @@ import {
   StandardMaterial,
   TransformNode,
   Vector3,
-  VertexBuffer
+  VertexBuffer,
+  VertexData
 } from '@babylonjs/core';
 import { GolferLook } from '../core/types';
 import { CharacterInstance, instantiateCharacter } from './characterModels';
@@ -95,7 +96,7 @@ const DEFAULT_LOOK: GolferLook = { skin: 0xf0c8a0, shirt: 0x3f7bd0, hat: 0xf5f5f
  * CLUB_GIRTH on the shaft, CLUB_HEAD_GIRTH on the head, blended at the hosel —
  * so the shaft reads chunky-arcadey without inflating the head into a slab.
  */
-function normalizeClubGeometry(mesh: Mesh): void {
+function normalizeClubGeometry(mesh: Mesh, faceYaw = 0): void {
   const pos = mesh.getVerticesData(VertexBuffer.PositionKind);
   const nrm = mesh.getVerticesData(VertexBuffer.NormalKind);
   if (!pos) return;
@@ -256,6 +257,27 @@ function normalizeClubGeometry(mesh: Mesh): void {
       }
     }
   }
+  // Optional extra quarter-turn AFTER squaring. The squaring above points the
+  // head's LONG axis down the line — right for a blade iron, wrong for a
+  // putter, whose long axis is the face itself: it left the putter's TOE
+  // aimed at the cup (playtest). faceYaw spins the club about the shaft to
+  // put the face, not the toe, on the line.
+  if (faceYaw !== 0) {
+    const ca = Math.cos(faceYaw);
+    const sa = Math.sin(faceYaw);
+    for (let i = 0; i < n; i++) {
+      const x0 = pos[i * 3];
+      const z0 = pos[i * 3 + 2];
+      pos[i * 3] = ca * x0 - sa * z0;
+      pos[i * 3 + 2] = sa * x0 + ca * z0;
+      if (nrm) {
+        const nx0 = nrm[i * 3];
+        const nz0 = nrm[i * 3 + 2];
+        nrm[i * 3] = ca * nx0 - sa * nz0;
+        nrm[i * 3 + 2] = sa * nx0 + ca * nz0;
+      }
+    }
+  }
   // Scale to CLUB_LEN with the grip top at the origin, and fatten the shaft
   // (full CLUB_GIRTH) vs the head (CLUB_HEAD_GIRTH), blended at the hosel.
   const blend = new Float32Array(n);
@@ -306,6 +328,178 @@ function normalizeClubGeometry(mesh: Mesh): void {
 }
 
 /**
+ * The iron blade's silhouette as an extruded outline — a REAL blade shape
+ * (playtest: "it shouldn't be a rectangle: taper towards the shaft, rounded
+ * toe"). Part-local frame: +X is the heel/shaft end (short), -X the toe
+ * (tall, rounded), Y up, thickness along Z. Front-face fan + back-face fan +
+ * side wall quads; the outline is star-shaped about its centroid so a
+ * centroid fan triangulates it safely.
+ */
+function createIronBlade(scene: Scene, name: string): Mesh {
+  // Counterclockwise viewed from the front (+Z): heel bottom → heel top →
+  // top line rising to the toe → rounded toe arc → sole back to the heel.
+  const outline: Array<[number, number]> = [
+    [0.475, -0.21], // heel bottom (at the hosel)
+    [0.475, 0.03], // heel top — short: the blade tapers toward the shaft
+    [0.1, 0.19], // top line rising toward the toe
+    [-0.18, 0.23], // top of the toe
+    [-0.36, 0.19], // rounded toe arc...
+    [-0.45, 0.08],
+    [-0.475, -0.06],
+    [-0.43, -0.17],
+    [-0.34, -0.21] // toe bottom, sole runs back to the heel
+  ];
+  const h = 0.06; // half thickness
+  const n = outline.length;
+  // Vertices: front ring, back ring, front centroid, back centroid.
+  let cx = 0;
+  let cy = 0;
+  for (const [x, y] of outline) {
+    cx += x / n;
+    cy += y / n;
+  }
+  const positions: number[] = [];
+  for (const [x, y] of outline) positions.push(x, y, h);
+  for (const [x, y] of outline) positions.push(x, y, -h);
+  positions.push(cx, cy, h, cx, cy, -h);
+  const fc = 2 * n; // front centroid index
+  const bc = 2 * n + 1; // back centroid index
+  const indices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    indices.push(fc, i, j); // front fan (CCW → faces +Z)
+    indices.push(bc, n + j, n + i); // back fan (reversed)
+    indices.push(i, n + i, n + j, i, n + j, j); // side wall quad
+  }
+  const mesh = new Mesh(name, scene);
+  const vd = new VertexData();
+  vd.positions = positions;
+  vd.indices = indices;
+  const normals: number[] = [];
+  VertexData.ComputeNormals(positions, indices, normals);
+  vd.normals = normals;
+  // Planar UVs — the material is flat steel, but MergeMeshes requires every
+  // part to carry the same attribute set as the MeshBuilder primitives.
+  const uvs: number[] = [];
+  for (let i = 0; i < positions.length; i += 3) uvs.push(positions[i] + 0.5, positions[i + 1] + 0.5);
+  vd.uvs = uvs;
+  vd.applyToMesh(mesh);
+  return mesh;
+}
+
+/**
+ * Build a playable club from primitives, Mario-Golf style: a clean straight
+ * shaft with a dark grip and one simple chunky head — an angled blade for the
+ * iron, a rounded wood for the driver (reference shots supplied in playtest;
+ * four uploaded club models in a row failed to read right, so the clubs are
+ * now OURS: every dimension is a tunable constant below).
+ *
+ * Local convention matches what the old model normalizer produced, so the
+ * shared holder pose and swing animation are untouched: grip top at the
+ * origin, shaft straight down -Y, sole at y = -CLUB_LEN, toe out along +X,
+ * face toward the ball line (+Z after the address pose).
+ *
+ * The steel material is shared (skin-tintable via setClubSkin); the grip keeps
+ * its own fixed dark material through a multi-material merge.
+ */
+function buildProceduralClub(scene: Scene, kind: 'iron' | 'driver', steel: StandardMaterial): Mesh {
+  const grip = m(scene, `${kind}Grip`, 0x2b2e33, 0.15);
+  const parts: Mesh[] = [];
+
+  // Shaft: grip top at y=0 down to the hosel. Thin but visible at gameplay
+  // distance (the old models' pencil shafts read as wires).
+  const shaftLen = CLUB_LEN - 0.14;
+  const shaft = MeshBuilder.CreateCylinder(`${kind}Shaft`, { diameter: 0.085, height: shaftLen, tessellation: 10 }, scene);
+  shaft.position = new Vector3(0, -shaftLen / 2, 0);
+  shaft.material = steel;
+  parts.push(shaft);
+
+  // Grip: a fatter dark sleeve over the top of the shaft.
+  const gripLen = 0.34;
+  const gripMesh = MeshBuilder.CreateCylinder(`${kind}GripM`, { diameter: 0.125, height: gripLen, tessellation: 10 }, scene);
+  gripMesh.position = new Vector3(0, -gripLen / 2 + 0.01, 0);
+  gripMesh.material = grip;
+  parts.push(gripMesh);
+
+  // Both heads follow the same rule (playtest): a LONG FLAT FACE PLANE that
+  // sits behind the ball, PERPENDICULAR to the target line — the face normal
+  // points at the hole. Empirically mapped through the address pose: the ball
+  // sits off local -Z at the sole, the hole direction is local -X, so parts
+  // authored with their face on +Z get a -90° yaw (normal → -X) and are
+  // PLACED along -Z (heel under the shaft, blade running away from the hole).
+  // The heads are deliberately big — arcade clubs next to the oversized ball.
+  const HEAD_YAW = -Math.PI / 2;
+  const placeHeadPart = (part: Mesh, x: number, y: number, z: number, loft: number, yaw = HEAD_YAW): void => {
+    part.rotationQuaternion = Quaternion.FromEulerAngles(loft, yaw, 0);
+    part.position = new Vector3(x, y, z);
+    part.material = steel;
+    parts.push(part);
+  };
+  if (kind === 'iron') {
+    // Blade: one long lofted slab; the big front face IS the face plane.
+    // Spun a further 180° in the hands vs the driver (playtest) so ITS face
+    // side is the one on the line.
+    // Offset a touch toward the golfer (+X) so the shaft visually enters the
+    // BACK of the head, and riding slightly high so the blade sits right
+    // behind the ball instead of digging in (playtest).
+    // The blade is a small sub-assembly shaped like a REAL iron: a thin
+    // lofted face slab, a thicker sole bar, and a muscle-back mass — thin top
+    // line, heavy bottom (playtest: "reshape the blade back to an actual iron
+    // blade shape"). All parts share the user-approved blade transform: the
+    // shaft junction at the blade's end, the head spreading toward the ball.
+    const IRON_LOFT = -0.22;
+    const IRON_YAW = HEAD_YAW + Math.PI;
+    const base = new Vector3(-0.1, -CLUB_LEN + 0.27, 0.36);
+    // Rotate a blade-frame offset by the blade's own orientation (RY·RX).
+    const bladeOff = (ox: number, oy: number, oz: number): Vector3 => {
+      const y1 = oy * Math.cos(IRON_LOFT) - oz * Math.sin(IRON_LOFT);
+      const z1 = oy * Math.sin(IRON_LOFT) + oz * Math.cos(IRON_LOFT);
+      return new Vector3(
+        base.x + ox * Math.cos(IRON_YAW) + z1 * Math.sin(IRON_YAW),
+        base.y + y1,
+        base.z - ox * Math.sin(IRON_YAW) + z1 * Math.cos(IRON_YAW)
+      );
+    };
+    const bladePart = (part: Mesh, ox: number, oy: number, oz: number): void => {
+      part.rotationQuaternion = Quaternion.FromEulerAngles(IRON_LOFT, IRON_YAW, 0);
+      part.position = bladeOff(ox, oy, oz);
+      part.material = steel;
+      parts.push(part);
+    };
+    // The blade itself: a custom extruded outline — short heel tapering into
+    // the shaft, rising top line, rounded toe (createIronBlade above).
+    const blade = createIronBlade(scene, `${kind}Blade`);
+    bladePart(blade, 0, 0.01, 0);
+    // A slim sole bar behind the bottom edge keeps the thick-bottom read.
+    const sole = MeshBuilder.CreateBox(`${kind}Sole`, { width: 0.7, height: 0.11, depth: 0.16 }, scene);
+    bladePart(sole, 0.05, -0.15, 0.04);
+    // Hosel: short neck joining the shaft bottom into the blade's back end.
+    const hosel = MeshBuilder.CreateCylinder(`${kind}Hosel`, { diameter: 0.1, height: 0.26, tessellation: 8 }, scene);
+    placeHeadPart(hosel, -0.03, -CLUB_LEN + 0.36, -0.02, 0);
+  } else {
+    // Driver: the same face-plane treatment, nearly upright (a driver's face
+    // is much less lofted), with a big rounded wood body tucked behind the
+    // plane on its -normal side (local +X), crown meeting the face top.
+    const loft = -0.1;
+    const face = MeshBuilder.CreateBox(`${kind}Face`, { width: 0.92, height: 0.5, depth: 0.12 }, scene);
+    placeHeadPart(face, 0, -CLUB_LEN + 0.25, -0.36, loft);
+    const head = MeshBuilder.CreateSphere(`${kind}Head`, { diameter: 1, segments: 12 }, scene);
+    head.scaling = new Vector3(0.62, 0.55, 0.95);
+    placeHeadPart(head, 0.22, -CLUB_LEN + 0.3, -0.36, loft);
+    const hosel = MeshBuilder.CreateCylinder(`${kind}Hosel`, { diameter: 0.1, height: 0.22, tessellation: 8 }, scene);
+    placeHeadPart(hosel, 0, -CLUB_LEN + 0.38, -0.04, 0);
+  }
+
+  // One mesh per club (single enable toggle + shadow caster), preserving the
+  // per-part materials via a multi-material merge.
+  const merged = Mesh.MergeMeshes(parts, true, true, undefined, false, true);
+  if (!merged) return parts[0]; // unreachable with valid primitives
+  merged.name = `club_${kind}`;
+  merged.position = Vector3.Zero();
+  return merged;
+}
+
+/**
  * A playable golfer. Preferred body is a rigged chibi character model (the
  * "Cute Characters 4" pack) whose Idle clip holds the stance and whose Win/Sad
  * clips play the celebrate/deject reactions.
@@ -334,17 +528,14 @@ export class Golfer3D {
   // Club rig (shared by both bodies) + procedural-body pivots.
   private shoulderPivot!: TransformNode;
   private wristPivot!: TransformNode;
-  private shaftMat: StandardMaterial | null = null;
-  private clubHeadMat: StandardMaterial | null = null;
-  /** Procedural fallback club parts (shaft + head box), hidden once the real
-   *  club model finishes loading. */
-  private proceduralClub: Mesh[] = [];
+  /** The procedural iron (every full swing except the driver). */
   private clubModel: Mesh | null = null;
+  /** The putter model (putter.glb), swapped in on the green once loaded. */
   private putterModel: Mesh | null = null;
-  /** Distinct driver head (club.glb — a wood, not a blade), shown off the tee
-   *  when the driver is the selected club. */
+  /** The procedural rounded wood, shown when the driver is the selected club. */
   private driverModel: Mesh | null = null;
-  private clubModelMat: StandardMaterial | null = null;
+  /** Shared skin-tintable steel worn by every club's shaft + head. */
+  private clubModelMat!: StandardMaterial;
   private clubKind: 'swing' | 'putter' | 'driver' = 'swing';
   private clubHolder: TransformNode | null = null;
   /** 1 = full address pose deltas applied, 0 = raw swing pose. */
@@ -481,87 +672,67 @@ export class Golfer3D {
     this.wristPivot = new TransformNode('wrist', scene);
     this.wristPivot.position = new Vector3(0, -1.92, 0.62);
     this.wristPivot.parent = this.shoulderPivot;
-    const shaft = cast(MeshBuilder.CreateCylinder('shaft', { diameter: 0.11, height: 1.45, tessellation: 6 }, scene));
-    this.shaftMat = m(scene, 'shaft', 0x9aa6b2, 0.5);
-    shaft.material = this.shaftMat;
-    shaft.position = new Vector3(0.22, -0.66, 0.28);
-    shaft.rotation.x = 0.2;
-    shaft.rotation.z = -0.32;
-    shaft.parent = this.wristPivot;
-    const clubHead = cast(MeshBuilder.CreateBox('clubHead', { width: 0.62, height: 0.26, depth: 0.32 }, scene));
-    this.clubHeadMat = m(scene, 'clubHeadM', 0x4b525c, 0.6);
-    clubHead.material = this.clubHeadMat;
-    clubHead.position = new Vector3(0.48, -1.32, 0.44);
-    clubHead.parent = this.wristPivot;
-    this.proceduralClub = [shaft, clubHead];
+    // The holder every club hangs from — the swing/address pose rotates THIS,
+    // so the club meshes themselves stay in one fixed local convention: grip
+    // top at the origin, shaft straight down -Y, head at the bottom with its
+    // toe out along +X and the face toward the ball line.
+    const holder = new TransformNode('clubHolder', scene);
+    holder.parent = this.wristPivot;
+    holder.position = new Vector3(0.12, -0.05, 0.2);
+    holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
+    this.clubHolder = holder;
+    // The playable clubs are PROCEDURAL (Mario-Golf-style: clean shaft + simple
+    // chunky head) — built synchronously so a club is always in hand, no
+    // placeholder needed. Only the putter still ships as a model (loaded async).
+    this.clubModelMat = m(scene, 'clubModelMat', 0xc2cad2, 0.7);
+    this.clubModel = cast(buildProceduralClub(scene, 'iron', this.clubModelMat));
+    this.driverModel = cast(buildProceduralClub(scene, 'driver', this.clubModelMat));
+    for (const club of [this.clubModel, this.driverModel]) {
+      club.parent = holder;
+      club.receiveShadows = false;
+    }
+    this.clubModel.setEnabled(this.clubKind === 'swing');
+    this.driverModel.setEnabled(this.clubKind === 'driver');
+    this.applyAddressClubPose();
     this.loadClubModel(scene, shadows);
   }
 
   /**
-   * Swap the procedural box+cylinder for the real club models once they load.
-   * TWO models now ship (uploaded assets): a proper iron for every full swing
-   * and a real putter head for the green. Both parent to the same clubHolder
-   * on the wristPivot, so the swing/pose animation is untouched; setClubKind
-   * toggles which one shows. Each is normalized (grip at origin, hanging down
-   * -Y, face squared toward the ball line) and wears the flat steel material
-   * that carries the clubskin tint. The procedural club stays visible until
-   * (and if) the first model arrives.
+   * Load the one remaining club MODEL: the putter (the iron and driver are
+   * procedural, built synchronously in buildClubRig). Normalized like before
+   * (grip at origin, hanging down -Y) plus a face-fix quarter turn: the
+   * squaring step points the head's long axis down the line, which for a
+   * putter blade aims the TOE at the hole (playtest) — the extra yaw turns the
+   * blade perpendicular so its FACE addresses the cup.
    */
   private loadClubModel(scene: Scene, shadows: ShadowGenerator): void {
-    const loadOne = (file: string, kind: 'swing' | 'putter' | 'driver'): void => {
-      void LoadAssetContainerAsync(`models/equipment/${file}`, scene)
-        .then((container) => {
-          container.addAllToScene();
-          const parts = container.meshes.filter(
-            (mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0
-          );
-          const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
-          if (!merged) return;
-          const mat = this.clubModelMat ?? m(scene, 'clubModelMat', 0xc2cad2, 0.7);
-          this.clubModelMat = mat;
-          merged.material = mat;
-          this.clubHeadMat = mat;
-          this.shaftMat = mat;
-          // Normalize the geometry itself: source models arrive in arbitrary
-          // authored poses. Straighten along the principal axis (grip up at
-          // the origin, head down at -CLUB_LEN), square the face, and fatten
-          // only the shaft; the holder then poses a clean vertical club.
-          normalizeClubGeometry(merged);
-          merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
-          merged.position = Vector3.Zero();
-          if (!this.clubHolder) {
-            const holder = new TransformNode('clubHolder', scene);
-            holder.parent = this.wristPivot;
-            holder.position = new Vector3(0.12, -0.05, 0.2);
-            holder.rotation = new Vector3(CLUB_TILT_X, CLUB_TILT_Y, CLUB_TILT_Z);
-            this.clubHolder = holder;
-          }
-          merged.parent = this.clubHolder;
-          this.applyAddressClubPose();
-          merged.receiveShadows = false;
-          shadows.addShadowCaster(merged);
-          if (kind === 'driver') this.driverModel = merged;
-          else if (kind === 'putter') this.putterModel = merged;
-          else this.clubModel = merged;
-          merged.setEnabled(kind === this.clubKind);
-          this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
-          if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
-          // The club glb resolves AFTER `ready` (it's a separate fire-and-forget
-          // load), so the shared warmupShaders pass in main.ts misses it — and its
-          // shader would then compile on the FIRST swing, the exact hole-1 meter
-          // hitch. Compile it here, the instant it lands, so the cost falls in the
-          // flyover instead of on the live meter.
-          void (mat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
-            .forceCompilationAsync?.(merged)
-            .catch(() => undefined);
-        })
-        .catch(() => {
-          /* keep the procedural club if the model fails to load */
-        });
-    };
-    loadOne('iron.glb', 'swing');
-    loadOne('putter.glb', 'putter');
-    loadOne('club.glb', 'driver');
+    void LoadAssetContainerAsync('models/equipment/putter.glb', scene)
+      .then((container) => {
+        container.addAllToScene();
+        const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
+        const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, false) : null;
+        if (!merged) return;
+        merged.material = this.clubModelMat;
+        normalizeClubGeometry(merged, Math.PI / 2);
+        merged.scaling = new Vector3(CLUB_MIRROR, 1, 1);
+        merged.position = Vector3.Zero();
+        merged.parent = this.clubHolder;
+        this.applyAddressClubPose();
+        merged.receiveShadows = false;
+        shadows.addShadowCaster(merged);
+        this.putterModel = merged;
+        merged.setEnabled(this.clubKind === 'putter');
+        if (this.pendingClubSkin !== undefined) this.setClubSkin(this.pendingClubSkin);
+        // The putter glb resolves AFTER `ready` (a separate fire-and-forget
+        // load), so the shared warmupShaders pass in main.ts misses it — compile
+        // its shader now so the cost falls in the flyover, not on the meter.
+        void (this.clubModelMat as { forceCompilationAsync?: (mm: Mesh) => Promise<void> })
+          .forceCompilationAsync?.(merged)
+          .catch(() => undefined);
+      })
+      .catch(() => {
+        /* decorative: without the model the procedural iron stays in hand */
+      });
   }
 
   /** Show the putter on the green, the driver off the tee, the iron everywhere
@@ -574,17 +745,12 @@ export class Golfer3D {
     this.putterModel?.setEnabled(kind === 'putter');
   }
 
-  /** Tint the club with the equipped clubskin colour. The real model is one flat
-   *  steel piece (whole club takes the colour); the procedural fallback keeps its
-   *  two-tone (shaft the colour, head a darker shade). Cosmetic only. */
+  /** Tint the clubs with the equipped clubskin colour. All clubs share one
+   *  steel material (shaft + head take the colour; the dark grip sleeve keeps
+   *  its own material and stays put). Cosmetic only. */
   setClubSkin(color: number): void {
     this.pendingClubSkin = color;
-    if (this.clubModel) {
-      if (this.clubHeadMat) this.clubHeadMat.diffuseColor = c3(color);
-      return;
-    }
-    if (this.shaftMat) this.shaftMat.diffuseColor = c3(color);
-    if (this.clubHeadMat) this.clubHeadMat.diffuseColor = c3(color).scale(0.55);
+    this.clubModelMat.diffuseColor = c3(color);
   }
 
   /** Tint the whole character kit by multiplying the 'characters' material's
