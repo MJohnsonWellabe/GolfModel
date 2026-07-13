@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Bite-Sized Golf — Admin</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0b3d1f;
+        color: #f2f7f0;
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, sans-serif;
+        min-height: 100vh;
+        padding: 24px 16px 60px;
+      }
+      #app {
+        max-width: 760px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 26px;
+        margin-bottom: 4px;
+      }
+      h2 {
+        font-size: 19px;
+        margin: 26px 0 10px;
+        color: #ffd54f;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 14px 0 6px;
+        color: #bfe8c5;
+      }
+      .sub {
+        color: #a9c9b0;
+        font-size: 14px;
+        margin-bottom: 12px;
+      }
+      section {
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 14px;
+        padding: 14px 16px 18px;
+        margin-top: 16px;
+        overflow-x: auto;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        white-space: nowrap;
+      }
+      th {
+        color: #a9c9b0;
+        font-weight: 600;
+      }
+      .n {
+        color: #7fa387;
+        font-size: 11px;
+      }
+      .barcell {
+        width: 40%;
+        min-width: 120px;
+      }
+      .bar {
+        background: rgba(255, 255, 255, 0.12);
+        border-radius: 6px;
+        height: 12px;
+        overflow: hidden;
+      }
+      .fill {
+        background: linear-gradient(90deg, #ffd54f, #eab63a);
+        height: 100%;
+        border-radius: 6px;
+      }
+      .btn {
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        border: none;
+        border-radius: 10px;
+        color: #223;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 16px;
+        font-weight: 700;
+        margin-top: 12px;
+        padding: 12px 22px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/admin/main.ts"></script>
+  </body>
+</html>
