@@ -65,7 +65,7 @@ import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
-import { Golfer3D } from './golfer3d';
+import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter } from './meter3d';
 
 // ------------------------------------------------------------------- boot
@@ -968,6 +968,44 @@ class HoleScene {
       void this.bodiesReady.then(() => {
         this.scene.animationGroups.forEach((g) => g.pause());
       });
+    }
+  }
+
+  /** Club-lab hook (tests/visual/clublab.spec.ts): swap the active golfer's
+   *  procedural clubs for a ClubTuning variant and pick which one is in hand,
+   *  so equipment proportions can be reviewed without touching defaults. */
+  clubLab(tuning: Partial<ClubTuning> | undefined, kind: 'swing' | 'driver' | 'putter'): void {
+    this.golfer.rebuildClubs(tuning);
+    this.golfer.setClubKind(kind);
+  }
+
+  /** Club-lab camera: equipment close-ups around the addressed ball. 'hero'
+   *  frames the whole golfer + club; 'face' is a tight front view of the
+   *  head; 'edge' looks in from the ball side; 'top' looks straight down so
+   *  the head's front-to-back depth reads against the shaft and ball.
+   *  Close-ups shoot from the golfer→ball side, which is never occluded. */
+  clubLabView(view: 'hero' | 'face' | 'edge' | 'top'): void {
+    const b = this.ball.position;
+    const g = this.golfer.root.position;
+    const f = this.fwd3(this.aim.yaw);
+    let ax = b.x - g.x;
+    let az = b.z - g.z;
+    const al = Math.hypot(ax, az) || 1;
+    ax /= al;
+    az /= al;
+    if (view === 'hero') {
+      this.camera.position.set(b.x + f.x * 14 + ax * 5.5, b.y + 4.2, b.z + f.z * 14 + az * 5.5);
+      this.camera.setTarget(new Vector3(g.x, g.y + 3.0, g.z));
+    } else if (view === 'face') {
+      this.camera.position.set(b.x + f.x * 4.2 + ax * 1.2, b.y + 1.3, b.z + f.z * 4.2 + az * 1.2);
+      this.camera.setTarget(new Vector3(b.x, b.y + 0.3, b.z));
+    } else if (view === 'edge') {
+      this.camera.position.set(b.x + ax * 4.4 + f.x * 0.5, b.y + 1.2, b.z + az * 4.4 + f.z * 0.5);
+      this.camera.setTarget(new Vector3(b.x, b.y + 0.3, b.z));
+    } else {
+      // Near-vertical (a hair off plumb so the up-vector never degenerates).
+      this.camera.position.set(b.x + f.x * 1.2, b.y + 5.2, b.z + f.z * 1.2);
+      this.camera.setTarget(new Vector3(b.x, b.y, b.z));
     }
   }
 
@@ -2982,6 +3020,9 @@ function exposeDebug(): void {
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
         skipIntro: () => current?.skipIntro(),
+        clubLab: (tuning: Partial<ClubTuning> | undefined, kind: 'swing' | 'driver' | 'putter') =>
+          current?.clubLab(tuning, kind),
+        clubLabView: (view: 'hero' | 'face' | 'edge') => current?.clubLabView(view),
         debugTreeOcclusion: (x: number, y: number, z: number) => current?.debugTreeOcclusion(x, y, z)
       }
     : null;
