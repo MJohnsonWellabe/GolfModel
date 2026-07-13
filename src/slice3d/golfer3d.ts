@@ -341,8 +341,11 @@ export class Golfer3D {
   private proceduralClub: Mesh[] = [];
   private clubModel: Mesh | null = null;
   private putterModel: Mesh | null = null;
+  /** Distinct driver head (club.glb — a wood, not a blade), shown off the tee
+   *  when the driver is the selected club. */
+  private driverModel: Mesh | null = null;
   private clubModelMat: StandardMaterial | null = null;
-  private clubKind: 'swing' | 'putter' = 'swing';
+  private clubKind: 'swing' | 'putter' | 'driver' = 'swing';
   private clubHolder: TransformNode | null = null;
   /** 1 = full address pose deltas applied, 0 = raw swing pose. */
   private addressBlend = 1;
@@ -505,7 +508,7 @@ export class Golfer3D {
    * (and if) the first model arrives.
    */
   private loadClubModel(scene: Scene, shadows: ShadowGenerator): void {
-    const loadOne = (file: string, kind: 'swing' | 'putter'): void => {
+    const loadOne = (file: string, kind: 'swing' | 'putter' | 'driver'): void => {
       void LoadAssetContainerAsync(`models/equipment/${file}`, scene)
         .then((container) => {
           container.addAllToScene();
@@ -537,7 +540,8 @@ export class Golfer3D {
           this.applyAddressClubPose();
           merged.receiveShadows = false;
           shadows.addShadowCaster(merged);
-          if (kind === 'putter') this.putterModel = merged;
+          if (kind === 'driver') this.driverModel = merged;
+          else if (kind === 'putter') this.putterModel = merged;
           else this.clubModel = merged;
           merged.setEnabled(kind === this.clubKind);
           this.proceduralClub.forEach((mesh) => mesh.setEnabled(false));
@@ -557,14 +561,16 @@ export class Golfer3D {
     };
     loadOne('iron.glb', 'swing');
     loadOne('putter.glb', 'putter');
+    loadOne('club.glb', 'driver');
   }
 
-  /** Show the putter on the green, the iron everywhere else. Cheap toggle —
-   *  main calls it whenever the selected club changes. */
-  setClubKind(kind: 'swing' | 'putter'): void {
+  /** Show the putter on the green, the driver off the tee, the iron everywhere
+   *  else. Cheap toggle — main calls it whenever the selected club changes. */
+  setClubKind(kind: 'swing' | 'putter' | 'driver'): void {
     if (kind === this.clubKind) return;
     this.clubKind = kind;
     this.clubModel?.setEnabled(kind === 'swing');
+    this.driverModel?.setEnabled(kind === 'driver');
     this.putterModel?.setEnabled(kind === 'putter');
   }
 
