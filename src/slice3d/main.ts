@@ -865,7 +865,11 @@ class HoleScene {
     // turns out to be) rather than a fixed offset from playIntro()'s call
     // time; a MAX_NATURE_WAIT_MS cap keeps a stalled/failed load from
     // hanging the flyover forever.
-    const MAX_NATURE_WAIT_MS = 2600;
+    // 6s cap: a cold cache on a slow connection needs longer than the old
+    // 2.6s to fetch + plant the full scatter (Sable Bay h1 regressed into
+    // popping in mid-sweep); the tee-hold shot keeps the screen composed
+    // while we wait, and a stalled/failed load still can't hang the intro.
+    const MAX_NATURE_WAIT_MS = 6000;
     let travelStarted = false;
     const beginTravel = (): void => {
       if (travelStarted || this.disposed || this.introSkipped) return;

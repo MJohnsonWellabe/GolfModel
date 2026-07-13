@@ -957,6 +957,11 @@ export function buildCourse(
 
   // ------------------------------------------------------------ backdrop
   const peakDist = 2500;
+  // Resolves once the sailboat ship glb has swapped in (or immediately when
+  // the hole has no boats / the load fails) — folded into the returned
+  // natureReady so the intro flyover can't sweep past placeholder hulls that
+  // pop into real ships mid-shot (Sable Bay h1 cold-load regression).
+  let shipReady: Promise<void> = Promise.resolve();
   if (theme.backdrop === 'sea') {
     // Links course: a broad sea plane meeting the sky at a low horizon,
     // with animated sparkle instead of a mountain range
@@ -1051,7 +1056,7 @@ export function buildCourse(
         sail.parent = boat;
         placeholders.push(sail);
       }
-      void LoadAssetContainerAsync('models/nature/ship.glb', scene)
+      shipReady = LoadAssetContainerAsync('models/nature/ship.glb', scene)
         .then((container) => {
           container.addAllToScene();
           const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
@@ -2479,7 +2484,9 @@ export function buildCourse(
     },
     groundHeightAt: (x: number, y: number): number =>
       engine.groundAt(x, y) + (onTeePlatform(x, y, hole) ? TEE_TOP : greenLift(x, y, hole)),
-    natureReady,
+    // Scatter drain AND the ship swap-in — the flyover gate waits on both
+    // (still bounded by main.ts's MAX_NATURE_WAIT_MS fallback).
+    natureReady: Promise.all([natureReady, shipReady]).then(() => undefined),
     updateTreeOcclusion
   };
 }
