@@ -11,6 +11,18 @@ import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
 import { avgByArchetype, avgByCharacter, avgByCourse, avgByHole, avgPutts } from './aggregate';
 import { isAdminEmail } from './adminEmails';
+import { ARCHETYPES } from '../data/archetypes';
+import { CHARACTERS } from '../data/characters';
+import wildwood from '../data/courses/wildwood.json';
+import sablebay from '../data/courses/sablebay.json';
+import timberline from '../data/courses/timberline.json';
+import portjohnson from '../data/courses/portjohnson.json';
+
+// Only CURRENT content — the public rounds node still holds rounds from prior
+// game versions (retired courses/characters). Drop anything not in the live roster.
+const ACTIVE_COURSES = new Set<string>([wildwood, sablebay, timberline, portjohnson].map((c) => (c as { name: string }).name));
+const ACTIVE_ARCHETYPES = new Set<string>(ARCHETYPES.map((a) => a.id));
+const ACTIVE_CHARACTERS = new Set<string>(CHARACTERS.map((c) => c.key));
 
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 
@@ -55,17 +67,21 @@ function bar(value: number, max: number): string {
   return `<div class="bar"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>`;
 }
 
-function render(rounds: RoundRecord[]): void {
+function render(allRounds: RoundRecord[]): void {
+  // Keep only rounds on courses that still exist; type tables filter to the
+  // live archetype/character rosters below.
+  const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
   const courses = avgByCourse(rounds);
   const holes = avgByHole(rounds);
-  const archetypes = avgByArchetype(rounds);
-  const characters = avgByCharacter(rounds);
+  const archetypes = avgByArchetype(rounds).filter((t) => ACTIVE_ARCHETYPES.has(t.type));
+  const characters = avgByCharacter(rounds).filter((t) => ACTIVE_CHARACTERS.has(t.type));
   const putts = avgPutts(rounds);
   const fmtPar = (v: number): string => (v > 0 ? `+${v}` : `${v}`);
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
-  let html = `<h1>⛳ Bite-Sized Golf — Admin</h1>
-    <p class="sub">${rounds.length} rounds on the shared leaderboard</p>`;
+  let html = `<button id="backGame" class="btn back">← Back to game</button>
+    <h1>⛳ Bite-Sized Golf — Admin</h1>
+    <p class="sub">${rounds.length} active rounds (legacy versions hidden)</p>`;
 
   html += `<section><h2>Average score by course</h2><table>
     <tr><th>Course</th><th>Rounds</th><th>Avg total</th><th>Avg to par</th><th></th></tr>`;
@@ -112,6 +128,7 @@ function render(rounds: RoundRecord[]): void {
   html += `</section>`;
 
   $('app').innerHTML = html;
+  document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
 }
 
 async function showDashboard(email: string): Promise<void> {

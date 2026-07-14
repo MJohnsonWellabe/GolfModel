@@ -95,6 +95,9 @@ export interface PlayerProfile {
   perks: PerkState[];
   /** Perk equipped for the next round, or null. */
   equippedPerk: string | null;
+  /** True once the player has chosen a loadout in the Locker Room ("Lock it
+   *  in"). Until then, each round tees off with a random owned loadout. */
+  loadoutLocked?: boolean;
   updatedAt: number;
 }
 
@@ -169,6 +172,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     season: { id: 's1', xp: 0, claimed: [], owned: false },
     perks: [],
     equippedPerk: null,
+    loadoutLocked: false,
     updatedAt: now
   };
 }
@@ -237,7 +241,8 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     },
     // RTDB drops empty arrays/null — backfill perks + equipped like the rest.
     perks: [...(parsed.perks ?? [])],
-    equippedPerk: parsed.equippedPerk ?? null
+    equippedPerk: parsed.equippedPerk ?? null,
+    loadoutLocked: parsed.loadoutLocked ?? false
   };
 }
 

@@ -102,12 +102,12 @@ const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
   ['enzo', 'special', 300],
   ['knox', 'special', 300],
   ['pia', 'special', 300],
-  ['zuri', 'special', 300]
+  ['remi', 'special', 300]
 ];
 
 /** Characters awarded ONLY by the Season 1 pass (not buyable). Season-flagged
  *  so the store hides them and StoreEngine treats them as claim-only. */
-const SEASON_CHARACTERS: CharacterKey[] = ['kuro', 'jade', 'nova', 'remi'];
+const SEASON_CHARACTERS: CharacterKey[] = ['kuro', 'jade', 'nova', 'zuri'];
 
 // Outfit colorways: tint the whole character kit (one 'characters' material —
 // the chibi mesh has no separable garments, so this is a whole-kit wash applied
