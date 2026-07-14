@@ -9,7 +9,7 @@
  */
 import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
-import { avgByArchetype, avgByCharacter, avgByCourse, avgByHole, avgPutts } from './aggregate';
+import { avgByArchetype, avgByCharacter, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, roundsByAccount } from './aggregate';
 import { isAdminEmail } from './adminEmails';
 import { ARCHETYPES } from '../data/archetypes';
 import { CHARACTERS } from '../data/characters';
@@ -73,9 +73,11 @@ function render(allRounds: RoundRecord[]): void {
   const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
   const courses = avgByCourse(rounds);
   const holes = avgByHole(rounds);
+  const puttHoles = avgPuttsByHole(rounds);
   const archetypes = avgByArchetype(rounds).filter((t) => ACTIVE_ARCHETYPES.has(t.type));
   const characters = avgByCharacter(rounds).filter((t) => ACTIVE_CHARACTERS.has(t.type));
   const putts = avgPutts(rounds);
+  const accounts = roundsByAccount(rounds);
   const fmtPar = (v: number): string => (v > 0 ? `+${v}` : `${v}`);
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
@@ -96,7 +98,7 @@ function render(allRounds: RoundRecord[]): void {
     const per = holes.get(c.course) ?? [];
     html += `<h3>${esc(c.course)}</h3><table>
       <tr><th>Hole</th>${per.map((h) => `<th>${h.hole}</th>`).join('')}</tr>
-      <tr><td>Avg</td>${per.map((h) => `<td>${h.avgStrokes} <span class="n">n=${h.n}</span></td>`).join('')}</tr>
+      <tr><td>Avg</td>${per.map((h) => `<td>${h.avg} <span class="n">n=${h.n}</span></td>`).join('')}</tr>
     </table>`;
   }
   html += `</section>`;
@@ -122,6 +124,30 @@ function render(allRounds: RoundRecord[]): void {
       <tr><td><b>${esc(putts.overall.course)}</b></td><td>${putts.overall.n}</td><td><b>${putts.overall.avgPutts}</b></td></tr>`;
     for (const p of putts.byCourse) {
       html += `<tr><td>${esc(p.course)}</td><td>${p.n}</td><td>${p.avgPutts}</td></tr>`;
+    }
+    html += `</table>`;
+    html += `<h3>Average putts by hole</h3>`;
+    for (const c of putts.byCourse) {
+      const per = puttHoles.get(c.course) ?? [];
+      if (!per.some((h) => h.n > 0)) continue;
+      html += `<h4>${esc(c.course)}</h4><table>
+        <tr><th>Hole</th>${per.map((h) => `<th>${h.hole}</th>`).join('')}</tr>
+        <tr><td>Avg</td>${per.map((h) => `<td>${h.n ? h.avg : '—'} <span class="n">n=${h.n}</span></td>`).join('')}</tr>
+      </table>`;
+    }
+  }
+  html += `</section>`;
+
+  html += `<section><h2>Rounds by account</h2>
+    <p class="sub">${accounts.tracked.length} accounts have played`;
+  if (accounts.untracked > 0) html += ` · ${accounts.untracked} round(s) predate account tracking`;
+  html += `.</p>`;
+  if (accounts.tracked.length === 0) {
+    html += `<p>No account-linked rounds yet.</p>`;
+  } else {
+    html += `<table><tr><th>Player</th><th>Rounds played</th><th>Last played</th></tr>`;
+    for (const a of accounts.tracked) {
+      html += `<tr><td>${esc(a.name || 'Player')}</td><td>${a.n}</td><td>${new Date(a.lastPlayed).toLocaleDateString()}</td></tr>`;
     }
     html += `</table>`;
   }

@@ -2140,10 +2140,13 @@ function showSummary(): void {
     toPar: totals[0] - totalPar,
     holes: me.scores.slice(0, holes.length),
     putts: holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0),
-    hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0)
+    hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0),
+    uid: profile.id
   };
   // Records/coins only persist for a signed-in account (account-gated model):
   // a signed-out round still plays and shows its rewards, but nothing is saved.
+  // signedIn gates this, so profile.id is always the real Firebase uid here
+  // (never the pre-sign-in "guest-…" id) — see adoptCloudAccount.
   if (signedIn) saveRound(record);
 
   // Progression: build the round stats, award XP/coins/achievements/daily.
@@ -3378,6 +3381,14 @@ void (async () => {
     }
   }
   renderAcctMenu();
+  // First visit / fresh guest with no name yet — ask once (editable later in
+  // the Locker Room / Profile). Gated on the account check above resolving
+  // first: profile.name starts empty for EVERY boot (defaultProfile()) and
+  // only gets the cloud value once adoptCloudAccount finishes, so checking
+  // synchronously at load used to pop the modal for a signed-in player on
+  // every reload, right before their name loaded in underneath it. Skipped in
+  // the screenshot-harness boot.
+  if (!profile.name.trim() && !SHOT.hole) promptName(false);
 })();
 
 /** The setup choices, prefilled from the profile so returning players jump
@@ -3743,7 +3754,10 @@ function renderStepBody(): void {
 }
 
 function updateNav(): void {
-  backBtn.style.visibility = sel.step === 0 ? 'hidden' : 'visible';
+  // display:none (not visibility:hidden) on step 0 — a hidden-but-present Back
+  // button still claims its 34% flex slot, leaving Locker/Next pushed into the
+  // remaining space with a dead gap on the left instead of filling the row.
+  backBtn.style.display = sel.step === 0 ? 'none' : '';
   nextBtn.textContent = sel.step === stepLabels().length - 1 ? 'Tee off' : 'Next';
   nextBtn.disabled = false;
 }
@@ -3899,9 +3913,6 @@ document.getElementById('tournyLink')!.addEventListener('pointerdown', () => ren
 document.getElementById('adminLink')!.addEventListener('pointerdown', () => (window.location.href = 'admin.html'));
 updateSeasonLink();
 refreshAdminLink();
-// First visit / fresh guest with no name yet — ask once (editable later in the
-// Locker Room / Profile). Skipped in the screenshot-harness boot.
-if (!profile.name.trim() && !SHOT.hole) promptName(false);
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));

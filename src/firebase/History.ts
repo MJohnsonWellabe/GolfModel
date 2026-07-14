@@ -19,6 +19,10 @@ export interface RoundRecord {
   putts?: number;
   /** Putts taken per hole, parallel to holes[]. */
   hputts?: number[];
+  /** Signed-in account uid (absent on rounds recorded before account tracking,
+   *  and never present for signed-out play — saveRound is only ever called for
+   *  a signed-in profile, so every uid here is a real Firebase uid). */
+  uid?: string;
 }
 
 const LOCAL_KEY = 'johnsons-golf-history-v1';

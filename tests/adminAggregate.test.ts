@@ -6,6 +6,8 @@ import {
   avgByCourse,
   avgByHole,
   avgPutts,
+  avgPuttsByHole,
+  roundsByAccount,
   splitGolferId
 } from '../src/admin/aggregate';
 
@@ -46,14 +48,27 @@ describe('avgByHole', () => {
   it('averages per hole slot per course', () => {
     const per = avgByHole(sample).get('Sable Bay')!;
     expect(per.map((h) => h.hole)).toEqual([1, 2, 3]);
-    expect(per[0].avgStrokes).toBe(3.5);
-    expect(per[1].avgStrokes).toBe(4);
+    expect(per[0].avg).toBe(3.5);
+    expect(per[1].avg).toBe(4);
     expect(per[0].n).toBe(2);
   });
 
   it('tolerates rounds with missing holes arrays', () => {
     const broken = [round({ holes: undefined as unknown as number[] })];
     expect(avgByHole(broken).size).toBe(0);
+  });
+});
+
+describe('avgPuttsByHole', () => {
+  it('averages putts per hole slot per course, over rounds carrying hputts', () => {
+    const per = avgPuttsByHole(sample).get('Sable Bay')!;
+    expect(per.map((h) => h.hole)).toEqual([1, 2, 3]);
+    expect(per[0].avg).toBe(1.5); // (2+1)/2
+    expect(per[0].n).toBe(2);
+  });
+
+  it('rounds with no hputts contribute nothing (Timberline: only 1 of 2 rounds has putts, neither has hputts)', () => {
+    expect(avgPuttsByHole(sample).has('Timberline')).toBe(false);
   });
 });
 
@@ -87,5 +102,35 @@ describe('avgPutts', () => {
     const p = avgPutts([round({})]);
     expect(p.tracked).toBe(0);
     expect(p.overall.avgPutts).toBe(0);
+  });
+});
+
+describe('roundsByAccount', () => {
+  it('counts rounds per uid and keeps the most recent display name', () => {
+    const rounds = [
+      round({ uid: 'uid-1', names: 'Matt', d: 1000 }),
+      round({ uid: 'uid-1', names: 'MattJ', d: 2000 }), // renamed later — latest wins
+      round({ uid: 'uid-2', names: 'Sam', d: 1500 }),
+      round({ uid: undefined, names: 'Guest' }) // pre-tracking round
+    ];
+    const r = roundsByAccount(rounds);
+    expect(r.untracked).toBe(1);
+    expect(r.tracked).toHaveLength(2);
+    const uid1 = r.tracked.find((a) => a.uid === 'uid-1')!;
+    expect(uid1.n).toBe(2);
+    expect(uid1.name).toBe('MattJ');
+    expect(uid1.lastPlayed).toBe(2000);
+    expect(r.tracked.find((a) => a.uid === 'uid-2')!.n).toBe(1);
+  });
+
+  it('sorts by round count, most active first', () => {
+    const rounds = [
+      round({ uid: 'a', d: 1 }),
+      round({ uid: 'b', d: 1 }),
+      round({ uid: 'b', d: 2 }),
+      round({ uid: 'b', d: 3 })
+    ];
+    const r = roundsByAccount(rounds);
+    expect(r.tracked.map((a) => a.uid)).toEqual(['b', 'a']);
   });
 });

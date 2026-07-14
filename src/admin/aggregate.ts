@@ -13,10 +13,12 @@ export interface CourseAvg {
   avgToPar: number;
 }
 
+/** One hole's average of whatever per-hole stat was aggregated (strokes or
+ *  putts — shared shape so both tables render the same way). */
 export interface HoleAvg {
   hole: number; // 1-based position in the round
   n: number;
-  avgStrokes: number;
+  avg: number;
 }
 
 export interface TypeAvg {
@@ -30,6 +32,14 @@ export interface PuttAvg {
   course: string; // 'All courses' for the overall row
   n: number;
   avgPutts: number;
+}
+
+export interface AccountRounds {
+  uid: string;
+  /** Most recently seen display name for this uid (names can change). */
+  name: string;
+  n: number;
+  lastPlayed: number; // epoch ms, latest round's `d`
 }
 
 const round1 = (v: number): number => Math.round(v * 10) / 10;
@@ -56,15 +66,26 @@ export function avgByCourse(rounds: RoundRecord[]): CourseAvg[] {
 
 /** Average strokes per hole slot, per course (holes[] is positional). */
 export function avgByHole(rounds: RoundRecord[]): Map<string, HoleAvg[]> {
+  return avgArrayByHole(rounds, (r) => r.holes);
+}
+
+/** Average putts per hole slot, per course (hputts[] is positional — absent
+ *  on rounds recorded before putt tracking, same as the overall putts avg). */
+export function avgPuttsByHole(rounds: RoundRecord[]): Map<string, HoleAvg[]> {
+  return avgArrayByHole(rounds, (r) => r.hputts);
+}
+
+function avgArrayByHole(rounds: RoundRecord[], pick: (r: RoundRecord) => number[] | undefined): Map<string, HoleAvg[]> {
   const acc = new Map<string, { n: number; sum: number }[]>();
   for (const r of rounds) {
-    if (!Array.isArray(r.holes)) continue;
+    const values = pick(r);
+    if (!Array.isArray(values)) continue;
     const per = acc.get(r.course) ?? [];
-    r.holes.forEach((strokes, i) => {
-      if (typeof strokes !== 'number') return;
+    values.forEach((v, i) => {
+      if (typeof v !== 'number') return;
       per[i] = per[i] ?? { n: 0, sum: 0 };
       per[i].n++;
-      per[i].sum += strokes;
+      per[i].sum += v;
     });
     acc.set(r.course, per);
   }
@@ -72,7 +93,7 @@ export function avgByHole(rounds: RoundRecord[]): Map<string, HoleAvg[]> {
   for (const [course, per] of acc) {
     out.set(
       course,
-      per.map((a, i) => ({ hole: i + 1, n: a?.n ?? 0, avgStrokes: a ? round2(a.sum / a.n) : 0 }))
+      per.map((a, i) => ({ hole: i + 1, n: a?.n ?? 0, avg: a ? round2(a.sum / a.n) : 0 }))
     );
   }
   return out;
@@ -136,5 +157,32 @@ export function avgPutts(rounds: RoundRecord[]): { overall: PuttAvg; byCourse: P
       .sort((x, y) => y.n - x.n),
     tracked: withPutts.length,
     totalRounds: rounds.length
+  };
+}
+
+/** Rounds played per signed-in account, newest-played first. Rounds saved
+ *  before account tracking shipped (or somehow missing a uid) are grouped
+ *  under 'untracked' rather than dropped, so the round count stays honest. */
+export function roundsByAccount(rounds: RoundRecord[]): { tracked: AccountRounds[]; untracked: number } {
+  const acc = new Map<string, { n: number; name: string; lastPlayed: number }>();
+  let untracked = 0;
+  for (const r of rounds) {
+    if (!r.uid) {
+      untracked++;
+      continue;
+    }
+    const a = acc.get(r.uid) ?? { n: 0, name: r.names, lastPlayed: -Infinity };
+    a.n++;
+    if (r.d >= a.lastPlayed) {
+      a.lastPlayed = r.d;
+      a.name = r.names; // keep the most recent round's display name
+    }
+    acc.set(r.uid, a);
+  }
+  return {
+    tracked: [...acc.entries()]
+      .map(([uid, a]) => ({ uid, name: a.name, n: a.n, lastPlayed: a.lastPlayed }))
+      .sort((x, y) => y.n - x.n),
+    untracked
   };
 }
