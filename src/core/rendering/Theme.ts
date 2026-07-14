@@ -100,10 +100,10 @@ export interface CourseTheme {
    *  of nothing but flat water and sky (Sable Bay). */
   seaDunes?: boolean;
   /** Line the hole-side lip of every bunker (any type — plain, waste, beach,
-   *  or revetted-wall) with real heather (heatherKeys, filtered to
-   *  heather_fescue* — the drab/wiry variants, never heather_purple) — a
-   *  links/Pinehurst trademark: the bunker reads carved into rough, not a
-   *  clean sand disc dropped onto turf. Cosmetic only. */
+   *  or revetted-wall) with the same heather mix already growing through this
+   *  course's rough (heatherKeys, every variant including heather_purple) — a
+   *  links/Pinehurst trademark: the bunker reads carved into turf, not a
+   *  clean sand disc dropped onto flat ground. Cosmetic only. */
   bunkerLipFescue?: boolean;
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */

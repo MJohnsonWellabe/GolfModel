@@ -2009,17 +2009,16 @@ export function buildCourse(
     }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
-        // Real heather — the same drab, wiry fescue props already used on
-        // this course's rough (theme.heatherKeys) — planted on the hole-side
-        // of EVERY bunker (plain, waste, beach, or revetted-wall) so a trap
-        // reads as carved into rough, links-style, not a clean sand disc.
-        // Filtered to heather_fescue* only: heather_purple is a distinctly
-        // colorful (not drab) outlier some courses' heatherKeys also include
-        // for general rough color variety, but it's wrong here.
-        const fescueKeys = (theme.heatherKeys ?? []).filter((k) => k.startsWith('heather_fescue'));
-        const pool = pick(fescueKeys);
+        // The SAME heather mix already planted through this course's rough
+        // (theme.heatherKeys — every variant, including heather_purple; the
+        // links look is those plants growing right up to the sand, not a
+        // separate invented asset) — planted on the hole-side of EVERY bunker
+        // (plain, waste, beach, or revetted-wall) so a trap reads as sand
+        // carved out of a real turf lip, not a clean disc dropped onto flat
+        // ground.
+        const pool = pick(theme.heatherKeys ?? []);
         if (!pool.length) return;
-        const KEEP_RATE = 0.78;
+        const KEEP_RATE = 0.85;
         for (const hz of hole.hazards) {
           if (hz.type !== 'bunker') continue;
           const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
@@ -2034,7 +2033,7 @@ export function buildCourse(
             const [x1, y1] = hz.polygon[i];
             const [x2, y2] = hz.polygon[(i + 1) % n];
             const segLen = Math.hypot(x2 - x1, y2 - y1);
-            const steps = Math.max(1, Math.round(segLen / 7));
+            const steps = Math.max(1, Math.round(segLen / 6));
             for (let s = 0; s < steps; s++) {
               const t = s / steps;
               const px = x1 + (x2 - x1) * t;

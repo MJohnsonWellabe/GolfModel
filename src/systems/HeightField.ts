@@ -1,4 +1,5 @@
 import { HoleData } from '../core/types';
+import { pointInGreens } from '../utils/Geometry';
 
 /**
  * Authored macro-terrain for a hole: a sum of radial control-point bumps
@@ -25,6 +26,34 @@ export interface ElevationPoint {
 }
 
 const CELL = 8; // grid resolution, world px — smooth macro terrain only
+
+/** Keep-clear buffer (world px) beyond the green/fringe a bunker's dish rim
+ *  must respect — a greenside trap is common, and its pothole must never
+ *  bleed a slope or crater into the putting surface itself. */
+const GREEN_KEEPOUT = 24;
+
+/** Shrink `desiredR` (in 4px steps) until no sample around the dish's outer
+ *  rim falls inside the green (padded by GREEN_KEEPOUT) — cheap, one-time,
+ *  hole-build-only work, and robust to the green's real shape (rotated,
+ *  wobbled, lobed) since it reuses the same pointInGreens the rest of the
+ *  game plays by, rather than an approximate circle. */
+function maxRadiusClearOfGreen(hole: HoleData, cx: number, cy: number, desiredR: number): number {
+  const SAMPLES = 16;
+  let r = desiredR;
+  while (r > 0) {
+    let hits = false;
+    for (let i = 0; i < SAMPLES; i++) {
+      const a = (i / SAMPLES) * Math.PI * 2;
+      if (pointInGreens(cx + Math.cos(a) * r, cy + Math.sin(a) * r, hole.green, hole.green2, GREEN_KEEPOUT)) {
+        hits = true;
+        break;
+      }
+    }
+    if (!hits) return r;
+    r -= 4;
+  }
+  return 0;
+}
 
 export class HeightField {
   private grid: Float32Array;
@@ -91,22 +120,38 @@ export class HeightField {
   }
 }
 
-/** Compile a hole's authored elevation (null when the hole is flat).
- *  Revetted bunkers (hazard.wall) inject a sunken negative plateau so the floor
- *  sits below the turf — both the physics and the rendered ground share it, and
- *  course3d builds the stone wall ring around the resulting pit. */
+/** Compile a hole's authored elevation (null when the hole is flat). Every
+ *  bunker injects a sunken negative point so the sand actually sits below the
+ *  turf rim — both the physics and the rendered ground mesh share the same
+ *  HeightField, so a bunker reads as a real pothole scooped out of the
+ *  ground instead of a flat disc of sand painted onto level turf. Revetted
+ *  bunkers (hazard.wall) sink a flat plateau floor (course3d builds the
+ *  stacked-stone wall ring around the resulting pit); ordinary bunkers get a
+ *  shallower, rounded dome dish so they read as a natural hollow. Beach/waste
+ *  sand stays flat — a coastal band or a sprawling links waste area is
+ *  ground-level sand, not a dug trap. */
 export function buildHeightField(hole: HoleData): HeightField | null {
   const pts: ElevationPoint[] = [...(hole.elevation ?? [])];
   for (const hz of hole.hazards) {
-    if (hz.type !== 'bunker' || !hz.wall) continue;
+    if (hz.type !== 'bunker') continue;
     const xs = hz.polygon.map((p) => p[0]);
     const ys = hz.polygon.map((p) => p[1]);
     const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
     const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
     const r = Math.max(...hz.polygon.map((p) => Math.hypot(p[0] - cx, p[1] - cy)));
-    // A flat sunken floor (plateau) a touch WIDER than the trap so the whole
-    // sand sits low and the skirt (where the wall stands) hugs the rim.
-    pts.push({ x: cx, y: cy, h: -WALL_DEPTH, r: r + 6, shape: 'plateau' });
+    if (hz.wall) {
+      // A flat sunken floor (plateau) a touch WIDER than the trap so the whole
+      // sand sits low and the skirt (where the wall stands) hugs the rim.
+      pts.push({ x: cx, y: cy, h: -WALL_DEPTH, r: r + 6, shape: 'plateau' });
+    } else if (!hz.beach && !hz.waste) {
+      // A smooth, rounded dish (dome, not a flat floor) so an ordinary trap
+      // reads as a natural hollow carved into the hillside, with the turf
+      // rim (and its fescue lip) sloping down into the sand. Clamped clear of
+      // the green — a greenside bunker's pothole must never crater the
+      // putting surface it sits beside.
+      const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
+      if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH, r: dishR });
+    }
   }
   if (pts.length === 0) return null;
   return new HeightField(pts, hole.world.width, hole.world.height);
@@ -114,3 +159,7 @@ export function buildHeightField(hole: HoleData): HeightField | null {
 
 /** Depth (world units) a revetted bunker floor sinks below the turf rim. */
 export const WALL_DEPTH = 3.4;
+/** Depth (world units) an ordinary (non-revetted) bunker's dish sinks below
+ *  the turf rim — shallower than a walled pot bunker, so it reads as a
+ *  natural hollow scooped out of the hillside rather than a dug pit. */
+export const DISH_DEPTH = 1.4;

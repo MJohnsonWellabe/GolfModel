@@ -501,19 +501,16 @@ class HoleScene {
     this.aimRing.parent = this.aimRoot;
     this.aimRoot.setEnabled(false);
 
-    // True Vision: a second, red dot pool showing the REVEALED shot path — a
+    // True Vision: a second, red dot pool showing the REVEALED putt line — a
     // separate mesh/material from the white aim guide so it can be populated
     // once on tap and left untouched while the ordinary aim line keeps
-    // redrawing every frame as the player adjusts pace. Sized generously
-    // (not just putt-length) — True Vision now works on full shots too, and
-    // a 300yd drive needs far more dashes than a 20ft putt to still read as
-    // a continuous line instead of a few isolated dots.
+    // redrawing every frame as the player adjusts pace.
     const trueVisionMat = new StandardMaterial('trueVisionMat', this.scene);
     trueVisionMat.diffuseColor = new Color3(1, 0.15, 0.15);
     trueVisionMat.emissiveColor = new Color3(0.9, 0.1, 0.1);
     trueVisionMat.disableLighting = true;
     this.trueVisionRoot = new TransformNode('trueVisionRoot', this.scene);
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 24; i++) {
       const dot = MeshBuilder.CreateDisc(`trueVisionDot${i}`, { radius: 0.45, tessellation: 10 }, this.scene);
       dot.rotation.x = Math.PI / 2;
       dot.material = trueVisionMat;
@@ -1394,11 +1391,11 @@ class HoleScene {
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }
 
-  /** Show/hide/relabel the True Vision button for the current turn — any
-   *  human shot (full swing, chip, or putt), as long as charges remain. */
+  /** Show/hide/relabel the True Vision button for the current turn — only
+   *  while a human is putting and still has charges. */
   private refreshTrueVisionBtn(): void {
     const remaining = chargesRemaining(profile, TRUE_VISION.id);
-    const show = this.state.phase === 'aiming' && !this.ai && remaining > 0;
+    const show = this.state.phase === 'aiming' && !this.ai && this.aim.isPutting && remaining > 0;
     trueVisionBtn.style.display = show ? 'block' : 'none';
     trueVisionBtn.textContent = `${TRUE_VISION.icon} TRUE VISION (${remaining})`;
   }
@@ -1427,12 +1424,12 @@ class HoleScene {
     return out;
   }
 
-  /** Populate the red dot pool along the revealed path — a "dashed" line
+  /** Populate the red dot pool along the revealed putt line — a "dashed" line
    *  falls out of spacing every other pooled dot farther apart than its own
    *  radius (same trick the plan calls for, no new geometry). Populated once
    *  on tap; NOT touched by the per-frame updateAimVisuals() redraw. `scale`
-   *  matches the white aim guide's own dot scale (aimDotScale) so a revealed
-   *  full-shot path stays legible in the aerial view the same way. */
+   *  matches the white aim guide's own putt-dot scale (aimDotScale) so the
+   *  reveal stays legible in the overhead putt view the same way. */
   private showTrueVisionPath(path: TrajectoryPoint[], scale: number): void {
     const pts = this.resamplePathByArcLength(path, this.trueVisionDots.length);
     this.trueVisionDots.forEach((dot, i) => {
@@ -1451,14 +1448,14 @@ class HoleScene {
     this.trueVisionRoot.setEnabled(false);
   }
 
-  /** Tap handler: consume one charge, simulate the shot the player is
-   *  CURRENTLY AIMED AT on the real, slope- and wind-aware engine2d
+  /** Tap handler (putting only): consume one charge, simulate the putt the
+   *  player is CURRENTLY AIMED AT on the real, slope-aware engine2d
    *  (deliberately NOT the flat previewEngine the ordinary white aim line
    *  uses), and show the true result as a red dashed line — where the ball
-   *  actually flies/rolls and ends up — that stays up until the aim changes
-   *  or the shot is struck. */
+   *  actually rolls and ends up — that stays up until the aim changes or the
+   *  putt is struck. */
   private revealTrueVision(): void {
-    if (this.state.phase !== 'aiming' || this.ai) return;
+    if (this.state.phase !== 'aiming' || this.ai || !this.aim.isPutting) return;
     if (!consumeCharge(profile, TRUE_VISION.id)) return;
     persistProfile();
     if (signedIn)
@@ -1932,9 +1929,6 @@ class HoleScene {
     // launch height — previously the strike dot moved but the trajectory never
     // updated (playtest FB9).
     this.updateAimVisuals();
-    // A stale reveal no longer matches the new shape/launch — hide it the
-    // moment the player drags the SHAPE dial.
-    this.hideTrueVision();
   }
 
   /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */
