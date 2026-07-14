@@ -2577,7 +2577,8 @@ function renderStore(): void {
       `<button id="buyNo" class="ghostBtn">Cancel</button></div></div></div>`
     : '';
   // Real-money coin top-up — signed-in + Stripe link configured. Held (like the
-  // Season Pass) until sales open July 16: before then, show a "coming soon" tag.
+  // Season Pass) until sales open (see SEASON_1.salesOpenAt): before then, show
+  // a "coming soon" tag.
   const topUpSection =
     signedIn && purchaseConfigured('coins1000')
       ? salesOpen(SEASON_1, Date.now())
@@ -2586,7 +2587,7 @@ function renderStore(): void {
           `<span class="tuPrice">$${PRODUCTS.coins1000.usd}</span></button>`
         : `<div class="storeTab">Top Up</div><div class="topUpCard" style="opacity:.6;cursor:default">` +
           `<span class="tuIcon">🪙</span><span class="tuName">${PRODUCTS.coins1000.name}</span>` +
-          `<span class="tuPrice">Opens Jul 16</span></div>`
+          `<span class="tuPrice">Coming soon</span></div>`
       : '';
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
@@ -2783,7 +2784,7 @@ function renderSeasonPass(): void {
   const footer = p.season.owned
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
     : !salesOpen(def, Date.now())
-      ? `<div class="spNote">🔒 Season Pass purchases open <b>July 16</b> — every round already counts toward the track.</div>`
+      ? `<div class="spNote">🔒 Season Pass purchases coming soon — every round already counts toward the track.</div>`
       : purchaseConfigured('seasonpass_s1')
         ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>` +
           (!signedIn && authConfigured()

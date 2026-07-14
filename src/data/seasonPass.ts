@@ -12,7 +12,7 @@
  *   and the level-50 exclusive pal (Mango, the bright-orange gecko).
  * - Everyone accrues pass XP while the season runs; claiming rewards requires
  *   owning the pass ($5). Claims are retroactive. Pass purchases OPEN on
- *   2026-07-16 12:00 ET (see salesOpen); until then the game says "coming soon".
+ *   2026-07-14 (see salesOpen); until then the game says "coming soon".
  */
 
 export type SeasonReward =
@@ -121,8 +121,8 @@ export const SEASON_1: SeasonDef = {
   name: 'Season One',
   start: '2026-07-13',
   end: '2026-11-30',
-  // Noon Eastern (EDT = UTC−4) on launch day.
-  salesOpenAt: '2026-07-16T16:00:00Z',
+  // Launch day (moved up from the original July 16 date).
+  salesOpenAt: '2026-07-14T00:00:00Z',
   xpPerLevel: 2400,
   levels: 50,
   rewards: REWARDS,

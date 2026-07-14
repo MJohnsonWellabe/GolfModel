@@ -183,8 +183,8 @@ describe('perk claim grants inventory charges', () => {
 });
 
 describe('sales gate', () => {
-  it('opens at noon ET on July 16, 2026', () => {
-    expect(salesOpen(SEASON_1, new Date('2026-07-16T15:59:00Z').getTime())).toBe(false);
-    expect(salesOpen(SEASON_1, new Date('2026-07-16T16:00:00Z').getTime())).toBe(true);
+  it('opens at midnight UTC on launch day, 2026-07-14', () => {
+    expect(salesOpen(SEASON_1, new Date('2026-07-13T23:59:00Z').getTime())).toBe(false);
+    expect(salesOpen(SEASON_1, new Date('2026-07-14T00:00:00Z').getTime())).toBe(true);
   });
 });
