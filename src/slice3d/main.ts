@@ -24,7 +24,7 @@ import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grass
 import { resolveTheme } from '../core/rendering/Theme';
 import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
-import { ARCHETYPES, ArchetypeId, StatKey } from '../data/archetypes';
+import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import wildwood from '../data/courses/wildwood.json';
@@ -45,16 +45,18 @@ import {
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, CloudSaveStatus, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
-import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { isAdminEmail } from '../admin/adminEmails';
+import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, rewardLabel, seasonActive, seasonLevel } from '../systems/SeasonPassEngine';
-import { SeasonReward, SEASON_1 } from '../data/seasonPass';
+import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
+import { PerkDef, perkById, perkEffectLabel, perkPerfectZoneMult } from '../data/perks';
 import { Pal3D } from './pal3d';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
@@ -603,12 +605,14 @@ class HoleScene {
     const fire = this.fires[this.turnIdx];
     // A purchased iron/wedge/putter upgrade widens the perfect zone; fire LAYERS
     // over it (multiplied), so an on-fire upgraded club reads an even wider band.
+    // An equipped iron/wedge/putter PERK layers on top of both, same widening.
     const upgradeZone = upgradePerfectZoneMult(this.aim.club.id, this.curPart().golfer.clubUpgrades ?? {});
+    const perkZone = perkPerfectZoneMult(this.aim.club.id, this.curPart().golfer.perk);
     meter.arm({
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
-      perfectMult: fire.perfectZoneMultiplier * upgradeZone,
+      perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone,
       difficultyMult: this.swingDifficulty()
     });
     meterEl.style.display = 'block';
@@ -2152,6 +2156,17 @@ function showSummary(): void {
     addSeasonXp(profile, SEASON_1, roundXp.amount, Date.now());
     updateSeasonLink();
   }
+  // Burn one charge of the equipped perk (it applied to this round); unequip it
+  // once spent. Runs once per completed round (all modes flow through here).
+  if (profile.equippedPerk) {
+    const entry = profile.perks.find((p) => p.id === profile.equippedPerk);
+    if (entry && perkRemaining(entry) > 0) {
+      entry.used += 1;
+      if (perkRemaining(entry) <= 0) profile.equippedPerk = null;
+    } else {
+      profile.equippedPerk = null; // stale/exhausted reference
+    }
+  }
   persistProfile();
   if (signedIn)
     void cloudSyncProfile(profile).then((res) => {
@@ -2320,6 +2335,7 @@ function renderProfile(): void {
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
     `<div id="resetZone" class="resetZone">` +
     `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
+    `<div id="adminZone"></div>` +
     `</div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
@@ -2337,6 +2353,18 @@ function renderProfile(): void {
     persistProfile();
   });
   document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
+  // Admin-only: reveal a link into the stats dashboard for allow-listed accounts
+  // (Firebase auth persists across the same origin, so admin.html recognizes the
+  // already-signed-in account without a second sign-in).
+  if (signedIn)
+    void cloudEmail().then((email) => {
+      const zone = document.getElementById('adminZone');
+      if (!zone || !isAdminEmail(email)) return;
+      zone.innerHTML = `<button id="adminDash" class="ghostBtn" style="margin-top:10px">🔑 Admin Dashboard</button>`;
+      document.getElementById('adminDash')!.addEventListener('pointerdown', () => {
+        window.location.href = 'admin.html';
+      });
+    });
   wireAccountRow();
 }
 
@@ -2558,13 +2586,17 @@ function renderStore(): void {
       `<div class="btnRow"><button id="buyYes">Buy · ${pending.price} 🪙</button>` +
       `<button id="buyNo" class="ghostBtn">Cancel</button></div></div></div>`
     : '';
-  // Real-money coin top-up — shown only signed-in AND once the Stripe
-  // Payment Link is configured (docs/16_PAYMENTS.md).
+  // Real-money coin top-up — signed-in + Stripe link configured. Held (like the
+  // Season Pass) until sales open July 16: before then, show a "coming soon" tag.
   const topUpSection =
     signedIn && purchaseConfigured('coins1000')
-      ? `<div class="storeTab">Top Up</div><button id="topUpCoins" class="topUpCard">` +
-        `<span class="tuIcon">🪙</span><span class="tuName">${PRODUCTS.coins1000.name}</span>` +
-        `<span class="tuPrice">$${PRODUCTS.coins1000.usd}</span></button>`
+      ? salesOpen(SEASON_1, Date.now())
+        ? `<div class="storeTab">Top Up</div><button id="topUpCoins" class="topUpCard">` +
+          `<span class="tuIcon">🪙</span><span class="tuName">${PRODUCTS.coins1000.name}</span>` +
+          `<span class="tuPrice">$${PRODUCTS.coins1000.usd}</span></button>`
+        : `<div class="storeTab">Top Up</div><div class="topUpCard" style="opacity:.6;cursor:default">` +
+          `<span class="tuIcon">🪙</span><span class="tuName">${PRODUCTS.coins1000.name}</span>` +
+          `<span class="tuPrice">Opens Jul 16</span></div>`
       : '';
   storeEl.style.display = 'flex';
   storeEl.innerHTML =
@@ -2654,6 +2686,15 @@ let spPage = -1;
 
 /** Keep the main-menu button honest: a plain "see the rewards" link before
  *  purchase, a live progress tracker once the pass is owned. */
+/** The equipped perk's def, but only if it still has charges left. */
+function equippedPerkDef(): PerkDef | undefined {
+  const id = profile.equippedPerk;
+  if (!id) return undefined;
+  const entry = profile.perks.find((p) => p.id === id);
+  if (!entry || perkRemaining(entry) <= 0) return undefined;
+  return perkById(id);
+}
+
 function updateSeasonLink(): void {
   const btn = document.getElementById('seasonBanner');
   if (!btn) return;
@@ -2694,9 +2735,12 @@ function renderSeasonPass(): void {
   const kindEmoji: Record<string, string> = { ball: '⛳', trail: '💫', outfit: '👕', clubskin: '🏌️' };
   // A real visual preview of each reward so the track reads like a rewards
   // gallery, not a list: character portraits, color swatches, pal/coin/XP thumbs.
+  // Reuse exactly what the Store / Locker Room show for each cosmetic:
+  // character portraits, pal emoji, and flat color swatches for the tints.
   const rewardThumb = (reward: SeasonReward): string => {
     if ('coins' in reward) return `<div class="spThumb tCoins">🪙<b>${reward.coins}</b></div>`;
     if ('xp' in reward) return `<div class="spThumb tXp">✨<b>${reward.xp}</b></div>`;
+    if ('perk' in reward) return `<div class="spThumb tPerk">⚡</div>`;
     const item = STORE_BY_ID.get(reward.item);
     if (!item) return `<div class="spThumb">🎁</div>`;
     if (item.kind === 'character')
@@ -2709,7 +2753,8 @@ function renderSeasonPass(): void {
   const kindTag = (reward: SeasonReward): string => {
     if ('coins' in reward) return 'J-Coins';
     if ('xp' in reward) return 'XP boost';
-    const item = STORE_BY_ID.get(('item' in reward && reward.item) || '');
+    if ('perk' in reward) return 'Perk';
+    const item = STORE_BY_ID.get(reward.item);
     const tags: Record<string, string> = {
       character: 'Character',
       pal: 'Pal',
@@ -2744,12 +2789,14 @@ function renderSeasonPass(): void {
   }).join('');
   const footer = p.season.owned
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
-    : purchaseConfigured('seasonpass_s1')
-      ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>` +
-        (!signedIn && authConfigured()
-          ? `<div class="spNote">Sign in with Google first so the pass sticks to your account.</div>`
-          : '')
-      : `<div class="spNote">Pass purchases open soon — every round already counts toward the track.</div>`;
+    : !salesOpen(def, Date.now())
+      ? `<div class="spNote">🔒 Season Pass purchases open <b>July 16</b> — every round already counts toward the track.</div>`
+      : purchaseConfigured('seasonpass_s1')
+        ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>` +
+          (!signedIn && authConfigured()
+            ? `<div class="spNote">Sign in with Google first so the pass sticks to your account.</div>`
+            : '')
+        : `<div class="spNote">Pass purchases open soon — every round already counts toward the track.</div>`;
   seasonEl.style.display = 'flex';
   seasonEl.innerHTML =
     `<div class="recInner"><h2>🎫 ${def.name}</h2>` +
@@ -2801,40 +2848,6 @@ function renderSeasonPass(): void {
 
 /** Pals wizard step (right after Character): choose the companion that follows
  *  you around the course. Selecting equips it immediately (persist + cloud). */
-function renderPalsStep(): void {
-  const p = profile;
-  const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(p, i));
-  const equippedId = p.cosmetics.equipped.pal;
-  const card = (id: string | null, name: string, icon: string): string => {
-    const selected = id === null ? !equippedId : equippedId === id;
-    return (
-      `<div class="charCard palPick${selected ? ' sel' : ''}" data-pal="${id ?? ''}">` +
-      `<div class="palPickIcon">${icon}</div><div class="cn">${name}</div></div>`
-    );
-  };
-  stepBodyEl.innerHTML =
-    `<div class="stepTitle">Pick a pal</div>` +
-    `<div class="stepHint">A companion that follows you around the course — just for fun.</div>` +
-    `<div class="charGrid">` +
-    card(null, 'No Pal', '❌') +
-    ownedPals.map((i) => card(i.id, i.name, palByKey(i.pal)?.icon ?? '🐾')).join('') +
-    `</div>`;
-  stepBodyEl.querySelectorAll('.palPick').forEach((el) =>
-    onTap(el, () => {
-      const id = (el as HTMLElement).dataset.pal!;
-      if (id) equip(p, id);
-      else delete p.cosmetics.equipped.pal;
-      persistProfile();
-      if (signedIn)
-        void cloudSyncProfile(p).then((res) => {
-          applyCloudMerge(p, res.profile);
-          showCloudStatus(res.status, true);
-        });
-      renderPalsStep();
-    })
-  );
-}
-
 /** Compact date for a record row ("Jul 11 '26"). */
 function fmtRecordDate(epochMs: number): string {
   const dt = new Date(epochMs);
@@ -3118,7 +3131,7 @@ function startTournamentRound(meta: Tournament): void {
   profile.character = sel.character;
   profile.archetype = sel.archetype;
   persistProfile();
-  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
   round.players = [{ golfer, isAI: false, scores: [] }];
   closeOverlay(tournamentsEl());
   setupEl.style.display = 'none';
@@ -3187,7 +3200,7 @@ function startAiTourRound(): void {
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
-  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades);
+  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
   round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
   playHole();
@@ -3396,13 +3409,14 @@ const sel = {
  *  Tournament also skips the Course step — its three-course rota is drawn
  *  when the tournament starts. */
 function stepLabels(): string[] {
-  // Entering an online tournament: mode + course are locked to the tournament,
-  // so the wizard is just the personal picks.
-  if (pendingTournament) return ['Name', 'Character', 'Pals', 'Style'];
-  if (sel.mode === 'aitour') return ['Mode', 'Name', 'Character', 'Pals', 'Style'];
+  // Loadout (character/style/pal/perk) lives in the Locker Room now, so the
+  // round flow is just the per-round choices.
+  // Entering an online tournament: mode + course are locked, so just confirm.
+  if (pendingTournament) return ['Ready'];
+  if (sel.mode === 'aitour') return ['Mode'];
   return sel.mode === 'solo'
-    ? ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style']
-    : ['Mode', 'Course', 'Name', 'Character', 'Pals', 'Style', sel.mode === '1v1' ? 'Rival' : 'Partner'];
+    ? ['Mode', 'Course']
+    : ['Mode', 'Course', sel.mode === '1v1' ? 'Rival' : 'Partner'];
 }
 
 const STAT_KEYS: Array<[StatKey, string]> = [
@@ -3473,17 +3487,6 @@ function randomOf<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-/** Randomize every choice EXCEPT the mode (course, character, style, and the
- *  rival/partner for versus modes), keeping the player's name. Powers the
- *  "Surprise Me" quick-start: pick a mode, tap once, and play. */
-function randomizeSelections(): void {
-  sel.courseId = randomOf(COURSE_LIST).id;
-  const ownedChars = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
-  sel.character = (ownedChars.length ? randomOf(ownedChars) : CHARACTERS[0]).key as CharacterKey;
-  sel.archetype = randomOf(ARCHETYPES).id as ArchetypeId;
-  if (sel.mode === '1v1' || sel.mode === 'scramble') sel.opponentId = randomOf(OPPONENTS).id;
-}
-
 function renderMode(): void {
   stepBodyEl.innerHTML =
     `<div class="stepTitle">How do you want to play?</div>` +
@@ -3494,8 +3497,7 @@ function renderMode(): void {
         `<div class="ahead"><span class="an">${m.icon} ${m.name}</span></div>` +
         `<div class="stepHint" style="margin:6px 0 0">${m.desc}</div></div>`
     ).join('') +
-    `</div>` +
-    `<button id="surpriseBtn" class="surpriseBtn">🎲 Play now. Random selections</button>`;
+    `</div>`;
   stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.mode = (el as HTMLElement).dataset.mode as GameMode;
@@ -3504,10 +3506,6 @@ function renderMode(): void {
       updateNav();
     })
   );
-  stepBodyEl.querySelector('#surpriseBtn')!.addEventListener('pointerdown', () => {
-    randomizeSelections();
-    startRound();
-  });
 }
 
 function renderCourse(): void {
@@ -3563,94 +3561,184 @@ function renderOpponent(): void {
   );
 }
 
-function renderName(): void {
-  stepBodyEl.innerHTML =
-    `<div class="stepTitle">Who's playing?</div>` +
-    `<div class="stepHint">Enter your name for the scorecard.</div>` +
-    `<input id="nameInput" type="text" maxlength="16" placeholder="Your name"
-       autocomplete="off" autocapitalize="words" value="${escapeHtml(sel.name)}" />`;
-  const input = document.getElementById('nameInput') as HTMLInputElement;
-  input.addEventListener('input', () => {
-    sel.name = input.value;
-    updateNav();
-  });
-  input.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter' && sel.name.trim()) goStep(sel.step + 1);
-  });
-  setTimeout(() => input.focus(), 30);
+// ---------------------------------------------------------- Locker Room
+const lockerEl = document.getElementById('lockerRoom')!;
+
+/** Persist the current loadout to the profile + cloud (called after any Locker
+ *  Room change). Keeps `sel` in step so the round builders pick it up. */
+function syncLoadout(): void {
+  profile.character = sel.character;
+  profile.archetype = sel.archetype;
+  persistProfile();
+  if (signedIn)
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
 }
 
-function renderCharacter(): void {
-  // Only OWNED characters here (playtest FB9): showing locked cards that routed
-  // to the Store on tap made the grid feel touchy while scrolling. Unlock more
-  // in the Store; a purchased character then appears here.
-  const owned = CHARACTERS.filter((ch) => profile.cosmetics.owned.includes(`char_${ch.key}`));
-  if (!owned.some((c) => c.key === sel.character)) sel.character = owned[0]?.key ?? CHARACTERS[0].key;
-  stepBodyEl.innerHTML =
-    `<div class="stepTitle">Pick your character</div>` +
-    `<div class="stepHint">Just for looks — unlock more in the Store.</div>` +
-    `<div class="charGrid">` +
-    owned
-      .map(
-        (ch) =>
-          `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
-          `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" />` +
-          `<div class="cn">${ch.name}</div></div>`
-      )
-      .join('') +
-    `</div>`;
-  stepBodyEl.querySelectorAll('.charCard').forEach((el) =>
+/** The Locker Room: character, golfer style, pal and perk — chosen once and
+ *  kept across rounds (so the round flow is just Mode → Course). */
+function renderLockerRoom(): void {
+  const p = profile;
+  const ownedChars = CHARACTERS.filter((ch) => p.cosmetics.owned.includes(`char_${ch.key}`));
+  if (!ownedChars.some((c) => c.key === sel.character)) sel.character = ownedChars[0]?.key ?? CHARACTERS[0].key;
+  const charCards = ownedChars
+    .map(
+      (ch) =>
+        `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
+        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" loading="lazy" />` +
+        `<div class="cn">${ch.name}</div></div>`
+    )
+    .join('');
+  const archCards = ARCHETYPES.map((a) => {
+    const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
+    const upgraded = applyClubUpgrades(a.stats, p.clubUpgrades);
+    return (
+      `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
+      `<div class="ahead"><span class="an">${a.name}</span>` +
+      `<span class="atag">${a.tagline}</span>` +
+      `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
+      statBars(upgraded, a.signature, p.clubUpgrades) +
+      `</div>`
+    );
+  }).join('');
+  const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(p, i));
+  const palCard = (id: string | null, name: string, icon: string): string => {
+    const selected = id === null ? !p.cosmetics.equipped.pal : p.cosmetics.equipped.pal === id;
+    return (
+      `<div class="charCard palPick${selected ? ' sel' : ''}" data-pal="${id ?? ''}">` +
+      `<div class="palPickIcon">${icon}</div><div class="cn">${name}</div></div>`
+    );
+  };
+  const palCards = palCard(null, 'No Pal', '❌') + ownedPals.map((i) => palCard(i.id, i.name, palByKey(i.pal)?.icon ?? '🐾')).join('');
+  const ownedPerks = p.perks.filter((ps) => perkRemaining(ps) > 0);
+  const perkCard = (id: string | null): string => {
+    const selected = id === null ? !p.equippedPerk : p.equippedPerk === id;
+    if (id === null) return `<div class="charCard palPick${selected ? ' sel' : ''}" data-perk=""><div class="palPickIcon">🚫</div><div class="cn">No Perk</div></div>`;
+    const def = perkById(id);
+    const rem = perkRemaining(p.perks.find((ps) => ps.id === id)!);
+    return (
+      `<div class="charCard palPick perkCard${selected ? ' sel' : ''}" data-perk="${id}">` +
+      `<div class="palPickIcon">⚡</div><div class="cn">${def?.name ?? id}</div>` +
+      `<div class="perkEff">${def ? perkEffectLabel(def) : ''}</div>` +
+      `<div class="perkRem">${rem} round${rem === 1 ? '' : 's'} left</div></div>`
+    );
+  };
+  const perkSection = ownedPerks.length
+    ? `<div class="lkSection"><div class="lkHead">Perk <span class="lkSub">boosts one round</span></div>` +
+      `<div class="charGrid">${perkCard(null)}${ownedPerks.map((ps) => perkCard(ps.id)).join('')}</div></div>`
+    : `<div class="lkSection"><div class="lkHead">Perk</div><div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div></div>`;
+
+  lockerEl.style.display = 'flex';
+  lockerEl.innerHTML =
+    `<div class="recInner"><h2>🎽 Locker Room</h2>` +
+    `<div class="lkName">Golfer: <b>${escapeHtml(p.name || 'Player')}</b> <button id="lkEditName" class="ghostBtn">Edit name</button></div>` +
+    `<button id="lkRandom" class="lkRandom">🎲 Randomize look</button>` +
+    `<div class="lockerScroll">` +
+    `<div class="lkSection"><div class="lkHead">Character</div><div class="charGrid">${charCards}</div></div>` +
+    `<div class="lkSection"><div class="lkHead">Golfer Style</div><div class="archGrid">${archCards}</div></div>` +
+    `<div class="lkSection"><div class="lkHead">Pal</div><div class="charGrid">${palCards}</div></div>` +
+    perkSection +
+    `</div><button id="lkBack">Back</button></div>`;
+
+  lockerEl.querySelectorAll('.charCard[data-ch]').forEach((el) =>
     onTap(el, () => {
       sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
-      renderCharacter();
+      syncLoadout();
+      renderLockerRoom();
     })
   );
-}
-
-function renderArchetype(): void {
-  stepBodyEl.innerHTML =
-    `<div class="stepTitle">Choose your style</div>` +
-    `<div class="stepHint">Each is elite in one area, solid everywhere else.</div>` +
-    `<div class="archGrid">` +
-    ARCHETYPES.map((a) => {
-      const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
-      // Purchased club upgrades (Store > Driver/Irons/Wedges/Putter) apply to
-      // every archetype the player might pick, so the card must show the
-      // TRUE in-round stats, not the archetype's raw baseline.
-      const upgraded = applyClubUpgrades(a.stats, profile.clubUpgrades);
-      return (
-        `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
-        `<div class="ahead"><span class="an">${a.name}</span>` +
-        `<span class="atag">${a.tagline}</span>` +
-        `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
-        statBars(upgraded, a.signature, profile.clubUpgrades) +
-        `</div>`
-      );
-    }).join('') +
-    `</div>`;
-  stepBodyEl.querySelectorAll('.archCard').forEach((el) =>
+  lockerEl.querySelectorAll('.archCard[data-arch]').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       sel.archetype = (el as HTMLElement).dataset.arch as ArchetypeId;
-      renderArchetype();
+      syncLoadout();
+      renderLockerRoom();
     })
   );
+  lockerEl.querySelectorAll('.palPick[data-pal]').forEach((el) =>
+    onTap(el, () => {
+      const id = (el as HTMLElement).dataset.pal!;
+      if (id) equip(p, id);
+      else delete p.cosmetics.equipped.pal;
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(p).then((res) => { applyCloudMerge(p, res.profile); showCloudStatus(res.status, true); });
+      renderLockerRoom();
+    })
+  );
+  lockerEl.querySelectorAll('.palPick[data-perk]').forEach((el) =>
+    onTap(el, () => {
+      const id = (el as HTMLElement).dataset.perk!;
+      p.equippedPerk = id || null;
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(p).then((res) => { applyCloudMerge(p, res.profile); showCloudStatus(res.status, true); });
+      updateSeasonLink();
+      renderLockerRoom();
+    })
+  );
+  document.getElementById('lkRandom')!.addEventListener('pointerdown', () => {
+    sel.character = (ownedChars.length ? randomOf(ownedChars) : CHARACTERS[0]).key as CharacterKey;
+    sel.archetype = randomOf(ARCHETYPES).id as ArchetypeId;
+    if (ownedPals.length) equip(p, randomOf(ownedPals).id);
+    syncLoadout();
+    renderLockerRoom();
+  });
+  document.getElementById('lkEditName')!.addEventListener('pointerdown', () => promptName(true));
+  document.getElementById('lkBack')!.addEventListener('pointerdown', () => (lockerEl.style.display = 'none'));
+}
+
+/** One-time (and editable) name entry. Not part of the round flow or locker
+ *  loadout — a name is an account/guest-level identity. Shows a small modal;
+ *  on a fresh profile it's shown once before the menu is usable. */
+function promptName(editing = false): void {
+  const modal = document.getElementById('nameModal')!;
+  modal.style.display = 'flex';
+  modal.innerHTML =
+    `<div class="nameBox"><div class="stepTitle">${editing ? 'Edit your name' : "Welcome! What's your name?"}</div>` +
+    `<div class="stepHint">Shown on your scorecard.</div>` +
+    `<input id="nmInput" type="text" maxlength="16" placeholder="Your name" autocomplete="off" autocapitalize="words" value="${escapeHtml(profile.name)}" />` +
+    `<button id="nmSave" class="spBuy">Save</button></div>`;
+  const input = document.getElementById('nmInput') as HTMLInputElement;
+  const save = (): void => {
+    const v = input.value.trim();
+    if (!v) return;
+    profile.name = v;
+    sel.name = v;
+    persistProfile();
+    if (signedIn) void cloudSyncProfile(profile).then((res) => { applyCloudMerge(profile, res.profile); showCloudStatus(res.status, true); });
+    modal.style.display = 'none';
+    if (lockerEl.style.display === 'flex') renderLockerRoom();
+  };
+  document.getElementById('nmSave')!.addEventListener('pointerdown', save);
+  input.addEventListener('keydown', (e) => {
+    if ((e as KeyboardEvent).key === 'Enter') save();
+  });
+  setTimeout(() => input.focus(), 30);
 }
 
 function renderStepBody(): void {
   const label = stepLabels()[sel.step];
   if (label === 'Mode') renderMode();
   else if (label === 'Course') renderCourse();
-  else if (label === 'Name') renderName();
-  else if (label === 'Character') renderCharacter();
-  else if (label === 'Pals') renderPalsStep();
-  else if (label === 'Style') renderArchetype();
+  else if (label === 'Ready') renderTournamentReady();
   else renderOpponent();
 }
 
 function updateNav(): void {
   backBtn.style.visibility = sel.step === 0 ? 'hidden' : 'visible';
   nextBtn.textContent = sel.step === stepLabels().length - 1 ? 'Tee off' : 'Next';
-  nextBtn.disabled = stepLabels()[sel.step] === 'Name' && sel.name.trim().length === 0;
+  nextBtn.disabled = false;
+}
+
+/** Tournament entry: mode + course are fixed by the tournament and the loadout
+ *  comes from the Locker Room, so this is a one-tap confirmation. */
+function renderTournamentReady(): void {
+  const name = pendingTournament?.name ?? 'Tournament';
+  stepBodyEl.innerHTML =
+    `<div class="stepTitle">Ready to play</div>` +
+    `<div class="stepHint">🏁 ${escapeHtml(name)} — same wind & pins for everyone. Tee off when ready.</div>` +
+    `<div class="stepHint" style="margin-top:10px">Your golfer: <b>${escapeHtml(profile.name || 'Player')}</b> · ` +
+    `${escapeHtml(archetypeById(profile.archetype).name)}. Change your loadout in the Locker Room.</div>`;
 }
 
 function goStep(n: number): void {
@@ -3701,7 +3789,7 @@ function startRound(): void {
     startAiTournament();
     return;
   }
-  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades);
+  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {
     const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
@@ -3786,12 +3874,16 @@ function renderAcctMenu(): void {
   }
 }
 
+document.getElementById('lockerLink')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 updateSeasonLink();
+// First visit / fresh guest with no name yet — ask once (editable later in the
+// Locker Room / Profile). Skipped in the screenshot-harness boot.
+if (!profile.name.trim() && !SHOT.hole) promptName(false);
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));

@@ -12,6 +12,15 @@ import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 
 export type CosmeticKind = 'character' | 'ball' | 'trail' | 'outfit' | 'clubskin' | 'pal';
 
+/** One owned perk (data/perks.ts). Consumable: `granted`/`used` are grow-only
+ *  round counters (merge by max, like the coin counters), remaining = granted −
+ *  used. A perk with remaining 0 is spent (kept for a clean merge). */
+export interface PerkState {
+  id: string;
+  granted: number;
+  used: number;
+}
+
 /** Season-pass progress (systems/SeasonPassEngine + data/seasonPass). */
 export interface SeasonState {
   /** Which season this progress belongs to ('s1'…). */
@@ -82,7 +91,16 @@ export interface PlayerProfile {
    *  "My Tournaments" history (Phase 8 gap). */
   tournaments: Array<{ code: string; name: string }>;
   season: SeasonState;
+  /** Owned consumable perks (season-pass rewards). */
+  perks: PerkState[];
+  /** Perk equipped for the next round, or null. */
+  equippedPerk: string | null;
   updatedAt: number;
+}
+
+/** Rounds of a perk still available (granted − used, never negative). */
+export function perkRemaining(p: PerkState): number {
+  return Math.max(0, (p.granted ?? 0) - (p.used ?? 0));
 }
 
 const KEY = 'johnsons-golf-profile-v1';
@@ -149,8 +167,17 @@ export function defaultProfile(now = 0): PlayerProfile {
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
     tournaments: [],
     season: { id: 's1', xp: 0, claimed: [], owned: false },
+    perks: [],
+    equippedPerk: null,
     updatedAt: now
   };
+}
+
+/** Add rounds of a perk to the inventory (grants stack onto an existing entry). */
+export function grantPerk(profile: PlayerProfile, perkId: string, rounds: number): void {
+  const existing = profile.perks.find((p) => p.id === perkId);
+  if (existing) existing.granted += rounds;
+  else profile.perks.push({ id: perkId, granted: rounds, used: 0 });
 }
 
 /**
@@ -207,7 +234,10 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
       ...base.season,
       ...(parsed.season ?? {}),
       claimed: [...(parsed.season?.claimed ?? [])]
-    }
+    },
+    // RTDB drops empty arrays/null — backfill perks + equipped like the rest.
+    perks: [...(parsed.perks ?? [])],
+    equippedPerk: parsed.equippedPerk ?? null
   };
 }
 
@@ -325,8 +355,28 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     stats,
     tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
     season: mergeSeason(a.season, b.season),
+    perks: mergePerks(a.perks, b.perks),
+    // Equip choice is transient per-round state — the most recent copy wins.
+    equippedPerk: newer.equippedPerk ?? null,
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
   };
+}
+
+/** Union perks by id; grow-only counters take the max so a charge consumed on
+ *  one device is never resurrected by the other (mirrors coinsEarned/Spent). */
+function mergePerks(a?: PerkState[], b?: PerkState[]): PerkState[] {
+  const byId = new Map<string, PerkState>();
+  for (const p of [...(a ?? []), ...(b ?? [])]) {
+    if (!p || typeof p.id !== 'string') continue;
+    const cur = byId.get(p.id);
+    if (cur) {
+      cur.granted = Math.max(cur.granted, p.granted ?? 0);
+      cur.used = Math.max(cur.used, p.used ?? 0);
+    } else {
+      byId.set(p.id, { id: p.id, granted: p.granted ?? 0, used: p.used ?? 0 });
+    }
+  }
+  return [...byId.values()];
 }
 
 /** Season progress merges like the rest: xp grow-only (max), claimed unions,

@@ -86,6 +86,18 @@ export async function firebaseHandles(): Promise<FirebaseHandles | null> {
   }
 }
 
+/** The signed-in account's email (lowercased), or null. Used to gate the
+ *  in-game link to the admin dashboard. */
+export async function cloudEmail(): Promise<string | null> {
+  if (!authConfigured()) return null;
+  try {
+    const { auth } = await ensureFirebase();
+    return auth.currentUser?.email?.toLowerCase() ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** The signed-in uid, or null when auth is unconfigured/unavailable. */
 export async function cloudUid(): Promise<string | null> {
   if (!authConfigured()) return null;

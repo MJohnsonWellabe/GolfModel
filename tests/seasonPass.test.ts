@@ -83,19 +83,20 @@ describe('claims', () => {
     expect(claimState(p, SEASON_1, 2)).toBe('locked');
     expect(claimReward(p, SEASON_1, 2).ok).toBe(false);
 
-    const coinsBefore = p.coins;
-    expect(claimReward(p, SEASON_1, 1).ok).toBe(true); // level 1 is a coin drip
-    expect(p.coins).toBeGreaterThan(coinsBefore);
+    expect(claimReward(p, SEASON_1, 1).ok).toBe(true); // level 1 grants XP
     expect(claimState(p, SEASON_1, 1)).toBe('claimed');
     const again = claimReward(p, SEASON_1, 1);
     expect(again.ok).toBe(false);
   });
 
-  it('coin claims keep the coins === earned − spent invariant', () => {
+  it('coin claims add coins and keep the coins === earned − spent invariant', () => {
     const p = defaultProfile();
     p.season.owned = true;
-    p.season.xp = SEASON_1.xpPerLevel;
-    claimReward(p, SEASON_1, 1);
+    p.season.xp = SEASON_1.xpPerLevel * 50;
+    const coinLevel = SEASON_1.rewards.findIndex((r) => 'coins' in r) + 1;
+    const before = p.coins;
+    expect(claimReward(p, SEASON_1, coinLevel).ok).toBe(true);
+    expect(p.coins).toBeGreaterThan(before);
     expect(p.coins).toBe(p.coinsEarned - p.coinsSpent);
   });
 
@@ -119,5 +120,71 @@ describe('claims', () => {
     p.season.xp = SEASON_1.xpPerLevel * 50;
     expect(claimReward(p, SEASON_1, 50).ok).toBe(true);
     expect(p.cosmetics.owned).toContain('s1_pal_geckoorange');
+  });
+});
+
+import { perkById } from '../src/data/perks';
+import { salesOpen } from '../src/data/seasonPass';
+
+describe('reward mix (owner-specified exact counts)', () => {
+  const counts: Record<string, number> = {};
+  for (const r of SEASON_1.rewards) {
+    let key: string;
+    if ('coins' in r) key = 'coins';
+    else if ('xp' in r) key = 'xp';
+    else if ('perk' in r) key = 'perk';
+    else key = STORE_BY_ID.get(r.item)?.kind ?? 'unknown';
+    counts[key] = (counts[key] ?? 0) + 1;
+  }
+
+  it('has the exact per-category counts', () => {
+    expect(counts).toEqual({
+      ball: 5,
+      trail: 5,
+      clubskin: 5,
+      outfit: 5,
+      character: 4,
+      pal: 1,
+      perk: 5,
+      xp: 10,
+      coins: 10
+    });
+  });
+
+  it('gives away at most 1000 J-Coins total', () => {
+    const total = SEASON_1.rewards.reduce((n, r) => n + ('coins' in r ? r.coins : 0), 0);
+    expect(total).toBeLessThanOrEqual(1000);
+  });
+
+  it('every perk reward id resolves to a real perk', () => {
+    for (const r of SEASON_1.rewards) {
+      if ('perk' in r) expect(perkById(r.perk), r.perk).toBeTruthy();
+    }
+  });
+
+  it('the major perk (++ / 5 rounds) is on the last page', () => {
+    const majorLevel = SEASON_1.rewards.findIndex((r) => 'perk' in r && perkById(r.perk)?.tier === 2 && perkById(r.perk)?.rounds === 5) + 1;
+    expect(majorLevel).toBeGreaterThanOrEqual(46);
+  });
+});
+
+describe('perk claim grants inventory charges', () => {
+  it('claiming a perk level adds its rounds to the profile', () => {
+    const p = defaultProfile();
+    p.season.owned = true;
+    p.season.xp = SEASON_1.xpPerLevel * 50;
+    const perkLevel = SEASON_1.rewards.findIndex((r) => 'perk' in r) + 1;
+    const reward = SEASON_1.rewards[perkLevel - 1] as { perk: string };
+    expect(claimReward(p, SEASON_1, perkLevel).ok).toBe(true);
+    const entry = p.perks.find((ps) => ps.id === reward.perk);
+    expect(entry).toBeTruthy();
+    expect(entry!.granted).toBe(perkById(reward.perk)!.rounds);
+  });
+});
+
+describe('sales gate', () => {
+  it('opens at noon ET on July 16, 2026', () => {
+    expect(salesOpen(SEASON_1, new Date('2026-07-16T15:59:00Z').getTime())).toBe(false);
+    expect(salesOpen(SEASON_1, new Date('2026-07-16T16:00:00Z').getTime())).toBe(true);
   });
 });

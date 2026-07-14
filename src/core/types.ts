@@ -51,6 +51,10 @@ export interface Golfer {
    * reliable per-family carry bonus (the stat bump alone is lost to the 100
    * cap for a golfer who already maxes the governing stat). */
   clubUpgrades?: Record<string, number>;
+  /** Equipped season-pass perk for this round (data/perks.ts). A driver perk
+   * adds carry in effectiveCarryYards; an iron/wedge/putter perk widens the
+   * swing-meter perfect zone (perkPerfectZoneMult). Layers on top of upgrades. */
+  perk?: { family: 'driver' | 'irons' | 'wedges' | 'putter'; tier: number };
 }
 
 /** Overall rating shown on select screens — mean of the five stats. */

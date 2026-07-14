@@ -10,13 +10,22 @@
 import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
 import { avgByArchetype, avgByCharacter, avgByCourse, avgByHole, avgPutts } from './aggregate';
-
-const ADMIN_EMAILS = ['mattjohnson912@gmail.com'];
+import { isAdminEmail } from './adminEmails';
 
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 
 function esc(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** The already-persisted account email (shared with the game via Firebase auth
+ *  on the same origin), without triggering a sign-in popup. */
+async function currentEmail(): Promise<string | null> {
+  const { initializeApp } = await import('firebase/app');
+  const { getAuth } = await import('firebase/auth');
+  const auth = getAuth(initializeApp(FIREBASE));
+  await auth.authStateReady();
+  return auth.currentUser?.email ?? null;
 }
 
 async function signIn(): Promise<string | null> {
@@ -105,7 +114,28 @@ function render(rounds: RoundRecord[]): void {
   $('app').innerHTML = html;
 }
 
+async function showDashboard(email: string): Promise<void> {
+  if (!isAdminEmail(email)) {
+    $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
+      <p class="sub">Not authorized for ${esc(email)}.</p>`;
+    return;
+  }
+  $('app').innerHTML = `<p class="sub">Loading rounds…</p>`;
+  try {
+    render(await fetchRounds());
+  } catch (e) {
+    $('app').innerHTML = `<p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
+  }
+}
+
 async function boot(): Promise<void> {
+  // Arriving from the game (or a return visit): if a Google session already
+  // persists on this origin, skip the sign-in step entirely.
+  const existing = await currentEmail();
+  if (existing) {
+    await showDashboard(existing);
+    return;
+  }
   $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
     <p class="sub">Owner sign-in required.</p>
     <button id="signin" class="btn">Sign in with Google</button>`;
@@ -116,17 +146,7 @@ async function boot(): Promise<void> {
       boot();
       return;
     }
-    if (!ADMIN_EMAILS.includes(email.toLowerCase())) {
-      $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
-        <p class="sub">Not authorized for ${esc(email)}.</p>`;
-      return;
-    }
-    $('app').innerHTML = `<p class="sub">Loading rounds…</p>`;
-    try {
-      render(await fetchRounds());
-    } catch (e) {
-      $('app').innerHTML = `<p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
-    }
+    await showDashboard(email);
   });
 }
 
