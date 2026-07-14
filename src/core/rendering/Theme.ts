@@ -99,19 +99,12 @@ export interface CourseTheme {
   /** Sea backdrop dune line. Defaults on; set false for an open-ocean horizon
    *  of nothing but flat water and sky (Sable Bay). */
   seaDunes?: boolean;
-  /** Line the hole-side lip of every scoring (non-waste/beach/wall) bunker
-   *  with rough-edge planting (see bunkerLipStyle for the pool/density) — a
+  /** Line the hole-side lip of every bunker (any type — plain, waste, beach,
+   *  or revetted-wall) with real heather (heatherKeys, filtered to
+   *  heather_fescue* — the drab/wiry variants, never heather_purple) — a
    *  links/Pinehurst trademark: the bunker reads carved into rough, not a
    *  clean sand disc dropped onto turf. Cosmetic only. */
   bunkerLipFescue?: boolean;
-  /** Which planting style `bunkerLipFescue` uses. Undefined/`'mixed'` = the
-   *  original grass+bush blend at a thin, natural-clump density.
-   *  `'bushWall'` = bush-only (bushKeys), denser — reads as a scrubby waste-
-   *  area wall (Port Johnson). `'grassCluster'` = grass-only (grassKeys),
-   *  planted in small multi-blade clusters, denser and taller — reads as
-   *  dense tall-grass clumps (Sable Bay); scoped to hazards flagged
-   *  `Hazard.fairwayBunker` only, not every bunker. */
-  bunkerLipStyle?: 'mixed' | 'bushWall' | 'grassCluster';
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -334,7 +327,6 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandGrainTile'
     | 'bunkerStones'
     | 'bunkerLipFescue'
-    | 'bunkerLipStyle'
     | 'horizonTint'
     | 'waterReflect'
     | 'waterReflectStrength'
@@ -423,9 +415,6 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
   if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
-  if (spec.bunkerLipStyle === 'bushWall' || spec.bunkerLipStyle === 'grassCluster') {
-    t.bunkerLipStyle = spec.bunkerLipStyle;
-  }
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
   // fixed cream that only suits the parkland default.

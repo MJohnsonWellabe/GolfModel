@@ -21,6 +21,14 @@ function initialAngle(path: ReturnType<typeof solveTrueVisionPath>): number {
   return angleTo(path[0], path[1]);
 }
 
+/** True Vision assumes the player gets the pace right — the displayed line
+ *  must always visually reach the cup, regardless of what the fixed-pace
+ *  simulation's actual speed did once it neared the hole. */
+function endsAtPin(path: ReturnType<typeof solveTrueVisionPath>, pin: { x: number; y: number }): boolean {
+  const last = path[path.length - 1];
+  return last.x === pin.x && last.y === pin.y;
+}
+
 /** A perfect straight-at-pin putt on `engine`'s hole, using the solver's own
  *  pace convention — the control case each curved-slope test compares against. */
 function straightPutt(engine: PhysicsEngine, hole: ReturnType<typeof openHole>, ball: { x: number; y: number }) {
@@ -46,6 +54,7 @@ describe('True Vision solver', () => {
     const engine = new PhysicsEngine(hole);
     const path = solveTrueVisionPath(engine, hole, ball, golfer);
     expect(distFromPin(path, hole.pin)).toBeLessThanOrEqual(PHYSICS.cupRadius);
+    expect(endsAtPin(path, hole.pin)).toBe(true);
     // Aims essentially straight at the pin (no slope to correct for).
     const base = angleTo(ball, hole.pin);
     expect(Math.abs(initialAngle(path) - base)).toBeLessThan(0.01);
@@ -65,6 +74,7 @@ describe('True Vision solver', () => {
 
     const path = solveTrueVisionPath(engine, hole, ball, golfer);
     expect(distFromPin(path, hole.pin)).toBeLessThanOrEqual(PHYSICS.cupRadius);
+    expect(endsAtPin(path, hole.pin)).toBe(true);
     // The solved aim actually corrects for the break (not just coincidentally straight).
     const base = angleTo(ball, hole.pin);
     expect(Math.abs(initialAngle(path) - base)).toBeGreaterThan(0.01);
@@ -76,6 +86,7 @@ describe('True Vision solver', () => {
     const path1 = solveTrueVisionPath(new PhysicsEngine(hole), hole, ball, golfer);
     const path2 = solveTrueVisionPath(new PhysicsEngine(hole), hole, ball, golfer);
     expect(path1).toEqual(path2);
+    expect(endsAtPin(path1, hole.pin)).toBe(true);
   });
 
   it('a pathological slope with no exact solve in the search cone still returns a non-empty path, at least as close as the naive straight aim', () => {
@@ -85,14 +96,21 @@ describe('True Vision solver', () => {
     const ball = { x: hole.pin.x, y: hole.pin.y + ftToPx(30) };
     const engine = new PhysicsEngine(hole);
 
+    // Sanity: confirm this slope is genuinely pathological — a straight aim
+    // misses badly, so a solver that always reached the pin regardless of
+    // slope wouldn't be a meaningful test.
     const straightOut = straightPutt(engine, hole, ball);
     const straightDist = Math.hypot(
       straightOut.finalPos.x - hole.pin.x,
       straightOut.finalPos.y - hole.pin.y
     );
+    expect(straightDist).toBeGreaterThan(PHYSICS.cupRadius);
 
     const path = solveTrueVisionPath(engine, hole, ball, golfer);
     expect(path.length).toBeGreaterThan(0);
-    expect(distFromPin(path, hole.pin)).toBeLessThanOrEqual(straightDist + 1e-6);
+    // The line always visually reaches the cup — True Vision assumes the
+    // player gets the pace right — even though no aim angle in the cone
+    // actually holes the ball out on this pathological slope.
+    expect(endsAtPin(path, hole.pin)).toBe(true);
   });
 });

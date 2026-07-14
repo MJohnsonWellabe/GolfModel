@@ -2015,26 +2015,19 @@ export function buildCourse(
     }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
-        // Per-course planting style (theme.bunkerLipStyle): 'bushWall' is
-        // bush-only and denser (Port Johnson's waste-area look), 'grassCluster'
-        // is grass-only, denser, and planted in small multi-blade clusters
-        // scoped to fairwayBunker-flagged hazards (Sable Bay's dense-cluster
-        // look). Undefined/'mixed' keeps the original grass+bush blend at the
-        // original thin, natural-clump density — NOT heatherKeys, which is a
-        // flat, non-tintable photo card that smudges to a brown patch at this
-        // clump size/close camera distance.
-        const style = theme.bunkerLipStyle ?? 'mixed';
-        const pool =
-          style === 'bushWall'
-            ? bushSet.map((e) => e.proto)
-            : style === 'grassCluster'
-              ? grasses
-              : [...grasses, ...bushSet.map((e) => e.proto)];
+        // Real heather — the same drab, wiry fescue props already used on
+        // this course's rough (theme.heatherKeys) — planted on the hole-side
+        // of EVERY bunker (plain, waste, beach, or revetted-wall) so a trap
+        // reads as carved into rough, links-style, not a clean sand disc.
+        // Filtered to heather_fescue* only: heather_purple is a distinctly
+        // colorful (not drab) outlier some courses' heatherKeys also include
+        // for general rough color variety, but it's wrong here.
+        const fescueKeys = (theme.heatherKeys ?? []).filter((k) => k.startsWith('heather_fescue'));
+        const pool = pick(fescueKeys);
         if (!pool.length) return;
-        const keepRate = style === 'bushWall' ? 0.78 : style === 'grassCluster' ? 0.75 : 0.55;
+        const KEEP_RATE = 0.78;
         for (const hz of hole.hazards) {
-          if (hz.type !== 'bunker' || hz.waste || hz.beach || hz.wall) continue;
-          if (style === 'grassCluster' && !hz.fairwayBunker) continue;
+          if (hz.type !== 'bunker') continue;
           const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
           const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
           const gx = hole.green.cx - cx;
@@ -2057,23 +2050,11 @@ export function buildCourse(
               const nlen = Math.hypot(nx, ny) || 1;
               // Hole-side arc only — the lip nearer the green, not the whole rim.
               if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
-              if (hash2(px * 1.9, py * 2.3) > keepRate) continue;
+              if (hash2(px * 1.9, py * 2.3) > KEEP_RATE) continue;
               const ox = px + (nx / nlen) * 2.5;
               const oy = py + (ny / nlen) * 2.5;
               if (engine.surfaceAt(ox, oy) !== 'rough') continue;
-              if (style === 'grassCluster') {
-                // 2-4 grass blades per kept point, small jitter, taller than a
-                // single blade — reads as a dense cluster, not a thin scatter.
-                const clusterN = 2 + Math.floor(hash2(ox + 5, oy - 5) * 3);
-                for (let c = 0; c < clusterN; c++) {
-                  const jx = ox + (hash2(ox + c, oy - c) - 0.5) * 1.6;
-                  const jy = oy + (hash2(oy + c, ox - c) - 0.5) * 1.6;
-                  place(pool, jx, jy, 3.4 + hash2(jx + 3, jy) * 1.4);
-                }
-              } else {
-                const h = style === 'bushWall' ? 3.0 + hash2(ox + 3, oy) * 1.4 : 2.4 + hash2(ox + 3, oy) * 1.0;
-                place(pool, ox, oy, h);
-              }
+              place(pool, ox, oy, 3.0 + hash2(ox + 3, oy) * 1.2);
             }
           }
         }

@@ -57,6 +57,31 @@ function signedLateral(point: Point, ball: Point, pin: Point): number {
 }
 
 /**
+ * Truncate a raw simulated path at its point of closest approach to the pin,
+ * then snap the line's end to the pin itself. True Vision assumes the player
+ * gets the PACE right (only the curve is revealed), so the displayed line
+ * must always reach the cup — but the fixed-pace simulation's actual speed
+ * often doesn't capture the ball there (dies short uphill, rolls past/lips
+ * out downhill), leaving the raw path short of or past the hole. This keeps
+ * the solve/search logic untouched and only reshapes what gets rendered.
+ */
+function finalizePath(path: TrajectoryPoint[], pin: Point): TrajectoryPoint[] {
+  let bestIdx = 0;
+  let bestDist = Infinity;
+  for (let i = 0; i < path.length; i++) {
+    const d = Math.hypot(path[i].x - pin.x, path[i].y - pin.y);
+    if (d < bestDist) {
+      bestDist = d;
+      bestIdx = i;
+    }
+  }
+  const truncated = path.slice(0, bestIdx + 1);
+  const last = truncated[truncated.length - 1];
+  if (!last || last.x !== pin.x || last.y !== pin.y) truncated.push({ x: pin.x, y: pin.y, z: 0 });
+  return truncated;
+}
+
+/**
  * Solve for the putt line into the hole. `engine` must be the REAL,
  * slope-aware engine (not a flat preview engine). Always returns a non-empty
  * path — falls back to the closest approach found within the search budget
@@ -98,20 +123,20 @@ export function solveTrueVisionPath(engine: PhysicsEngine, hole: HoleData, ball:
   };
 
   const a0 = evaluate(baseAngle);
-  if (a0.holed || a0.dist <= PHYSICS.cupRadius) return a0.path;
+  if (a0.holed || a0.dist <= PHYSICS.cupRadius) return finalizePath(a0.path, hole.pin);
 
   let angle0 = baseAngle;
   let f0 = a0.lateral;
   let angle1 = baseAngle + PROBE_STEP;
   let a1 = evaluate(angle1);
-  if (a1.holed || a1.dist <= PHYSICS.cupRadius) return a1.path;
+  if (a1.holed || a1.dist <= PHYSICS.cupRadius) return finalizePath(a1.path, hole.pin);
   let f1 = a1.lateral;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     if (f1 === f0) break; // flat/degenerate slope — no usable secant slope, stop
     const angle2 = clampToCone(angle1 - (f1 * (angle1 - angle0)) / (f1 - f0));
     const a2 = evaluate(angle2);
-    if (a2.holed || a2.dist <= PHYSICS.cupRadius) return a2.path;
+    if (a2.holed || a2.dist <= PHYSICS.cupRadius) return finalizePath(a2.path, hole.pin);
     angle0 = angle1;
     f0 = f1;
     angle1 = angle2;
@@ -121,5 +146,5 @@ export function solveTrueVisionPath(engine: PhysicsEngine, hole: HoleData, ball:
   // No exact solve within the budget — the closest approach found is always
   // strictly better (or equal) than the naive straight-at-pin aim, and is
   // never empty since `evaluate` runs at least twice above.
-  return bestPath ?? a0.path;
+  return finalizePath(bestPath ?? a0.path, hole.pin);
 }
