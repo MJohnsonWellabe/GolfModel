@@ -69,7 +69,7 @@ import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
-import { solveTrueVisionPath } from '../systems/TrueVisionSolver';
+import { computeTrueVisionPath } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
@@ -501,16 +501,19 @@ class HoleScene {
     this.aimRing.parent = this.aimRoot;
     this.aimRoot.setEnabled(false);
 
-    // True Vision: a second, red dot pool showing the SOLVED break line — a
+    // True Vision: a second, red dot pool showing the REVEALED shot path — a
     // separate mesh/material from the white aim guide so it can be populated
     // once on tap and left untouched while the ordinary aim line keeps
-    // redrawing every frame as the player adjusts pace.
+    // redrawing every frame as the player adjusts pace. Sized generously
+    // (not just putt-length) — True Vision now works on full shots too, and
+    // a 300yd drive needs far more dashes than a 20ft putt to still read as
+    // a continuous line instead of a few isolated dots.
     const trueVisionMat = new StandardMaterial('trueVisionMat', this.scene);
     trueVisionMat.diffuseColor = new Color3(1, 0.15, 0.15);
     trueVisionMat.emissiveColor = new Color3(0.9, 0.1, 0.1);
     trueVisionMat.disableLighting = true;
     this.trueVisionRoot = new TransformNode('trueVisionRoot', this.scene);
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < 120; i++) {
       const dot = MeshBuilder.CreateDisc(`trueVisionDot${i}`, { radius: 0.45, tessellation: 10 }, this.scene);
       dot.rotation.x = Math.PI / 2;
       dot.material = trueVisionMat;
@@ -1110,7 +1113,7 @@ class HoleScene {
     // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
     renderPacing.meterActive = false;
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
-    this.hideTrueVision(); // clear any stale reveal from the previous putt
+    this.hideTrueVision(); // clear any stale reveal from the previous shot
     if (this.tm.isScramble) {
       // Scramble: both teammates attempt from the shared team ball; the
       // better result becomes the new team ball (TurnManager owns the state).
@@ -1185,6 +1188,21 @@ class HoleScene {
     strikeDotEl.style.top = `${50 - this.strike.y * 38}%`;
   }
 
+  /** Shared aim-dot scale: putting keeps a fine string of dots (a touch
+   *  larger overhead so it still reads from the higher camera); a full shot
+   *  only grows its dots in the aerial view, scaled to the shot's span so a
+   *  long drive's dots don't vanish at that altitude. Shared by the white
+   *  aim guide and the True Vision reveal so both read consistently. */
+  private aimDotScale(span: number): number {
+    return this.aim.isPutting
+      ? this.aerial
+        ? 0.7
+        : 0.42
+      : this.aerial
+        ? Math.min(9, Math.max(4, span / 120))
+        : 1;
+  }
+
   /** Redraw the ground aim guide from the current aim + preview. */
   private updateAimVisuals(): void {
     if (this.state.phase !== 'aiming' || this.ai) {
@@ -1205,13 +1223,7 @@ class HoleScene {
     // Putting keeps its fine aim dots even in the overhead view (a touch larger
     // there so they read from the higher camera); only a FULL-shot aerial uses
     // the big span-scaled dots.
-    const dotScale = this.aim.isPutting
-      ? this.aerial
-        ? 0.7
-        : 0.42
-      : this.aerial
-        ? Math.min(9, Math.max(4, span / 120))
-        : 1;
+    const dotScale = this.aimDotScale(span);
     // Full shots: the dots/ring/readout mark the CARRY-LANDING (where the ball
     // first touches down, ~320yd for a big-hitter driver) — not the post-rollout
     // resting spot. So the number reads as carry (matches the GDD/expectation)
@@ -1319,9 +1331,9 @@ class HoleScene {
     this.updateAimVisuals();
     this.updateHud();
     this.refreshClubBar();
-    // True Vision only makes sense while putting — hide a stale reveal (and
-    // the button) the moment the player cycles to a different club.
-    if (!this.aim.isPutting) this.hideTrueVision();
+    // A stale reveal no longer matches the new club's flight — hide it the
+    // moment the player cycles clubs.
+    this.hideTrueVision();
     this.refreshTrueVisionBtn();
   }
 
@@ -1382,11 +1394,11 @@ class HoleScene {
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
   }
 
-  /** Show/hide/relabel the True Vision button for the current turn — only
-   *  while a human is putting and still has charges. */
+  /** Show/hide/relabel the True Vision button for the current turn — any
+   *  human shot (full swing, chip, or putt), as long as charges remain. */
   private refreshTrueVisionBtn(): void {
     const remaining = chargesRemaining(profile, TRUE_VISION.id);
-    const show = this.state.phase === 'aiming' && !this.ai && this.aim.isPutting && remaining > 0;
+    const show = this.state.phase === 'aiming' && !this.ai && remaining > 0;
     trueVisionBtn.style.display = show ? 'block' : 'none';
     trueVisionBtn.textContent = `${TRUE_VISION.icon} TRUE VISION (${remaining})`;
   }
@@ -1415,11 +1427,13 @@ class HoleScene {
     return out;
   }
 
-  /** Populate the red dot pool along the solved path — a "dashed" line falls
-   *  out of spacing every other pooled dot farther apart than its own radius
-   *  (same trick the plan calls for, no new geometry). Populated once on tap;
-   *  NOT touched by the per-frame updateAimVisuals() redraw. */
-  private showTrueVisionPath(path: TrajectoryPoint[]): void {
+  /** Populate the red dot pool along the revealed path — a "dashed" line
+   *  falls out of spacing every other pooled dot farther apart than its own
+   *  radius (same trick the plan calls for, no new geometry). Populated once
+   *  on tap; NOT touched by the per-frame updateAimVisuals() redraw. `scale`
+   *  matches the white aim guide's own dot scale (aimDotScale) so a revealed
+   *  full-shot path stays legible in the aerial view the same way. */
+  private showTrueVisionPath(path: TrajectoryPoint[], scale: number): void {
     const pts = this.resamplePathByArcLength(path, this.trueVisionDots.length);
     this.trueVisionDots.forEach((dot, i) => {
       if (i % 2 === 1) {
@@ -1428,7 +1442,7 @@ class HoleScene {
       }
       const p = pts[i] ?? pts[pts.length - 1];
       dot.position = w2b(p.x, p.y, 0.12 + this.gh(p.x, p.y));
-      dot.scaling.setAll(1);
+      dot.scaling.setAll(scale);
     });
     this.trueVisionRoot.setEnabled(true);
   }
@@ -1437,12 +1451,14 @@ class HoleScene {
     this.trueVisionRoot.setEnabled(false);
   }
 
-  /** Tap handler: consume one charge, solve the real break line (the real
-   *  slope-aware engine2d, deliberately NOT the flat previewEngine the
-   *  ordinary aim line uses), and show it as a red dashed line that stays up
-   *  until the putt is struck. */
+  /** Tap handler: consume one charge, simulate the shot the player is
+   *  CURRENTLY AIMED AT on the real, slope- and wind-aware engine2d
+   *  (deliberately NOT the flat previewEngine the ordinary white aim line
+   *  uses), and show the true result as a red dashed line — where the ball
+   *  actually flies/rolls and ends up — that stays up until the aim changes
+   *  or the shot is struck. */
   private revealTrueVision(): void {
-    if (this.state.phase !== 'aiming' || this.ai || !this.aim.isPutting) return;
+    if (this.state.phase !== 'aiming' || this.ai) return;
     if (!consumeCharge(profile, TRUE_VISION.id)) return;
     persistProfile();
     if (signedIn)
@@ -1450,8 +1466,18 @@ class HoleScene {
         applyCloudMerge(profile, res.profile);
         showCloudStatus(res.status, true);
       });
-    const path = solveTrueVisionPath(this.engine2d, this.hole, this.state.ballPos, this.curPart().golfer);
-    this.showTrueVisionPath(path);
+    const ctx = this.ctx();
+    const path = computeTrueVisionPath(this.engine2d, this.hole, ctx, {
+      aimAngle: this.aim.yaw,
+      power: this.aim.barToPhysicsPower(this.aim.barPowerTarget(ctx), ctx),
+      club: this.aim.club,
+      wind: this.wind,
+      spin: this.strike.shapeSpin,
+      launchMult: this.strike.launchMult
+    });
+    const end = path[path.length - 1] ?? ctx.ball;
+    const span = Math.hypot(end.x - ctx.ball.x, end.y - ctx.ball.y);
+    this.showTrueVisionPath(path, this.aimDotScale(span));
     this.refreshTrueVisionBtn();
   }
 
@@ -1533,7 +1559,7 @@ class HoleScene {
     renderPacing.meterActive = false; // meter's done — let the scatter finish filling
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
-    this.hideTrueVision(); // "stays up until you putt" ends here
+    this.hideTrueVision(); // "stays up until the shot is struck" ends here
     this.aerial = false;
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
@@ -1848,6 +1874,9 @@ class HoleScene {
       this.setCamSetup();
       this.updateAimVisuals();
       this.updateHud();
+      // A stale reveal no longer matches the new aim — hide it the moment the
+      // player drags to a different direction/distance.
+      this.hideTrueVision();
       // Distance changed → the meter's power target moved; re-arm so the target
       // line (and putt scaling) track the new aim.
       if (meter.isArmed) this.armMeter();
@@ -1903,6 +1932,9 @@ class HoleScene {
     // launch height — previously the strike dot moved but the trajectory never
     // updated (playtest FB9).
     this.updateAimVisuals();
+    // A stale reveal no longer matches the new shape/launch — hide it the
+    // moment the player drags the SHAPE dial.
+    this.hideTrueVision();
   }
 
   /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */

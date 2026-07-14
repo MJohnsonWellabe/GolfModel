@@ -1941,12 +1941,6 @@ export function buildCourse(
       }
       });
     }
-    // Fescue lining the HOLE-SIDE lip of every scoring bunker (theme.
-    // bunkerLipFescue — Sable Bay's Pinehurst trademark): a bunker should read
-    // as sand carved out of a fescue-edged dune, not a clean disc dropped onto
-    // turf. Waste/beach/wall bunkers are excluded — waste already gets fescue
-    // growing through the sand itself (tallGrass.waste), and walls/beaches
-    // don't want a soft edge.
     // Shoreline margin scatter (theme.shorelineKeys — opt-in per course): real
     // water always announces its edge, but every waterline in the game met the
     // turf as two flat colors (visual audit: "shorelines have no margin"). Walk
@@ -2053,7 +2047,16 @@ export function buildCourse(
               if (hash2(px * 1.9, py * 2.3) > KEEP_RATE) continue;
               const ox = px + (nx / nlen) * 2.5;
               const oy = py + (ny / nlen) * 2.5;
-              if (engine.surfaceAt(ox, oy) !== 'rough') continue;
+              // Accept rough OR fairway turf: a fairway-side bunker (very common —
+              // Sable Bay/Port Johnson both flank the short grass directly, no rough
+              // buffer between) has NO rough anywhere along its rim, so gating on
+              // 'rough' alone silently skipped fescue on every one of those traps,
+              // leaving a completely bare sand→fairway edge (bug report: "no grass
+              // by the bunker" at Sable Bay and Port Johnson). Green/fringe/sand/
+              // water/trees stay excluded — a putting collar or another hazard
+              // should never sprout wiregrass.
+              const surf = engine.surfaceAt(ox, oy);
+              if (surf !== 'rough' && surf !== 'fairway') continue;
               place(pool, ox, oy, 3.0 + hash2(ox + 3, oy) * 1.2);
             }
           }
