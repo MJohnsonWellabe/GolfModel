@@ -15,7 +15,7 @@
  * means the two Payment Links need NO dashboard configuration. The uid
  * arrives as client_reference_id (the game appends it to the link URL).
  */
-const { onRequest } = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const Stripe = require('stripe');
@@ -97,3 +97,70 @@ exports.stripeWebhook = onRequest(
     res.json({ received: true });
   }
 );
+
+/**
+ * Admin-only: gift Season XP / True Vision charges to another account by
+ * email, for QA/testing. Client rules (docs/FIREBASE_SETUP.md) bind
+ * profiles/{uid} writes to auth.uid === uid, so no signed-in client can ever
+ * write another user's profile — this callable is the one deliberate,
+ * server-verified exception, following the same admin-SDK-bypasses-rules
+ * pattern as the entitlements write above.
+ *
+ * Mirrors src/admin/adminEmails.ts — functions/ is a separate, unbundled
+ * Node package (no TS build step here), so this is a deliberate small
+ * duplicate. Keep both lists in sync if the allowlist ever changes.
+ */
+const ADMIN_EMAILS = ['mattjohnson912@gmail.com'];
+/** src/data/consumables.ts TRUE_VISION.id */
+const TRUE_VISION_ID = 'true_vision';
+
+exports.giftSeasonReward = onCall({ region: 'us-central1' }, async (request) => {
+  const auth = request.auth;
+  if (!auth || !auth.token || !auth.token.email) {
+    throw new HttpsError('unauthenticated', 'Sign in required.');
+  }
+  if (!ADMIN_EMAILS.includes(auth.token.email.toLowerCase())) {
+    throw new HttpsError('permission-denied', 'Admin only.');
+  }
+  const { targetEmail, seasonXp, trueVisionCharges } = request.data || {};
+  if (typeof targetEmail !== 'string' || !targetEmail.includes('@')) {
+    throw new HttpsError('invalid-argument', 'targetEmail is required.');
+  }
+  const xp = Math.max(0, Math.floor(Number(seasonXp) || 0));
+  const tv = Math.max(0, Math.floor(Number(trueVisionCharges) || 0));
+  if (xp === 0 && tv === 0) throw new HttpsError('invalid-argument', 'Nothing to grant.');
+
+  let targetUser;
+  try {
+    targetUser = await admin.auth().getUserByEmail(targetEmail.toLowerCase());
+  } catch (e) {
+    throw new HttpsError('not-found', `No account for ${targetEmail}.`);
+  }
+  const uid = targetUser.uid;
+  const result = await admin
+    .database()
+    .ref(`profiles/${uid}`)
+    .transaction((profile) => {
+      if (!profile) return profile; // no cloud profile yet — abort (target must have signed in once)
+      if (xp > 0) {
+        profile.season = profile.season || { id: 's1', xp: 0, claimed: [], owned: false };
+        profile.season.xp = (profile.season.xp || 0) + xp;
+      }
+      if (tv > 0) {
+        profile.consumables = profile.consumables || [];
+        const existing = profile.consumables.find((c) => c.id === TRUE_VISION_ID);
+        if (existing) existing.granted = (existing.granted || 0) + tv;
+        else profile.consumables.push({ id: TRUE_VISION_ID, granted: tv, used: 0 });
+      }
+      profile.updatedAt = Date.now();
+      return profile;
+    });
+  if (!result.committed || !result.snapshot.exists()) {
+    throw new HttpsError(
+      'failed-precondition',
+      `${targetEmail} has no cloud profile yet (they must sign in once first).`
+    );
+  }
+  console.log(`gift: ${auth.token.email} granted ${xp} season XP + ${tv} True Vision to ${targetEmail} (${uid})`);
+  return { ok: true, uid, grantedXp: xp, grantedTrueVision: tv };
+});

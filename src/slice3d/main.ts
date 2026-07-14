@@ -45,7 +45,7 @@ import {
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, grantConsumable, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
@@ -2478,6 +2478,7 @@ function renderProfile(): void {
     `<div id="resetZone" class="resetZone">` +
     `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
     `</div>` +
+    `<div id="profAdminZone"></div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
   document.getElementById('setSound')!.addEventListener('input', (e) => {
@@ -2495,6 +2496,58 @@ function renderProfile(): void {
   });
   document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
   wireAccountRow();
+  refreshProfileAdminZone();
+}
+
+/** Admin-only zone inside the Profile screen (moved here from the main menu
+ *  so it's no longer a permanent line item every player sees) — the Admin
+ *  Dashboard link, the debug True Vision grant, and the gift-to-another-
+ *  account form, all gated behind the same allow-listed email check
+ *  refreshAdminLink() used to gate the old menu buttons with. */
+function refreshProfileAdminZone(): void {
+  const zone = document.getElementById('profAdminZone');
+  if (!zone) return;
+  zone.innerHTML = '';
+  if (!authConfigured() || !signedIn) return;
+  void cloudEmail().then((email) => {
+    if (!isAdminEmail(email)) return;
+    zone.innerHTML =
+      `<div class="profAdminSection"><div class="profAdminTitle">Admin</div>` +
+      `<button id="profAdminLink" class="ghostBtn">🔑 Admin Dashboard</button>` +
+      `<button id="profAdminGrantTV" class="ghostBtn">🎁 Grant 3 True Vision (debug)</button>` +
+      `</div>` +
+      `<div class="profAdminGift">` +
+      `<div class="profAdminTitle">Gift Season XP / True Vision</div>` +
+      `<input id="giftEmail" type="email" placeholder="player@email.com" class="giftInput" />` +
+      `<input id="giftXp" type="number" min="0" placeholder="Season XP" value="0" class="giftInput" />` +
+      `<input id="giftTV" type="number" min="0" placeholder="True Vision charges" value="0" class="giftInput" />` +
+      `<button id="giftSend" class="ghostBtn">Send Gift</button>` +
+      `<div id="giftStatus" class="acctHint"></div>` +
+      `</div>`;
+    document.getElementById('profAdminLink')!.addEventListener('pointerdown', () => (window.location.href = 'admin.html'));
+    document.getElementById('profAdminGrantTV')!.addEventListener('pointerdown', () => {
+      grantConsumable(profile, TRUE_VISION.id, 3);
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(profile).then((res) => {
+          applyCloudMerge(profile, res.profile);
+          showCloudStatus(res.status, true);
+        });
+      showMsg('Granted 3 True Vision charges', 1400);
+    });
+    document.getElementById('giftSend')!.addEventListener('pointerdown', () => {
+      const targetEmail = (document.getElementById('giftEmail') as HTMLInputElement).value.trim();
+      const xp = parseInt((document.getElementById('giftXp') as HTMLInputElement).value, 10) || 0;
+      const tv = parseInt((document.getElementById('giftTV') as HTMLInputElement).value, 10) || 0;
+      const status = document.getElementById('giftStatus')!;
+      status.textContent = 'Sending…';
+      void giftSeasonReward(targetEmail, xp, tv).then((res) => {
+        status.textContent = res.ok
+          ? `✅ Sent ${res.grantedXp ?? xp} XP + ${res.grantedTrueVision ?? tv} True Vision to ${targetEmail}`
+          : `❌ ${res.error}`;
+      });
+    });
+  });
 }
 
 /** Reset Records: a centered "Are you sure?" modal (same style as the store
@@ -2842,24 +2895,6 @@ function roundGolfer(): Golfer {
   return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, equippedPerkDef());
 }
 
-/** Show the Admin Dashboard menu link (and the debug True Vision grant
- *  button) only for the allow-listed account. */
-function refreshAdminLink(): void {
-  const link = document.getElementById('adminLink');
-  const grantTV = document.getElementById('adminGrantTV');
-  if (!link) return;
-  if (!authConfigured() || !signedIn) {
-    link.style.display = 'none';
-    if (grantTV) grantTV.style.display = 'none';
-    return;
-  }
-  void cloudEmail().then((email) => {
-    const show = isAdminEmail(email) ? '' : 'none';
-    link.style.display = show;
-    if (grantTV) grantTV.style.display = show;
-  });
-}
-
 function updateSeasonLink(): void {
   const btn = document.getElementById('seasonBanner');
   if (!btn) return;
@@ -2878,6 +2913,16 @@ function updateSeasonLink(): void {
       `<span class="sbSub">See the rewards · you're Level ${lvl}/${SEASON_1.levels}</span></span>` +
       `<span class="sbGo">See ›</span>`;
   }
+}
+
+function updateStoreBanner(): void {
+  const btn = document.getElementById('storeBanner');
+  if (!btn) return;
+  btn.innerHTML =
+    `<span class="sbIcon">🛍️</span>` +
+    `<span class="sbMain"><span class="sbTitle">The Store</span>` +
+    `<span class="sbSub">Balls, trails, characters &amp; more</span></span>` +
+    `<span class="sbGo">Shop ›</span>`;
 }
 
 /** Season-pass overlay: 10 pages × 5 reward levels, progress bar, claim
@@ -4111,7 +4156,6 @@ function ordinal(n: number): string {
  * own copy of the control too.
  */
 function renderAcctMenu(): void {
-  refreshAdminLink();
   const el = document.getElementById('acctMenu');
   if (!el) return;
   if (!authConfigured()) {
@@ -4119,12 +4163,17 @@ function renderAcctMenu(): void {
     return;
   }
   // Signed-out: a prominent sign-in button with a "save your progress" subtitle
-  // so the account's purpose is obvious. Signed-in: a "Signed in as …" row with
-  // Log out. State is driven by the `signedIn` flag (set by adopt/sign-out).
+  // so the account's purpose is obvious, plus a small ghost link into Profile
+  // (guests still have local settings/stats worth reaching). Signed-in: a
+  // "Signed in as …" row that IS the Profile entry point (tap to open) with a
+  // Log out button. State is driven by the `signedIn` flag (set by
+  // adopt/sign-out).
   const showSignInButton = (): void => {
     el.innerHTML =
       `<button id="acctLinkBtn" class="acctBtn">🔑 Sign in with Google</button>` +
-      `<div class="acctHint">Sign in to save your coins &amp; progress</div>`;
+      `<div class="acctHint">Sign in to save your coins &amp; progress</div>` +
+      `<button id="acctProfileLinkOut" class="ghostLink">👤 Profile &amp; Settings</button>`;
+    document.getElementById('acctProfileLinkOut')!.addEventListener('pointerdown', () => renderProfile());
     const btn = document.getElementById('acctLinkBtn') as HTMLButtonElement;
     // iOS Safari only honors signInWithPopup's window.open as a trusted user
     // gesture inside a 'click' event — pointerdown gets silently blocked with
@@ -4151,8 +4200,10 @@ function renderAcctMenu(): void {
   };
   const showSignedIn = (name: string): void => {
     el.innerHTML =
-      `<div class="acctSignedIn"><span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
+      `<div class="acctSignedIn">` +
+      `<button id="acctProfileRow" class="acctWho acctTappable">✓ Signed in as <b>${escapeHtml(name)}</b> <span class="acctProfileIcon">👤 Profile</span></button>` +
       `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
+    document.getElementById('acctProfileRow')!.addEventListener('pointerdown', () => renderProfile());
     (document.getElementById('acctLogout') as HTMLButtonElement).onclick = () => {
       void doSignOut().then(() => {
         showSignInButton();
@@ -4169,23 +4220,11 @@ function renderAcctMenu(): void {
 
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
-document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
+document.getElementById('storeBanner')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
-document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
-document.getElementById('adminLink')!.addEventListener('pointerdown', () => (window.location.href = 'admin.html'));
-document.getElementById('adminGrantTV')!.addEventListener('pointerdown', () => {
-  grantConsumable(profile, TRUE_VISION.id, 3);
-  persistProfile();
-  if (signedIn)
-    void cloudSyncProfile(profile).then((res) => {
-      applyCloudMerge(profile, res.profile);
-      showCloudStatus(res.status, true);
-    });
-  showMsg('Granted 3 True Vision charges', 1400);
-});
 updateSeasonLink();
-refreshAdminLink();
+updateStoreBanner();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));

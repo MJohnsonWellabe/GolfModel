@@ -530,6 +530,19 @@
         font-weight: 900;
         color: #ffd54f;
       }
+      /* Store banner: same layout as .seasonBanner, teal/blue accent so the
+       * two read as siblings (same weight, distinct identity) rather than
+       * duplicates. */
+      .storeBanner {
+        border-color: rgba(100, 220, 255, 0.55);
+        background: linear-gradient(120deg, rgba(50, 150, 255, 0.28), rgba(80, 220, 255, 0.16), rgba(90, 255, 190, 0.2));
+      }
+      .storeBanner .sbSub {
+        color: #cdf3ff;
+      }
+      .storeBanner .sbGo {
+        color: #64dcff;
+      }
       /* Daily challenge banner (Phase 6) */
       #dailyBanner {
         display: flex;
@@ -720,7 +733,8 @@
         color: #9fc3a6;
         line-height: 1.4;
       }
-      #linkGoogle {
+      #linkGoogle,
+      .ghostBtn {
         align-self: flex-start;
         padding: 10px 16px;
         border-radius: 10px;
@@ -734,6 +748,36 @@
       }
       #linkGoogle:disabled {
         opacity: 0.55;
+      }
+      /* Admin-only zone inside the Profile screen (moved off the main menu) */
+      .profAdminSection,
+      .profAdminGift {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      .profAdminTitle {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: #f0b95e;
+      }
+      .giftInput {
+        display: block;
+        width: 100%;
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.06);
+        color: #eef5ea;
+        font-size: 14px;
+        box-sizing: border-box;
       }
       /* Step indicator */
       #steps {
@@ -1268,6 +1312,32 @@
       }
       .acctSignedIn .acctWho b {
         color: #fff;
+      }
+      /* The signed-in row doubles as the Profile entry point (tap to open) */
+      .acctTappable {
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+        text-align: left;
+      }
+      .acctProfileIcon {
+        font-size: 11px;
+        color: #a9c4ae;
+        margin-left: 6px;
+      }
+      /* Signed-out guests still need a way into Profile/settings */
+      .ghostLink {
+        display: block;
+        margin: 8px auto 0;
+        background: none;
+        border: none;
+        color: #9fc3a6;
+        font-size: 12px;
+        text-decoration: underline;
+        cursor: pointer;
       }
       .acctLogout {
         flex: 0 0 auto;
@@ -1915,6 +1985,7 @@
         <div id="title">Bite-Sized Golf</div>
         <div id="subtitle">Three holes. Anytime.</div>
         <button id="seasonBanner" class="seasonBanner"></button>
+        <button id="storeBanner" class="seasonBanner storeBanner"></button>
         <div id="dailyBanner"></div>
         <div id="steps"></div>
         <div id="stepBody"></div>
@@ -1926,11 +1997,7 @@
         <div id="acctMenu" class="acctMenu"></div>
         <div class="menuLinks">
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
-          <button id="storeLink" class="recordsLink">🛍️ Store</button>
-          <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
-          <button id="adminLink" class="recordsLink" style="display:none">🔑 Admin Dashboard</button>
-          <button id="adminGrantTV" class="recordsLink" style="display:none">🎁 Grant 3 True Vision (debug)</button>
         </div>
       </div>
     </div>

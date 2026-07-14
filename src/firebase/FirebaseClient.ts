@@ -110,6 +110,39 @@ export async function cloudUid(): Promise<string | null> {
 }
 
 /**
+ * Admin-only: gift Season XP / True Vision charges to another account by
+ * email (functions/index.js `giftSeasonReward`). The callable itself
+ * re-checks the admin allowlist server-side, so a non-admin caller gets a
+ * clean 'permission-denied' error back rather than any write happening.
+ */
+export interface GiftResult {
+  ok: boolean;
+  error?: string;
+  grantedXp?: number;
+  grantedTrueVision?: number;
+}
+
+export async function giftSeasonReward(
+  targetEmail: string,
+  seasonXp: number,
+  trueVisionCharges: number
+): Promise<GiftResult> {
+  if (!authConfigured()) return { ok: false, error: 'Firebase not configured' };
+  try {
+    const { auth } = await ensureFirebase();
+    if (!auth.currentUser) return { ok: false, error: 'Not signed in' };
+    const { getApp } = await import('firebase/app');
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const fns = getFunctions(getApp(), 'us-central1');
+    const call = httpsCallable(fns, 'giftSeasonReward');
+    const res = await call({ targetEmail, seasonXp, trueVisionCharges });
+    return { ok: true, ...(res.data as object) };
+  } catch (e) {
+    return { ok: false, error: (e as { message?: string }).message ?? String(e) };
+  }
+}
+
+/**
  * True once the player has signed in with a real (Google) account. With no
  * anonymous auto-sign-in, this is the single gate for "progress is saved":
  * signed out → ephemeral local play; signed in → cloud-backed account.
