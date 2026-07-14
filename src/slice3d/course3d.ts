@@ -404,10 +404,15 @@ export function buildCourse(
   // green stays crisp at putting-camera distance. Physics remains flat — the
   // ball/golfer add groundHeightAt() when rendered.
   {
-    const ANG = 56;
+    const ANG = 72;
     // Ring radii factors: flat top out to the green edge, then skirt rings
-    // stepping across the fringe down to ground level (slightly below to tuck)
-    const topT = [0, 0.45, 0.8, 1];
+    // stepping across the fringe down to ground level (slightly below to tuck).
+    // The top MUST be finely ringed: every vertex conforms to the heightfield
+    // (pushVert adds groundAt), and a green sitting across an elevation skirt
+    // (Port Johnson 3) bows the sparse old rings ([0, .45, .8, 1]) ~0.1–0.3
+    // above the true terrain between samples — enough to bury the cup disc
+    // (+0.06) and patches of the putt grid (+0.14) under the green mesh.
+    const topT = Array.from({ length: 21 }, (_, i) => i / 20);
     const skirtS = [0.18, 0.45, 0.72, 1, 1.18];
     // ONE shared texture patch covers every lobe (renderGreenPatch sizes its
     // canvas to the union bbox), so a two-lobe green reads as one continuous

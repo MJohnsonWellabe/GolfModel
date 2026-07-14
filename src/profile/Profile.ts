@@ -82,9 +82,10 @@ export interface PlayerProfile {
   stats: CareerStats;
   /** Daily-challenge state (see systems/ProgressionEngine + data/progression). */
   daily: { date: string; challengeId: string; done: boolean };
-  /** Consecutive days a daily challenge was completed. */
+  /** Consecutive days with at least one completed round (the daily-challenge
+   *  result no longer gates the streak — it's a separate bonus). */
   dailyStreak: number;
-  /** YYYY-MM-DD of the last completed daily challenge. */
+  /** YYYY-MM-DD of the last completed round — the streak's continuity anchor. */
   lastDailyDate: string;
   settings: { sound: number; ambience: number; reducedMotion: boolean };
   /** Codes of tournaments the player created or played, newest first — the

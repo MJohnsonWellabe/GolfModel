@@ -42,7 +42,17 @@ export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''):
     coins += COINS.tournamentWin;
   }
 
-  // Daily challenge — completed at most once per day, extends the streak
+  // Daily streak — consecutive days with at least one COMPLETED ROUND. The
+  // streak used to extend only when the daily challenge succeeded, so a single
+  // hard challenge day (eagle, chip-in…) reset it and it never climbed past
+  // 1–2 for a daily player. Playing every day is the habit the streak rewards;
+  // the challenge below stays a separate XP/coin bonus.
+  if (dateKey && profile.lastDailyDate !== dateKey) {
+    profile.dailyStreak = profile.lastDailyDate === prevDay(dateKey) ? profile.dailyStreak + 1 : 1;
+    profile.lastDailyDate = dateKey;
+  }
+
+  // Daily challenge — completed at most once per day, pays a bonus
   if (dateKey && !(profile.daily.date === dateKey && profile.daily.done)) {
     const challenge = dailyChallengeFor(dateKey);
     profile.daily = { date: dateKey, challengeId: challenge.id, done: false };
@@ -50,8 +60,6 @@ export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''):
       profile.daily.done = true;
       xp += XP.daily;
       coins += COINS.daily;
-      profile.dailyStreak = profile.lastDailyDate === prevDay(dateKey) ? profile.dailyStreak + 1 : 1;
-      profile.lastDailyDate = dateKey;
       events.push({ kind: 'daily', name: challenge.name, streak: profile.dailyStreak });
     }
   }

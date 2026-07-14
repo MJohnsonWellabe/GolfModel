@@ -94,6 +94,35 @@ describe('daily challenges', () => {
     // Same day again → no second daily reward
     const e2 = applyRound(p, roundOf({ toPar: -1, strokes: 11 }), day);
     expect(e2.some((e) => e.kind === 'daily')).toBe(false);
+    expect(p.dailyStreak).toBe(1);
+  });
+
+  // Regression: the streak used to extend only when the daily CHALLENGE
+  // succeeded, so one hard challenge day (eagle, chip-in…) reset it and it
+  // never climbed past 1–2 for a daily player ("streak maxes out at 2").
+  it('streak counts consecutive days PLAYED even when the challenge fails', () => {
+    const p = defaultProfile();
+    // +3 with no birdies/eagles/chip-ins/long stats fails every challenge
+    const dud = () => roundOf({ toPar: 3, strokes: 15 });
+    applyRound(p, dud(), '2026-07-10');
+    expect(p.dailyStreak).toBe(1);
+    applyRound(p, dud(), '2026-07-11');
+    expect(p.dailyStreak).toBe(2);
+    applyRound(p, dud(), '2026-07-12');
+    expect(p.dailyStreak).toBe(3);
+    // A second round the same day doesn't double-count…
+    applyRound(p, dud(), '2026-07-12');
+    expect(p.dailyStreak).toBe(3);
+    // …and skipping a day resets to 1.
+    applyRound(p, dud(), '2026-07-14');
+    expect(p.dailyStreak).toBe(1);
+  });
+
+  it('the streak carries across month boundaries', () => {
+    const p = defaultProfile();
+    applyRound(p, roundOf({ toPar: 3, strokes: 15 }), '2026-01-31');
+    applyRound(p, roundOf({ toPar: 3, strokes: 15 }), '2026-02-01');
+    expect(p.dailyStreak).toBe(2);
   });
 });
 

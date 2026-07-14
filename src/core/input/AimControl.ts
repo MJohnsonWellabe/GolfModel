@@ -120,45 +120,58 @@ export class AimControl {
     return (barPower * this.meterScalePx(ctx)) / this.maxCarryPx(ctx);
   }
 
-  /** Default aim: DOWN THE FAIRWAY, not over the trees at the pin. For full
-   *  shots the default points at the next fairway waypoint (the authored route
-   *  the AI follows) so a tee shot on a dogleg aims down the leg, not across
-   *  the corner. Putts still default at the cup. */
+  /** Default aim: a sensible, DRY target. Putts default at the cup. Full shots
+   *  prefer the flag once the green is in reach (playtest: "just aim at the
+   *  green"); otherwise the authored fairway waypoint that best matches a full
+   *  swing, so a dogleg drive aims down the leg instead of at a pin hidden
+   *  behind the corner. Whatever is preferred, the armed aim POINT must land on
+   *  dry ground — a default that overshoots a dogleg elbow into a lake (Port
+   *  Johnson 3 off the tee) or points a lay-up across water falls through to
+   *  the next candidate. */
   resetAim(ctx: ShotContext): void {
     const pinDist = dist(ctx.ball, this.hole.pin);
-    // Every shot AFTER the tee shot aims straight at the flag (playtest: the
-    // fairway-route default was pointing second shots at terrible spots — "just
-    // aim at the green"). Only the tee shot defaults down the fairway route, so
-    // a dogleg drive still aims down the leg rather than over the corner.
-    const aimTarget =
-      this.isPutting || ctx.strokes >= 1 ? this.hole.pin : this.nextRoutePoint(ctx.ball);
-    this.yaw = angleTo(ctx.ball, aimTarget);
-    // Putts default the aim spot AT the cup, so a perfect stroke rolls the
-    // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
-    // The player drags the aim past the hole to add pace. Full shots keep the
-    // full-carry aim distance (down the fairway line).
-    this.distPx = this.isPutting
-      ? clamp(pinDist, 1, this.maxCarryPx(ctx))
-      : Math.min(pinDist, this.maxCarryPx(ctx));
-  }
-
-  /** The next fairway waypoint ahead of the ball (closer to the pin than the
-   *  ball is): the nearest such `aiTargets` point, or the pin once past them
-   *  all / when a hole authored no route (e.g. a par 3). Keeps the tee aim
-   *  down the fairway instead of straight at a pin hidden behind a dogleg. */
-  private nextRoutePoint(ball: Point): Point {
-    const pinDist = dist(ball, this.hole.pin);
-    let best: Point | null = null;
-    let bestD = Infinity;
-    for (const t of this.hole.aiTargets ?? []) {
-      if (dist(t, this.hole.pin) >= pinDist - 8) continue; // not progress toward the green
-      const d = dist(ball, t);
-      if (d < bestD) {
-        bestD = d;
-        best = t;
+    const maxCarry = this.maxCarryPx(ctx);
+    if (this.isPutting) {
+      // Putts default the aim spot AT the cup, so a perfect stroke rolls the
+      // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
+      // The player drags the aim past the hole to add pace.
+      this.yaw = angleTo(ctx.ball, this.hole.pin);
+      this.distPx = clamp(pinDist, 1, maxCarry);
+      return;
+    }
+    // Candidates in preference order: pin first whenever the green is in reach
+    // or the tee shot is behind us, then the route waypoints, then the pin as
+    // the final fallback (par 3s author no route).
+    const candidates: Point[] = [];
+    if (ctx.strokes >= 1 || pinDist <= maxCarry) candidates.push(this.hole.pin);
+    candidates.push(...this.routePointsAhead(ctx.ball, Math.min(pinDist, maxCarry)), this.hole.pin);
+    let pick = candidates[0];
+    for (const t of candidates) {
+      const d = Math.min(dist(ctx.ball, t), maxCarry);
+      const yaw = angleTo(ctx.ball, t);
+      const wet =
+        this.engine.surfaceAt(ctx.ball.x + Math.cos(yaw) * d, ctx.ball.y + Math.sin(yaw) * d) ===
+        'water';
+      if (!wet) {
+        pick = t;
+        break;
       }
     }
-    return best ?? this.hole.pin;
+    this.yaw = angleTo(ctx.ball, pick);
+    // Aim AT the chosen spot (a safe lay-up arms a shorter swing), capped at
+    // the club's full carry.
+    this.distPx = Math.min(dist(ctx.ball, pick), maxCarry);
+  }
+
+  /** Fairway waypoints ahead of the ball (closer to the pin than the ball is),
+   *  ordered by how well each matches the armed shot distance — so a drive
+   *  prefers the waypoint a full swing actually reaches, not the elbow 100
+   *  yards out whose line the ball would overfly into trouble. */
+  private routePointsAhead(ball: Point, armedPx: number): Point[] {
+    const pinDist = dist(ball, this.hole.pin);
+    return (this.hole.aiTargets ?? [])
+      .filter((t) => dist(t, this.hole.pin) < pinDist - 8) // progress toward the green
+      .sort((a, b) => Math.abs(dist(ball, a) - armedPx) - Math.abs(dist(ball, b) - armedPx));
   }
 
   /** Pick the sensible club for the current lie and distance. */
