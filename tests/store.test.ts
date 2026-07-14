@@ -171,7 +171,7 @@ describe('season-pass exclusives (price 0, claim-only)', () => {
 });
 
 describe('season-pass characters are not sold in the store', () => {
-  const PASS_CHARS = ['char_kuro', 'char_jade', 'char_nova', 'char_remi'];
+  const PASS_CHARS = ['char_kuro', 'char_jade', 'char_nova', 'char_zuri'];
 
   it('the four pass characters are season-flagged, price 0, claim-only', () => {
     for (const id of PASS_CHARS) {

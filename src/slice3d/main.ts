@@ -2335,7 +2335,6 @@ function renderProfile(): void {
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
     `<div id="resetZone" class="resetZone">` +
     `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
-    `<div id="adminZone"></div>` +
     `</div>` +
     `<button id="profBack">Back</button></div>`;
   document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
@@ -2353,18 +2352,6 @@ function renderProfile(): void {
     persistProfile();
   });
   document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
-  // Admin-only: reveal a link into the stats dashboard for allow-listed accounts
-  // (Firebase auth persists across the same origin, so admin.html recognizes the
-  // already-signed-in account without a second sign-in).
-  if (signedIn)
-    void cloudEmail().then((email) => {
-      const zone = document.getElementById('adminZone');
-      if (!zone || !isAdminEmail(email)) return;
-      zone.innerHTML = `<button id="adminDash" class="ghostBtn" style="margin-top:10px">🔑 Admin Dashboard</button>`;
-      document.getElementById('adminDash')!.addEventListener('pointerdown', () => {
-        window.location.href = 'admin.html';
-      });
-    });
   wireAccountRow();
 }
 
@@ -2695,6 +2682,36 @@ function equippedPerkDef(): PerkDef | undefined {
   return perkById(id);
 }
 
+/** Build the human golfer for a round. If the player has locked a loadout in
+ *  the Locker Room, use it; otherwise roll a random OWNED loadout for THIS
+ *  round (character + style + a random owned pal) — "if they don't choose, it
+ *  just randomizes from what they own". */
+function roundGolfer(): Golfer {
+  let character = profile.character as CharacterKey;
+  let archetype = profile.archetype as ArchetypeId;
+  if (!profile.loadoutLocked) {
+    const owned = CHARACTERS.filter((c) => profile.cosmetics.owned.includes(`char_${c.key}`));
+    character = (owned.length ? randomOf(owned) : CHARACTERS[0]).key as CharacterKey;
+    archetype = randomOf(ARCHETYPES).id as ArchetypeId;
+    const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(profile, i));
+    if (ownedPals.length) equip(profile, randomOf(ownedPals).id); // a random companion for the round
+  }
+  return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, equippedPerkDef());
+}
+
+/** Show the Admin Dashboard menu link only for the allow-listed account. */
+function refreshAdminLink(): void {
+  const link = document.getElementById('adminLink');
+  if (!link) return;
+  if (!authConfigured() || !signedIn) {
+    link.style.display = 'none';
+    return;
+  }
+  void cloudEmail().then((email) => {
+    link.style.display = isAdminEmail(email) ? '' : 'none';
+  });
+}
+
 function updateSeasonLink(): void {
   const btn = document.getElementById('seasonBanner');
   if (!btn) return;
@@ -2732,60 +2749,33 @@ function renderSeasonPass(): void {
   const intoLevel = p.season.xp - lvl * def.xpPerLevel;
   const pct = lvl >= def.levels ? 100 : Math.round((intoLevel / def.xpPerLevel) * 100);
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
-  const kindEmoji: Record<string, string> = { ball: '⛳', trail: '💫', outfit: '👕', clubskin: '🏌️' };
-  // A real visual preview of each reward so the track reads like a rewards
-  // gallery, not a list: character portraits, color swatches, pal/coin/XP thumbs.
-  // Reuse exactly what the Store / Locker Room show for each cosmetic:
-  // character portraits, pal emoji, and flat color swatches for the tints.
-  const rewardThumb = (reward: SeasonReward): string => {
-    if ('coins' in reward) return `<div class="spThumb tCoins">🪙<b>${reward.coins}</b></div>`;
-    if ('xp' in reward) return `<div class="spThumb tXp">✨<b>${reward.xp}</b></div>`;
-    if ('perk' in reward) return `<div class="spThumb tPerk">⚡</div>`;
+  // Icons are rendered EXACTLY like the Store's card icons — a flat color swatch
+  // for tints, the character portrait, the pal emoji swatch (owner: "make the
+  // icons look exactly like the store. nothing more").
+  const rewardIcon = (reward: SeasonReward): string => {
+    if ('coins' in reward) return `<div class="swatch" style="background:#caa63a">🪙</div>`;
+    if ('xp' in reward) return `<div class="swatch" style="background:#3a6ec2">✨</div>`;
+    if ('perk' in reward) return `<div class="swatch" style="background:#7a4ec2">⚡</div>`;
     const item = STORE_BY_ID.get(reward.item);
-    if (!item) return `<div class="spThumb">🎁</div>`;
+    if (!item) return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
     if (item.kind === 'character')
-      return `<div class="spThumb tPortrait"><img src="ui/characters/${item.character}.png" alt="" loading="lazy" /></div>`;
-    if (item.kind === 'pal') return `<div class="spThumb tPal">${palByKey(item.pal)?.icon ?? '🐾'}</div>`;
-    if (item.color !== undefined)
-      return `<div class="spThumb tSwatch" style="background:${hex(item.color)}"><span>${kindEmoji[item.kind] ?? '🎁'}</span></div>`;
-    return `<div class="spThumb">🎁</div>`;
-  };
-  const kindTag = (reward: SeasonReward): string => {
-    if ('coins' in reward) return 'J-Coins';
-    if ('xp' in reward) return 'XP boost';
-    if ('perk' in reward) return 'Perk';
-    const item = STORE_BY_ID.get(reward.item);
-    const tags: Record<string, string> = {
-      character: 'Character',
-      pal: 'Pal',
-      ball: 'Ball color',
-      trail: 'Trail color',
-      outfit: 'Character color',
-      clubskin: 'Club color'
-    };
-    return item ? tags[item.kind] ?? 'Reward' : 'Reward';
+      return `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />`;
+    if (item.kind === 'pal') return `<div class="swatch palSwatch">${palByKey(item.pal)?.icon ?? '🐾'}</div>`;
+    if (item.color !== undefined) return `<div class="swatch" style="background:${hex(item.color)}"></div>`;
+    return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
   };
   const cards = Array.from({ length: 5 }, (_, i) => {
     const level = spPage * 5 + i + 1;
     const reward = def.rewards[level - 1];
     const { name } = rewardLabel(reward);
     const state = claimState(p, def, level);
-    const stateHtml =
-      state === 'claimed'
-        ? `<div class="spState claimed">✓ Claimed</div>`
-        : state === 'claimable'
-          ? `<button class="spClaim" data-level="${level}">Claim</button>`
-          : state === 'needsPass'
-            ? `<div class="spState">🎫 Needs pass</div>`
-            : `<div class="spState">🔒 Lv ${level}</div>`;
-    const grand = level === def.levels ? ' grand' : '';
-    return (
-      `<div class="spCard ${state}${grand}"><div class="spLvlBadge">${level === def.levels ? '★ 50' : level}</div>` +
-      rewardThumb(reward) +
-      `<div class="spInfo"><div class="spName">${name}</div><div class="spTag">${kindTag(reward)}</div></div>` +
-      stateHtml +
-      `</div>`
-    );
+    const cls = state === 'claimed' ? 'owned' : state === 'claimable' ? '' : 'locked';
+    const line =
+      state === 'claimed' ? '✓ Claimed'
+      : state === 'claimable' ? 'Tap to claim'
+      : state === 'needsPass' ? `Lv ${level} · pass`
+      : `🔒 Lv ${level}`;
+    return `<div class="storeCard ${cls}" data-level="${level}" data-claim="${state === 'claimable' ? '1' : ''}">${rewardIcon(reward)}<div class="sName">${name}</div><div class="sPrice">${line}</div></div>`;
   }).join('');
   const footer = p.season.owned
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
@@ -2805,7 +2795,7 @@ function renderSeasonPass(): void {
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${def.xpPerLevel} XP`}</span></div>` +
     `<div class="recTabs spTabs">${tabs}</div>` +
-    `<div class="spGrid">${cards}</div>` +
+    `<div class="storeGrid spStoreGrid">${cards}</div>` +
     footer +
     `<button id="spBack">Back</button></div>`;
   seasonEl.querySelectorAll('.spTab').forEach((el) =>
@@ -2814,7 +2804,7 @@ function renderSeasonPass(): void {
       renderSeasonPass();
     })
   );
-  seasonEl.querySelectorAll('.spClaim').forEach((el) =>
+  seasonEl.querySelectorAll('.storeCard[data-claim="1"]').forEach((el) =>
     onTap(el, () => {
       const level = Number((el as HTMLElement).dataset.level);
       const r = claimReward(p, def, level);
@@ -3127,11 +3117,8 @@ function startTournamentRound(meta: Tournament): void {
   round.tournament = { code: meta.code, name: meta.name };
   shotAcc = freshShotAcc();
   // Persist the wizard's picks like a normal round so they stick next launch.
-  profile.name = sel.name;
-  profile.character = sel.character;
-  profile.archetype = sel.archetype;
   persistProfile();
-  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
+  const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   closeOverlay(tournamentsEl());
   setupEl.style.display = 'none';
@@ -3200,7 +3187,7 @@ function startAiTourRound(): void {
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
-  const golfer = assembleGolfer(sel.name || profile.name || 'Player', sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
+  const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
   playHole();
@@ -3563,6 +3550,8 @@ function renderOpponent(): void {
 
 // ---------------------------------------------------------- Locker Room
 const lockerEl = document.getElementById('lockerRoom')!;
+/** Active Locker Room tab. */
+let lkTab: 'char' | 'style' | 'pal' | 'perk' = 'char';
 
 /** Persist the current loadout to the profile + cloud (called after any Locker
  *  Room change). Keeps `sel` in step so the round builders pick it up. */
@@ -3625,23 +3614,45 @@ function renderLockerRoom(): void {
       `<div class="perkRem">${rem} round${rem === 1 ? '' : 's'} left</div></div>`
     );
   };
-  const perkSection = ownedPerks.length
-    ? `<div class="lkSection"><div class="lkHead">Perk <span class="lkSub">boosts one round</span></div>` +
-      `<div class="charGrid">${perkCard(null)}${ownedPerks.map((ps) => perkCard(ps.id)).join('')}</div></div>`
-    : `<div class="lkSection"><div class="lkHead">Perk</div><div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div></div>`;
+  // Tabbed content (only the active tab renders in the scroll area) so the
+  // screen is short and the top of the character cards is never clipped.
+  const tabs: Array<[typeof lkTab, string]> = [
+    ['char', 'Character'],
+    ['style', 'Style'],
+    ['pal', 'Pal'],
+    ['perk', 'Perk']
+  ];
+  const tabBar = tabs
+    .map(([id, label]) => `<button class="recTab lkTab${lkTab === id ? ' sel' : ''}" data-tab="${id}">${label}</button>`)
+    .join('');
+  const body =
+    lkTab === 'char'
+      ? `<div class="charGrid">${charCards}</div>`
+      : lkTab === 'style'
+        ? `<div class="archGrid">${archCards}</div>`
+        : lkTab === 'pal'
+          ? `<div class="charGrid">${palCards}</div>`
+          : ownedPerks.length
+            ? `<div class="charGrid">${perkCard(null)}${ownedPerks.map((ps) => perkCard(ps.id)).join('')}</div>`
+            : `<div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div>`;
 
   lockerEl.style.display = 'flex';
   lockerEl.innerHTML =
-    `<div class="recInner"><h2>🎽 Locker Room</h2>` +
-    `<div class="lkName">Golfer: <b>${escapeHtml(p.name || 'Player')}</b> <button id="lkEditName" class="ghostBtn">Edit name</button></div>` +
-    `<button id="lkRandom" class="lkRandom">🎲 Randomize look</button>` +
-    `<div class="lockerScroll">` +
-    `<div class="lkSection"><div class="lkHead">Character</div><div class="charGrid">${charCards}</div></div>` +
-    `<div class="lkSection"><div class="lkHead">Golfer Style</div><div class="archGrid">${archCards}</div></div>` +
-    `<div class="lkSection"><div class="lkHead">Pal</div><div class="charGrid">${palCards}</div></div>` +
-    perkSection +
-    `</div><button id="lkBack">Back</button></div>`;
+    `<div class="storeInner lockerInner">` +
+    `<div class="lkTop"><h2>🎽 Locker Room</h2><button id="lkBack" class="ghostBtn">Done</button></div>` +
+    `<div class="lkName">Golfer: <b>${escapeHtml(p.name || 'Player')}</b> <button id="lkEditName" class="ghostBtn">Edit</button></div>` +
+    `<div class="recTabs lkTabs">${tabBar}</div>` +
+    `<div class="storeScroll lkScroll">${body}</div>` +
+    `<div class="lkFooter"><button id="lkRandom" class="lkFootBtn">🎲 Randomize</button>` +
+    `<button id="lkLock" class="lkFootBtn primary">${p.loadoutLocked ? '✓ Locked in' : 'Lock it in'}</button></div>` +
+    `</div>`;
 
+  lockerEl.querySelectorAll('.lkTab').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      lkTab = (el as HTMLElement).dataset.tab as typeof lkTab;
+      renderLockerRoom();
+    })
+  );
   lockerEl.querySelectorAll('.charCard[data-ch]').forEach((el) =>
     onTap(el, () => {
       sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
@@ -3682,6 +3693,13 @@ function renderLockerRoom(): void {
     if (ownedPals.length) equip(p, randomOf(ownedPals).id);
     syncLoadout();
     renderLockerRoom();
+  });
+  // "Lock it in" marks the loadout as chosen (so tee-off stops auto-randomizing)
+  // and closes the locker.
+  document.getElementById('lkLock')!.addEventListener('pointerdown', () => {
+    p.loadoutLocked = true;
+    syncLoadout();
+    lockerEl.style.display = 'none';
   });
   document.getElementById('lkEditName')!.addEventListener('pointerdown', () => promptName(true));
   document.getElementById('lkBack')!.addEventListener('pointerdown', () => (lockerEl.style.display = 'none'));
@@ -3779,9 +3797,6 @@ function startRound(): void {
   round.tournament = null;
   shotAcc = freshShotAcc();
   // Remember the selections for next launch (persisted only when signed in)
-  profile.name = sel.name;
-  profile.character = sel.character;
-  profile.archetype = sel.archetype;
   persistProfile();
   // The AI Tournament is a mode: hand off to the three-round loop instead of
   // a single three-hole round.
@@ -3789,7 +3804,7 @@ function startRound(): void {
     startAiTournament();
     return;
   }
-  const golfer = assembleGolfer(sel.name, sel.character, sel.archetype, profile.clubUpgrades, equippedPerkDef());
+  const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {
     const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
@@ -3822,6 +3837,7 @@ function ordinal(n: number): string {
  * own copy of the control too.
  */
 function renderAcctMenu(): void {
+  refreshAdminLink();
   const el = document.getElementById('acctMenu');
   if (!el) return;
   if (!authConfigured()) {
@@ -3874,13 +3890,15 @@ function renderAcctMenu(): void {
   }
 }
 
-document.getElementById('lockerLink')!.addEventListener('pointerdown', () => renderLockerRoom());
+document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeLink')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
+document.getElementById('adminLink')!.addEventListener('pointerdown', () => (window.location.href = 'admin.html'));
 updateSeasonLink();
+refreshAdminLink();
 // First visit / fresh guest with no name yet — ask once (editable later in the
 // Locker Room / Profile). Skipped in the screenshot-harness boot.
 if (!profile.name.trim() && !SHOT.hole) promptName(false);

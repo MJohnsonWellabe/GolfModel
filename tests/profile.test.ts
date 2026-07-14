@@ -310,3 +310,11 @@ describe('season-pass state on the profile', () => {
     expect(m.season.claimed).toEqual([]);
   });
 });
+
+describe('loadoutLocked flag', () => {
+  it('defaults false and backfills for old saves', () => {
+    expect(defaultProfile().loadoutLocked).toBe(false);
+    expect(migrateProfile({ coins: 5 }).loadoutLocked).toBe(false);
+    expect(migrateProfile({ loadoutLocked: true } as Partial<PlayerProfile>).loadoutLocked).toBe(true);
+  });
+});

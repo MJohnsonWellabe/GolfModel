@@ -44,7 +44,7 @@ const BALLS = ['s1_ball_lagoon', 's1_ball_fuchsia', 's1_ball_copper', 's1_ball_i
 const TRAILS = ['s1_trail_aurora', 's1_trail_violet', 's1_trail_crimson', 's1_trail_frost', 's1_trail_sunset'];
 const CLUBSKINS = ['s1_clubskin_copper', 's1_clubskin_rose', 's1_clubskin_violet', 's1_clubskin_frost', 's1_clubskin_neon'];
 const OUTFITS = ['s1_outfit_coral', 's1_outfit_teal', 's1_outfit_lavender', 's1_outfit_ember', 's1_outfit_ivory'];
-const CHARACTERS = ['char_kuro', 'char_jade', 'char_nova', 'char_remi'];
+const CHARACTERS = ['char_kuro', 'char_jade', 'char_nova', 'char_zuri'];
 
 // Explicit level → reward assignment. Counts verified by seasonPass.test.ts.
 const FIXED: Record<number, SeasonReward> = {
