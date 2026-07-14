@@ -1,8 +1,8 @@
 /**
  * Season Pass config — Season 1. Config only; the pure `SeasonPassEngine`
  * consumes this. Pass XP mirrors the round XP the player already earns
- * (ProgressionEngine's 'xp' event), so ~120 XP/round × 2400 XP/level × 50
- * levels ≈ 1000 rounds to finish the track — the owner's pacing target.
+ * (ProgressionEngine's 'xp' event), so ~120 XP/round × 1200 XP/level × 50
+ * levels ≈ 500 rounds to finish the track — the owner's pacing target.
  *
  * Reward mix (owner spec, exact counts, total 50):
  *   ball 5 · trail 5 · club colors (clubskin) 5 · skin colors (outfit) 5 ·
@@ -45,19 +45,26 @@ export interface SeasonDef {
 /**
  * Progressive per-level XP costs: an arithmetic ramp from a LOW first-level
  * cost to a HIGH last-level cost, summing to EXACTLY `flatCost * levels` —
- * the original flat-2400-per-level total (~1000 rounds at ~120 XP/round, the
- * owner's pacing target) is unchanged, only its distribution across levels.
+ * the flat-1200-per-level total (~500 rounds at ~120 XP/round, the owner's
+ * pacing target) is unchanged, only its distribution across levels.
  * Solved in closed form: with n levels, step d and first term a, sum =
  * n·a + d·n·(n−1)/2 must equal the flat total; d is fixed at a clean round
- * number and a is derived from it, then any rounding remainder is folded
- * into the last level so the sum matches exactly to the integer.
+ * number and a is derived from it (rounded to the nearest integer). That
+ * rounding leaves a small remainder (at most n/2, since d is a whole
+ * number of "flatCost/48" units); it's spread as a ±1 nudge across the
+ * first |remainder| levels rather than dumped on the last one — lumping it
+ * all on the last level can tie it with the second-to-last (and did, once
+ * flatCost got small enough that the remainder reached d), breaking the
+ * "every level costs strictly more" invariant.
  */
 function progressiveXpCosts(levels: number, flatCost: number): number[] {
   const d = Math.round(flatCost / 48 / 25) * 25; // clean step, ~2% of flatCost
   const total = flatCost * levels;
   const a = Math.round((total - (d * levels * (levels - 1)) / 2) / levels);
   const costs = Array.from({ length: levels }, (_, i) => a + d * i);
-  costs[levels - 1] += total - costs.reduce((sum, v) => sum + v, 0);
+  const remainder = total - costs.reduce((sum, v) => sum + v, 0);
+  const step = remainder >= 0 ? 1 : -1;
+  for (let i = 0; i < Math.abs(remainder); i++) costs[i] += step;
   return costs;
 }
 
@@ -147,7 +154,7 @@ export const SEASON_1: SeasonDef = {
   end: '2026-11-30',
   // Launch day (moved up from the original July 16 date).
   salesOpenAt: '2026-07-14T00:00:00Z',
-  xpPerLevel: progressiveXpCosts(50, 2400),
+  xpPerLevel: progressiveXpCosts(50, 1200),
   levels: 50,
   rewards: REWARDS,
   priceUsd: 5

@@ -38,10 +38,10 @@ describe('season definition', () => {
     expect(pals.length).toBe(1);
   });
 
-  it('paces to ~1000 rounds at ~120 XP per round', () => {
+  it('paces to ~500 rounds at ~120 XP per round', () => {
     const total = totalSeasonXp(SEASON_1);
-    expect(total / 120).toBeGreaterThan(900);
-    expect(total / 120).toBeLessThan(1100);
+    expect(total / 120).toBeGreaterThan(400);
+    expect(total / 120).toBeLessThan(600);
   });
 
   it('per-level XP cost is progressive: each level costs more than the last, total unchanged from the flat baseline', () => {
@@ -49,8 +49,8 @@ describe('season definition', () => {
     for (let i = 1; i < SEASON_1.xpPerLevel.length; i++) {
       expect(SEASON_1.xpPerLevel[i]).toBeGreaterThan(SEASON_1.xpPerLevel[i - 1]);
     }
-    // Same total grind as the old flat 2400 × 50 design — only the distribution changed.
-    expect(totalSeasonXp(SEASON_1)).toBe(2400 * 50);
+    // Same total grind as the flat 1200 × 50 design — only the distribution changed.
+    expect(totalSeasonXp(SEASON_1)).toBe(1200 * 50);
   });
 });
 

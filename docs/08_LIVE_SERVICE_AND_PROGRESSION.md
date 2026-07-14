@@ -307,7 +307,7 @@ changes gameplay.
 - **50 levels, one reward per level, shown as 10 pages of 5** in the Season
   Pass overlay (main-menu button).
 - **Pass XP = round XP.** Every completed round's XP award also advances the
-  track (flat 2400 XP per level ⇒ ~1000 rounds to finish). XP granted BY the
+  track (flat 1200 XP per level ⇒ ~500 rounds to finish). XP granted BY the
   track does not feed back into the track.
 - **Everyone accrues progress; claiming needs the $5 pass.** Buying late is
   fine — every reached level becomes claimable at once. Earned rewards stay
