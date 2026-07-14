@@ -169,3 +169,26 @@ describe('season-pass exclusives (price 0, claim-only)', () => {
     expect(equippedColor(p, 'ball', 0xffffff)).toBe(0x27d3c7);
   });
 });
+
+describe('season-pass characters are not sold in the store', () => {
+  const PASS_CHARS = ['char_kuro', 'char_jade', 'char_nova', 'char_remi'];
+
+  it('the four pass characters are season-flagged, price 0, claim-only', () => {
+    for (const id of PASS_CHARS) {
+      const item = STORE_BY_ID.get(id)!;
+      expect(item, id).toBeTruthy();
+      expect(item.season).toBe('s1');
+      expect(item.price).toBe(0);
+      const p = defaultProfile();
+      p.coins = 10000;
+      expect(isOwned(p, item)).toBe(false); // not auto-owned
+      expect(buyItem(p, id).ok).toBe(false); // cannot be bought
+    }
+  });
+
+  it('a claimed pass character becomes owned (and thus selectable)', () => {
+    const p = defaultProfile();
+    p.cosmetics.owned.push('char_kuro'); // what a pass claim does
+    expect(isOwned(p, STORE_BY_ID.get('char_kuro')!)).toBe(true);
+  });
+});

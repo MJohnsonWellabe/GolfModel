@@ -1,7 +1,8 @@
-import { Golfer } from '../core/types';
+import { Golfer, GolferStats } from '../core/types';
 import { ArchetypeId, archetypeById } from './archetypes';
 import { CharacterKey } from './characters';
 import { applyClubUpgrades } from './storeCatalog';
+import { PerkDef, perkModifier, perkStatBoost } from './perks';
 
 /**
  * A golfer's identity is assembled at runtime from three independent choices
@@ -16,7 +17,9 @@ export function assembleGolfer(
   character: CharacterKey,
   archetype: ArchetypeId,
   /** Purchased club upgrades (family → tier); each tier adds +3, capped 100. */
-  clubUpgrades: Record<string, number> = {}
+  clubUpgrades: Record<string, number> = {},
+  /** Equipped season-pass perk for this round (layers on top of upgrades). */
+  perk?: PerkDef
 ): Golfer {
   const arch = archetypeById(archetype);
   return {
@@ -24,10 +27,23 @@ export function assembleGolfer(
     name: name.trim() || 'Player',
     color: arch.color,
     character,
-    stats: applyClubUpgrades(arch.stats, clubUpgrades),
+    // Perk stat boost (driver perk only) layers on top of the club-upgrade
+    // stats — same 110 sanity bound applyClubUpgrades uses.
+    stats: addStatBoost(applyClubUpgrades(arch.stats, clubUpgrades), perkStatBoost(perk)),
     // Carried through so effectiveCarryYards can apply the per-family carry
     // bonus directly — the stat bump above is capped at 100 and vanishes for a
     // golfer already maxed in the governing stat (e.g. a Big Hitter's driver).
-    clubUpgrades
+    clubUpgrades,
+    perk: perkModifier(perk)
   };
+}
+
+/** Add a stat delta on top of an existing block, bounded at 110 (the same
+ *  sanity cap applyClubUpgrades uses). */
+function addStatBoost(stats: GolferStats, boost: Partial<GolferStats>): GolferStats {
+  const out = { ...stats };
+  for (const k of Object.keys(boost) as Array<keyof GolferStats>) {
+    out[k] = Math.min(110, out[k] + (boost[k] ?? 0));
+  }
+  return out;
 }

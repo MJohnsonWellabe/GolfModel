@@ -145,9 +145,11 @@ export const UPGRADE_CARRY_PER_TIER = 0.03;
  *  every non-wood club (playtest: "iron/wedge/putter upgrades shouldn't change
  *  the distance you hit them"). */
 function upgradeCarryMult(club: ClubSpec, golfer: Golfer): number {
-  const ups = golfer.clubUpgrades;
-  if (!ups || clubFamily(club) !== 'wood') return 1;
-  return 1 + (ups.driver ?? 0) * UPGRADE_CARRY_PER_TIER;
+  if (clubFamily(club) !== 'wood') return 1;
+  const driverTier = golfer.clubUpgrades?.driver ?? 0;
+  // A driver perk layers on top of any owned driver upgrade — same +3%/tier.
+  const perkTier = golfer.perk?.family === 'driver' ? golfer.perk.tier : 0;
+  return 1 + (driverTier + perkTier) * UPGRADE_CARRY_PER_TIER;
 }
 
 /** Effective full-power carry (yards) for a club/golfer/lie combination. */

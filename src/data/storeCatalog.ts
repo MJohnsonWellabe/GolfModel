@@ -84,6 +84,8 @@ const TRAIL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> 
   ['fire', 'Inferno', 0xff5a12, 'special', 300]
 ];
 
+// kuro / jade / nova / remi are NOT here — they are Season 1 pass exclusives
+// (claim-only, never sold), defined as season char items in the catalog below.
 const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
   ['dez', 'common', 100],
   ['beat', 'common', 100],
@@ -91,21 +93,21 @@ const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
   ['finn', 'common', 100],
   ['bree', 'common', 100],
   ['coco', 'common', 100],
-  ['kuro', 'rare', 200],
   ['lily', 'rare', 200],
   ['cole', 'rare', 200],
   ['reid', 'rare', 200],
   ['wren', 'rare', 200],
   ['ivy', 'rare', 200],
   ['dash', 'rare', 200],
-  ['jade', 'special', 300],
-  ['nova', 'special', 300],
   ['enzo', 'special', 300],
   ['knox', 'special', 300],
   ['pia', 'special', 300],
-  ['zuri', 'special', 300],
-  ['remi', 'special', 300]
+  ['zuri', 'special', 300]
 ];
+
+/** Characters awarded ONLY by the Season 1 pass (not buyable). Season-flagged
+ *  so the store hides them and StoreEngine treats them as claim-only. */
+const SEASON_CHARACTERS: CharacterKey[] = ['kuro', 'jade', 'nova', 'remi'];
 
 // Outfit colorways: tint the whole character kit (one 'characters' material —
 // the chibi mesh has no separable garments, so this is a whole-kit wash applied
@@ -223,6 +225,19 @@ export const STORE_CATALOG: StoreItem[] = [
   ),
   ...S1_OUTFIT_TINTS.map(
     ([id, name, color, rarity]): StoreItem => ({ id: `s1_outfit_${id}`, kind: 'outfit', name, price: 0, rarity, color, season: 's1' })
+  ),
+  // Season-1 pass-exclusive characters (claim-only; keep the char_<key> id so a
+  // pass reward and any prior owner reference the same character).
+  ...SEASON_CHARACTERS.map(
+    (character): StoreItem => ({
+      id: `char_${character}`,
+      kind: 'character',
+      name: `${character[0].toUpperCase()}${character.slice(1)}`,
+      price: 0,
+      rarity: 'special',
+      character,
+      season: 's1'
+    })
   ),
   { id: 's1_pal_geckoorange', kind: 'pal', name: 'Mango', price: 0, rarity: 'special', pal: 'geckoorange', season: 's1' }
 ];

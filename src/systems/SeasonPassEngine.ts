@@ -1,6 +1,7 @@
-import { PlayerProfile } from '../profile/Profile';
+import { grantPerk, PlayerProfile } from '../profile/Profile';
 import { SeasonDef, SeasonReward } from '../data/seasonPass';
 import { STORE_BY_ID } from '../data/storeCatalog';
+import { perkById } from '../data/perks';
 import { levelForXp } from '../data/progression';
 import { BuyResult } from './StoreEngine';
 
@@ -62,6 +63,9 @@ function grantReward(profile: PlayerProfile, reward: SeasonReward): void {
     // Granting an already-owned item (e.g. a track character bought earlier
     // in the store) is a harmless no-op — the claim still marks done.
     if (!profile.cosmetics.owned.includes(reward.item)) profile.cosmetics.owned.push(reward.item);
+  } else if ('perk' in reward) {
+    const def = perkById(reward.perk);
+    if (def) grantPerk(profile, def.id, def.rounds);
   } else if ('coins' in reward) {
     profile.coins += reward.coins;
     profile.coinsEarned += reward.coins; // grow-only lifetime tally
@@ -75,6 +79,7 @@ function grantReward(profile: PlayerProfile, reward: SeasonReward): void {
 export function rewardLabel(reward: SeasonReward): { icon: string; name: string } {
   if ('coins' in reward) return { icon: '🪙', name: `${reward.coins} J-Coins` };
   if ('xp' in reward) return { icon: '✨', name: `${reward.xp} XP` };
+  if ('perk' in reward) return { icon: '⚡', name: perkById(reward.perk)?.name ?? 'Perk' };
   const item = STORE_BY_ID.get(reward.item);
   if (!item) return { icon: '🎁', name: reward.item };
   const icons: Record<string, string> = {
