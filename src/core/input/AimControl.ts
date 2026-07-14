@@ -2,6 +2,7 @@ import { PX_PER_YARD, SWING } from '../../config';
 import { CLUBS } from '../../data/clubs';
 import { effectiveCarryYards, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { angleTo, clamp, dist } from '../../utils/Geometry';
+import { CHIP_GRID_YDS } from '../puttAids';
 import {
   ClubSpec,
   Golfer,
@@ -28,15 +29,15 @@ const DRAG_DEAD_ZONE = 12;
  *  Halved on playtest ("aiming in general is too sensitive") so a slow drag
  *  makes deliberate micro-adjustments. */
 const YAW_PER_PX = 0.0017;
-/** Putts aim over much shorter distances, so the same yaw-per-px swings the aim
- *  point too far on the green — a much finer rate for micro-movements
- *  (playtest: "putting aim is too touchy"). */
+/** Putts (and chips — see isChipping) aim over much shorter distances, so the
+ *  same yaw-per-px swings the aim point too far on the green — a much finer
+ *  rate for micro-movements (playtest: "putting aim is too touchy"). */
 const PUTT_YAW_PER_PX = 0.00045;
 /** World px of aim distance per vertical screen px dragged. */
 const DIST_PER_PX = 0.6;
-/** Finer pace drag for putts (short distances magnify every px). Lowered again
- *  on playtest ("putting aim up/down still moves too fast") for finer distance
- *  control. */
+/** Finer pace drag for putts/chips (short distances magnify every px). Lowered
+ *  again on playtest ("putting aim up/down still moves too fast") for finer
+ *  distance control. */
 const PUTT_DIST_PER_PX = 0.12;
 
 /**
@@ -72,6 +73,23 @@ export class AimControl {
     return this.club.id === 'putter';
   }
 
+  /** True for a chip: the sand wedge, played from within CHIP_GRID_YDS of the
+   *  pin (the same greenside range the putting-read grid already shows for —
+   *  see puttAids.ts). A chip keeps the sand wedge's normal ball flight/spin —
+   *  only the aim/power mechanic changes to the putt-style "aim distance IS
+   *  the target" model (see isDistanceAimed), since a short bump-and-run isn't
+   *  a full swing. */
+  isChipping(ctx: ShotContext): boolean {
+    return this.club.id === 'sw' && dist(ctx.ball, this.hole.pin) / PX_PER_YARD <= CHIP_GRID_YDS;
+  }
+
+  /** Putts AND chips aim by DISTANCE: a perfect stroke at the bar's power
+   *  target sends the ball exactly to the aim spot, so the aim distance itself
+   *  IS the full-power target instead of a fraction of the club's max carry. */
+  private isDistanceAimed(ctx: ShotContext): boolean {
+    return this.isPutting || this.isChipping(ctx);
+  }
+
   aimPoint(ball: Point): Point {
     return {
       x: ball.x + Math.cos(this.yaw) * this.distPx,
@@ -85,12 +103,13 @@ export class AimControl {
   }
 
   /**
-   * Full-bar distance in world px. The putt bar is FIXED-length: its power
-   * target always sits at the same spot (SWING.fullPowerMark) and a perfect
-   * strike there rolls the ball exactly to the aim spot — a 4-ft putt and a
-   * 40-ft putt show an identical bar, only the aim spot differs. So the aim
-   * distance is baked into the bar's scale instead of into the target position:
-   * fullPowerMark maps to the FLAT-ground aim distance.
+   * Full-bar distance in world px. The putt/chip bar is FIXED-length: its
+   * power target always sits at the same spot (SWING.fullPowerMark) and a
+   * perfect strike there rolls/flies the ball exactly to the aim spot — a
+   * 4-ft putt and a 40-ft putt (or a 10-yd chip and a 45-yd chip) show an
+   * identical bar, only the aim spot differs. So the aim distance is baked
+   * into the bar's scale instead of into the target position: fullPowerMark
+   * maps to the FLAT-ground aim distance.
    *
    * NO slope compensation (by design): a perfect strike is sized to the flat
    * pace for the aim distance, so uphill the ball naturally comes up short and
@@ -99,42 +118,43 @@ export class AimControl {
    * own in AIController.rollSwing; this only governs the human's meter.)
    */
   meterScalePx(ctx: ShotContext): number {
-    if (!this.isPutting) return this.maxCarryPx(ctx);
+    if (!this.isDistanceAimed(ctx)) return this.maxCarryPx(ctx);
     return this.distPx / SWING.fullPowerMark;
   }
 
   /** Where the power target line sits on the bar for the current aim. */
   barPowerTarget(ctx: ShotContext): number {
-    if (!this.isPutting) {
+    if (!this.isDistanceAimed(ctx)) {
       return clamp(this.distPx / this.maxCarryPx(ctx), 0.15, 1);
     }
-    // Putts: the target ALWAYS sits at the same fixed spot on the bar. The aim
-    // distance lives in meterScalePx instead, so a perfect strike here rolls
-    // exactly to the aim spot no matter the putt length.
+    // Putts/chips: the target ALWAYS sits at the same fixed spot on the bar.
+    // The aim distance lives in meterScalePx instead, so a perfect
+    // stroke/swing here sends the ball exactly to the aim spot no matter the
+    // putt/chip length.
     return SWING.fullPowerMark;
   }
 
   /** Convert a bar fraction to the physics engine's power units. */
   barToPhysicsPower(barPower: number, ctx: ShotContext): number {
-    if (!this.isPutting) return barPower;
+    if (!this.isDistanceAimed(ctx)) return barPower;
     return (barPower * this.meterScalePx(ctx)) / this.maxCarryPx(ctx);
   }
 
-  /** Default aim: a sensible, DRY target. Putts default at the cup. Full shots
-   *  prefer the flag once the green is in reach (playtest: "just aim at the
-   *  green"); otherwise the authored fairway waypoint that best matches a full
-   *  swing, so a dogleg drive aims down the leg instead of at a pin hidden
-   *  behind the corner. Whatever is preferred, the armed aim POINT must land on
-   *  dry ground — a default that overshoots a dogleg elbow into a lake (Port
-   *  Johnson 3 off the tee) or points a lay-up across water falls through to
-   *  the next candidate. */
+  /** Default aim: a sensible, DRY target. Putts/chips default at the pin. Full
+   *  shots prefer the flag once the green is in reach (playtest: "just aim at
+   *  the green"); otherwise the authored fairway waypoint that best matches a
+   *  full swing, so a dogleg drive aims down the leg instead of at a pin
+   *  hidden behind the corner. Whatever is preferred, the armed aim POINT must
+   *  land on dry ground — a default that overshoots a dogleg elbow into a lake
+   *  (Port Johnson 3 off the tee) or points a lay-up across water falls
+   *  through to the next candidate. */
   resetAim(ctx: ShotContext): void {
     const pinDist = dist(ctx.ball, this.hole.pin);
     const maxCarry = this.maxCarryPx(ctx);
-    if (this.isPutting) {
-      // Putts default the aim spot AT the cup, so a perfect stroke rolls the
-      // ball exactly to the hole (fixed-length bar, perfect = aimed distance).
-      // The player drags the aim past the hole to add pace.
+    if (this.isDistanceAimed(ctx)) {
+      // Putts/chips default the aim spot AT the pin, so a perfect stroke/swing
+      // sends the ball exactly to the hole (fixed-length bar, perfect = aimed
+      // distance). The player drags the aim past the pin to add pace.
       this.yaw = angleTo(ctx.ball, this.hole.pin);
       this.distPx = clamp(pinDist, 1, maxCarry);
       return;
@@ -200,8 +220,9 @@ export class AimControl {
   /** Step through the bag, re-clamping the aim to the new club's reach. */
   cycleClub(dir: number, ctx: ShotContext): void {
     this.clubIdx = (this.clubIdx + dir + CLUBS.length) % CLUBS.length;
-    if (this.isPutting) {
-      // Switching to the putter re-defaults the aim spot AT the cup
+    if (this.isDistanceAimed(ctx)) {
+      // Switching to the putter (or into chip range with the sand wedge)
+      // re-defaults the aim spot AT the pin.
       this.distPx = clamp(dist(ctx.ball, this.hole.pin), 1, this.maxCarryPx(ctx));
     } else {
       // Keep aiming at the same spot when possible; clamp to the new club's reach
@@ -255,9 +276,9 @@ export class AimControl {
   /** Jump the aim to a world point (overhead mode: aim follows the finger). */
   placeAim(ctx: ShotContext, world: Point): void {
     this.yaw = angleTo(ctx.ball, world);
-    // Putts can be aimed right up to the cup (1px≈1.5ft); full shots keep a
+    // Putts/chips can be aimed right up close (1px≈1.5ft); full shots keep a
     // sane 14px≈21ft minimum so a tap never arms a near-zero swing.
-    this.distPx = clamp(dist(ctx.ball, world), this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
+    this.distPx = clamp(dist(ctx.ball, world), this.isDistanceAimed(ctx) ? 1 : 14, this.maxCarryPx(ctx));
   }
 
   beginDrag(screen: Point): void {
@@ -284,11 +305,12 @@ export class AimControl {
     const dx = screen.x - this.dragLast.x;
     const dy = screen.y - this.dragLast.y;
     this.dragLast = { ...screen };
-    this.yaw += dx * (this.isPutting ? PUTT_YAW_PER_PX : YAW_PER_PX);
-    // Putts aim down to ~1.5ft so a short putt can be aimed at the cup (was a
-    // 21ft floor); full shots keep the 14px floor.
-    const distPerPx = this.isPutting ? PUTT_DIST_PER_PX : DIST_PER_PX;
-    this.distPx = clamp(this.distPx - dy * distPerPx, this.isPutting ? 1 : 14, this.maxCarryPx(ctx));
+    const distanceAimed = this.isDistanceAimed(ctx);
+    this.yaw += dx * (distanceAimed ? PUTT_YAW_PER_PX : YAW_PER_PX);
+    // Putts/chips aim down to ~1.5ft so a short one can be aimed at the pin
+    // (was a 21ft floor); full shots keep the 14px floor.
+    const distPerPx = distanceAimed ? PUTT_DIST_PER_PX : DIST_PER_PX;
+    this.distPx = clamp(this.distPx - dy * distPerPx, distanceAimed ? 1 : 14, this.maxCarryPx(ctx));
     return true;
   }
 

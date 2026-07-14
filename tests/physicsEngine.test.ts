@@ -35,10 +35,15 @@ const HOLE: HoleData = {
   green: { cx: 1000, cy: 300, rx: 100, ry: 100 },
   slope: { angle: 0, strength: 0 },
   pin: { x: 1000, y: 300 },
+  // Top edge sits clear of the green's fringe-margin ring (green rx/ry 100 +
+  // FRINGE_MARGIN 32 = 132, so the ring's far edge is y=432) — a real fairway
+  // ribbon narrows well before the green; a rectangle flush against the green
+  // like this hole used to have would (correctly, post-fix) always read as
+  // fairway instead of fringe right at the collar, which isn't realistic.
   fairway: [
     [
-      [800, 200],
-      [1200, 200],
+      [800, 450],
+      [1200, 450],
       [1200, 1900],
       [800, 1900]
     ]
@@ -116,6 +121,29 @@ describe('surfaceAt priority', () => {
 
   it('fringe ring sits just outside the green even over water', () => {
     expect(engine.surfaceAt(1000, 410)).toBe('fringe');
+  });
+
+  it('fairway wins over the fringe margin — a ball on the fairway near the green is never "just off the green"', () => {
+    // Regression: the fringe margin used to be checked BEFORE the fairway
+    // loop, so any fairway ribbon within FRINGE_MARGIN (16yd) of the green
+    // was misclassified 'fringe' — and autoSelectClub arms the putter for
+    // fringe within 35yd of the pin, so the game handed the player a putter
+    // while plainly standing in the fairway ("putter in my hand when I'm off
+    // the green"). Build a hole where the fairway ribbon deliberately runs
+    // right up to (and past) the green, exactly like a real approach.
+    const approachHole: HoleData = {
+      ...HOLE,
+      fairway: [[[900, 200], [1100, 200], [1100, 1900], [900, 1900]]],
+      hazards: [] // isolate the fringe/fairway precedence from HOLE's water rectangle
+    };
+    const approachEngine = new PhysicsEngine(approachHole);
+    // Within the fringe margin (green edge y=400, margin reaches y=432) AND
+    // inside the fairway ribbon (x900-1100) → fairway wins.
+    expect(approachEngine.surfaceAt(1000, 410)).toBe('fairway');
+    // Same margin ring (130px from the green center, just inside the 132px
+    // reach), but OUTSIDE the fairway ribbon (x870 < the 900-1100 strip) →
+    // still the protective fringe collar, unchanged from before this fix.
+    expect(approachEngine.surfaceAt(870, 300)).toBe('fringe');
   });
 
   it('water applies outside green + fringe', () => {

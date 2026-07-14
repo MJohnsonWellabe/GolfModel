@@ -18,7 +18,11 @@ describe('lobed green (green2 union)', () => {
   const green2 = { cx: 1400, cy: 740, rx: 44, ry: 36, rot: 0.3 };
 
   it('surfaceAt reads green/fringe across BOTH lobes', () => {
-    const hole = openHole({ green, green2, pin: { x: 1500, y: 800 } });
+    // fairway: [] — isolates the fringe-collar check from openHole's default
+    // fairway strip, which spans this whole area (fairway now correctly wins
+    // over the fringe margin — see PhysicsEngine.surfaceAt — so a real ribbon
+    // here would read 'fairway' at this point, not what this test targets).
+    const hole = openHole({ green, green2, pin: { x: 1500, y: 800 }, fairway: [] });
     const engine = new PhysicsEngine(hole, null, mulberry32(1));
     // Deep inside each lobe → green.
     expect(engine.surfaceAt(1500, 800)).toBe('green');
@@ -28,7 +32,7 @@ describe('lobed green (green2 union)', () => {
     // Far away (clear of the default fairway strip too) → rough.
     expect(engine.surfaceAt(900, 500)).toBe('rough');
     // Without green2 the same point is NOT green.
-    const single = openHole({ green, pin: { x: 1500, y: 800 } });
+    const single = openHole({ green, pin: { x: 1500, y: 800 }, fairway: [] });
     const engine1 = new PhysicsEngine(single, null, mulberry32(1));
     expect(engine1.surfaceAt(1400 - 20, 740)).not.toBe('green');
   });

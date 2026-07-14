@@ -326,7 +326,15 @@ export class PhysicsEngine {
     // all win the overlap, so a fairway "island" or a treeline can be drawn
     // straight over sand without it eating the landing area or the woods.
     if (scoringBunker) return 'sand';
-    if (pointInGreens(x, y, h.green, h.green2, FRINGE_MARGIN)) return 'fringe';
+    if (pointInGreens(x, y, h.green, h.green2, FRINGE_MARGIN)) {
+      // The margin's job is to protect the collar from spurious water/tree
+      // bleed right at the green's edge (below) — it must NOT also swallow
+      // genuine fairway. A fairway ribbon commonly runs right up to the
+      // green, and a ball resting on it is never "just off the green" even
+      // within the margin (bug: the game auto-armed the putter for a ball
+      // plainly sitting in the fairway near the green).
+      if (!h.fairway.some((poly) => pointInPolygon(x, y, poly))) return 'fringe';
+    }
     if (water) return 'water';
     if (trees) return 'trees';
     for (const poly of h.fairway) {

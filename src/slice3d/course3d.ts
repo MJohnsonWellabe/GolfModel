@@ -2117,7 +2117,7 @@ export function buildCourse(
     stoneMat.bumpTexture = new Texture('textures/rock_normal.png', scene);
     stoneMat.specularColor = new Color3(0.07, 0.07, 0.07);
     stoneMat.backFaceCulling = false;
-    const WALL_H = 3.0; // stacked stone about golfer hip height
+    const WALL_H = 6.0; // twice the original hip-height stack — a proper backstop landmark
     for (const hz of buildings) {
       const poly = hz.polygon;
       const positions: number[] = [];

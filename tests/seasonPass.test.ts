@@ -7,7 +7,8 @@ import {
   claimReward,
   claimState,
   seasonActive,
-  seasonLevel
+  seasonLevel,
+  totalSeasonXp
 } from '../src/systems/SeasonPassEngine';
 
 const DURING = new Date('2026-09-01T12:00:00').getTime();
@@ -37,9 +38,18 @@ describe('season definition', () => {
   });
 
   it('paces to ~1000 rounds at ~120 XP per round', () => {
-    const total = SEASON_1.xpPerLevel * SEASON_1.levels;
+    const total = totalSeasonXp(SEASON_1);
     expect(total / 120).toBeGreaterThan(900);
     expect(total / 120).toBeLessThan(1100);
+  });
+
+  it('per-level XP cost is progressive: each level costs more than the last, total unchanged from the flat baseline', () => {
+    expect(SEASON_1.xpPerLevel).toHaveLength(50);
+    for (let i = 1; i < SEASON_1.xpPerLevel.length; i++) {
+      expect(SEASON_1.xpPerLevel[i]).toBeGreaterThan(SEASON_1.xpPerLevel[i - 1]);
+    }
+    // Same total grind as the old flat 2400 × 50 design — only the distribution changed.
+    expect(totalSeasonXp(SEASON_1)).toBe(2400 * 50);
   });
 });
 
@@ -52,12 +62,13 @@ describe('season window + leveling', () => {
     expect(seasonActive(SEASON_1, new Date('2026-11-30T23:00:00').getTime())).toBe(true);
   });
 
-  it('levels at flat xpPerLevel boundaries and caps at 50', () => {
+  it('levels at the progressive xpPerLevel boundaries and caps at 50', () => {
+    const total = totalSeasonXp(SEASON_1);
     expect(seasonLevel(SEASON_1, 0)).toBe(0);
-    expect(seasonLevel(SEASON_1, 2399)).toBe(0);
-    expect(seasonLevel(SEASON_1, 2400)).toBe(1);
-    expect(seasonLevel(SEASON_1, 120000)).toBe(50);
-    expect(seasonLevel(SEASON_1, 999999)).toBe(50);
+    expect(seasonLevel(SEASON_1, SEASON_1.xpPerLevel[0] - 1)).toBe(0);
+    expect(seasonLevel(SEASON_1, SEASON_1.xpPerLevel[0])).toBe(1);
+    expect(seasonLevel(SEASON_1, total)).toBe(50);
+    expect(seasonLevel(SEASON_1, total + 999999)).toBe(50);
   });
 
   it('accrues XP only while the season runs', () => {
@@ -74,7 +85,7 @@ describe('season window + leveling', () => {
 describe('claims', () => {
   it('requires the pass, the level, and only pays once', () => {
     const p = defaultProfile();
-    p.season.xp = SEASON_1.xpPerLevel; // level 1 reached
+    p.season.xp = SEASON_1.xpPerLevel[0]; // level 1 reached
     expect(claimState(p, SEASON_1, 1)).toBe('needsPass');
     expect(claimReward(p, SEASON_1, 1).ok).toBe(false);
 
@@ -92,7 +103,7 @@ describe('claims', () => {
   it('coin claims add coins and keep the coins === earned − spent invariant', () => {
     const p = defaultProfile();
     p.season.owned = true;
-    p.season.xp = SEASON_1.xpPerLevel * 50;
+    p.season.xp = totalSeasonXp(SEASON_1);
     const coinLevel = SEASON_1.rewards.findIndex((r) => 'coins' in r) + 1;
     const before = p.coins;
     expect(claimReward(p, SEASON_1, coinLevel).ok).toBe(true);
@@ -103,7 +114,7 @@ describe('claims', () => {
   it('item claims grant ownership; XP claims raise profile XP but not pass XP', () => {
     const p = defaultProfile();
     p.season.owned = true;
-    p.season.xp = SEASON_1.xpPerLevel * 50;
+    p.season.xp = totalSeasonXp(SEASON_1);
     expect(claimReward(p, SEASON_1, 2).ok).toBe(true); // s1_ball_lagoon
     expect(p.cosmetics.owned).toContain('s1_ball_lagoon');
     const passXpBefore = p.season.xp;
@@ -117,7 +128,7 @@ describe('claims', () => {
   it('claims stay open after the season ends (rewards are never revoked)', () => {
     const p = defaultProfile();
     p.season.owned = true;
-    p.season.xp = SEASON_1.xpPerLevel * 50;
+    p.season.xp = totalSeasonXp(SEASON_1);
     expect(claimReward(p, SEASON_1, 50).ok).toBe(true);
     expect(p.cosmetics.owned).toContain('s1_pal_geckoorange');
   });
@@ -172,7 +183,7 @@ describe('perk claim grants inventory charges', () => {
   it('claiming a perk level adds its rounds to the profile', () => {
     const p = defaultProfile();
     p.season.owned = true;
-    p.season.xp = SEASON_1.xpPerLevel * 50;
+    p.season.xp = totalSeasonXp(SEASON_1);
     const perkLevel = SEASON_1.rewards.findIndex((r) => 'perk' in r) + 1;
     const reward = SEASON_1.rewards[perkLevel - 1] as { perk: string };
     expect(claimReward(p, SEASON_1, perkLevel).ok).toBe(true);

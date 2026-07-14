@@ -25,9 +25,37 @@ export function seasonActive(def: SeasonDef, now: number): boolean {
   return now >= start && now < endEx;
 }
 
+export interface LevelProgress {
+  /** Highest level fully reached (0 = nothing reached yet), capped at def.levels. */
+  level: number;
+  /** XP earned toward the NEXT level (0 once maxed). */
+  intoLevel: number;
+  /** XP the next level costs (the last level's cost once maxed, so a "maxed"
+   *  progress bar reads as full rather than dividing by zero). */
+  levelCost: number;
+}
+
+/** Walk the (progressive) per-level costs to find how much of the current
+ *  level's XP has been earned — the single source of truth for both the
+ *  reached level and any progress-bar/label that shows "into this level". */
+export function levelProgress(def: SeasonDef, xp: number): LevelProgress {
+  let remaining = Math.max(0, xp);
+  let level = 0;
+  while (level < def.levels && remaining >= def.xpPerLevel[level]) {
+    remaining -= def.xpPerLevel[level];
+    level++;
+  }
+  return { level, intoLevel: remaining, levelCost: def.xpPerLevel[Math.min(level, def.levels - 1)] };
+}
+
 /** Pass level for an XP total (level 0 = nothing reached yet). */
 export function seasonLevel(def: SeasonDef, xp: number): number {
-  return Math.min(def.levels, Math.floor(xp / def.xpPerLevel));
+  return levelProgress(def, xp).level;
+}
+
+/** Total XP required to climb the whole track (sum of every level's cost). */
+export function totalSeasonXp(def: SeasonDef): number {
+  return def.xpPerLevel.reduce((a, b) => a + b, 0);
 }
 
 /** Accrue pass XP from a finished round. No-op outside the season window or

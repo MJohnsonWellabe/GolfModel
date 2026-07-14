@@ -51,7 +51,7 @@ import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProf
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { addSeasonXp, claimReward, claimState, rewardLabel, seasonActive, seasonLevel } from '../systems/SeasonPassEngine';
+import { addSeasonXp, claimReward, claimState, levelProgress, rewardLabel, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
@@ -2718,10 +2718,9 @@ function refreshAdminLink(): void {
 function updateSeasonLink(): void {
   const btn = document.getElementById('seasonBanner');
   if (!btn) return;
-  const lvl = seasonLevel(SEASON_1, profile.season.xp);
+  const { level: lvl, intoLevel: into, levelCost } = levelProgress(SEASON_1, profile.season.xp);
   if (profile.season.owned) {
-    const into = profile.season.xp - lvl * SEASON_1.xpPerLevel;
-    const pct = lvl >= SEASON_1.levels ? 100 : Math.round((into / SEASON_1.xpPerLevel) * 100);
+    const pct = lvl >= SEASON_1.levels ? 100 : Math.round((into / levelCost) * 100);
     btn.innerHTML =
       `<span class="sbIcon">🎫</span>` +
       `<span class="sbMain"><span class="sbTitle">Season Pass · Level ${lvl}</span>` +
@@ -2742,15 +2741,14 @@ function renderSeasonPass(): void {
   const p = profile;
   const def = SEASON_1;
   refreshEntitlements();
-  const lvl = seasonLevel(def, p.season.xp);
+  const { level: lvl, intoLevel, levelCost } = levelProgress(def, p.season.xp);
   const active = seasonActive(def, Date.now());
   if (spPage < 0) spPage = Math.min(9, Math.floor(Math.max(0, Math.min(lvl, def.levels - 1)) / 5));
   const tabs = Array.from(
     { length: def.levels / 5 },
     (_, i) => `<button class="recTab spTab${i === spPage ? ' sel' : ''}" data-page="${i}">${i * 5 + 1}–${i * 5 + 5}</button>`
   ).join('');
-  const intoLevel = p.season.xp - lvl * def.xpPerLevel;
-  const pct = lvl >= def.levels ? 100 : Math.round((intoLevel / def.xpPerLevel) * 100);
+  const pct = lvl >= def.levels ? 100 : Math.round((intoLevel / levelCost) * 100);
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
   // Icons are rendered EXACTLY like the Store's card icons — a flat color swatch
   // for tints, the character portrait, the pal emoji swatch (owner: "make the
@@ -2796,7 +2794,7 @@ function renderSeasonPass(): void {
     `<div class="spSub">${active ? 'Runs through Nov 30 · play rounds to level the track' : 'Season over — earned rewards stay claimable'}</div>` +
     `<div class="spProgress"><span class="spLvlBig">Lv ${lvl}<i>/${def.levels}</i></span>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
-    `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${def.xpPerLevel} XP`}</span></div>` +
+    `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${levelCost} XP`}</span></div>` +
     `<div class="recTabs spTabs">${tabs}</div>` +
     `<div class="storeGrid spStoreGrid">${cards}</div>` +
     footer +

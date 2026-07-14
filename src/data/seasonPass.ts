@@ -30,11 +30,33 @@ export interface SeasonDef {
   end: string;
   /** ISO instant real-money purchases open (noon ET on launch day). */
   salesOpenAt: string;
-  xpPerLevel: number;
+  /** XP required to complete EACH level, index 0 = level 1's cost. Length
+   *  === levels. Progressive (each entry > the last) so early levels come
+   *  quickly and the climb steepens toward the end — see progressiveXpCosts. */
+  xpPerLevel: number[];
   levels: number;
   /** rewards[i] = the single reward for level i+1; length === levels. */
   rewards: SeasonReward[];
   priceUsd: number;
+}
+
+/**
+ * Progressive per-level XP costs: an arithmetic ramp from a LOW first-level
+ * cost to a HIGH last-level cost, summing to EXACTLY `flatCost * levels` —
+ * the original flat-2400-per-level total (~1000 rounds at ~120 XP/round, the
+ * owner's pacing target) is unchanged, only its distribution across levels.
+ * Solved in closed form: with n levels, step d and first term a, sum =
+ * n·a + d·n·(n−1)/2 must equal the flat total; d is fixed at a clean round
+ * number and a is derived from it, then any rounding remainder is folded
+ * into the last level so the sum matches exactly to the integer.
+ */
+function progressiveXpCosts(levels: number, flatCost: number): number[] {
+  const d = Math.round(flatCost / 48 / 25) * 25; // clean step, ~2% of flatCost
+  const total = flatCost * levels;
+  const a = Math.round((total - (d * levels * (levels - 1)) / 2) / levels);
+  const costs = Array.from({ length: levels }, (_, i) => a + d * i);
+  costs[levels - 1] += total - costs.reduce((sum, v) => sum + v, 0);
+  return costs;
 }
 
 // --- The 50-level track, authored by category so the counts are auditable. ---
@@ -123,7 +145,7 @@ export const SEASON_1: SeasonDef = {
   end: '2026-11-30',
   // Noon Eastern (EDT = UTC−4) on launch day.
   salesOpenAt: '2026-07-16T16:00:00Z',
-  xpPerLevel: 2400,
+  xpPerLevel: progressiveXpCosts(50, 2400),
   levels: 50,
   rewards: REWARDS,
   priceUsd: 5
