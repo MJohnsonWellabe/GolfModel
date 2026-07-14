@@ -151,6 +151,75 @@ test('swing meter stays smooth on a water hole (mirror/shadow freeze)', async ({
 });
 
 /**
+ * Wildwood hole 1 is also a water hole (a lake down the left side), so it's
+ * covered by the same freeze mechanism as the Timberline gate above — but
+ * nothing in this suite ever exercised Wildwood before, so a regression here
+ * (or in Wildwood's extra blossomChance/tree_sakura load, see course3d.ts's
+ * usesBlossom) would go uncaught. Mirrors the Timberline gate exactly, just
+ * on Wildwood.
+ */
+test('swing meter stays smooth on Wildwood hole 1 (also a water hole)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await page.evaluate(() => (window as any).__startRound({ name: 'Meter', courseId: 'wildwood' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  await page.evaluate(() => (window as any).__slice3d.skipIntro());
+  await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 30_000 });
+  await page.waitForTimeout(3500);
+
+  const measure = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    const scene = s3d.scene;
+    const pacing = s3d.renderPacing;
+    const rates = () => s3d.perfRefreshRates() as { shadow: number | null; mirror: number | null };
+    const run = (n: number) => {
+      let max = 0;
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        const t = performance.now();
+        scene.render();
+        const dt = performance.now() - t;
+        sum += dt;
+        if (dt > max) max = dt;
+      }
+      return { avg: sum / n, max };
+    };
+    pacing.meterActive = true;
+    scene.render();
+    const armed = rates();
+    pacing.meterActive = false;
+    scene.render();
+    scene.render();
+    const released = rates();
+    pacing.meterActive = true;
+    for (let i = 0; i < 25; i++) scene.render();
+    const frozen = run(40);
+    return { armed, released, frozen };
+  });
+
+  writeFileSync(
+    'tests/visual/__shots__/wildwood-meter-perf-baseline.json',
+    JSON.stringify(
+      {
+        armedShadowRefresh: measure.armed.shadow,
+        armedMirrorRefresh: measure.armed.mirror,
+        releasedShadowRefresh: measure.released.shadow,
+        releasedMirrorRefresh: measure.released.mirror,
+        frozenAvgMs: Math.round(measure.frozen.avg * 100) / 100,
+        frozenMaxMs: Math.round(measure.frozen.max * 100) / 100
+      },
+      null,
+      2
+    )
+  );
+
+  expect(measure.armed.shadow, 'shadow map frozen while meter live').toBe(0);
+  expect(measure.released.shadow, 'shadow map live for flight').toBe(1);
+  expect(measure.frozen.max, `worst armed frame ${measure.frozen.max.toFixed(2)}ms`).toBeLessThan(80);
+});
+
+/**
  * The ground-albedo bake is a SYNCHRONOUS main-thread stall on every hole build
  * (the "laggy hole" freeze) that the render-loop timer above never sees. Boot
  * Timberline — the heaviest theme (lush grass + real turf/sand grain + green

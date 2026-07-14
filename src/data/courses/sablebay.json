@@ -65,7 +65,8 @@
       "stone_f"
     ],
     "mowWidth": 9,
-    "greenMowPattern": "rings"
+    "greenMowPattern": "rings",
+    "bunkerLipStyle": "grassCluster"
   },
   "holes": [
     {
@@ -523,7 +524,8 @@
               515.2,
               555.8
             ]
-          ]
+          ],
+          "fairwayBunker": true
         },
         {
           "type": "bunker",
@@ -560,7 +562,8 @@
               487.7,
               506
             ]
-          ]
+          ],
+          "fairwayBunker": true
         },
         {
           "type": "trees",
@@ -1602,7 +1605,8 @@
               580,
               885
             ]
-          ]
+          ],
+          "fairwayBunker": true
         },
         {
           "type": "bunker",
@@ -1639,7 +1643,8 @@
               546.1,
               790.4
             ]
-          ]
+          ],
+          "fairwayBunker": true
         },
         {
           "type": "bunker",
@@ -1793,7 +1798,8 @@
               617.2,
               567.1
             ]
-          ]
+          ],
+          "fairwayBunker": true
         },
         {
           "type": "bunker",

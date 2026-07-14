@@ -1383,8 +1383,8 @@ export function buildCourse(
       }
     });
     // ---------------------------------------------- parked-camera perf pacing
-    // The swing-meter stutter on the water holes (Timberline h1/h3, Wildwood h3,
-    // Port Johnson h3) was never the scatter drain — it is the two dominant
+    // The swing-meter stutter on the water holes (Timberline h1/h3, Wildwood
+    // h1/h3, Port Johnson h3) was never the scatter drain — it is the two dominant
     // per-frame GPU costs: the planar water-reflection RTT (re-renders every
     // scatter instance) and the 1024² shadow map (full regen every frame). While
     // the meter is live the camera is parked at address and the only animating
@@ -2015,15 +2015,26 @@ export function buildCourse(
     }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
-        // Grass + bush pools, NOT heatherKeys: heather is a flat, non-tintable
-        // photo-textured card (real fescue photography) that reads fine in the
-        // big ambient rough scatter but smudges to a brown patch at this small
-        // clump size/close camera distance. The tintable grass/bush pools used
-        // elsewhere in this file give real green grass and wiry bushes instead.
-        const fescueSet = [...grasses, ...bushSet.map((e) => e.proto)];
-        if (!fescueSet.length) return;
+        // Per-course planting style (theme.bunkerLipStyle): 'bushWall' is
+        // bush-only and denser (Port Johnson's waste-area look), 'grassCluster'
+        // is grass-only, denser, and planted in small multi-blade clusters
+        // scoped to fairwayBunker-flagged hazards (Sable Bay's dense-cluster
+        // look). Undefined/'mixed' keeps the original grass+bush blend at the
+        // original thin, natural-clump density — NOT heatherKeys, which is a
+        // flat, non-tintable photo card that smudges to a brown patch at this
+        // clump size/close camera distance.
+        const style = theme.bunkerLipStyle ?? 'mixed';
+        const pool =
+          style === 'bushWall'
+            ? bushSet.map((e) => e.proto)
+            : style === 'grassCluster'
+              ? grasses
+              : [...grasses, ...bushSet.map((e) => e.proto)];
+        if (!pool.length) return;
+        const keepRate = style === 'bushWall' ? 0.78 : style === 'grassCluster' ? 0.75 : 0.55;
         for (const hz of hole.hazards) {
           if (hz.type !== 'bunker' || hz.waste || hz.beach || hz.wall) continue;
+          if (style === 'grassCluster' && !hz.fairwayBunker) continue;
           const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
           const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
           const gx = hole.green.cx - cx;
@@ -2046,11 +2057,23 @@ export function buildCourse(
               const nlen = Math.hypot(nx, ny) || 1;
               // Hole-side arc only — the lip nearer the green, not the whole rim.
               if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
-              if (hash2(px * 1.9, py * 2.3) > 0.55) continue; // thin, natural clumps
+              if (hash2(px * 1.9, py * 2.3) > keepRate) continue;
               const ox = px + (nx / nlen) * 2.5;
               const oy = py + (ny / nlen) * 2.5;
               if (engine.surfaceAt(ox, oy) !== 'rough') continue;
-              place(fescueSet, ox, oy, 2.4 + hash2(ox + 3, oy) * 1.0);
+              if (style === 'grassCluster') {
+                // 2-4 grass blades per kept point, small jitter, taller than a
+                // single blade — reads as a dense cluster, not a thin scatter.
+                const clusterN = 2 + Math.floor(hash2(ox + 5, oy - 5) * 3);
+                for (let c = 0; c < clusterN; c++) {
+                  const jx = ox + (hash2(ox + c, oy - c) - 0.5) * 1.6;
+                  const jy = oy + (hash2(oy + c, ox - c) - 0.5) * 1.6;
+                  place(pool, jx, jy, 3.4 + hash2(jx + 3, jy) * 1.4);
+                }
+              } else {
+                const h = style === 'bushWall' ? 3.0 + hash2(ox + 3, oy) * 1.4 : 2.4 + hash2(ox + 3, oy) * 1.0;
+                place(pool, ox, oy, h);
+              }
             }
           }
         }

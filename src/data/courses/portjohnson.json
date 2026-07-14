@@ -49,7 +49,8 @@
     "seaDunes": false,
     "mowPattern": "diagonal",
     "mowWidth": 24,
-    "greenMowPattern": "diagonal"
+    "greenMowPattern": "diagonal",
+    "bunkerLipStyle": "bushWall"
   },
   "holes": [
     {

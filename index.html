@@ -215,7 +215,7 @@
       #trueVisionBtn {
         position: fixed;
         right: 10px;
-        bottom: 122px;
+        bottom: 168px;
         display: none;
         padding: 9px 14px;
         border-radius: 12px;
@@ -1690,8 +1690,15 @@
         color: #a9c9b0;
         margin: 2px 0 8px;
       }
-      /* Locker Room — tabbed, capped-height shell (mirrors .storeInner) with a
-         scrollable body and a footer pinned below it. */
+      /* Locker Room — tabbed, FIXED-height shell (overrides .storeInner's
+         content-sized max-height): 8 tabs vary wildly in content length (an
+         empty Perk tab vs. a full Character/Upgrades grid), and a cap alone
+         let the whole box (and the header/footer with it) grow/shrink and
+         re-center every tab switch. A real height keeps the title bar and
+         footer pinned; only .lkScroll grows/scrolls in between. */
+      .lockerInner {
+        height: min(86vh, 620px);
+      }
       .lockerInner .lkTop {
         display: flex;
         align-items: center;
@@ -1923,6 +1930,7 @@
           <button id="profileLink" class="recordsLink">👤 Profile</button>
           <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
           <button id="adminLink" class="recordsLink" style="display:none">🔑 Admin Dashboard</button>
+          <button id="adminGrantTV" class="recordsLink" style="display:none">🎁 Grant 3 True Vision (debug)</button>
         </div>
       </div>
     </div>

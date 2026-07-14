@@ -230,6 +230,14 @@ export interface Hazard {
    */
   wall?: boolean;
   /**
+   * Bunker only, VISUAL: this bunker flanks a fairway landing zone (not
+   * greenside, not waste/beach) — an authored flag rather than a runtime
+   * geometric check, since no other field on this hazard distinguishes the
+   * two. Used to scope theme.bunkerLipStyle's `'grassCluster'` planting
+   * (Sable Bay) to fairway bunkers only, leaving greenside bunkers bare.
+   */
+  fairwayBunker?: boolean;
+  /**
    * Trees only, VISUAL: a cherry-blossom grove — the canopy is tinted soft pink
    * instead of green (course3d builds one pink-canopy prototype and plants this
    * hazard's trunks from it). Collision/shadows are unchanged. Used for Wildwood

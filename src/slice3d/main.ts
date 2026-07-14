@@ -47,7 +47,7 @@ import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
-import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, grantConsumable, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -2816,16 +2816,21 @@ function roundGolfer(): Golfer {
   return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, equippedPerkDef());
 }
 
-/** Show the Admin Dashboard menu link only for the allow-listed account. */
+/** Show the Admin Dashboard menu link (and the debug True Vision grant
+ *  button) only for the allow-listed account. */
 function refreshAdminLink(): void {
   const link = document.getElementById('adminLink');
+  const grantTV = document.getElementById('adminGrantTV');
   if (!link) return;
   if (!authConfigured() || !signedIn) {
     link.style.display = 'none';
+    if (grantTV) grantTV.style.display = 'none';
     return;
   }
   void cloudEmail().then((email) => {
-    link.style.display = isAdminEmail(email) ? '' : 'none';
+    const show = isAdminEmail(email) ? '' : 'none';
+    link.style.display = show;
+    if (grantTV) grantTV.style.display = show;
   });
 }
 
@@ -3619,7 +3624,22 @@ function renderMode(): void {
   );
 }
 
+/** Wildwood's blossom mechanism (theme.blossomChance) needs an extra
+ *  tree_sakura GLB no other course requests — a load cost unique to
+ *  Wildwood, worst on hole 1 (cold browser cache, first hole of the round).
+ *  Warm the HTTP cache for it as early as course selection settles on
+ *  Wildwood, well before hole 1's buildCourse() actually needs the asset —
+ *  fetch-only (no Babylon scene exists yet at course-select time), fire-
+ *  and-forget, never blocks. */
+let sakuraPrefetched = false;
+function prefetchWildwoodAssets(): void {
+  if (sakuraPrefetched) return;
+  sakuraPrefetched = true;
+  void fetch('models/nature/tree_sakura.glb').catch(() => {});
+}
+
 function renderCourse(): void {
+  if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Choose your course</div>` +
     `<div class="modeGrid">` +
@@ -4128,6 +4148,16 @@ document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => r
 document.getElementById('profileLink')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 document.getElementById('adminLink')!.addEventListener('pointerdown', () => (window.location.href = 'admin.html'));
+document.getElementById('adminGrantTV')!.addEventListener('pointerdown', () => {
+  grantConsumable(profile, TRUE_VISION.id, 3);
+  persistProfile();
+  if (signedIn)
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
+  showMsg('Granted 3 True Vision charges', 1400);
+});
 updateSeasonLink();
 refreshAdminLink();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
