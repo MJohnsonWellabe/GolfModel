@@ -22,7 +22,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, TrajectoryPoint, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -47,7 +47,7 @@ import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
-import { clearLocalProfile, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -57,6 +57,7 @@ import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
 import { PerkDef, perkById, perkEffectLabel, perkPerfectZoneMult } from '../data/perks';
+import { TRUE_VISION } from '../data/consumables';
 import { Pal3D } from './pal3d';
 import { AIOpponent, OPPONENTS } from '../data/opponents';
 import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
@@ -68,6 +69,7 @@ import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
+import { solveTrueVisionPath } from '../systems/TrueVisionSolver';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
@@ -92,6 +94,7 @@ const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
 const tourBoardBtn = document.getElementById('tourBoardBtn')!;
+const trueVisionBtn = document.getElementById('trueVisionBtn')! as HTMLButtonElement;
 const skipBtn = document.getElementById('skipBtn')!;
 const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
@@ -367,6 +370,11 @@ class HoleScene {
   private aimRoot!: TransformNode;
   private aimDots: Mesh[] = [];
   private aimRing!: Mesh;
+  /** True Vision's red dashed line — a second, independent dot pool (never
+   *  touched by updateAimVisuals' per-frame redraw): populated once on tap
+   *  and left alone until the putt is struck or the turn ends. */
+  private trueVisionRoot!: TransformNode;
+  private trueVisionDots: Mesh[] = [];
   /** World point the aim-distance/elevation readout floats over (FB2/FB4). */
   private aimReadoutWorld: { x: number; y: number } | null = null;
   private aerial = false;
@@ -492,6 +500,24 @@ class HoleScene {
     this.aimRing.material = aimMat;
     this.aimRing.parent = this.aimRoot;
     this.aimRoot.setEnabled(false);
+
+    // True Vision: a second, red dot pool showing the SOLVED break line — a
+    // separate mesh/material from the white aim guide so it can be populated
+    // once on tap and left untouched while the ordinary aim line keeps
+    // redrawing every frame as the player adjusts pace.
+    const trueVisionMat = new StandardMaterial('trueVisionMat', this.scene);
+    trueVisionMat.diffuseColor = new Color3(1, 0.15, 0.15);
+    trueVisionMat.emissiveColor = new Color3(0.9, 0.1, 0.1);
+    trueVisionMat.disableLighting = true;
+    this.trueVisionRoot = new TransformNode('trueVisionRoot', this.scene);
+    for (let i = 0; i < 24; i++) {
+      const dot = MeshBuilder.CreateDisc(`trueVisionDot${i}`, { radius: 0.45, tessellation: 10 }, this.scene);
+      dot.rotation.x = Math.PI / 2;
+      dot.material = trueVisionMat;
+      dot.parent = this.trueVisionRoot;
+      this.trueVisionDots.push(dot);
+    }
+    this.trueVisionRoot.setEnabled(false);
 
     this.camera = new FreeCamera('cam', new Vector3(0, 8, 0), this.scene);
     // Small near-plane so the now-smaller on-green ball never near-clips at the
@@ -1084,6 +1110,7 @@ class HoleScene {
     // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
     renderPacing.meterActive = false;
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
+    this.hideTrueVision(); // clear any stale reveal from the previous putt
     if (this.tm.isScramble) {
       // Scramble: both teammates attempt from the shared team ball; the
       // better result becomes the new team ball (TurnManager owns the state).
@@ -1135,6 +1162,7 @@ class HoleScene {
       clubBar.style.display = 'none';
       aerialBtn.style.display = 'none';
       tourBoardBtn.style.display = 'none';
+      trueVisionBtn.style.display = 'none';
       this.aiTurn();
       return;
     }
@@ -1144,6 +1172,7 @@ class HoleScene {
     aerialBtn.style.display = 'block';
     // Tournament rounds keep the live leaderboard one tap away (🏆).
     tourBoardBtn.style.display = aiTour ? 'block' : 'none';
+    this.refreshTrueVisionBtn();
     this.updateStrikeUI();
     this.refreshClubBar();
   }
@@ -1290,6 +1319,10 @@ class HoleScene {
     this.updateAimVisuals();
     this.updateHud();
     this.refreshClubBar();
+    // True Vision only makes sense while putting — hide a stale reveal (and
+    // the button) the moment the player cycles to a different club.
+    if (!this.aim.isPutting) this.hideTrueVision();
+    this.refreshTrueVisionBtn();
   }
 
   private refreshClubBar(): void {
@@ -1347,6 +1380,79 @@ class HoleScene {
     aerialBtn.classList.toggle('on', this.aerial);
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
+  }
+
+  /** Show/hide/relabel the True Vision button for the current turn — only
+   *  while a human is putting and still has charges. */
+  private refreshTrueVisionBtn(): void {
+    const remaining = chargesRemaining(profile, TRUE_VISION.id);
+    const show = this.state.phase === 'aiming' && !this.ai && this.aim.isPutting && remaining > 0;
+    trueVisionBtn.style.display = show ? 'block' : 'none';
+    trueVisionBtn.textContent = `${TRUE_VISION.icon} TRUE VISION (${remaining})`;
+  }
+
+  /** Arc-length-resample a path into exactly `n` evenly spaced points, so
+   *  dash spacing along the True Vision line stays even even where the ball
+   *  is slowing down (samples bunch up near the end of a real putt path). */
+  private resamplePathByArcLength(path: TrajectoryPoint[], n: number): TrajectoryPoint[] {
+    if (path.length < 2) return path.length ? Array(n).fill(path[0]) : [];
+    const cum: number[] = [0];
+    for (let i = 1; i < path.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y));
+    }
+    const total = cum[cum.length - 1];
+    const out: TrajectoryPoint[] = [];
+    for (let k = 0; k < n; k++) {
+      const target = total * (k / Math.max(1, n - 1));
+      let i = 1;
+      while (i < cum.length - 1 && cum[i] < target) i++;
+      const segLen = cum[i] - cum[i - 1];
+      const t = segLen > 0 ? (target - cum[i - 1]) / segLen : 0;
+      const a = path[i - 1];
+      const b = path[i];
+      out.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: 0 });
+    }
+    return out;
+  }
+
+  /** Populate the red dot pool along the solved path — a "dashed" line falls
+   *  out of spacing every other pooled dot farther apart than its own radius
+   *  (same trick the plan calls for, no new geometry). Populated once on tap;
+   *  NOT touched by the per-frame updateAimVisuals() redraw. */
+  private showTrueVisionPath(path: TrajectoryPoint[]): void {
+    const pts = this.resamplePathByArcLength(path, this.trueVisionDots.length);
+    this.trueVisionDots.forEach((dot, i) => {
+      if (i % 2 === 1) {
+        dot.scaling.setAll(0); // the "dash" gaps
+        return;
+      }
+      const p = pts[i] ?? pts[pts.length - 1];
+      dot.position = w2b(p.x, p.y, 0.12 + this.gh(p.x, p.y));
+      dot.scaling.setAll(1);
+    });
+    this.trueVisionRoot.setEnabled(true);
+  }
+
+  private hideTrueVision(): void {
+    this.trueVisionRoot.setEnabled(false);
+  }
+
+  /** Tap handler: consume one charge, solve the real break line (the real
+   *  slope-aware engine2d, deliberately NOT the flat previewEngine the
+   *  ordinary aim line uses), and show it as a red dashed line that stays up
+   *  until the putt is struck. */
+  private revealTrueVision(): void {
+    if (this.state.phase !== 'aiming' || this.ai || !this.aim.isPutting) return;
+    if (!consumeCharge(profile, TRUE_VISION.id)) return;
+    persistProfile();
+    if (signedIn)
+      void cloudSyncProfile(profile).then((res) => {
+        applyCloudMerge(profile, res.profile);
+        showCloudStatus(res.status, true);
+      });
+    const path = solveTrueVisionPath(this.engine2d, this.hole, this.state.ballPos, this.curPart().golfer);
+    this.showTrueVisionPath(path);
+    this.refreshTrueVisionBtn();
   }
 
   /** The AI's chosen spin for its current shot (null = flat). */
@@ -1427,11 +1533,13 @@ class HoleScene {
     renderPacing.meterActive = false; // meter's done — let the scatter finish filling
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
+    this.hideTrueVision(); // "stays up until you putt" ends here
     this.aerial = false;
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
     tourBoardBtn.style.display = 'none';
+    trueVisionBtn.style.display = 'none';
     shotShapeEl.style.display = 'none';
     aimReadoutEl.style.display = 'none';
     this.aimReadoutWorld = null;
@@ -1755,6 +1863,7 @@ class HoleScene {
     this.onPrevClub = () => this.cycleClub(-1);
     this.onNextClub = () => this.cycleClub(1);
     this.onAerial = () => this.toggleAerial();
+    this.onTrueVision = () => this.revealTrueVision();
     this.onSkip = (e) => {
       e.preventDefault();
       this.skipIntro();
@@ -1762,6 +1871,7 @@ class HoleScene {
     document.getElementById('prevClub')!.addEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.addEventListener('pointerdown', this.onNextClub);
     aerialBtn.addEventListener('pointerdown', this.onAerial);
+    trueVisionBtn.addEventListener('pointerdown', this.onTrueVision);
     skipBtn.addEventListener('pointerdown', this.onSkip);
 
     meter.onComplete = (result) => this.executeShot(result);
@@ -1843,6 +1953,7 @@ class HoleScene {
   private onPrevClub!: () => void;
   private onNextClub!: () => void;
   private onAerial!: () => void;
+  private onTrueVision!: () => void;
   private onSkip!: (e: Event) => void;
   private onStrikeDown!: (e: PointerEvent) => void;
   private onStrikeMove!: (e: PointerEvent) => void;
@@ -2057,6 +2168,7 @@ class HoleScene {
     document.getElementById('prevClub')!.removeEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.removeEventListener('pointerdown', this.onNextClub);
     aerialBtn.removeEventListener('pointerdown', this.onAerial);
+    trueVisionBtn.removeEventListener('pointerdown', this.onTrueVision);
     skipBtn.removeEventListener('pointerdown', this.onSkip);
     skipBtn.style.display = 'none';
     strikePadEl.removeEventListener('pointerdown', this.onStrikeDown);
@@ -2066,6 +2178,7 @@ class HoleScene {
     meter.hide();
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
+    trueVisionBtn.style.display = 'none';
     shotShapeEl.style.display = 'none';
     this.scene.dispose();
   }
@@ -2758,6 +2871,7 @@ function renderSeasonPass(): void {
     if ('coins' in reward) return `<div class="swatch" style="background:#caa63a">🪙</div>`;
     if ('xp' in reward) return `<div class="swatch" style="background:#3a6ec2">✨</div>`;
     if ('perk' in reward) return `<div class="swatch" style="background:#7a4ec2">⚡</div>`;
+    if ('trueVision' in reward) return `<div class="swatch" style="background:#c23a5c">${TRUE_VISION.icon}</div>`;
     const item = STORE_BY_ID.get(reward.item);
     if (!item) return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
     if (item.kind === 'character')
@@ -3561,7 +3675,11 @@ function renderOpponent(): void {
 // ---------------------------------------------------------- Locker Room
 const lockerEl = document.getElementById('lockerRoom')!;
 /** Active Locker Room tab. */
-let lkTab: 'char' | 'style' | 'pal' | 'perk' = 'char';
+let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'ball' | 'trail' | 'clubskin' | 'upgrades' = 'char';
+/** Club-upgrade item id awaiting the Locker's own "Spend X coins?"
+ *  confirmation — separate from the Store's `pendingBuy` so the two overlays
+ *  never share (and can't cross-contaminate) confirmation state. */
+let lkPendingBuy: string | null = null;
 
 /** Persist the current loadout to the profile + cloud (called after any Locker
  *  Room change). Keeps `sel` in step so the round builders pick it up. */
@@ -3624,13 +3742,58 @@ function renderLockerRoom(): void {
       `<div class="perkRem">${rem} round${rem === 1 ? '' : 's'} left</div></div>`
     );
   };
+  // Ball/trail/clubskin: pre-round cosmetic choices, equip-only-if-owned —
+  // same one-tap pattern as the Pal tab (StoreEngine.equip, no buy affordance
+  // here; that stays in the Store). Always has at least one owned entry
+  // (DEFAULT_OWNED), so no "None" card is needed like Pal/Perk have.
+  const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
+  const cosmeticTabs: Record<'ball' | 'trail' | 'clubskin', StoreItem[]> = {
+    ball: STORE_CATALOG.filter((i) => i.kind === 'ball' && isOwned(p, i)),
+    trail: STORE_CATALOG.filter((i) => i.kind === 'trail' && isOwned(p, i)),
+    clubskin: STORE_CATALOG.filter((i) => i.kind === 'clubskin' && isOwned(p, i))
+  };
+  const cosmeticCard = (kind: 'ball' | 'trail' | 'clubskin', item: StoreItem): string => {
+    const selected = p.cosmetics.equipped[kind] === item.id;
+    const bg = item.color !== undefined ? hex(item.color) : '#2b6b41';
+    return (
+      `<div class="charCard palPick${selected ? ' sel' : ''}" data-cosmetic="${kind}:${item.id}">` +
+      `<div class="palPickIcon" style="background:${bg}"></div><div class="cn">${item.name}</div></div>`
+    );
+  };
+  // Club upgrades: not equippable (StoreEngine rejects it) — buying the next
+  // tier IS the pre-round choice, so this tab needs the Store's buy-card
+  // pattern (owned/affordable/locked), not the equip-only Pal/ball pattern.
+  const upgradeItems = STORE_CATALOG.filter((i) => i.kind === 'clubUpgrade');
+  const upgradeCard = (item: StoreItem): string => {
+    const owned = isOwned(p, item);
+    const affordable = canBuy(p, item).ok;
+    const cls = owned ? 'owned' : affordable ? '' : 'locked';
+    const price = owned ? 'Owned' : `${item.price} 🪙`;
+    return (
+      `<div class="storeCard ${cls}" data-upgrade="${item.id}">` +
+      `<div class="swatch" style="background:#2b6b41">⬆️</div>` +
+      `<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`
+    );
+  };
+  const pendingUpgrade = lkPendingBuy ? upgradeItems.find((i) => i.id === lkPendingBuy) : undefined;
+  const upgradeConfirmPanel = pendingUpgrade
+    ? `<div class="storeConfirm"><div class="storeConfirmBox">` +
+      `<div class="scTitle">${pendingUpgrade.name}</div>` +
+      `<div class="scAsk">Spend <b>${pendingUpgrade.price} 🪙</b> now?</div>` +
+      `<div class="btnRow"><button id="lkUpBuyYes">Buy · ${pendingUpgrade.price} 🪙</button>` +
+      `<button id="lkUpBuyNo" class="ghostBtn">Cancel</button></div></div></div>`
+    : '';
   // Tabbed content (only the active tab renders in the scroll area) so the
   // screen is short and the top of the character cards is never clipped.
   const tabs: Array<[typeof lkTab, string]> = [
     ['char', 'Character'],
     ['style', 'Style'],
     ['pal', 'Pal'],
-    ['perk', 'Perk']
+    ['perk', 'Perk'],
+    ['ball', 'Ball'],
+    ['trail', 'Trail'],
+    ['clubskin', 'Skin'],
+    ['upgrades', 'Upgrades']
   ];
   const tabBar = tabs
     .map(([id, label]) => `<button class="recTab lkTab${lkTab === id ? ' sel' : ''}" data-tab="${id}">${label}</button>`)
@@ -3642,9 +3805,16 @@ function renderLockerRoom(): void {
         ? `<div class="archGrid">${archCards}</div>`
         : lkTab === 'pal'
           ? `<div class="charGrid">${palCards}</div>`
-          : ownedPerks.length
-            ? `<div class="charGrid">${perkCard(null)}${ownedPerks.map((ps) => perkCard(ps.id)).join('')}</div>`
-            : `<div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div>`;
+          : lkTab === 'perk'
+            ? ownedPerks.length
+              ? `<div class="charGrid">${perkCard(null)}${ownedPerks.map((ps) => perkCard(ps.id)).join('')}</div>`
+              : `<div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div>`
+            : lkTab === 'upgrades'
+              ? `<div class="storeGrid">${upgradeItems.map(upgradeCard).join('')}</div>${upgradeConfirmPanel}`
+              : (() => {
+                  const kind = lkTab as 'ball' | 'trail' | 'clubskin';
+                  return `<div class="charGrid">${cosmeticTabs[kind].map((i) => cosmeticCard(kind, i)).join('')}</div>`;
+                })();
 
   lockerEl.style.display = 'flex';
   lockerEl.innerHTML =
@@ -3697,6 +3867,47 @@ function renderLockerRoom(): void {
       renderLockerRoom();
     })
   );
+  lockerEl.querySelectorAll('.charCard[data-cosmetic]').forEach((el) =>
+    onTap(el, () => {
+      const [, id] = (el as HTMLElement).dataset.cosmetic!.split(':');
+      equip(p, id);
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(p).then((res) => { applyCloudMerge(p, res.profile); showCloudStatus(res.status, true); });
+      renderLockerRoom();
+    })
+  );
+  lockerEl.querySelectorAll('.storeCard[data-upgrade]').forEach((el) =>
+    onTap(el, () => {
+      const id = (el as HTMLElement).dataset.upgrade!;
+      const item = upgradeItems.find((i) => i.id === id)!;
+      if (isOwned(p, item)) return; // upgrades apply automatically once owned
+      const can = canBuy(p, item);
+      if (!can.ok) {
+        showMsg(can.reason, 1200);
+        return;
+      }
+      lkPendingBuy = id;
+      renderLockerRoom();
+    })
+  );
+  if (pendingUpgrade) {
+    document.getElementById('lkUpBuyYes')!.addEventListener('pointerdown', () => {
+      lkPendingBuy = null;
+      const r = buyItem(p, pendingUpgrade.id);
+      if (!r.ok) {
+        showMsg(r.reason, 1200);
+        renderLockerRoom();
+        return;
+      }
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(p).then((res) => { applyCloudMerge(p, res.profile); showCloudStatus(res.status, true); });
+      renderLockerRoom();
+    });
+    document.getElementById('lkUpBuyNo')!.addEventListener('pointerdown', () => {
+      lkPendingBuy = null;
+      renderLockerRoom();
+    });
+  }
   document.getElementById('lkRandom')!.addEventListener('pointerdown', () => {
     sel.character = (ownedChars.length ? randomOf(ownedChars) : CHARACTERS[0]).key as CharacterKey;
     sel.archetype = randomOf(ARCHETYPES).id as ArchetypeId;
@@ -3709,10 +3920,14 @@ function renderLockerRoom(): void {
   document.getElementById('lkLock')!.addEventListener('pointerdown', () => {
     p.loadoutLocked = true;
     syncLoadout();
+    lkPendingBuy = null;
     lockerEl.style.display = 'none';
   });
   document.getElementById('lkEditName')!.addEventListener('pointerdown', () => promptName(true));
-  document.getElementById('lkBack')!.addEventListener('pointerdown', () => (lockerEl.style.display = 'none'));
+  document.getElementById('lkBack')!.addEventListener('pointerdown', () => {
+    lkPendingBuy = null;
+    lockerEl.style.display = 'none';
+  });
 }
 
 /** One-time (and editable) name entry. Not part of the round flow or locker
@@ -3865,7 +4080,10 @@ function renderAcctMenu(): void {
       `<button id="acctLinkBtn" class="acctBtn">🔑 Sign in with Google</button>` +
       `<div class="acctHint">Sign in to save your coins &amp; progress</div>`;
     const btn = document.getElementById('acctLinkBtn') as HTMLButtonElement;
-    btn.addEventListener('pointerdown', () => {
+    // iOS Safari only honors signInWithPopup's window.open as a trusted user
+    // gesture inside a 'click' event — pointerdown gets silently blocked with
+    // no catchable error, unlike wireAccountRow's onclick handler which works.
+    btn.onclick = () => {
       btn.disabled = true;
       btn.textContent = '🔑 Opening Google…';
       void signInWithGoogle().then((name) => {
@@ -3883,18 +4101,18 @@ function renderAcctMenu(): void {
           refreshWizardIfVisible();
         });
       });
-    });
+    };
   };
   const showSignedIn = (name: string): void => {
     el.innerHTML =
       `<div class="acctSignedIn"><span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
       `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
-    document.getElementById('acctLogout')!.addEventListener('pointerdown', () => {
+    (document.getElementById('acctLogout') as HTMLButtonElement).onclick = () => {
       void doSignOut().then(() => {
         showSignInButton();
         refreshWizardIfVisible();
       });
-    });
+    };
   };
   if (signedIn) {
     void linkedAccountName().then((name) => showSignedIn(name ?? 'your account'));

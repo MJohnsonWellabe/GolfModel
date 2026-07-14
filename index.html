@@ -209,6 +209,26 @@
         background: linear-gradient(180deg, #ffd54f, #eab63a);
         color: #3a2b06;
       }
+      /* True Vision consumable — reveals the real putt line. Stacks above
+         AERIAL/tourBoardBtn, red-tinted so it reads as a distinct, spendable
+         action rather than an ordinary view toggle. */
+      #trueVisionBtn {
+        position: fixed;
+        right: 10px;
+        bottom: 122px;
+        display: none;
+        padding: 9px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 120, 120, 0.5);
+        background: linear-gradient(180deg, rgba(74, 12, 20, 0.92), rgba(46, 6, 10, 0.88));
+        color: #ffdede;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+      }
+      #trueVisionBtn:disabled {
+        opacity: 0.5;
+      }
       /* Mid-round tournament leaderboard toggle — sits above AERIAL. */
       #tourBoardBtn {
         position: fixed;
@@ -1878,6 +1898,7 @@
       <div id="strikePad"><div id="strikeDot"></div></div>
     </div>
     <div id="aimReadout"></div>
+    <button id="trueVisionBtn">👁️ TRUE VISION</button>
     <button id="aerialBtn">AERIAL</button>
     <button id="tourBoardBtn">🏆</button>
     <button id="skipBtn">SKIP ▶</button>

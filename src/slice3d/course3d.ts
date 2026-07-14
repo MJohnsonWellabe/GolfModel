@@ -2015,8 +2015,12 @@ export function buildCourse(
     }
     if (theme.bunkerLipFescue) {
       popQueue.push(() => {
-        const heatherSet = pick(theme.heatherKeys ?? []);
-        const fescueSet = heatherSet.length ? heatherSet : grasses;
+        // Grass + bush pools, NOT heatherKeys: heather is a flat, non-tintable
+        // photo-textured card (real fescue photography) that reads fine in the
+        // big ambient rough scatter but smudges to a brown patch at this small
+        // clump size/close camera distance. The tintable grass/bush pools used
+        // elsewhere in this file give real green grass and wiry bushes instead.
+        const fescueSet = [...grasses, ...bushSet.map((e) => e.proto)];
         if (!fescueSet.length) return;
         for (const hz of hole.hazards) {
           if (hz.type !== 'bunker' || hz.waste || hz.beach || hz.wall) continue;

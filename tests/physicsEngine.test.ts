@@ -146,6 +146,32 @@ describe('surfaceAt priority', () => {
     expect(approachEngine.surfaceAt(870, 300)).toBe('fringe');
   });
 
+  it('a green-side beach/waste bunker wins over the fringe margin — a ball in sand is never "just off the green"', () => {
+    // Regression: the fringe-margin check excluded fairway polygons but not
+    // beach/waste bunker polygons, so a green-side waste/beach bunker within
+    // FRINGE_MARGIN misclassified as 'fringe' — and autoSelectClub arms the
+    // putter for fringe within 35yd of the pin, handing the player a putter
+    // while standing in sand ("putter in my hand when I'm in the bunker").
+    const bunkerHole: HoleData = {
+      ...HOLE,
+      fairway: [],
+      hazards: [{ type: 'bunker', waste: true, polygon: [[900, 350], [1100, 350], [1100, 432], [900, 432]] }]
+    };
+    const bunkerEngine = new PhysicsEngine(bunkerHole);
+    // Inside the fringe margin ring (green edge y=400, margin reaches y=432)
+    // AND inside the waste bunker → sand wins, not fringe.
+    expect(bunkerEngine.surfaceAt(1000, 410)).toBe('sand');
+    // Same margin ring, outside the bunker → still the protective fringe collar.
+    expect(bunkerEngine.surfaceAt(870, 300)).toBe('fringe');
+
+    const beachHole: HoleData = {
+      ...HOLE,
+      fairway: [],
+      hazards: [{ type: 'bunker', beach: true, polygon: [[900, 350], [1100, 350], [1100, 432], [900, 432]] }]
+    };
+    expect(new PhysicsEngine(beachHole).surfaceAt(1000, 410)).toBe('sand');
+  });
+
   it('water applies outside green + fringe', () => {
     expect(engine.surfaceAt(880, 170)).toBe('water');
   });

@@ -96,6 +96,10 @@ export interface PlayerProfile {
   perks: PerkState[];
   /** Perk equipped for the next round, or null. */
   equippedPerk: string | null;
+  /** Single-use consumables (season-pass rewards, e.g. True Vision) — spent
+   *  the instant they're used, unlike perks[] which are equipped for a whole
+   *  round. Same grow-only {id, granted, used} shape as perks[]. */
+  consumables: PerkState[];
   /** True once the player has chosen a loadout in the Locker Room ("Lock it
    *  in"). Until then, each round tees off with a random owned loadout. */
   loadoutLocked?: boolean;
@@ -173,6 +177,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     season: { id: 's1', xp: 0, claimed: [], owned: false },
     perks: [],
     equippedPerk: null,
+    consumables: [],
     loadoutLocked: false,
     updatedAt: now
   };
@@ -183,6 +188,27 @@ export function grantPerk(profile: PlayerProfile, perkId: string, rounds: number
   const existing = profile.perks.find((p) => p.id === perkId);
   if (existing) existing.granted += rounds;
   else profile.perks.push({ id: perkId, granted: rounds, used: 0 });
+}
+
+/** Add charges of a consumable to the inventory (grants stack onto an existing entry). */
+export function grantConsumable(profile: PlayerProfile, id: string, qty: number): void {
+  const existing = profile.consumables.find((c) => c.id === id);
+  if (existing) existing.granted += qty;
+  else profile.consumables.push({ id, granted: qty, used: 0 });
+}
+
+/** Charges of a consumable still available (granted − used, never negative). */
+export function chargesRemaining(profile: PlayerProfile, id: string): number {
+  const entry = profile.consumables.find((c) => c.id === id);
+  return entry ? perkRemaining(entry) : 0;
+}
+
+/** Spend one charge of a consumable. Returns false (no-op) if none remain. */
+export function consumeCharge(profile: PlayerProfile, id: string): boolean {
+  const entry = profile.consumables.find((c) => c.id === id);
+  if (!entry || perkRemaining(entry) <= 0) return false;
+  entry.used += 1;
+  return true;
 }
 
 /**
@@ -243,6 +269,7 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     // RTDB drops empty arrays/null — backfill perks + equipped like the rest.
     perks: [...(parsed.perks ?? [])],
     equippedPerk: parsed.equippedPerk ?? null,
+    consumables: [...(parsed.consumables ?? [])],
     loadoutLocked: parsed.loadoutLocked ?? false
   };
 }
@@ -362,6 +389,7 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
     season: mergeSeason(a.season, b.season),
     perks: mergePerks(a.perks, b.perks),
+    consumables: mergePerks(a.consumables, b.consumables),
     // Equip choice is transient per-round state — the most recent copy wins.
     equippedPerk: newer.equippedPerk ?? null,
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)

@@ -6,7 +6,8 @@
  *
  * Reward mix (owner spec, exact counts, total 50):
  *   ball 5 · trail 5 · club colors (clubskin) 5 · skin colors (outfit) 5 ·
- *   character 4 · pal 1 · perk 5 · XP 10 · J-Coins 10.
+ *   character 4 · pal 1 · perk 5 · XP 8 · J-Coins 8 · True Vision 4 (packs of 3,
+ *   levels 13/21/33/41 — the putting-aid consumable, season-pass exclusive).
  * - J-Coins total ≤ 1000 across the 10 coin levels.
  * - The major rewards land on the last page (46–50): a ++ perk, a character,
  *   and the level-50 exclusive pal (Mango, the bright-orange gecko).
@@ -19,7 +20,8 @@ export type SeasonReward =
   | { item: string } // StoreItem id granted into cosmetics.owned
   | { perk: string } // PerkDef id granted into the perk inventory
   | { coins: number }
-  | { xp: number };
+  | { xp: number }
+  | { trueVision: number }; // ConsumableDef charges granted into consumables[]
 
 export interface SeasonDef {
   id: string;
@@ -85,7 +87,7 @@ const FIXED: Record<number, SeasonReward> = {
   // Page 3
   11: { xp: 200 },
   12: { item: CHARACTERS[0] },
-  13: { coins: 75 },
+  13: { trueVision: 3 },
   14: { item: TRAILS[1] },
   15: { perk: 'perk_wedge_t1_r3' },
   // Page 4
@@ -95,7 +97,7 @@ const FIXED: Record<number, SeasonReward> = {
   19: { item: OUTFITS[1] },
   20: { item: BALLS[2] },
   // Page 5
-  21: { xp: 250 },
+  21: { trueVision: 3 },
   22: { item: TRAILS[2] },
   23: { coins: 100 },
   24: { item: CLUBSKINS[2] },
@@ -109,7 +111,7 @@ const FIXED: Record<number, SeasonReward> = {
   // Page 7
   31: { item: TRAILS[3] },
   32: { xp: 300 },
-  33: { coins: 100 },
+  33: { trueVision: 3 },
   34: { item: CLUBSKINS[3] },
   35: { item: CHARACTERS[2] },
   // Page 8
@@ -119,7 +121,7 @@ const FIXED: Record<number, SeasonReward> = {
   39: { item: BALLS[4] },
   40: { perk: 'perk_putt_t1_r5' },
   // Page 9
-  41: { xp: 400 },
+  41: { trueVision: 3 },
   42: { item: TRAILS[4] },
   43: { coins: 125 },
   44: { item: CLUBSKINS[4] },

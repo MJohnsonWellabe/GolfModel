@@ -6,6 +6,7 @@ import {
   addSeasonXp,
   claimReward,
   claimState,
+  rewardLabel,
   seasonActive,
   seasonLevel,
   totalSeasonXp
@@ -144,6 +145,7 @@ describe('reward mix (owner-specified exact counts)', () => {
     if ('coins' in r) key = 'coins';
     else if ('xp' in r) key = 'xp';
     else if ('perk' in r) key = 'perk';
+    else if ('trueVision' in r) key = 'trueVision';
     else key = STORE_BY_ID.get(r.item)?.kind ?? 'unknown';
     counts[key] = (counts[key] ?? 0) + 1;
   }
@@ -157,8 +159,9 @@ describe('reward mix (owner-specified exact counts)', () => {
       character: 4,
       pal: 1,
       perk: 5,
-      xp: 10,
-      coins: 10
+      xp: 8,
+      coins: 8,
+      trueVision: 4
     });
   });
 
@@ -176,6 +179,37 @@ describe('reward mix (owner-specified exact counts)', () => {
   it('the major perk (++ / 5 rounds) is on the last page', () => {
     const majorLevel = SEASON_1.rewards.findIndex((r) => 'perk' in r && perkById(r.perk)?.tier === 2 && perkById(r.perk)?.rounds === 5) + 1;
     expect(majorLevel).toBeGreaterThanOrEqual(46);
+  });
+
+  it('every True Vision reward grants a pack of 3, never buyable with coins', () => {
+    const tvLevels = SEASON_1.rewards
+      .map((r, i) => ('trueVision' in r ? i + 1 : null))
+      .filter((v): v is number => v != null);
+    expect(tvLevels).toEqual([13, 21, 33, 41]);
+    for (const level of tvLevels) {
+      const r = SEASON_1.rewards[level - 1] as { trueVision: number };
+      expect(r.trueVision).toBe(3);
+    }
+  });
+});
+
+describe('True Vision claim grants consumable charges', () => {
+  it('claiming a trueVision level adds charges to profile.consumables', () => {
+    const p = defaultProfile();
+    p.season.owned = true;
+    p.season.xp = totalSeasonXp(SEASON_1);
+    expect(claimReward(p, SEASON_1, 13).ok).toBe(true);
+    const entry = p.consumables.find((c) => c.id === 'true_vision');
+    expect(entry).toBeTruthy();
+    expect(entry!.granted).toBe(3);
+    // A second pack (level 21) stacks onto the same entry.
+    expect(claimReward(p, SEASON_1, 21).ok).toBe(true);
+    expect(p.consumables.find((c) => c.id === 'true_vision')!.granted).toBe(6);
+  });
+
+  it('rewardLabel shows the pack size', () => {
+    const { name } = rewardLabel({ trueVision: 3 });
+    expect(name).toBe('3× True Vision');
   });
 });
 

@@ -107,6 +107,20 @@ export const PHYSICS = {
    *  ("the tree hitboxes feel too severe again"). Recovery shots still get
    *  treeRecoveryMult on top. */
   treeCanopyMult: 0.95,
+  /** Palm-tree collision geometry (`Hazard.palm`/`accentIsPalm` trunks): a
+   *  real palm is bare trunk with fronds only at the very top, so it collides
+   *  on two bands with open air between, instead of the usual single flat
+   *  band. Total height and both bands derive from the tree's `treeR`
+   *  (canopy radius) — the exact same `max(24, r * 2.0)` formula course3d's
+   *  renderer uses for palm height — so physics and the visible model can
+   *  never drift apart. At a typical authored r=20 (Sable Bay's palm
+   *  hazards range 16-24): H=40, trunk band [0, 8.8], gap (8.8, 22), canopy
+   *  band [22, 40] — a ~13-unit gap comfortably lets a mid-height shot
+   *  thread through untouched. */
+  palmHeightMult: 2.0,
+  palmTrunkTopFrac: 0.22,
+  palmCanopyBottomFrac: 0.55,
+  palmTrunkRadiusMult: 0.3,
   /** Extra collision-radius scale applied to RECOVERY shots (stroke >= 1, i.e.
    *  the 2nd/3rd shot around a tree). Makes escaping a tree you're stuck under
    *  much more forgiving than the tee shot that put you there — lowered to 0.55

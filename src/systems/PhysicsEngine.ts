@@ -329,11 +329,12 @@ export class PhysicsEngine {
     if (pointInGreens(x, y, h.green, h.green2, FRINGE_MARGIN)) {
       // The margin's job is to protect the collar from spurious water/tree
       // bleed right at the green's edge (below) — it must NOT also swallow
-      // genuine fairway. A fairway ribbon commonly runs right up to the
-      // green, and a ball resting on it is never "just off the green" even
-      // within the margin (bug: the game auto-armed the putter for a ball
-      // plainly sitting in the fairway near the green).
-      if (!h.fairway.some((poly) => pointInPolygon(x, y, poly))) return 'fringe';
+      // genuine fairway or sand. A fairway ribbon (or a green-side waste/beach
+      // bunker) commonly runs right up to the green, and a ball resting there
+      // is never "just off the green" even within the margin (bug: the game
+      // auto-armed the putter for a ball plainly sitting in the fairway, or in
+      // a bunker, near the green).
+      if (!h.fairway.some((poly) => pointInPolygon(x, y, poly)) && !beach && !waste) return 'fringe';
     }
     if (water) return 'water';
     if (trees) return 'trees';
@@ -371,12 +372,36 @@ export class PhysicsEngine {
    * polygon, so a ball threading a gap between trees flies on and only a ball
    * that truly reaches a tree is stopped (playtest FB9).
    */
-  private nearTree(x: number, y: number): boolean {
+  /**
+   * `height` is the ball's height ABOVE GROUND at this point (0 for a rolling
+   * ball). Ordinary trees collide on one flat band exactly as before — the
+   * caller's own `z - ground < PHYSICS.treeHeight` gate already bounds that,
+   * so this function ignores `height` for them (byte-identical to the old
+   * height-less check). A `t.isPalm` trunk instead collides on two bands: a
+   * narrow trunk near the ground, then open air, then the elevated canopy —
+   * see PHYSICS.palm* for the geometry, derived from `t.r` so it can never
+   * drift from the rendered palm model.
+   */
+  private nearTree(x: number, y: number, height: number): boolean {
     for (const t of this.treeTrunks) {
       const dx = x - t.x;
       const dy = y - t.y;
-      const rr = t.r * this.shotTreeMult;
-      if (dx * dx + dy * dy < rr * rr) return true;
+      if (!t.isPalm) {
+        const rr = t.r * this.shotTreeMult;
+        if (dx * dx + dy * dy < rr * rr) return true;
+        continue;
+      }
+      const H = Math.max(24, t.r * PHYSICS.palmHeightMult);
+      const trunkTop = H * PHYSICS.palmTrunkTopFrac;
+      const canopyBottom = H * PHYSICS.palmCanopyBottomFrac;
+      const canopyTop = Math.min(H, PHYSICS.treeHeight);
+      if (height <= trunkTop) {
+        const rr = t.r * PHYSICS.palmTrunkRadiusMult * this.shotTreeMult;
+        if (dx * dx + dy * dy < rr * rr) return true;
+      } else if (height >= canopyBottom && height <= canopyTop) {
+        const rr = t.r * this.shotTreeMult;
+        if (dx * dx + dy * dy < rr * rr) return true;
+      }
     }
     return false;
   }
@@ -611,7 +636,7 @@ export class PhysicsEngine {
           z > ground &&
           z - ground < PHYSICS.treeHeight &&
           movedFromOrigin > PHYSICS.treeLaunchGrace &&
-          (this.nearTree(x, y) || this.inBuilding(x, y))
+          (this.nearTree(x, y, z - ground) || this.inBuilding(x, y))
         ) {
           hitTrees = true;
           z = ground;
@@ -705,7 +730,7 @@ export class PhysicsEngine {
       // `friction.trees` alone slows a roll, it doesn't stop one). Gated on
       // `surf === 'trees'` so the existing surface precedence still governs
       // (a green/bunker/water point never gets treated as a tree hit here).
-      if (surf === 'trees' && (this.nearTree(x, y) || this.inBuilding(x, y))) {
+      if (surf === 'trees' && (this.nearTree(x, y, 0) || this.inBuilding(x, y))) {
         hitTrees = true;
         const speed0 = Math.hypot(vx, vy);
         if (speed0 > 0) {

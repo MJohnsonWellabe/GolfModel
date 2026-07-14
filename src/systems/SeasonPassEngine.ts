@@ -1,7 +1,8 @@
-import { grantPerk, PlayerProfile } from '../profile/Profile';
+import { grantConsumable, grantPerk, PlayerProfile } from '../profile/Profile';
 import { SeasonDef, SeasonReward } from '../data/seasonPass';
 import { STORE_BY_ID } from '../data/storeCatalog';
 import { perkById } from '../data/perks';
+import { TRUE_VISION } from '../data/consumables';
 import { levelForXp } from '../data/progression';
 import { BuyResult } from './StoreEngine';
 
@@ -97,6 +98,8 @@ function grantReward(profile: PlayerProfile, reward: SeasonReward): void {
   } else if ('coins' in reward) {
     profile.coins += reward.coins;
     profile.coinsEarned += reward.coins; // grow-only lifetime tally
+  } else if ('trueVision' in reward) {
+    grantConsumable(profile, TRUE_VISION.id, reward.trueVision);
   } else {
     profile.xp += reward.xp;
     profile.level = levelForXp(profile.xp);
@@ -108,6 +111,7 @@ export function rewardLabel(reward: SeasonReward): { icon: string; name: string 
   if ('coins' in reward) return { icon: '🪙', name: `${reward.coins} J-Coins` };
   if ('xp' in reward) return { icon: '✨', name: `${reward.xp} XP` };
   if ('perk' in reward) return { icon: '⚡', name: perkById(reward.perk)?.name ?? 'Perk' };
+  if ('trueVision' in reward) return { icon: TRUE_VISION.icon, name: `${reward.trueVision}× True Vision` };
   const item = STORE_BY_ID.get(reward.item);
   if (!item) return { icon: '🎁', name: reward.item };
   const icons: Record<string, string> = {

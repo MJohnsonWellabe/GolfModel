@@ -174,6 +174,25 @@ export interface Hazard {
    */
   accentChance?: number;
   /**
+   * Trees only: every trunk in this hazard is a palm — collides only at the
+   * trunk (near ground) and again at the canopy up top, with open air in
+   * between (a real palm's silhouette), instead of the usual single flat
+   * collision band. Independent of `accent`/`accentChance` — a hazard can be
+   * a 100% palm specimen line (`accent: true, palm: true`) with no per-trunk
+   * randomness. Height/band geometry derives from `treeR` at runtime (see
+   * PHYSICS.palm* constants), so it can never drift from the rendered model.
+   */
+  palm?: boolean;
+  /**
+   * Trees only, used with `accentChance` (NOT `accent`): true when this
+   * hazard's ACCENT species (the one `accentChance` rolls a fraction of
+   * trunks into) is palm — e.g. a mixed shoreline that's part palm, part
+   * pine. Collision rolls the identical per-trunk hash course3d's renderer
+   * uses to pick the accent species, so only the trunks that actually render
+   * as palm fronds get palm-shaped collision.
+   */
+  accentIsPalm?: boolean;
+  /**
    * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
    * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
    * contributes trunks when rendering. Use this for a second, denser/closer

@@ -504,8 +504,8 @@ function flat(scene: Scene, name: string, color: number): StandardMaterial {
   return mt;
 }
 
-/** Deterministic hash in [0,1) so prop placement is stable across reloads. */
-export function hash2(x: number, y: number): number {
-  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return s - Math.floor(s);
-}
+/** Deterministic hash in [0,1) so prop placement is stable across reloads.
+ *  Canonical definition lives in treeField.ts (a pure, Babylon-free module)
+ *  so physics-side collision can make the identical per-trunk roll this
+ *  module's rendering code makes — re-exported here for existing importers. */
+export { hash2 } from '../systems/treeField';

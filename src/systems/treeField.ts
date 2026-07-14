@@ -1,5 +1,5 @@
 import { pointInPolygon } from '../utils/Geometry';
-import { HoleData, Polygon } from '../core/types';
+import { Hazard, HoleData, Polygon } from '../core/types';
 
 /**
  * Per-tree canopy blobs for a hole — the single source of truth for where the
@@ -25,11 +25,31 @@ export interface TreeBlob {
   accent?: boolean;
   /** Per-hazard accent fraction (types.ts accentChance) — a mixed line. */
   accentChance?: number;
+  /** True if THIS trunk collides as a palm (trunk + elevated canopy, gap
+   *  between) rather than the usual single flat band. Resolved per-trunk at
+   *  build time: `hz.palm` (100% palm hazards) OR, for a mixed `accentChance`
+   *  hazard flagged `accentIsPalm`, the identical per-trunk hash course3d's
+   *  renderer uses to pick the accent species — so a trunk only gets
+   *  palm-shaped collision when it actually renders as a palm frond. */
+  isPalm?: boolean;
 }
 
 /** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
 export function blobHash(x: number, y: number): number {
   const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/**
+ * Deterministic 0..1 hash used for prop placement AND the per-trunk accent
+ * species roll (course3d's `plantTree`) — lives here (not natureModels.ts, a
+ * Babylon-dependent module) so PhysicsEngine/treeField can make the exact
+ * same per-trunk species decision the renderer makes, keeping palm-shaped
+ * collision in sync with which trunks actually render as palm fronds.
+ * natureModels.ts re-exports this rather than defining its own copy.
+ */
+export function hash2(x: number, y: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
   return s - Math.floor(s);
 }
 
@@ -39,6 +59,16 @@ function distToSeg(px: number, py: number, ax: number, ay: number, bx: number, b
   const lenSq = dx * dx + dy * dy;
   const t = lenSq > 0 ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq)) : 0;
   return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+}
+
+/** Per-trunk palm decision: a flat `hz.palm` hazard is 100% palm; a mixed
+ *  `accentIsPalm` hazard rolls the SAME per-trunk hash course3d's renderer
+ *  uses (`hash2(x*1.7, y*0.9) < accentChance`) to decide the accent species,
+ *  so collision only palm-shapes the trunks that actually render as palms. */
+function resolveIsPalm(hz: Hazard, x: number, y: number): boolean {
+  if (hz.palm) return true;
+  if (hz.accentIsPalm) return hash2(x * 1.7, y * 0.9) < (hz.accentChance ?? 0.15);
+  return false;
 }
 
 /** Distance from a point to the nearest fairway polygon (0 if inside one). */
@@ -156,7 +186,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
           tint: 0.82 + blobHash(xx + 3, yy + 11) * 0.32,
           blossom: hz.blossom,
           accent: hz.accent,
-          accentChance: hz.accentChance
+          accentChance: hz.accentChance,
+          isPalm: resolveIsPalm(hz, jx + offX, jy + offY)
         });
       }
     }
@@ -180,7 +211,8 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
         tint: 0.82 + blobHash(cx + 3, cy + 11) * 0.32,
         blossom: hz.blossom,
         accent: hz.accent,
-        accentChance: hz.accentChance
+        accentChance: hz.accentChance,
+        isPalm: resolveIsPalm(hz, cx + offX, cy + offY)
       });
     }
   }
