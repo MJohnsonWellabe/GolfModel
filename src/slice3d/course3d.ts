@@ -2015,10 +2015,13 @@ export function buildCourse(
         // separate invented asset) — planted on the hole-side of EVERY bunker
         // (plain, waste, beach, or revetted-wall) so a trap reads as sand
         // carved out of a real turf lip, not a clean disc dropped onto flat
-        // ground.
+        // ground. Grows in a few THICK, MOUNDED clumps with bare sand-to-turf
+        // gaps between them (real links fescue at a bunker edge — reference
+        // photo), not an even scatter across the whole rim: collect the
+        // hole-side rim into an array, pick 1-3 deterministic cluster
+        // centers, and densely jitter many instances around each.
         const pool = pick(theme.heatherKeys ?? []);
         if (!pool.length) return;
-        const KEEP_RATE = 0.85;
         for (const hz of hole.hazards) {
           if (hz.type !== 'bunker') continue;
           const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
@@ -2029,11 +2032,16 @@ export function buildCourse(
           const gux = gx / glen;
           const guy = gy / glen;
           const n = hz.polygon.length;
+          // Hole-side arc only — the lip nearer the green, not the whole rim
+          // (unchanged convention; this is what fixed the "no grass by the
+          // bunker" bug earlier this session). Sampled finer than before (/4
+          // vs /6) so cluster centers can land anywhere along it.
+          const rim: Array<{ x: number; y: number; nx: number; ny: number }> = [];
           for (let i = 0; i < n; i++) {
             const [x1, y1] = hz.polygon[i];
             const [x2, y2] = hz.polygon[(i + 1) % n];
             const segLen = Math.hypot(x2 - x1, y2 - y1);
-            const steps = Math.max(1, Math.round(segLen / 6));
+            const steps = Math.max(1, Math.round(segLen / 4));
             for (let s = 0; s < steps; s++) {
               const t = s / steps;
               const px = x1 + (x2 - x1) * t;
@@ -2041,11 +2049,23 @@ export function buildCourse(
               const nx = px - cx;
               const ny = py - cy;
               const nlen = Math.hypot(nx, ny) || 1;
-              // Hole-side arc only — the lip nearer the green, not the whole rim.
               if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
-              if (hash2(px * 1.9, py * 2.3) > KEEP_RATE) continue;
-              const ox = px + (nx / nlen) * 2.5;
-              const oy = py + (ny / nlen) * 2.5;
+              rim.push({ x: px, y: py, nx: nx / nlen, ny: ny / nlen });
+            }
+          }
+          if (!rim.length) continue;
+          // 1-3 cluster centers — a short rim (a tiny pot bunker) gets just
+          // one so it doesn't end up fully carpeted.
+          const clusterCount = rim.length < 12 ? 1 : 1 + Math.floor(hash2(cx + 5, cy - 5) * 3);
+          const CLUSTER_JITTER = 8; // world units the clump scatters from its center
+          for (let k = 0; k < clusterCount; k++) {
+            const center = rim[Math.floor(hash2(cx + k * 41 + 7, cy - k * 23 - 11) * rim.length)];
+            const count = 8 + Math.floor(hash2(center.x, center.y + k) * 13); // 8-20 per clump
+            for (let j = 0; j < count; j++) {
+              // Tiny 0.6-unit outward nudge (was 2.5) — the clump overlaps
+              // the sand edge instead of standing back from it.
+              const jx = center.x + (hash2(center.x + j * 3.1, center.y - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 + center.nx * 0.6;
+              const jy = center.y + (hash2(center.y + j * 3.1, center.x - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 + center.ny * 0.6;
               // Accept rough OR fairway turf: a fairway-side bunker (very common —
               // Sable Bay/Port Johnson both flank the short grass directly, no rough
               // buffer between) has NO rough anywhere along its rim, so gating on
@@ -2053,10 +2073,11 @@ export function buildCourse(
               // leaving a completely bare sand→fairway edge (bug report: "no grass
               // by the bunker" at Sable Bay and Port Johnson). Green/fringe/sand/
               // water/trees stay excluded — a putting collar or another hazard
-              // should never sprout wiregrass.
-              const surf = engine.surfaceAt(ox, oy);
+              // should never sprout wiregrass. Applied per jittered instance, so a
+              // clump naturally thins out where it reaches past the turf edge.
+              const surf = engine.surfaceAt(jx, jy);
               if (surf !== 'rough' && surf !== 'fairway') continue;
-              place(pool, ox, oy, 3.0 + hash2(ox + 3, oy) * 1.2);
+              place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
             }
           }
         }

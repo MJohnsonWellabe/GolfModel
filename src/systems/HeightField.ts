@@ -1,5 +1,6 @@
 import { HoleData } from '../core/types';
 import { pointInGreens } from '../utils/Geometry';
+import { hash2 } from './treeField';
 
 /**
  * Authored macro-terrain for a hole: a sum of radial control-point bumps
@@ -53,6 +54,39 @@ function maxRadiusClearOfGreen(hole: HoleData, cx: number, cy: number, desiredR:
     r -= 4;
   }
   return 0;
+}
+
+/** Deterministic 1-2 small dome mounds tucked against a bunker's OUTER rim
+ *  (the side away from the green) — generalizes the "sitting in a dune" look
+ *  Port Johnson's hand-authored elevation gives its traps to every ordinary
+ *  bunker on every course, without hand-authoring per hole. Kept on the
+ *  non-green side so it never competes with course3d's green-side fescue
+ *  lip, and clamped clear of the green the same way the dish is. */
+function addFlankingMounds(hole: HoleData, cx: number, cy: number, r: number, pts: ElevationPoint[]): void {
+  const gx = hole.green.cx - cx;
+  const gy = hole.green.cy - cy;
+  const glen = Math.hypot(gx, gy) || 1;
+  const outAngle = Math.atan2(-gy / glen, -gx / glen); // away from the green
+  const moundCount = hash2(cx * 1.3 + 2, cy * 0.7 - 3) < 0.45 ? 1 : 2;
+  for (let k = 0; k < moundCount; k++) {
+    // First mound anywhere within ±80° of straight outward; the second (if
+    // any) is rotated well clear of the first so the pair genuinely FLANKS
+    // the bunker (one to each side) instead of stacking on one spot.
+    const spread =
+      k === 0
+        ? (hash2(cx + 11, cy - 11) - 0.5) * ((160 * Math.PI) / 180)
+        : (hash2(cx - 17, cy + 19) - 0.5) * ((60 * Math.PI) / 180) +
+          Math.PI * (hash2(cx + 5, cy + 5) < 0.5 ? 0.55 : -0.55);
+    const angle = outAngle + spread;
+    const moundR = 40 + hash2(cx + k * 7, cy + k * 13) * 20; // 40-60, matches Port Johnson's examples
+    const dist = r + moundR * 0.45; // overlaps the dish's outer rim slightly — no flat moat between them
+    const mx = cx + Math.cos(angle) * dist;
+    const my = cy + Math.sin(angle) * dist;
+    const clampedR = maxRadiusClearOfGreen(hole, mx, my, moundR);
+    if (clampedR <= 0) continue;
+    const h = 1.5 + hash2(cx + k * 3, cy - k * 5) * 1.0; // 1.5-2.5, matches Port Johnson's examples
+    pts.push({ x: mx, y: my, h, r: clampedR });
+  }
 }
 
 export class HeightField {
@@ -143,6 +177,7 @@ export function buildHeightField(hole: HoleData): HeightField | null {
       // A flat sunken floor (plateau) a touch WIDER than the trap so the whole
       // sand sits low and the skirt (where the wall stands) hugs the rim.
       pts.push({ x: cx, y: cy, h: -WALL_DEPTH, r: r + 6, shape: 'plateau' });
+      addFlankingMounds(hole, cx, cy, r, pts);
     } else if (!hz.beach && !hz.waste) {
       // A smooth, rounded dish (dome, not a flat floor) so an ordinary trap
       // reads as a natural hollow carved into the hillside, with the turf
@@ -151,6 +186,7 @@ export function buildHeightField(hole: HoleData): HeightField | null {
       // putting surface it sits beside.
       const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
       if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH, r: dishR });
+      addFlankingMounds(hole, cx, cy, r, pts);
     }
   }
   if (pts.length === 0) return null;
