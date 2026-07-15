@@ -313,12 +313,15 @@ changes gameplay.
   fine — every reached level becomes claimable at once. Earned rewards stay
   claimable after the season ends; only accrual stops.
 - **Rewards:** 4 roster characters, 20 season-exclusive tints (ball / trail /
-  club / outfit), coin and XP drips, and — as the whole level 46–50 finale —
-  five marquee companion **pals**, each shown with a full render in the pass:
-  Triceratops (46), Mango (47), Deadpool (48), Toothless (49), Spiderman (50).
-  Pals are static uploaded models converted by `convert-pals`; their pass
-  renders come from `npm run pal-portraits` (assets/ui/pals/<key>.png). Season
-  exclusives are catalog items flagged `season: 's1'` — never sold in the
+  club / outfit), coin and XP drips, and five marquee companion **pals**
+  closing pages 6–10 (levels 30/35/40/45/50 — the last card of each page),
+  each shown with a full render in the pass: Triceratops (30), Mango (35),
+  Deadpool (40), Toothless (45), and the season finale Thanos (50). Pals are
+  uploaded models converted by `convert-pals` (Thanos is the one rigged/
+  skinned upload of the batch, looped through its baked idle clip for the
+  portrait; the rest are static); their pass renders come from
+  `npm run pal-portraits` (assets/ui/pals/<key>.png). Season exclusives are
+  catalog items flagged `season: 's1'` — never sold in the
   store, never auto-owned despite their zero price (StoreEngine guards + tests).
 - State lives on the profile (`season: { id, xp, claimed[], owned }`) and
   merges like everything else: xp by max, claimed by union, owned by OR.

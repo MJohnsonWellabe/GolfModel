@@ -21,7 +21,7 @@ export type PalKey =
   | 'trice'
   | 'toothless'
   | 'deadpool'
-  | 'spidey';
+  | 'thanos';
 
 export interface PalDef {
   key: PalKey;
@@ -69,13 +69,15 @@ export const PALS: PalDef[] = [
   // Bright-orange gecko recolor (same mesh as Zippy) — a Season 1 pass
   // exclusive; never sold in the store.
   def('geckoorange', 'Mango', 2.6, '🦎'),
-  // Season 1 pass marquee companions (levels 46-50, pass-exclusive). Static
-  // uploaded chibi models converted by convert-pals; sized like the other
-  // critters (low-slung dino, taller humanoids, dragon as tall as Ember).
+  // Season 1 pass marquee companions (levels 30/35/40/45/50, pass-exclusive).
+  // Uploaded models converted by convert-pals; sized like the other critters
+  // (low-slung dino, taller humanoids). Thanos is the level-50 finale — the
+  // only rigged/skinned upload of the batch, tallest pal in the roster to
+  // read as the imposing closer.
   def('trice', 'Triceratops', 3.4, '🦕'),
   def('toothless', 'Toothless', 4.5, '🐉'),
   def('deadpool', 'Deadpool', 4.6, '🗡️'),
-  def('spidey', 'Spiderman', 4.6, '🕷️')
+  def('thanos', 'Thanos', 5.4, '🧤')
 ];
 
 export function palByKey(key: string | undefined): PalDef | undefined {

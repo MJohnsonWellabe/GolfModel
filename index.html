@@ -1479,14 +1479,12 @@
         line-height: 30px;
         text-align: center;
       }
-      /* Season-pass marquee (levels 46-50): the companion pals render as bigger
-         "hero" cards showing each pal's full portrait. */
-      .spStoreGrid.spHeroGrid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 10px;
-      }
+      /* Season-pass marquee pals (the last card of pages 6-10 — levels
+         30/35/40/45/50) render as a bigger "hero" card showing the pal's full
+         portrait, double-width among that page's four normal swatch cards. */
       .storeCard.spHero {
-        padding: 8px 8px 10px;
+        grid-column: span 2;
+        padding: 10px 10px 12px;
       }
       .storeCard .spPalImg {
         display: block;
@@ -1497,12 +1495,8 @@
         background: radial-gradient(circle at 50% 34%, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.24));
         margin: 0 auto 6px;
       }
-      /* The level-50 finale (a lone 5th card) centers itself across the row. */
-      .spHeroGrid .storeCard.spHero:last-child {
-        grid-column: 1 / -1;
-        max-width: calc(50% - 5px);
-        margin-left: auto;
-        margin-right: auto;
+      .storeCard.spHero .sName {
+        font-size: 14px;
       }
       .storeEmpty {
         font-size: 13px;

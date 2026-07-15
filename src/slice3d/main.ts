@@ -2998,17 +2998,18 @@ function renderSeasonPass(): void {
     if (!item) return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
     if (item.kind === 'character')
       return `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />`;
-    // Pals show their FULL rendered portrait (the level 46-50 marquee cards), not
-    // an emoji — the whole companion reads on a transparent card.
+    // Pals show their FULL rendered portrait (the marquee cards closing pages
+    // 6-10 — levels 30/35/40/45/50), not an emoji — the whole companion reads
+    // on a transparent card.
     if (item.kind === 'pal')
       return `<img src="${palByKey(item.pal)?.image ?? ''}" alt="" class="spPalImg" />`;
     if (item.color !== undefined) return `<div class="swatch" style="background:${hex(item.color)}"></div>`;
     return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
   };
-  // A page whose rewards are pals (levels 46-50) lays out as bigger "hero"
-  // cards so each companion's full render is prominent.
+  // A pal reward (the last card of pages 6-10: levels 30/35/40/45/50) lays out
+  // as a bigger full-width "hero" card so its full render is prominent among
+  // the page's other four small swatch cards.
   const isPal = (r: SeasonReward): boolean => 'item' in r && STORE_BY_ID.get(r.item)?.kind === 'pal';
-  const heroPage = isPal(def.rewards[spPage * 5]);
   const cards = Array.from({ length: 5 }, (_, i) => {
     const level = spPage * 5 + i + 1;
     const reward = def.rewards[level - 1];
@@ -3041,7 +3042,7 @@ function renderSeasonPass(): void {
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${levelCost} XP`}</span></div>` +
     `<div class="recTabs spTabs">${tabs}</div>` +
-    `<div class="storeGrid spStoreGrid${heroPage ? ' spHeroGrid' : ''}">${cards}</div>` +
+    `<div class="storeGrid spStoreGrid">${cards}</div>` +
     footer +
     `<button id="spBack">Back</button></div>`;
   seasonEl.querySelectorAll('.spTab').forEach((el) =>
@@ -3362,6 +3363,7 @@ function startTournamentRound(meta: Tournament): void {
   round.seed = meta.seed;
   round.tournament = { code: meta.code, name: meta.name };
   shotAcc = freshShotAcc();
+  grantRoundTrueVision();
   // Persist the wizard's picks like a normal round so they stick next launch.
   persistProfile();
   const golfer = roundGolfer();
@@ -3433,6 +3435,7 @@ function startAiTourRound(): void {
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
+  grantRoundTrueVision();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
@@ -4160,6 +4163,18 @@ function updateDailyBanner(): void {
   el.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${ch.name}</span>`;
 }
 
+/** Every round starts with at least one True Vision charge: a fresh grant of
+ *  1 stacks onto whatever the player already owns (season-pass packs, gifts)
+ *  — owning 3 means 4 available this round, owning 0 means the free 1 covers
+ *  it — rather than a use-it-or-lose-it round-scoped freebie. Called from
+ *  every round-start entry point (solo/versus, online tournament, AI
+ *  tournament) so it's never missed. Local-only persist, matching the other
+ *  round-start bookkeeping in these functions — no forced cloud round-trip. */
+function grantRoundTrueVision(): void {
+  grantConsumable(profile, TRUE_VISION.id, 1);
+  persistProfile();
+}
+
 function startRound(): void {
   // A fresh start from the menu abandons any half-finished AI tournament.
   aiTour = null;
@@ -4175,11 +4190,13 @@ function startRound(): void {
   // Remember the selections for next launch (persisted only when signed in)
   persistProfile();
   // The AI Tournament is a mode: hand off to the three-round loop instead of
-  // a single three-hole round.
+  // a single three-hole round. startAiTourRound() grants this round's True
+  // Vision itself — granting here too would double it on tournament round 1.
   if (sel.mode === 'aitour') {
     startAiTournament();
     return;
   }
+  grantRoundTrueVision();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (round.mode !== 'solo') {
@@ -4363,6 +4380,11 @@ else {
 // Test hook: expose the live AI-tournament state so specs can assert the
 // rota/standings without scraping the DOM (read-only snapshot).
 (window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
+
+// Test hook: read the player's current True Vision charge count, so specs
+// can assert every round grants at least one without scraping the DOM.
+(window as unknown as { __trueVisionCharges: unknown }).__trueVisionCharges = () =>
+  chargesRemaining(profile, TRUE_VISION.id);
 
 // Test hook: grant session coins so specs can exercise the purchase flow
 // (signed-out play is ephemeral — nothing here persists or reaches the cloud).

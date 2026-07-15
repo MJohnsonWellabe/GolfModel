@@ -33,6 +33,21 @@ test('scramble round boots with a partner', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('scramble');
 });
 
+test('every round grants at least one True Vision charge, stacking with what the player already owns', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  // A fresh profile owns none — the first round's free charge covers it.
+  await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'solo' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(1);
+  // A second round start (nothing was spent) adds another charge on top —
+  // "if they have their own, they add to the one" — not a round-scoped
+  // freebie that resets to a flat 1 each time.
+  await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'solo' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(2);
+});
+
 test('AI tournament boots round 1 of a three-course rota', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
@@ -43,6 +58,10 @@ test('AI tournament boots round 1 of a three-course rota', async ({ page }) => {
   // The player's rounds run as ordinary solo rounds; only the leaderboard
   // between rounds knows it's a tournament.
   expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('solo');
+  // startRound() hands 'aitour' mode off to startAiTourRound() before it would
+  // grant its own True Vision charge — guards against double-granting on the
+  // tournament's very first round (each round-start path grants exactly once).
+  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(1);
   const t = await page.evaluate(() => (window as any).__aiTour());
   expect(t.played).toBe(0);
   expect(t.courseIds.length).toBe(3);

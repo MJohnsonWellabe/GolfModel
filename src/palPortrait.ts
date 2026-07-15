@@ -18,8 +18,11 @@ import { palByKey } from './data/pals';
  * Dev-only PAL portrait harness. Loads one pal (`?key=<key>`) and frames the
  * whole creature on a TRANSPARENT background so the Season-Pass hero card
  * supplies its own backdrop. `scripts/gen-pal-portraits.mjs` drives this page
- * once per pal and screenshots the canvas into assets/ui/pals/<key>.png. Pals
- * ship no animation clips, so this just poses the static model.
+ * once per pal and screenshots the canvas into assets/ui/pals/<key>.png. Most
+ * pals ship no animation clips (static scans/uploads) and just pose at rest;
+ * a rigged upload with a baked clip (e.g. Thanos's "Idle Animation") is looped
+ * a few frames in before capture so the portrait reads as a held stance
+ * instead of the model's raw bind pose.
  */
 
 const canvas = document.getElementById('c') as HTMLCanvasElement;
@@ -65,11 +68,12 @@ void LoadAssetContainerAsync(`models/pals/${key}.glb`, scene).then((container) =
   root.computeWorldMatrix(true);
 
   // Per-pal framing override: world-height window measured DOWN from the top
-  // of the model. Used for T-pose models with no skeleton to re-pose (e.g.
-  // Spiderman) — showing just the head + torso crops the outstretched arms out
-  // of frame so it reads as a natural head-and-shoulders portrait instead of a
-  // stiff T-pose.
-  const TOP_CROP: Partial<Record<string, number>> = { spidey: 2.45 };
+  // of the model. For a static T-pose model with no skeleton to re-pose,
+  // showing just the head + torso crops the outstretched arms out of frame so
+  // it reads as a natural head-and-shoulders portrait instead of a stiff
+  // T-pose (unused today — the current roster's static uploads all pose fine
+  // whole-body — but kept for the next one that doesn't).
+  const TOP_CROP: Partial<Record<string, number>> = {};
 
   bounds = root.getHierarchyBoundingVectors(true);
   const cropH = TOP_CROP[key];
@@ -88,9 +92,16 @@ void LoadAssetContainerAsync(`models/pals/${key}.glb`, scene).then((container) =
     cam.radius = (span / 2 / Math.tan(cam.fov / 2)) * 1.35;
   }
 
+  // A rigged upload (e.g. Thanos) ships a baked idle clip — loop it so the
+  // captured frame is a natural held stance rather than the raw bind pose.
+  // Static uploads (no animationGroups) just settle in their one pose.
+  const anim = container.animationGroups[0];
+  anim?.start(true);
+  const settleFrames = anim ? 40 : 8;
+
   let frames = 0;
   scene.onAfterRenderObservable.add(() => {
-    if (++frames >= 8) (window as PortraitWindow).__portraitReady = true;
+    if (++frames >= settleFrames) (window as PortraitWindow).__portraitReady = true;
   });
 });
 
