@@ -442,6 +442,27 @@ export function renderCourseCanvas(
   const fescueClusters = bunkerFescueClusters(hole, theme);
   const FESCUE_PATCH_IN = FESCUE_CLUSTER_JITTER * 1.4;
   const FESCUE_PATCH_OUT = FESCUE_CLUSTER_JITTER * 2.4;
+  const FESCUE_PATCH_OUT2 = FESCUE_PATCH_OUT * FESCUE_PATCH_OUT;
+  // Bucket the clumps into a uniform grid (cell = the patch reach) so each turf
+  // texel below only tests the handful of clusters that can actually cover it,
+  // not all of them. The patch now paints on rough/fairway as well as sand
+  // (most of the map), and a bunker-heavy links has many clumps — Port Johnson
+  // h1 packs 18 traps (~50+ clusters) — so a naive clusters-per-texel scan with
+  // a pointInPolygon each made the SYNCHRONOUS ground bake hang the game before
+  // it reached the first hole. With cell = FESCUE_PATCH_OUT, every cluster
+  // within reach of a texel sits in that texel's own cell or a neighbour, so the
+  // 3×3 block around a texel's cell is a complete, tiny candidate set.
+  const FGRID_CELL = FESCUE_PATCH_OUT;
+  const fgOriginX = -pad;
+  const fgOriginY = -pad;
+  const fgCols = Math.max(1, Math.ceil((hole.world.width + pad * 2) / FGRID_CELL));
+  const fgRows = Math.max(1, Math.ceil((hole.world.height + pad * 2) / FGRID_CELL));
+  const fgCells: FescueCluster[][] = fescueClusters.length ? Array.from({ length: fgCols * fgRows }, () => []) : [];
+  for (const fc of fescueClusters) {
+    const c = Math.min(fgCols - 1, Math.max(0, Math.floor((fc.x - fgOriginX) / FGRID_CELL)));
+    const r = Math.min(fgRows - 1, Math.max(0, Math.floor((fc.y - fgOriginY) / FGRID_CELL)));
+    fgCells[r * fgCols + c].push(fc);
+  }
 
   // Edge-wobble amplitude multiplier (default 1 → historical subtle ripple).
   const ew = theme.edgeWobble ?? 1;
@@ -551,12 +572,22 @@ export function renderCourseCanvas(
       // links rough on any surface. Green/fringe/water/tee are left alone.
       let fescueBlend = 0;
       if ((cls === 4 || cls === 0 || cls === 1) && fescueClusters.length) {
-        for (const fc of fescueClusters) {
-          if (pointInPolygon(jx, jy, fc.hzPolygon)) continue; // the trap itself stays sand
-          const d = Math.hypot(jx - fc.x, jy - fc.y);
-          if (d >= FESCUE_PATCH_OUT) continue;
-          const t = d <= FESCUE_PATCH_IN ? 1 : 1 - (d - FESCUE_PATCH_IN) / (FESCUE_PATCH_OUT - FESCUE_PATCH_IN);
-          if (t > fescueBlend) fescueBlend = t;
+        // Only the clumps in this texel's cell + 8 neighbours can reach it.
+        const c0 = Math.min(fgCols - 1, Math.max(0, Math.floor((jx - fgOriginX) / FGRID_CELL)));
+        const r0 = Math.min(fgRows - 1, Math.max(0, Math.floor((jy - fgOriginY) / FGRID_CELL)));
+        for (let rr = Math.max(0, r0 - 1); rr <= Math.min(fgRows - 1, r0 + 1) && fescueBlend < 1; rr++) {
+          for (let cc = Math.max(0, c0 - 1); cc <= Math.min(fgCols - 1, c0 + 1) && fescueBlend < 1; cc++) {
+            for (const fc of fgCells[rr * fgCols + cc]) {
+              const ddx = jx - fc.x;
+              const ddy = jy - fc.y;
+              const d2 = ddx * ddx + ddy * ddy;
+              if (d2 >= FESCUE_PATCH_OUT2) continue; // cheap cull before the polygon test
+              if (pointInPolygon(jx, jy, fc.hzPolygon)) continue; // the trap itself stays sand
+              const d = Math.sqrt(d2);
+              const t = d <= FESCUE_PATCH_IN ? 1 : 1 - (d - FESCUE_PATCH_IN) / (FESCUE_PATCH_OUT - FESCUE_PATCH_IN);
+              if (t > fescueBlend) fescueBlend = t;
+            }
+          }
         }
       }
 
