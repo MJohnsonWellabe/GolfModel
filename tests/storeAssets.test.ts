@@ -31,13 +31,14 @@ describe('store catalog — every item is actually built', () => {
     }
   });
 
-  it('every pal item resolves to a real PalDef with a shipped model', () => {
+  it('every pal item resolves to a real PalDef with a shipped model + portrait', () => {
     const pals = STORE_CATALOG.filter((i) => i.kind === 'pal');
     expect(pals.length).toBeGreaterThan(0);
     for (const item of pals) {
       const def = palByKey(item.pal);
       expect(def, `${item.id}: pal key '${item.pal}' has no PalDef`).toBeTruthy();
       expect(hasAsset(def!.file), `${item.id}: missing model ${def!.file}`).toBe(true);
+      expect(hasAsset(def!.image), `${item.id}: missing portrait ${def!.image}`).toBe(true);
     }
   });
 

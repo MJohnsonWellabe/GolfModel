@@ -239,7 +239,12 @@ export const STORE_CATALOG: StoreItem[] = [
       season: 's1'
     })
   ),
-  { id: 's1_pal_geckoorange', kind: 'pal', name: 'Mango', price: 0, rarity: 'special', pal: 'geckoorange', season: 's1' }
+  { id: 's1_pal_geckoorange', kind: 'pal', name: 'Mango', price: 0, rarity: 'special', pal: 'geckoorange', season: 's1' },
+  // Season-1 pass marquee companions (levels 46-50, claim-only).
+  { id: 's1_pal_trice', kind: 'pal', name: 'Triceratops', price: 0, rarity: 'special', pal: 'trice', season: 's1' },
+  { id: 's1_pal_deadpool', kind: 'pal', name: 'Deadpool', price: 0, rarity: 'special', pal: 'deadpool', season: 's1' },
+  { id: 's1_pal_toothless', kind: 'pal', name: 'Toothless', price: 0, rarity: 'special', pal: 'toothless', season: 's1' },
+  { id: 's1_pal_spidey', kind: 'pal', name: 'Spiderman', price: 0, rarity: 'special', pal: 'spidey', season: 's1' }
 ];
 
 export const STORE_BY_ID = new Map(STORE_CATALOG.map((i) => [i.id, i]));

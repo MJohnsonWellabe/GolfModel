@@ -6,11 +6,12 @@
  *
  * Reward mix (owner spec, exact counts, total 50):
  *   ball 5 · trail 5 · club colors (clubskin) 5 · skin colors (outfit) 5 ·
- *   character 4 · pal 1 · perk 5 · XP 8 · J-Coins 8 · True Vision 4 (packs of 3,
+ *   character 4 · pal 5 · perk 5 · XP 6 · J-Coins 6 · True Vision 4 (packs of 3,
  *   levels 13/21/33/41 — the putting-aid consumable, season-pass exclusive).
- * - J-Coins total ≤ 1000 across the 10 coin levels.
- * - The major rewards land on the last page (46–50): a ++ perk, a character,
- *   and the level-50 exclusive pal (Mango, the bright-orange gecko).
+ * - J-Coins total ≤ 1000 across the coin levels.
+ * - The whole last page (46–50) is the pass's marquee companion pals, each with
+ *   a full render in the pass: Triceratops · Mango · Deadpool · Toothless ·
+ *   Spiderman. Everything else lives in levels 1–45.
  * - Everyone accrues pass XP while the season runs; claiming rewards requires
  *   owning the pass ($5). Claims are retroactive. Pass purchases OPEN on
  *   2026-07-14 (see salesOpen); until then the game says "coming soon".
@@ -76,8 +77,13 @@ const TRAILS = ['s1_trail_aurora', 's1_trail_violet', 's1_trail_crimson', 's1_tr
 const CLUBSKINS = ['s1_clubskin_copper', 's1_clubskin_rose', 's1_clubskin_violet', 's1_clubskin_frost', 's1_clubskin_neon'];
 const OUTFITS = ['s1_outfit_coral', 's1_outfit_teal', 's1_outfit_lavender', 's1_outfit_ember', 's1_outfit_ivory'];
 const CHARACTERS = ['char_kuro', 'char_jade', 'char_nova', 'char_zuri'];
+// Page 10 marquee companion pals (full renders in the pass). Mango (the
+// bright-orange gecko) sits at 47; the four uploaded chibi models fill the rest.
+const PALS = ['s1_pal_trice', 's1_pal_geckoorange', 's1_pal_deadpool', 's1_pal_toothless', 's1_pal_spidey'];
 
 // Explicit level → reward assignment. Counts verified by seasonPass.test.ts.
+// True Vision is fixed at 13/21/33/41; levels 46-50 are the marquee pals; every
+// other reward lives in 1-45.
 const FIXED: Record<number, SeasonReward> = {
   // Page 1
   1: { xp: 150 },
@@ -87,58 +93,58 @@ const FIXED: Record<number, SeasonReward> = {
   5: { perk: 'perk_drive_t1_r1' },
   // Page 2
   6: { item: CLUBSKINS[0] },
-  7: { xp: 150 },
+  7: { item: OUTFITS[0] },
   8: { coins: 75 },
-  9: { item: OUTFITS[0] },
-  10: { item: BALLS[1] },
+  9: { item: BALLS[1] },
+  10: { item: CHARACTERS[0] },
   // Page 3
   11: { xp: 200 },
-  12: { item: CHARACTERS[0] },
+  12: { item: TRAILS[1] },
   13: { trueVision: 3 },
-  14: { item: TRAILS[1] },
+  14: { item: CLUBSKINS[1] },
   15: { perk: 'perk_wedge_t1_r3' },
   // Page 4
-  16: { item: CLUBSKINS[1] },
-  17: { xp: 200 },
-  18: { coins: 100 },
-  19: { item: OUTFITS[1] },
-  20: { item: BALLS[2] },
+  16: { item: OUTFITS[1] },
+  17: { coins: 100 },
+  18: { item: BALLS[2] },
+  19: { item: CHARACTERS[1] },
+  20: { item: TRAILS[2] },
   // Page 5
   21: { trueVision: 3 },
-  22: { item: TRAILS[2] },
-  23: { coins: 100 },
-  24: { item: CLUBSKINS[2] },
-  25: { item: CHARACTERS[1] },
+  22: { item: CLUBSKINS[2] },
+  23: { xp: 250 },
+  24: { item: OUTFITS[2] },
+  25: { perk: 'perk_iron_t2_r3' },
   // Page 6
-  26: { xp: 250 },
+  26: { coins: 100 },
   27: { item: BALLS[3] },
-  28: { coins: 100 },
-  29: { item: OUTFITS[2] },
-  30: { perk: 'perk_iron_t2_r3' },
+  28: { item: CHARACTERS[2] },
+  29: { item: TRAILS[3] },
+  30: { item: CLUBSKINS[3] },
   // Page 7
-  31: { item: TRAILS[3] },
-  32: { xp: 300 },
+  31: { xp: 300 },
+  32: { item: OUTFITS[3] },
   33: { trueVision: 3 },
-  34: { item: CLUBSKINS[3] },
-  35: { item: CHARACTERS[2] },
+  34: { coins: 125 },
+  35: { perk: 'perk_putt_t1_r5' },
   // Page 8
-  36: { xp: 300 },
-  37: { item: OUTFITS[3] },
-  38: { coins: 125 },
-  39: { item: BALLS[4] },
-  40: { perk: 'perk_putt_t1_r5' },
+  36: { item: BALLS[4] },
+  37: { item: CHARACTERS[3] },
+  38: { item: TRAILS[4] },
+  39: { item: CLUBSKINS[4] },
+  40: { item: OUTFITS[4] },
   // Page 9
   41: { trueVision: 3 },
-  42: { item: TRAILS[4] },
-  43: { coins: 125 },
-  44: { item: CLUBSKINS[4] },
+  42: { coins: 125 },
+  43: { perk: 'perk_drive_t2_r5' },
+  44: { xp: 400 },
   45: { xp: 500 },
-  // Page 10 (major rewards)
-  46: { item: CHARACTERS[3] },
-  47: { perk: 'perk_drive_t2_r5' },
-  48: { item: OUTFITS[4] },
-  49: { coins: 150 },
-  50: { item: 's1_pal_geckoorange' }
+  // Page 10 — marquee companion pals, each a full render in the pass
+  46: { item: PALS[0] }, // Triceratops
+  47: { item: PALS[1] }, // Mango
+  48: { item: PALS[2] }, // Deadpool
+  49: { item: PALS[3] }, // Toothless
+  50: { item: PALS[4] } // Spiderman
 };
 
 const REWARDS: SeasonReward[] = Array.from({ length: 50 }, (_, i) => {

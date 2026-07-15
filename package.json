@@ -10,6 +10,7 @@
     "test": "vitest run",
     "shots": "playwright test -c playwright.config.ts",
     "portraits": "node scripts/gen-portraits.mjs",
+    "pal-portraits": "node scripts/gen-pal-portraits.mjs",
     "convert:nature": "node scripts/convert-nature.mjs",
     "convert:pals": "node scripts/convert-pals.mjs",
     "convert:sand": "node scripts/convert-sand-texture.mjs",

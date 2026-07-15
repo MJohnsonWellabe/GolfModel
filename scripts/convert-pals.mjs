@@ -57,7 +57,14 @@ const MANIFEST = {
   // Uploaded multi-file glTF pets → single web glb. Pug is a 87k-tri scan
   // (hard decimation like the dragon); the toon cat is already light.
   pug: { src: 'pug_raw/scene.gltf', ratio: 0.1, error: 0.02 },
-  cat: { src: 'cat_raw/scene.gltf', ratio: 0.85, error: 0.001 }
+  cat: { src: 'cat_raw/scene.gltf', ratio: 0.85, error: 0.001 },
+  // Season-pass companions (levels 46-50). Uploaded chibi glTF (static, real
+  // baked PBR textures) → single web glb. Modest decimation preserves the
+  // hand-stylized silhouettes; the toothless dragon is the heaviest source.
+  trice: { src: 'trice_raw/scene.gltf', ratio: 0.4, error: 0.005 },
+  toothless: { src: 'toothless_raw/scene.gltf', ratio: 0.18, error: 0.01 },
+  deadpool: { src: 'deadpool_raw/scene.gltf', ratio: 0.75, error: 0.002 },
+  spidey: { src: 'spidey_raw/scene.gltf', ratio: 0.9, error: 0.001 }
 };
 
 const io = new NodeIO();

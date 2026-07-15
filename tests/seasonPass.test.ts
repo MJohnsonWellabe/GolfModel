@@ -28,14 +28,16 @@ describe('season definition', () => {
     }
   });
 
-  it('level 50 grants the exclusive pal; characters appear sparingly', () => {
+  it('the last page (46-50) is the five marquee pals; characters appear sparingly', () => {
     const last = SEASON_1.rewards[49];
-    expect(last).toEqual({ item: 's1_pal_geckoorange' });
+    expect(last).toEqual({ item: 's1_pal_spidey' });
     const chars = SEASON_1.rewards.filter((r) => 'item' in r && r.item.startsWith('char_'));
     expect(chars.length).toBe(4);
-    // The pal appears ONLY at level 50
-    const pals = SEASON_1.rewards.filter((r) => 'item' in r && r.item.includes('pal'));
-    expect(pals.length).toBe(1);
+    // All five pals are the level 46-50 rewards, and nowhere else.
+    const palLevels = SEASON_1.rewards
+      .map((r, i) => ('item' in r && STORE_BY_ID.get(r.item)?.kind === 'pal' ? i + 1 : null))
+      .filter((v): v is number => v != null);
+    expect(palLevels).toEqual([46, 47, 48, 49, 50]);
   });
 
   it('paces to ~500 rounds at ~120 XP per round', () => {
@@ -131,7 +133,7 @@ describe('claims', () => {
     p.season.owned = true;
     p.season.xp = totalSeasonXp(SEASON_1);
     expect(claimReward(p, SEASON_1, 50).ok).toBe(true);
-    expect(p.cosmetics.owned).toContain('s1_pal_geckoorange');
+    expect(p.cosmetics.owned).toContain('s1_pal_spidey');
   });
 });
 
@@ -157,10 +159,10 @@ describe('reward mix (owner-specified exact counts)', () => {
       clubskin: 5,
       outfit: 5,
       character: 4,
-      pal: 1,
+      pal: 5,
       perk: 5,
-      xp: 8,
-      coins: 8,
+      xp: 6,
+      coins: 6,
       trueVision: 4
     });
   });
@@ -176,9 +178,12 @@ describe('reward mix (owner-specified exact counts)', () => {
     }
   });
 
-  it('the major perk (++ / 5 rounds) is on the last page', () => {
+  it('the major perk (++ / 5 rounds) is a late-track reward (the final page is pals)', () => {
     const majorLevel = SEASON_1.rewards.findIndex((r) => 'perk' in r && perkById(r.perk)?.tier === 2 && perkById(r.perk)?.rounds === 5) + 1;
-    expect(majorLevel).toBeGreaterThanOrEqual(46);
+    // Levels 46-50 are the marquee pals, so the ++ perk lands in the back of
+    // the 1-45 track rather than the final page.
+    expect(majorLevel).toBeGreaterThanOrEqual(40);
+    expect(majorLevel).toBeLessThanOrEqual(45);
   });
 
   it('every True Vision reward grants a pack of 3, never buyable with coins', () => {

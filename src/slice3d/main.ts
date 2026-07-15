@@ -2998,22 +2998,30 @@ function renderSeasonPass(): void {
     if (!item) return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
     if (item.kind === 'character')
       return `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />`;
-    if (item.kind === 'pal') return `<div class="swatch palSwatch">${palByKey(item.pal)?.icon ?? '🐾'}</div>`;
+    // Pals show their FULL rendered portrait (the level 46-50 marquee cards), not
+    // an emoji — the whole companion reads on a transparent card.
+    if (item.kind === 'pal')
+      return `<img src="${palByKey(item.pal)?.image ?? ''}" alt="" class="spPalImg" />`;
     if (item.color !== undefined) return `<div class="swatch" style="background:${hex(item.color)}"></div>`;
     return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
   };
+  // A page whose rewards are pals (levels 46-50) lays out as bigger "hero"
+  // cards so each companion's full render is prominent.
+  const isPal = (r: SeasonReward): boolean => 'item' in r && STORE_BY_ID.get(r.item)?.kind === 'pal';
+  const heroPage = isPal(def.rewards[spPage * 5]);
   const cards = Array.from({ length: 5 }, (_, i) => {
     const level = spPage * 5 + i + 1;
     const reward = def.rewards[level - 1];
     const { name } = rewardLabel(reward);
     const state = claimState(p, def, level);
     const cls = state === 'claimed' ? 'owned' : state === 'claimable' ? '' : 'locked';
+    const hero = isPal(reward) ? ' spHero' : '';
     const line =
       state === 'claimed' ? '✓ Claimed'
       : state === 'claimable' ? 'Tap to claim'
       : state === 'needsPass' ? `Lv ${level} · pass`
       : `🔒 Lv ${level}`;
-    return `<div class="storeCard ${cls}" data-level="${level}" data-claim="${state === 'claimable' ? '1' : ''}">${rewardIcon(reward)}<div class="sName">${name}</div><div class="sPrice">${line}</div></div>`;
+    return `<div class="storeCard${hero} ${cls}" data-level="${level}" data-claim="${state === 'claimable' ? '1' : ''}">${rewardIcon(reward)}<div class="sName">${name}</div><div class="sPrice">${line}</div></div>`;
   }).join('');
   const footer = p.season.owned
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
@@ -3033,7 +3041,7 @@ function renderSeasonPass(): void {
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<span class="spXp">${lvl >= def.levels ? 'Track complete!' : `${intoLevel} / ${levelCost} XP`}</span></div>` +
     `<div class="recTabs spTabs">${tabs}</div>` +
-    `<div class="storeGrid spStoreGrid">${cards}</div>` +
+    `<div class="storeGrid spStoreGrid${heroPage ? ' spHeroGrid' : ''}">${cards}</div>` +
     footer +
     `<button id="spBack">Back</button></div>`;
   seasonEl.querySelectorAll('.spTab').forEach((el) =>
