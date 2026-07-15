@@ -83,8 +83,25 @@ const MANIFEST = {
   // With that fixed, the armor's black joints/straps read as plain black
   // against the gold plating and the character's already-purple face —
   // `blackToColor` re-chromas just those near-black pixels to match.
+  // Level-50 finale. Rebuilt from a fresh "textured + rigged" upload after the
+  // original scan (thanos_raw.glb) kept reading near-black in-course even with
+  // the deMetal/blackToColor pass — its gold plating went dark under the
+  // course's dim hemi+directional light. This upload bakes a fully PURPLE skin
+  // and purple armour (gold only as trim) straight into the albedo, so it reads
+  // unmistakably purple in ANY lighting rather than relying on metal catching a
+  // highlight. A 12k-tri SKINNED mesh (skipSimplify avoids the joint-weight
+  // remap, like trex); already dielectric so deMetal is a safe no-op; its atlas
+  // is ~27% near-black (dark straps/creases) so the same luminance-scaled
+  // blackToColor purple pass re-chromas just those pixels.
+  //
+  // A second upload — a 36k-tri Fortnite Thanos skin (asset-packs/pals/
+  // thanos_fortnite_raw/) — was compared and set aside: beautifully detailed,
+  // but its body is gold armour with only the face purple, so it doesn't solve
+  // "make Thanos purple". To switch to it instead: point `src` at
+  // 'thanos_fortnite_raw/scene.gltf', drop blackToColor, set ratio:0.5/
+  // error:0.005 (it's static, not skinned), and re-run `npm run convert:pals`.
   thanos: {
-    src: 'thanos_raw.glb',
+    src: 'thanos_textured_raw/scene.gltf',
     skipSimplify: true,
     deMetal: { metallic: 0.15, minRoughness: 0.6 },
     blackToColor: [108, 59, 154]

@@ -25,7 +25,7 @@
     "haze": "#dfece8",
     "hazeStrength": 0.5,
     "backdrop": "peaks",
-    "blossomChance": 0.22,
+    "blossomChance": 0.14,
     "treeKeys": [
       "tree_oak",
       "tree_maple",

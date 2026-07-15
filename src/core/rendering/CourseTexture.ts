@@ -538,12 +538,19 @@ export function renderCourseCanvas(
         }
       }
 
-      // Fescue ground patch: a sand texel just outside a bunker's own polygon
-      // but within a fescue clump's reach softly blends toward rough — see
-      // fescueClusters above. `fescueBlend` is 1 at the clump center, fading
-      // to 0 by FESCUE_PATCH_OUT so the patch has no hard edge.
+      // Fescue ground patch: a turf/sand texel just outside a bunker's own
+      // polygon but within a fescue clump's reach softly blends toward the
+      // dune-brown rough — see fescueClusters above. `fescueBlend` is 1 at the
+      // clump center, fading to 0 by FESCUE_PATCH_OUT so the patch has no hard
+      // edge. Applied to ROUGH and FAIRWAY as well as SAND (cls 0/1/4): a
+      // fairway-side trap (Sable Bay h1's two little pot bunkers sit INSIDE the
+      // short grass) has its hole-facing rim on vivid fairway green, so gating
+      // the patch on sand alone left those clumps sprouting straight out of the
+      // green (bug report: "fescue behind the bunker... just on green"). Turning
+      // the ground under the clump dune-brown makes the wiregrass read as native
+      // links rough on any surface. Green/fringe/water/tee are left alone.
       let fescueBlend = 0;
-      if (cls === 4 && fescueClusters.length) {
+      if ((cls === 4 || cls === 0 || cls === 1) && fescueClusters.length) {
         for (const fc of fescueClusters) {
           if (pointInPolygon(jx, jy, fc.hzPolygon)) continue; // the trap itself stays sand
           const d = Math.hypot(jx - fc.x, jy - fc.y);

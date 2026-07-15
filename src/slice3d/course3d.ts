@@ -1865,7 +1865,15 @@ export function buildCourse(
         );
         if (tintable.length) generic = tintable;
       }
-      const step = tuftStep / Math.sqrt(g.density ?? 1);
+      // Cap bed density for performance. A bed's instance count grows linearly
+      // with `density` (step ~ 1/sqrt(density), count ~ 1/step²), and each bloom
+      // is TWO instances (stem + petal split), so the densest beds dominate a
+      // course's object count. Beyond ~16 the blooms already overlap into a
+      // solid mass of colour — the extra instances read identically but cost
+      // real frame time (Wildwood's beds run 18-26 and are its heaviest load).
+      // Beds at or below the cap are unchanged.
+      const GARDEN_DENSITY_CAP = 16;
+      const step = tuftStep / Math.sqrt(Math.min(g.density ?? 1, GARDEN_DENSITY_CAP));
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;
       const rot = g.rot ?? 0;

@@ -58,7 +58,7 @@
       "stone_c"
     ],
     "backdropTreeStep": 44,
-    "tuftDensity": 1.6,
+    "tuftDensity": 1.3,
     "roughTuftHeight": 1.35,
     "edgeWobble": 2.4,
     "stripeStrength": 1.2,
@@ -1232,27 +1232,27 @@
           "type": "trees",
           "polygon": [
             [
-              441,
+              431,
               510
-            ],
-            [
-              436,
-              518.7
             ],
             [
               426,
               518.7
             ],
             [
-              421,
+              416,
+              518.7
+            ],
+            [
+              411,
               510
             ],
             [
-              426,
+              416,
               501.3
             ],
             [
-              436,
+              426,
               501.3
             ]
           ],

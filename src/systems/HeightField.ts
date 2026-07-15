@@ -195,8 +195,20 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1): HeightFi
       // center). On a low island that dropped the green below the water line.
       // Such a bunker's sand reads as a shallow collar, not a deep pot.
       if (!pointInGreens(cx, cy, hole.green, hole.green2, GREEN_KEEPOUT)) {
-        const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
-        if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH * bunkerDepthScale, r: dishR });
+        // Small traps are DEEP POTS; large traps are shallow saucers — the
+        // real-world relationship, and the fix for tiny fairway pots reading
+        // dead flat. A fixed shallow dish (DISH_DEPTH) spread over the +12 pad
+        // barely dips below the surrounding dune mounds on a small trap: Sable
+        // Bay h1's two r≈11 pots sit right on authored +1-2 mounds and read as
+        // level sand. A trap at/above POT_R keeps the original saucer depth and
+        // pad (mid/large bunkers unchanged); below it the dish deepens and
+        // tightens so the sand actually sits in a scooped hollow.
+        const POT_R = 26;
+        const potT = Math.max(0, (POT_R - r) / POT_R); // 0 at r>=26, →1 as r→0
+        const dishPad = 12 - potT * 6; // 12 for large, ~6 for a tiny pot
+        const depth = DISH_DEPTH * bunkerDepthScale * (1 + potT * 0.9); // up to ~1.9x deeper for tiny
+        const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + dishPad);
+        if (dishR > 0) pts.push({ x: cx, y: cy, h: -depth, r: dishR });
       }
       addFlankingMounds(hole, cx, cy, r, pts);
     }

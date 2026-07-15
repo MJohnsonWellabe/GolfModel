@@ -28,6 +28,15 @@ Docs 09 performance targets: **60 fps target, 30 fps floor, < 5 s cold load.**
 | Budget Android (≤4 GB RAM) | Android / Chrome | — | — | Worst-case perf — watch tree-heavy Timberline | ☐ |
 | Desktop | Any / Chrome, Firefox, Safari | — | — | Mouse-drag aim + keyboard | ☐ |
 
+## Render resolution
+
+The engine renders at the display's pixel ratio **capped at 2×** (`main.ts`,
+`MAX_RENDER_DPR`). On a 3× phone that is ~56 % fewer pixels through the lit
+pass, the shadow map and the water mirror than rendering at full native — the
+single biggest mobile GPU win, and imperceptible at arm's length. If a device
+pass ever shows soft/aliased edges on a very high-DPI screen, this cap is the
+first knob to revisit.
+
 ## Things to check every pass
 
 - **Load:** first render under 5 s cold; no white-screen hang on the heavy

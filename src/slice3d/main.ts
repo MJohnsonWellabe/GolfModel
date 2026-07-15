@@ -83,6 +83,20 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 // captures (and reliable headless verification) at negligible cost here.
 const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true, preserveDrawingBuffer: true });
 
+// Cap the render resolution at 2x CSS pixels. `adaptToDeviceRatio` above backs
+// the canvas at the display's FULL pixel ratio (3x on many phones), and every
+// full-screen GPU cost — the lit pass, the 1024² shadow map, and the water
+// mirror — scales with that pixel count SQUARED. Past ~2x the extra sharpness
+// is imperceptible on a hand-held screen while the fill cost keeps climbing, so
+// clamping here is the single most universal performance win: on a 3x phone it
+// cuts rendered pixels by ~56%. Freeing that frame time is also the real fix
+// for the power meter reading slow/jumpy on the heavier courses (WW Glen,
+// Timberline) — the meter is delta-time correct, but starves when the render
+// thread is pixel-bound. Displays at 1x/2x are untouched; only >2x render less.
+const MAX_RENDER_DPR = 2;
+const renderDpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
+engine3d.setHardwareScalingLevel(1 / renderDpr);
+
 const hudEl = document.getElementById('hud')!;
 const msgEl = document.getElementById('msg')!;
 const bannerEl = document.getElementById('banner')!;
