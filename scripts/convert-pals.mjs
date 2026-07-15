@@ -37,6 +37,12 @@ const OUT = path.join(root, 'assets', 'models', 'pals');
  * arctic fox's grey coat orange while keeping every light/dark marking (a
  * runtime albedo multiply can only darken, so a genuine recolor has to bake
  * the texture; this ships the orange fox as its own glb reusing the same mesh).
+ * `blackToColor:[r,g,b]` (0-255) targets only the texture's near-black pixels
+ * and replaces them with the given color (scaled by each pixel's own
+ * brightness, so folds/AO shading survive as darker/lighter shades of it) —
+ * unlike `recolor`'s luminance-preserving tint, which keeps black looking
+ * black, this is for swapping one specific dark material (e.g. armor joints)
+ * to a color while leaving every lighter region (gold plates, skin) alone.
  */
 const MANIFEST = {
   fox: { src: 'fox_raw.glb', ratio: 0.75, error: 0.001 },
@@ -74,8 +80,21 @@ const MANIFEST = {
   // and gets almost no fill light — the classic "PBR metal with no env map
   // renders black" trap. Pulling metallic down and roughness up gives the
   // armor a real diffuse term so ordinary hemi+directional light lands on it.
-  thanos: { src: 'thanos_raw.glb', skipSimplify: true, deMetal: { metallic: 0.15, minRoughness: 0.6 } }
+  // With that fixed, the armor's black joints/straps read as plain black
+  // against the gold plating and the character's already-purple face —
+  // `blackToColor` re-chromas just those near-black pixels to match.
+  thanos: {
+    src: 'thanos_raw.glb',
+    skipSimplify: true,
+    deMetal: { metallic: 0.15, minRoughness: 0.6 },
+    blackToColor: [108, 59, 154]
+  }
 };
+
+// Optional CLI filter (`node scripts/convert-pals.mjs thanos`) so iterating on
+// one companion's manifest options doesn't require re-decimating every scan.
+const only = process.argv[2];
+const entries = only ? Object.entries(MANIFEST).filter(([key]) => key === only) : Object.entries(MANIFEST);
 
 const io = new NodeIO();
 await MeshoptSimplifier.ready;
@@ -91,7 +110,13 @@ function triCount(document) {
   return Math.round(tris);
 }
 
-for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor, deMetal }] of Object.entries(MANIFEST)) {
+// Near-black pixels darker than BLACK_THRESHOLD get swapped toward the
+// manifest's blackToColor; pixels between BLACK_THRESHOLD and +BLACK_FEATHER
+// blend proportionally so the swap doesn't band at the material's edge.
+const BLACK_THRESHOLD = 90;
+const BLACK_FEATHER = 30;
+
+for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor, deMetal, blackToColor }] of entries) {
   const document = await io.read(path.join(SRC, src));
   const before = triCount(document);
 
@@ -130,6 +155,35 @@ for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor, deMetal 
       const img = tex.getImage();
       if (!img) continue;
       const out = await sharp(Buffer.from(img)).tint({ r: recolor[0], g: recolor[1], b: recolor[2] }).png().toBuffer();
+      tex.setImage(new Uint8Array(out)).setMimeType('image/png');
+    }
+  }
+
+  // Swap only the texture's near-black pixels to the target color, scaled by
+  // each pixel's own brightness so shading/AO in the original dark region
+  // survives as darker/lighter shades of it, and blended over a feather band
+  // so the swap doesn't leave a hard edge against the gold plating.
+  if (blackToColor) {
+    const [tr, tg, tb] = blackToColor;
+    for (const tex of document.getRoot().listTextures()) {
+      const img = tex.getImage();
+      if (!img) continue;
+      const image = sharp(Buffer.from(img)).ensureAlpha();
+      const { width, height } = await image.metadata();
+      const raw = await image.raw().toBuffer();
+      for (let i = 0; i < raw.length; i += 4) {
+        const r = raw[i];
+        const g = raw[i + 1];
+        const b = raw[i + 2];
+        const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        if (luma >= BLACK_THRESHOLD + BLACK_FEATHER) continue;
+        const shade = Math.min(1, Math.max(0.3, luma / BLACK_THRESHOLD));
+        const t = 1 - Math.min(1, Math.max(0, (luma - BLACK_THRESHOLD) / BLACK_FEATHER));
+        raw[i] = Math.round(r + (tr * shade - r) * t);
+        raw[i + 1] = Math.round(g + (tg * shade - g) * t);
+        raw[i + 2] = Math.round(b + (tb * shade - b) * t);
+      }
+      const out = await sharp(raw, { raw: { width, height, channels: 4 } }).png().toBuffer();
       tex.setImage(new Uint8Array(out)).setMimeType('image/png');
     }
   }

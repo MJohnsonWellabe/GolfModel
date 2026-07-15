@@ -26,7 +26,9 @@ import { PHYSICS } from '../config';
 import { animTime, isFrozen } from '../core/debugFlags';
 import {
   blobHash,
+  bunkerFescueClusters,
   collectTreeBlobs,
+  FESCUE_CLUSTER_JITTER,
   inTeePad,
   renderCourseCanvas,
   renderGreenPatch,
@@ -2017,85 +2019,42 @@ export function buildCourse(
         // carved out of a real turf lip, not a clean disc dropped onto flat
         // ground. Grows in a few THICK, MOUNDED clumps with bare sand-to-turf
         // gaps between them (real links fescue at a bunker edge — reference
-        // photo), not an even scatter across the whole rim: collect the
-        // hole-side rim into an array, pick 1-3 deterministic cluster
-        // centers, and densely jitter many instances around each.
+        // photo). Cluster anchors (rim position, 2-4 per bunker, a green-
+        // centroid bunker skipped entirely) come from bunkerFescueClusters —
+        // shared with renderCourseCanvas so the ground-texture bake paints a
+        // matching brown patch under each clump (see its own doc comment).
         const pool = pick(theme.heatherKeys ?? []);
         if (!pool.length) return;
-        for (const hz of hole.hazards) {
-          if (hz.type !== 'bunker') continue;
-          const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
-          const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
-          const gx = hole.green.cx - cx;
-          const gy = hole.green.cy - cy;
-          const glen = Math.hypot(gx, gy) || 1;
-          const gux = gx / glen;
-          const guy = gy / glen;
-          const n = hz.polygon.length;
-          // Hole-side arc ONLY — the lip nearer the green. (An earlier pass also
-          // grew fescue on the shaded/anti-sun flank so grass sat in the mound
-          // shadow, but it read wrong; grass belongs on the hole side of the
-          // trap only, on both Sable Bay and Port Johnson.) Sampled finely (/4)
-          // so cluster centers can land anywhere along the arc.
-          const rim: Array<{ x: number; y: number; nx: number; ny: number }> = [];
-          for (let i = 0; i < n; i++) {
-            const [x1, y1] = hz.polygon[i];
-            const [x2, y2] = hz.polygon[(i + 1) % n];
-            const segLen = Math.hypot(x2 - x1, y2 - y1);
-            const steps = Math.max(1, Math.round(segLen / 4));
-            for (let s = 0; s < steps; s++) {
-              const t = s / steps;
-              const px = x1 + (x2 - x1) * t;
-              const py = y1 + (y2 - y1) * t;
-              const nx = px - cx;
-              const ny = py - cy;
-              const nlen = Math.hypot(nx, ny) || 1;
-              if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
-              rim.push({ x: px, y: py, nx: nx / nlen, ny: ny / nlen });
-            }
-          }
-          if (!rim.length) continue;
-          // 2-4 cluster centers. A short rim (a tiny pot bunker) still gets
-          // fewer so it doesn't end up fully carpeted.
-          const clusterCount = rim.length < 12 ? 2 : 2 + Math.floor(hash2(cx + 5, cy - 5) * 3);
-          const CLUSTER_JITTER = 9; // world units the clump scatters from its center
-          // All clusters huddle near ONE anchor point on the rim (a small index
-          // window either side) instead of each picking an independent random
-          // spot across the whole hole-side arc — reads as one bundled lip
-          // (front-to-back along the rim) rather than clumps scattered wide
-          // apart around the bunker.
-          const anchorIdx = Math.floor(hash2(cx + 5, cy - 5) * rim.length);
-          const window = Math.max(3, Math.min(rim.length, 10));
-          for (let k = 0; k < clusterCount; k++) {
-            const spread = Math.floor((hash2(cx + k * 41 + 7, cy - k * 23 - 11) - 0.5) * window);
-            const idx = ((anchorIdx + spread) % rim.length + rim.length) % rim.length;
-            const center = rim[idx];
-            const count = 18 + Math.floor(hash2(center.x, center.y + k) * 20); // 18-37 per clump (~25% denser)
-            for (let j = 0; j < count; j++) {
-              // 1.8-unit INWARD nudge (was 0.6 outward) — the clump's near edge
-              // starts right at the sand line and a little into it, rather than
-              // standing back on the turf, so the wiry lip reads as pushing into
-              // the trap instead of stopping short of it.
-              const jx = center.x + (hash2(center.x + j * 3.1, center.y - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 - center.nx * 1.8;
-              const jy = center.y + (hash2(center.y + j * 3.1, center.x - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 - center.ny * 1.8;
-              // Accept rough, sand, and (unless the theme says otherwise) fairway
-              // turf. A fairway-side bunker (very common — Sable Bay/Port
-              // Johnson both flank the short grass directly, no rough buffer
-              // between) can have NO rough anywhere along its rim, so gating on
-              // 'rough' alone silently skipped fescue on every one of those
-              // traps, leaving a completely bare sand→fairway edge (bug report:
-              // "no grass by the bunker"). Sand is accepted too so the
-              // inward-nudged tufts that land just past the rim still render.
-              // `bunkerFescueAvoidFairway` (Sable Bay) drops the fairway
-              // fallback once a course's rough is a real brown patch — the lip
-              // should read as sitting on dune-brown turf, never on the vivid
-              // green fairway. Green/fringe/water/trees stay excluded — a
-              // putting collar or another hazard should never sprout wiregrass.
-              const surf = engine.surfaceAt(jx, jy);
-              const fairwayOk = surf === 'fairway' && !theme.bunkerFescueAvoidFairway;
-              if (surf !== 'rough' && surf !== 'sand' && !fairwayOk) continue;
-              place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
-            }
+        for (const center of bunkerFescueClusters(hole, theme)) {
+          const count = 18 + Math.floor(hash2(center.x + center.nx, center.y + center.ny) * 20); // 18-37 per clump (~25% denser)
+          for (let j = 0; j < count; j++) {
+            // 1.8-unit INWARD nudge (was 0.6 outward) — the clump's near edge
+            // starts right at the sand line and a little into it, rather than
+            // standing back on the turf, so the wiry lip reads as pushing into
+            // the trap instead of stopping short of it.
+            const jx =
+              center.x + (hash2(center.x + j * 3.1, center.y - j * 2.7) - 0.5) * FESCUE_CLUSTER_JITTER * 2 - center.nx * 1.8;
+            const jy =
+              center.y + (hash2(center.y + j * 3.1, center.x - j * 2.7) - 0.5) * FESCUE_CLUSTER_JITTER * 2 - center.ny * 1.8;
+            // Accept rough, sand, and (unless the theme says otherwise) fairway
+            // turf. A fairway-side bunker (very common — Sable Bay/Port
+            // Johnson both flank the short grass directly, no rough buffer
+            // between) can have NO rough anywhere along its rim, so gating on
+            // 'rough' alone silently skipped fescue on every one of those
+            // traps, leaving a completely bare sand→fairway edge (bug report:
+            // "no grass by the bunker"). Sand is accepted too so the
+            // inward-nudged tufts that land just past the rim still render —
+            // renderCourseCanvas paints real brown ground under them so
+            // "sand" here never means visually bare sand.
+            // `bunkerFescueAvoidFairway` (Sable Bay) drops the fairway
+            // fallback once a course's rough is a real brown patch — the lip
+            // should read as sitting on dune-brown turf, never on the vivid
+            // green fairway. Green/fringe/water/trees stay excluded — a
+            // putting collar or another hazard should never sprout wiregrass.
+            const surf = engine.surfaceAt(jx, jy);
+            const fairwayOk = surf === 'fairway' && !theme.bunkerFescueAvoidFairway;
+            if (surf !== 'rough' && surf !== 'sand' && !fairwayOk) continue;
+            place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
           }
         }
       });

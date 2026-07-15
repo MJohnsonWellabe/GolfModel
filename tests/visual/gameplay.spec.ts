@@ -33,19 +33,29 @@ test('scramble round boots with a partner', async ({ page }) => {
   expect(await page.evaluate(() => (window as any).__slice3d.mode)).toBe('scramble');
 });
 
-test('every round grants at least one True Vision charge, stacking with what the player already owns', async ({ page }) => {
+test('every round grants exactly one True Vision charge that expires — unused, it does not stack into the next round', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
   // A fresh profile owns none — the first round's free charge covers it.
   await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'solo' }));
   await page.waitForFunction(() => !!(window as any).__slice3d);
   expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(1);
-  // A second round start (nothing was spent) adds another charge on top —
-  // "if they have their own, they add to the one" — not a round-scoped
-  // freebie that resets to a flat 1 each time.
+  // A second round start, with the first round's freebie left unspent, must
+  // NOT stack to 2 — the ephemeral bonus is discarded and reset to a flat 1.
   await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'solo' }));
   await page.waitForFunction(() => !!(window as any).__slice3d);
-  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(2);
+  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(1);
+});
+
+test('True Vision: the free round bonus combines with owned charges for that round only', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await page.evaluate(() => (window as any).__grantConsumable('true_vision', 2));
+  await page.evaluate(() => (window as any).__startRound({ name: 'Smoke', mode: 'solo' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  // Owns 2 + this round's free 1 = 3 available; nothing carries a permanent
+  // stack once the round bonus itself is spent/expired.
+  expect(await page.evaluate(() => (window as any).__trueVisionCharges())).toBe(3);
 });
 
 test('AI tournament boots round 1 of a three-course rota', async ({ page }) => {

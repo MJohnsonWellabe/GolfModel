@@ -1,10 +1,11 @@
 import { FRINGE_VISUAL, PhysicsEngine } from '../../systems/PhysicsEngine';
-import { blobHash, collectTreeBlobs, TreeBlob } from '../../systems/treeField';
-import { HoleData, Surface } from '../types';
+import { GREEN_KEEPOUT } from '../../systems/HeightField';
+import { blobHash, collectTreeBlobs, hash2, TreeBlob } from '../../systems/treeField';
+import { HoleData, Polygon, Surface } from '../types';
 import { sampleGrassGrain } from './grassTexture';
 import { CHECKER_ROTATION, greenMowT, mowCheckerboard } from './mowPattern';
 import { CourseTheme, shade } from './Theme';
-import { greenBoundaryScale, pointInGreens, roundPolygon } from '../../utils/Geometry';
+import { greenBoundaryScale, pointInGreens, pointInPolygon, roundPolygon } from '../../utils/Geometry';
 
 /** Chaikin passes applied to the BAKED woods ground-color patch only — the
  *  authored hazard polygon (collision, AI risk-probing, trunk sampling) stays
@@ -238,6 +239,83 @@ function rasterizeClassGrid(
   return grid;
 }
 
+/** World units a bunker-lip fescue clump scatters from its cluster center —
+ *  shared between the cluster-picking below and course3d's per-instance
+ *  jitter so the painted ground patch (renderCourseCanvas) and the actual
+ *  grass instances (course3d.ts) agree on how far a clump spreads. */
+export const FESCUE_CLUSTER_JITTER = 9;
+
+/** One bunker-lip fescue clump's anchor: a rim point (with its outward
+ *  normal) plus the source bunker's own polygon, so callers can tell a
+ *  clump's own trap sand (keep it sand) from the surrounding ground (paint
+ *  it, or plant on it). */
+export interface FescueCluster {
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+  hzPolygon: Polygon;
+}
+
+/**
+ * Deterministic bunker-lip fescue clump anchors for a hole (theme.
+ * bunkerLipFescue): 2-4 clumps on the hole-side rim of every ordinary bunker,
+ * bundled near one anchor point per bunker rather than scattered independently
+ * — see course3d.ts's original comment for the "real links fescue" reasoning.
+ * Pure geometry (no scene/engine dependency) so both the ground-texture bake
+ * (paints a brown patch under each clump, below) and the actual grass
+ * instancing (course3d.ts) can share one source of truth.
+ *
+ * A bunker whose CENTROID lands on the green (a wrap-around/collar trap, e.g.
+ * Sable Bay h2's island ring) has no meaningful "hole side" — every arc of its
+ * rim already sits right next to the green — so it's skipped entirely here,
+ * mirroring the HeightField dish guard for the same bunker shape.
+ */
+export function bunkerFescueClusters(hole: HoleData, theme: CourseTheme): FescueCluster[] {
+  if (!theme.bunkerLipFescue) return [];
+  const out: FescueCluster[] = [];
+  for (const hz of hole.hazards) {
+    if (hz.type !== 'bunker') continue;
+    const cx = hz.polygon.reduce((a, p) => a + p[0], 0) / hz.polygon.length;
+    const cy = hz.polygon.reduce((a, p) => a + p[1], 0) / hz.polygon.length;
+    if (pointInGreens(cx, cy, hole.green, hole.green2, GREEN_KEEPOUT)) continue;
+    const gx = hole.green.cx - cx;
+    const gy = hole.green.cy - cy;
+    const glen = Math.hypot(gx, gy) || 1;
+    const gux = gx / glen;
+    const guy = gy / glen;
+    const n = hz.polygon.length;
+    const rim: Array<{ x: number; y: number; nx: number; ny: number }> = [];
+    for (let i = 0; i < n; i++) {
+      const [x1, y1] = hz.polygon[i];
+      const [x2, y2] = hz.polygon[(i + 1) % n];
+      const segLen = Math.hypot(x2 - x1, y2 - y1);
+      const steps = Math.max(1, Math.round(segLen / 4));
+      for (let s = 0; s < steps; s++) {
+        const t = s / steps;
+        const px = x1 + (x2 - x1) * t;
+        const py = y1 + (y2 - y1) * t;
+        const nx = px - cx;
+        const ny = py - cy;
+        const nlen = Math.hypot(nx, ny) || 1;
+        if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
+        rim.push({ x: px, y: py, nx: nx / nlen, ny: ny / nlen });
+      }
+    }
+    if (!rim.length) continue;
+    const clusterCount = rim.length < 12 ? 2 : 2 + Math.floor(hash2(cx + 5, cy - 5) * 3);
+    const anchorIdx = Math.floor(hash2(cx + 5, cy - 5) * rim.length);
+    const window = Math.max(3, Math.min(rim.length, 10));
+    for (let k = 0; k < clusterCount; k++) {
+      const spread = Math.floor((hash2(cx + k * 41 + 7, cy - k * 23 - 11) - 0.5) * window);
+      const idx = ((anchorIdx + spread) % rim.length + rim.length) % rim.length;
+      const center = rim[idx];
+      out.push({ x: center.x, y: center.y, nx: center.nx, ny: center.ny, hzPolygon: hz.polygon });
+    }
+  }
+  return out;
+}
+
 /**
  * Render the hole into a grass canvas: per-texel surface classification with
  * real grain, mow stripes along the hole axis, darkened surface edges, and
@@ -352,6 +430,19 @@ export function renderCourseCanvas(
     sr: Math.sin(g.rot ?? 0)
   }));
 
+  // Bunker-lip fescue ground: a clump planted by course3d.ts needs real turf
+  // to grow out of, but a bunker embedded in (or near) a beach/waste sand
+  // sprawl — common on a coastal course — can have NO rough anywhere along
+  // its rim, only the sand backdrop. Paint a soft brown patch (theme.rough)
+  // under each clump so the fescue never reads as sprouting straight out of
+  // bare sand, EXCEPT inside the bunker's own polygon — that sand is the
+  // genuine trap and must stay sand right up to the fescue's edge. Same
+  // radius course3d uses for the clump's own scatter, padded a little so the
+  // patch comfortably covers the outermost jittered blades.
+  const fescueClusters = bunkerFescueClusters(hole, theme);
+  const FESCUE_PATCH_IN = FESCUE_CLUSTER_JITTER * 1.4;
+  const FESCUE_PATCH_OUT = FESCUE_CLUSTER_JITTER * 2.4;
+
   // Edge-wobble amplitude multiplier (default 1 → historical subtle ripple).
   const ew = theme.edgeWobble ?? 1;
   const realGrain = Boolean(theme.turfGrainKey);
@@ -447,7 +538,28 @@ export function renderCourseCanvas(
         }
       }
 
+      // Fescue ground patch: a sand texel just outside a bunker's own polygon
+      // but within a fescue clump's reach softly blends toward rough — see
+      // fescueClusters above. `fescueBlend` is 1 at the clump center, fading
+      // to 0 by FESCUE_PATCH_OUT so the patch has no hard edge.
+      let fescueBlend = 0;
+      if (cls === 4 && fescueClusters.length) {
+        for (const fc of fescueClusters) {
+          if (pointInPolygon(jx, jy, fc.hzPolygon)) continue; // the trap itself stays sand
+          const d = Math.hypot(jx - fc.x, jy - fc.y);
+          if (d >= FESCUE_PATCH_OUT) continue;
+          const t = d <= FESCUE_PATCH_IN ? 1 : 1 - (d - FESCUE_PATCH_IN) / (FESCUE_PATCH_OUT - FESCUE_PATCH_IN);
+          if (t > fescueBlend) fescueBlend = t;
+        }
+      }
+
       let [r, g, b] = palette[cls];
+      if (fescueBlend > 0) {
+        const [rr, rg, rb] = palette[0]; // rough
+        r = r + (rr - r) * fescueBlend;
+        g = g + (rg - g) * fescueBlend;
+        b = b + (rb - b) * fescueBlend;
+      }
       // Green mowing columns: pick the light/dark green tone by the across-axis
       // band sign (mirrored in renderGreenPatch). The two-tone IS the pattern,
       // so the subtle green sine stripe below is skipped for these texels.

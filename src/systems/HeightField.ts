@@ -30,8 +30,11 @@ const CELL = 8; // grid resolution, world px — smooth macro terrain only
 
 /** Keep-clear buffer (world px) beyond the green/fringe a bunker's dish rim
  *  must respect — a greenside trap is common, and its pothole must never
- *  bleed a slope or crater into the putting surface itself. */
-const GREEN_KEEPOUT = 24;
+ *  bleed a slope or crater into the putting surface itself. Exported so other
+ *  systems that need the same "does this bunker's centroid sit on the green"
+ *  test (course3d/CourseTexture's bunker-lip fescue) use the identical
+ *  clearance rather than a second hand-tuned constant that could drift. */
+export const GREEN_KEEPOUT = 24;
 
 /** Shrink `desiredR` (in 4px steps) until no sample around the dish's outer
  *  rim falls inside the green (padded by GREEN_KEEPOUT) — cheap, one-time,

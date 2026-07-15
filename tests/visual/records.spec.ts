@@ -6,7 +6,7 @@ test('records overlay offers a tab per course', async ({ page }) => {
   await page.waitForSelector('#recordsLink');
   await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.recTab');
-  await expect(page.locator('.recTab')).toHaveCount(3);
+  await expect(page.locator('.recTab')).toHaveCount(4);
   await expect(page.locator('.recTab.sel')).toContainText('Wildwood Glen');
   // Switching course re-filters the list without leaving the overlay.
   await page.locator('.recTab', { hasText: 'Timberline' }).dispatchEvent('pointerdown');

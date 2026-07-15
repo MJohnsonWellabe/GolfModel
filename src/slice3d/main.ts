@@ -1427,7 +1427,7 @@ class HoleScene {
   /** Show/hide/relabel the True Vision button for the current turn — only
    *  while a human is putting and still has charges. */
   private refreshTrueVisionBtn(): void {
-    const remaining = chargesRemaining(profile, TRUE_VISION.id);
+    const remaining = chargesRemaining(profile, TRUE_VISION.id) + roundTrueVisionBonus;
     const show = this.state.phase === 'aiming' && !this.ai && this.aim.isPutting && remaining > 0;
     trueVisionBtn.style.display = show ? 'block' : 'none';
     trueVisionBtn.textContent = `${TRUE_VISION.icon} TRUE VISION (${remaining})`;
@@ -1489,13 +1489,20 @@ class HoleScene {
    *  putt is struck. */
   private revealTrueVision(): void {
     if (this.state.phase !== 'aiming' || this.ai || !this.aim.isPutting) return;
-    if (!consumeCharge(profile, TRUE_VISION.id)) return;
-    persistProfile();
-    if (signedIn)
-      void cloudSyncProfile(profile).then((res) => {
-        applyCloudMerge(profile, res.profile);
-        showCloudStatus(res.status, true);
-      });
+    // Spend the free round bonus first (ephemeral, nothing to persist); only
+    // touch the player's owned/persisted charges once the bonus is gone.
+    if (roundTrueVisionBonus > 0) {
+      roundTrueVisionBonus -= 1;
+    } else if (consumeCharge(profile, TRUE_VISION.id)) {
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(profile).then((res) => {
+          applyCloudMerge(profile, res.profile);
+          showCloudStatus(res.status, true);
+        });
+    } else {
+      return;
+    }
     const ctx = this.ctx();
     const path = computeTrueVisionPath(this.engine2d, this.hole, ctx, {
       aimAngle: this.aim.yaw,
@@ -2520,7 +2527,10 @@ function renderProfile(): void {
     `</div>` +
     `<div id="profAdminZone"></div>` +
     `<button id="profBack">Back</button></div>`;
-  document.getElementById('profBack')!.addEventListener('pointerdown', () => (recordsEl.style.display = 'none'));
+  // 'click' (not 'pointerdown') — see the #lkLock comment in renderLockerRoom:
+  // hiding this full-screen overlay on the down-stroke lets the release land
+  // on whatever's exposed underneath instead.
+  document.getElementById('profBack')!.addEventListener('click', () => (recordsEl.style.display = 'none'));
   document.getElementById('setSound')!.addEventListener('input', (e) => {
     p.settings.sound = parseFloat((e.target as HTMLInputElement).value);
     persistProfile();
@@ -2907,7 +2917,9 @@ function renderStore(): void {
       renderStore();
     });
   }
-  document.getElementById('storeBack')!.addEventListener('pointerdown', () => {
+  // 'click' — see the #lkLock comment in renderLockerRoom for why overlay
+  // Back buttons must not hide the overlay on 'pointerdown'.
+  document.getElementById('storeBack')!.addEventListener('click', () => {
     pendingBuy = null;
     storeEl.style.display = 'none';
   });
@@ -3082,7 +3094,8 @@ function renderSeasonPass(): void {
         else showMsg('Sign in first — the pass attaches to your account', 1800);
       });
     });
-  document.getElementById('spBack')!.addEventListener('pointerdown', () => {
+  // 'click' — see the #lkLock comment in renderLockerRoom.
+  document.getElementById('spBack')!.addEventListener('click', () => {
     spPage = -1;
     seasonEl.style.display = 'none';
   });
@@ -3115,7 +3128,8 @@ async function renderRecords(): Promise<void> {
     `<div id="recList" class="recList">Loading…</div>` +
     `<div id="recFoot" class="recFoot"></div>` +
     `<button id="recBack">Back</button></div>`;
-  document.getElementById('recBack')!.addEventListener('pointerdown', () => {
+  // 'click' — see the #lkLock comment in renderLockerRoom.
+  document.getElementById('recBack')!.addEventListener('click', () => {
     recordsEl.style.display = 'none';
   });
   // One fetch covers every course; the tabs just re-filter the list. Tabs are
@@ -3205,7 +3219,8 @@ function renderTournaments(preCode?: string): void {
       `<div class="recEmpty">Online tournaments play over the shared leaderboard, which isn't configured on this build yet. ` +
       `See docs/FIREBASE_SETUP.md to connect one.</div>` +
       `<button id="tourBack">Back</button></div>`;
-    document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
+    // 'click' — see the #lkLock comment in renderLockerRoom.
+    document.getElementById('tourBack')!.addEventListener('click', () => closeOverlay(el));
     return;
   }
   el.innerHTML =
@@ -3218,7 +3233,8 @@ function renderTournaments(preCode?: string): void {
     myTournamentsHtml() +
     `<div id="tourBody" class="tourBody"></div>` +
     `<button id="tourBack">Back</button></div>`;
-  document.getElementById('tourBack')!.addEventListener('pointerdown', () => closeOverlay(el));
+  // 'click' — see the #lkLock comment in renderLockerRoom.
+  document.getElementById('tourBack')!.addEventListener('click', () => closeOverlay(el));
   document.getElementById('tourCreate')!.addEventListener('pointerdown', () => createTournamentFlow());
   const codeInput = document.getElementById('tourCode') as HTMLInputElement;
   const join = (): void => {
@@ -4073,14 +4089,24 @@ function renderLockerRoom(): void {
   });
   // "Lock it in" marks the loadout as chosen (so tee-off stops auto-randomizing)
   // and closes the locker.
-  document.getElementById('lkLock')!.addEventListener('pointerdown', () => {
+  // Lock it in / Done use 'click' (not 'pointerdown') deliberately: both hide
+  // this full-screen overlay (inset:0, z-index:25) synchronously. Hiding it on
+  // the down-stroke opens a window — between touchstart and touchend — where
+  // the overlay is already gone and the finger's release/synthesized click
+  // hit-tests against whatever is now exposed underneath (e.g. the main
+  // menu's "Log out" button), firing THAT element's click handler instead.
+  // On iOS Safari this reliably read as "locking in a loadout logs me out."
+  // 'click' only fires once the down+up pair has resolved against this same
+  // button, so the overlay is still on top for the whole gesture and there is
+  // no intermediate frame where a lower element can catch the release.
+  document.getElementById('lkLock')!.addEventListener('click', () => {
     p.loadoutLocked = true;
     syncLoadout();
     lkPendingBuy = null;
     lockerEl.style.display = 'none';
   });
   document.getElementById('lkEditName')!.addEventListener('pointerdown', () => promptName(true));
-  document.getElementById('lkBack')!.addEventListener('pointerdown', () => {
+  document.getElementById('lkBack')!.addEventListener('click', () => {
     lkPendingBuy = null;
     lockerEl.style.display = 'none';
   });
@@ -4168,16 +4194,17 @@ function updateDailyBanner(): void {
   el.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${ch.name}</span>`;
 }
 
-/** Every round starts with at least one True Vision charge: a fresh grant of
- *  1 stacks onto whatever the player already owns (season-pass packs, gifts)
- *  — owning 3 means 4 available this round, owning 0 means the free 1 covers
- *  it — rather than a use-it-or-lose-it round-scoped freebie. Called from
- *  every round-start entry point (solo/versus, online tournament, AI
- *  tournament) so it's never missed. Local-only persist, matching the other
- *  round-start bookkeeping in these functions — no forced cloud round-trip. */
+/** The one free True Vision charge every round starts with. This is EPHEMERAL
+ *  — in-memory only, never written into profile.consumables — so it combines
+ *  with whatever the player already owns for THIS round (owning 3 means 4
+ *  available) but is discarded, not stacked, if unused by the time the round
+ *  ends or the next one starts (see refreshTrueVisionBtn/revealTrueVision,
+ *  which spend this before dipping into the persisted/owned charges). Called
+ *  from every round-start entry point (solo/versus, online tournament, AI
+ *  tournament) so it's never missed. */
+let roundTrueVisionBonus = 0;
 function grantRoundTrueVision(): void {
-  grantConsumable(profile, TRUE_VISION.id, 1);
-  persistProfile();
+  roundTrueVisionBonus = 1;
 }
 
 function startRound(): void {
@@ -4386,15 +4413,23 @@ else {
 // rota/standings without scraping the DOM (read-only snapshot).
 (window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
 
-// Test hook: read the player's current True Vision charge count, so specs
-// can assert every round grants at least one without scraping the DOM.
+// Test hook: read the player's current True Vision charge count (owned +
+// this round's ephemeral bonus, matching what the in-round button shows), so
+// specs can assert every round grants at least one without scraping the DOM.
 (window as unknown as { __trueVisionCharges: unknown }).__trueVisionCharges = () =>
-  chargesRemaining(profile, TRUE_VISION.id);
+  chargesRemaining(profile, TRUE_VISION.id) + roundTrueVisionBonus;
 
 // Test hook: grant session coins so specs can exercise the purchase flow
 // (signed-out play is ephemeral — nothing here persists or reaches the cloud).
 (window as unknown as { __grantCoins: unknown }).__grantCoins = (n: number) => {
   profile.coins += n;
+};
+
+// Test hook: grant owned consumable charges (e.g. True Vision) directly, so
+// specs can assert the free round bonus correctly combines with owned
+// charges without driving the season pass/store flow.
+(window as unknown as { __grantConsumable: unknown }).__grantConsumable = (id: string, qty: number) => {
+  grantConsumable(profile, id, qty);
 };
 
 // Test hook: set a club-upgrade tier directly (bypassing the store UI) and
