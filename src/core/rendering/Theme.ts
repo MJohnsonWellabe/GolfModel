@@ -105,6 +105,12 @@ export interface CourseTheme {
    *  links/Pinehurst trademark: the bunker reads carved into turf, not a
    *  clean sand disc dropped onto flat ground. Cosmetic only. */
   bunkerLipFescue?: boolean;
+  /** Multiplier on how deep ORDINARY (non-revetted) bunkers sink below the turf
+   *  rim (HeightField DISH_DEPTH). Default 1; Sable Bay uses 2 so its dished
+   *  traps read as dramatically sunk into the dunes. Shared by physics and the
+   *  rendered mesh — a deeper bunker is a genuinely deeper pothole. Revetted
+   *  pot bunkers (WALL_DEPTH) are unaffected. */
+  bunkerDepthScale?: number;
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -306,6 +312,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandPlantKeys'
     | 'sandPlantStep'
     | 'sandPlantKeep'
+    | 'bunkerDepthScale'
     | 'seaDunes'
     | 'lushGrass'
     | 'edgeWobble'
@@ -415,6 +422,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
   if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
+  if (typeof spec.bunkerDepthScale === 'number') t.bunkerDepthScale = spec.bunkerDepthScale;
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
   // fixed cream that only suits the parkland default.

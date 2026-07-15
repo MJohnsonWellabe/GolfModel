@@ -163,4 +163,22 @@ describe('Timberline h1 bunker dish', () => {
     // The pin still sits on the untouched plateau top.
     expect(hf!.heightAt(h1.pin.x, h1.pin.y)).toBeCloseTo(2.2, 1);
   });
+
+  it('bunkerDepthScale sinks an ordinary bunker dish deeper (Sable Bay uses 2)', async () => {
+    const timberline = (await import('../src/data/courses/timberline.json')).default;
+    const { loadCourse } = await import('../src/data/courseLoader');
+    const course = loadCourse(timberline as never);
+    const h1 = course.holes[0];
+    // Centroid of the first ordinary (dished) bunker — d=0 there, so the dish
+    // contributes its full depth and the scale difference is isolated.
+    const dished = h1.hazards.find((hz) => hz.type === 'bunker' && !hz.wall && !hz.beach && !hz.waste)!;
+    const cx = dished.polygon.reduce((a, p) => a + p[0], 0) / dished.polygon.length;
+    const cy = dished.polygon.reduce((a, p) => a + p[1], 0) / dished.polygon.length;
+    const shallow = buildHeightField(h1, 1)!;
+    const deep = buildHeightField(h1, 2)!;
+    // Doubling the scale roughly doubles the dish depth below the rim, so the
+    // 2× field sits clearly lower at the bunker centre (flanking mounds and
+    // authored elevation are identical between the two — same hashes).
+    expect(deep.heightAt(cx, cy)).toBeLessThan(shallow.heightAt(cx, cy) - 1);
+  });
 });

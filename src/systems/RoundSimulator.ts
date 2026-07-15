@@ -1,5 +1,6 @@
 import { RULES } from '../config';
 import { CourseData, Golfer, HoleData, Surface, Wind } from '../core/types';
+import { resolveTheme } from '../core/rendering/Theme';
 import { mulberry32, Rng } from '../utils/Random';
 import { AIController } from './AIController';
 import { FireSystem } from './FireSystem';
@@ -37,6 +38,10 @@ export interface SimulateHoleOpts {
   /** Per-course wind band (mph); defaults 2..20. */
   windMin?: number;
   windMax?: number;
+  /** Ordinary-bunker depth multiplier (theme.bunkerDepthScale); defaults 1.
+   *  Threaded from the course theme so the headless physics matches the live
+   *  round's terrain (Sable Bay's deeper dished traps). */
+  bunkerDepthScale?: number;
 }
 
 /**
@@ -55,7 +60,7 @@ export function drawWind(rng: Rng, windMin = 2, windMax = 20): Wind {
 export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleOpts): HoleSimResult {
   const { rng } = opts;
   const wind = opts.wind ?? drawWind(rng, opts.windMin, opts.windMax);
-  const engine = new PhysicsEngine(hole, buildHeightField(hole), rng);
+  const engine = new PhysicsEngine(hole, buildHeightField(hole, opts.bunkerDepthScale ?? 1), rng);
   const ai = new AIController(golfer, new FireSystem(), engine, rng);
 
   let ball = { ...hole.tee };
@@ -97,8 +102,14 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
 export function simulateRound(course: CourseData, golfer: Golfer, seed: number, holeCount?: number): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
+  const bunkerDepthScale = resolveTheme(course).bunkerDepthScale ?? 1;
   const results = holes.map((h) =>
-    simulateHole(h, golfer, { rng, windMin: course.minWind, windMax: course.maxWind })
+    simulateHole(h, golfer, {
+      rng,
+      windMin: course.minWind,
+      windMax: course.maxWind,
+      bunkerDepthScale
+    })
   );
   const total = results.reduce((a, r) => a + r.strokes, 0);
   const par = holes.reduce((a, h) => a + h.par, 0);

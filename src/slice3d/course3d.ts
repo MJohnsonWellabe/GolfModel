@@ -2031,11 +2031,23 @@ export function buildCourse(
           const glen = Math.hypot(gx, gy) || 1;
           const gux = gx / glen;
           const guy = gy / glen;
+          // Anti-sun (shaded) direction — the flank that CourseTexture's
+          // slopeShadeAt darkens into the "shadow behind the bunker". Its sun
+          // dir is (sunX>360?0.45:-0.45, -0.35), so the shadow falls the
+          // opposite way. We also grow fescue on this flank so the wiry grass
+          // sits WITHIN that shadow (bug report: "grass renders on the back of
+          // the shadow, it should render in the shadow") instead of only on
+          // the green-facing lip, which can be the opposite side of the trap.
+          const shx = theme.sunX > 360 ? -0.45 : 0.45;
+          const shy = 0.35;
+          const shlen = Math.hypot(shx, shy) || 1;
+          const sux = shx / shlen;
+          const suy = shy / shlen;
           const n = hz.polygon.length;
-          // Hole-side arc only — the lip nearer the green, not the whole rim
-          // (unchanged convention; this is what fixed the "no grass by the
-          // bunker" bug earlier this session). Sampled finer than before (/4
-          // vs /6) so cluster centers can land anywhere along it.
+          // Grow on the hole-side arc (the lip nearer the green — the primary
+          // links look) UNION the shaded flank (so a clump lands in the baked
+          // shadow). Sampled finely (/4) so cluster centers can land anywhere
+          // along either arc.
           const rim: Array<{ x: number; y: number; nx: number; ny: number }> = [];
           for (let i = 0; i < n; i++) {
             const [x1, y1] = hz.polygon[i];
@@ -2049,18 +2061,23 @@ export function buildCourse(
               const nx = px - cx;
               const ny = py - cy;
               const nlen = Math.hypot(nx, ny) || 1;
-              if ((nx / nlen) * gux + (ny / nlen) * guy < 0.1) continue;
-              rim.push({ x: px, y: py, nx: nx / nlen, ny: ny / nlen });
+              const un = nx / nlen;
+              const vn = ny / nlen;
+              const onGreenSide = un * gux + vn * guy >= 0.1;
+              const onShadedSide = un * sux + vn * suy >= 0.35;
+              if (!onGreenSide && !onShadedSide) continue;
+              rim.push({ x: px, y: py, nx: un, ny: vn });
             }
           }
           if (!rim.length) continue;
-          // 1-3 cluster centers — a short rim (a tiny pot bunker) gets just
-          // one so it doesn't end up fully carpeted.
-          const clusterCount = rim.length < 12 ? 1 : 1 + Math.floor(hash2(cx + 5, cy - 5) * 3);
-          const CLUSTER_JITTER = 8; // world units the clump scatters from its center
+          // 2-4 cluster centers — denser wiry lip than before (was 1-3), to
+          // match Port Johnson h1's reference look. A short rim (a tiny pot
+          // bunker) still gets fewer so it doesn't end up fully carpeted.
+          const clusterCount = rim.length < 12 ? 2 : 2 + Math.floor(hash2(cx + 5, cy - 5) * 3);
+          const CLUSTER_JITTER = 9; // world units the clump scatters from its center
           for (let k = 0; k < clusterCount; k++) {
             const center = rim[Math.floor(hash2(cx + k * 41 + 7, cy - k * 23 - 11) * rim.length)];
-            const count = 8 + Math.floor(hash2(center.x, center.y + k) * 13); // 8-20 per clump
+            const count = 14 + Math.floor(hash2(center.x, center.y + k) * 16); // 14-29 per clump: thicker wall
             for (let j = 0; j < count; j++) {
               // Tiny 0.6-unit outward nudge (was 2.5) — the clump overlaps
               // the sand edge instead of standing back from it.

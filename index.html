@@ -259,6 +259,28 @@
         letter-spacing: 0.5px;
         z-index: 5;
       }
+      /* Save-my-last-shot clip button — sits above AERIAL/🏆 in the right stack.
+         Hidden by default; the round shows it only where the browser can record
+         the canvas. */
+      #captureBtn {
+        position: fixed;
+        right: 10px;
+        bottom: 122px;
+        display: none;
+        padding: 9px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        color: #eaf3e6;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        z-index: 5;
+      }
+      #captureBtn:active {
+        background: linear-gradient(180deg, #ffd54f, #eab63a);
+        color: #3a2b06;
+      }
       /* Shot shaping: strike-position pad + trajectory preset (Phase 4) */
       #shotShape {
         position: absolute;
@@ -1299,8 +1321,8 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 12px;
-        padding: 10px 14px;
+        gap: 10px;
+        padding: 8px 10px;
         border-radius: 12px;
         background: linear-gradient(180deg, rgba(53, 165, 88, 0.18), rgba(30, 122, 60, 0.08));
         border: 1px solid rgba(53, 165, 88, 0.4);
@@ -1313,20 +1335,40 @@
       .acctSignedIn .acctWho b {
         color: #fff;
       }
-      /* The signed-in row doubles as the Profile entry point (tap to open) */
+      /* The signed-in row doubles as the Profile entry point — render it as a
+         real raised button (not plain text) so it's obvious it's tappable. */
       .acctTappable {
-        background: none;
-        border: none;
-        padding: 0;
+        flex: 1 1 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 10px 14px;
         font: inherit;
-        color: inherit;
+        font-weight: 700;
+        color: #eafff0;
+        border: 1px solid rgba(255, 255, 255, 0.28);
+        border-radius: 10px;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28);
         cursor: pointer;
-        text-align: left;
+        text-align: center;
+        transition: transform 0.05s ease, background 0.15s ease, box-shadow 0.15s ease;
       }
+      .acctTappable:hover {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.1));
+      }
+      .acctTappable:active {
+        transform: translateY(1px);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      /* The 👤 Profile label reads as the button's action, not a muted hint. */
       .acctProfileIcon {
-        font-size: 11px;
-        color: #a9c4ae;
-        margin-left: 6px;
+        font-size: 13px;
+        font-weight: 800;
+        color: #ffffff;
+        margin-left: 2px;
+        white-space: nowrap;
       }
       /* Signed-out guests still need a way into Profile/settings */
       .ghostLink {
@@ -1539,6 +1581,9 @@
       }
       .recInner {
         width: min(96%, 520px);
+        max-height: 94dvh;
+        overflow-y: auto;
+        box-sizing: border-box;
         padding: 24px 20px;
         text-align: center;
       }
@@ -1976,6 +2021,7 @@
     </div>
     <div id="aimReadout"></div>
     <button id="trueVisionBtn">👁️ TRUE VISION</button>
+    <button id="captureBtn">🎥 CLIP</button>
     <button id="aerialBtn">AERIAL</button>
     <button id="tourBoardBtn">🏆</button>
     <button id="skipBtn">SKIP ▶</button>

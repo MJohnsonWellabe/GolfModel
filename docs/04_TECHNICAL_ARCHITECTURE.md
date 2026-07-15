@@ -294,7 +294,13 @@ All data-driven — a new course adds no code:
   along the corridor; the texture bake shades every slope directionally
   (`slopeShadeAt` in CourseTexture — sun-side flanks lighten, far flanks darken),
   which is what makes gentle terrain actually read on screen (the scene sun is
-  near-vertical, so mesh lighting alone shows almost nothing).
+  near-vertical, so mesh lighting alone shows almost nothing). `buildHeightField`
+  auto-sinks each bunker (ordinary `DISH_DEPTH`, revetted `WALL_DEPTH`) and adds
+  deterministic flanking dune mounds; the per-course `theme.bunkerDepthScale`
+  (default 1) multiplies the ORDINARY dish depth only — Sable Bay uses 2 so its
+  dished traps read as dramatically sunk into the dunes. Because the field is
+  shared, the deeper dish is a genuinely deeper pothole (physics + AI + render
+  all agree — threaded into both the live round and the headless simulator).
 - **Lobed greens**: `green2` on a hole adds a second wobbled ellipse whose UNION
   with `green` is the putting surface — physics, fringe collar, bunker clipping,
   texture bakes, plateau mesh and putt aids all read the union (`pointInGreens`).
@@ -471,6 +477,20 @@ Implementation notes (v2):
   around the HeightField hollow the same hazard digs.
 - Fescue/heather use photo-textured cards with an alpha-cutout material (distinct
   from the geometry-cut grass tufts, which recolour by material slot).
+- **Bunker-lip fescue** (`theme.bunkerLipFescue`, course3d) plants the heather
+  mix in a few thick clumps on each bunker rim so a trap reads as sand carved
+  out of turf. Clumps grow on the green-facing arc UNION the shaded (anti-sun)
+  flank — the latter so the wiry grass sits WITHIN the baked mound shadow
+  instead of only opposite it. Density is the per-clump instance count (14–29)
+  across 2–4 clumps per bunker.
+- **Shot capture** (`shotCapture.ts`): a "record my last shot" clip. Rolls a
+  continuous MediaRecorder over `canvas.captureStream(30)` in ~5s SEGMENTS
+  (each a complete, header-included recording — never a fragile ring buffer of
+  timeslice chunks, which is unplayable once the init chunk is dropped). Saving
+  finalizes the current segment and downloads whichever of {current, previous}
+  best covers the recent action. Mobile-web limits: "save" is a browser
+  download (not a native gallery write); codec/duration vary by browser (MP4 on
+  iOS Safari, WebM elsewhere); unsupported browsers hide the CLIP button.
 - **Vertex-color gotcha**: recolored props are colored entirely by their
   assigned material, but a baked COLOR_0 attribute MULTIPLIES it — tree_a/b
   ship pure-black bark colors (the "black trunk" bug), so loads set

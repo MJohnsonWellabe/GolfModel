@@ -74,6 +74,7 @@ import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter } from './meter3d';
+import { ShotCapture } from './shotCapture';
 
 // ------------------------------------------------------------------- boot
 
@@ -96,6 +97,34 @@ const aerialBtn = document.getElementById('aerialBtn')!;
 const tourBoardBtn = document.getElementById('tourBoardBtn')!;
 const trueVisionBtn = document.getElementById('trueVisionBtn')! as HTMLButtonElement;
 const skipBtn = document.getElementById('skipBtn')!;
+const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
+// Rolling ~5s canvas capture so a player can save a clip of a great shot to
+// their phone. Continuous while a round is on screen; started/stopped by the
+// Hole view. Degrades to a hidden button where the browser can't record.
+const shotCapture = new ShotCapture(canvas);
+if (captureBtn) {
+  captureBtn.addEventListener('pointerdown', () => {
+    void onSaveShotClip();
+  });
+}
+let savingClip = false;
+async function onSaveShotClip(): Promise<void> {
+  if (!captureBtn || savingClip) return;
+  savingClip = true;
+  const original = captureBtn.textContent;
+  captureBtn.textContent = '💾 …';
+  try {
+    const ok = await shotCapture.saveClip();
+    captureBtn.textContent = ok ? '✓ SAVED' : '—';
+  } catch {
+    captureBtn.textContent = '—';
+  } finally {
+    setTimeout(() => {
+      captureBtn.textContent = original ?? '🎥 CLIP';
+      savingClip = false;
+    }, 1200);
+  }
+}
 const shotShapeEl = document.getElementById('shotShape')!;
 const strikePadEl = document.getElementById('strikePad')!;
 const strikeDotEl = document.getElementById('strikeDot')!;
@@ -418,7 +447,7 @@ class HoleScene {
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
-    this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole));
+    this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1));
     // Aim/preview run on a flat, no-slope engine so the aim line never
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
     // real shot uses engine2d (terrain + wind).
@@ -1899,6 +1928,10 @@ class HoleScene {
     aerialBtn.addEventListener('pointerdown', this.onAerial);
     trueVisionBtn.addEventListener('pointerdown', this.onTrueVision);
     skipBtn.addEventListener('pointerdown', this.onSkip);
+    // Roll the shot-capture buffer for the whole time this hole is on screen so
+    // "save my last shot" always has the recent seconds ready.
+    shotCapture.start();
+    if (captureBtn) captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
 
     meter.onComplete = (result) => this.executeShot(result);
     meter.onBand = (kind, band) => {
@@ -2206,6 +2239,8 @@ class HoleScene {
     aerialBtn.style.display = 'none';
     trueVisionBtn.style.display = 'none';
     shotShapeEl.style.display = 'none';
+    shotCapture.stop();
+    if (captureBtn) captureBtn.style.display = 'none';
     this.scene.dispose();
   }
 }
@@ -2494,7 +2529,10 @@ function renderProfile(): void {
     p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
     persistProfile();
   });
-  document.getElementById('resetRecords')!.addEventListener('pointerdown', confirmResetRecords);
+  // Destructive: fire on a deliberate tap (down+up on the button), not on
+  // finger-down — a scroll flick that starts on this button used to open the
+  // reset dialog by accident (the "too touchy" report).
+  document.getElementById('resetRecords')!.addEventListener('click', confirmResetRecords);
   wireAccountRow();
   refreshProfileAdminZone();
 }
@@ -2567,13 +2605,21 @@ function confirmResetRecords(): void {
     `Coins and unlocked items are kept.${sharedNote}</div>` +
     `<div class="btnRow"><button id="resetYes" class="dangerBtn">Yes, reset</button>` +
     `<button id="resetNo" class="ghostBtn">Cancel</button></div></div>`;
-  // Tap the dimmed backdrop (outside the box) to cancel.
-  modal.addEventListener('pointerdown', (e) => {
+  // Tap the dimmed backdrop (outside the box) to cancel. Use `click` (not
+  // pointerdown) so a scroll/drag that merely starts on the backdrop doesn't
+  // dismiss it, matching the deliberate-tap semantics of the buttons below.
+  modal.addEventListener('click', (e) => {
     if (e.target === modal) close();
   });
   document.body.appendChild(modal);
-  modal.querySelector<HTMLButtonElement>('#resetNo')!.addEventListener('pointerdown', close);
-  modal.querySelector<HTMLButtonElement>('#resetYes')!.addEventListener('pointerdown', () => {
+  // Guard against a carried-through press: the tap that opened this dialog
+  // must not also count as a confirm if the finger happens to land where
+  // "Yes, reset" renders. Ignore confirm taps for a short arming window.
+  const armedAt = Date.now();
+  const RESET_ARM_MS = 350;
+  modal.querySelector<HTMLButtonElement>('#resetNo')!.addEventListener('click', close);
+  modal.querySelector<HTMLButtonElement>('#resetYes')!.addEventListener('click', () => {
+    if (Date.now() - armedAt < RESET_ARM_MS) return;
     resetProfileRecords(profile, Date.now());
     persistProfile();
     clearLocalHistory();
@@ -2589,7 +2635,7 @@ function confirmResetRecords(): void {
     modal.querySelector('.storeConfirmBox')!.innerHTML =
       `<div class="scTitle">✓ Records cleared</div>` +
       `<div class="btnRow"><button id="resetDone">Done</button></div>`;
-    modal.querySelector<HTMLButtonElement>('#resetDone')!.addEventListener('pointerdown', () => {
+    modal.querySelector<HTMLButtonElement>('#resetDone')!.addEventListener('click', () => {
       close();
       recordsEl.style.display = 'none';
     });

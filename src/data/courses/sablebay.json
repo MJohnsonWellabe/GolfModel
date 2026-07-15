@@ -44,12 +44,14 @@
     "heatherKeys": [
       "heather_fescue_a",
       "heather_fescue_b",
-      "heather_fescue_c"
+      "heather_fescue_c",
+      "heather_purple"
     ],
     "bunkerLipFescue": true,
+    "bunkerDepthScale": 2,
     "tallGrass": {
       "cap": 4.5,
-      "density": 4
+      "density": 5.5
     },
     "treeKeys": [
       "tree_pine_k3"

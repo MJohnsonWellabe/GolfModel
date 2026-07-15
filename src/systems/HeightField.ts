@@ -164,7 +164,7 @@ export class HeightField {
  *  shallower, rounded dome dish so they read as a natural hollow. Beach/waste
  *  sand stays flat — a coastal band or a sprawling links waste area is
  *  ground-level sand, not a dug trap. */
-export function buildHeightField(hole: HoleData): HeightField | null {
+export function buildHeightField(hole: HoleData, bunkerDepthScale = 1): HeightField | null {
   const pts: ElevationPoint[] = [...(hole.elevation ?? [])];
   for (const hz of hole.hazards) {
     if (hz.type !== 'bunker') continue;
@@ -185,7 +185,7 @@ export function buildHeightField(hole: HoleData): HeightField | null {
       // the green — a greenside bunker's pothole must never crater the
       // putting surface it sits beside.
       const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
-      if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH, r: dishR });
+      if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH * bunkerDepthScale, r: dishR });
       addFlankingMounds(hole, cx, cy, r, pts);
     }
   }
