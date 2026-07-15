@@ -82,7 +82,7 @@ describe('AI tournament', () => {
   it('field scoring sits in the calibrated +1..-3 band, skill-ordered', { timeout: 60_000 }, () => {
     // Design target (playtest: "AI should shoot ~+1 to -3 each round, around
     // my -1.5 average, with Tiger usually best but not always"). Means per
-    // round after the Timberline h2 tree move (below): JD ~-1.1, Tiger ~-2.8.
+    // round: JD ~-0.3..-0.7, Tiger ~-1.7..-2.3, everyone mostly in-band.
     const perOpp: Record<string, number[]> = {};
     for (let s = 0; s < 40; s++) {
       const t = createAiTournament(IDS, OPPONENTS, 5000 + s * 131);
@@ -92,18 +92,9 @@ describe('AI tournament', () => {
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
     const jd = mean(perOpp.sunny); // JD's persisted id
     const tiger = mean(perOpp.tiger);
-    // Bands recalibrated for the requested Timberline h2 tree move. The tree
-    // sat right on the tee→pin line and blocked the direct shot; moving it 5yd
-    // (10px) left clears that line, so the field — which aims at the pin —
-    // stops hitting it and hole 2 plays materially easier. Measured field means
-    // shifted JD -0.60 → -1.12 and Tiger -2.26 → -2.84 (a real ~0.5-stroke
-    // difficulty drop by design, NOT noise). Floors dropped to match with
-    // margin; the upper bounds and skill ordering (tiger < jd) still guard the
-    // field's shape. If hole 2 should stay harder, shrink the tree move instead
-    // of loosening these.
-    expect(jd).toBeGreaterThan(-1.25);
+    expect(jd).toBeGreaterThan(-1.1);
     expect(jd).toBeLessThan(0.3);
-    expect(tiger).toBeGreaterThan(-3.0);
+    expect(tiger).toBeGreaterThan(-2.6);
     expect(tiger).toBeLessThan(-1.4);
     expect(tiger).toBeLessThan(jd); // skill ordering holds on average
     const all = Object.values(perOpp).flat();
