@@ -676,6 +676,9 @@ class HoleScene {
     // NOT in a frozen screenshot capture — there the meter never animates and the
     // scatter must be allowed to finish filling for the shot.
     renderPacing.meterActive = !isFrozen();
+    // Same reasoning extends to the shot-capture recorder's periodic segment
+    // swap (stop/restart) — defer it off the live meter too.
+    shotCapture.setRotationPaused(!isFrozen());
   }
 
   /**
@@ -1138,6 +1141,7 @@ class HoleScene {
     // Default the scatter drain back on; armMeter re-pauses it for a human's
     // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
     renderPacing.meterActive = false;
+    shotCapture.setRotationPaused(false);
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     this.hideTrueVision(); // clear any stale reveal from the previous shot
     if (this.tm.isScramble) {
@@ -1583,6 +1587,7 @@ class HoleScene {
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     this.state.phase = 'swinging';
     renderPacing.meterActive = false; // meter's done — let the scatter finish filling
+    shotCapture.setRotationPaused(false);
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
     this.hideTrueVision(); // "stays up until the shot is struck" ends here

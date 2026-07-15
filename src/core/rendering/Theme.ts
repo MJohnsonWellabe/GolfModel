@@ -111,6 +111,14 @@ export interface CourseTheme {
    *  rendered mesh — a deeper bunker is a genuinely deeper pothole. Revetted
    *  pot bunkers (WALL_DEPTH) are unaffected. */
   bunkerDepthScale?: number;
+  /** Keep bunker-lip fescue OFF the fairway surface — it only lands on rough
+   *  or sand. Default false: fescue accepts fairway too (a fairway-side
+   *  bunker with no rough anywhere along its rim would otherwise get no lip
+   *  at all — the original "no grass by the bunker" bug). Sable Bay sets this
+   *  true once its rough is a genuine brown patch (`rough`/`roughDark`), so the
+   *  wiry lip reads as sitting on dune-brown turf rather than the course's
+   *  vivid green fairway. */
+  bunkerFescueAvoidFairway?: boolean;
   /** Lush grass: lit + two-sided grass material (self-shading, not flat) with
    *  per-tuft color variation and a taller rough cap. Undefined = flat unlit. */
   lushGrass?: boolean;
@@ -313,6 +321,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandPlantStep'
     | 'sandPlantKeep'
     | 'bunkerDepthScale'
+    | 'bunkerFescueAvoidFairway'
     | 'seaDunes'
     | 'lushGrass'
     | 'edgeWobble'
@@ -423,6 +432,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
   if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
   if (typeof spec.bunkerDepthScale === 'number') t.bunkerDepthScale = spec.bunkerDepthScale;
+  if (typeof spec.bunkerFescueAvoidFairway === 'boolean') t.bunkerFescueAvoidFairway = spec.bunkerFescueAvoidFairway;
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
   // fixed cream that only suits the parkland default.

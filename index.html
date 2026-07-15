@@ -468,7 +468,14 @@
            (Next/Tee off) is always visible (FB8). */
         display: flex;
         flex-direction: column;
-        max-height: 97vh;
+        /* dvh (not vh): plain vh is computed against the browser's LARGEST
+           possible viewport (toolbar hidden), so on a phone where the address
+           bar is showing, "97vh" overshoots the real visible area and #setup's
+           overflow-y:auto kicks in — the whole menu becomes scrollable on some
+           phones (their toolbar state at load) while fitting on one screen on
+           others. dvh tracks the toolbar live, so this always matches what's
+           actually visible. Same fix already applied to .recInner below. */
+        max-height: 97dvh;
         box-sizing: border-box;
       }
       #title {
@@ -664,7 +671,7 @@
       }
       .achList {
         text-align: left;
-        max-height: 34vh;
+        max-height: 34dvh;
         overflow-y: auto;
         margin-bottom: 14px;
       }
@@ -854,6 +861,82 @@
         }
         #steps .sdot.on .lbl {
           display: inline;
+        }
+      }
+      /* Short phones (an iPhone SE, a compact Android): even with dvh fixing
+         the toolbar-height mismatch, the fixed chrome above/below #stepBody
+         (title, both banners, daily challenge, steps ribbon, nav row, account
+         row, records links) can still add up to more than the visible height
+         on a genuinely short screen. Compact every one of those fixed blocks'
+         padding/margins here — content and functionality are unchanged, only
+         the whitespace between them shrinks — so the whole menu keeps fitting
+         on one screen without falling back to #setup's scroll. */
+      @media (max-height: 720px) {
+        #setupInner {
+          padding: 12px 16px 14px;
+        }
+        #title {
+          font-size: 26px;
+        }
+        #subtitle {
+          margin: 2px 0 8px;
+        }
+        .seasonBanner {
+          padding: 8px 14px;
+          margin: 0 0 8px;
+        }
+        #dailyBanner {
+          margin: 0 0 8px;
+          padding: 6px 10px;
+        }
+        #steps {
+          margin-bottom: 10px;
+        }
+        #navRow {
+          margin-top: 10px;
+        }
+        #navRow button {
+          padding: 11px;
+        }
+        .acctMenu {
+          margin: 8px auto 0;
+        }
+      }
+      /* Genuinely small phones (a compact modern Android under ~640px tall):
+         one more pass of the same compaction, plus letting the step content
+         area itself claim a little less minimum room. */
+      @media (max-height: 640px) {
+        #setupInner {
+          padding: 8px 14px 10px;
+        }
+        #title {
+          font-size: 22px;
+        }
+        #subtitle {
+          margin: 2px 0 6px;
+        }
+        .seasonBanner {
+          padding: 6px 12px;
+          margin: 0 0 6px;
+          gap: 8px;
+        }
+        .seasonBanner .sbIcon {
+          font-size: 20px;
+        }
+        .seasonBanner .sbTitle {
+          font-size: 14px;
+        }
+        .seasonBanner .sbSub {
+          font-size: 11px;
+        }
+        #steps {
+          margin-bottom: 8px;
+        }
+        #stepBody {
+          min-height: 90px;
+        }
+        #navRow {
+          margin-top: 8px;
         }
       }
       #stepBody {
@@ -1405,7 +1488,7 @@
       /* Store overlay (Phase 7) */
       .storeInner {
         width: min(96%, 560px);
-        max-height: 94vh;
+        max-height: 94dvh;
         display: flex;
         flex-direction: column;
         padding: 20px;
@@ -1841,7 +1924,7 @@
          re-center every tab switch. A real height keeps the title bar and
          footer pinned; only .lkScroll grows/scrolls in between. */
       .lockerInner {
-        height: min(86vh, 620px);
+        height: min(86dvh, 620px);
       }
       .lockerInner .lkTop {
         display: flex;

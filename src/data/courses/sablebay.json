@@ -8,8 +8,8 @@
     "sunY": 130,
     "fairway": "#4fb06a",
     "fairwayDark": "#3f9358",
-    "rough": "#47705a",
-    "roughDark": "#3a5c49",
+    "rough": "#9c8259",
+    "roughDark": "#7a6440",
     "fringe": "#77c65e",
     "green": "#98dd6b",
     "greenLight": "#abe97e",
@@ -48,6 +48,7 @@
       "heather_purple"
     ],
     "bunkerLipFescue": true,
+    "bunkerFescueAvoidFairway": true,
     "bunkerDepthScale": 2,
     "tallGrass": {
       "cap": 4.5,

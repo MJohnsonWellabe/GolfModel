@@ -57,8 +57,8 @@
       "stone_b",
       "stone_c"
     ],
-    "backdropTreeStep": 32,
-    "tuftDensity": 2.2,
+    "backdropTreeStep": 44,
+    "tuftDensity": 1.6,
     "roughTuftHeight": 1.35,
     "edgeWobble": 2.4,
     "stripeStrength": 1.2,

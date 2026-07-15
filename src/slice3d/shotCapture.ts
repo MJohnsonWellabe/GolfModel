@@ -50,6 +50,12 @@ export class ShotCapture {
   private rotateTimer: ReturnType<typeof setTimeout> | null = null;
   private running = false;
   private saving = false;
+  /** While true, a due segment rotation (stop/restart the recorder — real,
+   *  if small, main-thread work) is deferred instead of firing immediately.
+   *  Set while the swing meter is armed (main.ts, mirroring renderPacing's
+   *  shadow/mirror freeze) so a rotation can never land mid-swing and cost the
+   *  bar a frame — recording keeps rolling throughout, only the SWAP waits. */
+  private rotationPaused = false;
 
   constructor(canvas: HTMLCanvasElement, opts: CaptureOpts = {}) {
     this.canvas = canvas;
@@ -178,9 +184,22 @@ export class ShotCapture {
     this.rotateTimer = setTimeout(() => this.rotate(), this.segmentMs);
   }
 
+  /** Pause/resume segment rotation. The recorder keeps recording either way —
+   *  this only withholds the periodic stop/restart swap, which is what could
+   *  otherwise land on the exact frame the swing meter needs. */
+  setRotationPaused(paused: boolean): void {
+    this.rotationPaused = paused;
+  }
+
   /** Close the current segment (stashing it as prevBlob) and open a fresh one. */
   private rotate(): void {
     this.rotateTimer = null;
+    if (this.rotationPaused) {
+      // Check back shortly rather than swapping recorders mid-swing; the
+      // current segment just keeps recording a little longer.
+      if (this.running) this.rotateTimer = setTimeout(() => this.rotate(), 250);
+      return;
+    }
     const finished = this.recorder;
     if (!this.running || !finished || finished.state === 'inactive') return;
     finished.onstop = (): void => {

@@ -141,15 +141,17 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     // Depth-of-woods thinning (render only): a corridor wants to read DENSE
     // right at the fairway edge (the "walled in" look) but doesn't need that
     // same density purely as distant backdrop — the extra trunks back there
-    // are never seen up close, just paid for every frame (Timberline hole 1's
-    // "only hole with a performance problem" despite a similar tree layout to
-    // hole 3: its woods carry a much tighter authored spacing over a large
-    // area). Keep-probability falls off linearly with distance from the
-    // nearest fairway polygon, floored so the backdrop still reads as woods,
-    // never patchy. Collision/bake are unaffected (playability unchanged).
+    // are never seen up close, just paid for every frame (Timberline's
+    // reported lag despite the hole-1 fix: its woods still carry a much
+    // tighter authored spacing over a large area than any other course).
+    // Keep-probability falls off linearly with distance from the nearest
+    // fairway polygon, floored so the backdrop still reads as woods, never
+    // patchy. Tightened FAR/FLOOR (320/0.22 -> 230/0.15) thins sooner and
+    // deeper — still invisible from the corridor, fewer trunks paid for at
+    // the horizon. Collision/bake are unaffected (playability unchanged).
     const FAIRWAY_THIN_NEAR = 70;
-    const FAIRWAY_THIN_FAR = 320;
-    const FAIRWAY_THIN_FLOOR = 0.22;
+    const FAIRWAY_THIN_FAR = 230;
+    const FAIRWAY_THIN_FLOOR = 0.15;
     const before = blobs.length;
     for (let yy = minY; yy < maxY; yy += step) {
       for (let xx = minX; xx < maxX; xx += step) {

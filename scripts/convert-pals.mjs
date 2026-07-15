@@ -67,7 +67,14 @@ const MANIFEST = {
   // Level-50 finale. A rigged/skinned scan (33 joints, one baked "Idle
   // Animation" — unlike its static chibi pass-mates) at a modest 28k tris, so
   // skipSimplify avoids risking the joint-weight remap the way trex does.
-  thanos: { src: 'thanos_raw.glb', skipSimplify: true }
+  // `deMetal` fixes the source materials reading near-black: body/head/
+  // helmet/gauntlets ship metallicFactor:1 at low roughness (a mirror-like
+  // metal with a tight specular lobe), and this engine never sets up an
+  // environment/IBL map, so a fully-metallic surface has NOTHING to reflect
+  // and gets almost no fill light — the classic "PBR metal with no env map
+  // renders black" trap. Pulling metallic down and roughness up gives the
+  // armor a real diffuse term so ordinary hemi+directional light lands on it.
+  thanos: { src: 'thanos_raw.glb', skipSimplify: true, deMetal: { metallic: 0.15, minRoughness: 0.6 } }
 };
 
 const io = new NodeIO();
@@ -84,13 +91,26 @@ function triCount(document) {
   return Math.round(tris);
 }
 
-for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor }] of Object.entries(MANIFEST)) {
+for (const [key, { src, ratio, error, skipSimplify, baseColor, recolor, deMetal }] of Object.entries(MANIFEST)) {
   const document = await io.read(path.join(SRC, src));
   const before = triCount(document);
 
   for (const mat of document.getRoot().listMaterials()) {
     mat.setNormalTexture(null);
     mat.setOcclusionTexture(null);
+  }
+
+  // Pull a fully-metallic material (metallicFactor 1) down toward dielectric
+  // and floor its roughness — see the `thanos` manifest comment for why a
+  // pure-metal material with no environment map renders almost black here.
+  // Non-metallic materials (metallicFactor 0, e.g. the eyes) are untouched.
+  if (deMetal) {
+    for (const mat of document.getRoot().listMaterials()) {
+      if (mat.getMetallicFactor() === 1) {
+        mat.setMetallicFactor(deMetal.metallic);
+        mat.setRoughnessFactor(Math.max(mat.getRoughnessFactor(), deMetal.minRoughness));
+      }
+    }
   }
 
   if (baseColor) {

@@ -2059,8 +2059,17 @@ export function buildCourse(
           // fewer so it doesn't end up fully carpeted.
           const clusterCount = rim.length < 12 ? 2 : 2 + Math.floor(hash2(cx + 5, cy - 5) * 3);
           const CLUSTER_JITTER = 9; // world units the clump scatters from its center
+          // All clusters huddle near ONE anchor point on the rim (a small index
+          // window either side) instead of each picking an independent random
+          // spot across the whole hole-side arc — reads as one bundled lip
+          // (front-to-back along the rim) rather than clumps scattered wide
+          // apart around the bunker.
+          const anchorIdx = Math.floor(hash2(cx + 5, cy - 5) * rim.length);
+          const window = Math.max(3, Math.min(rim.length, 10));
           for (let k = 0; k < clusterCount; k++) {
-            const center = rim[Math.floor(hash2(cx + k * 41 + 7, cy - k * 23 - 11) * rim.length)];
+            const spread = Math.floor((hash2(cx + k * 41 + 7, cy - k * 23 - 11) - 0.5) * window);
+            const idx = ((anchorIdx + spread) % rim.length + rim.length) % rim.length;
+            const center = rim[idx];
             const count = 18 + Math.floor(hash2(center.x, center.y + k) * 20); // 18-37 per clump (~25% denser)
             for (let j = 0; j < count; j++) {
               // 1.8-unit INWARD nudge (was 0.6 outward) — the clump's near edge
@@ -2069,19 +2078,22 @@ export function buildCourse(
               // the trap instead of stopping short of it.
               const jx = center.x + (hash2(center.x + j * 3.1, center.y - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 - center.nx * 1.8;
               const jy = center.y + (hash2(center.y + j * 3.1, center.x - j * 2.7) - 0.5) * CLUSTER_JITTER * 2 - center.ny * 1.8;
-              // Accept rough, fairway, OR sand turf: a fairway-side bunker (very
-              // common — Sable Bay/Port Johnson both flank the short grass
-              // directly, no rough buffer between) has NO rough anywhere along
-              // its rim, so gating on 'rough' alone silently skipped fescue on
-              // every one of those traps, leaving a completely bare sand→fairway
-              // edge (bug report: "no grass by the bunker" at Sable Bay and Port
-              // Johnson). Sand is now accepted too so the inward-nudged tufts
-              // that land just past the rim still render (owner: "even closer to
-              // the bunker, maybe even start slightly in it") instead of being
-              // silently culled. Green/fringe/water/trees stay excluded — a
+              // Accept rough, sand, and (unless the theme says otherwise) fairway
+              // turf. A fairway-side bunker (very common — Sable Bay/Port
+              // Johnson both flank the short grass directly, no rough buffer
+              // between) can have NO rough anywhere along its rim, so gating on
+              // 'rough' alone silently skipped fescue on every one of those
+              // traps, leaving a completely bare sand→fairway edge (bug report:
+              // "no grass by the bunker"). Sand is accepted too so the
+              // inward-nudged tufts that land just past the rim still render.
+              // `bunkerFescueAvoidFairway` (Sable Bay) drops the fairway
+              // fallback once a course's rough is a real brown patch — the lip
+              // should read as sitting on dune-brown turf, never on the vivid
+              // green fairway. Green/fringe/water/trees stay excluded — a
               // putting collar or another hazard should never sprout wiregrass.
               const surf = engine.surfaceAt(jx, jy);
-              if (surf !== 'rough' && surf !== 'fairway' && surf !== 'sand') continue;
+              const fairwayOk = surf === 'fairway' && !theme.bunkerFescueAvoidFairway;
+              if (surf !== 'rough' && surf !== 'sand' && !fairwayOk) continue;
               place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
             }
           }
