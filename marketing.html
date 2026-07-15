@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Bite-Sized Golf — Press &amp; Marketing Kit</title>
+    <style>
+      :root {
+        --bg0: #05170d;
+        --bg1: #0a2f18;
+        --bg2: #0e3f22;
+        --ink: #eef7ee;
+        --ink-dim: #a9c6b0;
+        --gold: #ffd54f;
+        --green: #46c06a;
+        --card: rgba(255, 255, 255, 0.05);
+        --card-line: rgba(255, 255, 255, 0.1);
+        --shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        font-family: 'Trebuchet MS', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(130% 80% at 50% -10%, rgba(70, 192, 106, 0.16), transparent 55%),
+          linear-gradient(180deg, var(--bg1) 0%, var(--bg0) 100%);
+        min-height: 100vh;
+        line-height: 1.55;
+        overflow-x: hidden;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      .wrap {
+        max-width: 1160px;
+        margin: 0 auto;
+        padding: 0 20px;
+      }
+
+      /* ---- top nav ---- */
+      nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(10px);
+        background: rgba(5, 23, 13, 0.72);
+        border-bottom: 1px solid var(--card-line);
+      }
+      nav .wrap {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+        height: 60px;
+      }
+      .brand {
+        font-weight: 800;
+        font-size: 18px;
+        letter-spacing: 0.2px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .brand .ball {
+        color: var(--gold);
+      }
+      nav .links {
+        margin-left: auto;
+        display: flex;
+        gap: 20px;
+        font-size: 14px;
+        color: var(--ink-dim);
+        flex-wrap: wrap;
+      }
+      nav .links a:hover {
+        color: var(--gold);
+      }
+      .back {
+        font-size: 13px;
+        color: var(--ink-dim);
+        border: 1px solid var(--card-line);
+        border-radius: 999px;
+        padding: 6px 14px;
+      }
+      .back:hover {
+        color: var(--gold);
+        border-color: var(--gold);
+      }
+
+      /* ---- hero ---- */
+      header.hero {
+        position: relative;
+        min-height: 78vh;
+        display: flex;
+        align-items: flex-end;
+        overflow: hidden;
+      }
+      header.hero .plate {
+        position: absolute;
+        inset: 0;
+        background-size: cover;
+        background-position: center 40%;
+        transform: scale(1.03);
+      }
+      header.hero .scrim {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(5, 23, 13, 0.25) 0%, rgba(5, 23, 13, 0.55) 55%, var(--bg0) 100%);
+      }
+      header.hero .wrap {
+        position: relative;
+        padding-bottom: 54px;
+        padding-top: 40px;
+      }
+      .kicker {
+        display: inline-block;
+        font-size: 12.5px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        color: var(--gold);
+        border: 1px solid rgba(255, 213, 79, 0.4);
+        border-radius: 999px;
+        padding: 5px 12px;
+        margin-bottom: 18px;
+      }
+      h1.title {
+        font-size: clamp(38px, 7vw, 76px);
+        line-height: 1.02;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        max-width: 14ch;
+      }
+      h1.title em {
+        color: var(--gold);
+        font-style: normal;
+      }
+      .lede {
+        margin-top: 16px;
+        font-size: clamp(16px, 2.2vw, 21px);
+        color: var(--ink-dim);
+        max-width: 56ch;
+      }
+      .stats {
+        margin-top: 26px;
+        display: flex;
+        gap: 30px;
+        flex-wrap: wrap;
+      }
+      .stat b {
+        display: block;
+        font-size: 26px;
+        color: var(--gold);
+      }
+      .stat span {
+        font-size: 13px;
+        color: var(--ink-dim);
+        letter-spacing: 0.4px;
+      }
+
+      /* ---- sections ---- */
+      section {
+        padding: 74px 0;
+      }
+      .eyebrow {
+        color: var(--green);
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      h2 {
+        font-size: clamp(26px, 4vw, 40px);
+        font-weight: 800;
+        letter-spacing: -0.4px;
+        margin-bottom: 10px;
+      }
+      .sub {
+        color: var(--ink-dim);
+        max-width: 62ch;
+        font-size: 16.5px;
+      }
+      .section-head {
+        margin-bottom: 34px;
+      }
+
+      /* ---- video showcase ---- */
+      .clip-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 20px;
+      }
+      .clip {
+        position: relative;
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--card);
+        border: 1px solid var(--card-line);
+        box-shadow: var(--shadow);
+      }
+      .clip video,
+      .clip .poster {
+        width: 100%;
+        aspect-ratio: 9 / 16;
+        object-fit: cover;
+        display: block;
+        background: #071c10;
+      }
+      .clip.wide video,
+      .clip.wide .poster {
+        aspect-ratio: 16 / 9;
+      }
+      .clip .cap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 26px 16px 14px;
+        background: linear-gradient(180deg, transparent, rgba(4, 16, 9, 0.92));
+        pointer-events: none;
+      }
+      .clip .cap b {
+        font-size: 16px;
+        display: block;
+      }
+      .clip .cap span {
+        font-size: 13px;
+        color: var(--ink-dim);
+      }
+      .clip .badge {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        color: #06210f;
+        background: var(--gold);
+        border-radius: 999px;
+        padding: 4px 10px;
+        z-index: 2;
+      }
+      .note {
+        margin-top: 22px;
+        font-size: 13.5px;
+        color: var(--ink-dim);
+        background: var(--card);
+        border: 1px dashed var(--card-line);
+        border-radius: 12px;
+        padding: 14px 16px;
+      }
+      .note b {
+        color: var(--ink);
+      }
+
+      /* ---- feature rows ---- */
+      .feature {
+        display: grid;
+        grid-template-columns: 1.05fr 1fr;
+        gap: 40px;
+        align-items: center;
+        margin-bottom: 54px;
+      }
+      .feature:nth-child(even) .shot {
+        order: 2;
+      }
+      .feature .shot {
+        border-radius: 18px;
+        overflow: hidden;
+        border: 1px solid var(--card-line);
+        box-shadow: var(--shadow);
+        background: #071c10;
+      }
+      .feature .shot img {
+        width: 100%;
+        display: block;
+      }
+      .feature h3 {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      .feature p {
+        color: var(--ink-dim);
+        font-size: 16px;
+      }
+      .feature .tag {
+        display: inline-block;
+        font-size: 12px;
+        color: var(--green);
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+        font-weight: 700;
+      }
+
+      /* ---- course gallery ---- */
+      .courses {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 22px;
+      }
+      .course {
+        border-radius: 16px;
+        overflow: hidden;
+        background: var(--card);
+        border: 1px solid var(--card-line);
+        box-shadow: var(--shadow);
+        transition: transform 0.18s ease, border-color 0.18s ease;
+      }
+      .course:hover {
+        transform: translateY(-4px);
+        border-color: rgba(255, 213, 79, 0.4);
+      }
+      .course img {
+        width: 100%;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        display: block;
+      }
+      .course .body {
+        padding: 16px 18px 20px;
+      }
+      .course h3 {
+        font-size: 19px;
+        margin-bottom: 4px;
+      }
+      .course p {
+        font-size: 14px;
+        color: var(--ink-dim);
+      }
+
+      /* ---- roster grids ---- */
+      .roster {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+        gap: 14px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--card-line);
+        border-radius: 14px;
+        padding: 10px 10px 12px;
+        text-align: center;
+        transition: transform 0.16s ease, border-color 0.16s ease;
+      }
+      .card:hover {
+        transform: translateY(-3px);
+        border-color: rgba(255, 213, 79, 0.4);
+      }
+      .card img {
+        width: 100%;
+        aspect-ratio: 3 / 4;
+        object-fit: contain;
+        display: block;
+      }
+      .card.pal img {
+        object-fit: contain;
+        background: radial-gradient(60% 60% at 50% 40%, rgba(70, 192, 106, 0.16), transparent 70%);
+        border-radius: 10px;
+      }
+      .card span {
+        display: block;
+        margin-top: 6px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .pillrow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 22px;
+      }
+      .pill {
+        font-size: 13px;
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--card-line);
+        border-radius: 999px;
+        padding: 8px 14px;
+      }
+      .pill b {
+        color: var(--gold);
+      }
+
+      footer {
+        border-top: 1px solid var(--card-line);
+        padding: 36px 0 60px;
+        color: var(--ink-dim);
+        font-size: 13.5px;
+        text-align: center;
+      }
+      .divider {
+        height: 1px;
+        background: var(--card-line);
+        margin: 0;
+      }
+
+      @media (max-width: 720px) {
+        .feature {
+          grid-template-columns: 1fr;
+          gap: 20px;
+        }
+        .feature:nth-child(even) .shot {
+          order: 0;
+        }
+        section {
+          padding: 54px 0;
+        }
+        header.hero {
+          min-height: 70vh;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="wrap">
+        <div class="brand"><span class="ball">⛳</span> Bite-Sized Golf</div>
+        <div class="links">
+          <a href="#clips">Gameplay</a>
+          <a href="#features">Features</a>
+          <a href="#courses">Courses</a>
+          <a href="#characters">Characters</a>
+          <a href="#pals">Pals</a>
+        </div>
+        <a class="back" href="admin.html">← Admin</a>
+      </div>
+    </nav>
+
+    <header class="hero">
+      <div class="plate" style="background-image: url('marketing/img/sablebay-h2-aerial.png')"></div>
+      <div class="scrim"></div>
+      <div class="wrap">
+        <span class="kicker">Press &amp; Marketing Kit</span>
+        <h1 class="title">Pocket golf with <em>real</em> shot-making.</h1>
+        <p class="lede">
+          A bite-sized round you can finish on a coffee break — with true backspin, shot shaping,
+          living courses, collectible characters and pals. Pick up, tee off, pull off the shot.
+        </p>
+        <div class="stats">
+          <div class="stat"><b>4</b><span>HAND-BUILT COURSES</span></div>
+          <div class="stat"><b>25</b><span>PLAYABLE CHARACTERS</span></div>
+          <div class="stat"><b>13</b><span>COLLECTIBLE PALS</span></div>
+          <div class="stat"><b>3-hole</b><span>QUICK ROUNDS</span></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ============ GAMEPLAY CLIPS ============ -->
+    <section id="clips">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">See it in motion</div>
+          <h2>The shots that make people say "again."</h2>
+          <p class="sub">
+            The hero moments — a poured-in ace, a wedge that checks and spins back, a delicate chip,
+            a clutch putt, a clean bunker splash.
+          </p>
+        </div>
+        <div class="clip-grid">
+          <div class="clip">
+            <div class="badge">Ace</div>
+            <video controls playsinline preload="none" poster="marketing/img/timberline-h2-approach.png">
+              <source src="marketing/videos/hole-in-one.mp4" type="video/mp4" />
+            </video>
+            <div class="cap"><b>Hole-in-one</b><span>Par 3, straight in the cup.</span></div>
+          </div>
+          <div class="clip">
+            <div class="badge">Backspin</div>
+            <video controls playsinline preload="none" poster="marketing/img/feature-aim.png">
+              <source src="marketing/videos/backspin.mp4" type="video/mp4" />
+            </video>
+            <div class="cap"><b>Check &amp; back up</b><span>Lands soft, zips back to the flag.</span></div>
+          </div>
+          <div class="clip">
+            <div class="badge">Chip</div>
+            <video controls playsinline preload="none" poster="marketing/img/sablebay-h1-green.png">
+              <source src="marketing/videos/chip.mp4" type="video/mp4" />
+            </video>
+            <div class="cap"><b>Delicate chip</b><span>Bump-and-run to tap-in range.</span></div>
+          </div>
+          <div class="clip">
+            <div class="badge">Putt</div>
+            <video controls playsinline preload="none" poster="marketing/img/sablebay-h1-green.png">
+              <source src="marketing/videos/putt.mp4" type="video/mp4" />
+            </video>
+            <div class="cap"><b>Clutch putt</b><span>Reading the break, dead center.</span></div>
+          </div>
+          <div class="clip">
+            <div class="badge">Sand</div>
+            <video controls playsinline preload="none" poster="marketing/img/portjohnson-h1-tee.png">
+              <source src="marketing/videos/bunker.mp4" type="video/mp4" />
+            </video>
+            <div class="cap"><b>Bunker splash</b><span>Out of the sand, onto the dance floor.</span></div>
+          </div>
+        </div>
+        <p class="note">
+          <b>Adding your clips:</b> record the shot on your phone with the in-game <b>CLIP</b> button, then drop the
+          file into <code>assets/marketing/videos/</code> named <code>hole-in-one.mp4</code>,
+          <code>backspin.mp4</code>, <code>chip.mp4</code>, <code>putt.mp4</code>, <code>bunker.mp4</code>. Each tile
+          already shows a still poster until its clip is added.
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ============ FEATURES ============ -->
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Depth under the pick-up-and-play</div>
+          <h2>Real shot-making, one thumb.</h2>
+          <p class="sub">Systems a real golfer will feel — and a newcomer can learn in a hole or two.</p>
+        </div>
+
+        <div class="feature">
+          <div class="shot"><img src="marketing/img/feature-aim.png" alt="Aiming and shot shaping" /></div>
+          <div>
+            <div class="tag">Spin &amp; shot shaping</div>
+            <h3>Shape it, spin it, hold it.</h3>
+            <p>
+              Dial in draw or fade and set your spin — top for run-out, back to check and bite. The ball
+              flies, lands and reacts the way you struck it, so every green is a target you can actually attack.
+            </p>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="shot"><img src="marketing/img/feature-truevision.png" alt="True Vision trajectory reveal" /></div>
+          <div>
+            <div class="tag">True Vision</div>
+            <h3>See the whole line before you commit.</h3>
+            <p>
+              Spend a True Vision charge to reveal the full predicted trajectory — carry, curve and roll —
+              then trust it or play the hero line. Every round starts with a free charge.
+            </p>
+          </div>
+        </div>
+
+        <div class="feature">
+          <div class="shot"><img src="marketing/img/feature-occlusion.png" alt="Trees fade so the golfer stays visible" /></div>
+          <div>
+            <div class="tag">Tree occlusion</div>
+            <h3>The camera never loses your golfer.</h3>
+            <p>
+              Tucked in the trees? Any canopy between you and the camera softly fades to a ghost, so you
+              always see the ball, the lie and the swing — no fighting the view out of the woods.
+            </p>
+          </div>
+        </div>
+
+        <div class="pillrow">
+          <span class="pill"><b>Wind &amp; slope</b> read every hole</span>
+          <span class="pill"><b>Fire streaks</b> for hot rounds</span>
+          <span class="pill"><b>1v1 &amp; scramble</b> multiplayer</span>
+          <span class="pill"><b>AI tournaments</b> across the rota</span>
+          <span class="pill"><b>Save-a-clip</b> of your best shot</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ============ COURSES ============ -->
+    <section id="courses">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Four worlds, one swing</div>
+          <h2>Courses with a sense of place.</h2>
+          <p class="sub">Each course is hand-authored — its own terrain, hazards, planting and light.</p>
+        </div>
+        <div class="courses">
+          <div class="course">
+            <img src="marketing/img/wildwood-h3-approach.png" alt="Wildwood Glen" />
+            <div class="body"><h3>Wildwood Glen</h3><p>Lush parkland — blossoming beds, water and mountain peaks.</p></div>
+          </div>
+          <div class="course">
+            <img src="marketing/img/sablebay-h2-aerial.png" alt="Sable Bay" />
+            <div class="body"><h3>Sable Bay</h3><p>Coastal links — island greens, dune fescue and open sky.</p></div>
+          </div>
+          <div class="course">
+            <img src="marketing/img/timberline-h1-tee.png" alt="Timberline" />
+            <div class="body"><h3>Timberline</h3><p>Wooded mountain — tight tree corridors and lush forest floor.</p></div>
+          </div>
+          <div class="course">
+            <img src="marketing/img/portjohnson-h1-tee.png" alt="Port Johnson Links" />
+            <div class="body"><h3>Port Johnson Links</h3><p>Windswept links — pot bunkers, firm ground and the tide.</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ============ CHARACTERS ============ -->
+    <section id="characters">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Pick your golfer</div>
+          <h2>25 characters, all playable.</h2>
+          <p class="sub">A roster with real personality — and outfit &amp; club-skin customization on top.</p>
+        </div>
+        <div class="roster" id="charRoster"></div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ============ PALS ============ -->
+    <section id="pals">
+      <div class="wrap">
+        <div class="section-head">
+          <div class="eyebrow">Bring a friend</div>
+          <h2>Collectible pals walk the round with you.</h2>
+          <p class="sub">Earned through the season pass — from a foxy companion to the level-50 finale.</p>
+        </div>
+        <div class="roster" id="palRoster"></div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="wrap">
+        Bite-Sized Golf — internal press &amp; marketing kit. Screens captured in-engine. Not for public
+        distribution without approval.
+      </div>
+    </footer>
+
+    <script type="module" src="/src/marketing/main.ts"></script>
+  </body>
+</html>

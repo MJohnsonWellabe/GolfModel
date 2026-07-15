@@ -82,6 +82,7 @@ function render(allRounds: RoundRecord[]): void {
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
   let html = `<button id="backGame" class="btn back">← Back to game</button>
+    <a href="marketing.html" class="btn" style="text-decoration:none;display:inline-block">🎬 Marketing kit</a>
     <h1>⛳ Bite-Sized Golf — Admin</h1>
     <p class="sub">${rounds.length} active rounds (legacy versions hidden)</p>`;
 

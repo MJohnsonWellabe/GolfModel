@@ -27,7 +27,9 @@ export default defineConfig({
         // Redirect stub preserving the old /slice3d.html bookmark
         slice3d: resolve(__dirname, 'slice3d.html'),
         // Owner-only stats dashboard (Google sign-in gated in-page)
-        admin: resolve(__dirname, 'admin.html')
+        admin: resolve(__dirname, 'admin.html'),
+        // Owner-reached press/marketing kit (linked from the admin dashboard)
+        marketing: resolve(__dirname, 'marketing.html')
       }
     }
   }
