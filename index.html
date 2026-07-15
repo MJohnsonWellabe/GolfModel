@@ -460,6 +460,54 @@
         z-index: 20;
         overflow-y: auto;
       }
+      /* Round-load acknowledgement: shown the instant "Tee off" is tapped and
+         held over the (briefly main-thread-blocking) course build so the tap
+         registers immediately instead of leaving the player on a frozen menu.
+         Matches the setup screen's dark-green gradient. Hidden by default. */
+      #loading {
+        position: fixed;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 30;
+        background:
+          radial-gradient(120% 80% at 50% -10%, rgba(120, 200, 140, 0.16), transparent 60%),
+          linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
+      }
+      #loading.on {
+        display: flex;
+      }
+      #loadingBox {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+      }
+      #loadingSpin {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        border: 5px solid rgba(255, 255, 255, 0.18);
+        border-top-color: var(--accent, #ffd54f);
+        animation: loadingSpin 0.8s linear infinite;
+      }
+      #loadingTxt {
+        color: #eaf6ec;
+        font-weight: 700;
+        font-size: 18px;
+        letter-spacing: 0.2px;
+      }
+      @keyframes loadingSpin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #loadingSpin {
+          animation-duration: 1.6s;
+        }
+      }
       #setupInner {
         width: min(96%, 560px);
         padding: 22px 20px 26px;
@@ -2115,6 +2163,12 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <div id="loading" aria-live="polite" aria-busy="true">
+      <div id="loadingBox">
+        <div id="loadingSpin"></div>
+        <div id="loadingTxt">Loading course…</div>
+      </div>
+    </div>
     <div id="hud" class="panel"></div>
     <div id="badge" class="panel">Bite-Sized Golf<br />Wildwood Glen</div>
     <div id="prompt"></div>

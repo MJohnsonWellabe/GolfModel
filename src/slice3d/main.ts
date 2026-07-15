@@ -2278,6 +2278,38 @@ const holesThisRound = (): number => Math.min(RULES.holesPerRound, round.course.
 
 /** Play one hole. Every competitor plays it in a single scene (alternating
  *  turns for 1v1/scramble); the callback returns each competitor's strokes. */
+const loadingEl = document.getElementById('loading');
+function showLoading(msg = 'Loading course…'): void {
+  const txt = document.getElementById('loadingTxt');
+  if (txt) txt.textContent = msg;
+  loadingEl?.classList.add('on');
+}
+function hideLoading(): void {
+  loadingEl?.classList.remove('on');
+}
+/** Show the loading veil, wait for it to actually PAINT, then run a heavy,
+ *  main-thread-blocking build — so tapping "Tee off" gives instant feedback
+ *  instead of a frozen menu while the course bakes. A double rAF guarantees the
+ *  browser has committed a frame with the veil up before we block; a short
+ *  setTimeout fallback still runs the build where rAF is throttled (headless /
+ *  backgrounded tabs). The veil lifts one frame after the build so the fresh
+ *  course paints first. Runs `build` exactly once. */
+function buildWithLoading(build: () => void): void {
+  showLoading();
+  let ran = false;
+  const go = (): void => {
+    if (ran) return;
+    ran = true;
+    try {
+      build();
+    } finally {
+      requestAnimationFrame(() => requestAnimationFrame(() => hideLoading()));
+    }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(go));
+  setTimeout(go, 150);
+}
+
 function playHole(): void {
   current?.dispose();
   current = new HoleScene((scores) => {
@@ -4239,7 +4271,8 @@ function startRound(): void {
   // a single three-hole round. startAiTourRound() grants this round's True
   // Vision itself — granting here too would double it on tournament round 1.
   if (sel.mode === 'aitour') {
-    startAiTournament();
+    setupEl.style.display = 'none';
+    buildWithLoading(() => startAiTournament());
     return;
   }
   grantRoundTrueVision();
@@ -4250,7 +4283,7 @@ function startRound(): void {
     round.players.push({ golfer: opp, isAI: true, scores: [] });
   }
   setupEl.style.display = 'none';
-  playHole();
+  buildWithLoading(() => playHole());
 }
 
 function escapeHtml(s: string): string {
