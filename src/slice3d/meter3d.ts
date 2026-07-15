@@ -95,6 +95,11 @@ export class DomMeter {
 
   onComplete: ((result: SwingResult) => void) | null = null;
   onBand: ((kind: 'power' | 'accuracy', band: Band) => void) | null = null;
+  /** Fired when the player lets the accuracy cursor run all the way back to
+   *  the start without tapping — a deliberate no-penalty bail so they can
+   *  re-aim, instead of the old forced miss-shot (playtest: "let me cancel by
+   *  letting it run back to the start"). No stroke is consumed. */
+  onCancel: (() => void) | null = null;
 
   constructor(container: HTMLElement) {
     this.el = container;
@@ -183,7 +188,7 @@ export class DomMeter {
       }
       case 'accuracy':
         this.advance(performance.now());
-        this.lockAccuracy(this.cursor, false);
+        this.lockAccuracy(this.cursor);
         return true;
       default:
         return false;
@@ -203,7 +208,17 @@ export class DomMeter {
     const c = this.lockedPower;
     if (this.ctx.isPutt) {
       if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
-      return clamp(c, 0.03, 1);
+      // A "good" putt tap used to deliver the raw stopped cursor with no
+      // reference to the target at all — unlike every other case here, which
+      // scales power relative to where the target sits. Putts have no
+      // fullPowerMark headroom (the bar position IS the intended power
+      // fraction), so that raw pass-through let goodBand's fixed absolute
+      // width blow up into a huge RELATIVE error on a short putt's small
+      // target (a "good" tap-in could land 50%+ over/under target power and
+      // rocket past the hole). Cap the error at a fraction of the target
+      // instead, so "good" reads as a near-target roll at any putt length.
+      const errCap = t * SWING.puttGoodErrorFrac;
+      return clamp(t + clamp(c - t, -errCap, errCap), 0.03, 1);
     }
     // Non-putt: powerTarget is the intended physics fraction; the bar target
     // sits at powerTarget * fullPowerMark.
@@ -216,13 +231,9 @@ export class DomMeter {
     return clamp(this.ctx.powerTarget - SWING.overswingPenalty * (c - t), 0.1, 1.08);
   }
 
-  private lockAccuracy(cursor: number, autoMiss: boolean): void {
+  private lockAccuracy(cursor: number): void {
     let band = this.bandFor(cursor, ACCURACY_TARGET);
     let offset = clamp((cursor - ACCURACY_TARGET) / 0.5, -1, 1);
-    if (autoMiss) {
-      band = 'miss';
-      offset = -0.55;
-    }
     if (band === 'perfect') offset = 0;
     if (band === 'miss') offset = clamp(offset * 1.5, -1, 1);
     this.onBand?.('accuracy', band);
@@ -244,7 +255,10 @@ export class DomMeter {
     if (!this.isActive) return;
     this.advance(ts);
     if (this.state === 'accuracy' && this.cursor <= 0) {
-      this.lockAccuracy(0, true);
+      // Ran all the way back to the start with no tap — a deliberate bail,
+      // not a miss: no shot, no stroke, meter resets so the player can re-aim.
+      this.hide();
+      this.onCancel?.();
       return;
     }
     this.cursorEl.style.left = `${this.cursor * 100}%`;

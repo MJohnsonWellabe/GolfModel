@@ -196,9 +196,19 @@ export class ShotCapture {
     this.rotateTimer = null;
     if (this.rotationPaused) {
       // Check back shortly rather than swapping recorders mid-swing; the
-      // current segment just keeps recording a little longer.
-      if (this.running) this.rotateTimer = setTimeout(() => this.rotate(), 250);
-      return;
+      // current segment just keeps recording a little longer. Safety valve:
+      // whatever is holding rotationPaused should only ever be the brief
+      // mid-swing tap sequence (a couple seconds) — but if it somehow stays
+      // held far past this segment's due time (a stuck meter, a bug
+      // elsewhere), force the swap anyway once overdue by a full segment's
+      // worth of time. A segment can never run away past ~2×segmentMs; a
+      // small risk of a mid-swing hitch beats an unbounded clip length (bug
+      // report: "one clip was 43 seconds").
+      const overdueMs = performance.now() - (this.segmentStartMs + this.segmentMs);
+      if (overdueMs < this.segmentMs) {
+        if (this.running) this.rotateTimer = setTimeout(() => this.rotate(), 250);
+        return;
+      }
     }
     const finished = this.recorder;
     if (!this.running || !finished || finished.state === 'inactive') return;

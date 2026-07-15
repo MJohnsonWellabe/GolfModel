@@ -700,9 +700,6 @@ class HoleScene {
     // NOT in a frozen screenshot capture — there the meter never animates and the
     // scatter must be allowed to finish filling for the shot.
     renderPacing.meterActive = !isFrozen();
-    // Same reasoning extends to the shot-capture recorder's periodic segment
-    // swap (stop/restart) — defer it off the live meter too.
-    shotCapture.setRotationPaused(!isFrozen());
   }
 
   /**
@@ -1900,6 +1897,15 @@ class HoleScene {
       promptEl.textContent = '';
       if (!meter.isArmed) this.armMeter();
       meterEl.style.display = 'block';
+      // Defer the shot-capture recorder's segment swap only across the brief
+      // mid-swing tap sequence (a couple seconds) — NOT the whole addressing/
+      // aiming window before it. Pausing from armMeter() onward let rotation
+      // stay deferred for however long a deliberate player spent aiming, so a
+      // segment (and therefore a saved clip) could balloon to 30-40+ seconds
+      // (bug report: "one clip was 43 seconds") and land the boundary right
+      // at the swing instead of a fixed ~10s cadence. Un-paused on shot
+      // execution and on cancel below.
+      shotCapture.setRotationPaused(!isFrozen());
       meter.handleTap();
     };
     swingBtn.addEventListener('pointerdown', this.onSwingTap);
@@ -1973,6 +1979,15 @@ class HoleScene {
     meter.onBand = (kind, band) => {
       const label = band === 'perfect' ? 'PERFECT!' : band === 'good' ? 'Good' : 'Miss!';
       showMsg(`${kind === 'power' ? 'Power' : 'Accuracy'}: ${label}`, 500);
+    };
+    // Letting the accuracy cursor run back to the start (no tap) bails out of
+    // the shot entirely — no stroke, no swing. Re-arm immediately so the bar
+    // is right back up ready to go, and the player can drag to re-aim.
+    meter.onCancel = () => {
+      shotCapture.setRotationPaused(false);
+      if (this.state.phase !== 'aiming' || this.ai) return;
+      showMsg('Cancelled — re-aim', 700);
+      this.armMeter();
     };
 
     // Strike pad: drag the dot around the ball face
@@ -2273,6 +2288,7 @@ class HoleScene {
     window.removeEventListener('pointermove', this.onStrikeMove);
     window.removeEventListener('pointerup', this.onStrikeUp);
     meter.onComplete = null;
+    meter.onCancel = null;
     meter.hide();
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';

@@ -52,7 +52,16 @@ export const SWING = {
    * for an overswing zone (so max-power shots can be missed on both sides). */
   fullPowerMark: 0.85,
   /** Physics power lost per bar-unit the cursor stops past the target (overswing). */
-  overswingPenalty: 1.0
+  overswingPenalty: 1.0,
+  /** Cap on a "good" (not perfect) PUTT's delivered-power error, as a FRACTION
+   *  of the target itself rather than an absolute bar-width. Putts have no
+   *  fullPowerMark headroom (the bar position for a putt IS its intended power
+   *  fraction), so goodBand's fixed absolute width used to pass the raw
+   *  stopped cursor straight through: on a short putt (small target) that let
+   *  a "good" tap land 50%+ over/under the intended power — a "good" tap-in
+   *  could rocket well past the hole. Capping the error at a fraction of the
+   *  target keeps "good" reading as a near-target roll on every putt length. */
+  puttGoodErrorFrac: 0.15
 } as const;
 
 export const PHYSICS = {

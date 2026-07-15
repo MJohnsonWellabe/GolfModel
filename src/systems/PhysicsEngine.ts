@@ -503,13 +503,21 @@ export class PhysicsEngine {
     // Direction -----------------------------------------------------------
     const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
     const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 2.4 : PHYSICS.maxErrorDeg;
-    const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, PHYSICS.lieError[lie] ?? 0);
     // Residual dispersion even on a perfect (accuracy===0) click — a perfect
     // swing shouldn't guarantee a perfect line (GDD §864); ×2/×4 on good/miss
     // swings per the Appendix A dispersion table. Tightens as the governing
     // accuracy stat rises; skipped in preview so the aim line is exact.
     // riskMult: extreme strike positions widen dispersion (Phase 4 widget).
     const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2 : 4;
+    // Lie penalty (rough/sand/etc's extra scatter) used to apply at FULL
+    // strength regardless of strike quality — unlike every other dispersion
+    // term here, which shrinks on a clean hit. Rough's lieError (3.5°) is
+    // several times any club's residual sigma, so it dominated the total
+    // scatter and a "perfect" click out of the rough was barely tighter than a
+    // mis-hit (bug report: "perfect accuracy" shots still flying way off
+    // line). Scale it by the same qualityMult as residual so a clean strike
+    // genuinely tightens a rough lie too, not just fairway shots.
+    const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, (PHYSICS.lieError[lie] ?? 0) * qualityMult);
     const residualSigma =
       (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) *
       (1.3 - accuracy / 200) *

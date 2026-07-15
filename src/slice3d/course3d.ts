@@ -623,12 +623,28 @@ export function buildCourse(
       };
       let lastCount = -1;
       let stable = 0;
+      const fillStart = performance.now();
+      // Hard cutoff: on a bed-heavy hole (Wildwood's 17 garden beds cover a
+      // combined ~140k sq units — many times any other course's scatter job)
+      // the chunked popQueue/plantQueue drain can take far longer than the
+      // "~1-2s of flyover" this loop was designed around, so total scene.mesh
+      // count (and this loop's OWN full-array filter+realloc, itself an O(n)
+      // per-frame cost) keeps changing for many seconds — the stable-count
+      // self-removal never fires, so the loop (and the resulting mirror
+      // re-render) runs at full per-frame cost the whole time. Force it off
+      // once fully planted forests never take, so any straggler's reflection
+      // is a one-frame-stale non-issue against an unbounded per-frame cost.
+      const FILL_MAX_MS = 8000;
       const fill = scene.onBeforeRenderObservable.add(() => {
         if (!waterMirror) return;
         // The mirror is frozen while the meter is live (see perf pacing below),
         // so don't spend a per-frame scene.meshes.filter + array alloc rebuilding
         // a render list nothing will draw until the shot goes.
         if (renderPacing.meterActive) return;
+        if (performance.now() - fillStart > FILL_MAX_MS) {
+          scene.onBeforeRenderObservable.remove(fill);
+          return;
+        }
         const list = scene.meshes.filter(isReflectable);
         if (list.length === lastCount) {
           // Instances arrive in one synchronous burst after the glb resolves;
@@ -1865,14 +1881,21 @@ export function buildCourse(
         );
         if (tintable.length) generic = tintable;
       }
-      // Cap bed density for performance. A bed's instance count grows linearly
-      // with `density` (step ~ 1/sqrt(density), count ~ 1/step²), and each bloom
-      // is TWO instances (stem + petal split), so the densest beds dominate a
-      // course's object count. Beyond ~16 the blooms already overlap into a
-      // solid mass of colour — the extra instances read identically but cost
-      // real frame time (Wildwood's beds run 18-26 and are its heaviest load).
-      // Beds at or below the cap are unchanged.
-      const GARDEN_DENSITY_CAP = 16;
+      // Cap bed density for performance. A bed's instance count (and the
+      // candidate-cell scan cost to place it) grows linearly with `density`
+      // (step ~ 1/sqrt(density), cells/count ~ 1/step²), and each bloom is TWO
+      // instances (stem + petal split), so the densest beds dominate a
+      // course's object count AND how long the chunked placement queue takes
+      // to drain. Wildwood's 17 beds (originally density 12-26) cover a
+      // combined ~140k sq units — many times any other course's scatter job —
+      // so its placement backlog was taking 8+ real seconds to finish even on
+      // this cap's first (16) setting, during which every frame paid both the
+      // drain cost AND an unbounded water-mirror render-list rebuild (see its
+      // own fix). Lowered to 12 — Wildwood's own least-dense beds already
+      // read fine at 12, so this drops every bed to the density its course
+      // already uses at the low end, not a new visual tier. Beds at or below
+      // the cap on ANY course are unchanged.
+      const GARDEN_DENSITY_CAP = 12;
       const step = tuftStep / Math.sqrt(Math.min(g.density ?? 1, GARDEN_DENSITY_CAP));
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;
