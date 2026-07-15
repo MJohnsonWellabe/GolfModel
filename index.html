@@ -1279,6 +1279,13 @@
       /* Main-menu account button (styled like the Next button) + signed-in row */
       .acctMenu {
         margin: 14px auto 0;
+        /* #setupInner is a flex column; without these the row expands to its
+           content min-width (long name + both buttons) and spills past the menu
+           column / screen edge. min-width:0 lets it shrink to the column so the
+           name label ellipsizes instead, keeping the buttons on screen. */
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
       }
       .acctMenu:empty {
         display: none;
@@ -1326,6 +1333,9 @@
         border-radius: 12px;
         background: linear-gradient(180deg, rgba(53, 165, 88, 0.18), rgba(30, 122, 60, 0.08));
         border: 1px solid rgba(53, 165, 88, 0.4);
+        min-width: 0;
+        max-width: 100%;
+        box-sizing: border-box;
       }
       /* The "Signed in as X" text is a plain label; the Profile button beside
          it is its OWN outlined button, distinct within the row's green pill. */
