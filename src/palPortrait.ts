@@ -64,15 +64,29 @@ void LoadAssetContainerAsync(`models/pals/${key}.glb`, scene).then((container) =
   root.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), Math.PI);
   root.computeWorldMatrix(true);
 
-  // Frame the whole creature: recenter the camera target on the model's real
-  // vertical middle and pull the radius back to fit its largest dimension.
+  // Per-pal framing override: world-height window measured DOWN from the top
+  // of the model. Used for T-pose models with no skeleton to re-pose (e.g.
+  // Spiderman) — showing just the head + torso crops the outstretched arms out
+  // of frame so it reads as a natural head-and-shoulders portrait instead of a
+  // stiff T-pose.
+  const TOP_CROP: Partial<Record<string, number>> = { spidey: 2.45 };
+
   bounds = root.getHierarchyBoundingVectors(true);
-  const cy = (bounds.min.y + bounds.max.y) / 2;
-  const spanY = bounds.max.y - bounds.min.y;
-  const spanX = bounds.max.x - bounds.min.x;
-  const span = Math.max(spanY, spanX * (560 / 420));
-  cam.setTarget(new Vector3(0, cy, 0));
-  cam.radius = (span / 2 / Math.tan(cam.fov / 2)) * 1.35;
+  const cropH = TOP_CROP[key];
+  if (cropH) {
+    const top = bounds.max.y;
+    cam.setTarget(new Vector3(0, top - cropH * 0.52, 0));
+    cam.radius = (cropH / 2 / Math.tan(cam.fov / 2)) * 1.12;
+  } else {
+    // Frame the whole creature: recenter on its real vertical middle and pull
+    // the radius back to fit its largest dimension.
+    const cy = (bounds.min.y + bounds.max.y) / 2;
+    const spanY = bounds.max.y - bounds.min.y;
+    const spanX = bounds.max.x - bounds.min.x;
+    const span = Math.max(spanY, spanX * (560 / 420));
+    cam.setTarget(new Vector3(0, cy, 0));
+    cam.radius = (span / 2 / Math.tan(cam.fov / 2)) * 1.35;
+  }
 
   let frames = 0;
   scene.onAfterRenderObservable.add(() => {
