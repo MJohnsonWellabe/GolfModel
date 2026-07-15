@@ -3812,7 +3812,8 @@ function renderOpponent(): void {
 // ---------------------------------------------------------- Locker Room
 const lockerEl = document.getElementById('lockerRoom')!;
 /** Active Locker Room tab. */
-let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'ball' | 'trail' | 'clubskin' | 'upgrades' = 'char';
+let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'outfit' | 'ball' | 'trail' | 'clubskin' | 'upgrades' =
+  'char';
 /** Club-upgrade item id awaiting the Locker's own "Spend X coins?"
  *  confirmation — separate from the Store's `pendingBuy` so the two overlays
  *  never share (and can't cross-contaminate) confirmation state. */
@@ -3884,12 +3885,13 @@ function renderLockerRoom(): void {
   // here; that stays in the Store). Always has at least one owned entry
   // (DEFAULT_OWNED), so no "None" card is needed like Pal/Perk have.
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
-  const cosmeticTabs: Record<'ball' | 'trail' | 'clubskin', StoreItem[]> = {
+  const cosmeticTabs: Record<'outfit' | 'ball' | 'trail' | 'clubskin', StoreItem[]> = {
+    outfit: STORE_CATALOG.filter((i) => i.kind === 'outfit' && isOwned(p, i)),
     ball: STORE_CATALOG.filter((i) => i.kind === 'ball' && isOwned(p, i)),
     trail: STORE_CATALOG.filter((i) => i.kind === 'trail' && isOwned(p, i)),
     clubskin: STORE_CATALOG.filter((i) => i.kind === 'clubskin' && isOwned(p, i))
   };
-  const cosmeticCard = (kind: 'ball' | 'trail' | 'clubskin', item: StoreItem): string => {
+  const cosmeticCard = (kind: 'outfit' | 'ball' | 'trail' | 'clubskin', item: StoreItem): string => {
     const selected = p.cosmetics.equipped[kind] === item.id;
     const bg = item.color !== undefined ? hex(item.color) : '#2b6b41';
     return (
@@ -3927,6 +3929,7 @@ function renderLockerRoom(): void {
     ['style', 'Style'],
     ['pal', 'Pal'],
     ['perk', 'Perk'],
+    ['outfit', 'Outfit'],
     ['ball', 'Ball'],
     ['trail', 'Trail'],
     ['clubskin', 'Skin'],
@@ -3949,7 +3952,7 @@ function renderLockerRoom(): void {
             : lkTab === 'upgrades'
               ? `<div class="storeGrid">${upgradeItems.map(upgradeCard).join('')}</div>${upgradeConfirmPanel}`
               : (() => {
-                  const kind = lkTab as 'ball' | 'trail' | 'clubskin';
+                  const kind = lkTab as 'outfit' | 'ball' | 'trail' | 'clubskin';
                   return `<div class="charGrid">${cosmeticTabs[kind].map((i) => cosmeticCard(kind, i)).join('')}</div>`;
                 })();
 
@@ -4247,7 +4250,8 @@ function renderAcctMenu(): void {
   const showSignedIn = (name: string): void => {
     el.innerHTML =
       `<div class="acctSignedIn">` +
-      `<button id="acctProfileRow" class="acctWho acctTappable">✓ Signed in as <b>${escapeHtml(name)}</b> <span class="acctProfileIcon">👤 Profile</span></button>` +
+      `<span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
+      `<button id="acctProfileRow" class="acctProfileBtn">👤 Profile</button>` +
       `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
     document.getElementById('acctProfileRow')!.addEventListener('pointerdown', () => renderProfile());
     (document.getElementById('acctLogout') as HTMLButtonElement).onclick = () => {

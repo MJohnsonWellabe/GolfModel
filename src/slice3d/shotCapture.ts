@@ -54,7 +54,9 @@ export class ShotCapture {
   constructor(canvas: HTMLCanvasElement, opts: CaptureOpts = {}) {
     this.canvas = canvas;
     this.fps = opts.fps ?? 30;
-    this.segmentMs = opts.segmentMs ?? 5000;
+    // ~10s segments so an exported clip runs roughly 5-10s (the current segment
+    // once it has matured, else the previous full ~10s segment).
+    this.segmentMs = opts.segmentMs ?? 10000;
     const picked = ShotCapture.pickMime();
     this.mimeType = picked.mime;
     this.ext = picked.ext;
@@ -131,10 +133,10 @@ export class ShotCapture {
     try {
       const ageMs = performance.now() - this.segmentStartMs;
       const currentBlob = await this.finalizeCurrent();
-      // Prefer the current segment when it already holds enough action;
-      // otherwise fall back to the previous full segment (which still covers
-      // the last few seconds of play).
-      const minKeepMs = Math.min(2500, this.segmentMs * 0.6);
+      // Prefer the current segment once it has matured past the halfway mark
+      // (so the exported clip runs ~5-10s); otherwise fall back to the previous
+      // full ~10s segment, whose window still overlaps the recent shot.
+      const minKeepMs = this.segmentMs * 0.5;
       const chosen =
         currentBlob && ageMs >= minKeepMs ? currentBlob : this.prevBlob ?? currentBlob;
       // Resume rolling capture for the next shot.

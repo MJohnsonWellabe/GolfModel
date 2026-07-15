@@ -184,8 +184,17 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1): HeightFi
       // rim (and its fescue lip) sloping down into the sand. Clamped clear of
       // the green — a greenside bunker's pothole must never crater the
       // putting surface it sits beside.
-      const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
-      if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH * bunkerDepthScale, r: dishR });
+      //
+      // Guard: a bunker whose CENTROID lands on the green (a wrap-around/collar
+      // trap, e.g. Sable Bay h2's island ring) must dig NO dish — the dome is
+      // centered at the centroid, so its deepest point would crater the green
+      // itself (maxRadiusClearOfGreen only keeps the RIM clear, not the
+      // center). On a low island that dropped the green below the water line.
+      // Such a bunker's sand reads as a shallow collar, not a deep pot.
+      if (!pointInGreens(cx, cy, hole.green, hole.green2, GREEN_KEEPOUT)) {
+        const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 12);
+        if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH * bunkerDepthScale, r: dishR });
+      }
       addFlankingMounds(hole, cx, cy, r, pts);
     }
   }

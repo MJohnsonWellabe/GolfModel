@@ -478,19 +478,24 @@ Implementation notes (v2):
 - Fescue/heather use photo-textured cards with an alpha-cutout material (distinct
   from the geometry-cut grass tufts, which recolour by material slot).
 - **Bunker-lip fescue** (`theme.bunkerLipFescue`, course3d) plants the heather
-  mix in a few thick clumps on each bunker rim so a trap reads as sand carved
-  out of turf. Clumps grow on the green-facing arc UNION the shaded (anti-sun)
-  flank — the latter so the wiry grass sits WITHIN the baked mound shadow
-  instead of only opposite it. Density is the per-clump instance count (14–29)
-  across 2–4 clumps per bunker.
+  mix in a few thick clumps on the HOLE-SIDE (green-facing) rim of each bunker
+  only, so a trap reads as sand carved out of turf without grass on its back
+  flank. Density is the per-clump instance count (18–37) across 2–4 clumps per
+  bunker.
+- Ordinary-bunker dishes are skipped when the bunker's centroid lands on the
+  green (a wrap-around/collar trap): the dome is centered at the centroid, so
+  digging it would crater the putting surface (on Sable Bay h2's low island it
+  dropped the green below the water line). `maxRadiusClearOfGreen` only keeps
+  the dish RIM clear, not its center — the centroid guard covers that gap.
 - **Shot capture** (`shotCapture.ts`): a "record my last shot" clip. Rolls a
-  continuous MediaRecorder over `canvas.captureStream(30)` in ~5s SEGMENTS
+  continuous MediaRecorder over `canvas.captureStream(30)` in ~10s SEGMENTS
   (each a complete, header-included recording — never a fragile ring buffer of
   timeslice chunks, which is unplayable once the init chunk is dropped). Saving
   finalizes the current segment and downloads whichever of {current, previous}
-  best covers the recent action. Mobile-web limits: "save" is a browser
-  download (not a native gallery write); codec/duration vary by browser (MP4 on
-  iOS Safari, WebM elsewhere); unsupported browsers hide the CLIP button.
+  best covers the recent action (clips run ~5–10s). Mobile-web limits: "save"
+  is a browser download (not a native gallery write); codec/duration vary by
+  browser (MP4 on iOS Safari, WebM elsewhere); unsupported browsers hide the
+  CLIP button.
 - **Vertex-color gotcha**: recolored props are colored entirely by their
   assigned material, but a baked COLOR_0 attribute MULTIPLIES it — tree_a/b
   ship pure-black bark colors (the "black trunk" bug), so loads set
