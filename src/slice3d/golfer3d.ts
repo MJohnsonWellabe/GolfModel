@@ -464,7 +464,13 @@ export class Golfer3D {
       // overrides the clip) — keeps every character facing the ball through
       // idle and the swing. Reactions are allowed their full motion.
       if (this.reactionT < 0 && this.rootBone && this.rootBoneRestRot && this.rootBoneRestPos) {
-        this.rootBone.rotationQuaternion = this.rootBoneRestRot.clone();
+        // copyFrom into the existing quaternion (clone once if absent) rather than
+        // minting a fresh Quaternion every idle frame — identical pose, no alloc.
+        if (this.rootBone.rotationQuaternion) {
+          this.rootBone.rotationQuaternion.copyFrom(this.rootBoneRestRot);
+        } else {
+          this.rootBone.rotationQuaternion = this.rootBoneRestRot.clone();
+        }
         this.rootBone.position.copyFrom(this.rootBoneRestPos);
       }
       if (this.reactionT >= 0) {

@@ -2311,12 +2311,21 @@ export function buildCourse(
   petals.maxAngularSpeed = 2.2;
   petals.blendMode = ParticleSystem.BLENDMODE_STANDARD;
   if (!isFrozen()) petals.start();
+  // Allocation-free per-frame emitter follow (hoisted scratch + constant axis):
+  // getDirection/Vector3.Forward()/.scale/.add each minted a fresh Vector3 every
+  // frame — pure GC churn on the hottest observable, felt as swing-meter micro-hitches.
+  const petalEmitter = petals.emitter as Vector3;
+  const petalFwd = new Vector3();
+  const PETAL_FORWARD = Vector3.Forward();
   scene.onBeforeRenderObservable.add(() => {
     const cam = scene.activeCamera;
     if (!cam) return;
-    const fwd = cam.getDirection(Vector3.Forward());
-    (petals.emitter as Vector3).copyFrom(cam.position.add(fwd.scale(55)));
-    (petals.emitter as Vector3).y = Math.max(20, cam.position.y + 14);
+    cam.getDirectionToRef(PETAL_FORWARD, petalFwd);
+    petalEmitter.set(
+      cam.position.x + petalFwd.x * 55,
+      Math.max(20, cam.position.y + 14),
+      cam.position.z + petalFwd.z * 55
+    );
   });
 
   // ------------------------------------------------------------- putt grid

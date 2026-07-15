@@ -96,6 +96,10 @@ const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true, preserveDr
 const MAX_RENDER_DPR = 2;
 const renderDpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
 engine3d.setHardwareScalingLevel(1 / renderDpr);
+// Nothing here uses Babylon's offline asset DB — the default `true` makes the
+// loader probe for a `.manifest` beside every glb/texture and touch IndexedDB
+// on load. Off removes that load-time XHR/DB churn (no visual change).
+engine3d.enableOfflineSupport = false;
 
 const hudEl = document.getElementById('hud')!;
 const msgEl = document.getElementById('msg')!;
@@ -442,6 +446,8 @@ class HoleScene {
     spin: { side: number; top: number };
   } | null = null;
   private disposed = false;
+  /** Reused each frame for the tree-occlusion golfer-head point (no per-frame alloc). */
+  private _golferHead = new Vector3();
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
   private introTimers: ReturnType<typeof setTimeout>[] = [];
   /** Set by skipIntro so the natureReady-gated travel schedule (a Promise
@@ -461,6 +467,10 @@ class HoleScene {
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     this.scene = new Scene(engine3d);
+    // All input is raw DOM listeners on the canvas — there are no Babylon
+    // ActionManagers, onPointerObservable subscribers, or scene.pick calls — so
+    // the default per-pointer-move mesh pick serves nothing. Skip it.
+    this.scene.skipPointerMovePicking = true;
     this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1));
     // Aim/preview run on a flat, no-slope engine so the aim line never
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
@@ -2197,8 +2207,11 @@ class HoleScene {
     // Fade any tree canopy standing between the camera and the golfer (a torso-
     // height point above the root, since the root sits at ground level) so the
     // character never vanishes behind foliage the camera is looking through.
-    const golferHead = this.golfer.root.getAbsolutePosition().add(new Vector3(0, 3, 0));
-    this.course3d.updateTreeOcclusion(this.camera.position, golferHead);
+    // Scratch vector reused each frame (this runs every frame; updateTreeOcclusion
+    // itself only recomputes 1 frame in 4) — avoids a per-frame Vector3 alloc.
+    this._golferHead.copyFrom(this.golfer.root.getAbsolutePosition());
+    this._golferHead.y += 3;
+    this.course3d.updateTreeOcclusion(this.camera.position, this._golferHead);
   }
 
   render(): void {
