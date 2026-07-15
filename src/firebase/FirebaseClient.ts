@@ -272,6 +272,12 @@ export async function signInWithGoogle(): Promise<string | null> {
     const { auth } = await ensureFirebase();
     const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth');
     const provider = new GoogleAuthProvider();
+    // Always show Google's account chooser. Without this, Google silently reuses
+    // the device's active session — on iPhone (usually one Safari-signed-in
+    // Google account) that means "Log in with Google" auto-signs the wrong
+    // account with no way to pick another. `prompt: 'select_account'` forces the
+    // picker every time so the player chooses which account to use.
+    provider.setCustomParameters({ prompt: 'select_account' });
     try {
       const res = await signInWithPopup(auth, provider);
       await res.user.reload().catch(() => undefined);
