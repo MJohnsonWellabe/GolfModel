@@ -864,13 +864,24 @@ Irons
 
 Heavy misses should occur occasionally.
 
-Perfect swings should not guarantee perfect positioning.
+A perfect swing launches on the intended start line — the start line is earned.
+It does not guarantee a perfect final position: carry distance still varies
+slightly and wind still bends the ball in flight, but a perfectly timed, centered
+swing from a clean lie never begins offline. Off-perfect timing is what starts the
+ball left or right.
 
 ---
 
 # Shot Dispersion
 
+Dispersion here is the START-LINE offset — how far offline the ball begins.
+Final position also varies with carry distance and wind.
+
 Perfect Swing
+
+Launches on the intended start line (no start-line offset).
+
+Good Swing (start-line offset)
 
 Driver
 
@@ -892,13 +903,9 @@ Wedge
 
 2–4 yards
 
-Average Swing
-
-Multiply dispersion by approximately 2.
-
 Poor Swing
 
-Multiply by approximately 4.
+Multiply the good-swing dispersion by approximately 2.5.
 
 ---
 

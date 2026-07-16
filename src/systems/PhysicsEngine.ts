@@ -503,12 +503,17 @@ export class PhysicsEngine {
     // Direction -----------------------------------------------------------
     const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
     const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 2.4 : PHYSICS.maxErrorDeg;
-    // Residual dispersion even on a perfect (accuracy===0) click — a perfect
-    // swing shouldn't guarantee a perfect line (GDD §864); ×2/×4 on good/miss
-    // swings per the Appendix A dispersion table. Tightens as the governing
-    // accuracy stat rises; skipped in preview so the aim line is exact.
+    // Residual start-line dispersion. A PERFECT click (accuracy===0) now launches
+    // exactly on the intended line from a clean lie — the start line is earned
+    // (GDD §864: "a perfect swing launches on the intended line"). End dispersion
+    // is preserved elsewhere: perfect full swings still carry a ~5% depth variance
+    // (see the carry-noise block above), and wind bends the ball in flight, so a
+    // perfect drive still finishes with believable spread — it just doesn't begin
+    // offline. Good/off swings keep their ×2.4/×6 lateral scatter per the
+    // Appendix A dispersion table; residual tightens as the governing accuracy stat
+    // rises; skipped in preview so the aim line is exact.
     // riskMult: extreme strike positions widen dispersion (Phase 4 widget).
-    const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2.4 : 6;
+    const qualityMult = swing.accuracyQuality === 'perfect' ? 0 : swing.accuracyQuality === 'good' ? 2.4 : 6;
     // Lie penalty (rough/sand/etc's extra scatter) used to apply at FULL
     // strength regardless of strike quality — unlike every other dispersion
     // term here, which shrinks on a clean hit. Rough's lieError (3.5°) is

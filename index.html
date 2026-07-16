@@ -548,26 +548,17 @@
         position: relative;
         min-height: 72px;
         justify-content: flex-start;
-        padding: 12px 14px 12px 52px;
+        align-items: flex-end;
+        padding: 12px 16px;
         overflow: hidden;
         text-transform: uppercase;
         letter-spacing: 0.8px;
+        background-size: cover;
+        background-position: center;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.78);
         box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 10px 26px rgba(0,0,0,0.28);
       }
-      #landingSeason::before,
-      #landingStore::before {
-        position: absolute;
-        left: 13px;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        font-size: 19px;
-        box-shadow: 0 0 22px rgba(255,255,255,0.22);
-      }
+      /* Sheen sweep across the artwork. */
       #landingSeason::after,
       #landingStore::after {
         content: "";
@@ -579,27 +570,20 @@
         background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
         pointer-events: none;
       }
+      /* Real in-game course artwork behind a dark scrim so the label stays legible. */
       #landingSeason {
         border-color: rgba(255, 214, 96, 0.58);
-        background:
-          radial-gradient(circle at 92% 18%, rgba(255,255,255,0.24), transparent 22%),
-          linear-gradient(135deg, rgba(255, 151, 55, 0.42), rgba(255, 213, 79, 0.24) 48%, rgba(121, 74, 196, 0.34));
+        background-image:
+          linear-gradient(180deg, rgba(6, 20, 14, 0.12), rgba(4, 14, 9, 0.82)),
+          url('assets/marketing/img/wildwood-cherry.png');
         color: #fff6cd;
-      }
-      #landingSeason::before {
-        content: "🎫";
-        background: linear-gradient(180deg, #fff0a9, #e39d24);
       }
       #landingStore {
         border-color: rgba(105, 224, 255, 0.58);
-        background:
-          radial-gradient(circle at 88% 20%, rgba(255,255,255,0.2), transparent 24%),
-          linear-gradient(135deg, rgba(41, 148, 255, 0.42), rgba(80, 223, 255, 0.2) 50%, rgba(72, 255, 188, 0.28));
+        background-image:
+          linear-gradient(180deg, rgba(6, 20, 14, 0.12), rgba(4, 14, 9, 0.82)),
+          url('assets/marketing/img/timberline-pond.png');
         color: #dffaff;
-      }
-      #landingStore::before {
-        content: "🛍️";
-        background: linear-gradient(180deg, #b8f7ff, #249ed0);
       }
       .landingNav .wide { grid-column: 1 / -1; }
       @media (max-width: 760px) {
@@ -1283,6 +1267,24 @@
         display: flex;
         flex-direction: column;
         gap: 6px;
+      }
+      /* Course selection: a compact two-up grid so every course is visible at a
+         glance without scrolling. Scoped to the course step only — the shared
+         .modeGrid stack still drives the mode/golfer/opponent steps. The .sel
+         gold-border selected state (see .archCard.sel) is inherited unchanged. */
+      .modeGrid--courses {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .modeGrid--courses .courseCard {
+        min-height: 86px;
+        padding: 10px 12px;
+      }
+      .modeGrid--courses .archCard .an { font-size: 14px; }
+      .modeGrid--courses .courseMeta { margin-top: 6px; }
+      @media (max-width: 380px) {
+        .modeGrid--courses { grid-template-columns: 1fr; }
       }
       .archCard {
         border-radius: 18px;
@@ -2417,9 +2419,9 @@
         <div class="landingPanel">
           <button id="landingPlay" class="landingPlay">Play Now</button>
           <div class="landingNav">
-            <a id="landingAbout" href="marketing.html" target="_blank" rel="noopener">About the Game</a>
             <button id="landingSeason">Season Pass</button>
             <button id="landingStore">Store</button>
+            <a id="landingAbout" class="wide" href="marketing.html">About the Game</a>
             <button id="landingProfile" class="wide">Log In / Profile</button>
           </div>
         </div>

@@ -94,7 +94,9 @@ describe('AI tournament', () => {
     const tiger = mean(perOpp.tiger);
     expect(jd).toBeGreaterThan(-1.25);
     expect(jd).toBeLessThan(0.3);
-    expect(tiger).toBeGreaterThan(-2.6);
+    // Floor sits at -2.8 (still inside the -3 band): a perfect swing now launches
+    // dead on-line, which tightens the best AI's scoring by a few hundredths.
+    expect(tiger).toBeGreaterThan(-2.8);
     expect(tiger).toBeLessThan(-1.4);
     expect(tiger).toBeLessThan(jd); // skill ordering holds on average
     const all = Object.values(perOpp).flat();

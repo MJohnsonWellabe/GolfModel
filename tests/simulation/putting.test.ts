@@ -78,8 +78,10 @@ describe('putting — a perfect read + stroke is reliable', () => {
     for (let i = 1; i < rates.length; i++) {
       expect(rates[i], `${rates.join(', ')}`).toBeLessThan(rates[i - 1]);
     }
-    // A 40-footer is far from a gimme even struck perfectly.
-    expect(makeRate(40, 'perfect')).toBeLessThanOrEqual(60);
+    // A 40-footer is far from a gimme even struck perfectly. (A perfect stroke
+    // now starts dead on the read line, so it drops a touch more often than
+    // before, but is still nowhere near the ~97% of a short putt.)
+    expect(makeRate(40, 'perfect')).toBeLessThanOrEqual(65);
   });
 
   it('a perfect long-putt lag finishes close — no more 20ft-short putts (FB9)', () => {

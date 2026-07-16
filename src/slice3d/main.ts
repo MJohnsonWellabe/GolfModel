@@ -3926,7 +3926,7 @@ function renderCourse(): void {
   if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Choose your course</div>` +
-    `<div class="modeGrid">` +
+    `<div class="modeGrid modeGrid--courses">` +
     COURSE_LIST.map((c) => {
       const course = COURSES[c.id];
       const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
@@ -4286,10 +4286,13 @@ function renderStepBody(): void {
 }
 
 function updateNav(): void {
-  // display:none (not visibility:hidden) on step 0 — a hidden-but-present Back
-  // button still claims its 34% flex slot, leaving Locker/Next pushed into the
-  // remaining space with a dead gap on the left instead of filling the row.
-  backBtn.style.display = sel.step === 0 ? 'none' : '';
+  // On step 0 the Back button stays visible as an explicit "Home" control that
+  // returns to the landing screen (the handler already routes home when
+  // step <= 0); on later steps it walks back one wizard step. Keeping it in the
+  // row means Home/Locker/Next fill the three slots evenly instead of leaving a
+  // dead gap.
+  backBtn.style.display = '';
+  backBtn.textContent = sel.step === 0 ? '🏠 Home' : 'Back';
   nextBtn.textContent = sel.step === stepLabels().length - 1 ? 'Tee off' : 'Next';
   nextBtn.disabled = false;
 }

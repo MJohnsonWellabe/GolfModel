@@ -328,7 +328,7 @@ describe('simulate', () => {
   });
 });
 
-describe('perfect-click residual dispersion (difficulty pass)', () => {
+describe('perfect-click start line (difficulty pass)', () => {
   // Open hole, no hazards near the landing zone, so spread isn't clamped.
   const OPEN: HoleData = {
     ...HOLE,
@@ -339,14 +339,24 @@ describe('perfect-click residual dispersion (difficulty pass)', () => {
   };
   const openEngine = new PhysicsEngine(OPEN);
 
-  const spread = (clubId: string, power: number): number => {
+  // A GOOD swing with a zero click offset isolates the residual (start-line
+  // noise) term at its off-perfect strength — the constant offset a real good
+  // swing carries would only bias the mean, not the spread we measure here.
+  const GOOD = (power: number): SwingResult => ({
+    power,
+    powerQuality: 'perfect',
+    accuracy: 0,
+    accuracyQuality: 'good'
+  });
+
+  const spread = (clubId: string, power: number, swing: (p: number) => SwingResult): number => {
     const club = clubById(clubId);
     const xs: number[] = [];
     for (let i = 0; i < 200; i++) {
       const o = openEngine.simulate({
         origin: { x: 1000, y: 1800 },
         aimAngle: -Math.PI / 2,
-        swing: PERFECT(power),
+        swing: swing(power),
         club,
         golfer: GOLFER,
         fireBoost: 0,
@@ -361,12 +371,15 @@ describe('perfect-click residual dispersion (difficulty pass)', () => {
     return Math.sqrt(xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length);
   };
 
-  it('a perfect driver no longer flies dead straight', () => {
-    expect(spread('driver', 0.7)).toBeGreaterThan(1); // >1px lateral scatter
+  it('a perfect driver from a clean lie launches dead on the start line', () => {
+    expect(spread('driver', 0.7, PERFECT)).toBeLessThanOrEqual(1); // ≤1px lateral — on-line
   });
 
-  it('a perfect wedge disperses less (in absolute terms) than a perfect driver', () => {
-    expect(spread('pw', 0.7)).toBeLessThan(spread('driver', 0.7));
+  it('an off-perfect (good) swing still disperses, wedge tighter than driver', () => {
+    const driverSpread = spread('driver', 0.7, GOOD);
+    const wedgeSpread = spread('pw', 0.7, GOOD);
+    expect(driverSpread).toBeGreaterThan(1); // good swings scatter off the line
+    expect(wedgeSpread).toBeLessThan(driverSpread); // wedge tighter than driver
   });
 });
 
