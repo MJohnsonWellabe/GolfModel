@@ -30,9 +30,6 @@ const palEl = document.getElementById('palRoster');
 if (palEl) palEl.innerHTML = PALS.map((p) => rosterCard(p.image, p.name, true)).join('');
 
 // ---- Gameplay clip wall -----------------------------------------------------
-// Each tile loops a pre-trimmed in-engine clip (H.264 mp4, iOS-friendly). The
-// clips were recorded on-device and trimmed to the action; `poster` shows until
-// the clip loads. A tile with no `file` stays a still poster only.
 interface Clip {
   badge: string;
   title: string;
@@ -42,10 +39,11 @@ interface Clip {
 }
 
 const CLIPS: Clip[] = [
-  { badge: 'Par 3', title: 'Tee shot to the pin', sub: 'Test your luck and hit it close.', poster: 'marketing/img/poster-ace.png', file: 'marketing/videos/hole-in-one.mp4' },
-  { badge: 'Spin', title: 'Check & back up', sub: "Feels amazing — but don't overdo it.", poster: 'marketing/img/poster-backspin.png', file: 'marketing/videos/backspin.mp4' },
-  { badge: 'Approach', title: 'Flush approach', sub: 'Flush it over the trouble, stick the green.', poster: 'marketing/img/poster-island.png', file: 'marketing/videos/island.mp4' },
-  { badge: 'Putt', title: 'Clutch putt', sub: 'Read the break. Roll it in.', poster: 'marketing/img/poster-putt.png', file: 'marketing/videos/putt.mp4' }
+  { badge: 'Par 3', title: 'Tee shot to the pin', sub: 'Follow the full shot through the finish.', poster: 'assets/marketing/img/poster-ace.png', file: 'assets/marketing/videos/hole-in-one.mp4' },
+  { badge: 'Drive', title: 'Behind the golfer', sub: 'Big swing, clean launch, cinematic ball flight.', poster: 'assets/marketing/img/poster-island.png', file: 'assets/marketing/videos/island.mp4' },
+  { badge: 'Spin', title: 'Check & back up', sub: "Feels amazing — but don't overdo it.", poster: 'assets/marketing/img/poster-backspin.png', file: 'assets/marketing/videos/backspin.mp4' },
+  { badge: 'Read', title: 'True Vision line', sub: 'See carry, curve and roll before you commit.', poster: 'assets/marketing/img/poster-greenread.png', file: 'assets/marketing/videos/greenread.mp4' },
+  { badge: 'Putt', title: 'Clutch putt', sub: 'Read the break. Roll it in.', poster: 'assets/marketing/img/poster-putt.png', file: 'assets/marketing/videos/putt.mp4' }
 ];
 
 function clipTile(c: Clip): string {

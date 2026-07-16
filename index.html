@@ -448,11 +448,121 @@
         font-size: 17px;
         font-weight: 800;
       }
+
+      #landing {
+        position: fixed;
+        inset: 0;
+        z-index: 21;
+        display: none;
+        align-items: stretch;
+        justify-content: center;
+        background:
+          linear-gradient(90deg, rgba(2, 12, 8, 0.86), rgba(2, 12, 8, 0.32) 54%, rgba(2, 12, 8, 0.76)),
+          radial-gradient(70% 55% at 75% 12%, rgba(255, 226, 138, 0.18), transparent 66%),
+          url('assets/marketing/img/sablebay-island.png') center / cover no-repeat,
+          #071d12;
+        overflow: auto;
+      }
+      #landing.on { display: flex; }
+      .landingInner {
+        width: min(1120px, 100%);
+        padding: clamp(22px, 5vw, 58px);
+        display: grid;
+        grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.55fr);
+        gap: clamp(18px, 4vw, 46px);
+        align-items: center;
+        box-sizing: border-box;
+      }
+      .landingHero {
+        color: #fff;
+        text-shadow: 0 4px 24px rgba(0,0,0,0.55);
+      }
+      .landingKicker {
+        color: #ffd978;
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+      .landingTitle {
+        font-size: clamp(54px, 10vw, 112px);
+        line-height: 0.9;
+        font-weight: 950;
+        letter-spacing: -3px;
+        margin-bottom: 16px;
+      }
+      .landingSub {
+        max-width: 620px;
+        color: #dcebdd;
+        font-size: clamp(17px, 2.2vw, 24px);
+        line-height: 1.35;
+        font-weight: 650;
+      }
+      .landingPanel {
+        align-self: center;
+        padding: 18px;
+        border-radius: 28px;
+        background: linear-gradient(180deg, rgba(7, 28, 19, 0.78), rgba(5, 18, 13, 0.58));
+        border: 1px solid rgba(255,255,255,0.18);
+        box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+        backdrop-filter: blur(14px);
+      }
+      .landingPlay {
+        width: 100%;
+        min-height: 92px;
+        border: none;
+        border-radius: 24px;
+        background: linear-gradient(180deg, #ffe28a, #d99b20);
+        color: #241805;
+        font-size: clamp(28px, 6vw, 44px);
+        font-weight: 950;
+        letter-spacing: -0.8px;
+        box-shadow: 0 16px 38px rgba(0,0,0,0.45);
+        cursor: pointer;
+      }
+      .landingNav {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .landingNav button,
+      .landingNav a {
+        min-height: 54px;
+        border-radius: 16px;
+        border: 1px solid rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.08);
+        color: #eef5ea;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 850;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .landingNav .wide { grid-column: 1 / -1; }
+      @media (max-width: 760px) {
+        #landing { align-items: flex-end; }
+        .landingInner {
+          min-height: 100dvh;
+          grid-template-columns: 1fr;
+          align-content: end;
+          padding: 24px 16px;
+        }
+        .landingTitle { font-size: clamp(50px, 16vw, 82px); }
+        .landingPanel { border-radius: 24px; }
+      }
+
       #setup {
         position: fixed;
         inset: 0;
         background:
-          radial-gradient(120% 80% at 50% -10%, rgba(120, 200, 140, 0.16), transparent 60%),
+          linear-gradient(180deg, rgba(3, 15, 10, 0.28), rgba(2, 12, 8, 0.82)),
+          radial-gradient(90% 60% at 50% 5%, rgba(255, 220, 130, 0.18), transparent 62%),
+          url('assets/marketing/img/wildwood-cherry.png') center / cover no-repeat,
           linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
         display: flex;
         align-items: center;
@@ -509,9 +619,14 @@
         }
       }
       #setupInner {
-        width: min(96%, 560px);
-        padding: 22px 20px 26px;
+        width: min(92%, 560px);
+        padding: 24px 22px 26px;
         text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        border-radius: 30px;
+        background: linear-gradient(180deg, rgba(8, 32, 22, 0.76), rgba(5, 20, 14, 0.62));
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+        backdrop-filter: blur(14px);
         /* Column layout so the step body scrolls internally and the nav row
            (Next/Tee off) is always visible (FB8). */
         display: flex;
@@ -527,14 +642,14 @@
         box-sizing: border-box;
       }
       #title {
-        font-size: 33px;
+        font-size: clamp(38px, 9vw, 64px);
         font-weight: 900;
         color: #fff;
         letter-spacing: 0.5px;
         text-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
       }
       #subtitle {
-        font-size: 13px;
+        font-size: 14px;
         color: #a8c8a2;
         margin: 4px 0 12px;
         text-transform: uppercase;
@@ -1112,16 +1227,27 @@
         gap: 6px;
       }
       .archCard {
-        border-radius: 13px;
-        border: 2px solid rgba(255, 255, 255, 0.12);
-        background: rgba(255, 255, 255, 0.05);
-        padding: 7px 11px;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.045));
+        padding: 12px 14px;
+        text-align: left;
         cursor: pointer;
       }
       .archCard.sel {
         border-color: var(--accent, #ffd54f);
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.03));
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 255, 255, 0.055));
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       }
+      .courseCard {
+        min-height: 104px;
+        background-image: linear-gradient(90deg, rgba(5, 20, 14, 0.32), rgba(5, 20, 14, 0.82)), var(--course-art);
+        background-size: cover;
+        background-position: center;
+      }
+      .courseCard .ahead { align-items: flex-start; }
+      .courseMeta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .courseMeta span { padding: 4px 8px; border-radius: 999px; background: rgba(0,0,0,0.3); color: #f3ead0; font-size: 11px; font-weight: 800; }
       .archCard .ahead {
         display: flex;
         align-items: baseline;
@@ -1224,9 +1350,10 @@
         color: #dbe8d6;
       }
       #nextBtn {
-        background: linear-gradient(180deg, #35a558, #1e7a3c);
-        color: #fff;
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        background: linear-gradient(180deg, #ffe28a, #d99b20);
+        color: #241805;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        text-transform: uppercase;
       }
       #nextBtn:disabled {
         opacity: 0.5;
@@ -2216,6 +2343,25 @@
     <button id="tourBoardBtn">🏆</button>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
+
+    <div id="landing">
+      <div class="landingInner">
+        <div class="landingHero">
+          <div class="landingKicker">Console-style golf · three-hole rounds</div>
+          <div class="landingTitle">Bite-Sized<br />Golf</div>
+          <div class="landingSub">Beautiful courses, quick decisions, and a swing meter that rewards touch from the first tee.</div>
+        </div>
+        <div class="landingPanel">
+          <button id="landingPlay" class="landingPlay">Play Now</button>
+          <div class="landingNav">
+            <a id="landingAbout" href="marketing.html" target="_blank" rel="noopener">About the Game</a>
+            <button id="landingSeason">Season Pass</button>
+            <button id="landingStore">Store</button>
+            <button id="landingProfile" class="wide">Log In / Profile</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div id="setup">
       <div id="setupInner">
         <div id="title">Bite-Sized Golf</div>

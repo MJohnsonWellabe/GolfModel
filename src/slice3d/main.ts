@@ -31,7 +31,7 @@ import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
 import portjohnson from '../data/courses/portjohnson.json';
-import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
   fetchTournament,
@@ -101,6 +101,20 @@ engine3d.setHardwareScalingLevel(1 / renderDpr);
 // on load. Off removes that load-time XHR/DB churn (no visual change).
 engine3d.enableOfflineSupport = false;
 
+
+type PerfSample = { course: string; hole: number; event: string; ms: number; deltaMs: number };
+const perfSamples: PerfSample[] = [];
+let lastPerfMs = performance.now();
+function markPerf(course: string, hole: number, event: string): void {
+  const now = performance.now();
+  const sample = { course, hole, event, ms: now, deltaMs: now - lastPerfMs };
+  lastPerfMs = now;
+  perfSamples.push(sample);
+  if (perfSamples.length > 240) perfSamples.shift();
+  (globalThis as typeof globalThis & { __golfPerf?: PerfSample[] }).__golfPerf = perfSamples;
+  performance.mark?.(`golf:${course}:h${hole}:${event}`);
+}
+
 const hudEl = document.getElementById('hud')!;
 const msgEl = document.getElementById('msg')!;
 const bannerEl = document.getElementById('banner')!;
@@ -108,6 +122,12 @@ const promptEl = document.getElementById('prompt')!;
 const summaryEl = document.getElementById('summary')!;
 const meterEl = document.getElementById('meter')!;
 const meter = new DomMeter(meterEl);
+meter.onActiveChange = (active) => {
+  // The expensive course drain must yield only while the meter cursor is
+  // actually sweeping. Keeping it live during idle aiming lets scenery finish
+  // filling; switching it off before the next rAF preserves first-swing timing.
+  renderPacing.meterActive = active && !isFrozen();
+};
 const swingBtn = document.getElementById('swingBtn')!;
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
@@ -258,11 +278,11 @@ preloadGrassGrain('textures/turf_grain_rough.jpg');
 preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
-const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊' },
-  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲' },
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴' }
+const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'assets/marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
+  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'assets/marketing/img/sablebay-island.png', difficulty: 'Daring' },
+  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲', art: 'assets/marketing/img/timberline-pond.png', difficulty: 'Tight' },
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'assets/marketing/img/portjohnson-bunker.png', difficulty: 'Windy' }
 ];
 
 /** Resolve a course by its display name (tournament entries carry the name). */
@@ -466,12 +486,15 @@ class HoleScene {
   private ballScale = 1;
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
+    markPerf(round.course.name, this.hole.number, 'hole-constructor-start');
     this.scene = new Scene(engine3d);
     // All input is raw DOM listeners on the canvas — there are no Babylon
     // ActionManagers, onPointerObservable subscribers, or scene.pick calls — so
     // the default per-pointer-move mesh pick serves nothing. Skip it.
     this.scene.skipPointerMovePicking = true;
+    const heightT0 = performance.now();
     this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1));
+    markPerf(round.course.name, this.hole.number, `heightfield-ready:${Math.round(performance.now() - heightT0)}ms`);
     // Aim/preview run on a flat, no-slope engine so the aim line never
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
     // real shot uses engine2d (terrain + wind).
@@ -479,7 +502,9 @@ class HoleScene {
     this.aim = new AimControl(this.hole, this.previewEngine);
     // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
+    const buildT0 = performance.now();
     this.course3d = buildCourse(this.scene, this.hole, this.theme, this.engine2d);
+    markPerf(round.course.name, this.hole.number, `build-course-returned:${Math.round(performance.now() - buildT0)}ms`);
     const { shadows, puttGrid } = this.course3d;
     this.puttGrid = puttGrid;
 
@@ -513,7 +538,10 @@ class HoleScene {
       );
       this.comps.push({ ball: { ...this.hole.tee }, lie: 'tee', strokes: 0, holed: false, isAI: part.isAI, part });
     });
-    this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => undefined);
+    this.bodiesReady = Promise.all(this.golfers.map((g) => g.ready)).then(() => {
+      markPerf(round.course.name, this.hole.number, 'golfer-bodies-ready');
+      return undefined;
+    });
 
     // The human player's equipped pal pads along for the round (AI opponents
     // never bring one). Deliberately NOT part of bodiesReady: a slow or failed
@@ -594,6 +622,7 @@ class HoleScene {
     // Compile the address-time shaders DURING the flyover so the first shot is
     // smooth (the old "hole 1 lags on the first shot"). Best-effort, never blocks.
     void this.warmupShaders();
+    markPerf(round.course.name, this.hole.number, 'intro-start');
     this.playIntro();
   }
 
@@ -609,6 +638,7 @@ class HoleScene {
    */
   private async warmupShaders(): Promise<void> {
     try {
+      const warmT0 = performance.now();
       await this.bodiesReady;
       if (this.disposed) return;
       const warm = (m: AbstractMesh | null | undefined): Promise<void> | null => {
@@ -624,6 +654,7 @@ class HoleScene {
       jobs.push(warm(this.aimRing), warm(this.ballShadow));
       this.balls.forEach((b) => jobs.push(warm(b)));
       await Promise.all(jobs.filter(Boolean));
+      markPerf(round.course.name, this.hole.number, `address-shaders-warm:${Math.round(performance.now() - warmT0)}ms`);
     } catch {
       /* best-effort warm-up — a shot must never depend on it */
     }
@@ -675,6 +706,7 @@ class HoleScene {
 
   /** Arm (or re-arm) the swing meter for the current aim/club/fire state. */
   private armMeter(): void {
+    markPerf(round.course.name, this.hole.number, 'meter-armed');
     // The golfer holds the right stick for the shot: real putter on the green,
     // the wood driver when the driver's in hand, the iron everywhere else (all
     // from the uploaded club models).
@@ -696,10 +728,9 @@ class HoleScene {
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
-    // Pause the scatter drain so it can't hitch the live meter (Timberline h1/h3).
-    // NOT in a frozen screenshot capture — there the meter never animates and the
-    // scatter must be allowed to finish filling for the shot.
-    renderPacing.meterActive = !isFrozen();
+    // The meter owns renderPacing while its cursor is actually sweeping; keep
+    // idle aiming unblocked so background scenery can finish before the shot.
+    renderPacing.meterActive = false;
   }
 
   /**
@@ -1017,7 +1048,11 @@ class HoleScene {
         this.introTimers.push(setTimeout(resolve, MAX_NATURE_WAIT_MS));
       })
     ]);
-    void Promise.all([teeHoldDone, natureReadyOrTimeout]).then(beginTravel);
+    void this.course3d.natureReady.then(() => markPerf(round.course.name, this.hole.number, 'nature-ready'));
+    void Promise.all([teeHoldDone, natureReadyOrTimeout]).then(() => {
+      markPerf(round.course.name, this.hole.number, 'intro-travel-start');
+      beginTravel();
+    });
   }
 
   /** Cancel the intro flyover and hand control over immediately. */
@@ -1159,6 +1194,7 @@ class HoleScene {
   }
 
   beginTurn(): void {
+    markPerf(round.course.name, this.hole.number, 'begin-turn');
     // Default the scatter drain back on; armMeter re-pauses it for a human's
     // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
     renderPacing.meterActive = false;
@@ -3632,6 +3668,7 @@ function exposeDebug(): void {
 
 // ------------------------------------------------------------- setup menu
 
+const landingEl = document.getElementById('landing')!;
 const setupEl = document.getElementById('setup')!;
 const recordsEl = document.getElementById('records')!;
 const stepsEl = document.getElementById('steps')!;
@@ -3878,6 +3915,13 @@ function prefetchWildwoodAssets(): void {
   void fetch('models/nature/tree_sakura.glb').catch(() => {});
 }
 
+function bestCourseScore(courseId: string): string {
+  const course = COURSES[courseId];
+  const rounds: RoundRecord[] = loadLocal().filter((r: RoundRecord) => r.course === course?.name && r.mode === 'solo');
+  if (!rounds.length) return '—';
+  return String(Math.min(...rounds.map((r) => r.total)));
+}
+
 function renderCourse(): void {
   if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
   stepBodyEl.innerHTML =
@@ -3888,10 +3932,11 @@ function renderCourse(): void {
       const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
       const sub = c.tag;
       return (
-        `<div class="archCard modeCard${sel.courseId === c.id ? ' sel' : ''}" data-course="${c.id}">` +
+        `<div class="archCard modeCard courseCard${sel.courseId === c.id ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
         `<span class="atag">${tag}</span></div>` +
-        `<div class="stepHint" style="margin:6px 0 0">${sub}</div></div>`
+        `<div class="stepHint" style="margin:6px 0 0">${sub}</div>` +
+        `<div class="courseMeta"><span>${c.difficulty}</span><span>Best: ${bestCourseScore(c.id)}</span></div></div>`
       );
     }).join('') +
     `</div>`;
@@ -4267,8 +4312,17 @@ function goStep(n: number): void {
   updateNav();
 }
 
+function showLanding(): void {
+  pendingTournament = null;
+  setupEl.style.display = 'none';
+  landingEl.classList.add('on');
+  updateDailyBanner();
+  renderAcctMenu();
+}
+
 function showSetup(): void {
-  pendingTournament = null; // a normal menu open is not a tournament entry
+  pendingTournament = null; // a normal Play Now open is not a tournament entry
+  landingEl.classList.remove('on');
   setupEl.style.display = 'flex';
   updateDailyBanner();
   goStep(0);
@@ -4417,6 +4471,10 @@ function renderAcctMenu(): void {
   }
 }
 
+document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
+document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
+document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
+document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
 document.getElementById('storeBanner')!.addEventListener('pointerdown', () => renderStore());
@@ -4474,7 +4532,7 @@ async function startShotCapture(): Promise<void> {
 
 if (SHOT.hole) void startShotCapture();
 else {
-  showSetup();
+  showLanding();
   // A shared ?t=CODE link boots straight into the tournament's join screen.
   try {
     const tcode = new URLSearchParams(window.location.search).get('t');
