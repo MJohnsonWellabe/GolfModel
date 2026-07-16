@@ -2496,7 +2496,9 @@ export function buildCourse(
   // "ghost" clone of its source mesh (hide the instance, show the ghost) —
   // bounded to the handful of trees ever near the camera at once, created and
   // disposed on entry/exit rather than kept live for the whole course.
-  const FADE_ALPHA = 0.28;
+  // Was 0.28 — still nearly a third opaque, so a ghosted tree read as barely
+  // faded at all (bug report: "ghost trees are too hard to see through").
+  const FADE_ALPHA = 0.12;
   const OCCLUSION_RECOMPUTE_EVERY = 4; // ~15Hz at 60fps — snappier as the camera orbits on aim
   // Worst case (camera embedded deep in a dense forest wall) can otherwise
   // pull in dozens of candidates — measured ~0.9ms per ghost clone+material
