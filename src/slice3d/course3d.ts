@@ -1377,14 +1377,13 @@ export function buildCourse(
     // does can ever block a frame long enough to hitch the meter. Index cursors
     // (not shift()) keep the walk O(n). Fills in over ~1–2s of flyover.
     const BUDGET_MS = 3.5;
-    // While the meter is live the camera is parked and the heavy per-frame GPU
-    // costs (water mirror + shadow map) are frozen below, so the frame has ample
-    // headroom — keep trickling scenery in on a small budget instead of a hard
-    // pause. This fills scenery during the long aim window (fixes "nothing loads
-    // left/right of the hole") without the drain ever hitching the bar.
-    const AIM_BUDGET_MS = 1.0;
+    // While the meter is live, stop the background placement drain completely.
+    // Even a small budget can line up with the first tap on dense holes and steal
+    // time from the rAF meter. Scenery resumes immediately after the shot.
+    const AIM_BUDGET_MS = 0;
     const drain = scene.onBeforeRenderObservable.add(() => {
       const budget = renderPacing.meterActive ? AIM_BUDGET_MS : BUDGET_MS;
+      if (budget <= 0) return;
       const t0 = performance.now();
       for (;;) {
         let batch = 32; // amortize the performance.now() cost over a small batch

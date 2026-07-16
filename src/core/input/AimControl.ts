@@ -163,8 +163,12 @@ export class AimControl {
     // or the tee shot is behind us, then the route waypoints, then the pin as
     // the final fallback (par 3s author no route).
     const candidates: Point[] = [];
+    // Reachable shots — including par-3 tee shots and approaches — should aim
+    // at the green/flag first. Unreachable tee shots should use the strategic
+    // route near practical carry before falling back to the pin line.
     if (ctx.strokes >= 1 || pinDist <= maxCarry) candidates.push(this.hole.pin);
-    candidates.push(...this.routePointsAhead(ctx.ball, Math.min(pinDist, maxCarry)), this.hole.pin);
+    candidates.push(...this.routePointsAhead(ctx.ball, Math.min(pinDist, maxCarry)));
+    if (!candidates.includes(this.hole.pin)) candidates.push(this.hole.pin);
     let pick = candidates[0];
     for (const t of candidates) {
       const d = Math.min(dist(ctx.ball, t), maxCarry);

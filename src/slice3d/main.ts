@@ -31,7 +31,7 @@ import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
 import portjohnson from '../data/courses/portjohnson.json';
-import { bestRounds, clearLocalHistory, fetchAllRounds, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
+import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
   fetchTournament,
@@ -108,6 +108,12 @@ const promptEl = document.getElementById('prompt')!;
 const summaryEl = document.getElementById('summary')!;
 const meterEl = document.getElementById('meter')!;
 const meter = new DomMeter(meterEl);
+meter.onActiveChange = (active) => {
+  // The expensive course drain must yield only while the meter cursor is
+  // actually sweeping. Keeping it live during idle aiming lets scenery finish
+  // filling; switching it off before the next rAF preserves first-swing timing.
+  renderPacing.meterActive = active && !isFrozen();
+};
 const swingBtn = document.getElementById('swingBtn')!;
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
@@ -258,11 +264,11 @@ preloadGrassGrain('textures/turf_grain_rough.jpg');
 preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Course roster for the picker (id → display + one-line character). */
-const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊' },
-  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲' },
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴' }
+const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
+  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'assets/marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
+  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'assets/marketing/img/sablebay-island.png', difficulty: 'Daring' },
+  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲', art: 'assets/marketing/img/timberline-pond.png', difficulty: 'Tight' },
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'assets/marketing/img/portjohnson-bunker.png', difficulty: 'Windy' }
 ];
 
 /** Resolve a course by its display name (tournament entries carry the name). */
@@ -696,10 +702,9 @@ class HoleScene {
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
-    // Pause the scatter drain so it can't hitch the live meter (Timberline h1/h3).
-    // NOT in a frozen screenshot capture — there the meter never animates and the
-    // scatter must be allowed to finish filling for the shot.
-    renderPacing.meterActive = !isFrozen();
+    // The meter owns renderPacing while its cursor is actually sweeping; keep
+    // idle aiming unblocked so background scenery can finish before the shot.
+    renderPacing.meterActive = false;
   }
 
   /**
@@ -3878,6 +3883,13 @@ function prefetchWildwoodAssets(): void {
   void fetch('models/nature/tree_sakura.glb').catch(() => {});
 }
 
+function bestCourseScore(courseId: string): string {
+  const course = COURSES[courseId];
+  const rounds: RoundRecord[] = loadLocal().filter((r: RoundRecord) => r.course === course?.name && r.mode === 'solo');
+  if (!rounds.length) return '—';
+  return String(Math.min(...rounds.map((r) => r.total)));
+}
+
 function renderCourse(): void {
   if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
   stepBodyEl.innerHTML =
@@ -3888,10 +3900,11 @@ function renderCourse(): void {
       const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
       const sub = c.tag;
       return (
-        `<div class="archCard modeCard${sel.courseId === c.id ? ' sel' : ''}" data-course="${c.id}">` +
+        `<div class="archCard modeCard courseCard${sel.courseId === c.id ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
         `<span class="atag">${tag}</span></div>` +
-        `<div class="stepHint" style="margin:6px 0 0">${sub}</div></div>`
+        `<div class="stepHint" style="margin:6px 0 0">${sub}</div>` +
+        `<div class="courseMeta"><span>${c.difficulty}</span><span>Best: ${bestCourseScore(c.id)}</span></div></div>`
       );
     }).join('') +
     `</div>`;

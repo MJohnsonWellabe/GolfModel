@@ -57,6 +57,11 @@ export function fullMeterSweepMs(stat: number): number {
   return baseSweepMs(stat) * SWING.fullPowerMark;
 }
 
+export function normalizedAccuracyOffset(cursor: number, target = ACCURACY_TARGET): number {
+  const room = cursor >= target ? 1 - target : target;
+  return clamp((cursor - target) / Math.max(0.001, room), -1, 1);
+}
+
 export interface MeterContext {
   /** Governing accuracy stat 0..100 (widens the perfect band). */
   stat: number;
@@ -95,6 +100,10 @@ export class DomMeter {
 
   onComplete: ((result: SwingResult) => void) | null = null;
   onBand: ((kind: 'power' | 'accuracy', band: Band) => void) | null = null;
+  /** Fired whenever the cursor is actually sweeping. Background render work can
+   *  yield only during these active windows instead of pausing for the entire
+   *  aim/setup phase. */
+  onActiveChange: ((active: boolean) => void) | null = null;
   /** Fired when the player lets the accuracy cursor run all the way back to
    *  the start without tapping — a deliberate no-penalty bail so they can
    *  re-aim, instead of the old forced miss-shot (playtest: "let me cancel by
@@ -141,6 +150,7 @@ export class DomMeter {
   }
 
   arm(ctx: MeterContext): void {
+    this.onActiveChange?.(false);
     this.ctx = ctx;
     this.state = 'idle';
     this.cursor = 0;
@@ -152,6 +162,7 @@ export class DomMeter {
   }
 
   hide(): void {
+    this.onActiveChange?.(false);
     this.state = 'hidden';
     this.el.style.display = 'none';
     cancelAnimationFrame(this.raf);
@@ -171,6 +182,7 @@ export class DomMeter {
     switch (this.state) {
       case 'idle':
         this.state = 'power';
+        this.onActiveChange?.(true);
         this.lastTs = performance.now();
         this.raf = requestAnimationFrame((t) => this.tick(t));
         return true;
@@ -183,6 +195,7 @@ export class DomMeter {
         this.markerEl.style.display = 'block';
         this.onBand?.('power', this.lockedPowerBand);
         this.state = 'accuracy';
+        this.onActiveChange?.(true);
         this.dirSign = -1;
         return true;
       }
@@ -233,9 +246,14 @@ export class DomMeter {
 
   private lockAccuracy(cursor: number): void {
     let band = this.bandFor(cursor, ACCURACY_TARGET);
-    let offset = clamp((cursor - ACCURACY_TARGET) / 0.5, -1, 1);
+    // Normalize against the actual available travel away from the accuracy
+    // target, not a fixed half-meter and not an extra miss multiplier. The old
+    // `offset * 1.5` created a cliff just outside the good band: a tiny timing
+    // miss was immediately promoted into a large hook/slice. This keeps the
+    // signed miss continuous from perfect -> good -> miss while still allowing
+    // truly terrible clicks at the far ends of the bar to reach ±1.
+    let offset = normalizedAccuracyOffset(cursor);
     if (band === 'perfect') offset = 0;
-    if (band === 'miss') offset = clamp(offset * 1.5, -1, 1);
     this.onBand?.('accuracy', band);
 
     let power = this.deliveredPower();
