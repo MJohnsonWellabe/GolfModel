@@ -4317,7 +4317,7 @@ function showLanding(): void {
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
   updateDailyBanner();
-  renderAcctMenu();
+  updateLandingProfileButton();
 }
 
 function showSetup(): void {
@@ -4407,8 +4407,20 @@ function ordinal(n: number): string {
  * obvious and reflects the real, persistent state. The profile overlay keeps its
  * own copy of the control too.
  */
+function updateLandingProfileButton(name?: string): void {
+  const btn = document.getElementById('landingProfile');
+  if (!btn) return;
+  if (signedIn) {
+    const label = name || profile.name || 'your account';
+    btn.textContent = `Profile — ${label}`;
+  } else {
+    btn.textContent = 'Log In / Profile';
+  }
+}
+
 function renderAcctMenu(): void {
   const el = document.getElementById('acctMenu');
+  updateLandingProfileButton();
   if (!el) return;
   if (!authConfigured()) {
     el.innerHTML = '';
@@ -4465,8 +4477,12 @@ function renderAcctMenu(): void {
     };
   };
   if (signedIn) {
-    void linkedAccountName().then((name) => showSignedIn(name ?? 'your account'));
+    void linkedAccountName().then((name) => {
+      updateLandingProfileButton(name ?? undefined);
+      showSignedIn(name ?? 'your account');
+    });
   } else {
+    updateLandingProfileButton();
     showSignInButton();
   }
 }
@@ -4474,14 +4490,15 @@ function renderAcctMenu(): void {
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderLockerRoom());
+document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
-document.getElementById('storeBanner')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
+document.getElementById('storeBanner')?.addEventListener('pointerdown', () => renderStore());
+document.getElementById('seasonBanner')?.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 updateSeasonLink();
 updateStoreBanner();
+updateLandingProfileButton();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
 backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
