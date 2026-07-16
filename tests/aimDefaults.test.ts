@@ -113,3 +113,50 @@ describe('default aim strategic intent', () => {
     expect(Math.min(...h.aiTargets!.slice(1).map((t) => dist(p, t)))).toBeLessThan(80);
   });
 });
+
+describe('default aim complete setup path with ordinary golfer', () => {
+  const port = loadCourse(portjohnson as unknown as CourseAuthoring);
+  const wild = loadCourse(wildwood as unknown as CourseAuthoring);
+  const timber = loadCourse(timberline as unknown as CourseAuthoring);
+
+  function setup(hole: HoleData, ball: Point, lie: Surface, strokes: number, golfer: Golfer = GOLFER) {
+    const engine = new PhysicsEngine(hole, buildHeightField(hole));
+    const aim = new AimControl(hole, engine);
+    const ctx: ShotContext = { ball, lie, golfer, fireBoost: 0, strokes };
+    aim.autoSelectClub(ctx);
+    aim.resetAim(ctx);
+    return { aim, engine, point: aim.aimPoint(ball), ctx };
+  }
+
+  it('ordinary par 4 tee setup uses practical club carry and dry ground', () => {
+    const h = wild.holes.find((x) => x.par === 4)!;
+    const s = setup(h, h.tee, 'tee', 0);
+    expect(s.aim.club.id).toBe('driver');
+    expect(dist(h.tee, s.point)).toBeLessThanOrEqual(s.aim.maxCarryPx(s.ctx) + 0.01);
+    expect(s.engine.surfaceAt(s.point.x, s.point.y)).not.toBe('water');
+  });
+
+  it('ordinary par 5 tee setup uses practical club carry and an authored route target', () => {
+    const h = timber.holes.find((x) => x.par === 5)!;
+    const s = setup(h, h.tee, 'tee', 0);
+    expect(s.aim.club.id).toBe('driver');
+    expect(dist(h.tee, s.point)).toBeLessThanOrEqual(s.aim.maxCarryPx(s.ctx) + 0.01);
+    expect(Math.min(...h.aiTargets!.map((t) => dist(s.point, t)))).toBeLessThan(90);
+  });
+
+  it('ordinary reachable approach targets near the flag without choosing water', () => {
+    const h = port.holes.find((x) => x.par === 3)!;
+    const ball = { x: h.pin.x, y: h.pin.y + 150 };
+    const s = setup(h, ball, 'fairway', 1);
+    expect(dist(s.point, h.pin)).toBeLessThan(8);
+    expect(s.engine.surfaceAt(s.point.x, s.point.y)).not.toBe('water');
+  });
+
+  it('ordinary unreachable approach chooses a strategic waypoint instead of forcing the flag', () => {
+    const h = wild.holes.find((x) => x.par === 5)!;
+    const ball = h.aiTargets![0];
+    const s = setup(h, ball, 'fairway', 1);
+    expect(dist(s.point, h.pin)).toBeGreaterThan(80);
+    expect(s.engine.surfaceAt(s.point.x, s.point.y)).not.toBe('water');
+  });
+});

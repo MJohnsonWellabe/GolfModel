@@ -24,15 +24,16 @@ export function advanceCursor(
   let c = cursor + dirSign * speed * dtMs;
   let d = dirSign;
   if (bounce) {
-    // One reflection per end is plenty — a real frame gap is a tiny fraction
-    // of a sweep. (A pathological multi-sweep gap still lands in range.)
-    if (c > 1) {
-      c = 2 - c;
-      d = -1;
-    }
-    if (c < 0) {
-      c = -c;
-      d = 1;
+    // Reflect using elapsed distance, not frame count. A very long frame is
+    // therefore equivalent to many short frames and cannot clamp away travel.
+    while (c > 1 || c < 0) {
+      if (c > 1) {
+        c = 2 - c;
+        d = -1;
+      } else if (c < 0) {
+        c = -c;
+        d = 1;
+      }
     }
   }
   return { cursor: clamp(c, 0, 1), dirSign: d };
