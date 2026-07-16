@@ -4501,7 +4501,10 @@ updateStoreBanner();
 updateLandingProfileButton();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
-backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
+backBtn.addEventListener('pointerdown', () => {
+  if (sel.step <= 0) showLanding();
+  else goStep(sel.step - 1);
+});
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
   else if (pendingTournament) {

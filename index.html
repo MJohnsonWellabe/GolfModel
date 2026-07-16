@@ -543,6 +543,64 @@
         justify-content: center;
         cursor: pointer;
       }
+      #landingSeason,
+      #landingStore {
+        position: relative;
+        min-height: 72px;
+        justify-content: flex-start;
+        padding: 12px 14px 12px 52px;
+        overflow: hidden;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 10px 26px rgba(0,0,0,0.28);
+      }
+      #landingSeason::before,
+      #landingStore::before {
+        position: absolute;
+        left: 13px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 19px;
+        box-shadow: 0 0 22px rgba(255,255,255,0.22);
+      }
+      #landingSeason::after,
+      #landingStore::after {
+        content: "";
+        position: absolute;
+        inset: -60% auto auto -20%;
+        width: 70%;
+        height: 220%;
+        transform: rotate(18deg);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.16), transparent);
+        pointer-events: none;
+      }
+      #landingSeason {
+        border-color: rgba(255, 214, 96, 0.58);
+        background:
+          radial-gradient(circle at 92% 18%, rgba(255,255,255,0.24), transparent 22%),
+          linear-gradient(135deg, rgba(255, 151, 55, 0.42), rgba(255, 213, 79, 0.24) 48%, rgba(121, 74, 196, 0.34));
+        color: #fff6cd;
+      }
+      #landingSeason::before {
+        content: "🎫";
+        background: linear-gradient(180deg, #fff0a9, #e39d24);
+      }
+      #landingStore {
+        border-color: rgba(105, 224, 255, 0.58);
+        background:
+          radial-gradient(circle at 88% 20%, rgba(255,255,255,0.2), transparent 24%),
+          linear-gradient(135deg, rgba(41, 148, 255, 0.42), rgba(80, 223, 255, 0.2) 50%, rgba(72, 255, 188, 0.28));
+        color: #dffaff;
+      }
+      #landingStore::before {
+        content: "🛍️";
+        background: linear-gradient(180deg, #b8f7ff, #249ed0);
+      }
       .landingNav .wide { grid-column: 1 / -1; }
       @media (max-width: 760px) {
         #landing { align-items: flex-end; }
@@ -1331,15 +1389,15 @@
       /* Nav */
       #navRow {
         display: flex;
-        gap: 10px;
-        margin-top: 18px;
+        gap: 8px;
+        margin-top: 10px;
       }
       #navRow button {
         flex: 1 1 auto;
-        padding: 14px;
-        border-radius: 14px;
+        padding: 10px 12px;
+        border-radius: 12px;
         border: none;
-        font-size: 17px;
+        font-size: 14px;
         font-weight: 800;
         letter-spacing: 0.5px;
       }
@@ -1530,9 +1588,14 @@
       }
       .menuLinks {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         justify-content: center;
         flex-wrap: wrap;
+      }
+      .recordsLink {
+        min-height: 38px;
+        padding: 8px 11px;
+        font-size: 13px;
       }
       /* Full-width footer CTA into the public marketing/about page (press kit,
          course gallery, roster, gameplay clips) — a real link, not a ghost
