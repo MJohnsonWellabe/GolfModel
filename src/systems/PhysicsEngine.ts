@@ -508,7 +508,7 @@ export class PhysicsEngine {
     // swings per the Appendix A dispersion table. Tightens as the governing
     // accuracy stat rises; skipped in preview so the aim line is exact.
     // riskMult: extreme strike positions widen dispersion (Phase 4 widget).
-    const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2 : 4;
+    const qualityMult = swing.accuracyQuality === 'perfect' ? 1 : swing.accuracyQuality === 'good' ? 2.4 : 6;
     // Lie penalty (rough/sand/etc's extra scatter) used to apply at FULL
     // strength regardless of strike quality — unlike every other dispersion
     // term here, which shrinks on a clean hit. Rough's lieError (3.5°) is

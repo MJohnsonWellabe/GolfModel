@@ -597,7 +597,8 @@ export function buildCourse(
       // A light blur hides the low reflection resolution without smearing the
       // pines to mush; the scrolling bump map adds the ripple break-up.
       waterMirror.adaptiveBlurKernel = 4;
-      waterMirror.renderList = [];
+      const reflectList: AbstractMesh[] = [];
+      waterMirror.renderList = reflectList;
       // Reflected silhouettes: the sky dome, any backdrop peaks, the clouds
       // (mesh cloud* or the painted cumulus/cirrus billboards), and the
       // tree/scatter INSTANCES (nat*, NOT the parked natProto-* sources — a
@@ -621,40 +622,24 @@ export function buildCourse(
         }
         return false;
       };
-      let lastCount = -1;
-      let stable = 0;
       const fillStart = performance.now();
-      // Hard cutoff: on a bed-heavy hole (Wildwood's 17 garden beds cover a
-      // combined ~140k sq units — many times any other course's scatter job)
-      // the chunked popQueue/plantQueue drain can take far longer than the
-      // "~1-2s of flyover" this loop was designed around, so total scene.mesh
-      // count (and this loop's OWN full-array filter+realloc, itself an O(n)
-      // per-frame cost) keeps changing for many seconds — the stable-count
-      // self-removal never fires, so the loop (and the resulting mirror
-      // re-render) runs at full per-frame cost the whole time. Force it off
-      // once fully planted forests never take, so any straggler's reflection
-      // is a one-frame-stale non-issue against an unbounded per-frame cost.
+      const addReflectable = (m: AbstractMesh): void => {
+        if (isReflectable(m) && !reflectList.includes(m)) reflectList.push(m);
+      };
+      scene.meshes.forEach(addReflectable);
+      // Root cause fix: this used to run scene.meshes.filter(isReflectable)
+      // every frame while GLB/scatter instances were still arriving. Dense
+      // water holes paid an O(total meshes) scan + fresh array allocation right
+      // through intro/address, exactly when the first swing meter appeared.
+      // Keep one stable renderList array instead and append matching meshes as
+      // Babylon creates them; no per-frame full-scene filtering or allocation.
+      const newMeshObs = scene.onNewMeshAddedObservable.add(addReflectable);
       const FILL_MAX_MS = 8000;
       const fill = scene.onBeforeRenderObservable.add(() => {
-        if (!waterMirror) return;
-        // The mirror is frozen while the meter is live (see perf pacing below),
-        // so don't spend a per-frame scene.meshes.filter + array alloc rebuilding
-        // a render list nothing will draw until the shot goes.
-        if (renderPacing.meterActive) return;
         if (performance.now() - fillStart > FILL_MAX_MS) {
+          scene.onNewMeshAddedObservable.remove(newMeshObs);
           scene.onBeforeRenderObservable.remove(fill);
-          return;
         }
-        const list = scene.meshes.filter(isReflectable);
-        if (list.length === lastCount) {
-          // Instances arrive in one synchronous burst after the glb resolves;
-          // once the count holds for a few frames the forest is fully planted.
-          if (++stable > 4 && lastCount > 0) scene.onBeforeRenderObservable.remove(fill);
-          return;
-        }
-        lastCount = list.length;
-        stable = 0;
-        waterMirror.renderList = list;
       });
     }
     // Triangulate the ACTUAL hazard outline (earcut) rather than fanning from
@@ -699,9 +684,9 @@ export function buildCourse(
     wm.diffuseColor = new Color3(1, 1, 1); // vertex colors carry the tint
     // With a live mirror the reflection carries most of the brightness, so the
     // baseline emissive drops to keep the depth tint readable underneath it.
-    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.3 : 0.45));
-    wm.specularColor = new Color3(0.75, 0.85, 0.95);
-    wm.specularPower = 110;
+    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.36 : 0.48));
+    wm.specularColor = new Color3(0.9, 0.96, 1.0);
+    wm.specularPower = 145;
     wm.alpha = 0.95;
     wm.bumpTexture = waterNormalTex;
     // The earcut winding direction follows the authored polygon's own winding
@@ -715,19 +700,22 @@ export function buildCourse(
       // so highlights shimmer instead of reading as a flat mirror sheet.
       wm.reflectionTexture = waterMirror;
       const fr = new FresnelParameters();
-      fr.bias = 0.18;
-      fr.power = 2;
-      fr.leftColor = new Color3(reflectStrength, reflectStrength, reflectStrength);
-      const dim = reflectStrength * 0.22;
+      fr.bias = 0.24;
+      fr.power = 1.65;
+      const bright = Math.min(1, reflectStrength * 1.08);
+      fr.leftColor = new Color3(bright, bright, bright);
+      const dim = reflectStrength * 0.28;
       fr.rightColor = new Color3(dim, dim, dim);
       wm.reflectionFresnelParameters = fr;
     }
     waterMesh.material = wm;
+    const baseWater = c3(theme.waterDeep);
     scene.onBeforeRenderObservable.add(() => {
       const t = animTime();
       waterNormalTex.uOffset = t * 0.018;
       waterNormalTex.vOffset = t * 0.011 + Math.sin(t * 0.4) * 0.02;
-      wm.emissiveColor = c3(shade(theme.waterDeep, 0.42 + Math.sin(t * 1.3) * 0.06));
+      const pulse = 0.48 + Math.sin(t * 1.3) * 0.055;
+      wm.emissiveColor.set(baseWater.r * pulse, baseWater.g * pulse, baseWater.b * pulse);
     });
   }
 
@@ -1892,21 +1880,12 @@ export function buildCourse(
         );
         if (tintable.length) generic = tintable;
       }
-      // Cap bed density for performance. A bed's instance count (and the
-      // candidate-cell scan cost to place it) grows linearly with `density`
-      // (step ~ 1/sqrt(density), cells/count ~ 1/step²), and each bloom is TWO
-      // instances (stem + petal split), so the densest beds dominate a
-      // course's object count AND how long the chunked placement queue takes
-      // to drain. Wildwood's 17 beds (originally density 12-26) cover a
-      // combined ~140k sq units — many times any other course's scatter job —
-      // so its placement backlog was taking 8+ real seconds to finish even on
-      // this cap's first (16) setting, during which every frame paid both the
-      // drain cost AND an unbounded water-mirror render-list rebuild (see its
-      // own fix). Lowered to 12 — Wildwood's own least-dense beds already
-      // read fine at 12, so this drops every bed to the density its course
-      // already uses at the low end, not a new visual tier. Beds at or below
-      // the cap on ANY course are unchanged.
-      const GARDEN_DENSITY_CAP = 12;
+      // Cap only the extreme authored values. The real first-shot hitch was the
+      // unbounded water-mirror render-list rebuild above, not the garden art
+      // itself; capping every Wildwood bed down to 12 made h1/h3 visibly sparse
+      // without addressing that root cost. Restore the fuller 16-density visual
+      // tier while still avoiding the 19–26 outliers from dominating placement.
+      const GARDEN_DENSITY_CAP = 16;
       const step = tuftStep / Math.sqrt(Math.min(g.density ?? 1, GARDEN_DENSITY_CAP));
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;

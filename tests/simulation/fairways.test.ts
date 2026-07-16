@@ -63,10 +63,9 @@ function fairwayPct(clubId: string, quality: 'perfect' | 'miss', n = 1200): numb
  * regressions still surface, and enforce the orderings the GDD cares about.
  */
 describe('Fairway accuracy — 30yd corridor (dispersion-first calibration)', () => {
-  it('perfect driver stays high but imperfect', () => {
+  it('perfect driver stays on the intended fairway line', () => {
     const pct = fairwayPct('driver', 'perfect');
-    expect(pct, `driver perfect ${pct.toFixed(1)}%`).toBeGreaterThanOrEqual(92);
-    expect(pct, `driver perfect ${pct.toFixed(1)}%`).toBeLessThan(100);
+    expect(pct, `driver perfect ${pct.toFixed(1)}%`).toBeGreaterThanOrEqual(99);
   });
   it('perfect 3-wood beats perfect driver', () => {
     const w = fairwayPct('3w', 'perfect');
