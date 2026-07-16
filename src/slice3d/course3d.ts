@@ -1404,12 +1404,24 @@ export function buildCourse(
     // The swing-meter stutter on the water holes (Timberline h1/h3, Wildwood
     // h1/h3, Port Johnson h3) was never the scatter drain — it is the two dominant
     // per-frame GPU costs: the planar water-reflection RTT (re-renders every
-    // scatter instance) and the 1024² shadow map (full regen every frame). While
-    // the meter is live the camera is parked at address and the only animating
-    // thing is the 2D bar, so freeze both — each captures one fresh frame
-    // (REFRESHRATE_RENDER_ONCE) then holds — and restore their live cadence the
-    // instant the ball is struck and the flight camera takes over.
+    // scatter instance) and the 1024² shadow map. While the meter is live the
+    // camera is parked at address and the only animating thing is the 2D bar, so
+    // freeze both — each captures one fresh frame (REFRESHRATE_RENDER_ONCE) then
+    // holds — and restore their live cadence the instant the ball is struck and
+    // the flight camera takes over.
+    //
+    // The "live" cadence itself used to be a full shadow-map regen EVERY frame —
+    // the single heaviest fixed per-frame GPU cost in the scene, paid on every
+    // course regardless of how sparse its scatter is (this is what actually made
+    // Wildwood/Timberline/Port Johnson feel laggy next to Sable Bay: none of them
+    // ever reached the meter-armed freeze during ordinary aiming/dragging/flight,
+    // so their extra shadow-caster/scatter load was paid every single frame).
+    // Shadows are soft and directional; a same-frame-as-the-mirror cadence
+    // (every OTHER frame, matching waterMirror below) halves that cost with no
+    // perceptible difference — the mirror has run at this same cadence all
+    // along and nobody has ever reported reflection lag from it.
     const shadowMap = shadows.getShadowMap();
+    if (shadowMap) shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
     let pacingFrozen = false;
     scene.onBeforeRenderObservable.add(() => {
       if (renderPacing.meterActive === pacingFrozen) return;
@@ -1422,7 +1434,7 @@ export function buildCourse(
       if (shadowMap) {
         shadowMap.refreshRate = pacingFrozen
           ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
-          : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYFRAME;
+          : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
       }
     });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts

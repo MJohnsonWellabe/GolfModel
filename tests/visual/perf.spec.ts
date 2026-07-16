@@ -144,7 +144,7 @@ test('swing meter stays smooth on a water hole (mirror/shadow freeze)', async ({
   // every-frame cadence (1) for flight. A regression that stops gating the RTTs
   // on the meter — the exact bug behind the stutter — trips this deterministically.
   expect(measure.armed.shadow, 'shadow map frozen while meter live').toBe(0);
-  expect(measure.released.shadow, 'shadow map live for flight').toBe(1);
+  expect(measure.released.shadow, 'shadow map live for flight').toBe(2);
   // No single armed-meter frame may blow past a stutter ceiling (generous for the
   // software-GL CI CPU; a genuine per-frame stall trips it).
   expect(measure.frozen.max, `worst armed frame ${measure.frozen.max.toFixed(2)}ms`).toBeLessThan(80);
@@ -215,7 +215,7 @@ test('swing meter stays smooth on Wildwood hole 1 (also a water hole)', async ({
   );
 
   expect(measure.armed.shadow, 'shadow map frozen while meter live').toBe(0);
-  expect(measure.released.shadow, 'shadow map live for flight').toBe(1);
+  expect(measure.released.shadow, 'shadow map live for flight').toBe(2);
   expect(measure.frozen.max, `worst armed frame ${measure.frozen.max.toFixed(2)}ms`).toBeLessThan(80);
 });
 
