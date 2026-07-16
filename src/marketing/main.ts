@@ -16,8 +16,16 @@ function rosterCard(imgSrc: string, name: string, pal: boolean): string {
   );
 }
 
+// Spotlight a handful of the 25 characters rather than the whole roster — the
+// section heading already says "25 characters, all playable."
+const SPOTLIGHT_KEYS = ['chip', 'sunny', 'dez', 'lily', 'nova', 'cole', 'ivy', 'zuri'];
 const charEl = document.getElementById('charRoster');
-if (charEl) charEl.innerHTML = CHARACTERS.map((c) => rosterCard(`ui/characters/${c.key}.png`, c.name, false)).join('');
+if (charEl) {
+  const spotlight = SPOTLIGHT_KEYS.map((k) => CHARACTERS.find((c) => c.key === k)).filter(
+    (c): c is (typeof CHARACTERS)[number] => c !== undefined
+  );
+  charEl.innerHTML = spotlight.map((c) => rosterCard(`ui/characters/${c.key}.png`, c.name, false)).join('');
+}
 const palEl = document.getElementById('palRoster');
 if (palEl) palEl.innerHTML = PALS.map((p) => rosterCard(p.image, p.name, true)).join('');
 
@@ -34,11 +42,10 @@ interface Clip {
 }
 
 const CLIPS: Clip[] = [
-  { badge: 'Par 3', title: 'Tee shot to the pin', sub: 'Darts onto the island, kick-in close.', poster: 'marketing/img/poster-ace.png', file: 'marketing/videos/hole-in-one.mp4' },
-  { badge: 'Backspin', title: 'Check & back up', sub: 'Lands soft, bites by the cup.', poster: 'marketing/img/poster-backspin.png', file: 'marketing/videos/backspin.mp4' },
-  { badge: 'Approach', title: 'Island carry', sub: 'Flushed over the water to the green.', poster: 'marketing/img/poster-island.png', file: 'marketing/videos/island.mp4' },
-  { badge: 'Putt', title: 'Clutch putt', sub: 'Reads the break, rolls it in.', poster: 'marketing/img/poster-putt.png', file: 'marketing/videos/putt.mp4' },
-  { badge: 'Short game', title: 'Spin check', sub: 'Zips back to the flag on the pond green.', poster: 'marketing/img/poster-greenread.png', file: 'marketing/videos/greenread.mp4' }
+  { badge: 'Par 3', title: 'Tee shot to the pin', sub: 'Test your luck and hit it close.', poster: 'marketing/img/poster-ace.png', file: 'marketing/videos/hole-in-one.mp4' },
+  { badge: 'Spin', title: 'Check & back up', sub: "Feels amazing — but don't overdo it.", poster: 'marketing/img/poster-backspin.png', file: 'marketing/videos/backspin.mp4' },
+  { badge: 'Approach', title: 'Flush approach', sub: 'Flush it over the trouble, stick the green.', poster: 'marketing/img/poster-island.png', file: 'marketing/videos/island.mp4' },
+  { badge: 'Putt', title: 'Clutch putt', sub: 'Read the break. Roll it in.', poster: 'marketing/img/poster-putt.png', file: 'marketing/videos/putt.mp4' }
 ];
 
 function clipTile(c: Clip): string {

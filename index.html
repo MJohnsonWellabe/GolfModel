@@ -1407,6 +1407,30 @@
         justify-content: center;
         flex-wrap: wrap;
       }
+      /* Full-width footer CTA into the public marketing/about page (press kit,
+         course gallery, roster, gameplay clips) — a real link, not a ghost
+         text button, since it's the one menu item meant to invite tapping. */
+      .aboutGameLink {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 10px auto 0;
+        padding: 13px 16px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.04);
+        color: #cfe8d4;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .aboutGameLink:hover {
+        border-color: rgba(255, 213, 79, 0.5);
+        color: #ffd54f;
+      }
       /* Main-menu account button (styled like the Next button) + signed-in row */
       .acctMenu {
         margin: 14px auto 0;
@@ -2211,6 +2235,9 @@
           <button id="recordsLink" class="recordsLink">🏆 Records</button>
           <button id="tournyLink" class="recordsLink">🌐 Online Tournaments</button>
         </div>
+        <a id="aboutGameLink" class="aboutGameLink" href="marketing.html" target="_blank" rel="noopener"
+          >⛳ About the Game</a
+        >
       </div>
     </div>
     <div id="records"></div>

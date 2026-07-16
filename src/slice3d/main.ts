@@ -2272,6 +2272,21 @@ class HoleScene {
     this.beginTurn();
   }
 
+  /** Test hook: feed two synthetic all-perfect swings into the current
+   *  competitor's streak so the "on fire" ignite message fires deterministically
+   *  (real timed input can't be scripted precisely enough for capture tooling). */
+  debugIgniteFire(): void {
+    const fire = this.fires[this.turnIdx];
+    const perfect: SwingResult = { power: 1, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' };
+    fire.recordSwing(perfect);
+    if (fire.recordSwing(perfect)) {
+      // Long-held banner (vs. the real 1600ms) — screenshot capture tooling
+      // needs the message to still be up after page.screenshot()'s own
+      // (non-trivial, GPU-render-dependent) capture latency.
+      showMsg(`🔥 ${this.curPart().golfer.name} is ON FIRE!`, 8000);
+    }
+  }
+
   dispose(): void {
     this.disposed = true;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
@@ -3601,6 +3616,7 @@ function exposeDebug(): void {
         perfRefreshRates: () => current?.perfRefreshRates(),
         bodiesReady: current.bodiesReady,
         dropAt: (x: number, y: number) => current?.dropAt(x, y),
+        debugIgniteFire: () => current?.debugIgniteFire(),
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
         skipIntro: () => current?.skipIntro(),
@@ -4426,6 +4442,7 @@ nextBtn.addEventListener('pointerdown', () => {
  * once the scene (course, character, textures) is fully renderable.
  */
 async function startShotCapture(): Promise<void> {
+  grantRoundTrueVision();
   round.course = (SHOT.course && COURSES[SHOT.course]) || COURSES.wildwood;
   round.mode = 'solo';
   round.holeIdx = Math.min((SHOT.hole ?? 1) - 1, round.course.holes.length - 1);
@@ -4476,7 +4493,10 @@ else {
   opponentId?: string;
   courseId?: string;
 }) => {
-  if (opts?.name !== undefined) sel.name = opts.name;
+  if (opts?.name !== undefined) {
+    sel.name = opts.name;
+    profile.name = opts.name; // roundGolfer() reads profile.name, not sel.name
+  }
   if (opts?.character) sel.character = opts.character;
   if (opts?.archetype) sel.archetype = opts.archetype;
   if (opts?.mode) sel.mode = opts.mode;
