@@ -1892,21 +1892,12 @@ export function buildCourse(
         );
         if (tintable.length) generic = tintable;
       }
-      // Cap bed density for performance. A bed's instance count (and the
-      // candidate-cell scan cost to place it) grows linearly with `density`
-      // (step ~ 1/sqrt(density), cells/count ~ 1/step²), and each bloom is TWO
-      // instances (stem + petal split), so the densest beds dominate a
-      // course's object count AND how long the chunked placement queue takes
-      // to drain. Wildwood's 17 beds (originally density 12-26) cover a
-      // combined ~140k sq units — many times any other course's scatter job —
-      // so its placement backlog was taking 8+ real seconds to finish even on
-      // this cap's first (16) setting, during which every frame paid both the
-      // drain cost AND an unbounded water-mirror render-list rebuild (see its
-      // own fix). Lowered to 12 — Wildwood's own least-dense beds already
-      // read fine at 12, so this drops every bed to the density its course
-      // already uses at the low end, not a new visual tier. Beds at or below
-      // the cap on ANY course are unchanged.
-      const GARDEN_DENSITY_CAP = 12;
+      // Cap only the extreme authored values. The real first-shot hitch was the
+      // unbounded water-mirror render-list rebuild above, not the garden art
+      // itself; capping every Wildwood bed down to 12 made h1/h3 visibly sparse
+      // without addressing that root cost. Restore the fuller 16-density visual
+      // tier while still avoiding the 19–26 outliers from dominating placement.
+      const GARDEN_DENSITY_CAP = 16;
       const step = tuftStep / Math.sqrt(Math.min(g.density ?? 1, GARDEN_DENSITY_CAP));
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;

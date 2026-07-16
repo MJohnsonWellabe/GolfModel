@@ -1,4 +1,4 @@
-import { PX_PER_YARD, SWING } from '../../config';
+import { PHYSICS, PX_PER_YARD, SWING } from '../../config';
 import { CLUBS } from '../../data/clubs';
 import { effectiveCarryYards, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { angleTo, clamp, dist } from '../../utils/Geometry';
@@ -109,17 +109,25 @@ export class AimControl {
    * 4-ft putt and a 40-ft putt (or a 10-yd chip and a 45-yd chip) show an
    * identical bar, only the aim spot differs. So the aim distance is baked
    * into the bar's scale instead of into the target position: fullPowerMark
-   * maps to the FLAT-ground aim distance.
-   *
-   * NO slope compensation (by design): a perfect strike is sized to the flat
-   * pace for the aim distance, so uphill the ball naturally comes up short and
-   * downhill it runs long. Reading the break and aiming further is the player's
-   * skill — the "▲ uphill" readout is the only hint. (The AI reads greens on its
-   * own in AIController.rollSwing; this only governs the human's meter.)
+   * maps to the aim distance. Putts include first-order green-slope pace so a
+   * perfect stroke at the target reaches the aimed spot even on long uphill
+   * reads; the player still owns the line/break and can add or take off pace by
+   * dragging the aim.
    */
   meterScalePx(ctx: ShotContext): number {
     if (!this.isDistanceAimed(ctx)) return this.maxCarryPx(ctx);
-    return this.distPx / SWING.fullPowerMark;
+    let targetPx = this.distPx;
+    if (this.isPutting) {
+      const along = this.engine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
+      // PhysicsEngine's putter launch uses v² = 2·μ·carryPx, then the real
+      // integrator applies the green's acceleration along the putt. Solve the
+      // matching constant-acceleration distance equation for the carry value
+      // that stops at the aimed distance: carry = D·(μ - aAlong)/μ.
+      const mu = PHYSICS.friction.green;
+      const slopePace = (mu - along) / mu;
+      targetPx *= clamp(slopePace > 1 ? 1 + (slopePace - 1) * 1.25 : slopePace, 0.45, 1.9);
+    }
+    return targetPx / SWING.fullPowerMark;
   }
 
   /** Where the power target line sits on the bar for the current aim. */
