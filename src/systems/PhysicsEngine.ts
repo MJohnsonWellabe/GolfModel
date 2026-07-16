@@ -515,9 +515,17 @@ export class PhysicsEngine {
     // several times any club's residual sigma, so it dominated the total
     // scatter and a "perfect" click out of the rough was barely tighter than a
     // mis-hit (bug report: "perfect accuracy" shots still flying way off
-    // line). Scale it by the same qualityMult as residual so a clean strike
-    // genuinely tightens a rough lie too, not just fairway shots.
-    const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, (PHYSICS.lieError[lie] ?? 0) * qualityMult);
+    // line).
+    //
+    // Reusing the residual term's qualityMult (1/2/4) here was wrong: that
+    // scale assumes 1x IS the perfect-quality baseline, but lieError's flat
+    // value had always been every quality's baseline (bug report: "started to
+    // feel random on some good hits" — a GOOD rough/sand/trees shot was
+    // suddenly landing at 2x, and a miss at 4x, its old scatter, when only
+    // PERFECT was ever meant to tighten). Keep 'good' at that original 1x
+    // baseline, shrink 'perfect', and widen 'miss' only moderately.
+    const lieQualityMult = swing.accuracyQuality === 'perfect' ? 0.5 : swing.accuracyQuality === 'good' ? 1 : 1.6;
+    const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, (PHYSICS.lieError[lie] ?? 0) * lieQualityMult);
     const residualSigma =
       (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) *
       (1.3 - accuracy / 200) *
