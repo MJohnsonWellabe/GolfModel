@@ -253,10 +253,22 @@ export class DomMeter {
 
   private tick(ts: number): void {
     if (!this.isActive) return;
+    const prevDir = this.dirSign;
     this.advance(ts);
     if (this.state === 'accuracy' && this.cursor <= 0) {
       // Ran all the way back to the start with no tap — a deliberate bail,
       // not a miss: no shot, no stroke, meter resets so the player can re-aim.
+      this.hide();
+      this.onCancel?.();
+      return;
+    }
+    // Power phase bounces off BOTH ends (never clamps to 0 the way accuracy
+    // does), so the same "let it run back to the start" bail needs its own
+    // detection: dirSign flipping from - to + while in 'power' means the
+    // cursor JUST bounced off the left edge, i.e. it swept all the way up and
+    // all the way back down with no tap — the power-phase equivalent of
+    // letting the accuracy cursor run out above.
+    if (this.state === 'power' && prevDir === -1 && this.dirSign === 1) {
       this.hide();
       this.onCancel?.();
       return;
