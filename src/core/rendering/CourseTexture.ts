@@ -531,6 +531,19 @@ export function renderCourseCanvas(
       const jx = wx + wobX;
       const jy = wy + wobY;
       let cls = classAt(jx, jy);
+      // Water's wobble-displaced lookup can bleed blue paint onto texels the
+      // physics engine (surfaceAt, using the CRISP un-jittered polygon) still
+      // calls fairway — worse on a course with a large theme.edgeWobble (bug
+      // report: Timberline hole 3's lake shows a blue patch on the fairway
+      // side that doesn't play as water). Water bleeding onto ROUGH is
+      // already covered on the physics side (surfaceAt's nearWater margin);
+      // fairway is deliberately never upgraded there — a fairway lie must
+      // never wrongly read as a penalty — so suppress the mismatch at its
+      // source instead: whenever the wobble would paint water over ground
+      // that's genuinely fairway at the true (un-jittered) position, keep it
+      // fairway. Every other wobbled edge (water-vs-rough, fairway-vs-rough,
+      // etc.) is untouched.
+      if (cls === 5 && classAt(wx, wy) === 1) cls = 1;
       // Tee pad overrides ground surfaces only (never sand/water/trees/green),
       // tested on crisp (un-jittered) coords for a sharp square edge. Keep the
       // inset distance so we can draw a darker collar around the pad.
