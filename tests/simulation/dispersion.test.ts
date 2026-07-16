@@ -7,11 +7,10 @@ import { Surface } from '../../src/core/types';
 import { golferWith, NO_WIND, openHole, SWING_OF } from './simHelpers';
 
 /**
- * GDD Appendix A shot dispersion (yards off line at full carry):
- *   perfect — driver 8–15 · fairway wood 6–10 · long iron 5–8 · short iron
- *   3–6 · wedge 2–4; average swing ×2; poor swing ×4.
- * We read the range as the typical miss envelope: |lateral| p90 must land
- * inside it, and the quality multipliers must hold as ratios.
+ * Perfect swings should launch close to the intended start line. The original
+ * Appendix-A residual envelope made centered/perfect drives routinely start far
+ * enough offline to miss fairways, so the perfect-click residual is now a small
+ * feel/noise term while good and missed swings still widen substantially.
  */
 
 const hole = openHole();
@@ -42,21 +41,21 @@ function lateralP90(clubId: string, quality: 'perfect' | 'good' | 'miss', n = 12
   return lats[Math.floor(n * 0.9)];
 }
 
-describe('Appendix A dispersion — perfect swings (p90 lateral, yards)', () => {
-  it('driver lands in the 8–15yd envelope', () => {
+describe('Perfect-click dispersion — centered swings stay on line (p90 lateral, yards)', () => {
+  it('driver stays in a tight start-line envelope', () => {
     const p = lateralP90('driver', 'perfect');
-    expect(p, `driver p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(8);
-    expect(p, `driver p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(15);
+    expect(p, `driver p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(2);
+    expect(p, `driver p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(6);
   });
-  it('5-iron lands in the 5–8yd envelope', () => {
+  it('5-iron stays tighter than woods', () => {
     const p = lateralP90('5i', 'perfect');
-    expect(p, `5i p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(4);
-    expect(p, `5i p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(8);
+    expect(p, `5i p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(1);
+    expect(p, `5i p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(3);
   });
-  it('wedge lands in the 2–4yd envelope', () => {
+  it('wedge is nearly start-line exact', () => {
     const p = lateralP90('pw', 'perfect');
-    expect(p, `pw p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(1.5);
-    expect(p, `pw p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(4.5);
+    expect(p, `pw p90=${p.toFixed(1)}yd`).toBeGreaterThanOrEqual(0.5);
+    expect(p, `pw p90=${p.toFixed(1)}yd`).toBeLessThanOrEqual(1.5);
   });
   it('dispersion orders driver > iron > wedge', () => {
     expect(lateralP90('driver', 'perfect', 600)).toBeGreaterThan(lateralP90('7i', 'perfect', 600));
@@ -65,15 +64,15 @@ describe('Appendix A dispersion — perfect swings (p90 lateral, yards)', () => 
 });
 
 describe('Appendix A dispersion — quality multipliers', () => {
-  it('good swings spread ~2x a perfect swing', () => {
+  it('good swings spread well beyond a perfect swing', () => {
     const ratio = lateralP90('driver', 'good') / lateralP90('driver', 'perfect');
-    expect(ratio, `good/perfect=${ratio.toFixed(2)}`).toBeGreaterThan(1.6);
-    expect(ratio, `good/perfect=${ratio.toFixed(2)}`).toBeLessThan(2.5);
+    expect(ratio, `good/perfect=${ratio.toFixed(2)}`).toBeGreaterThan(2.0);
+    expect(ratio, `good/perfect=${ratio.toFixed(2)}`).toBeLessThan(3.0);
   });
-  it('missed swings spread ~4x a perfect swing', () => {
+  it('missed swings remain heavily punished', () => {
     const ratio = lateralP90('driver', 'miss') / lateralP90('driver', 'perfect');
-    expect(ratio, `miss/perfect=${ratio.toFixed(2)}`).toBeGreaterThan(3.2);
-    expect(ratio, `miss/perfect=${ratio.toFixed(2)}`).toBeLessThan(5);
+    expect(ratio, `miss/perfect=${ratio.toFixed(2)}`).toBeGreaterThan(5);
+    expect(ratio, `miss/perfect=${ratio.toFixed(2)}`).toBeLessThan(7.5);
   });
 });
 

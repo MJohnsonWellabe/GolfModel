@@ -1,8 +1,7 @@
 /**
- * Marketing kit (marketing.html) — populates the course/character/pal rosters
+ * About page (marketing.html) — populates the course/character/pal rosters
  * and the gameplay-clip wall from the live game data + committed captures, so
- * the press page never drifts from the real roster. This page is owner-reached
- * from the admin dashboard.
+ * the public page never drifts from the real roster.
  */
 import { CHARACTERS } from '../data/characters';
 import { PALS } from '../data/pals';
@@ -42,7 +41,7 @@ const CLIPS: Clip[] = [
   { badge: 'Par 3', title: 'Tee shot to the pin', sub: 'Follow the full shot through the finish.', poster: 'assets/marketing/img/poster-ace.png', file: 'assets/marketing/videos/hole-in-one.mp4' },
   { badge: 'Drive', title: 'Behind the golfer', sub: 'Big swing, clean launch, cinematic ball flight.', poster: 'assets/marketing/img/poster-island.png', file: 'assets/marketing/videos/island.mp4' },
   { badge: 'Spin', title: 'Check & back up', sub: "Feels amazing — but don't overdo it.", poster: 'assets/marketing/img/poster-backspin.png', file: 'assets/marketing/videos/backspin.mp4' },
-  { badge: 'Read', title: 'True Vision line', sub: 'See carry, curve and roll before you commit.', poster: 'assets/marketing/img/poster-greenread.png', file: 'assets/marketing/videos/greenread.mp4' },
+  { badge: 'Read', title: 'True Vision line', sub: 'Behind-the-golfer read: see curve and roll before you commit.', poster: 'assets/marketing/img/feature-truevision.png', file: 'assets/marketing/videos/greenread.mp4' },
   { badge: 'Putt', title: 'Clutch putt', sub: 'Read the break. Roll it in.', poster: 'assets/marketing/img/poster-putt.png', file: 'assets/marketing/videos/putt.mp4' }
 ];
 

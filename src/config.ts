@@ -92,14 +92,14 @@ export const PHYSICS = {
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */
   maxErrorDeg: 13,
   /** Residual directional dispersion (degrees, 1σ) even on a PERFECT accuracy
-   *  click, by club family — per the GDD, a perfect swing should not guarantee
-   *  perfect positioning (driver 8–15yd off line at full carry). Scaled down
-   *  as the golfer's accuracy stat rises and ×2/×4 on good/missed swings. */
+   *  click, by club family. Kept small so a centered/perfect strike launches
+   *  almost exactly on the intended start line; good/missed swings still widen
+   *  through the quality multiplier in PhysicsEngine. */
   perfectDispersionDeg: {
-    wood: 1.35,
-    iron: 1.0,
-    wedge: 0.85,
-    putter: 0.9
+    wood: 0.55,
+    iron: 0.42,
+    wedge: 0.32,
+    putter: 0.45
   } as Record<string, number>,
   /** Airborne wind scaling: full effect at/above this height (world px),
    *  fading toward the ground — low flight cuts through wind (GDD §Wind). */

@@ -3926,13 +3926,13 @@ function renderCourse(): void {
   if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Choose your course</div>` +
-    `<div class="modeGrid">` +
+    `<div class="courseGrid">` +
     COURSE_LIST.map((c) => {
       const course = COURSES[c.id];
       const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
       const sub = c.tag;
       return (
-        `<div class="archCard modeCard courseCard${sel.courseId === c.id ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
+        `<div class="archCard modeCard courseCard${sel.courseId === c.id ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}" aria-label="${escapeHtml(c.name)} course">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
         `<span class="atag">${tag}</span></div>` +
         `<div class="stepHint" style="margin:6px 0 0">${sub}</div>` +
@@ -4286,10 +4286,8 @@ function renderStepBody(): void {
 }
 
 function updateNav(): void {
-  // display:none (not visibility:hidden) on step 0 — a hidden-but-present Back
-  // button still claims its 34% flex slot, leaving Locker/Next pushed into the
-  // remaining space with a dead gap on the left instead of filling the row.
-  backBtn.style.display = sel.step === 0 ? 'none' : '';
+  backBtn.style.display = '';
+  backBtn.textContent = sel.step === 0 ? 'Back to Home' : 'Back';
   nextBtn.textContent = sel.step === stepLabels().length - 1 ? 'Tee off' : 'Next';
   nextBtn.disabled = false;
 }
@@ -4317,7 +4315,7 @@ function showLanding(): void {
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
   updateDailyBanner();
-  renderAcctMenu();
+  updateLandingProfileButton();
 }
 
 function showSetup(): void {
@@ -4407,8 +4405,20 @@ function ordinal(n: number): string {
  * obvious and reflects the real, persistent state. The profile overlay keeps its
  * own copy of the control too.
  */
+function updateLandingProfileButton(name?: string): void {
+  const btn = document.getElementById('landingProfile');
+  if (!btn) return;
+  if (signedIn) {
+    const label = name || profile.name || 'your account';
+    btn.textContent = `Profile — ${label}`;
+  } else {
+    btn.textContent = 'Log In / Profile';
+  }
+}
+
 function renderAcctMenu(): void {
   const el = document.getElementById('acctMenu');
+  updateLandingProfileButton();
   if (!el) return;
   if (!authConfigured()) {
     el.innerHTML = '';
@@ -4465,8 +4475,12 @@ function renderAcctMenu(): void {
     };
   };
   if (signedIn) {
-    void linkedAccountName().then((name) => showSignedIn(name ?? 'your account'));
+    void linkedAccountName().then((name) => {
+      updateLandingProfileButton(name ?? undefined);
+      showSignedIn(name ?? 'your account');
+    });
   } else {
+    updateLandingProfileButton();
     showSignInButton();
   }
 }
@@ -4474,17 +4488,21 @@ function renderAcctMenu(): void {
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderLockerRoom());
+document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
-document.getElementById('storeBanner')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('seasonBanner')!.addEventListener('pointerdown', () => renderSeasonPass());
+document.getElementById('storeBanner')?.addEventListener('pointerdown', () => renderStore());
+document.getElementById('seasonBanner')?.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
 updateSeasonLink();
 updateStoreBanner();
+updateLandingProfileButton();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
-backBtn.addEventListener('pointerdown', () => goStep(sel.step - 1));
+backBtn.addEventListener('pointerdown', () => {
+  if (sel.step <= 0) showLanding();
+  else goStep(sel.step - 1);
+});
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
   else if (pendingTournament) {
