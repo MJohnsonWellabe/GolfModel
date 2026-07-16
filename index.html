@@ -524,6 +524,10 @@
       .landingNav {
         display: grid;
         grid-template-columns: 1fr 1fr;
+        grid-template-areas:
+          "season store"
+          "about about"
+          "profile profile";
         gap: 10px;
         margin-top: 12px;
       }
@@ -548,7 +552,7 @@
         position: relative;
         min-height: 72px;
         justify-content: flex-start;
-        padding: 12px 14px 12px 52px;
+        padding: 12px 14px 12px 62px;
         overflow: hidden;
         text-transform: uppercase;
         letter-spacing: 0.8px;
@@ -556,17 +560,18 @@
       }
       #landingSeason::before,
       #landingStore::before {
+        content: "";
         position: absolute;
-        left: 13px;
+        left: 10px;
         top: 50%;
         transform: translateY(-50%);
-        width: 30px;
-        height: 30px;
-        border-radius: 50%;
-        display: grid;
-        place-items: center;
-        font-size: 19px;
-        box-shadow: 0 0 22px rgba(255,255,255,0.22);
+        width: 40px;
+        height: 54px;
+        border-radius: 16px;
+        background-size: contain;
+        background-position: center bottom;
+        background-repeat: no-repeat;
+        filter: drop-shadow(0 8px 14px rgba(0,0,0,0.38));
       }
       #landingSeason::after,
       #landingStore::after {
@@ -587,8 +592,7 @@
         color: #fff6cd;
       }
       #landingSeason::before {
-        content: "🎫";
-        background: linear-gradient(180deg, #fff0a9, #e39d24);
+        background-image: url('assets/ui/characters/sunny.png');
       }
       #landingStore {
         border-color: rgba(105, 224, 255, 0.58);
@@ -598,10 +602,12 @@
         color: #dffaff;
       }
       #landingStore::before {
-        content: "🛍️";
-        background: linear-gradient(180deg, #b8f7ff, #249ed0);
+        background-image: url('assets/ui/pals/dragon.png');
       }
-      .landingNav .wide { grid-column: 1 / -1; }
+      #landingSeason { grid-area: season; }
+      #landingStore { grid-area: store; }
+      #landingAbout { grid-area: about; }
+      #landingProfile { grid-area: profile; }
       @media (max-width: 760px) {
         #landing { align-items: flex-end; }
         .landingInner {
@@ -1297,15 +1303,39 @@
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 255, 255, 0.055));
         box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
       }
+      .courseGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
       .courseCard {
-        min-height: 104px;
-        background-image: linear-gradient(90deg, rgba(5, 20, 14, 0.32), rgba(5, 20, 14, 0.82)), var(--course-art);
+        min-height: 86px;
+        padding: 10px 11px;
+        background-image: linear-gradient(90deg, rgba(5, 20, 14, 0.22), rgba(5, 20, 14, 0.88)), var(--course-art);
         background-size: cover;
         background-position: center;
       }
+      .courseCard.sel {
+        outline: 2px solid rgba(255, 213, 79, 0.9);
+        outline-offset: -3px;
+      }
       .courseCard .ahead { align-items: flex-start; }
-      .courseMeta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .courseMeta { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; }
       .courseMeta span { padding: 4px 8px; border-radius: 999px; background: rgba(0,0,0,0.3); color: #f3ead0; font-size: 11px; font-weight: 800; }
+      .courseCard .stepHint {
+        display: -webkit-box;
+        -webkit-line-clamp: 1;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      @media (max-width: 430px), (max-height: 520px) {
+        .courseGrid { gap: 6px; }
+        .courseCard { min-height: 74px; padding: 9px 10px; border-radius: 14px; }
+        .courseCard .an { font-size: 13px; }
+        .courseCard .atag,
+        .courseMeta span { font-size: 10px; padding: 3px 6px; }
+        .courseCard .stepHint { display: none; }
+      }
       .archCard .ahead {
         display: flex;
         align-items: baseline;
@@ -2417,10 +2447,10 @@
         <div class="landingPanel">
           <button id="landingPlay" class="landingPlay">Play Now</button>
           <div class="landingNav">
-            <a id="landingAbout" href="marketing.html" target="_blank" rel="noopener">About the Game</a>
             <button id="landingSeason">Season Pass</button>
             <button id="landingStore">Store</button>
-            <button id="landingProfile" class="wide">Log In / Profile</button>
+            <a id="landingAbout" href="marketing.html">About the Game</a>
+            <button id="landingProfile">Log In / Profile</button>
           </div>
         </div>
       </div>
