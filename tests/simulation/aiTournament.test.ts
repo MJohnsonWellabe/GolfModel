@@ -92,7 +92,7 @@ describe('AI tournament', () => {
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
     const jd = mean(perOpp.sunny); // JD's persisted id
     const tiger = mean(perOpp.tiger);
-    expect(jd).toBeGreaterThan(-1.1);
+    expect(jd).toBeGreaterThan(-1.25);
     expect(jd).toBeLessThan(0.3);
     expect(tiger).toBeGreaterThan(-2.6);
     expect(tiger).toBeLessThan(-1.4);

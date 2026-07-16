@@ -245,8 +245,8 @@ export class DomMeter {
     return clamp(this.ctx.powerTarget - SWING.overswingPenalty * (c - t), 0.1, 1.08);
   }
 
-  private lockAccuracy(cursor: number): void {
-    let band = this.bandFor(cursor, ACCURACY_TARGET);
+  private lockAccuracy(cursor: number, forceMiss = false): void {
+    let band = forceMiss ? 'miss' as Band : this.bandFor(cursor, ACCURACY_TARGET);
     // Normalize against the actual available travel away from the accuracy
     // target, not a fixed half-meter and not an extra miss multiplier. The old
     // `offset * 1.5` created a cliff just outside the good band: a tiny timing
@@ -275,10 +275,10 @@ export class DomMeter {
     const prevDir = this.dirSign;
     this.advance(ts);
     if (this.state === 'accuracy' && this.cursor <= 0) {
-      // Ran all the way back to the start with no tap — a deliberate bail,
-      // not a miss: no shot, no stroke, meter resets so the player can re-aim.
-      this.hide();
-      this.onCancel?.();
+      // Once power is locked the swing is committed. If the player lets the
+      // accuracy cursor expire, resolve the shot at the far-left edge: the
+      // worst possible accuracy miss. Do not bail back to aiming or refund it.
+      this.lockAccuracy(0, true);
       return;
     }
     // Power phase bounces off BOTH ends (never clamps to 0 the way accuracy

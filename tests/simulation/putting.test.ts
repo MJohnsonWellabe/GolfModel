@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import { PX_PER_YARD } from '../../src/config';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
 import { ftToPx, golferWith, NO_WIND, openHole, PERFECT_SWING, SWING_OF } from './simHelpers';
+import portjohnson from '../../src/data/courses/portjohnson.json';
+import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
+import { AimControl } from '../../src/core/input/AimControl';
 
 /**
  * Putting feel (recalibrated on playtest FB9). The old model leaned on huge
@@ -169,5 +173,36 @@ describe('putting — mishits are punished', () => {
 
   it('a mishit long putt scatters much wider than a perfect one', () => {
     expect(lagPercentile(70, 'good', 0.9)).toBeGreaterThan(lagPercentile(70, 'perfect', 0.9) * 1.6);
+  });
+});
+
+
+describe('putting — Port Johnson long uphill True Vision regression', () => {
+  it('a perfect 78ft final-hole putt uses slope-aware pace instead of dying 20ft short', () => {
+    const course = loadCourse(portjohnson as unknown as CourseAuthoring);
+    const pj3 = course.holes[2];
+    const engine = new PhysicsEngine(pj3, null, () => 0.5);
+    const aim = new AimControl(pj3, engine);
+    aim.setClubById('putter');
+    aim.yaw = 0;
+    aim.distPx = ftToPx(78);
+    const origin = { x: pj3.pin.x - ftToPx(78), y: pj3.pin.y };
+    const ctx = { ball: origin, lie: 'green' as const, golfer, fireBoost: 0, strokes: 2 };
+    const power = aim.barToPhysicsPower(aim.barPowerTarget(ctx), ctx);
+    const out = engine.simulate({
+      origin,
+      aimAngle: aim.yaw,
+      swing: PERFECT_SWING(power),
+      club: putter,
+      golfer,
+      fireBoost: 0,
+      lie: 'green',
+      wind: NO_WIND,
+      hole: pj3
+    });
+    const traveledFt = Math.hypot(out.finalPos.x - origin.x, out.finalPos.y - origin.y) / PX_PER_YARD * 3;
+    const remainingFt = Math.hypot(out.finalPos.x - pj3.pin.x, out.finalPos.y - pj3.pin.y) / PX_PER_YARD * 3;
+    expect(traveledFt).toBeGreaterThan(65);
+    expect(remainingFt).toBeLessThan(10);
   });
 });
