@@ -27,6 +27,7 @@ import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
+import { courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
@@ -277,6 +278,10 @@ const COURSES: Record<string, CourseData> = {
   portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring)
 };
 
+/** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
+ *  Sable Bay. Thin binding of the shared roster to courseDefaults' helper. */
+const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, COURSES);
+
 // Fire the real-turf-grain preloads at boot, well before any round can start
 // (the menu is always shown first) — the ground bake is synchronous and
 // falls back to procedural noise if a key hasn't resolved yet. Harmless
@@ -295,7 +300,7 @@ const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; 
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
-  return COURSE_LIST.find((c) => COURSES[c.id]?.name === name)?.id ?? 'wildwood';
+  return COURSE_LIST.find((c) => COURSES[c.id]?.name === name)?.id ?? DEFAULT_COURSE_ID;
 }
 
 interface HoleState {
@@ -308,7 +313,7 @@ interface HoleState {
 }
 
 const round: RoundState = {
-  course: COURSES.wildwood,
+  course: COURSES[DEFAULT_COURSE_ID],
   mode: 'solo',
   holeIdx: 0,
   players: [{ golfer: assembleGolfer('Player', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }],
@@ -3467,7 +3472,7 @@ async function createTournamentWithCourse(courseId: string): Promise<void> {
   const body = document.getElementById('tourBody');
   if (body) body.innerHTML = `<div class="recEmpty">Creating…</div>`;
   const now = Date.now();
-  const course = COURSES[courseId] ?? COURSES.wildwood;
+  const course = courseFallback(courseId);
   const meta: Tournament = {
     code: makeTournamentCode(),
     name: `${(profile.name || 'Player')}'s Cup`,
@@ -3638,7 +3643,7 @@ function startAiTournament(): void {
  *  tournament and swaps the summary's footer for standings + Next Round. */
 function startAiTourRound(): void {
   if (!aiTour) return;
-  round.course = COURSES[aiTour.courseIds[aiTour.played]] ?? COURSES.wildwood;
+  round.course = courseFallback(aiTour.courseIds[aiTour.played]);
   round.mode = 'solo';
   round.holeIdx = 0;
   round.activePlayer = 0;
@@ -3856,7 +3861,7 @@ void (async () => {
 const sel = {
   step: 0,
   mode: 'solo' as GameMode,
-  courseId: 'wildwood',
+  courseId: DEFAULT_COURSE_ID,
   name: profile.name,
   character: (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey),
   archetype: (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId),
@@ -4440,7 +4445,7 @@ function grantRoundTrueVision(): void {
 function startRound(startHoleIdx = 0): void {
   // A fresh start from the menu abandons any half-finished AI tournament.
   aiTour = null;
-  round.course = COURSES[sel.courseId] ?? COURSES.wildwood;
+  round.course = courseFallback(sel.courseId);
   round.mode = sel.mode;
   // Normal play always opens on hole 1; the perf/verification hooks can boot a
   // later hole directly (WW3/TL3 are the heavy first-tee-shot cases).
@@ -4608,7 +4613,7 @@ nextBtn.addEventListener('pointerdown', () => {
  */
 async function startShotCapture(): Promise<void> {
   grantRoundTrueVision();
-  round.course = (SHOT.course && COURSES[SHOT.course]) || COURSES.wildwood;
+  round.course = courseFallback(SHOT.course);
   round.mode = 'solo';
   round.holeIdx = Math.min((SHOT.hole ?? 1) - 1, round.course.holes.length - 1);
   round.activePlayer = 0;
