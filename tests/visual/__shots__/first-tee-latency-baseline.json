@@ -1,0 +1,70 @@
+{
+  "sableBayWorstArmedAvgMs": 3.25,
+  "holes": [
+    {
+      "label": "WW1",
+      "armedShadowRefresh": 0,
+      "armedMirrorRefresh": 0,
+      "beforeAvgMs": 10.24,
+      "beforeMaxMs": 17.4,
+      "afterAvgMs": 9.73,
+      "afterMaxMs": 35.8,
+      "tapDispatchMs": 0.2,
+      "tapToStateMs": 1.2,
+      "powerToAccuracyMs": 148.2,
+      "shotResolvedMs": 94150.1
+    },
+    {
+      "label": "WW3",
+      "armedShadowRefresh": 0,
+      "armedMirrorRefresh": 0,
+      "beforeAvgMs": 13.57,
+      "beforeMaxMs": 37.2,
+      "afterAvgMs": 6.68,
+      "afterMaxMs": 9.2,
+      "tapDispatchMs": 0,
+      "tapToStateMs": 0.2,
+      "powerToAccuracyMs": 3158.6,
+      "shotResolvedMs": 4900.6
+    },
+    {
+      "label": "TL1",
+      "armedShadowRefresh": 0,
+      "armedMirrorRefresh": 0,
+      "beforeAvgMs": 8.31,
+      "beforeMaxMs": 13.5,
+      "afterAvgMs": 4.59,
+      "afterMaxMs": 9.1,
+      "tapDispatchMs": null,
+      "tapToStateMs": null,
+      "powerToAccuracyMs": null,
+      "shotResolvedMs": null
+    },
+    {
+      "label": "TL3",
+      "armedShadowRefresh": 0,
+      "armedMirrorRefresh": 0,
+      "beforeAvgMs": 15.18,
+      "beforeMaxMs": 27.1,
+      "afterAvgMs": 8,
+      "afterMaxMs": 13.6,
+      "tapDispatchMs": 0.1,
+      "tapToStateMs": 0.4,
+      "powerToAccuracyMs": null,
+      "shotResolvedMs": 5805.2
+    },
+    {
+      "label": "SB1",
+      "armedShadowRefresh": 0,
+      "armedMirrorRefresh": 0,
+      "beforeAvgMs": 6.02,
+      "beforeMaxMs": 11.9,
+      "afterAvgMs": 3.25,
+      "afterMaxMs": 5.2,
+      "tapDispatchMs": null,
+      "tapToStateMs": null,
+      "powerToAccuracyMs": null,
+      "shotResolvedMs": null
+    }
+  ]
+}

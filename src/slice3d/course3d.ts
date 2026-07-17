@@ -177,6 +177,13 @@ export interface Course3D {
    *  pre-filtered to canopies near the golfer, and the fade itself only
    *  recomputes on a throttle while lerping every call for a smooth blend. */
   updateTreeOcclusion: (camPos: Vector3, golferPos: Vector3) => void;
+  /** Re-capture ONE fresh frame of the parked-camera RTTs (water reflection +
+   *  shadow map) then hold again — call when the aim/camera changes DURING the
+   *  armed-idle freeze window (drag-to-aim) so the frozen reflection/shadows
+   *  still track the new camera pose without paying the per-frame RTT cost. A
+   *  no-op unless the pacing is currently frozen (parked at address / meter
+   *  live), so ordinary flight/flyover frames are untouched. */
+  refreshParkedRTTs: () => void;
   /** Canopy occlusion candidates (world x,y + canopy radius). Exposed read-only
    *  for the Playwright fade guard — asserts trees register (a course with zero
    *  candidates can never fade, the Sable Bay palm regression). */
@@ -1403,11 +1410,21 @@ export function buildCourse(
     // The swing-meter stutter on the water holes (Timberline h1/h3, Wildwood
     // h1/h3, Port Johnson h3) was never the scatter drain — it is the two dominant
     // per-frame GPU costs: the planar water-reflection RTT (re-renders every
-    // scatter instance) and the 1024² shadow map. While the meter is live the
-    // camera is parked at address and the only animating thing is the 2D bar, so
-    // freeze both — each captures one fresh frame (REFRESHRATE_RENDER_ONCE) then
-    // holds — and restore their live cadence the instant the ball is struck and
-    // the flight camera takes over.
+    // scatter instance) and the 1024² shadow map. As soon as the meter is ARMED
+    // the camera is parked at address and the only animating thing is the 2D bar,
+    // so freeze both — each captures one fresh frame (REFRESHRATE_RENDER_ONCE)
+    // then holds — and restore their live cadence the instant the ball is struck
+    // and the flight camera takes over.
+    //
+    // The freeze is gated on `cameraParked` OR `meterActive`: cameraParked flips
+    // true at ARM (main.ts armMeter, camera parked at address) — BEFORE the first
+    // tap — so the very first pointerdown and every armed-idle frame are already
+    // cheap, which is the real fix for "the first tee shot ignores taps / stutters
+    // on heavy holes" (the old gate was meterActive alone, which only flips once
+    // the cursor is already SWEEPING, so the costly first frame landed square on
+    // the first tap). The scatter drain stays gated on meterActive alone, so it
+    // keeps populating vegetation right through the armed-idle window — the two
+    // costs are now decoupled.
     //
     // The "live" cadence itself used to be a full shadow-map regen EVERY frame —
     // the single heaviest fixed per-frame GPU cost in the scene, paid on every
@@ -1423,8 +1440,9 @@ export function buildCourse(
     if (shadowMap) shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
     let pacingFrozen = false;
     scene.onBeforeRenderObservable.add(() => {
-      if (renderPacing.meterActive === pacingFrozen) return;
-      pacingFrozen = renderPacing.meterActive;
+      const shouldFreeze = renderPacing.meterActive || renderPacing.cameraParked;
+      if (shouldFreeze === pacingFrozen) return;
+      pacingFrozen = shouldFreeze;
       if (waterMirror) {
         waterMirror.refreshRate = pacingFrozen
           ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
@@ -2594,6 +2612,13 @@ export function buildCourse(
     // (still bounded by main.ts's MAX_NATURE_WAIT_MS fallback).
     natureReady: Promise.all([natureReady, shipReady]).then(() => undefined),
     updateTreeOcclusion,
+    refreshParkedRTTs: (): void => {
+      // Only while parked/frozen — otherwise the freeze observer owns the cadence.
+      if (!renderPacing.cameraParked && !renderPacing.meterActive) return;
+      if (waterMirror) waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+      const sm = shadows.getShadowMap();
+      if (sm) sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+    },
     occlusionCandidates: (): Array<{ x: number; y: number; r: number; parts: number }> =>
       canopyOcclusion.map((c) => ({ x: c.x, y: c.y, r: c.r, parts: c.insts.length }))
   };

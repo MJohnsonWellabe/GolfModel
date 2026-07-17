@@ -12,5 +12,17 @@
  * whole frame to the meter (skips planting that frame) and resumes the instant
  * the player swings. The scatter simply finishes filling in during the shot
  * instead — invisibly, under the flight camera.
+ *
+ * `cameraParked` is a SEPARATE, coarser flag for the GPU-side freeze only. It
+ * goes true the moment the meter is ARMED and the camera is parked at address
+ * (before any tap), and false again when the ball is struck (executeShot) or the
+ * turn is torn down (beginTurn). It exists to decouple the two dominant per-frame
+ * GPU costs — the planar water-reflection RTT and the shadow-map regen — from the
+ * scatter drain: those costs can be frozen for the whole parked-at-address window
+ * (so the FIRST tap and the armed-idle frames are cheap) WITHOUT starving the
+ * scatter drain, which keeps running through armed-idle to finish populating
+ * vegetation. `meterActive` still gates the scatter drain (only while the cursor
+ * actually sweeps); `cameraParked` (OR meterActive) gates the mirror/shadow
+ * freeze. See course3d.ts's parked-camera perf pacing observer.
  */
-export const renderPacing = { meterActive: false };
+export const renderPacing = { meterActive: false, cameraParked: false };

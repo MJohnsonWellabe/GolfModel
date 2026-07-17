@@ -105,6 +105,16 @@ export class DomMeter {
    *  yield only during these active windows instead of pausing for the entire
    *  aim/setup phase. */
   onActiveChange: ((active: boolean) => void) | null = null;
+  /** Input-latency instrumentation hook (ADJ-3). Fired at each meter phase
+   *  transition with a label — 'power-start' (idle→power state transition),
+   *  'power-lock', 'accuracy-lock', 'first-frame' (first rendered sweep frame).
+   *  PURE instrumentation: it never reads back into or alters the sweep timing
+   *  (advanceCursor / performance.now sampling stays untouched). The caller
+   *  timestamps each mark to build the pointerdown→resolution latency chain. */
+  onPhaseMark: ((phase: string) => void) | null = null;
+  /** One-shot latch so 'first-frame' fires on the FIRST rendered sweep frame
+   *  after the power sweep begins, not every frame. */
+  private firstFramePending = false;
   /** Fired when the player lets the accuracy cursor run all the way back to
    *  the start without tapping — a deliberate no-penalty bail so they can
    *  re-aim, instead of the old forced miss-shot (playtest: "let me cancel by
@@ -184,6 +194,10 @@ export class DomMeter {
       case 'idle':
         this.state = 'power';
         this.onActiveChange?.(true);
+        // State transition the instant the tap is routed — the delta from the
+        // pointerdown that drove it is the "ignored taps" latency (ADJ-3).
+        this.onPhaseMark?.('power-start');
+        this.firstFramePending = true;
         this.lastTs = performance.now();
         this.raf = requestAnimationFrame((t) => this.tick(t));
         return true;
@@ -197,11 +211,13 @@ export class DomMeter {
         this.onBand?.('power', this.lockedPowerBand);
         this.state = 'accuracy';
         this.onActiveChange?.(true);
+        this.onPhaseMark?.('power-lock');
         this.dirSign = -1;
         return true;
       }
       case 'accuracy':
         this.advance(performance.now());
+        this.onPhaseMark?.('accuracy-lock');
         this.lockAccuracy(this.cursor);
         return true;
       default:
@@ -272,6 +288,13 @@ export class DomMeter {
 
   private tick(ts: number): void {
     if (!this.isActive) return;
+    if (this.firstFramePending) {
+      // First rendered sweep frame after the power tap — the frame the bar
+      // first paints. On a heavy hole this is where a late first frame would
+      // read as the meter "starting slow" (ADJ-3 instrumentation only).
+      this.firstFramePending = false;
+      this.onPhaseMark?.('first-frame');
+    }
     const prevDir = this.dirSign;
     this.advance(ts);
     if (this.state === 'accuracy' && this.cursor <= 0) {

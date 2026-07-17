@@ -102,12 +102,20 @@ engine3d.setHardwareScalingLevel(1 / renderDpr);
 engine3d.enableOfflineSupport = false;
 
 
-type PerfSample = { course: string; hole: number; event: string; ms: number; deltaMs: number };
+// `value` (optional) carries a numeric metric for the event — used by the input
+// latency instrumentation (ADJ-3) to record per-event deltas (ms) alongside the
+// absolute timestamp, e.g. the pointerdown→handler DISPATCH latency that surfaces
+// the "ignored taps" spike. `ms` is the absolute performance.now() at the mark;
+// `deltaMs` the gap since the previous mark. All three let the perf spec compute
+// the input-latency chain (pointerdown → state transition → power lock → accuracy
+// lock → first meter frame → shot resolution) purely CPU-side.
+type PerfSample = { course: string; hole: number; event: string; ms: number; deltaMs: number; value?: number };
 const perfSamples: PerfSample[] = [];
 let lastPerfMs = performance.now();
-function markPerf(course: string, hole: number, event: string): void {
+function markPerf(course: string, hole: number, event: string, value?: number): void {
   const now = performance.now();
-  const sample = { course, hole, event, ms: now, deltaMs: now - lastPerfMs };
+  const sample: PerfSample = { course, hole, event, ms: now, deltaMs: now - lastPerfMs };
+  if (value !== undefined) sample.value = value;
   lastPerfMs = now;
   perfSamples.push(sample);
   if (perfSamples.length > 240) perfSamples.shift();
@@ -731,9 +739,23 @@ class HoleScene {
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
-    // The meter owns renderPacing while its cursor is actually sweeping; keep
-    // idle aiming unblocked so background scenery can finish before the shot.
+    // The meter owns renderPacing.meterActive only while its cursor is actually
+    // sweeping, so idle aiming stays unblocked and background scenery keeps
+    // filling. But the camera is now PARKED at address: freeze the two dominant
+    // per-frame GPU costs (water mirror + shadow map) from this instant so the
+    // FIRST tap and every armed-idle frame are cheap — the fix for the heavy-hole
+    // first-shot hitch. cameraParked is cleared when the ball is struck
+    // (executeShot) or the turn tears down (beginTurn); the scatter drain (gated
+    // on meterActive) keeps running through this window.
     renderPacing.meterActive = false;
+    renderPacing.cameraParked = true;
+    // armMeter is re-called on every drag-to-aim move (the camera reframes down
+    // the new aim line), so re-capture one fresh frame of the frozen water
+    // reflection + shadow map here: the reflection tracks the moving camera
+    // during a deliberate re-aim, yet holds frozen (cheap) the instant the
+    // player stops dragging — keeping the first tap and armed-idle frames light
+    // with no stale-reflection regression on the water holes.
+    this.course3d.refreshParkedRTTs();
   }
 
   /**
@@ -1200,7 +1222,11 @@ class HoleScene {
     markPerf(round.course.name, this.hole.number, 'begin-turn');
     // Default the scatter drain back on; armMeter re-pauses it for a human's
     // live meter. AI/gimme turns never arm, so the scatter keeps filling fast.
+    // Un-park the camera here too: a human turn re-parks it in armMeter (below),
+    // while an AI/flyover turn leaves it un-parked so the mirror + shadow map
+    // animate live under the moving camera.
     renderPacing.meterActive = false;
+    renderPacing.cameraParked = false;
     shotCapture.setRotationPaused(false);
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     this.hideTrueVision(); // clear any stale reveal from the previous shot
@@ -1482,6 +1508,9 @@ class HoleScene {
     aerialBtn.classList.toggle('on', this.aerial);
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
+    // The overhead swap is a big camera move; re-capture the frozen reflection +
+    // shadow map so they match the new vantage instead of holding the tee pose.
+    this.course3d.refreshParkedRTTs();
   }
 
   /** Show/hide/relabel the True Vision button for the current turn — only
@@ -1652,8 +1681,13 @@ class HoleScene {
   }
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
+    markPerf(round.course.name, this.hole.number, 'shot-resolved');
     this.state.phase = 'swinging';
-    renderPacing.meterActive = false; // meter's done — let the scatter finish filling
+    // Meter's done and the flight camera is about to take over: let the scatter
+    // finish filling AND release the mirror/shadow freeze so they animate live
+    // through the flight.
+    renderPacing.meterActive = false;
+    renderPacing.cameraParked = false;
     shotCapture.setRotationPaused(false);
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
@@ -1931,6 +1965,13 @@ class HoleScene {
   private wireInput(): void {
     this.onSwingTap = (e: Event): void => {
       e.preventDefault();
+      // ADJ-3 input-latency: the "ignored taps" complaint is event DISPATCH
+      // latency — a pointerdown queued behind a long render frame runs late.
+      // e.timeStamp is the input's creation time (same epoch as performance.now),
+      // so `now - timeStamp` is the true CPU-side tap latency, immune to the
+      // headless rAF throttle. Record it before any work in the handler.
+      const tapLatency = performance.now() - (e.timeStamp || performance.now());
+      markPerf(round.course.name, this.hole.number, 'tap-received', tapLatency);
       startAmbience();
       if (this.state.phase !== 'aiming') return;
       promptEl.textContent = '';
@@ -2015,6 +2056,9 @@ class HoleScene {
     if (captureBtn) captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
 
     meter.onComplete = (result) => this.executeShot(result);
+    // ADJ-3: route each meter phase transition into the perf ring so the spec can
+    // reconstruct the pointerdown→state→power-lock→accuracy-lock→first-frame chain.
+    meter.onPhaseMark = (phase) => markPerf(round.course.name, this.hole.number, `meter:${phase}`);
     meter.onBand = (kind, band) => {
       const label = band === 'perfect' ? 'PERFECT!' : band === 'good' ? 'Good' : 'Miss!';
       showMsg(`${kind === 'power' ? 'Power' : 'Accuracy'}: ${label}`, 500);
@@ -4358,12 +4402,14 @@ function grantRoundTrueVision(): void {
   roundTrueVisionBonus = 1;
 }
 
-function startRound(): void {
+function startRound(startHoleIdx = 0): void {
   // A fresh start from the menu abandons any half-finished AI tournament.
   aiTour = null;
   round.course = COURSES[sel.courseId] ?? COURSES.wildwood;
   round.mode = sel.mode;
-  round.holeIdx = 0;
+  // Normal play always opens on hole 1; the perf/verification hooks can boot a
+  // later hole directly (WW3/TL3 are the heavy first-tee-shot cases).
+  round.holeIdx = Math.min(Math.max(0, startHoleIdx), round.course.holes.length - 1);
   round.activePlayer = 0;
   round.holeWinds = [];
   round.holePins = [];
@@ -4576,6 +4622,8 @@ else {
   mode?: GameMode;
   opponentId?: string;
   courseId?: string;
+  /** 1-based hole to boot directly (perf spec: WW3/TL3 heavy first tee shots). */
+  hole?: number;
 }) => {
   if (opts?.name !== undefined) {
     sel.name = opts.name;
@@ -4586,7 +4634,7 @@ else {
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
   if (opts?.courseId && COURSES[opts.courseId]) sel.courseId = opts.courseId;
-  startRound();
+  startRound(opts?.hole ? opts.hole - 1 : 0);
 };
 
 // Test hook: expose the live AI-tournament state so specs can assert the
