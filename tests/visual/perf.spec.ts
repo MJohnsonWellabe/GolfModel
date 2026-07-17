@@ -443,3 +443,59 @@ test('first tee shot: parked-camera freeze cuts armed-idle frame cost + no tap-l
     expect(r.afterAvgMs, `${r.label} armed-idle avg ${r.afterAvgMs}ms (SB control ${sbWorst}ms)`).toBeLessThan(60);
   }
 });
+
+/**
+ * Aim-drag RTT pacing (Phase 0A regression fix). Re-arming the meter on every
+ * drag-to-aim pointermove used to force a fresh RENDER_ONCE capture of BOTH
+ * parked RTTs per move — re-rendering the water mirror + shadow map at input
+ * frequency, the aiming-drag frame-pacing regression on water holes. The fix:
+ * while a drag is live the RTTs run the normal every-other-frame cadence
+ * (aimDragRTTs(true)); pointerup takes one fresh capture and freezes again.
+ * This gate drives a REAL pointer drag on the canvas and asserts the refresh
+ * rates through the transition. (RENDER_ONCE = 0, ONEVERYTWOFRAMES = 2.)
+ */
+test('drag-to-aim keeps parked RTTs at live cadence, refreezes on release', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await page.evaluate(() => (window as any).__startRound({ name: 'Drag', courseId: 'timberline' }));
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  await page.evaluate(() => (window as any).__slice3d.skipIntro());
+  await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, { timeout: 30_000 });
+  await page.waitForTimeout(1500);
+
+  // The meter is armed at address → parked freeze engaged.
+  const armed = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    s3d.scene.render();
+    return s3d.perfRefreshRates();
+  });
+  expect(armed.shadow, 'armed (pre-drag) shadow frozen').toBe(0);
+
+  // Start a drag in the middle of the canvas and move — the aim handler flips
+  // the RTTs to the live every-other-frame cadence for the drag's duration.
+  const vp = page.viewportSize()!;
+  const cx = vp.width / 2;
+  const cy = vp.height / 2;
+  await page.mouse.move(cx, cy);
+  await page.mouse.down();
+  for (let i = 1; i <= 6; i++) await page.mouse.move(cx + i * 12, cy + i * 4);
+  const dragging = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    return { rates: s3d.perfRefreshRates(), isDragging: s3d.aim.isDragging };
+  });
+  expect(dragging.isDragging, 'drag registered').toBe(true);
+  expect(dragging.rates.shadow, 'dragging → live cadence, not per-move captures').toBe(2);
+  if (dragging.rates.mirror !== null) expect(dragging.rates.mirror).toBe(2);
+
+  // Release: one fresh capture then hold — armed-idle frames are cheap again.
+  await page.mouse.up();
+  const released = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    s3d.scene.render();
+    s3d.scene.render();
+    return s3d.perfRefreshRates();
+  });
+  expect(released.shadow, 'released → frozen again').toBe(0);
+  if (released.mirror !== null) expect(released.mirror).toBe(0);
+});

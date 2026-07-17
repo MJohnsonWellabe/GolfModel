@@ -121,6 +121,20 @@ export class DomMeter {
    *  letting it run back to the start"). No stroke is consumed. */
   onCancel: (() => void) | null = null;
 
+  /** Fixed zone nodes, built once and restyled in place on each arm. The meter
+   *  is re-armed on EVERY drag-to-aim pointermove (the power target tracks the
+   *  aim distance), so tearing down and rebuilding the zone DOM per move caused
+   *  needless style/layout churn in the middle of the aiming gesture. */
+  private zoneEls: {
+    overswing: HTMLElement;
+    powerGood: HTMLElement;
+    powerPerfect: HTMLElement;
+    powerLine: HTMLElement;
+    accGood: HTMLElement;
+    accPerfect: HTMLElement;
+    accLine: HTMLElement;
+  };
+
   constructor(container: HTMLElement) {
     this.el = container;
     this.cursorEl = document.createElement('div');
@@ -128,6 +142,33 @@ export class DomMeter {
     this.markerEl = document.createElement('div');
     this.markerEl.className = 'lockMark';
     this.markerEl.style.display = 'none';
+    const zone = (color: string, z: number, outline = false): HTMLElement => {
+      const d = document.createElement('div');
+      d.className = 'zone';
+      d.style.background = color;
+      d.style.zIndex = String(z);
+      // Colorblind cue: the perfect band gets a bright outline so it reads as a
+      // distinct notch, not just a green-vs-gold hue difference.
+      if (outline) d.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.92)';
+      this.el.appendChild(d);
+      return d;
+    };
+    const line = (color: string): HTMLElement => {
+      const l = zone(color, 4);
+      l.style.width = '2px';
+      return l;
+    };
+    this.zoneEls = {
+      overswing: zone('rgba(196,58,58,0.4)', 1),
+      powerGood: zone('rgba(201,162,39,0.55)', 2),
+      powerPerfect: zone('#43d05c', 3, true),
+      powerLine: line('#fff'),
+      accGood: zone('rgba(201,162,39,0.4)', 2),
+      accPerfect: zone('#43d05c', 3, true),
+      accLine: line('#fff')
+    };
+    this.el.appendChild(this.markerEl);
+    this.el.appendChild(this.cursorEl);
   }
 
   get isArmed(): boolean {
@@ -319,45 +360,36 @@ export class DomMeter {
     this.raf = requestAnimationFrame((t) => this.tick(t));
   }
 
+  /** Lay the fixed zone nodes out for the current context (in place — no DOM
+   *  teardown; see zoneEls). */
   private renderZones(): void {
-    this.el.innerHTML = '';
-    const zone = (left: number, width: number, color: string, z: number, outline = false): void => {
-      const d = document.createElement('div');
-      d.className = 'zone';
-      d.style.left = `${left * 100}%`;
-      d.style.width = `${width * 100}%`;
-      d.style.background = color;
-      d.style.zIndex = String(z);
-      // Colorblind cue: the perfect band gets a bright outline so it reads as a
-      // distinct notch, not just a green-vs-gold hue difference.
-      if (outline) d.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.92)';
-      this.el.appendChild(d);
+    const place = (el: HTMLElement, left: number, width: number): void => {
+      el.style.display = 'block';
+      el.style.left = `${left * 100}%`;
+      el.style.width = `${width * 100}%`;
     };
-    const band = (center: number, half: number, color: string, z: number, outline = false): void =>
-      zone(center - half, half * 2, color, z, outline);
-    const line = (at: number, color: string): void => {
-      const l = document.createElement('div');
-      l.className = 'zone';
-      l.style.left = `${at * 100}%`;
-      l.style.width = '2px';
-      l.style.background = color;
-      l.style.zIndex = '4';
-      this.el.appendChild(l);
+    const band = (el: HTMLElement, center: number, half: number): void =>
+      place(el, center - half, half * 2);
+    const line = (el: HTMLElement, at: number): void => {
+      el.style.display = 'block';
+      el.style.left = `${at * 100}%`;
+      el.style.width = '2px';
     };
+    const z = this.zoneEls;
     const pTarget = this.targetBar();
+    const perfect = this.perfectHalf();
     // Overswing danger zone above the power target (non-putts only)
     if (!this.ctx.isPutt && pTarget < 1) {
-      zone(pTarget + SWING.goodBand, 1 - (pTarget + SWING.goodBand), 'rgba(196,58,58,0.4)', 1);
+      place(z.overswing, pTarget + SWING.goodBand, 1 - (pTarget + SWING.goodBand));
+    } else {
+      z.overswing.style.display = 'none';
     }
-    band(pTarget, SWING.goodBand, 'rgba(201,162,39,0.55)', 2);
-    band(pTarget, this.perfectHalf(), '#43d05c', 3, true);
-    line(pTarget, '#fff');
+    band(z.powerGood, pTarget, SWING.goodBand);
+    band(z.powerPerfect, pTarget, perfect);
+    line(z.powerLine, pTarget);
     // Accuracy target
-    band(ACCURACY_TARGET, SWING.goodBand, 'rgba(201,162,39,0.4)', 2);
-    band(ACCURACY_TARGET, this.perfectHalf(), '#43d05c', 3, true);
-    line(ACCURACY_TARGET, '#fff');
-
-    this.el.appendChild(this.markerEl);
-    this.el.appendChild(this.cursorEl);
+    band(z.accGood, ACCURACY_TARGET, SWING.goodBand);
+    band(z.accPerfect, ACCURACY_TARGET, perfect);
+    line(z.accLine, ACCURACY_TARGET);
   }
 }

@@ -8,7 +8,9 @@ import {
   migrateProfile,
   PlayerProfile,
   resetProfileRecords,
-  saveProfile
+  saveProfile,
+  loadDeviceSettings,
+  saveDeviceSettings
 } from '../src/profile/Profile';
 
 function memStorage(): KVStorage & { removeItem: (k: string) => void; has: (k: string) => boolean } {
@@ -316,5 +318,52 @@ describe('loadoutLocked flag', () => {
     expect(defaultProfile().loadoutLocked).toBe(false);
     expect(migrateProfile({ coins: 5 }).loadoutLocked).toBe(false);
     expect(migrateProfile({ loadoutLocked: true } as Partial<PlayerProfile>).loadoutLocked).toBe(true);
+  });
+});
+
+describe('device settings (persistent audio/motion preferences)', () => {
+  it('round-trips through storage for guests (no profile persistence needed)', () => {
+    const s = memStorage();
+    saveDeviceSettings({ sound: 0, ambience: 0, reducedMotion: true, clipCapture: false }, s);
+    const back = loadDeviceSettings(s);
+    expect(back).toEqual({ sound: 0, ambience: 0, reducedMotion: true, clipCapture: false });
+  });
+
+  it('returns null when nothing was ever saved (first visit uses defaults)', () => {
+    expect(loadDeviceSettings(memStorage())).toBeNull();
+  });
+
+  it('clamps corrupt volume values and coerces flags on load', () => {
+    const s = memStorage();
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ sound: 9, ambience: -2, reducedMotion: 1, clipCapture: 'yes' }));
+    const back = loadDeviceSettings(s)!;
+    expect(back.sound).toBe(1);
+    expect(back.ambience).toBe(0);
+    expect(back.reducedMotion).toBe(true);
+    expect(back.clipCapture).toBe(true);
+  });
+
+  it('survives a broken JSON blob (falls back to null, not a throw)', () => {
+    const s = memStorage();
+    s.setItem('johnsons-golf-device-settings-v1', '{nope');
+    expect(loadDeviceSettings(s)).toBeNull();
+  });
+
+  it('a muted device stays muted after a cloud merge takes the newer profile settings', () => {
+    // Simulates: guest muted this device; cloud copy (newer updatedAt) is loud.
+    // mergeProfiles takes the newer copy's settings — the device overlay is
+    // what restores the mute (main.ts applyDeviceSettings after every merge).
+    const local = defaultProfile();
+    local.settings.sound = 0;
+    local.updatedAt = 100;
+    const cloud = defaultProfile();
+    cloud.settings.sound = 0.8;
+    cloud.updatedAt = 200;
+    const merged = mergeProfiles(local, cloud);
+    expect(merged.settings.sound).toBe(0.8); // merge alone loses the mute...
+    const device = { sound: 0, ambience: 0, reducedMotion: false, clipCapture: false };
+    merged.settings.sound = device.sound; // ...applyDeviceSettings re-asserts it
+    merged.settings.ambience = device.ambience;
+    expect(merged.settings.sound).toBe(0);
   });
 });

@@ -48,7 +48,7 @@ import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
-import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, grantConsumable, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveProfile } from '../profile/Profile';
+import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -146,11 +146,22 @@ const trueVisionBtn = document.getElementById('trueVisionBtn')! as HTMLButtonEle
 const skipBtn = document.getElementById('skipBtn')!;
 const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
 // Rolling ~5s canvas capture so a player can save a clip of a great shot to
-// their phone. Continuous while a round is on screen; started/stopped by the
-// Hole view. Degrades to a hidden button where the browser can't record.
+// their phone. OPT-IN: MediaRecorder encodes video frames continuously while
+// running — real per-frame CPU work that has no business on by default during
+// gameplay (perf pass: this was the hidden "video work during gameplay").
+// First tap on the clip button switches it on (persisted device-locally);
+// after that, taps save the last few seconds. Degrades to a hidden button
+// where the browser can't record.
 const shotCapture = new ShotCapture(canvas);
 if (captureBtn) {
   captureBtn.addEventListener('pointerdown', () => {
+    if (!deviceSettings.clipCapture) {
+      updateDeviceSettings({ clipCapture: true });
+      shotCapture.start();
+      captureBtn.textContent = '🎥 REC';
+      showMsg('Clip recording ON — tap 🎥 again to save your last shot', 2600);
+      return;
+    }
     void onSaveShotClip();
   });
 }
@@ -167,7 +178,7 @@ async function onSaveShotClip(): Promise<void> {
     captureBtn.textContent = '—';
   } finally {
     setTimeout(() => {
-      captureBtn.textContent = original ?? '🎥 CLIP';
+      captureBtn.textContent = original ?? (deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP');
       savingClip = false;
     }, 1200);
   }
@@ -212,12 +223,27 @@ const sounds: Record<string, number> = {
   swing: 0.5, 'impact-driver': 0.9, 'impact-iron': 0.8, 'impact-wedge': 0.7,
   putt: 0.7, hole: 0.9, splash: 0.8, chime: 0.75
 };
+/** One cached, decoded element per SFX key. `new Audio(...)` on every play
+ *  re-fetched and re-decoded the sample inside the shot/impact handlers — a
+ *  small but repeated main-thread cost (plus GC churn) paid at the worst
+ *  moments. Reuse the cached element when it's free; clone it (clone shares
+ *  the already-decoded resource) only when the same key overlaps itself. */
+const sfxCache = new Map<string, HTMLAudioElement>();
 function play(key: string): void {
   try {
-    const a = new Audio(`sfx/${key}.wav`);
-    // Scale by the player's SFX volume setting (accessibility).
-    a.volume = Math.max(0, Math.min(1, (sounds[key] ?? 0.7) * profile.settings.sound));
-    if (a.volume <= 0) return;
+    // Compute the volume FIRST so a muted player never allocates any element.
+    const vol = Math.max(0, Math.min(1, (sounds[key] ?? 0.7) * profile.settings.sound));
+    if (vol <= 0) return;
+    let a = sfxCache.get(key);
+    if (!a) {
+      a = new Audio(`sfx/${key}.wav`);
+      sfxCache.set(key, a);
+    } else if (!a.paused && !a.ended) {
+      a = a.cloneNode(true) as HTMLAudioElement; // overlapping play of same key
+    } else {
+      a.currentTime = 0;
+    }
+    a.volume = vol;
     void a.play().catch(() => undefined);
   } catch {
     // audio is optional
@@ -481,12 +507,18 @@ class HoleScene {
   private disposed = false;
   /** Reused each frame for the tree-occlusion golfer-head point (no per-frame alloc). */
   private _golferHead = new Vector3();
+  /** Scratch objects for the per-frame aim-readout projection (no per-frame alloc). */
+  private _readoutViewport = new Viewport(0, 0, 1, 1);
+  private _identity = Matrix.Identity();
   /** Pending intro-flyover timers so skipIntro can cancel the camera sweep. */
   private introTimers: ReturnType<typeof setTimeout>[] = [];
   /** Set by skipIntro so the natureReady-gated travel schedule (a Promise
    *  chain, not a plain timer skipIntro's clearTimeout can reach) bails out
    *  instead of moving the camera after the player already has control. */
   private introSkipped = false;
+  /** True once the scatter drain + ship swap have fully settled — the point
+   *  where scene resource counts are meaningful (read by the soak spec). */
+  natureSettled = false;
   private static BALL_REST = 0.5;
   /** Putting view uses honest, consistent real-world scale (config PUTT_VIEW):
    *  a ~6ft golfer and a ball sized to the cup (~2.5× the ball), so nothing on
@@ -721,8 +753,10 @@ class HoleScene {
     };
   }
 
-  /** Arm (or re-arm) the swing meter for the current aim/club/fire state. */
-  private armMeter(): void {
+  /** Arm (or re-arm) the swing meter for the current aim/club/fire state.
+   *  `fromAimDrag` marks the per-pointermove re-arm during a drag-to-aim: that
+   *  path must NOT force a fresh parked-RTT capture per move (see below). */
+  private armMeter(fromAimDrag = false): void {
     markPerf(round.course.name, this.hole.number, 'meter-armed');
     // The golfer holds the right stick for the shot: real putter on the green,
     // the wood driver when the driver's in hand, the iron everywhere else (all
@@ -756,12 +790,14 @@ class HoleScene {
     renderPacing.meterActive = false;
     renderPacing.cameraParked = true;
     // armMeter is re-called on every drag-to-aim move (the camera reframes down
-    // the new aim line), so re-capture one fresh frame of the frozen water
-    // reflection + shadow map here: the reflection tracks the moving camera
-    // during a deliberate re-aim, yet holds frozen (cheap) the instant the
-    // player stops dragging — keeping the first tap and armed-idle frames light
-    // with no stale-reflection regression on the water holes.
-    this.course3d.refreshParkedRTTs();
+    // the new aim line). Forcing a fresh RENDER_ONCE capture of BOTH parked
+    // RTTs per pointermove re-rendered the water mirror + shadow map at input
+    // frequency (often faster than the frame rate) — the aiming-drag frame
+    // pacing regression on the water holes. During a drag the RTTs instead run
+    // at the normal live cadence (aimDragRTTs(true), set by the pointermove
+    // handler); the single fresh-capture-then-freeze happens only on the
+    // non-drag arms (turn start, club change, cancel) and again at drag end.
+    if (!fromAimDrag) this.course3d.refreshParkedRTTs();
   }
 
   /**
@@ -1079,7 +1115,10 @@ class HoleScene {
         this.introTimers.push(setTimeout(resolve, MAX_NATURE_WAIT_MS));
       })
     ]);
-    void this.course3d.natureReady.then(() => markPerf(round.course.name, this.hole.number, 'nature-ready'));
+    void this.course3d.natureReady.then(() => {
+      markPerf(round.course.name, this.hole.number, 'nature-ready');
+      this.natureSettled = true; // soak/perf specs poll this for true steady state
+    });
     void Promise.all([teeHoldDone, natureReadyOrTimeout]).then(() => {
       markPerf(round.course.name, this.hole.number, 'intro-travel-start');
       beginTravel();
@@ -1589,12 +1628,20 @@ class HoleScene {
     if (roundTrueVisionBonus > 0) {
       roundTrueVisionBonus -= 1;
     } else if (consumeCharge(profile, TRUE_VISION.id)) {
-      persistProfile();
-      if (signedIn)
-        void cloudSyncProfile(profile).then((res) => {
-          applyCloudMerge(profile, res.profile);
-          showCloudStatus(res.status, true);
-        });
+      // Persist OFF the pointerdown path: the localStorage write + Firebase
+      // sync used to run synchronously inside this tap handler, right before
+      // the slope-aware putt simulation — a visible hitch on the True Vision
+      // tap. The charge is already consumed in memory; a ~300ms deferral
+      // changes nothing about correctness (the same persist runs at
+      // end-of-round anyway) and keeps the tap frame clean.
+      setTimeout(() => {
+        persistProfile();
+        if (signedIn)
+          void cloudSyncProfile(profile).then((res) => {
+            applyCloudMerge(profile, res.profile);
+            showCloudStatus(res.status, true);
+          });
+      }, 300);
     } else {
       return;
     }
@@ -1635,15 +1682,22 @@ class HoleScene {
     }, 1100);
   }
 
+  /** Last HUD markup written — skip the innerHTML write (style/layout work)
+   *  when a drag-to-aim pointermove didn't actually change what's shown. */
+  private lastHudHtml = '';
+
   private updateHud(): void {
     const toPin = this.engine2d.yardsToPin(this.state.ballPos);
     const club = this.aim.club;
     const carry = Math.round(this.aim.maxCarryPx(this.ctx()) / PX_PER_YARD);
     const distLabel = club.id === 'putter' ? `${Math.round(toPin * 3)} ft` : `${carry} yd`;
     const pinLabel = this.state.lie === 'green' ? `${Math.round(toPin * 3)} ft` : `${Math.round(toPin)} yd`;
-    // Wind arrow rendered relative to the aim direction (up = down the line)
-    const rel = this.wind.angle - this.aim.yaw - Math.PI / 2;
-    hudEl.innerHTML =
+    // Wind arrow rendered relative to the aim direction (up = down the line).
+    // Quantized to ~1.8° so a tiny aim wiggle doesn't defeat the HUD write
+    // cache below — visually indistinguishable, but most drag moves skip the
+    // innerHTML rebuild entirely.
+    const rel = Math.round((this.wind.angle - this.aim.yaw - Math.PI / 2) * 32) / 32;
+    const html =
       `<div class="row"><span class="chip club">${club.name}</span><span class="chip">${distLabel}</span>` +
       `<span class="chip wind"><span class="arrow" style="transform:rotate(${rel}rad)">➤</span> ${this.wind.speed}</span></div>` +
       `<div class="row"><span class="chip pin">⛳ ${pinLabel}</span><span class="chip">${this.state.lie}</span>` +
@@ -1651,6 +1705,10 @@ class HoleScene {
       (round.mode !== 'solo'
         ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
         : '');
+    if (html !== this.lastHudHtml) {
+      this.lastHudHtml = html;
+      hudEl.innerHTML = html;
+    }
   }
 
   // ---------------------------------------------------------------- shots
@@ -2023,6 +2081,10 @@ class HoleScene {
       if (!this.aim.isDragging || this.state.phase !== 'aiming' || meter.isActive) return;
       // Horizontal rotates the aim; vertical moves it nearer/farther.
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
+      // While the drag lasts, let the parked water mirror + shadow map track
+      // the reframing camera at their normal live cadence instead of forcing a
+      // full fresh capture per pointermove (see armMeter).
+      this.course3d.aimDragRTTs(true);
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
       this.perchPal();
       this.setCamSetup();
@@ -2033,11 +2095,15 @@ class HoleScene {
       this.hideTrueVision();
       // Distance changed → the meter's power target moved; re-arm so the target
       // line (and putt scaling) track the new aim.
-      if (meter.isArmed) this.armMeter();
+      if (meter.isArmed) this.armMeter(true);
     };
     this.onPointerUp = (): void => {
       this.swipeLast = null;
+      const wasAiming = this.aim.isDragging;
       this.aim.endDrag();
+      // Drag over: capture one final fresh frame of each parked RTT, then hold
+      // it frozen so armed-idle frames go back to being cheap.
+      if (wasAiming) this.course3d.aimDragRTTs(false);
     };
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
@@ -2057,9 +2123,14 @@ class HoleScene {
     trueVisionBtn.addEventListener('pointerdown', this.onTrueVision);
     skipBtn.addEventListener('pointerdown', this.onSkip);
     // Roll the shot-capture buffer for the whole time this hole is on screen so
-    // "save my last shot" always has the recent seconds ready.
-    shotCapture.start();
-    if (captureBtn) captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
+    // "save my last shot" always has the recent seconds ready — but ONLY when
+    // the player has opted in (continuous MediaRecorder encode is real
+    // per-frame work; see the capture button wiring).
+    if (deviceSettings.clipCapture) shotCapture.start();
+    if (captureBtn) {
+      captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
+      captureBtn.textContent = deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP';
+    }
 
     meter.onComplete = (result) => this.executeShot(result);
     // ADJ-3: route each meter phase transition into the perf ring so the spec can
@@ -2168,14 +2239,18 @@ class HoleScene {
     const dt = Math.min(0.05, engine3d.getDeltaTime() / 1000);
 
     // Float the aim readout over its world anchor (projected each frame so it
-    // tracks the smoothing camera).
+    // tracks the smoothing camera). Scratch objects reused per frame — this
+    // block runs every aiming frame and used to allocate a Vector3 + identity
+    // Matrix + Viewport each time (GC churn during the aim/idle window).
     if (this.aimReadoutWorld && this.state.phase === 'aiming' && !this.ai) {
       const wp = w2b(this.aimReadoutWorld.x, this.aimReadoutWorld.y, this.gh(this.aimReadoutWorld.x, this.aimReadoutWorld.y) + 4);
+      this._readoutViewport.width = engine3d.getRenderWidth();
+      this._readoutViewport.height = engine3d.getRenderHeight();
       const s = Vector3.Project(
         wp,
-        Matrix.Identity(),
+        this._identity,
         this.scene.getTransformMatrix(),
-        new Viewport(0, 0, engine3d.getRenderWidth(), engine3d.getRenderHeight())
+        this._readoutViewport
       );
       const w = engine3d.getRenderWidth();
       const h = engine3d.getRenderHeight();
@@ -2201,7 +2276,10 @@ class HoleScene {
       const path = this.flight.outcome.path;
       if (i >= path.length) {
         const outcome = this.flight.outcome;
-        this.flight.trail?.dispose();
+        // Dispose the trail's material + textures with it — each shot creates a
+        // fresh StandardMaterial, and plain dispose() leaves it registered on
+        // the scene until hole teardown (materials accumulated per shot).
+        this.flight.trail?.dispose(false, true);
         this.flight = null;
         this.afterShot(outcome);
       } else {
@@ -2378,6 +2456,11 @@ class HoleScene {
 
   dispose(): void {
     this.disposed = true;
+    // Cancel any still-pending intro-flyover timers outright (they were only
+    // no-op'd by the disposed guard before — harmless, but the timers
+    // lingered past scene teardown).
+    for (const t of this.introTimers) clearTimeout(t);
+    this.introTimers.length = 0;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
@@ -2703,6 +2786,10 @@ function renderProfile(): void {
     `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
     `<label class="setRow"><span>Reduced motion</span>` +
     `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+    (shotCapture.supported
+      ? `<label class="setRow"><span>Record shot clips</span>` +
+        `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
+      : '') +
     `<div id="resetZone" class="resetZone">` +
     `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
     `</div>` +
@@ -2712,18 +2799,29 @@ function renderProfile(): void {
   // hiding this full-screen overlay on the down-stroke lets the release land
   // on whatever's exposed underneath instead.
   document.getElementById('profBack')!.addEventListener('click', () => (recordsEl.style.display = 'none'));
+  // Settings write through updateDeviceSettings — persisted device-locally for
+  // EVERYONE (guests included), applied live, and mirrored into the profile
+  // (which persistProfile syncs to the account when signed in).
   document.getElementById('setSound')!.addEventListener('input', (e) => {
-    p.settings.sound = parseFloat((e.target as HTMLInputElement).value);
+    updateDeviceSettings({ sound: parseFloat((e.target as HTMLInputElement).value) });
     persistProfile();
   });
   document.getElementById('setAmbience')!.addEventListener('input', (e) => {
-    p.settings.ambience = parseFloat((e.target as HTMLInputElement).value);
-    applyAmbienceVolume();
+    updateDeviceSettings({ ambience: parseFloat((e.target as HTMLInputElement).value) });
     persistProfile();
   });
   document.getElementById('setReducedMotion')!.addEventListener('change', (e) => {
-    p.settings.reducedMotion = (e.target as HTMLInputElement).checked;
+    updateDeviceSettings({ reducedMotion: (e.target as HTMLInputElement).checked });
     persistProfile();
+  });
+  document.getElementById('setClipCapture')?.addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    updateDeviceSettings({ clipCapture: on });
+    // Take effect immediately: start the rolling recorder if a hole is live,
+    // stop + release the stream outright when switched off.
+    if (on && current) shotCapture.start();
+    else if (!on) shotCapture.stop();
+    if (captureBtn) captureBtn.textContent = on ? '🎥 REC' : '🎥 CLIP';
   });
   // Destructive: fire on a deliberate tap (down+up on the button), not on
   // finger-down — a scroll flick that starts on this button used to open the
@@ -3709,10 +3807,40 @@ window.addEventListener('resize', () => engine3d.resize());
 // Perf probe for the Playwright FPS baseline (Phase 9).
 (window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();
 
+/** Repeat-round soak probe: a snapshot of every resource class that could
+ *  accumulate across Replay / Play Next scene rebuilds. The soak spec starts
+ *  round after round and asserts these counts return to the same level for the
+ *  same course — any monotonic growth is a leak (retained observers, meshes,
+ *  materials, textures, timers). Heap is best-effort (Chrome only). */
+(window as unknown as { __golfSoak: unknown }).__golfSoak = () => {
+  const scene = current?.scene ?? null;
+  const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  return {
+    hasScene: !!scene,
+    course: round.course.name,
+    natureSettled: current?.natureSettled ?? false,
+    meshes: scene ? scene.meshes.length : 0,
+    materials: scene ? scene.materials.length : 0,
+    textures: scene ? scene.textures.length : 0,
+    particleSystems: scene ? scene.particleSystems.length : 0,
+    beforeRenderObservers: scene ? scene.onBeforeRenderObservable.observers.length : 0,
+    engineScenes: engine3d.scenes.length,
+    sfxCacheSize: sfxCache.size,
+    heapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null
+  };
+};
+
 // Debug/automation handle for the Playwright verification scripts
+/** Monotonic scene build counter — lets a spec that starts a NEW round tell
+ *  the fresh scene's handle apart from the previous one (buildWithLoading
+ *  defers the build a frame, so polling __slice3d right after __startRound
+ *  otherwise races onto the OLD scene, whose phase may already be 'aiming'). */
+let sceneSeq = 0;
 function exposeDebug(): void {
+  sceneSeq += 1;
   (window as unknown as { __slice3d: unknown }).__slice3d = current
     ? {
+        seq: sceneSeq,
         meter,
         aim: current.aim,
         state: current.state,
@@ -3757,6 +3885,9 @@ const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
  */
 function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
   Object.assign(live, mergeProfiles(live, cloud));
+  // The merge may have taken the other copy's settings (newer updatedAt) —
+  // this device's audio/motion preferences always win locally.
+  applyDeviceSettings();
   persistProfile();
 }
 
@@ -3774,6 +3905,40 @@ function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
  */
 const legacyLocal: PlayerProfile = loadProfile();
 const profile: PlayerProfile = defaultProfile();
+
+/**
+ * Device-local preferences — the single source of truth for sound/ambience/
+ * reduced-motion (and the clip-recorder opt-in) ON THIS DEVICE. Persisted for
+ * everyone, guests included (the account-gated rule covers PROGRESS, not
+ * accessibility/audio preferences: muting the game and having it come back
+ * loud after a refresh was the persistent-sound bug). Re-asserted over the
+ * profile after every cloud merge so a sync from another device never flips
+ * this device's audio state.
+ */
+const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
+  sound: profile.settings.sound,
+  ambience: profile.settings.ambience,
+  reducedMotion: profile.settings.reducedMotion,
+  clipCapture: false
+};
+
+/** Push the device preferences into the live profile + live audio. Call after
+ *  boot and after ANY wholesale profile replacement (cloud merge, sign-out). */
+function applyDeviceSettings(): void {
+  profile.settings.sound = deviceSettings.sound;
+  profile.settings.ambience = deviceSettings.ambience;
+  profile.settings.reducedMotion = deviceSettings.reducedMotion;
+  applyAmbienceVolume();
+}
+
+/** Update + persist device preferences (guests included), then apply live. */
+function updateDeviceSettings(patch: Partial<DeviceSettings>): void {
+  Object.assign(deviceSettings, patch);
+  saveDeviceSettings(deviceSettings);
+  applyDeviceSettings();
+}
+applyDeviceSettings();
+
 let signedIn = false;
 /** Guard so the one-time legacy→account merge runs at most once per session. */
 let legacyMerged = false;
@@ -3797,6 +3962,7 @@ async function adoptCloudAccount(): Promise<void> {
   signedIn = true; // enable persistence before the sync writes back
   const res = await cloudSyncProfile(profile);
   Object.assign(profile, res.profile);
+  applyDeviceSettings(); // this device's audio/motion prefs win over the cloud copy
   saveProfile(profile); // cache the account locally for offline/reload
   showCloudStatus(res.status);
   syncSelFromProfile();
@@ -3814,6 +3980,7 @@ async function doSignOut(): Promise<void> {
   clearLocalProfile();
   clearLocalHistory();
   Object.assign(profile, defaultProfile());
+  applyDeviceSettings(); // device audio/motion prefs survive sign-out
   syncSelFromProfile();
 }
 

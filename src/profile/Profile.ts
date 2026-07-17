@@ -112,6 +112,7 @@ export function perkRemaining(p: PerkState): number {
 }
 
 const KEY = 'johnsons-golf-profile-v1';
+const DEVICE_SETTINGS_KEY = 'johnsons-golf-device-settings-v1';
 
 /** Injectable storage so tests (and headless sims) run without a DOM. */
 export interface KVStorage {
@@ -124,6 +125,50 @@ function defaultStorage(): KVStorage | null {
     return typeof localStorage !== 'undefined' ? localStorage : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * DEVICE-LOCAL preferences — sound/ambience volumes, reduced motion, and the
+ * shot-clip recorder opt-in. Unlike gameplay progress (account-gated: a
+ * signed-out session persists nothing), these are preferences about THIS
+ * device and must survive refresh/reopen even for guests — muting the game and
+ * having it come back loud after a reload was the #1 sound complaint. They are
+ * also re-asserted OVER the profile after any cloud merge, so a sync from a
+ * louder device never unmutes this one (see applyDeviceSettings callers).
+ */
+export interface DeviceSettings {
+  sound: number;
+  ambience: number;
+  reducedMotion: boolean;
+  /** Rolling shot-clip recorder opt-in (MediaRecorder is real per-frame encode
+   *  work — default OFF; the player turns it on from the clip button). */
+  clipCapture: boolean;
+}
+
+export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(DEVICE_SETTINGS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as Partial<DeviceSettings>;
+    return {
+      sound: typeof p.sound === 'number' ? Math.max(0, Math.min(1, p.sound)) : 0.8,
+      ambience: typeof p.ambience === 'number' ? Math.max(0, Math.min(1, p.ambience)) : 0.2,
+      reducedMotion: !!p.reducedMotion,
+      clipCapture: !!p.clipCapture
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function saveDeviceSettings(s: DeviceSettings, storage: KVStorage | null = defaultStorage()): void {
+  if (!storage) return;
+  try {
+    storage.setItem(DEVICE_SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    // Quota/private-mode failures are non-fatal.
   }
 }
 

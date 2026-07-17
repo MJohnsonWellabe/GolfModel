@@ -184,6 +184,12 @@ export interface Course3D {
    *  no-op unless the pacing is currently frozen (parked at address / meter
    *  live), so ordinary flight/flyover frames are untouched. */
   refreshParkedRTTs: () => void;
+  /** Drag-to-aim RTT pacing: `true` while a drag is reframing the camera every
+   *  pointermove (run the parked RTTs at the live every-other-frame cadence
+   *  instead of a forced fresh capture per move — the per-move captures were
+   *  re-rendering mirror+shadows at input frequency); `false` at drag end
+   *  (one fresh capture, then hold frozen). No-op when pacing isn't frozen. */
+  aimDragRTTs: (dragging: boolean) => void;
   /** Canopy occlusion candidates (world x,y + canopy radius). Exposed read-only
    *  for the Playwright fade guard — asserts trees register (a course with zero
    *  candidates can never fade, the Sable Bay palm regression). */
@@ -2618,6 +2624,20 @@ export function buildCourse(
       if (waterMirror) waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
       const sm = shadows.getShadowMap();
       if (sm) sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+    },
+    // During a drag-to-aim the camera is reframing every pointermove. Forcing a
+    // RENDER_ONCE capture per move re-rendered both RTTs at input frequency
+    // (120Hz pointers > frame rate) — worse than never freezing at all. While
+    // the drag lasts, run the mirror + shadow map at the normal live cadence;
+    // when it ends, take one fresh capture and hold it frozen (parked).
+    aimDragRTTs: (dragging: boolean): void => {
+      if (!renderPacing.cameraParked && !renderPacing.meterActive) return;
+      const rate = dragging
+        ? RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES
+        : RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+      if (waterMirror && waterMirror.refreshRate !== rate) waterMirror.refreshRate = rate;
+      const sm = shadows.getShadowMap();
+      if (sm && sm.refreshRate !== rate) sm.refreshRate = rate;
     },
     occlusionCandidates: (): Array<{ x: number; y: number; r: number; parts: number }> =>
       canopyOcclusion.map((c) => ({ x: c.x, y: c.y, r: c.r, parts: c.insts.length }))
