@@ -7,6 +7,7 @@ import {
   avgByHole,
   avgPutts,
   avgPuttsByHole,
+  overallAvg,
   roundsByAccount,
   splitGolferId
 } from '../src/admin/aggregate';
@@ -105,6 +106,19 @@ describe('avgPutts', () => {
   });
 });
 
+describe('overallAvg', () => {
+  it('averages total and toPar across every round with the count', () => {
+    const o = overallAvg(sample); // totals 12,10,14,12 ; toPar 0,-2,2,0
+    expect(o.rounds).toBe(4);
+    expect(o.avgTotal).toBe(12); // 48/4
+    expect(o.avgToPar).toBe(0); // 0/4
+  });
+
+  it('does not divide by zero on an empty set', () => {
+    expect(overallAvg([])).toEqual({ rounds: 0, avgTotal: 0, avgToPar: 0 });
+  });
+});
+
 describe('roundsByAccount', () => {
   it('counts rounds per uid and keeps the most recent display name', () => {
     const rounds = [
@@ -121,6 +135,24 @@ describe('roundsByAccount', () => {
     expect(uid1.name).toBe('MattJ');
     expect(uid1.lastPlayed).toBe(2000);
     expect(r.tracked.find((a) => a.uid === 'uid-2')!.n).toBe(1);
+  });
+
+  it('reports per-account avg score, avg to-par, and grow-only xp', () => {
+    const rounds = [
+      round({ uid: 'u', total: 12, toPar: 0, xp: 300, d: 1000 }),
+      round({ uid: 'u', total: 10, toPar: -2, xp: 500, d: 2000 }), // later, higher xp
+      round({ uid: 'u', total: 14, toPar: 2, d: 1500 }) // legacy round, no xp
+    ];
+    const a = roundsByAccount(rounds).tracked.find((x) => x.uid === 'u')!;
+    expect(a.n).toBe(3);
+    expect(a.avgTotal).toBe(12); // (12+10+14)/3
+    expect(a.avgToPar).toBe(0); // (0-2+2)/3
+    expect(a.xp).toBe(500); // max of the xp-bearing rounds
+  });
+
+  it('xp is 0 when no round carries the xp field (legacy-only account)', () => {
+    const a = roundsByAccount([round({ uid: 'legacy' })]).tracked[0];
+    expect(a.xp).toBe(0);
   });
 
   it('sorts by round count, most active first', () => {

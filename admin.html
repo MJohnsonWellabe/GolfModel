@@ -54,6 +54,36 @@
         margin-top: 16px;
         overflow-x: auto;
       }
+      .summary {
+        padding: 16px;
+      }
+      .tiles {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+      }
+      @media (max-width: 520px) {
+        .tiles {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+      .tile {
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 12px 10px;
+        text-align: center;
+      }
+      .tval {
+        font-size: 24px;
+        font-weight: 700;
+        color: #ffd54f;
+      }
+      .tlbl {
+        font-size: 12px;
+        color: #a9c9b0;
+        margin-top: 4px;
+      }
       table {
         border-collapse: collapse;
         width: 100%;

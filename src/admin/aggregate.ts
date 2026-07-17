@@ -40,10 +40,39 @@ export interface AccountRounds {
   name: string;
   n: number;
   lastPlayed: number; // epoch ms, latest round's `d`
+  avgTotal: number;
+  avgToPar: number;
+  /** Highest XP carried on any of this account's rounds (RoundRecord.xp is a
+   *  grow-only post-round total, so max == latest). 0 when no round carries xp
+   *  yet — legacy rounds predate the field; the admin overlays a profiles/{uid}
+   *  backfill on top of this. */
+  xp: number;
+}
+
+/** Overall totals for the dashboard summary tile. */
+export interface OverallAvg {
+  rounds: number;
+  avgTotal: number;
+  avgToPar: number;
 }
 
 const round1 = (v: number): number => Math.round(v * 10) / 10;
 const round2 = (v: number): number => Math.round(v * 100) / 100;
+
+/** Whole-population averages for the top summary tile: total rounds, avg total
+ *  score, avg to-par. (Avg putts comes from avgPutts, which tracks its own
+ *  narrower sample.) */
+export function overallAvg(rounds: RoundRecord[]): OverallAvg {
+  const n = rounds.length;
+  if (!n) return { rounds: 0, avgTotal: 0, avgToPar: 0 };
+  let total = 0;
+  let toPar = 0;
+  for (const r of rounds) {
+    total += r.total;
+    toPar += r.toPar;
+  }
+  return { rounds: n, avgTotal: round1(total / n), avgToPar: round2(toPar / n) };
+}
 
 export function avgByCourse(rounds: RoundRecord[]): CourseAvg[] {
   const acc = new Map<string, { n: number; total: number; toPar: number }>();
@@ -164,15 +193,22 @@ export function avgPutts(rounds: RoundRecord[]): { overall: PuttAvg; byCourse: P
  *  before account tracking shipped (or somehow missing a uid) are grouped
  *  under 'untracked' rather than dropped, so the round count stays honest. */
 export function roundsByAccount(rounds: RoundRecord[]): { tracked: AccountRounds[]; untracked: number } {
-  const acc = new Map<string, { n: number; name: string; lastPlayed: number }>();
+  const acc = new Map<
+    string,
+    { n: number; name: string; lastPlayed: number; total: number; toPar: number; xp: number }
+  >();
   let untracked = 0;
   for (const r of rounds) {
     if (!r.uid) {
       untracked++;
       continue;
     }
-    const a = acc.get(r.uid) ?? { n: 0, name: r.names, lastPlayed: -Infinity };
+    const a = acc.get(r.uid) ?? { n: 0, name: r.names, lastPlayed: -Infinity, total: 0, toPar: 0, xp: 0 };
     a.n++;
+    a.total += r.total;
+    a.toPar += r.toPar;
+    // XP is grow-only, so the largest value seen is the account's latest total.
+    if (typeof r.xp === 'number') a.xp = Math.max(a.xp, r.xp);
     if (r.d >= a.lastPlayed) {
       a.lastPlayed = r.d;
       a.name = r.names; // keep the most recent round's display name
@@ -181,7 +217,15 @@ export function roundsByAccount(rounds: RoundRecord[]): { tracked: AccountRounds
   }
   return {
     tracked: [...acc.entries()]
-      .map(([uid, a]) => ({ uid, name: a.name, n: a.n, lastPlayed: a.lastPlayed }))
+      .map(([uid, a]) => ({
+        uid,
+        name: a.name,
+        n: a.n,
+        lastPlayed: a.lastPlayed,
+        avgTotal: round1(a.total / a.n),
+        avgToPar: round2(a.toPar / a.n),
+        xp: a.xp
+      }))
       .sort((x, y) => y.n - x.n),
     untracked
   };

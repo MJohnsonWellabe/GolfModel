@@ -23,6 +23,10 @@ export interface RoundRecord {
    *  and never present for signed-out play — saveRound is only ever called for
    *  a signed-in profile, so every uid here is a real Firebase uid). */
   uid?: string;
+  /** Player's post-round lifetime XP total (grow-only). Lets the admin surface
+   *  per-account XP from the public /rounds node without reading the private
+   *  profiles/{uid} tree. Absent on rounds recorded before this field shipped. */
+  xp?: number;
 }
 
 const LOCAL_KEY = 'johnsons-golf-history-v1';

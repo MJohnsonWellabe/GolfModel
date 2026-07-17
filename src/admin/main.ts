@@ -9,10 +9,9 @@
  */
 import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
-import { avgByArchetype, avgByCharacter, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, roundsByAccount } from './aggregate';
+import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, overallAvg, roundsByAccount } from './aggregate';
 import { isAdminEmail } from './adminEmails';
 import { ARCHETYPES } from '../data/archetypes';
-import { CHARACTERS } from '../data/characters';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
@@ -22,7 +21,6 @@ import portjohnson from '../data/courses/portjohnson.json';
 // game versions (retired courses/characters). Drop anything not in the live roster.
 const ACTIVE_COURSES = new Set<string>([wildwood, sablebay, timberline, portjohnson].map((c) => (c as { name: string }).name));
 const ACTIVE_ARCHETYPES = new Set<string>(ARCHETYPES.map((a) => a.id));
-const ACTIVE_CHARACTERS = new Set<string>(CHARACTERS.map((c) => c.key));
 
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 
@@ -62,28 +60,82 @@ async function fetchRounds(): Promise<RoundRecord[]> {
   return data ? Object.values(data).filter((r) => r && typeof r.total === 'number') : [];
 }
 
+/**
+ * Best-effort per-account XP backfill from the private profiles tree.
+ *
+ * Going forward every RoundRecord carries `xp`, so the account table's XP
+ * normally comes straight off the public /rounds node (aggregate.roundsByAccount).
+ * This fills in accounts whose newest round predates that field. It reads only
+ * profiles/{uid}/xp for each uid.
+ *
+ * IMPORTANT — RTDB rules: under the SHIPPED rules (docs/FIREBASE_SETUP.md) a
+ * signed-in admin can read ONLY their own profile, so every OTHER uid here
+ * returns permission-denied and is silently skipped (that account then falls
+ * back to its round-carried xp — 0 for a legacy-only account). To enable the
+ * full backfill WITHOUT widening profile access, expose ONLY the xp leaf to an
+ * admin allow-list, e.g.:
+ *   "profiles": { "$uid": {
+ *      ".read":  "auth != null && auth.uid === $uid",
+ *      ".write": "auth != null && auth.uid === $uid",
+ *      "xp": { ".read": "auth != null && root.child('admins').child(auth.uid).val() === true" }
+ *   } }
+ * with an /admins/{uid}=true allow-list. No other profile field becomes readable.
+ */
+async function fetchAccountXp(uids: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (uids.length === 0) return out;
+  try {
+    const { initializeApp, getApps, getApp } = await import('firebase/app');
+    const { getDatabase, ref, get } = await import('firebase/database');
+    const app = getApps().length ? getApp() : initializeApp(FIREBASE);
+    const db = getDatabase(app);
+    await Promise.all(
+      uids.map(async (uid) => {
+        try {
+          const snap = await get(ref(db, `profiles/${uid}/xp`));
+          const val = snap.val();
+          if (typeof val === 'number') out.set(uid, val);
+        } catch {
+          // permission-denied for a non-self uid under the shipped rules — skip.
+        }
+      })
+    );
+  } catch {
+    // Firebase unavailable — the round-carried xp still renders.
+  }
+  return out;
+}
+
 function bar(value: number, max: number): string {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return `<div class="bar"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>`;
 }
 
-function render(allRounds: RoundRecord[]): void {
+function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map()): void {
   // Keep only rounds on courses that still exist; type tables filter to the
-  // live archetype/character rosters below.
+  // live archetype roster below.
   const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
   const courses = avgByCourse(rounds);
   const holes = avgByHole(rounds);
   const puttHoles = avgPuttsByHole(rounds);
   const archetypes = avgByArchetype(rounds).filter((t) => ACTIVE_ARCHETYPES.has(t.type));
-  const characters = avgByCharacter(rounds).filter((t) => ACTIVE_CHARACTERS.has(t.type));
   const putts = avgPutts(rounds);
   const accounts = roundsByAccount(rounds);
+  const overall = overallAvg(rounds);
   const fmtPar = (v: number): string => (v > 0 ? `+${v}` : `${v}`);
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
   let html = `<button id="backGame" class="btn back">← Back to game</button>
     <h1>⛳ Bite-Sized Golf — Admin</h1>
     <p class="sub">${rounds.length} active rounds (legacy versions hidden)</p>`;
+
+  // Top summary tile — the whole-population headline numbers.
+  html += `<section class="summary"><div class="tiles">
+      <div class="tile"><div class="tval">${overall.rounds}</div><div class="tlbl">Total rounds</div></div>
+      <div class="tile"><div class="tval">${overall.avgTotal}</div><div class="tlbl">Avg score</div></div>
+      <div class="tile"><div class="tval">${fmtPar(overall.avgToPar)}</div><div class="tlbl">Avg to par</div></div>
+      <div class="tile"><div class="tval">${putts.tracked ? putts.overall.avgPutts : '—'}</div><div class="tlbl">Avg putts</div></div>
+    </div></section>`;
 
   html += `<section><h2>Average score by course</h2><table>
     <tr><th>Course</th><th>Rounds</th><th>Avg total</th><th>Avg to par</th><th></th></tr>`;
@@ -106,11 +158,6 @@ function render(allRounds: RoundRecord[]): void {
   html += `<section><h2>Average score by golfer type</h2><table>
     <tr><th>Archetype</th><th>Rounds</th><th>Avg total</th><th>Avg to par</th></tr>`;
   for (const t of archetypes) {
-    html += `<tr><td>${esc(t.type)}</td><td>${t.n}</td><td>${t.avgTotal}</td><td>${fmtPar(t.avgToPar)}</td></tr>`;
-  }
-  html += `</table><h3>By character</h3><table>
-    <tr><th>Character</th><th>Rounds</th><th>Avg total</th><th>Avg to par</th></tr>`;
-  for (const t of characters) {
     html += `<tr><td>${esc(t.type)}</td><td>${t.n}</td><td>${t.avgTotal}</td><td>${fmtPar(t.avgToPar)}</td></tr>`;
   }
   html += `</table></section>`;
@@ -145,9 +192,12 @@ function render(allRounds: RoundRecord[]): void {
   if (accounts.tracked.length === 0) {
     html += `<p>No account-linked rounds yet.</p>`;
   } else {
-    html += `<table><tr><th>Player</th><th>Rounds played</th><th>Last played</th></tr>`;
+    html += `<table><tr><th>Player</th><th>Rounds played</th><th>Avg score</th><th>Avg to par</th><th>XP</th><th>Last played</th></tr>`;
     for (const a of accounts.tracked) {
-      html += `<tr><td>${esc(a.name || 'Player')}</td><td>${a.n}</td><td>${new Date(a.lastPlayed).toLocaleDateString()}</td></tr>`;
+      // Round-carried xp is grow-only; a profiles/{uid}/xp backfill (when the
+      // admin can read it) fills accounts with no xp-bearing round yet.
+      const xp = Math.max(a.xp, xpBackfill.get(a.uid) ?? 0);
+      html += `<tr><td>${esc(a.name || 'Player')}</td><td>${a.n}</td><td>${a.avgTotal}</td><td>${fmtPar(a.avgToPar)}</td><td>${xp || '—'}</td><td>${new Date(a.lastPlayed).toLocaleDateString()}</td></tr>`;
     }
     html += `</table>`;
   }
@@ -165,7 +215,12 @@ async function showDashboard(email: string): Promise<void> {
   }
   $('app').innerHTML = `<p class="sub">Loading rounds…</p>`;
   try {
-    render(await fetchRounds());
+    const rounds = await fetchRounds();
+    // Best-effort XP backfill for accounts whose newest round predates
+    // RoundRecord.xp (silently yields nothing under the shipped profile rules).
+    const uids = [...new Set(rounds.map((r) => r.uid).filter((u): u is string => !!u))];
+    const xpBackfill = await fetchAccountXp(uids);
+    render(rounds, xpBackfill);
   } catch (e) {
     $('app').innerHTML = `<p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
   }

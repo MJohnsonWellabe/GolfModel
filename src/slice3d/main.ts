@@ -2488,6 +2488,11 @@ function showSummary(): void {
   }
   // Persist the round (local + shared leaderboard) — the human is player 0.
   const me = round.players[0];
+  // Progression runs BEFORE building the record so the round can carry the
+  // post-round lifetime XP total (record.xp) — the admin surfaces per-account
+  // XP from the public /rounds node off this field, no private-profile read.
+  const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
+  const events = applyRound(profile, rstats, todayKey());
   const record: RoundRecord = {
     id: makeRoundId(),
     d: Date.now(),
@@ -2500,17 +2505,14 @@ function showSummary(): void {
     holes: me.scores.slice(0, holes.length),
     putts: holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0),
     hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0),
-    uid: profile.id
+    uid: profile.id,
+    xp: profile.xp
   };
   // Records/coins only persist for a signed-in account (account-gated model):
   // a signed-out round still plays and shows its rewards, but nothing is saved.
   // signedIn gates this, so profile.id is always the real Firebase uid here
   // (never the pre-sign-in "guest-…" id) — see adoptCloudAccount.
   if (signedIn) saveRound(record);
-
-  // Progression: build the round stats, award XP/coins/achievements/daily.
-  const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
-  const events = applyRound(profile, rstats, todayKey());
   // Season pass: the round's XP also advances the pass track (accrues for
   // everyone while the season runs; claiming needs the pass).
   const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp');
