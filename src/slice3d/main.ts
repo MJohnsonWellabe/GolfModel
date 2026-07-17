@@ -3229,6 +3229,10 @@ function renderSeasonPass(): void {
   seasonEl.style.display = 'flex';
   seasonEl.innerHTML =
     `<div class="recInner"><h2>🎫 ${def.name}</h2>` +
+    // Player wallet readout (coins + profile XP/level). The season-track bar
+    // below reflects season.xp; this line reflects the account totals that a
+    // coin/XP reward actually credits, so a claim shows a visible increment.
+    `<div class="spWallet">Level ${p.level} · <b>${p.coins}</b> 🪙 · <b>${p.xp}</b> XP</div>` +
     `<div class="spSub">${active ? 'Runs through Nov 30 · play rounds to level the track' : 'Season over — earned rewards stay claimable'}</div>` +
     `<div class="spProgress"><span class="spLvlBig">Lv ${lvl}<i>/${def.levels}</i></span>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
