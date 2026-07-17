@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   configToRenderModel,
   resolveRenderModel,
+  validateImagePaths,
+  revertImagePath,
+  isKnownImage,
+  isKnownPoster,
   DEFAULT_MARKETING_CONFIG,
   MarketingConfig,
-  MarketingClip
+  MarketingClip,
+  MontageItem
 } from '../src/marketing/config';
 
 const clip = (over: Partial<MarketingClip>): MarketingClip => ({
@@ -19,6 +24,18 @@ const clip = (over: Partial<MarketingClip>): MarketingClip => ({
   heroFlag: false,
   trimStart: 0,
   trimEnd: 0,
+  order: 0,
+  ...over
+});
+
+const montageItem = (over: Partial<MontageItem>): MontageItem => ({
+  id: over.id ?? Math.random().toString(36).slice(2),
+  videoFile: 'marketing/videos/montage.mp4',
+  poster: 'marketing/img/poster-montage.png',
+  enabled: true,
+  trimStart: 0,
+  trimEnd: 0,
+  transition: 'cut',
   order: 0,
   ...over
 });
@@ -131,5 +148,94 @@ describe('resolveRenderModel (static fallback)', () => {
   it('an empty published config (no enabled clips) yields an empty grid, not the default', () => {
     const model = resolveRenderModel(cfg({ clips: [clip({ enabled: false })] }));
     expect(model.clips.length).toBe(0);
+  });
+});
+
+describe('montage sequence mapping', () => {
+  it('keeps enabled montage items, ordered by `order`, dropping disabled ones', () => {
+    const model = configToRenderModel(
+      cfg({
+        montage: [
+          montageItem({ id: 'c', videoFile: 'marketing/videos/putt.mp4', order: 2 }),
+          montageItem({ id: 'a', videoFile: 'marketing/videos/island.mp4', order: 0 }),
+          montageItem({ id: 'off', order: 1, enabled: false })
+        ]
+      })
+    );
+    expect(model.montage.map((m) => m.file)).toEqual([
+      'marketing/videos/island.mp4',
+      'marketing/videos/putt.mp4'
+    ]);
+  });
+
+  it('carries each montage clip trim window and transition through', () => {
+    const model = configToRenderModel(
+      cfg({ montage: [montageItem({ trimStart: 1, trimEnd: 3, transition: 'fade' })] })
+    );
+    expect(model.montage[0].trimStart).toBe(1);
+    expect(model.montage[0].trimEnd).toBe(3);
+    expect(model.montage[0].transition).toBe('fade');
+  });
+
+  it('an absent or empty montage maps to an empty sequence (never throws)', () => {
+    expect(configToRenderModel(cfg({})).montage).toEqual([]);
+    expect(configToRenderModel(cfg({ montage: [] })).montage).toEqual([]);
+    // RTDB omits empty arrays entirely — a config object literally missing the
+    // field must still resolve.
+    const noMontage = cfg({});
+    delete (noMontage as { montage?: unknown }).montage;
+    expect(() => configToRenderModel(noMontage)).not.toThrow();
+    expect(configToRenderModel(noMontage).montage).toEqual([]);
+  });
+
+  it('the built-in default ships a non-empty montage', () => {
+    expect(configToRenderModel(DEFAULT_MARKETING_CONFIG).montage.length).toBeGreaterThan(0);
+  });
+});
+
+describe('backward compatibility with pre-montage/pre-alt configs', () => {
+  it('a config with no montage or alt fields still resolves', () => {
+    const legacy = cfg({
+      clips: [clip({ id: 'a', title: 'legacy' })],
+      courses: [{ art: 'marketing/img/wildwood-cherry.png', title: 'WW', desc: 'x', enabled: true, order: 0 }]
+    });
+    delete (legacy as { montage?: unknown }).montage;
+    const model = resolveRenderModel(legacy);
+    expect(model.clips.map((c) => c.title)).toEqual(['legacy']);
+    expect(model.montage).toEqual([]);
+  });
+});
+
+describe('image management validation', () => {
+  it('the built-in default has only committed image paths', () => {
+    expect(validateImagePaths(DEFAULT_MARKETING_CONFIG)).toEqual([]);
+  });
+
+  it('lists every off-library image path and flags empties', () => {
+    const bad = validateImagePaths(
+      cfg({
+        hero: { ...DEFAULT_MARKETING_CONFIG.hero, plateImage: 'marketing/img/not-a-real-plate.png' },
+        clips: [clip({ poster: '' })],
+        montage: [montageItem({ poster: 'marketing/img/ghost-poster.png' })]
+      })
+    );
+    expect(bad.join('\n')).toContain('not-a-real-plate.png');
+    expect(bad.join('\n')).toContain('(empty)');
+    expect(bad.join('\n')).toContain('ghost-poster.png');
+  });
+
+  it('isKnownImage / isKnownPoster recognise committed paths only', () => {
+    expect(isKnownImage('marketing/img/sablebay-island.png')).toBe(true);
+    expect(isKnownImage('marketing/img/nope.png')).toBe(false);
+    expect(isKnownPoster('marketing/img/poster-montage.png')).toBe(true);
+    expect(isKnownPoster('marketing/img/sablebay-island.png')).toBe(false);
+  });
+
+  it('revertImagePath restores a field to its shipped default', () => {
+    expect(revertImagePath('hero', 0)).toBe(DEFAULT_MARKETING_CONFIG.hero.plateImage);
+    expect(revertImagePath('reel', 0)).toBe(DEFAULT_MARKETING_CONFIG.reel.poster);
+    expect(revertImagePath('course', 1)).toBe(DEFAULT_MARKETING_CONFIG.courses[1].art);
+    expect(revertImagePath('clip', 0)).toBe(DEFAULT_MARKETING_CONFIG.clips[0].poster);
+    expect(revertImagePath('bogus', 0)).toBe('');
   });
 });

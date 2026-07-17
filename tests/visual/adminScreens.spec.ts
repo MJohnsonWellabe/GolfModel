@@ -15,6 +15,10 @@ test('admin landing + staging areas render', async ({ page }) => {
   await page.goto('/admin.html');
   // Wait for the module to boot and expose the preview hook.
   await page.waitForFunction(() => '__adminLandingPreview' in window, { timeout: 15000 });
+  // boot() is async (it awaits Firebase auth) and renders the sign-in screen when
+  // no session persists. Wait for that to settle FIRST, so its late render can't
+  // clobber the landing the preview hook is about to paint.
+  await page.waitForSelector('#signin', { timeout: 15000 }).catch(() => {});
   await page.evaluate((email) => {
     (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
   }, ADMIN_EMAIL);

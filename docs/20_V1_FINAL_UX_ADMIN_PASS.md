@@ -128,11 +128,56 @@ no buy/activate control. Pure helpers unit-tested in
 
 ## 5 — Marketing Manager expansion
 
-(See the Marketing Manager section below once integrated — montage sequence
-editor + full image management.)
+**A) Montage editor.** A montage is an ORDERED sequence of gameplay clips that
+plays back-to-back as one highlight reel — rendered as a runtime SEQUENCE
+(chained `<video>` playback), never a re-encoded file. Schema gains
+`montage: MontageItem[]` (`{ id, videoFile, poster, posterAlt, enabled,
+trimStart, trimEnd, transition: 'cut'|'fade', order }`), mapped to a
+`RenderModel.montage` sequence by the pure `configToRenderModel`. The admin adds
+/ removes / reorders / enables / trims each clip, picks its library video +
+poster, chooses a hard cut or short fade, and previews the sequence live. The
+public page plays it in the reel slot with the chosen transition, **lazy-started
+via IntersectionObserver**, and falls back to a static poster if a clip fails or
+the montage is empty — a broken montage never blanks the page.
+
+**B) Full image management.** Every marketing image (hero plate, course art,
+clip/reel/montage posters) is chosen from the committed library with a live
+preview, ALT-text field (threaded into the page for accessibility), and a
+revert-to-default. `validateImagePaths(cfg)` lists any off-library path and the
+Marketing Manager blocks publishing broken image paths.
+
+**Files.** `src/marketing/config.ts` (schema + montage mapping + image helpers),
+`src/admin/marketing.ts` (montage + image-management UI), `src/marketing/main.ts`
+(public montage sequence player + alt text), `tests/marketingConfig.test.ts`
+(montage mapping, backward-compat with pre-montage configs, `validateImagePaths`,
+`isKnownImage`/`isKnownPoster`, `revertImagePath` — 18 tests).
 
 ## 10 — Testing & validation
 
-`npm run test:fast` on the inner loop; full `npm test` + `npm run build` +
-Playwright mobile/admin captures before completion. Results recorded at the end
-of this pass.
+- **Unit/sim:** full `npm test` — **509 passing** across 54 files (includes the
+  new `aimDefaults`, `treeField`, `courseDefaults`, `seasonPassStaging`,
+  `storeStaging`, and expanded `marketingConfig` cases).
+- **AI-band recalibration (consequence of item 2).** The Timberline hole-2 tree
+  offset makes that approach fairer, which lowers every AI opponent's mean by
+  ~0.4-0.45 strokes/round on Timberline (Timberline is in ~3/4 of rotas). The AI
+  tournament band check was re-calibrated to the new intended means (JD floor
+  -1.25 → -2.1, Tiger floor -2.8 → -3.2); the skill-ordering and "mostly in the
+  +1..-3 band" (>0.75, measured 0.769) guards are unchanged. This is a real,
+  intended balance shift from the requested fix — see the commit + test comment.
+- **Build:** `npm run build` (tsc --noEmit + vite build) — clean.
+- **Playwright:** mobile course-card overflow assertions across six viewports
+  (`courseCards.spec.ts`) and admin landing + staging + marketing-manager
+  captures (`adminScreens.spec.ts`).
+
+## Remaining risks
+
+- **Timberline difficulty.** The tree-offset fairness fix eases Timberline hole 2
+  measurably (see the band recalibration). If a smaller nudge is preferred, dial
+  the `collisionOffset` on Timberline hazard [5] back from `[-6, 0]`.
+- **Firebase console step.** The two staging areas and the Marketing Manager need
+  the `/adminDrafts` + `/marketingConfig` rules and the `/admins/{uid}` allow-list
+  deployed (docs/FIREBASE_SETUP.md). Until then, save/publish return a clean
+  permission-denied and nothing goes live — no silent success.
+- **Montage playback** is device-dependent (autoplay/codec); the static-poster
+  fallback covers a failed clip, but the crossfade timing is best-effort on
+  low-end browsers.

@@ -32,13 +32,18 @@ function isPermissionDenied(e: unknown): boolean {
   return /permission[_ ]?denied/i.test(code) || /permission[_ ]?denied/i.test(msg);
 }
 
-/** Read the current published config via the SDK. Returns null on absent/failure
- *  (the admin then loads the built-in default to edit). */
+/** Read the current published config via the SDK. Returns null on absent/failure/
+ *  timeout (the admin then loads the built-in default to edit) — the read is
+ *  raced against a timeout so a stuck connection can never hang the editor on a
+ *  "Loading…" screen. */
 export async function loadMarketingConfig(): Promise<MarketingConfig | null> {
   try {
     const { getDatabase, ref, get } = await import('firebase/database');
-    const snap = await get(ref(getDatabase(await firebaseApp()), 'marketingConfig'));
-    return snap.exists() ? (snap.val() as MarketingConfig) : null;
+    const read = get(ref(getDatabase(await firebaseApp()), 'marketingConfig')).then((snap) =>
+      snap.exists() ? (snap.val() as MarketingConfig) : null
+    );
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000));
+    return await Promise.race([read, timeout]);
   } catch {
     return null;
   }

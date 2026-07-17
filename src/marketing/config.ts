@@ -9,6 +9,22 @@
  *   - the admin Marketing Manager (src/admin/marketing.ts) — edits + previews
  *   - the SDK publish helper (src/firebase/MarketingConfig.ts) — types only
  *
+ * Responsibilities beyond the clip wall / hero / course gallery:
+ *   - MONTAGE: an ordered sequence of gameplay clips (`montage[]`) that the page
+ *     plays back-to-back as one highlight reel. It is rendered as a chained
+ *     <video> SEQUENCE at runtime (cut or short opacity crossfade between
+ *     clips) — NOT a re-encoded file. `configToRenderModel` exposes the enabled,
+ *     ordered sequence as `RenderModel.montage`.
+ *   - IMAGE MANAGEMENT: every marketing image (hero plate, course art, clip and
+ *     reel posters, montage posters) is chosen from a committed library and
+ *     carries optional ALT text for accessibility. `validateImagePaths` reports
+ *     any image path that is not in the committed library so the admin can block
+ *     a publish that would ship a broken/unknown image.
+ *
+ * All schema additions are BACKWARD COMPATIBLE: a stored config that predates
+ * the montage/alt fields still resolves (the new fields default; RTDB omits
+ * empty arrays, so every array access is `Array.isArray`-guarded).
+ *
  * Asset paths use the working `marketing/...` RUNTIME prefix (publicDir:'assets'
  * flattens `assets/marketing/...` to the site root; the un-flattened
  * `assets/marketing/...` 404s on GitHub Pages), matching the shipped clip wall.
@@ -23,6 +39,8 @@ export interface HeroStat {
 
 export interface MarketingHero {
   plateImage: string;
+  /** Accessible description of the hero plate image. Optional/back-compat. */
+  plateAlt?: string;
   title: string;
   lede: string;
   stats: HeroStat[];
@@ -31,14 +49,37 @@ export interface MarketingHero {
 export interface MarketingReel {
   videoFile: string;
   poster: string;
+  /** Accessible description of the reel poster image. Optional/back-compat. */
+  posterAlt?: string;
   enabled: boolean;
 }
 
 export interface MarketingCourse {
   art: string;
+  /** Accessible description of the course art. Optional/back-compat. */
+  alt?: string;
   title: string;
   desc: string;
   enabled: boolean;
+  order: number;
+}
+
+/**
+ * One clip in the highlight MONTAGE — an ordered sequence played back-to-back as
+ * a single reel. `transition` is the effect used when leaving THIS clip for the
+ * next one: a hard 'cut' or a short opacity 'fade'.
+ */
+export interface MontageItem {
+  id: string;
+  videoFile: string;
+  poster: string;
+  /** Accessible description of the montage clip poster. Optional/back-compat. */
+  posterAlt?: string;
+  enabled: boolean;
+  /** Sub-range playback (seconds). trimEnd<=0 means "play to the natural end". */
+  trimStart: number;
+  trimEnd: number;
+  transition: 'cut' | 'fade';
   order: number;
 }
 
@@ -55,6 +96,8 @@ export interface MarketingClip {
   enabled: boolean;
   /** Promotes this clip into the highlight-reel slot. At most one is honored. */
   heroFlag: boolean;
+  /** Accessible description of the clip poster (when shown as a still). */
+  posterAlt?: string;
   /** Sub-range playback (seconds). trimEnd<=0 means "play to the natural end". */
   trimStart: number;
   trimEnd: number;
@@ -68,6 +111,8 @@ export interface MarketingConfig {
   reel: MarketingReel;
   courses: MarketingCourse[];
   clips: MarketingClip[];
+  /** Ordered highlight-reel sequence. Optional/back-compat (RTDB omits empties). */
+  montage?: MontageItem[];
 }
 
 // ---- Render model (what the page actually draws) ----------------------------
@@ -78,6 +123,8 @@ export interface Clip {
   title: string;
   sub: string;
   poster: string;
+  /** Accessible alt for the poster still (falls back to the title). */
+  alt?: string;
   file?: string;
   trimStart?: number;
   trimEnd?: number;
@@ -86,9 +133,20 @@ export interface Clip {
 export interface ReelRender {
   file: string;
   poster: string;
+  posterAlt: string;
   enabled: boolean;
   trimStart: number;
   trimEnd: number;
+}
+
+/** One resolved montage step consumed by the runtime sequence player. */
+export interface MontageRender {
+  file: string;
+  poster: string;
+  posterAlt: string;
+  trimStart: number;
+  trimEnd: number;
+  transition: 'cut' | 'fade';
 }
 
 export interface RenderModel {
@@ -96,6 +154,8 @@ export interface RenderModel {
   reel: ReelRender;
   courses: MarketingCourse[];
   clips: Clip[];
+  /** Enabled montage clips, ordered — the highlight sequence (may be empty). */
+  montage: MontageRender[];
   /** The heroFlag clip mapped to a Clip, or null (then reel uses config.reel). */
   heroClip: Clip | null;
 }
@@ -125,7 +185,7 @@ export function clipTile(c: Clip): string {
   const media = c.file
     ? `<video class="clipvid" muted${loopAttr} playsinline preload="metadata" poster="${escAttr(c.poster)}"${trimAttr}>` +
       `<source src="${escAttr(c.file)}" type="video/mp4" /></video>`
-    : `<img class="poster" src="${escAttr(c.poster)}" alt="${escAttr(c.title)}" loading="lazy" />`;
+    : `<img class="poster" src="${escAttr(c.poster)}" alt="${escAttr(c.alt || c.title)}" loading="lazy" />`;
   return (
     `<div class="clip"><div class="badge">${escHtml(c.badge)}</div>${media}` +
     `<div class="cap"><b>${escHtml(c.title)}</b><span>${escHtml(c.sub)}</span></div></div>`
@@ -140,6 +200,7 @@ function toClip(mc: MarketingClip): Clip {
     title: mc.title,
     sub: mc.caption,
     poster: mc.poster,
+    alt: typeof mc.posterAlt === 'string' ? mc.posterAlt : '',
     file: mc.videoFile,
     trimStart: Number(mc.trimStart) || 0,
     trimEnd: Number(mc.trimEnd) || 0
@@ -171,6 +232,7 @@ export function configToRenderModel(cfg: MarketingConfig): RenderModel {
     ? {
         file: heroClip.file ?? '',
         poster: heroClip.poster,
+        posterAlt: heroClip.alt ?? '',
         enabled: true,
         trimStart: heroClip.trimStart ?? 0,
         trimEnd: heroClip.trimEnd ?? 0
@@ -178,12 +240,28 @@ export function configToRenderModel(cfg: MarketingConfig): RenderModel {
     : {
         file: cfg.reel?.videoFile ?? '',
         poster: cfg.reel?.poster ?? '',
+        posterAlt: typeof cfg.reel?.posterAlt === 'string' ? cfg.reel.posterAlt : '',
         enabled: cfg.reel?.enabled ?? true,
         trimStart: 0,
         trimEnd: 0
       };
 
-  return { hero: cfg.hero, reel, courses, clips: gridClips, heroClip };
+  // Montage: enabled items, ordered, mapped to the runtime sequence shape.
+  // Defensive: RTDB omits an empty/absent montage, so guard the array.
+  const montage: MontageRender[] = (Array.isArray(cfg.montage) ? cfg.montage : [])
+    .filter((m) => m && m.enabled)
+    .slice()
+    .sort(byOrder)
+    .map((m) => ({
+      file: m.videoFile ?? '',
+      poster: m.poster ?? '',
+      posterAlt: typeof m.posterAlt === 'string' ? m.posterAlt : '',
+      trimStart: Number(m.trimStart) || 0,
+      trimEnd: Number(m.trimEnd) || 0,
+      transition: m.transition === 'fade' ? 'fade' : 'cut'
+    }));
+
+  return { hero: cfg.hero, reel, courses, clips: gridClips, montage, heroClip };
 }
 
 /** Coalesce a possibly-absent/invalid config to the built-in default, then map.
@@ -284,6 +362,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
   publishedAt: 0,
   hero: {
     plateImage: 'marketing/img/sablebay-island.png',
+    plateAlt: 'Sable Bay coastal hole at golden hour, the green tucked against the sea.',
     title: 'Pocket golf with real shot-making.',
     lede:
       'A bite-sized round you can finish on a coffee break — with true backspin, shot shaping, ' +
@@ -298,11 +377,13 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
   reel: {
     videoFile: 'marketing/videos/montage.mp4',
     poster: 'marketing/img/poster-montage.png',
+    posterAlt: 'Bite-Sized Golf highlight reel — a montage of the best shots.',
     enabled: true
   },
   courses: [
     {
       art: 'marketing/img/wildwood-cherry.png',
+      alt: 'Wildwood Glen — cherry-blossom groves lining a tight parkland fairway.',
       title: 'Wildwood Glen',
       desc:
         'A lush parkland course — cherry-blossom groves, still ponds and tight, tree-lined fairways that reward shaping the ball into the pin.',
@@ -311,6 +392,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/sablebay-island.png',
+      alt: 'Sable Bay — coastal bluffs and dune fescue winding down to the sea.',
       title: 'Sable Bay',
       desc:
         'A Pebble Beach and Torrey Pines mashup — coastal bluffs, wind-carved sand and dune fescue winding through the pines down to the sea.',
@@ -319,6 +401,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/timberline-pond.png',
+      alt: 'Timberline — a mountain green tucked among towering timber and a pond.',
       title: 'Timberline',
       desc:
         'Mountain golf in the pines — a checkerboard green tucked among towering timber, thin mountain air and true, honest bounces.',
@@ -327,6 +410,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/portjohnson-bunker.png',
+      alt: 'Port Johnson Links — deep pot bunkers on firm, fast-running links turf.',
       title: 'Port Johnson Links',
       desc:
         'Scottish links through and through — deep pot bunkers, firm, fast-running turf and a tide that has the final say on the day.',
@@ -405,5 +489,115 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
       trimEnd: 0,
       order: 4
     }
+  ],
+  montage: [
+    {
+      id: 'm-montage',
+      videoFile: 'marketing/videos/montage.mp4',
+      poster: 'marketing/img/poster-montage.png',
+      posterAlt: 'Highlight montage opener.',
+      enabled: true,
+      trimStart: 0,
+      trimEnd: 0,
+      transition: 'cut',
+      order: 0
+    },
+    {
+      id: 'm-island',
+      videoFile: 'marketing/videos/island.mp4',
+      poster: 'marketing/img/poster-island.png',
+      posterAlt: 'Big drive over the water on the island hole.',
+      enabled: true,
+      trimStart: 0,
+      trimEnd: 0,
+      transition: 'cut',
+      order: 1
+    },
+    {
+      id: 'm-putt',
+      videoFile: 'marketing/videos/putt.mp4',
+      poster: 'marketing/img/poster-putt.png',
+      posterAlt: 'A clutch putt dropping into the cup.',
+      enabled: true,
+      trimStart: 0,
+      trimEnd: 0,
+      transition: 'cut',
+      order: 2
+    }
   ]
 };
+
+// ---- Image-path validation + per-field revert (pure, admin-facing) ----------
+
+const POSTER_SET = new Set(POSTER_LIBRARY.map((i) => i.value));
+const IMAGE_SET = new Set(IMAGE_LIBRARY.map((i) => i.value));
+
+/** True when `path` is one of the committed images in the given library set. */
+function inLibrary(set: Set<string>, path: string): boolean {
+  return set.has(String(path ?? '').trim());
+}
+
+/** True when `path` is a committed poster (POSTER_LIBRARY). */
+export function isKnownPoster(path: string): boolean {
+  return inLibrary(POSTER_SET, path);
+}
+
+/** True when `path` is a committed image/plate (IMAGE_LIBRARY). */
+export function isKnownImage(path: string): boolean {
+  return inLibrary(IMAGE_SET, path);
+}
+
+/**
+ * PURE: list every image path in `cfg` that is NOT in the committed library.
+ * Returns human-readable `where: path` strings; an empty array means all image
+ * paths are publishable. The admin calls this before publishing and blocks the
+ * write (and surfaces the list) when it is non-empty, so a broken/unknown image
+ * path can never reach the live page.
+ */
+export function validateImagePaths(cfg: MarketingConfig): string[] {
+  const bad: string[] = [];
+  const check = (path: string | undefined, set: Set<string>, where: string): void => {
+    const p = String(path ?? '').trim();
+    if (!p) {
+      bad.push(`${where}: (empty)`);
+      return;
+    }
+    if (!set.has(p)) bad.push(`${where}: ${p}`);
+  };
+
+  if (cfg.hero) check(cfg.hero.plateImage, IMAGE_SET, 'Hero plate');
+  if (cfg.reel) check(cfg.reel.poster, POSTER_SET, 'Reel poster');
+  (Array.isArray(cfg.courses) ? cfg.courses : []).forEach((c, i) =>
+    check(c?.art, IMAGE_SET, `Course #${i + 1} art`)
+  );
+  (Array.isArray(cfg.clips) ? cfg.clips : []).forEach((c, i) =>
+    check(c?.poster, POSTER_SET, `Clip #${i + 1} poster`)
+  );
+  (Array.isArray(cfg.montage) ? cfg.montage : []).forEach((m, i) =>
+    check(m?.poster, POSTER_SET, `Montage #${i + 1} poster`)
+  );
+  return bad;
+}
+
+/**
+ * PURE: the built-in default value for an image field, keyed by the admin's
+ * `data-scope` / `data-idx`. Used by the Marketing Manager's "revert" buttons to
+ * restore a single image to its shipped default. Unknown scopes → '' (no-op).
+ */
+export function revertImagePath(scope: string, idx: number): string {
+  const d = DEFAULT_MARKETING_CONFIG;
+  switch (scope) {
+    case 'hero':
+      return d.hero.plateImage;
+    case 'reel':
+      return d.reel.poster;
+    case 'course':
+      return d.courses[idx]?.art ?? '';
+    case 'clip':
+      return d.clips[idx]?.poster ?? '';
+    case 'montage':
+      return d.montage?.[idx]?.poster ?? '';
+    default:
+      return '';
+  }
+}
