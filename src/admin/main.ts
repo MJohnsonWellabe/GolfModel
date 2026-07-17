@@ -11,6 +11,7 @@ import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
 import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, overallAvg, roundsByAccount } from './aggregate';
 import { isAdminEmail } from './adminEmails';
+import { renderMarketingManager } from './marketing';
 import { ARCHETYPES } from '../data/archetypes';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
@@ -126,6 +127,7 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
   let html = `<button id="backGame" class="btn back">← Back to game</button>
+    <button id="openMarketing" class="btn back">🎬 Marketing Manager</button>
     <h1>⛳ Bite-Sized Golf — Admin</h1>
     <p class="sub">${rounds.length} active rounds (legacy versions hidden)</p>`;
 
@@ -205,6 +207,9 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
 
   $('app').innerHTML = html;
   document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
+  document
+    .getElementById('openMarketing')!
+    .addEventListener('click', () => void renderMarketingManager($('app'), () => render(allRounds, xpBackfill)));
 }
 
 async function showDashboard(email: string): Promise<void> {

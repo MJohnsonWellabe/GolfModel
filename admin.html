@@ -138,6 +138,178 @@
         background: rgba(255, 255, 255, 0.12);
         color: #eef5ea;
       }
+      /* ---- Marketing Manager ---- */
+      .mm-lbl {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: #a9c9b0;
+        margin-top: 8px;
+      }
+      .mm-lbl input,
+      .mm-lbl textarea,
+      .mm-lbl select {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 8px;
+        color: #f2f7f0;
+        font-family: inherit;
+        font-size: 14px;
+        padding: 7px 9px;
+        width: 100%;
+      }
+      .mm-clip,
+      .mm-course {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 10px 12px 14px;
+        margin-top: 12px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+      .mm-clip-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .mm-ord {
+        font-weight: 700;
+        color: #ffd54f;
+      }
+      .mm-check {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 13px;
+        color: #cfe6d3;
+      }
+      .mm-icon {
+        background: rgba(255, 255, 255, 0.12);
+        border: none;
+        border-radius: 7px;
+        color: #eef5ea;
+        cursor: pointer;
+        font-size: 14px;
+        padding: 3px 9px;
+      }
+      .mm-icon:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+      .mm-grid2 {
+        display: grid;
+        grid-template-columns: 150px 1fr;
+        gap: 14px;
+        margin-top: 10px;
+      }
+      @media (max-width: 560px) {
+        .mm-grid2 {
+          grid-template-columns: 1fr;
+        }
+      }
+      .mm-prev,
+      .mm-pv-grid video {
+        width: 100%;
+        border-radius: 10px;
+        background: #071c10;
+        aspect-ratio: 9 / 16;
+        object-fit: cover;
+        display: block;
+      }
+      .mm-trim {
+        display: flex;
+        gap: 12px;
+      }
+      .mm-trim .mm-num {
+        flex: 1;
+      }
+      /* preview */
+      .mm-pv-hero {
+        border-radius: 12px;
+        background-size: cover;
+        background-position: center;
+        padding: 22px 16px;
+        margin-top: 8px;
+        box-shadow: inset 0 0 0 2000px rgba(5, 23, 13, 0.55);
+      }
+      .mm-pv-hero h3 {
+        color: #fff;
+        font-size: 20px;
+      }
+      .mm-pv-stats {
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        margin-top: 10px;
+        font-size: 12px;
+        color: #cfe6d3;
+      }
+      .mm-pv-stats b {
+        color: #ffd54f;
+      }
+      .mm-pv-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .mm-pv-grid .clip {
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .mm-pv-grid .cap {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px 8px 6px;
+        background: linear-gradient(180deg, transparent, rgba(4, 16, 9, 0.92));
+        font-size: 11px;
+      }
+      .mm-pv-grid .cap b {
+        display: block;
+      }
+      .mm-pv-grid .badge {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: #ffd54f;
+        color: #06210f;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+      }
+      .mm-reel {
+        max-width: 220px;
+        margin: 10px auto 0;
+      }
+      .mm-pv-courses {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+      }
+      .mm-pv-course {
+        width: 120px;
+        font-size: 12px;
+      }
+      .mm-pv-course img {
+        width: 100%;
+        border-radius: 8px;
+        aspect-ratio: 16 / 10;
+        object-fit: cover;
+        display: block;
+        margin-bottom: 4px;
+      }
+      code {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+        padding: 1px 6px;
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
