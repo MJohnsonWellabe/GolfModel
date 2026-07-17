@@ -77,14 +77,46 @@ test('results screen: Replay repeats the course, Play Next follows the rotation'
   await expect(page.locator('#playNextBtn')).toContainText('Timberline');
 });
 
-test('landing shows ONE concise daily card', async ({ page }) => {
+test('landing shows ONE concise daily card (returning device)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 800 });
+  // Progressive disclosure hides daily/weekly/season/store until the first
+  // round completes on a device — seed the device flag to act like a
+  // returning player.
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'johnsons-golf-device-settings-v1',
+      JSON.stringify({ sound: 0.8, ambience: 0.2, reducedMotion: false, clipCapture: false, firstRoundDone: true })
+    );
+  });
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
+  // Clear the first-visit name prompt (it can appear a beat after boot) so
+  // the cards are actually in view for the capture.
+  await page.waitForSelector('#nmInput', { timeout: 4000 }).catch(() => null);
+  const nameInput = page.locator('#nmInput');
+  if (await nameInput.isVisible().catch(() => false)) {
+    await nameInput.fill('Matt');
+    await page.locator('#nmSave').dispatchEvent('pointerdown');
+    await page.waitForSelector('#nmInput', { state: 'hidden', timeout: 4000 }).catch(() => null);
+  }
   await expect(page.locator('#dailyCard')).toBeVisible();
+  await expect(page.locator('#weeklyCard')).toBeVisible();
   await expect(page.locator('#dailyCard .dcName')).toHaveCount(1);
   // No horizontal overflow at 360px (mobile acceptance).
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
   await page.screenshot({ path: 'tests/visual/__shots__/landing-daily-mobile.png' });
+});
+
+test('brand-new device sees core golf only (progressive disclosure)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  // No secondary systems before the first completed round.
+  await expect(page.locator('#dailyCard')).toBeEmpty();
+  await expect(page.locator('#weeklyCard')).toBeEmpty();
+  await expect(page.locator('#landingSeason')).toBeHidden();
+  await expect(page.locator('#landingStore')).toBeHidden();
+  // The one primary action is right there.
+  await expect(page.locator('#landingPlay')).toBeVisible();
 });

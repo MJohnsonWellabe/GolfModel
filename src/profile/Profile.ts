@@ -181,6 +181,10 @@ export interface DeviceSettings {
   /** Rolling shot-clip recorder opt-in (MediaRecorder is real per-frame encode
    *  work — default OFF; the player turns it on from the clip button). */
   clipCapture: boolean;
+  /** True once this device has completed a round — gates the progressive
+   *  reveal of secondary systems (daily/weekly/season/store) on the landing
+   *  (retention Part 11). Device-local so it works for guests. */
+  firstRoundDone: boolean;
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -193,7 +197,8 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       sound: typeof p.sound === 'number' ? Math.max(0, Math.min(1, p.sound)) : 0.8,
       ambience: typeof p.ambience === 'number' ? Math.max(0, Math.min(1, p.ambience)) : 0.2,
       reducedMotion: !!p.reducedMotion,
-      clipCapture: !!p.clipCapture
+      clipCapture: !!p.clipCapture,
+      firstRoundDone: !!p.firstRoundDone
     };
   } catch {
     return null;

@@ -52,8 +52,19 @@ import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defau
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
-import { dailyOverrideFor, LiveOpsConfig } from '../data/liveOpsConfig';
+import { dailyOverrideFor, LiveOpsConfig, weeklyOverrideFor } from '../data/liveOpsConfig';
 import { fetchLiveOpsConfigREST } from '../firebase/LiveOpsConfig';
+import { weeklyEventFor, weeklyStanding, weeklyTimeLeft, WeeklyEvent } from '../systems/WeeklyFeatured';
+import { fetchWeeklyEntries, submitWeeklyEntry } from '../firebase/Weekly';
+import {
+  AsyncChallengeDef,
+  challengeOutcome,
+  challengeUrl,
+  decodeChallenge,
+  isExpired as challengeExpired,
+  parseChallengeParam,
+  sanitizeName
+} from '../systems/AsyncChallenge';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
 import { applyHoleMastery, HoleMasteryInput, nextStarHint, starCount } from '../systems/Mastery';
@@ -302,6 +313,10 @@ interface RoundState {
   seed?: number;
   /** Active tournament this round counts toward (submits an entry at the end). */
   tournament?: { code: string; name: string } | null;
+  /** Weekly Featured event this round counts toward (Part 8), or null. */
+  weeklyEventId?: string | null;
+  /** Async challenge being answered this round (Part 9), or null. */
+  challenge?: AsyncChallengeDef | null;
 }
 
 const COURSES: Record<string, CourseData> = {
@@ -1941,6 +1956,10 @@ class HoleScene {
       // Per-hole reaction reflects the SCORE: happy at par or better, sad
       // over par (FB7). Eagles+ get the big Song Jump.
       this.golfer.react(this.holeReaction(this.state.strokes));
+      // Surprise & delight (Part 10): a tasteful golden burst + one-line
+      // celebration for the genuinely special skill moments only — never for
+      // ordinary shots, no modals, no perf cost (reuses the landing puff).
+      if (!c.isAI) this.celebrateHoleOut(origin, preLie, club, outcome);
     } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
@@ -1963,6 +1982,44 @@ class HoleScene {
       if (allDone) this.finishHole();
       else this.beginTurn();
     }, delay);
+  }
+
+  /** Golden celebration burst + line for special holed shots (Part 10):
+   *  hole-in-one, eagle+, a long chip-in, or a genuinely long putt. Reuses
+   *  the existing landing-puff particle system (recolored, a few extra
+   *  emits) and the message line — no new assets, no blocking UI. */
+  private celebrateHoleOut(
+    origin: { x: number; y: number },
+    preLie: HoleState['lie'],
+    club: ClubSpec,
+    outcome: ShotOutcome
+  ): void {
+    const toPar = this.state.strokes - this.hole.par;
+    const puttFt = club.id === 'putter' ? (dist(origin, this.hole.pin) / PX_PER_YARD) * 3 : 0;
+    const chipInYd = club.id !== 'putter' && preLie !== 'green' ? dist(origin, outcome.finalPos) / PX_PER_YARD : 0;
+    let line = '';
+    if (this.state.strokes === 1) line = '⛳ HOLE-IN-ONE!!';
+    else if (toPar <= -2) line = '🦅 EAGLE!';
+    else if (puttFt >= 25) line = `🎯 ${Math.round(puttFt)}-footer — what a putt!`;
+    else if (chipInYd >= 15) line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
+    if (!line) return;
+    // Golden burst at the cup — three staggered emits read as a shower.
+    const pin = this.hole.pin;
+    (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 1 + this.gh(pin.x, pin.y)));
+    this.puff.color1 = new Color4(1, 0.85, 0.3, 0.95);
+    this.puff.color2 = new Color4(1, 0.6, 0.1, 0.6);
+    this.puff.manualEmitCount = 26;
+    for (const delayMs of [220, 440]) {
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.puff.manualEmitCount = 18;
+      }, delayMs);
+    }
+    setTimeout(() => {
+      if (this.disposed) return;
+      showMsg(line, 2400);
+      this.shakeT = Math.max(this.shakeT, profile.settings.reducedMotion ? 0 : 0.22);
+    }, 500);
   }
 
   /** Accumulate the human's shot-based round stats for progression (Phase 6). */
@@ -2759,8 +2816,48 @@ function showSummary(): void {
     stats: rstats,
     fireStreakBest: shotAcc.fireStreakBest,
     closestApproachFt: shotAcc.closestApproachFt,
+    weeklyEventId: round.weeklyEventId ?? undefined,
     now: Date.now()
   });
+  // Weekly Featured entry (Part 8): submit ONLY when this round set the
+  // player's best for the event (duplicate/regression submissions never reach
+  // the network; the RTDB rule additionally only accepts improvements).
+  let weeklyLine = '';
+  if (round.weeklyEventId) {
+    analytics.track('weekly_round_completed', {
+      weekly_event: round.weeklyEventId,
+      score_to_par: totals[0] - totalPar
+    });
+    const bestNow = profile.retention.records.bestWeekly[round.weeklyEventId];
+    const isBest = bestNow && bestNow.total === totals[0];
+    if (signedIn && isBest) {
+      void submitWeeklyEntry(round.weeklyEventId, {
+        playerId: profile.id,
+        name: profile.name || 'Golfer',
+        golferId: me.golfer.id,
+        total: totals[0],
+        toPar: totals[0] - totalPar,
+        holes: me.scores.slice(0, holes.length),
+        submittedAt: Date.now()
+      });
+      weeklyLine = `<div class="rwLine ach">🏆 Weekly entry posted: ${totals[0]} (${parLabel(totals[0])})</div>`;
+    } else if (isBest) {
+      weeklyLine = `<div class="rwLine ach">🏆 Weekly best: ${totals[0]} — sign in to post it to the leaderboard</div>`;
+    }
+  }
+  // Async challenge outcome (Part 9).
+  let challengeLine = '';
+  if (round.challenge) {
+    const out = challengeOutcome(round.challenge, totals[0]);
+    analytics.track('async_challenge_completed', { result: out, course: courseId });
+    const who = escapeHtml(round.challenge.creator || 'Your rival');
+    challengeLine =
+      out === 'beat'
+        ? `<div class="rwLine ach">⚔ You beat ${who}'s ${round.challenge.total}! Send one back ↓</div>`
+        : out === 'tied'
+          ? `<div class="rwLine ach">⚔ Tied ${who}'s ${round.challenge.total} — one more stroke next time</div>`
+          : `<div class="rwLine ach">⚔ ${who}'s ${round.challenge.total} stands — replay and take it down</div>`;
+  }
   // Streak: consecutive days with a completed round, with the once-per-cycle
   // protection token. profile.dailyStreak mirrors it for the legacy UI spots.
   const adv = advanceStreak(profile.retention.streak, todayKey());
@@ -2798,6 +2895,9 @@ function showSummary(): void {
     score_to_par: totals[0] - totalPar,
     round_duration: roundStartedAt ? Math.round((Date.now() - roundStartedAt) / 1000) : 0
   });
+  // First completed round on this device → the landing's secondary systems
+  // (daily/weekly/season/store) reveal from now on (Part 11).
+  if (!deviceSettings.firstRoundDone) updateDeviceSettings({ firstRoundDone: true });
 
   const record: RoundRecord = {
     id: makeRoundId(),
@@ -2910,6 +3010,8 @@ function showSummary(): void {
     rewardStripHtml(events) +
     streakRewardLine +
     protectionLine +
+    weeklyLine +
+    challengeLine +
     aiTourBlock +
     tourBlock +
     purseLine +
@@ -2927,6 +3029,7 @@ function showSummary(): void {
         `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>` +
         `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
         `<button id="profBtn" class="ghostBtn">Profile</button>` +
+        `<button id="shareChBtn" class="ghostBtn">⚔ Share</button>` +
         `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
   // Tournament: submit this round as the player's entry (first score stands)
@@ -2967,6 +3070,29 @@ function showSummary(): void {
     showSetup();
   });
   document.getElementById('recBtn')!.addEventListener('pointerdown', () => renderRecords());
+  // Async challenge share (Part 9): this round's exact setup (course + seed)
+  // and score become a compact ?c= link — copy to clipboard, prompt fallback.
+  document.getElementById('shareChBtn')?.addEventListener('pointerdown', () => {
+    const def: AsyncChallengeDef = {
+      v: 1,
+      courseId,
+      mode: round.mode,
+      seed: round.seed ?? 0,
+      total: totals[0],
+      toPar: totals[0] - totalPar,
+      creator: sanitizeName(profile.name || 'A friend'),
+      at: Date.now(),
+      exp: 0
+    };
+    const url = challengeUrl(def, `${window.location.origin}${window.location.pathname}`);
+    analytics.track('async_challenge_created', { course: courseId });
+    const copied = (): void => showMsg('⚔ Challenge link copied — send it to a friend!', 2200);
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(copied, () => window.prompt('Copy this challenge link:', url));
+    } else {
+      window.prompt('Copy this challenge link:', url);
+    }
+  });
   // A new course record is confirmed against the merged (local+shared) list.
   fetchAllRounds().then(({ rounds }) => {
     const banner = document.getElementById('recBanner');
@@ -3940,6 +4066,12 @@ function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myR
  *  tournament; on "Tee off" the wizard starts the round for this meta with the
  *  freshly-picked golfer, style, and equipped pal (not the last-used ones). */
 let pendingTournament: Tournament | null = null;
+/** Weekly Featured entry armed by the landing card — the next startRound runs
+ *  under the event's standardized seed and submits to its leaderboard. */
+let pendingWeekly: WeeklyEvent | null = null;
+/** Async challenge armed from a ?c= link — the next startRound replays the
+ *  challenger's exact setup (course + shared seed). */
+let pendingChallenge: AsyncChallengeDef | null = null;
 
 /** Enter a tournament: lock the mode + course, then send the player through the
  *  setup wizard so they pick their own golfer, pal, and style before teeing off
@@ -3966,6 +4098,8 @@ function startTournamentRound(meta: Tournament): void {
   round.holePins = [];
   round.seed = meta.seed;
   round.tournament = { code: meta.code, name: meta.name };
+  round.weeklyEventId = null;
+  round.challenge = null;
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
@@ -4037,8 +4171,10 @@ function startAiTourRound(): void {
   round.activePlayer = 0;
   round.holeWinds = [];
   round.holePins = [];
-  round.seed = undefined;
+  round.seed = (Math.random() * 0xffffffff) >>> 0;
   round.tournament = null;
+  round.weeklyEventId = null;
+  round.challenge = null;
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
@@ -4210,7 +4346,8 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   sound: profile.settings.sound,
   ambience: profile.settings.ambience,
   reducedMotion: profile.settings.reducedMotion,
-  clipCapture: false
+  clipCapture: false,
+  firstRoundDone: legacyLocal.stats.rounds > 0 // returning devices skip the intro reveal
 };
 
 /** Push the device preferences into the live profile + live audio. Call after
@@ -4891,7 +5028,25 @@ function showLanding(): void {
   pendingTournament = null;
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
-  updateDailyBanner();
+  // Progressive disclosure (Part 11): a brand-new player sees core golf and
+  // one big Play action — the daily/weekly cards and Season Pass/Store
+  // entries reveal after the first completed round on this device.
+  const newPlayer = !deviceSettings.firstRoundDone && profile.stats.rounds === 0;
+  const dailyCardEl = document.getElementById('dailyCard');
+  const weeklyCardEl = document.getElementById('weeklyCard');
+  const seasonBtn = document.getElementById('landingSeason');
+  const storeBtn = document.getElementById('landingStore');
+  if (newPlayer) {
+    if (dailyCardEl) dailyCardEl.innerHTML = '';
+    if (weeklyCardEl) weeklyCardEl.innerHTML = '';
+    if (seasonBtn) seasonBtn.style.display = 'none';
+    if (storeBtn) storeBtn.style.display = 'none';
+  } else {
+    if (seasonBtn) seasonBtn.style.display = '';
+    if (storeBtn) storeBtn.style.display = '';
+    updateDailyBanner();
+    updateWeeklyCard();
+  }
   updateLandingProfileButton();
 }
 
@@ -4912,6 +5067,7 @@ void fetchLiveOpsConfigREST(LEADERBOARD_URL).then((cfg) => {
   if (!cfg) return;
   liveOps = cfg;
   updateDailyBanner(); // today's challenge may have been overridden
+  updateWeeklyCard(); // this week's course may have been overridden
 });
 
 /** Today's effective daily challenge: the live-ops override when one is
@@ -4921,9 +5077,89 @@ function effectiveDailyChallenge(dateKey: string): DailyChallenge {
   return DAILY_CHALLENGES.find((c) => c.id === overrideId) ?? dailyChallengeFor(dateKey);
 }
 
+/** This week's featured event, with any published live-ops course override. */
+function effectiveWeeklyEvent(): WeeklyEvent {
+  const ev = weeklyEventFor(new Date());
+  const override = weeklyOverrideFor(liveOps, ev.id);
+  return override && COURSES[override] ? { ...ev, courseId: override } : ev;
+}
+
+/** The landing's compact Weekly Featured row (Part 8): course, the player's
+ *  best + rank when known, time remaining, one Play action. Standings fill in
+ *  asynchronously — the card never blocks on the network. */
+function updateWeeklyCard(): void {
+  const el = document.getElementById('weeklyCard');
+  if (!el) return;
+  const ev = effectiveWeeklyEvent();
+  const course = COURSES[ev.courseId];
+  const best = profile.retention.records.bestWeekly[ev.id];
+  const bestBit = best ? `Best ${best.total} (${best.toPar === 0 ? 'E' : best.toPar > 0 ? `+${best.toPar}` : best.toPar})` : 'Not played yet';
+  el.innerHTML =
+    `<div class="wkInfo"><span class="wkLabel">WEEKLY FEATURED · ${weeklyTimeLeft(ev, Date.now())} left</span>` +
+    `<div class="wkLine">${escapeHtml(course.name)} · <span id="wkStanding">${bestBit}</span></div></div>` +
+    `<button id="wkPlay" class="wkPlay">Play</button>`;
+  document.getElementById('wkPlay')!.addEventListener('pointerdown', () => {
+    pendingWeekly = ev;
+    sel.mode = 'solo';
+    sel.courseId = ev.courseId;
+    landingEl.classList.remove('on');
+    startRound(0);
+  });
+  // Rank/percentile, best-effort (world-readable /weekly node).
+  if (best) {
+    void fetchWeeklyEntries(ev.id).then((entries) => {
+      const standing = weeklyStanding(entries, profile.id);
+      const slot = document.getElementById('wkStanding');
+      if (slot && standing) {
+        slot.textContent = `${bestBit} · ${ordinal(standing.rank)} of ${standing.of}${standing.of > 3 ? ` · top ${100 - standing.percentile || 1}%` : ''}`;
+      }
+    });
+  }
+}
+
+/** Arm an incoming ?c= async challenge (Part 9): validate, then show the ONE
+ *  banner with the target and a Play action. Malformed/expired codes show a
+ *  quiet message instead of breaking the landing. */
+function receiveChallenge(raw: string): void {
+  const code = parseChallengeParam(raw) ?? raw;
+  const def = decodeChallenge(code);
+  const el = document.getElementById('challengeBanner');
+  if (!el) return;
+  if (!def || !COURSES[def.courseId]) {
+    el.innerHTML = `<span class="chLabel">CHALLENGE</span><div class="chName">That challenge link isn't valid.</div>`;
+    return;
+  }
+  if (challengeExpired(def, Date.now())) {
+    el.innerHTML = `<span class="chLabel">CHALLENGE</span><div class="chName">This challenge has expired.</div>`;
+    return;
+  }
+  const who = def.creator || 'A friend';
+  el.innerHTML =
+    `<span class="chLabel">⚔ CHALLENGE</span>` +
+    `<div class="chName">${escapeHtml(who)} challenges you: beat ${def.total} on ${escapeHtml(COURSES[def.courseId].name)}</div>` +
+    `<button id="chPlay" class="chPlay">Take it on</button>`;
+  document.getElementById('chPlay')!.addEventListener('pointerdown', () => {
+    pendingChallenge = def;
+    sel.mode = 'solo';
+    sel.courseId = def.courseId;
+    landingEl.classList.remove('on');
+    el.innerHTML = '';
+    startRound(0);
+  });
+}
+
 /** Today's daily challenge + streak: the SETUP banner and the landing's ONE
  *  concise Daily card (objective · progress · reward · streak — Part 3). */
 function updateDailyBanner(): void {
+  // Progressive disclosure: no daily surface anywhere until the first round
+  // on this device is in the books (Part 11).
+  if (!deviceSettings.firstRoundDone && profile.stats.rounds === 0) {
+    const b = document.getElementById('dailyBanner');
+    if (b) b.innerHTML = '';
+    const c = document.getElementById('dailyCard');
+    if (c) c.innerHTML = '';
+    return;
+  }
   const key = todayKey();
   const ch = effectiveDailyChallenge(key);
   const doneToday = profile.daily.date === key && profile.daily.done;
@@ -4978,8 +5214,18 @@ function startRound(startHoleIdx = 0): void {
   round.activePlayer = 0;
   round.holeWinds = [];
   round.holePins = [];
-  round.seed = undefined;
+  // Every round runs under a seed now (same generator path tournaments always
+  // used): casual rounds roll a fresh random one — identical distribution —
+  // which makes ANY round shareable as an async challenge, and lets a weekly
+  // or challenge entry pin the standardized seed instead.
+  round.seed = pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0;
   round.tournament = null;
+  round.weeklyEventId = pendingWeekly ? pendingWeekly.id : null;
+  round.challenge = pendingChallenge;
+  if (pendingWeekly) analytics.track('weekly_round_started', { course: sel.courseId, weekly_event: pendingWeekly.id });
+  if (pendingChallenge) analytics.track('async_challenge_opened', { course: pendingChallenge.courseId });
+  pendingWeekly = null;
+  pendingChallenge = null;
   shotAcc = freshShotAcc();
   // Remember the selections for next launch (persisted only when signed in)
   persistProfile();
@@ -5173,10 +5419,14 @@ async function startShotCapture(): Promise<void> {
 if (SHOT.hole) void startShotCapture();
 else {
   showLanding();
-  // A shared ?t=CODE link boots straight into the tournament's join screen.
+  // A shared ?t=CODE link boots straight into the tournament's join screen;
+  // a shared ?c=CODE link (async challenge, Part 9) arms the challenge banner.
   try {
-    const tcode = new URLSearchParams(window.location.search).get('t');
+    const params = new URLSearchParams(window.location.search);
+    const tcode = params.get('t');
     if (tcode) renderTournaments(tcode.toUpperCase());
+    const ccode = params.get('c');
+    if (ccode) receiveChallenge(ccode);
   } catch {
     /* no query string (e.g. non-browser test host) */
   }

@@ -104,7 +104,9 @@ the shared leaderboard) — or any project you prefer.
          ".read": true,
          "$eventId": {
            "entries": {
-             "$player": { ".write": "!data.exists()" }
+             "$player": {
+               ".write": "!data.exists() || newData.child('total').val() < data.child('total').val()"
+             }
            }
          }
        }
@@ -131,8 +133,9 @@ the shared leaderboard) — or any project you prefer.
    no emails/tokens/names, only opaque uids and random guest ids): clients can
    append (write) but ONLY allow-listed admins can read, so no player can data-
    mine other players' activity. `weekly` holds Weekly Featured Round
-   leaderboards: world-readable, entries write-once per player per event —
-   like tournament entries, a posted weekly score can't be overwritten.
+   leaderboards: world-readable; a player's entry can be created once and
+   then only replaced by a BETTER (lower) total — duplicate or worse
+   submissions are rejected server-side.
    `liveOpsConfig` is the retention live-ops override layer (Daily Challenge
    date pins, Weekly Featured course overrides — Admin → Retention / Live
    Ops): world-readable like `marketingConfig` (players resolve it at menu
