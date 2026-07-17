@@ -2,6 +2,7 @@ import { PlayerProfile } from '../profile/Profile';
 import {
   ACHIEVEMENTS,
   COINS,
+  DailyChallenge,
   dailyChallengeFor,
   levelForXp,
   RoundStats,
@@ -33,7 +34,15 @@ function prevDay(dateKey: string): string {
   return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
-export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''): RewardEvent[] {
+export function applyRound(
+  profile: PlayerProfile,
+  r: RoundStats,
+  dateKey = '',
+  /** The day's challenge — normally the deterministic pick; the caller may
+   *  pass a live-ops override (data/liveOpsConfig). Same date key, same
+   *  challenge, everywhere. */
+  challengeOverride?: DailyChallenge
+): RewardEvent[] {
   const events: RewardEvent[] = [];
   const startLevel = profile.level;
 
@@ -57,7 +66,7 @@ export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''):
 
   // Daily challenge — completed at most once per day, pays a bonus
   if (dateKey && !(profile.daily.date === dateKey && profile.daily.done)) {
-    const challenge = dailyChallengeFor(dateKey);
+    const challenge = challengeOverride ?? dailyChallengeFor(dateKey);
     profile.daily = { date: dateKey, challengeId: challenge.id, done: false };
     if (challenge.test(r)) {
       profile.daily.done = true;

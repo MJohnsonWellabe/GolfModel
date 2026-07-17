@@ -792,6 +792,47 @@
       #dailyBanner:empty {
         display: none;
       }
+      /* Landing Daily card (retention Part 3): ONE concise card — objective,
+         progress, reward, streak — sitting above the Play button. */
+      #dailyCard {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        text-align: left;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.14), rgba(255, 213, 79, 0.05));
+        border: 1px solid rgba(255, 213, 79, 0.28);
+      }
+      #dailyCard:empty {
+        display: none;
+      }
+      #dailyCard .dcTop {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      #dailyCard .dcLabel {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        color: #ffd54f;
+      }
+      #dailyCard .dcStreak {
+        font-size: 12px;
+        font-weight: 800;
+        color: #ffd54f;
+      }
+      #dailyCard .dcName {
+        font-size: 14px;
+        font-weight: 800;
+        color: #eef5ea;
+        margin: 3px 0 1px;
+      }
+      #dailyCard .dcReward {
+        font-size: 12px;
+        color: #a9c9b0;
+        font-weight: 700;
+      }
       #dailyBanner .dcLabel {
         font-size: 11px;
         font-weight: 900;
@@ -856,6 +897,23 @@
         grid-template-columns: repeat(4, 1fr);
         gap: 8px;
         margin-bottom: 14px;
+      }
+      /* Course-by-course mastery star totals (compact chips, Part 5) */
+      .profMastery {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin: -6px 0 14px;
+      }
+      .profMastery .chip {
+        background: rgba(255, 213, 79, 0.12);
+        border: 1px solid rgba(255, 213, 79, 0.25);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 800;
+        color: #ffd54f;
       }
       .profStats div {
         background: rgba(255, 255, 255, 0.06);
@@ -1477,6 +1535,72 @@
         font-weight: 700;
         letter-spacing: 0.5px;
         cursor: pointer;
+      }
+      /* Results screen (retention pass): compact score header, primary
+         Replay / Play Next actions, one contextual objective, expandable
+         details — primary content fits a phone viewport without scrolling. */
+      #summary {
+        max-height: 92vh;
+        overflow-y: auto;
+      }
+      .scoreHead {
+        display: flex;
+        justify-content: center;
+        align-items: baseline;
+        gap: 12px;
+        margin: 2px 0 6px;
+      }
+      .scoreHead .big {
+        font-size: 36px;
+        font-weight: 900;
+        color: #fff;
+        line-height: 1;
+      }
+      .scoreHead .toPar {
+        font-size: 19px;
+        font-weight: 800;
+        color: #ffd54f;
+      }
+      .scoreHead .pb {
+        font-size: 12px;
+        color: #a9c9b0;
+        font-weight: 700;
+      }
+      .primaryRow {
+        display: flex;
+        gap: 10px;
+        margin: 12px 0 8px;
+      }
+      .primaryRow button {
+        flex: 1 1 auto;
+      }
+      .objLine {
+        margin: 8px 0 2px;
+        font-size: 14px;
+        color: #ffe9a8;
+        font-weight: 700;
+      }
+      .recLine {
+        font-size: 13px;
+        color: #8fd8a0;
+        font-weight: 700;
+        margin: 2px 0;
+      }
+      .starLine {
+        font-size: 14px;
+        color: #ffd54f;
+        font-weight: 800;
+        margin: 4px 0;
+      }
+      #summary details.roundDetails {
+        margin: 6px 0 2px;
+      }
+      #summary details.roundDetails > summary {
+        cursor: pointer;
+        color: #a9c9b0;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 4px 0;
       }
       /* Summary button row + new-record banner */
       .btnRow {
@@ -2462,6 +2586,7 @@
           <div class="landingSub">Beautiful courses, quick decisions, and true ball flight that rewards the shot you commit to — read the line, trust your plan, attack the pin.</div>
         </div>
         <div class="landingPanel">
+          <div id="dailyCard"></div>
           <button id="landingPlay" class="landingPlay">Play Now</button>
           <div class="landingNav">
             <button id="landingSeason">Season Pass</button>

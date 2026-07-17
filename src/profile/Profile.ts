@@ -1,6 +1,9 @@
 import { ArchetypeId } from '../data/archetypes';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
+import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
+import { emptyStreak, mergeStreak, migrateStreak, StreakState } from '../systems/Streak';
+import { emptyMastery, mergeMastery, migrateMastery, MasteryState } from '../systems/Mastery';
 
 /**
  * The player's persistent identity: selections, currency, progression and
@@ -103,7 +106,41 @@ export interface PlayerProfile {
   /** True once the player has chosen a loadout in the Locker Room ("Lock it
    *  in"). Until then, each round tees off with a random owned loadout. */
   loadoutLocked?: boolean;
+  /** Retention layer (records / 7-day streak / hole mastery) — versioned
+   *  sub-states that migrate from any stored shape and merge grow-only, so
+   *  cross-device sync and offline reconciliation can never lose a best,
+   *  resurrect a claim, or double-award a star. */
+  retention: RetentionState;
   updatedAt: number;
+}
+
+export interface RetentionState {
+  records: PersonalRecords;
+  streak: StreakState;
+  mastery: MasteryState;
+}
+
+export function emptyRetention(): RetentionState {
+  return { records: emptyRecords(), streak: emptyStreak(), mastery: emptyMastery() };
+}
+
+function migrateRetention(raw: unknown): RetentionState {
+  const r = (raw ?? {}) as Partial<RetentionState>;
+  return {
+    records: migrateRecords(r.records),
+    streak: migrateStreak(r.streak),
+    mastery: migrateMastery(r.mastery)
+  };
+}
+
+function mergeRetention(a: RetentionState | undefined, b: RetentionState | undefined): RetentionState {
+  const ma = migrateRetention(a);
+  const mb = migrateRetention(b);
+  return {
+    records: mergeRecords(ma.records, mb.records),
+    streak: mergeStreak(ma.streak, mb.streak),
+    mastery: mergeMastery(ma.mastery, mb.mastery)
+  };
 }
 
 /** Rounds of a perk still available (granted − used, never negative). */
@@ -224,6 +261,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     equippedPerk: null,
     consumables: [],
     loadoutLocked: false,
+    retention: emptyRetention(),
     updatedAt: now
   };
 }
@@ -315,7 +353,10 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     perks: [...(parsed.perks ?? [])],
     equippedPerk: parsed.equippedPerk ?? null,
     consumables: [...(parsed.consumables ?? [])],
-    loadoutLocked: parsed.loadoutLocked ?? false
+    loadoutLocked: parsed.loadoutLocked ?? false,
+    // Pre-retention profiles (and RTDB copies with the sub-trees dropped)
+    // backfill to safe empty states — no loss of existing profiles.
+    retention: migrateRetention(parsed.retention)
   };
 }
 
@@ -436,6 +477,7 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     season: mergeSeason(a.season, b.season),
     perks: mergePerks(a.perks, b.perks),
     consumables: mergePerks(a.consumables, b.consumables),
+    retention: mergeRetention(a.retention, b.retention),
     // Equip choice is transient per-round state — the most recent copy wins.
     equippedPerk: newer.equippedPerk ?? null,
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)

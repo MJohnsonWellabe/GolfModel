@@ -16,7 +16,7 @@ import {
   Vector3,
   Viewport
 } from '@babylonjs/core';
-import { FLIGHT, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
+import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
@@ -49,8 +49,15 @@ import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
-import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
+import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
+import { Analytics, restTransport } from '../systems/Analytics';
+import { dailyOverrideFor, LiveOpsConfig } from '../data/liveOpsConfig';
+import { fetchLiveOpsConfigREST } from '../firebase/LiveOpsConfig';
+import { applyRoundRecords, RecordEvent } from '../systems/Records';
+import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
+import { applyHoleMastery, HoleMasteryInput, nextStarHint, starCount } from '../systems/Mastery';
+import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
@@ -350,6 +357,32 @@ const round: RoundState = {
 
 /** Shot-based round stats accumulated for the HUMAN player during play
  *  (score-based stats are derived at the summary). Feeds ProgressionEngine. */
+/** Per-hole facts the mastery third-star challenges inspect (Part 5) —
+ *  captured during play, folded into HoleMasteryInput at hole completion. */
+interface HoleFacts {
+  water: boolean;
+  sand: boolean;
+  fairway: boolean;
+  usedTrueVision: boolean;
+  longestPuttFt: number;
+  /** Approach finish distance from the pin (ft) when the green was hit. */
+  approachFt: number | null;
+  onFire: boolean;
+  windSpeed: number;
+}
+function freshHoleFacts(): HoleFacts {
+  return {
+    water: false,
+    sand: false,
+    fairway: false,
+    usedTrueVision: false,
+    longestPuttFt: 0,
+    approachFt: null,
+    onFire: false,
+    windSpeed: 0
+  };
+}
+
 interface ShotAcc {
   fairwaysHit: number;
   fairwaysPossible: number;
@@ -361,6 +394,12 @@ interface ShotAcc {
   longestPuttMadeFt: number;
   chipIns: number;
   girHoles: Set<number>;
+  /** Per-hole mastery facts for the HUMAN player, keyed by hole number. */
+  holeFacts: Record<number, HoleFacts>;
+  /** Closest approach (ft) that finished on the green this round, if any. */
+  closestApproachFt: number | null;
+  /** Longest fire streak (consecutive swings while on fire) this round. */
+  fireStreakBest: number;
 }
 function freshShotAcc(): ShotAcc {
   return {
@@ -372,10 +411,17 @@ function freshShotAcc(): ShotAcc {
     longestDriveYds: 0,
     longestPuttMadeFt: 0,
     chipIns: 0,
-    girHoles: new Set()
+    girHoles: new Set(),
+    holeFacts: {},
+    closestApproachFt: null,
+    fireStreakBest: 0
   };
 }
 let shotAcc: ShotAcc = freshShotAcc();
+/** The current hole's fact sheet (lazily created). */
+function holeFactsFor(holeNumber: number): HoleFacts {
+  return (shotAcc.holeFacts[holeNumber] ??= freshHoleFacts());
+}
 
 /** Today's day key (YYYY-MM-DD) for the daily challenge. */
 function todayKey(): string {
@@ -1625,6 +1671,7 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai || !this.aim.isPutting) return;
     // Spend the free round bonus first (ephemeral, nothing to persist); only
     // touch the player's owned/persisted charges once the bonus is gone.
+    holeFactsFor(this.hole.number).usedTrueVision = true; // mastery: "without True Vision" stars
     if (roundTrueVisionBonus > 0) {
       roundTrueVisionBonus -= 1;
     } else if (consumeCharge(profile, TRUE_VISION.id)) {
@@ -1925,13 +1972,26 @@ class HoleScene {
     club: ClubSpec,
     outcome: ShotOutcome
   ): void {
+    const facts = holeFactsFor(this.hole.number);
+    facts.windSpeed = this.wind.speed;
     const teeShot = dist(origin, this.hole.tee) < 3;
     if (teeShot && this.hole.par >= 4) {
       shotAcc.fairwaysPossible++;
-      if (['fairway', 'green', 'fringe'].includes(outcome.surface)) shotAcc.fairwaysHit++;
+      if (['fairway', 'green', 'fringe'].includes(outcome.surface)) {
+        shotAcc.fairwaysHit++;
+        facts.fairway = true;
+      }
     }
     if (teeShot && (club.id === 'driver' || club.id === '3w' || club.id === '5w')) {
       shotAcc.longestDriveYds = Math.max(shotAcc.longestDriveYds, dist(origin, outcome.finalPos) / PX_PER_YARD);
+    }
+    // Hazard contact for the hole's mastery facts (water counts even after
+    // the drop; sand counts when the ball FINISHES in it).
+    if (outcome.waterPenalty) facts.water = true;
+    if (outcome.surface === 'sand') facts.sand = true;
+    if (this.fires[this.turnIdx].isOnFire) {
+      facts.onFire = true;
+      shotAcc.fireStreakBest = Math.max(shotAcc.fireStreakBest, this.fires[this.turnIdx].currentStreak);
     }
     // Green in regulation: reached the green with (par − 2) strokes or fewer
     if (
@@ -1942,12 +2002,22 @@ class HoleScene {
       shotAcc.girHoles.add(this.hole.number);
       shotAcc.gir++;
     }
+    // Approach quality: a non-putt that finishes ON the green records its
+    // distance to the pin (closest-approach record + "stick it close" star).
+    if (club.id !== 'putter' && outcome.surface === 'green' && !outcome.holed) {
+      const ft = (dist(outcome.finalPos, this.hole.pin) / PX_PER_YARD) * 3;
+      facts.approachFt = facts.approachFt === null ? ft : Math.min(facts.approachFt, ft);
+      shotAcc.closestApproachFt =
+        shotAcc.closestApproachFt === null ? ft : Math.min(shotAcc.closestApproachFt, ft);
+    }
     if (club.id === 'putter') {
       shotAcc.holePutts[this.hole.number] = (shotAcc.holePutts[this.hole.number] ?? 0) + 1;
     }
     if (outcome.holed && club.id === 'putter') {
       shotAcc.puttsMade++;
-      shotAcc.longestPuttMadeFt = Math.max(shotAcc.longestPuttMadeFt, (dist(origin, this.hole.pin) / PX_PER_YARD) * 3);
+      const puttFt = (dist(origin, this.hole.pin) / PX_PER_YARD) * 3;
+      shotAcc.longestPuttMadeFt = Math.max(shotAcc.longestPuttMadeFt, puttFt);
+      facts.longestPuttFt = Math.max(facts.longestPuttFt, puttFt);
     }
     if (outcome.holed && club.id !== 'putter' && preLie !== 'green') shotAcc.chipIns++;
   }
@@ -2526,12 +2596,62 @@ function buildWithLoading(build: () => void): void {
   setTimeout(go, 150);
 }
 
+/** Stars newly earned this round (hole → star tiers), for the results screen.
+ *  Reset wherever shotAcc resets (round start paths). */
+let roundNewStars: Array<{ hole: number; star: 1 | 2 | 3 }> = [];
+
+/** Common per-round-start bookkeeping shared by every entry point (menu
+ *  start, tournament entry, AI-tour round): reset the round-scoped retention
+ *  accumulators and emit round_started. */
+function beginRoundTracking(): void {
+  roundNewStars = [];
+  roundStartedAt = Date.now();
+  analytics.track('round_started', {
+    course: courseIdByName(round.course.name),
+    mode: round.mode
+  });
+}
+
+/** Fold the HUMAN player's completed hole into the permanent mastery state
+ *  (Part 5). Runs at hole completion, off the input path; duplicate stars are
+ *  structurally impossible (bitmask OR). */
+function applyHoleMasteryForHuman(holeIdx: number, strokes: number): void {
+  const hole = round.course.holes[holeIdx];
+  if (!hole || !strokes) return;
+  const courseId = courseIdByName(round.course.name);
+  const facts = shotAcc.holeFacts[hole.number] ?? freshHoleFacts();
+  const input: HoleMasteryInput = {
+    courseId,
+    holeNumber: hole.number,
+    par: hole.par,
+    strokes,
+    usedTrueVision: facts.usedTrueVision,
+    fairwayHit: facts.fairway,
+    gir: shotAcc.girHoles.has(hole.number),
+    waterHit: facts.water,
+    sandHit: facts.sand,
+    longestPuttFt: facts.longestPuttFt,
+    approachFt: facts.approachFt,
+    onFire: facts.onFire,
+    windSpeed: facts.windSpeed
+  };
+  const res = applyHoleMastery(profile.retention.mastery, input, thirdStarFor(courseId, hole.number));
+  for (const star of res.newStars) {
+    roundNewStars.push({ hole: hole.number, star });
+    analytics.track('mastery_star_earned', { mastery_star_id: `${courseId}:${hole.number}:${star}`, course: courseId });
+  }
+}
+
 function playHole(): void {
   current?.dispose();
+  // Restore the gameplay chrome the results screen hid.
+  swingBtn.style.display = '';
+  hudEl.style.display = '';
   current = new HoleScene((scores) => {
     round.players.forEach((p, i) => {
       p.scores[round.holeIdx] = scores[i] ?? 0;
     });
+    applyHoleMasteryForHuman(round.holeIdx, scores[0] ?? 0);
     round.holeIdx += 1;
     if (round.holeIdx < holesThisRound()) {
       playHole();
@@ -2542,9 +2662,54 @@ function playHole(): void {
   exposeDebug();
 }
 
+/** The canonical Play Next rotation (Part 1): a simple, predictable order the
+ *  player can learn. Unavailable courses are skipped safely. */
+const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson'];
+function nextCourseIdAfter(cur: string): string {
+  const i = PLAY_NEXT_ROTATION.indexOf(cur);
+  for (let step = 1; step <= PLAY_NEXT_ROTATION.length; step++) {
+    const cand = PLAY_NEXT_ROTATION[((i < 0 ? 0 : i) + step) % PLAY_NEXT_ROTATION.length];
+    if (COURSES[cand]) return cand;
+  }
+  return DEFAULT_COURSE_ID;
+}
+
+/**
+ * ONE contextual next objective (Part 1) — deterministic priority: daily
+ * challenge open → nearby mastery star → personal best within 1–2 → Season
+ * Pass level nearly reached → next-course suggestion. Only one line, ever.
+ */
+function nextObjectiveLine(courseId: string, total: number, prevBestTotal: number | null): string {
+  const key = todayKey();
+  const dailyDone = profile.daily.date === key && profile.daily.done;
+  if (!dailyDone) {
+    return `Today's challenge: ${effectiveDailyChallenge(key).name} (+${COINS.daily} 🪙 +${XP.daily} XP)`;
+  }
+  const holes = round.course.holes.slice(0, holesThisRound()).map((h) => ({ number: h.number, par: h.par }));
+  const hint = nextStarHint(profile.retention.mastery, courseId, holes, MASTERY_CHALLENGES);
+  if (hint) return `⭐ ${hint.label}`;
+  if (prevBestTotal !== null && total > prevBestTotal && total - prevBestTotal <= 2) {
+    return `${total - prevBestTotal === 1 ? 'One stroke' : 'Two strokes'} from your ${round.course.name} best`;
+  }
+  if (seasonActive(SEASON_1, Date.now())) {
+    const lp = levelProgress(SEASON_1, profile.season.id === SEASON_1.id ? profile.season.xp : 0);
+    const toNext = lp.levelCost - lp.intoLevel;
+    if (lp.level < SEASON_1.levels && toNext <= 120) return `${toNext} XP to your next Season Pass reward`;
+  }
+  const next = nextCourseIdAfter(courseId);
+  return `Play ${COURSES[next].name} next to improve your course record`;
+}
+
 function showSummary(): void {
   current?.dispose();
   current = null;
+  // Take the gameplay chrome down with the scene — the results card is the
+  // whole screen's purpose now (leftover HUD/aim-readout/SWING read as noise
+  // around the card). playHole() restores them for the next round.
+  swingBtn.style.display = 'none';
+  hudEl.style.display = 'none';
+  promptEl.textContent = '';
+  aimReadoutEl.style.display = 'none';
   const holes = round.course.holes.slice(0, holesThisRound());
   const totalPar = holes.reduce((a, h) => a + h.par, 0);
   const parLabel = (total: number): string => {
@@ -2581,7 +2746,59 @@ function showSummary(): void {
   // post-round lifetime XP total (record.xp) — the admin surfaces per-account
   // XP from the public /rounds node off this field, no private-profile read.
   const rstats = buildRoundStats(holes, me.scores, totals, totalPar);
-  const events = applyRound(profile, rstats, todayKey());
+  const events = applyRound(profile, rstats, todayKey(), effectiveDailyChallenge(todayKey()));
+
+  // ---- Retention layer (Part 1/2): records, 7-day streak, analytics -------
+  const courseId = courseIdByName(round.course.name);
+  // Previous course best BEFORE this round folds in (PB comparison line).
+  const prevBest = profile.retention.records.bestByCourse[courseId]?.total ?? null;
+  const recEvents: RecordEvent[] = applyRoundRecords(profile.retention.records, {
+    courseId,
+    courseName: round.course.name,
+    total: totals[0],
+    stats: rstats,
+    fireStreakBest: shotAcc.fireStreakBest,
+    closestApproachFt: shotAcc.closestApproachFt,
+    now: Date.now()
+  });
+  // Streak: consecutive days with a completed round, with the once-per-cycle
+  // protection token. profile.dailyStreak mirrors it for the legacy UI spots.
+  const adv = advanceStreak(profile.retention.streak, todayKey());
+  profile.retention.streak = adv.state;
+  profile.dailyStreak = adv.state.current;
+  if (adv.advanced) analytics.track('streak_advanced', { streak_length: adv.state.current });
+  if (adv.usedProtection) analytics.track('streak_protection_used', { streak_length: adv.state.current });
+  // Daily challenge completed this round → the day's streak reward (claimable
+  // exactly once per date; cross-device claims union so it can never re-pay).
+  const dailyEvent = events.find((e) => e.kind === 'daily');
+  let streakRewardLine = '';
+  if (dailyEvent) {
+    analytics.track('daily_completed', { course: courseId, streak_length: adv.state.current });
+    const claim = claimStreakReward(profile.retention.streak, todayKey());
+    profile.retention.streak = claim.state;
+    if (claim.reward) {
+      profile.coins += claim.reward.coins;
+      profile.coinsEarned += claim.reward.coins;
+      profile.xp += claim.reward.xp;
+      profile.level = levelForXp(profile.xp);
+      const day = cycleDay(adv.state.current);
+      streakRewardLine =
+        `<div class="rwLine daily">🔥 Streak day ${day}: ` +
+        `${claim.reward.coins ? `+${claim.reward.coins} 🪙 ` : ''}` +
+        `${claim.reward.xp ? `+${claim.reward.xp} XP` : ''}` +
+        `${claim.reward.milestone ? ' · week complete! 🏆' : ''}</div>`;
+    }
+  }
+  const protectionLine = adv.usedProtection
+    ? `<div class="rwLine daily">🛡 Streak protected — you missed a day, the weekly token covered it</div>`
+    : '';
+  analytics.track('round_completed', {
+    course: courseId,
+    mode: round.mode,
+    score_to_par: totals[0] - totalPar,
+    round_duration: roundStartedAt ? Math.round((Date.now() - roundStartedAt) / 1000) : 0
+  });
+
   const record: RoundRecord = {
     id: makeRoundId(),
     d: Date.now(),
@@ -2659,24 +2876,82 @@ function showSummary(): void {
   const purseLine = aiTourPurse ? `<div class="rwLine ach">💰 Tournament purse: +${aiTourPurse} 🪙</div>` : '';
   // Mid-tournament the primary button advances the tournament, not the menu.
   const midTour = aiTour && !isFinal(aiTour);
+
+  // ---- Compact results card (Part 1): score + PB, records, ONE objective,
+  // expandable details, and the two primary actions (Replay / Play Next) ----
+  const pbLabel =
+    prevBest === null ? 'First round here' : totals[0] < prevBest ? '🏆 New best!' : `Best: ${prevBest}`;
+  // Records broken / near-missed — cap at two lines so the card stays calm.
+  const recLines = recEvents
+    .slice(0, 2)
+    .map((e) => `<div class="recLine">${e.kind === 'broken' ? '🏅' : '✨'} ${escapeHtml(e.label)}</div>`)
+    .join('');
+  const starLine = roundNewStars.length
+    ? `<div class="starLine">${'⭐'.repeat(Math.min(3, roundNewStars.length))} ` +
+      `${roundNewStars.length} new star${roundNewStars.length > 1 ? 's' : ''} · ` +
+      `${starCount(profile.retention.mastery, courseId)}/9 on ${escapeHtml(round.course.name)}</div>`
+    : '';
+  const objective = nextObjectiveLine(courseId, totals[0], prevBest);
+  const nextId = nextCourseIdAfter(courseId);
+  const nextName = COURSES[nextId].name;
+  // A finished AI tournament's "replay" starts a fresh tournament (the rota is
+  // drawn anew); an ordinary round replays the exact same setup.
+  const finishedTour = aiTour && isFinal(aiTour);
+  const replayLabel = finishedTour ? '↻ New Tournament' : '↻ Replay';
+
   summaryEl.innerHTML =
     `<h2>${headline}</h2>` +
     `<div id="recBanner" class="recBanner"></div>` +
-    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    `<div class="scoreHead"><span class="big">${totals[0]}</span>` +
+    `<span class="toPar">${parLabel(totals[0])}</span>` +
+    `<span class="pb">${pbLabel}</span></div>` +
+    starLine +
+    recLines +
+    rewardStripHtml(events) +
+    streakRewardLine +
+    protectionLine +
     aiTourBlock +
     tourBlock +
-    rewardStripHtml(events) +
     purseLine +
     signInNudge +
-    `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
-    `<button id="profBtn" class="ghostBtn">Profile</button>` +
-    (midTour ? `<button id="quitTourBtn" class="ghostBtn">Quit</button><button id="againBtn">Next Round →</button>` : `<button id="againBtn">Menu</button>`) +
-    `</div>`;
+    `<div class="objLine">🎯 ${escapeHtml(objective)}</div>` +
+    `<details class="roundDetails"><summary>Round details</summary>` +
+    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    `</details>` +
+    (midTour
+      ? `<div class="primaryRow"><button id="againBtn">Next Round →</button></div>` +
+        `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
+        `<button id="profBtn" class="ghostBtn">Profile</button>` +
+        `<button id="quitTourBtn" class="ghostBtn">Quit</button></div>`
+      : `<div class="primaryRow"><button id="replayBtn">${replayLabel}</button>` +
+        `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>` +
+        `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
+        `<button id="profBtn" class="ghostBtn">Profile</button>` +
+        `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
   // Tournament: submit this round as the player's entry (first score stands)
   // and show the live standings (Phase 8).
   if (round.tournament) void submitTournamentRound(round.tournament.code, record, holes.length);
   document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
+  // Replay: the SAME setup (course/mode/character/pal/perk all ride sel +
+  // profile), back to the first tee with one tap. Play Next: the rotation's
+  // next course, same mode/loadout, no course-select menu.
+  document.getElementById('replayBtn')?.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    aiTour = null;
+    sel.courseId = courseId;
+    analytics.track('replay_selected', { course: courseId, mode: round.mode });
+    startRound(0);
+  });
+  document.getElementById('playNextBtn')?.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    aiTour = null;
+    if (sel.mode === 'aitour') sel.mode = 'solo'; // a course pick isn't a new tournament
+    sel.courseId = nextId;
+    analytics.track('play_next_selected', { course: courseId, destination_course: nextId, mode: sel.mode });
+    startRound(0);
+    analytics.track('next_course_started', { course: nextId, mode: sel.mode });
+  });
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
     if (midTour) {
@@ -2768,12 +3043,26 @@ function renderProfile(): void {
     statCell(s.chipIns, 'Chip-ins') +
     statCell(s.wins, 'Wins') +
     statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
+    statCell(`⭐ ${starCount(p.retention.mastery)}`, 'Mastery stars') +
     `</div>` +
+    // Compact course-by-course mastery totals (Part 5): totals only, the
+    // hole-level drill-down lives on the course cards / results screen.
+    `<div class="profMastery">` +
+    COURSE_LIST.map((c) => `<span class="chip">${c.icon} ${starCount(p.retention.mastery, c.id)}/9</span>`).join('') +
+    `</div>` +
+    // Achievements: earned first, then a FEW useful next targets — never the
+    // whole locked wall (Part 6).
     `<div class="achList">` +
-    ACHIEVEMENTS.map((a) => {
-      const got = p.achievements.includes(a.id);
-      return `<div class="achRow${got ? ' got' : ''}">${got ? '🏅' : '🔒'} <b>${a.name}</b> <span>${a.desc}</span></div>`;
-    }).join('') +
+    (() => {
+      const earned = ACHIEVEMENTS.filter((a) => p.achievements.includes(a.id));
+      const next = ACHIEVEMENTS.filter((a) => !p.achievements.includes(a.id)).slice(0, 3);
+      const hidden = ACHIEVEMENTS.length - earned.length - next.length;
+      return (
+        earned.map((a) => `<div class="achRow got">🏅 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
+        next.map((a) => `<div class="achRow">🎯 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
+        (hidden > 0 ? `<div class="achRow"><span>… ${hidden} more to discover</span></div>` : '')
+      );
+    })() +
     `</div>` +
     `<div class="profSettings">` +
     (authConfigured()
@@ -3678,6 +3967,7 @@ function startTournamentRound(meta: Tournament): void {
   round.seed = meta.seed;
   round.tournament = { code: meta.code, name: meta.name };
   shotAcc = freshShotAcc();
+  beginRoundTracking();
   grantRoundTrueVision();
   // Persist the wizard's picks like a normal round so they stick next launch.
   persistProfile();
@@ -3750,6 +4040,7 @@ function startAiTourRound(): void {
   round.seed = undefined;
   round.tournament = null;
   shotAcc = freshShotAcc();
+  beginRoundTracking();
   grantRoundTrueVision();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
@@ -3943,6 +4234,25 @@ let signedIn = false;
 /** Guard so the one-time legacy→account merge runs at most once per session. */
 let legacyMerged = false;
 
+// ------------------------------------------------------------- analytics
+/**
+ * Retention analytics (Part 13): batched + non-blocking (see
+ * systems/Analytics.ts). track() is an O(1) enqueue — safe from menu/summary
+ * flows; NOTHING here runs on the swing-meter path or in the render loop.
+ */
+const analytics = new Analytics(restTransport(LEADERBOARD_URL));
+analytics.track('app_open', {
+  returning_player: legacyLocal.stats.rounds > 0,
+  app_version: '2.0'
+});
+// Best-effort delivery of anything still queued when the tab hides/closes.
+window.addEventListener('pagehide', () => analytics.flushBeacon());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') analytics.flushBeacon();
+});
+/** Epoch ms the current round started (round_duration property). */
+let roundStartedAt = 0;
+
 /** Persist the profile locally ONLY when signed in — a signed-out session is
  *  ephemeral and must write nothing (account-gated model). */
 function persistProfile(): void {
@@ -3966,6 +4276,11 @@ async function adoptCloudAccount(): Promise<void> {
   saveProfile(profile); // cache the account locally for offline/reload
   showCloudStatus(res.status);
   syncSelFromProfile();
+  // Attribute this device's guest activity to the account WITHOUT
+  // double-counting: subsequent events carry uid+gid, and the linked event
+  // lets the dashboard fold earlier guest sessions into this player.
+  analytics.setUid(profile.id);
+  analytics.track('identity_linked');
   refreshEntitlements(); // deliver purchases made while away / on other devices
 }
 
@@ -3981,6 +4296,7 @@ async function doSignOut(): Promise<void> {
   clearLocalHistory();
   Object.assign(profile, defaultProfile());
   applyDeviceSettings(); // device audio/motion prefs survive sign-out
+  analytics.setUid(null);
   syncSelFromProfile();
 }
 
@@ -4189,7 +4505,8 @@ function renderCourse(): void {
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span></div>` +
         `<div class="courseMeta">` +
         `<span class="diff diff-${diff}">${c.difficulty}</span>` +
-        `<span>${tag}</span><span>Best ${bestCourseScore(c.id)}</span></div>` +
+        `<span>${tag}</span><span>Best ${bestCourseScore(c.id)}</span>` +
+        `<span>⭐ ${starCount(profile.retention.mastery, c.id)}/9</span></div>` +
         (selected ? `<div class="stepHint courseTag">${sub}</div>` : '') +
         `</div>`
       );
@@ -4586,15 +4903,55 @@ function showSetup(): void {
   goStep(0);
 }
 
-/** Today's daily challenge + streak, shown on the menu (Phase 6). */
+/**
+ * Live-ops overrides (data/liveOpsConfig): fetched once at boot, non-blocking
+ * (REST with a deterministic local fallback) — never touched during gameplay.
+ */
+let liveOps: LiveOpsConfig | null = null;
+void fetchLiveOpsConfigREST(LEADERBOARD_URL).then((cfg) => {
+  if (!cfg) return;
+  liveOps = cfg;
+  updateDailyBanner(); // today's challenge may have been overridden
+});
+
+/** Today's effective daily challenge: the live-ops override when one is
+ *  published for the date, else the deterministic hash pick. */
+function effectiveDailyChallenge(dateKey: string): DailyChallenge {
+  const overrideId = dailyOverrideFor(liveOps, dateKey);
+  return DAILY_CHALLENGES.find((c) => c.id === overrideId) ?? dailyChallengeFor(dateKey);
+}
+
+/** Today's daily challenge + streak: the SETUP banner and the landing's ONE
+ *  concise Daily card (objective · progress · reward · streak — Part 3). */
 function updateDailyBanner(): void {
-  const el = document.getElementById('dailyBanner');
-  if (!el) return;
   const key = todayKey();
-  const ch = dailyChallengeFor(key);
+  const ch = effectiveDailyChallenge(key);
   const doneToday = profile.daily.date === key && profile.daily.done;
-  const streak = profile.dailyStreak > 0 ? ` · 🔥 ${profile.dailyStreak}` : '';
-  el.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${ch.name}</span>`;
+  const banner = document.getElementById('dailyBanner');
+  if (banner) {
+    const streak = profile.dailyStreak > 0 ? ` · 🔥 ${profile.dailyStreak}` : '';
+    banner.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${escapeHtml(ch.name)}</span>`;
+  }
+  const card = document.getElementById('dailyCard');
+  if (card) {
+    const s = profile.retention.streak;
+    const streakBit =
+      s.current > 0
+        ? `<span class="dcStreak">🔥 ${s.current} day${s.current > 1 ? 's' : ''} · day ${cycleDay(s.current)}/7${s.protectionAvailable ? ' 🛡' : ''}</span>`
+        : `<span class="dcStreak">Start a streak today</span>`;
+    const reward = streakRewardFor(Math.max(1, s.lastDate === key ? s.current : s.current + 1));
+    const rewardBits = [
+      `+${COINS.daily} 🪙 +${XP.daily} XP`,
+      reward.coins ? `+${reward.coins} 🪙 streak` : '',
+      reward.xp ? `+${reward.xp} XP streak` : ''
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    card.innerHTML =
+      `<div class="dcTop"><span class="dcLabel">DAILY CHALLENGE</span>${streakBit}</div>` +
+      `<div class="dcName">${doneToday ? '✅ Done: ' : ''}${escapeHtml(ch.name)}</div>` +
+      `<div class="dcReward">${doneToday ? 'Come back tomorrow to keep the streak' : rewardBits}</div>`;
+  }
 }
 
 /** The one free True Vision charge every round starts with. This is EPHEMERAL
@@ -4628,12 +4985,15 @@ function startRound(startHoleIdx = 0): void {
   persistProfile();
   // The AI Tournament is a mode: hand off to the three-round loop instead of
   // a single three-hole round. startAiTourRound() grants this round's True
-  // Vision itself — granting here too would double it on tournament round 1.
+  // Vision itself — granting here too would double it on tournament round 1
+  // (and it runs its own beginRoundTracking, so tracking here would
+  // double-count round 1 too).
   if (sel.mode === 'aitour') {
     setupEl.style.display = 'none';
     buildWithLoading(() => startAiTournament());
     return;
   }
+  beginRoundTracking();
   grantRoundTrueVision();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
@@ -4842,7 +5202,29 @@ else {
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
   if (opts?.courseId && COURSES[opts.courseId]) sel.courseId = opts.courseId;
+  // Mirror the real Play flow: the landing overlay comes down before the
+  // round starts (a hook-started round otherwise leaves it covering the game).
+  landingEl.classList.remove('on');
   startRound(opts?.hole ? opts.hole - 1 : 0);
+};
+
+// Test hook: complete the current round instantly with the given (or par)
+// hole scores and show the results screen — lets the Replay / Play Next /
+// records specs exercise the real end-of-round flow without playing three
+// holes of meter golf under software GL.
+(window as unknown as { __finishRound: unknown }).__finishRound = (scores?: number[]) => {
+  const holeCount = holesThisRound();
+  const s =
+    scores && scores.length === holeCount
+      ? scores
+      : round.course.holes.slice(0, holeCount).map((h) => h.par);
+  current?.dispose();
+  current = null;
+  round.players.forEach((p) => {
+    p.scores = p.isAI ? s.map((v) => v + 1) : [...s];
+  });
+  round.holeIdx = holeCount;
+  showSummary();
 };
 
 // Test hook: expose the live AI-tournament state so specs can assert the

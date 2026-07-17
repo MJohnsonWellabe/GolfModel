@@ -367,3 +367,43 @@ describe('device settings (persistent audio/motion preferences)', () => {
     expect(merged.settings.sound).toBe(0);
   });
 });
+
+describe('retention state on the profile (records/streak/mastery)', () => {
+  it('a fresh profile carries empty retention state', () => {
+    const p = defaultProfile();
+    expect(p.retention.records.totalRounds).toBe(0);
+    expect(p.retention.streak.current).toBe(0);
+    expect(p.retention.mastery.stars).toEqual({});
+  });
+
+  it('a pre-retention profile (or RTDB-stripped copy) migrates with no data loss', () => {
+    const legacy = { coins: 120, xp: 500 } as Partial<PlayerProfile>;
+    const p = migrateProfile(legacy);
+    expect(p.coins).toBe(120);
+    expect(p.retention.records.totalRounds).toBe(0);
+    expect(p.retention.streak.protectionAvailable).toBe(true);
+  });
+
+  it('merge unions retention grow-only across devices', () => {
+    const a = defaultProfile();
+    const b = defaultProfile();
+    a.retention.records.longestDriveYds = 300;
+    a.retention.mastery.stars['sablebay:1'] = 3;
+    b.retention.records.longestDriveYds = 280;
+    b.retention.mastery.stars['sablebay:1'] = 4;
+    b.retention.streak.current = 3;
+    b.retention.streak.lastDate = '2026-07-17';
+    const m = mergeProfiles(a, b);
+    expect(m.retention.records.longestDriveYds).toBe(300);
+    expect(m.retention.mastery.stars['sablebay:1']).toBe(7);
+    expect(m.retention.streak.current).toBe(3);
+  });
+
+  it('round-trips retention through storage', () => {
+    const s = memStorage();
+    const p = defaultProfile();
+    p.retention.records.longestPuttFt = 25;
+    saveProfile(p, s, 5);
+    expect(loadProfile(s).retention.records.longestPuttFt).toBe(25);
+  });
+});

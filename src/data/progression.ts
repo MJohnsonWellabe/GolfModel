@@ -1,4 +1,5 @@
 import { CareerStats, PlayerProfile } from '../profile/Profile';
+import { starCount } from '../systems/Mastery';
 
 /**
  * Progression tuning — XP, coins, levels, achievements and daily challenges,
@@ -49,14 +50,45 @@ export interface Achievement {
   test: (stats: CareerStats, profile: PlayerProfile) => boolean;
 }
 
+/**
+ * Curated achievement set (retention Part 6): deliberately limited — one
+ * meaningful goal per skill surface, not hundreds of checkbox fillers.
+ * Categories: scoring, putting, driving, accuracy, recovery, course mastery,
+ * consistency, Fire Mode, Daily Challenge, competitive, rare. Deterministic
+ * and testable: every test reads only career stats / profile state.
+ */
 export const ACHIEVEMENTS: Achievement[] = [
+  // Firsts (scoring / rare)
   { id: 'first_birdie', name: 'First Birdie', desc: 'Make your first birdie', xp: 50, coins: 25, test: (s) => s.birdies >= 1 },
   { id: 'first_eagle', name: 'First Eagle', desc: 'Make your first eagle', xp: 100, coins: 50, test: (s) => s.eagles >= 1 },
   { id: 'first_ace', name: 'Hole-in-One!', desc: 'Record a hole-in-one', xp: 250, coins: 100, test: (s) => s.holeInOnes >= 1 },
-  { id: 'fairways_100', name: 'Straight Shooter', desc: 'Hit 100 fairways', xp: 100, coins: 50, test: (s) => s.fairwaysHit >= 100 },
+  // Scoring depth
+  { id: 'birdies_25', name: 'Birdie Machine', desc: 'Make 25 birdies', xp: 100, coins: 50, test: (s) => s.birdies >= 25 },
+  { id: 'deep_red', name: 'Deep Red', desc: 'Finish a round 3+ under par', xp: 150, coins: 75, test: (s) => s.bestRoundToPar !== null && s.bestRoundToPar <= -3 },
+  // Putting
   { id: 'putts_50', name: 'Putting Ace', desc: 'Make 50 putts', xp: 75, coins: 40, test: (s) => s.puttsMade >= 50 },
-  { id: 'level_10', name: 'Seasoned', desc: 'Reach level 10', xp: 150, coins: 75, test: (_s, p) => p.level >= 10 },
+  { id: 'bomb_putt', name: 'Bomb Dropper', desc: 'Hole a putt of 30+ feet', xp: 100, coins: 50, test: (s) => s.longestPuttFt >= 30 },
+  // Driving
+  { id: 'big_stick', name: 'Big Stick', desc: 'Drive one 320+ yards', xp: 100, coins: 50, test: (s) => s.longestDriveYds >= 320 },
+  // Accuracy
+  { id: 'fairways_100', name: 'Straight Shooter', desc: 'Hit 100 fairways', xp: 100, coins: 50, test: (s) => s.fairwaysHit >= 100 },
+  { id: 'gir_100', name: 'Dialed In', desc: 'Hit 100 greens in regulation', xp: 100, coins: 50, test: (s) => s.greensInRegulation >= 100 },
+  // Recovery
+  { id: 'chip_ins_10', name: 'Short-Game Wizard', desc: 'Hole out 10 chip-ins', xp: 150, coins: 75, test: (s) => s.chipIns >= 10 },
+  // Course mastery (retention Part 5 stars)
+  { id: 'course_master', name: 'Course Master', desc: 'Earn all 9 stars on one course', xp: 200, coins: 100, test: (_s, p) => ['sablebay', 'wildwood', 'timberline', 'portjohnson'].some((c) => starCount(p.retention?.mastery ?? { v: 1, stars: {} }, c) >= 9) },
+  { id: 'stars_18', name: 'Constellation', desc: 'Earn 18 mastery stars', xp: 200, coins: 100, test: (_s, p) => starCount(p.retention?.mastery ?? { v: 1, stars: {} }) >= 18 },
+  // Consistency
   { id: 'rounds_25', name: 'Regular', desc: 'Play 25 rounds', xp: 100, coins: 50, test: (s) => s.rounds >= 25 },
+  { id: 'rounds_100', name: 'Century Club', desc: 'Play 100 rounds', xp: 250, coins: 150, test: (s) => s.rounds >= 100 },
+  { id: 'pars_100', name: 'Steady Hand', desc: 'Make 100 pars', xp: 100, coins: 50, test: (s) => s.pars >= 100 },
+  // Fire Mode
+  { id: 'fire_5', name: 'Blazing', desc: 'Reach a 5-swing Fire streak', xp: 150, coins: 75, test: (_s, p) => (p.retention?.records?.longestFireStreak ?? 0) >= 5 },
+  // Daily Challenge (also the day-7 streak badge)
+  { id: 'streak_7', name: 'Committed', desc: 'Reach a 7-day streak', xp: 100, coins: 50, test: (_s, p) => Math.max(p.dailyStreak, p.retention?.streak?.best ?? 0) >= 7 },
+  // Competitive
+  { id: 'level_10', name: 'Seasoned', desc: 'Reach level 10', xp: 150, coins: 75, test: (_s, p) => p.level >= 10 },
+  { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
   { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 }
 ];
 
