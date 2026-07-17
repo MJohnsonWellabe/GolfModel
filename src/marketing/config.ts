@@ -104,6 +104,22 @@ export interface MarketingClip {
   order: number;
 }
 
+/**
+ * One FEATURE-row image on the public page (the "Depth under the
+ * pick-up-and-play" section): Spin & shot shaping, True Vision, Fire streaks.
+ * The rows' copy stays static markup; the IMAGE (and its alt text) is
+ * configurable so the Marketing Manager owns every public marketing image.
+ * Keyed by a stable id so a partial/older config only overrides the rows it
+ * actually carries.
+ */
+export interface MarketingFeature {
+  /** Stable row key: 'aim' | 'truevision' | 'fire' (extensible). */
+  id: string;
+  image: string;
+  /** Accessible description of the feature image. Optional/back-compat. */
+  alt?: string;
+}
+
 export interface MarketingConfig {
   version: number;
   publishedAt: number;
@@ -113,6 +129,8 @@ export interface MarketingConfig {
   clips: MarketingClip[];
   /** Ordered highlight-reel sequence. Optional/back-compat (RTDB omits empties). */
   montage?: MontageItem[];
+  /** Feature-row images (aim / truevision / fire). Optional/back-compat. */
+  features?: MarketingFeature[];
 }
 
 // ---- Render model (what the page actually draws) ----------------------------
@@ -158,6 +176,10 @@ export interface RenderModel {
   montage: MontageRender[];
   /** The heroFlag clip mapped to a Clip, or null (then reel uses config.reel). */
   heroClip: Clip | null;
+  /** Feature-row images resolved per stable id — a row missing from the stored
+   *  config falls back to its shipped default, so an older published config
+   *  never blanks a feature image. */
+  features: MarketingFeature[];
 }
 
 // ---- HTML escaping (content now originates from a remote node) ---------------
@@ -261,7 +283,18 @@ export function configToRenderModel(cfg: MarketingConfig): RenderModel {
       transition: m.transition === 'fade' ? 'fade' : 'cut'
     }));
 
-  return { hero: cfg.hero, reel, courses, clips: gridClips, montage, heroClip };
+  // Feature-row images: start from the shipped defaults, override any row the
+  // stored config carries (matched by stable id, empty images ignored) — a
+  // pre-features config keeps every default, a partial one only overrides what
+  // it names.
+  const features: MarketingFeature[] = (DEFAULT_FEATURES).map((def) => {
+    const stored = (Array.isArray(cfg.features) ? cfg.features : []).find((f) => f && f.id === def.id);
+    return stored && typeof stored.image === 'string' && stored.image.trim()
+      ? { id: def.id, image: stored.image, alt: typeof stored.alt === 'string' ? stored.alt : def.alt }
+      : { ...def };
+  });
+
+  return { hero: cfg.hero, reel, courses, clips: gridClips, montage, heroClip, features };
 }
 
 /** Coalesce a possibly-absent/invalid config to the built-in default, then map.
@@ -356,6 +389,25 @@ export const POSTER_LIBRARY: LibItem[] = POSTER_FILES.map((v) => ({ value: v, la
 export const IMAGE_LIBRARY: LibItem[] = IMAGE_FILES.map((v) => ({ value: v, label: labelFromFile(v) }));
 
 // ---- Built-in default (the current hardcoded About-page content, as data) ---
+
+/** Shipped feature-row images — the same paths the static markup uses. */
+export const DEFAULT_FEATURES: MarketingFeature[] = [
+  {
+    id: 'aim',
+    image: 'marketing/img/feature-aim.png',
+    alt: 'Aiming and shot shaping'
+  },
+  {
+    id: 'truevision',
+    image: 'marketing/img/feature-truevision.png',
+    alt: 'True Vision overlay revealing the predicted shot line — carry, curve and roll'
+  },
+  {
+    id: 'fire',
+    image: 'marketing/img/feature-fire.png',
+    alt: 'A golfer catches fire after back-to-back perfect swings'
+  }
+];
 
 export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
   version: 0,
@@ -576,6 +628,9 @@ export function validateImagePaths(cfg: MarketingConfig): string[] {
   (Array.isArray(cfg.montage) ? cfg.montage : []).forEach((m, i) =>
     check(m?.poster, POSTER_SET, `Montage #${i + 1} poster`)
   );
+  (Array.isArray(cfg.features) ? cfg.features : []).forEach((f, i) =>
+    check(f?.image, IMAGE_SET, `Feature ${f?.id || `#${i + 1}`} image`)
+  );
   return bad;
 }
 
@@ -597,6 +652,8 @@ export function revertImagePath(scope: string, idx: number): string {
       return d.clips[idx]?.poster ?? '';
     case 'montage':
       return d.montage?.[idx]?.poster ?? '';
+    case 'feature':
+      return DEFAULT_FEATURES[idx]?.image ?? '';
     default:
       return '';
   }

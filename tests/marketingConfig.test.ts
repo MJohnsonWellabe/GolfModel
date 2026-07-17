@@ -239,3 +239,52 @@ describe('image management validation', () => {
     expect(revertImagePath('bogus', 0)).toBe('');
   });
 });
+
+describe('feature-row images (aim / truevision / fire)', () => {
+  const base = (): MarketingConfig => JSON.parse(JSON.stringify(DEFAULT_MARKETING_CONFIG));
+
+  it('a config with NO features field resolves all three shipped defaults', () => {
+    const c = base();
+    delete (c as Partial<MarketingConfig>).features;
+    const m = configToRenderModel(c);
+    expect(m.features.map((f) => f.id)).toEqual(['aim', 'truevision', 'fire']);
+    expect(m.features[1].image).toBe('marketing/img/feature-truevision.png');
+    expect(m.features[2].image).toBe('marketing/img/feature-fire.png');
+  });
+
+  it('a partial features array overrides only the rows it names', () => {
+    const c = base();
+    c.features = [{ id: 'fire', image: 'marketing/img/sablebay-island.png', alt: 'custom fire' }];
+    const m = configToRenderModel(c);
+    expect(m.features.find((f) => f.id === 'fire')!.image).toBe('marketing/img/sablebay-island.png');
+    expect(m.features.find((f) => f.id === 'fire')!.alt).toBe('custom fire');
+    expect(m.features.find((f) => f.id === 'aim')!.image).toBe('marketing/img/feature-aim.png');
+    expect(m.features.find((f) => f.id === 'truevision')!.image).toBe('marketing/img/feature-truevision.png');
+  });
+
+  it('an empty stored image falls back to the default (never blanks the page)', () => {
+    const c = base();
+    c.features = [{ id: 'aim', image: '  ' }];
+    const m = configToRenderModel(c);
+    expect(m.features.find((f) => f.id === 'aim')!.image).toBe('marketing/img/feature-aim.png');
+  });
+
+  it('validateImagePaths flags an off-library feature image and blocks it', () => {
+    const c = base();
+    c.features = [{ id: 'truevision', image: 'marketing/img/never-committed.png' }];
+    const bad = validateImagePaths(c);
+    expect(bad.join('\n')).toContain('Feature truevision');
+    expect(bad.join('\n')).toContain('never-committed.png');
+  });
+
+  it('validateImagePaths passes the shipped defaults', () => {
+    expect(validateImagePaths(base())).toEqual([]);
+  });
+
+  it('revertImagePath("feature", i) returns each shipped feature image', () => {
+    expect(revertImagePath('feature', 0)).toBe('marketing/img/feature-aim.png');
+    expect(revertImagePath('feature', 1)).toBe('marketing/img/feature-truevision.png');
+    expect(revertImagePath('feature', 2)).toBe('marketing/img/feature-fire.png');
+    expect(revertImagePath('feature', 9)).toBe('');
+  });
+});

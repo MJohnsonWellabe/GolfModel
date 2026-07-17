@@ -178,6 +178,18 @@ function applyConfigModel(m: RenderModel): void {
     reelVid.load();
   }
 
+  // Feature-row images (Spin & shaping / True Vision / Fire streaks): the
+  // static <img> tags carry data-feature ids; the render model always resolves
+  // all three (stored override or shipped default), so the page genuinely
+  // consumes the configured value rather than a hardcoded fallback.
+  for (const f of m.features ?? []) {
+    const img = document.querySelector<HTMLImageElement>(`img[data-feature="${f.id}"]`);
+    if (img && f.image) {
+      img.src = f.image;
+      if (f.alt) img.alt = f.alt;
+    }
+  }
+
   renderClipGrid(m.clips);
   renderMontage(m.montage);
   wireClipPlayback();

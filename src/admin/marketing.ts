@@ -25,6 +25,7 @@
  */
 import { LEADERBOARD_URL } from '../config';
 import {
+  DEFAULT_FEATURES,
   DEFAULT_MARKETING_CONFIG,
   IMAGE_LIBRARY,
   LibItem,
@@ -136,6 +137,17 @@ function normalize(cfg: MarketingConfig): MarketingConfig {
     if (clip.heroFlag && !seenHero) seenHero = true;
     else clip.heroFlag = false;
   }
+  // Feature-row images: always materialize ALL known rows (in DEFAULT_FEATURES
+  // order), overlaying whatever the stored config carries by stable id — so a
+  // pre-features config gets the shipped defaults and the editor always shows
+  // every row.
+  const storedFeatures = Array.isArray(c.features) ? c.features : [];
+  c.features = DEFAULT_FEATURES.map((def) => {
+    const f = storedFeatures.find((x) => x && x.id === def.id);
+    return f && typeof f.image === 'string' && f.image.trim()
+      ? { id: def.id, image: f.image, alt: typeof f.alt === 'string' ? f.alt : def.alt }
+      : clone(def);
+  });
   if (!c.hero) c.hero = clone(DEFAULT_MARKETING_CONFIG.hero);
   if (!c.reel) c.reel = clone(DEFAULT_MARKETING_CONFIG.reel);
   if (typeof c.hero.plateAlt !== 'string') c.hero.plateAlt = '';
@@ -314,6 +326,35 @@ function montageSectionHtml(): string {
   </section>`;
 }
 
+/** Human labels for the feature rows (ids are stable; copy lives in markup). */
+const FEATURE_LABELS: Record<string, string> = {
+  aim: 'Spin & shot shaping image',
+  truevision: 'True Vision image',
+  fire: 'Fire streaks image'
+};
+
+function featuresSectionHtml(): string {
+  const rows = (draft.features ?? [])
+    .map((f, i) =>
+      imageControlHtml({
+        label: FEATURE_LABELS[f.id] ?? `Feature “${f.id}” image`,
+        scope: 'feature',
+        idx: i,
+        field: 'image',
+        altField: 'alt',
+        library: IMAGE_LIBRARY,
+        isKnown: isKnownImage,
+        value: f.image,
+        altValue: f.alt ?? ''
+      })
+    )
+    .join('');
+  return `<section><h2>Feature images</h2>
+    <p class="sub">The three feature rows on the public page (Spin &amp; shot shaping, True Vision, Fire streaks). The copy is fixed; the image and its alt text are configurable here.</p>
+    ${rows}
+  </section>`;
+}
+
 function previewHtml(): string {
   const m = resolveRenderModel(draft);
   const reel = m.reel.enabled && m.reel.file
@@ -329,6 +370,7 @@ function previewHtml(): string {
     ${reel}
     <div class="clip-grid mm-pv-grid">${m.clips.map(clipTile).join('')}</div>
     <div class="mm-pv-courses">${m.courses.map((c) => `<div class="mm-pv-course"><img src="${escAttr(c.art)}" alt="${escAttr(c.alt || c.title)}"/><b>${esc(c.title)}</b></div>`).join('')}</div>
+    <div class="mm-pv-courses">${m.features.map((f) => `<div class="mm-pv-course"><img src="${escAttr(f.image)}" alt="${escAttr(f.alt || f.id)}"/><b>${esc(FEATURE_LABELS[f.id] ?? f.id)}</b></div>`).join('')}</div>
   </section>`;
 }
 
@@ -346,6 +388,7 @@ function paint(): void {
     </section>
     ${reelSectionHtml()}
     ${montageSectionHtml()}
+    ${featuresSectionHtml()}
     <section><h2>Course gallery</h2>
       ${draft.courses.map((_, i) => courseRowHtml(i, cTotal)).join('')}
     </section>
@@ -606,6 +649,8 @@ function onInput(e: Event): void {
     (draft.hero as unknown as Record<string, unknown>)[field] = t.value;
   } else if (scope === 'stat') {
     (draft.hero.stats[idx] as unknown as Record<string, unknown>)[field] = t.value;
+  } else if (scope === 'feature' && draft.features?.[idx]) {
+    (draft.features[idx] as unknown as Record<string, unknown>)[field] = t.value;
   }
 }
 
@@ -657,6 +702,8 @@ function onChange(e: Event): void {
     (draft.hero as unknown as Record<string, unknown>)[field] = t.value;
   } else if (scope === 'reel') {
     (draft.reel as unknown as Record<string, unknown>)[field] = t.value;
+  } else if (scope === 'feature' && draft.features?.[idx]) {
+    (draft.features[idx] as unknown as Record<string, unknown>)[field] = t.value;
   }
 
   if (t.tagName === 'SELECT' && (t as HTMLElement).closest('.mmx-img')) {
@@ -729,6 +776,9 @@ function onClick(e: Event): void {
       } else if (scope === 'montage' && draft.montage![idx]) {
         draft.montage![idx].poster = def;
         draft.montage![idx].posterAlt = D.montage?.[idx]?.posterAlt ?? '';
+      } else if (scope === 'feature' && draft.features?.[idx]) {
+        draft.features[idx].image = def;
+        draft.features[idx].alt = DEFAULT_FEATURES[idx]?.alt ?? '';
       }
       paint();
       break;
