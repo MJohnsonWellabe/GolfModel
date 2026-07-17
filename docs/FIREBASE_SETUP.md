@@ -91,6 +91,22 @@ the shared leaderboard) — or any project you prefer.
          "$uid": {
            ".read": "auth != null && auth.uid === $uid"
          }
+       },
+       "events": {
+         ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+         ".write": true
+       },
+       "liveOpsConfig": {
+         ".read": true,
+         ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+       },
+       "weekly": {
+         ".read": true,
+         "$eventId": {
+           "entries": {
+             "$player": { ".write": "!data.exists()" }
+           }
+         }
        }
      }
    }
@@ -110,7 +126,19 @@ the shared leaderboard) — or any project you prefer.
    read and write are restricted to allow-listed admins, so unreleased pricing,
    rewards and roadmap never leak to players. It contains only drafts and drives
    nothing live: the running Store and Season Pass read their own hardcoded
-   config and are completely unaffected by anything under `adminDrafts`.)
+   config and are completely unaffected by anything under `adminDrafts`.
+   `events` is the retention-analytics stream (batched, privacy-safe events —
+   no emails/tokens/names, only opaque uids and random guest ids): clients can
+   append (write) but ONLY allow-listed admins can read, so no player can data-
+   mine other players' activity. `weekly` holds Weekly Featured Round
+   leaderboards: world-readable, entries write-once per player per event —
+   like tournament entries, a posted weekly score can't be overwritten.
+   `liveOpsConfig` is the retention live-ops override layer (Daily Challenge
+   date pins, Weekly Featured course overrides — Admin → Retention / Live
+   Ops): world-readable like `marketingConfig` (players resolve it at menu
+   time with a deterministic local fallback), admin-write only. Reward
+   amounts, mastery conditions and achievement definitions stay code-defined
+   and are NOT in this node.)
 
 ## Marketing Manager (`/marketingConfig`) — MANUAL console steps (you)
 
