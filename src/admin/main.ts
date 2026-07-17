@@ -12,6 +12,10 @@ import { RoundRecord } from '../firebase/History';
 import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, overallAvg, roundsByAccount } from './aggregate';
 import { isAdminEmail } from './adminEmails';
 import { renderMarketingManager } from './marketing';
+import { renderSeasonPassStaging } from './seasonPassStaging';
+import { renderStoreStaging } from './storeStaging';
+import { loadMarketingConfig } from '../firebase/MarketingConfig';
+import { loadAdminDraft } from '../firebase/AdminDrafts';
 import { ARCHETYPES } from '../data/archetypes';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
@@ -112,7 +116,7 @@ function bar(value: number, max: number): string {
   return `<div class="bar"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>`;
 }
 
-function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map()): void {
+function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map(), onBack: () => void = () => void showLanding()): void {
   // Keep only rounds on courses that still exist; type tables filter to the
   // live archetype roster below.
   const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
@@ -126,9 +130,8 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
   const fmtPar = (v: number): string => (v > 0 ? `+${v}` : `${v}`);
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
 
-  let html = `<button id="backGame" class="btn back">← Back to game</button>
-    <button id="openMarketing" class="btn back">🎬 Marketing Manager</button>
-    <h1>⛳ Bite-Sized Golf — Admin</h1>
+  let html = `<button id="backHome" class="btn back">← Admin home</button>
+    <h1>📊 Round Statistics</h1>
     <p class="sub">${rounds.length} active rounds (legacy versions hidden)</p>`;
 
   // Top summary tile — the whole-population headline numbers.
@@ -206,18 +209,14 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
   html += `</section>`;
 
   $('app').innerHTML = html;
-  document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
-  document
-    .getElementById('openMarketing')!
-    .addEventListener('click', () => void renderMarketingManager($('app'), () => render(allRounds, xpBackfill)));
+  document.getElementById('backHome')!.addEventListener('click', onBack);
 }
 
-async function showDashboard(email: string): Promise<void> {
-  if (!isAdminEmail(email)) {
-    $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
-      <p class="sub">Not authorized for ${esc(email)}.</p>`;
-    return;
-  }
+/** The signed-in admin email, remembered so the landing can re-render freely. */
+let adminEmail: string | null = null;
+
+/** Dashboard destination: fetch rounds + XP and render the stats, back to home. */
+async function openDashboard(): Promise<void> {
   $('app').innerHTML = `<p class="sub">Loading rounds…</p>`;
   try {
     const rounds = await fetchRounds();
@@ -225,10 +224,123 @@ async function showDashboard(email: string): Promise<void> {
     // RoundRecord.xp (silently yields nothing under the shipped profile rules).
     const uids = [...new Set(rounds.map((r) => r.uid).filter((u): u is string => !!u))];
     const xpBackfill = await fetchAccountXp(uids);
-    render(rounds, xpBackfill);
+    render(rounds, xpBackfill, () => void showLanding());
   } catch (e) {
-    $('app').innerHTML = `<p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
+    $('app').innerHTML = `<button id="backHome" class="btn back">← Admin home</button>
+      <p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
+    document.getElementById('backHome')!.addEventListener('click', () => void showLanding());
   }
+}
+
+function destCardHtml(
+  key: string,
+  icon: string,
+  title: string,
+  desc: string,
+  status: string,
+  statusCls: string
+): string {
+  return `<section class="adminCard" data-card="${key}">
+    <div class="acIcon">${icon}</div>
+    <div class="acTitle">${esc(title)}</div>
+    <div class="acDesc">${esc(desc)}</div>
+    <div class="acMeta"><span class="acStatus ${statusCls}" data-role="status">${esc(status)}</span><span data-role="saved"></span></div>
+    <button class="btn acOpen" data-open="${key}">Open</button>
+  </section>`;
+}
+
+function fmtWhen(ms: number | undefined): string {
+  if (!ms || !Number.isFinite(ms)) return '';
+  try {
+    return `saved ${new Date(ms).toLocaleString()}`;
+  } catch {
+    return '';
+  }
+}
+
+/** Update a landing card's status pill + last-saved line in place. */
+function setCardStatus(key: string, text: string, cls: string, saved: string): void {
+  const card = document.querySelector(`.adminCard[data-card="${key}"]`);
+  if (!card) return;
+  const st = card.querySelector('[data-role=status]') as HTMLElement | null;
+  if (st) {
+    st.textContent = text;
+    st.className = `acStatus ${cls}`;
+  }
+  const sv = card.querySelector('[data-role=saved]') as HTMLElement | null;
+  if (sv) sv.textContent = saved;
+}
+
+/** A staging draft's landing status, tolerating a read that couldn't complete. */
+async function fillDraftStatus(key: string, draftKey: string): Promise<void> {
+  const { value, status } = await loadAdminDraft<{ savedAt?: number }>(draftKey);
+  if (status !== 'saved') {
+    const label =
+      status === 'skipped' ? 'Sign in to read' : status === 'denied' ? 'Rules needed' : 'Offline';
+    setCardStatus(key, label, '', '');
+    return;
+  }
+  if (value) setCardStatus(key, 'Draft saved', 'draft', fmtWhen(value.savedAt));
+  else setCardStatus(key, 'Not started', '', '');
+}
+
+/** Fill each destination's live status (published marketing config + drafts). */
+async function fillLandingStatus(): Promise<void> {
+  try {
+    const cfg = await loadMarketingConfig();
+    if (cfg && cfg.publishedAt) {
+      setCardStatus('marketing', `Published v${cfg.version ?? 1}`, 'live', fmtWhen(cfg.publishedAt));
+    } else {
+      setCardStatus('marketing', 'Static fallback', 'draft', '');
+    }
+  } catch {
+    setCardStatus('marketing', 'Unknown', '', '');
+  }
+  await fillDraftStatus('season', 'nextSeasonPass');
+  await fillDraftStatus('store', 'futureStoreItems');
+}
+
+/** The admin landing: four workspace destinations. Auth is enforced here — the
+ *  destinations themselves assume an allow-listed admin (as before). */
+async function showLanding(): Promise<void> {
+  const email = adminEmail;
+  if (!email || !isAdminEmail(email)) {
+    $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
+      <p class="sub">Not authorized${email ? ` for ${esc(email)}` : ''}.</p>`;
+    return;
+  }
+  $('app').innerHTML = `<button id="backGame" class="btn back">← Back to game</button>
+    <h1>⛳ Bite-Sized Golf — Admin</h1>
+    <p class="sub">Signed in as ${esc(email)} · choose a workspace</p>
+    <div class="adminGrid" id="adminGrid">
+      ${destCardHtml('dashboard', '📊', 'Dashboard', 'Round statistics — scoring by course, hole and golfer type, plus per-account play.', 'Live data', 'live')}
+      ${destCardHtml('marketing', '🎬', 'Marketing Manager', 'Edit the public About page: montage, gameplay clips, hero copy and every marketing image.', 'Loading…', '')}
+      ${destCardHtml('season', '🏆', 'Next Season Pass Staging', 'Draft the next season pass — theme, dates, levels and rewards. Staging only, never live.', 'Loading…', '')}
+      ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
+    </div>`;
+  document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
+  document.getElementById('adminGrid')!.addEventListener('click', (e) => {
+    const el = (e.target as HTMLElement).closest('[data-open]') as HTMLElement | null;
+    if (!el) return;
+    const back = (): void => void showLanding();
+    switch (el.dataset.open) {
+      case 'dashboard':
+        void openDashboard();
+        break;
+      case 'marketing':
+        void renderMarketingManager($('app'), back);
+        break;
+      case 'season':
+        void renderSeasonPassStaging($('app'), back);
+        break;
+      case 'store':
+        void renderStoreStaging($('app'), back);
+        break;
+      default:
+        break;
+    }
+  });
+  void fillLandingStatus();
 }
 
 async function boot(): Promise<void> {
@@ -236,7 +348,8 @@ async function boot(): Promise<void> {
   // persists on this origin, skip the sign-in step entirely.
   const existing = await currentEmail();
   if (existing) {
-    await showDashboard(existing);
+    adminEmail = existing;
+    await showLanding();
     return;
   }
   $('app').innerHTML = `<h1>⛳ Bite-Sized Golf — Admin</h1>
@@ -249,8 +362,20 @@ async function boot(): Promise<void> {
       boot();
       return;
     }
-    await showDashboard(email);
+    adminEmail = email;
+    await showLanding();
   });
 }
+
+// Visual-capture / preview hook: render the landing SHELL for a given admin
+// email without a live Google session. The four cards are just menu chrome —
+// every data destination still requires real auth + RTDB rules to load
+// anything, so this exposes nothing that isn't already gated.
+(window as unknown as { __adminLandingPreview?: (email: string) => void }).__adminLandingPreview = (
+  email: string
+): void => {
+  adminEmail = email;
+  void showLanding();
+};
 
 void boot();

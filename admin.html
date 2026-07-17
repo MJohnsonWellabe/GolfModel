@@ -138,6 +138,69 @@
         background: rgba(255, 255, 255, 0.12);
         color: #eef5ea;
       }
+      /* ---- Admin landing (destination cards) ---- */
+      .adminGrid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 14px;
+        margin-top: 18px;
+      }
+      @media (max-width: 560px) {
+        .adminGrid {
+          grid-template-columns: 1fr;
+        }
+      }
+      .adminCard {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        text-align: left;
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 14px;
+        padding: 16px 16px 18px;
+      }
+      .adminCard .acIcon {
+        font-size: 26px;
+      }
+      .adminCard .acTitle {
+        font-size: 17px;
+        font-weight: 800;
+        color: #fff;
+      }
+      .adminCard .acDesc {
+        font-size: 13px;
+        color: #a9c9b0;
+        flex: 1 1 auto;
+      }
+      .adminCard .acMeta {
+        font-size: 12px;
+        color: #7fa387;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .adminCard .acStatus {
+        border-radius: 999px;
+        padding: 2px 9px;
+        font-weight: 700;
+        font-size: 11px;
+        background: rgba(255, 255, 255, 0.1);
+        color: #cfe6d3;
+      }
+      .adminCard .acStatus.live {
+        background: linear-gradient(180deg, #a8e6a1, #6cc26a);
+        color: #10331d;
+      }
+      .adminCard .acStatus.draft {
+        background: linear-gradient(180deg, #ffd08a, #ef9a3d);
+        color: #3a2405;
+      }
+      .adminCard .acOpen {
+        margin-top: 8px;
+        align-self: flex-start;
+      }
       /* ---- Marketing Manager ---- */
       .mm-lbl {
         display: flex;

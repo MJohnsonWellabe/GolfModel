@@ -83,6 +83,10 @@ the shared leaderboard) — or any project you prefer.
          ".read": true,
          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
        },
+       "adminDrafts": {
+         ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+         ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+       },
        "admins": {
          "$uid": {
            ".read": "auth != null && auth.uid === $uid"
@@ -100,7 +104,13 @@ the shared leaderboard) — or any project you prefer.
    webhook Cloud Function (admin SDK bypasses rules — docs/16_PAYMENTS.md);
    a player can read their own and flip `claimed` to true, never back.
    `marketingConfig` is the public About-page content (Marketing Manager, below):
-   world-readable so every player's page renders it, admin-write only.)
+   world-readable so every player's page renders it, admin-write only.
+   `adminDrafts` holds the admin **staging** areas (Next Season Pass, Future
+   Store Items — see below): unlike `marketingConfig` it is **NOT** public — both
+   read and write are restricted to allow-listed admins, so unreleased pricing,
+   rewards and roadmap never leak to players. It contains only drafts and drives
+   nothing live: the running Store and Season Pass read their own hardcoded
+   config and are completely unaffected by anything under `adminDrafts`.)
 
 ## Marketing Manager (`/marketingConfig`) — MANUAL console steps (you)
 
@@ -128,6 +138,35 @@ After both steps, publishing from the Marketing Manager writes `/marketingConfig
 and the change goes live for all players with no source edits. The public page
 reads it via a plain REST GET (`${LEADERBOARD_URL}/marketingConfig.json`) and
 falls back to the static content on any absence/failure/offline.
+
+## Admin staging areas (`/adminDrafts`) — MANUAL console steps (you)
+
+The admin landing (`admin.html`) adds two **staging** workspaces — **Next Season
+Pass Staging** and **Future Store Items Staging** — that let the owner draft
+upcoming content without touching anything live. They save to
+`/adminDrafts/nextSeasonPass` and `/adminDrafts/futureStoreItems` via the
+signed-in admin's token.
+
+Unlike `/marketingConfig`, these drafts are **private to admins** (unreleased
+prices/rewards must not leak): the `"adminDrafts"` rule block above restricts
+BOTH read and write to allow-listed admin UIDs. Two one-time console steps make
+saving work — and they are the SAME allow-list the Marketing Manager already
+uses, so if you completed that setup you only need step 1:
+
+1. **Deploy the rules** — the `"adminDrafts"` block is already included in the
+   Realtime Database → Rules JSON above. Deploy it (it only ADDS a new private
+   node — it does not weaken any existing rule, and touches nothing the live
+   game reads).
+
+2. **Be on the `/admins` allow-list** — the same `{ "admins": { "<your-uid>":
+   true } }` entry the Marketing Manager needs (above). No separate entry is
+   required.
+
+Until the rule is deployed, **Save draft** returns a clean `permission denied`
+and the editor says so explicitly — a draft is **never** reported saved when the
+write did not land (no silent success on offline/denied). Because these areas
+only read/write `/adminDrafts`, the live Store and Season Pass are unaffected at
+every step.
 
 ## What the game then does (already implemented)
 
