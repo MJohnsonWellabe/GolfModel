@@ -15,57 +15,61 @@ function hole(over: Partial<HoleMasteryInput> = {}): HoleMasteryInput {
   return { courseId: 'sablebay', holeNumber: 1, par: 4, strokes: 4, ...over };
 }
 
-describe('hole mastery stars', () => {
-  it('par earns star 1, birdie earns stars 1+2', () => {
-    const m = emptyMastery();
-    const r1 = applyHoleMastery(m, hole({ strokes: 4 }), undefined);
-    expect(r1.newStars).toEqual([1]);
-    const r2 = applyHoleMastery(m, hole({ strokes: 3 }), undefined);
-    expect(r2.newStars).toEqual([2]); // par star already earned, only birdie is new
-    expect(holeStars(m, 'sablebay', 1)).toBe(3);
+describe('hole mastery — three progressive challenges per hole', () => {
+  it('Sable Bay h1: par → birdie → flawless (fairway+GIR+one-putt)', () => {
+    const def = thirdStarFor('sablebay', 1)!;
+    // Star 1 only: a par with nothing else.
+    const m1 = emptyMastery();
+    expect(applyHoleMastery(m1, hole({ strokes: 4 }), def).newStars).toEqual([1]);
+    // Star 1 + 2: a birdie by any means (chip-in, no GIR).
+    const m2 = emptyMastery();
+    expect(applyHoleMastery(m2, hole({ strokes: 3, gir: false }), def).newStars).toEqual([1, 2]);
+    // All three: the flawless birdie (fairway, GIR, one putt → score 3).
+    const m3 = emptyMastery();
+    const r = applyHoleMastery(m3, hole({ strokes: 3, fairwayHit: true, gir: true, holePutts: 1 }), def);
+    expect(r.newStars).toEqual([1, 2, 3]);
   });
 
-  it('an over-par hole earns nothing', () => {
-    const m = emptyMastery();
-    expect(applyHoleMastery(m, hole({ strokes: 5 }), undefined).newStars).toEqual([]);
+  it('the par-3 dagger (Sable Bay h2 star 3) needs the tee shot inside 6 ft', () => {
+    const def = thirdStarFor('sablebay', 2)!;
+    const near = applyHoleMastery(emptyMastery(), hole({ holeNumber: 2, par: 3, strokes: 3, gir: true, approachFt: 8, waterHit: false }), def);
+    expect(near.newStars).not.toContain(3); // 8 ft is not inside 6
+    const stuck = applyHoleMastery(emptyMastery(), hole({ holeNumber: 2, par: 3, strokes: 3, gir: true, approachFt: 5, waterHit: false }), def);
+    expect(stuck.newStars).toContain(3);
   });
 
-  it('the authored third star fires from course data, once, and never again', () => {
-    const m = emptyMastery();
-    const def = thirdStarFor('sablebay', 1)!; // shoot 4 under or better (round-scale)
-    const first = applyHoleMastery(m, hole({ strokes: 4, roundToPar: -4 }), def);
-    expect(first.newStars).toContain(3);
-    const again = applyHoleMastery(m, hole({ strokes: 4, roundToPar: -4 }), def);
-    expect(again.newStars).toEqual([]); // duplicate-star prevention
+  it('the par-5 top star (Sable Bay h3) needs an eagle, not a birdie', () => {
+    const def = thirdStarFor('sablebay', 3)!;
+    expect(applyHoleMastery(emptyMastery(), hole({ holeNumber: 3, par: 5, strokes: 4 }), def).newStars).toEqual([1, 2]);
+    expect(applyHoleMastery(emptyMastery(), hole({ holeNumber: 3, par: 5, strokes: 3 }), def).newStars).toEqual([1, 2, 3]);
   });
 
-  it('the third star respects its condition (a -3 round is NOT enough at Sable Bay h1)', () => {
+  it('Wildwood h2 star 3: a birdie WITHOUT True Vision (a TV birdie stops at star 2)', () => {
+    const def = thirdStarFor('wildwood', 2)!;
+    const withTV = applyHoleMastery(emptyMastery(), hole({ courseId: 'wildwood', holeNumber: 2, par: 3, strokes: 2, gir: true, usedTrueVision: true }), def);
+    expect(withTV.newStars).toEqual([1, 2]); // GIR + birdie, but TV used
+    const noTV = applyHoleMastery(emptyMastery(), hole({ courseId: 'wildwood', holeNumber: 2, par: 3, strokes: 2, gir: true, usedTrueVision: false }), def);
+    expect(noTV.newStars).toEqual([1, 2, 3]);
+  });
+
+  it('an over-par hole with no skill feats earns nothing', () => {
+    const def = thirdStarFor('sablebay', 1)!;
+    expect(applyHoleMastery(emptyMastery(), hole({ strokes: 6, waterHit: true }), def).newStars).toEqual([]);
+  });
+
+  it('stars are permanent and never re-awarded', () => {
     const m = emptyMastery();
     const def = thirdStarFor('sablebay', 1)!;
-    const r = applyHoleMastery(m, hole({ strokes: 4, roundToPar: -3 }), def);
-    expect(r.newStars).toEqual([1]); // par star only — the hard star needs -4
-  });
-
-  it('the par-3 dagger needs the tee shot inside 10 feet', () => {
-    const m = emptyMastery();
-    const def = thirdStarFor('wildwood', 2)!;
-    expect(applyHoleMastery(m, hole({ holeNumber: 2, par: 3, strokes: 3, approachFt: 12 }), def).newStars).toEqual([1]);
-    const m2 = emptyMastery();
-    expect(applyHoleMastery(m2, hole({ holeNumber: 2, par: 3, strokes: 3, approachFt: 8 }), def).newStars).toEqual([1, 3]);
-  });
-
-  it('the par-5 star needs an eagle, not a birdie', () => {
-    const m = emptyMastery();
-    const def = thirdStarFor('portjohnson', 3)!;
-    expect(applyHoleMastery(m, hole({ holeNumber: 3, par: 5, strokes: 4 }), def).newStars).toEqual([1, 2]);
-    const m2 = emptyMastery();
-    expect(applyHoleMastery(m2, hole({ holeNumber: 3, par: 5, strokes: 3 }), def).newStars).toEqual([1, 2, 3]);
+    applyHoleMastery(m, hole({ strokes: 3 }), def); // stars 1 + 2
+    const again = applyHoleMastery(m, hole({ strokes: 3, fairwayHit: true, gir: true, holePutts: 1 }), def);
+    expect(again.newStars).toEqual([3]); // only the NEW one
+    expect(holeStars(m, 'sablebay', 1)).toBe(7);
   });
 
   it('starCount totals per course and overall', () => {
     const m = emptyMastery();
-    applyHoleMastery(m, hole({ strokes: 3 }), undefined); // 2 stars sablebay
-    applyHoleMastery(m, hole({ courseId: 'wildwood', strokes: 4 }), undefined); // 1 star wildwood
+    m.stars['sablebay:1'] = 3; // 2 stars
+    m.stars['wildwood:1'] = 1; // 1 star
     expect(starCount(m, 'sablebay')).toBe(2);
     expect(starCount(m, 'wildwood')).toBe(1);
     expect(starCount(m)).toBe(3);
@@ -74,10 +78,9 @@ describe('hole mastery stars', () => {
   it('merge unions stars (cross-device, never loses)', () => {
     const a = emptyMastery();
     const b = emptyMastery();
-    applyHoleMastery(a, hole({ strokes: 4 }), undefined);
-    applyHoleMastery(b, hole({ strokes: 3 }), undefined);
-    const m = mergeMastery(a, b);
-    expect(holeStars(m, 'sablebay', 1)).toBe(3);
+    a.stars['sablebay:1'] = 1;
+    b.stars['sablebay:1'] = 6;
+    expect(holeStars(mergeMastery(a, b), 'sablebay', 1)).toBe(7);
   });
 
   it('migrate masks garbage to the 3-star bit range', () => {
@@ -91,49 +94,58 @@ describe('authored challenge data', () => {
   const HOLES = [1, 2, 3];
   const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson'];
 
-  it('every hole of every course has exactly one authored third star', () => {
+  it('every hole of every course authors exactly three named, described challenges', () => {
     for (const c of COURSES) {
       for (const h of HOLES) {
-        const defs = MASTERY_CHALLENGES.filter((d) => d.courseId === c && d.holeNumber === h);
-        expect(defs.length, `${c} hole ${h}`).toBe(1);
-        expect(defs[0].id).toBe(`${c}:${h}`);
-        expect(defs[0].name.length).toBeGreaterThan(0);
-        expect(defs[0].desc.length).toBeGreaterThan(0);
+        const def = thirdStarFor(c, h);
+        expect(def, `${c} hole ${h}`).toBeTruthy();
+        expect(def!.id).toBe(`${c}:${h}`);
+        expect(def!.stars).toHaveLength(3);
+        for (const s of def!.stars) {
+          expect(s.name.length).toBeGreaterThan(0);
+          expect(s.desc.length).toBeGreaterThan(0);
+          expect(typeof s.test).toBe('function');
+        }
       }
     }
+    expect(MASTERY_CHALLENGES).toHaveLength(12);
   });
 
-  it('each challenge is achievable on a career-best hole in a career-best round', () => {
-    // An eagle with every box ticked, inside a -4 round with 2 putts total —
-    // should satisfy EVERY authored challenge (proving none is impossible by
-    // construction, even at the harder tuning).
+  it('each hole ladder is fully clearable — some plausible play earns all three stars', () => {
     for (const def of MASTERY_CHALLENGES) {
+      const isPar3 = def.holeNumber === 2;
+      const isPar5 = def.holeNumber === 3;
+      const par = isPar3 ? 3 : isPar5 ? 5 : 4;
+      // A near-perfect play of THIS hole: an eagle reached cleanly, no hazards,
+      // no True Vision, a long putt made, into wind, stuck tight.
       const great = hole({
         courseId: def.courseId,
         holeNumber: def.holeNumber,
-        par: 4,
-        strokes: 2, // eagle
+        par,
+        strokes: par - 2, // eagle
         fairwayHit: true,
         gir: true,
+        holePutts: 1,
         waterHit: false,
         sandHit: false,
         usedTrueVision: false,
-        longestPuttFt: 22,
+        longestPuttFt: 20,
         approachFt: 4,
         onFire: true,
-        windSpeed: 9,
-        roundToPar: -4,
-        roundPutts: 2
+        windSpeed: 10
       });
-      expect(def.test(great), def.id).toBe(true);
+      const r = applyHoleMastery(emptyMastery(), great, def);
+      expect(r.newStars, `${def.id} should be fully clearable`).toEqual([1, 2, 3]);
     }
   });
 
-  it('nextStarHint proposes the easiest missing star first and null when complete', () => {
+  it('nextStarHint proposes the first unearned star (easiest tier first) and null when complete', () => {
     const m = emptyMastery();
     const holes = [{ number: 1, par: 4 }, { number: 2, par: 3 }, { number: 3, par: 5 }];
     const hint = nextStarHint(m, 'sablebay', holes, MASTERY_CHALLENGES);
-    expect(hint).toEqual({ holeNumber: 1, star: 1, label: 'Par hole 1 for a star' });
+    expect(hint!.holeNumber).toBe(1);
+    expect(hint!.star).toBe(1);
+    expect(hint!.label).toContain('hole 1');
     for (const h of holes) m.stars[`sablebay:${h.number}`] = 7;
     expect(nextStarHint(m, 'sablebay', holes, MASTERY_CHALLENGES)).toBeNull();
   });

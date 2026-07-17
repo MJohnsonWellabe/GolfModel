@@ -76,7 +76,7 @@ import {
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
-import { applyHoleMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BIRDIE, STAR_CHALLENGE, STAR_PAR } from '../systems/Mastery';
+import { applyHoleMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
@@ -2736,6 +2736,7 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
       waterHit: facts.water,
       sandHit: facts.sand,
       longestPuttFt: facts.longestPuttFt,
+      holePutts: shotAcc.holePutts[hole.number] ?? 0,
       approachFt: facts.approachFt,
       onFire: facts.onFire,
       windSpeed: facts.windSpeed,
@@ -3253,34 +3254,33 @@ function rewardStripHtml(events: RewardEvent[]): string {
   return html;
 }
 
-/** Per-course, per-hole mastery breakdown for the profile drill-down: three
- *  stars per hole (par-or-better / birdie / the authored challenge), each shown
- *  filled or empty with its requirement, so the player sees exactly what's left. */
+/** Per-course, per-hole mastery breakdown for the profile drill-down: each
+ *  hole lists its three authored challenges (easiest → hardest) shown filled
+ *  or empty, so the player sees exactly what's completed and what remains. */
 function masteryDetailHtml(p: PlayerProfile): string {
-  const star = (on: boolean): string => (on ? '★' : '☆');
   return COURSE_LIST.map((c) => {
     const course = COURSES[c.id];
     const holes = course.holes.slice(0, holesThisRound());
-    const rows = holes
+    const blocks = holes
       .map((h) => {
         const bits = holeStars(p.retention.mastery, c.id, h.number);
         const def = thirdStarFor(c.id, h.number);
-        const cell = (on: boolean, label: string): string =>
-          `<span class="mStar${on ? ' got' : ''}" title="${escapeHtml(label)}">${star(on)}</span>`;
-        return (
-          `<div class="mRow"><span class="mHole">H${h.number} · par ${h.par}</span>` +
-          `<span class="mStars">` +
-          cell((bits & STAR_PAR) !== 0, 'Par or better') +
-          cell((bits & STAR_BIRDIE) !== 0, 'Birdie or better') +
-          cell((bits & STAR_CHALLENGE) !== 0, def?.desc ?? 'Skill challenge') +
-          `</span>` +
-          `<span class="mChal">${escapeHtml(def?.desc ?? '')}</span></div>`
-        );
+        const rows = (def?.stars ?? [])
+          .map((sc, i) => {
+            const got = (bits & STAR_BITS[i]) !== 0;
+            return (
+              `<div class="mStarRow${got ? ' got' : ''}">` +
+              `<span class="mStar">${got ? '★' : '☆'}</span>` +
+              `<span class="mStarDesc">${escapeHtml(sc.desc)}</span></div>`
+            );
+          })
+          .join('');
+        return `<div class="mHoleBlock"><div class="mHoleName">H${h.number} · par ${h.par}</div>${rows}</div>`;
       })
       .join('');
     return (
       `<div class="mCourse"><div class="mCourseHead">${c.icon} ${escapeHtml(course.name)} ` +
-      `<span class="mCount">${starCount(p.retention.mastery, c.id)}/9</span></div>${rows}</div>`
+      `<span class="mCount">${starCount(p.retention.mastery, c.id)}/9</span></div>${blocks}</div>`
     );
   }).join('');
 }

@@ -1,130 +1,119 @@
 /**
- * Authored third-star skill challenges — explicit course data, one per hole
- * (retention plan, Part 5). Each is deterministic and testable against
- * HoleMasteryInput. Evaluated at ROUND end, so round-scale conditions can
- * anchor to a hole slot.
+ * Authored hole-mastery ladders — explicit course data (retention plan,
+ * Part 5). Every hole has THREE progressively harder, hole-specific
+ * challenges: an approachable goal, a skilled goal, and a rare mastery feat.
+ * Each is deterministic and testable against HoleMasteryInput.
  *
- * HARD by design (playtest round 2: "course stars should be harder to get").
- * The standard spine on every course (holes run par 4 / par 3 / par 5):
- *   - the par 3 (hole 2): stick the tee shot inside TEN feet;
- *   - the par 5 (hole 3): EAGLE it.
- * The par 4 (hole 1) carries the course-specific test — including the two
- * round-scale monsters: shoot better than −3, and ≤3 putts for the round.
+ * Every course runs par 4 (hole 1) / par 3 (hole 2) / par 5 (hole 3). The
+ * challenges lean into each course's character — Sable Bay and Port Johnson
+ * punish water and sand, Wildwood and Timberline reward precision.
  */
 
-import { ThirdStarDef } from '../systems/Mastery';
+import { HoleMasteryDef, HoleMasteryInput, StarChallenge } from '../systems/Mastery';
 
-/** Tee shot finished on the green inside `ft` feet (par-3 dagger test). */
-const stuckInside = (h: { approachFt?: number | null }, ft: number): boolean =>
+// ---- Reusable predicates ----------------------------------------------------
+const scored = (h: HoleMasteryInput): number => h.strokes - h.par;
+const par = (h: HoleMasteryInput): boolean => scored(h) <= 0;
+const birdie = (h: HoleMasteryInput): boolean => scored(h) <= -1;
+const eagle = (h: HoleMasteryInput): boolean => scored(h) <= -2;
+const gir = (h: HoleMasteryInput): boolean => !!h.gir;
+const fir = (h: HoleMasteryInput): boolean => !!h.fairwayHit;
+const onePutt = (h: HoleMasteryInput): boolean => h.holePutts === 1;
+const noWater = (h: HoleMasteryInput): boolean => !h.waterHit;
+const noSand = (h: HoleMasteryInput): boolean => !h.sandHit;
+/** A flawless birdie on a par 4/5: fairway, green in regulation, one putt. */
+const cleanBirdie = (h: HoleMasteryInput): boolean => fir(h) && gir(h) && onePutt(h);
+/** A tee shot that finished on the green inside `ft` feet (par-3 dagger). */
+const inside = (h: HoleMasteryInput, ft: number): boolean =>
   typeof h.approachFt === 'number' && h.approachFt >= 0 && h.approachFt <= ft;
 
-export const MASTERY_CHALLENGES: ThirdStarDef[] = [
-  // ---- Sable Bay (coastal; water everywhere, the island par 3) ----
-  {
-    id: 'sablebay:1',
-    courseId: 'sablebay',
-    holeNumber: 1,
-    name: 'Card Wrecker',
-    desc: 'Shoot 4 under or better for the round',
-    test: (h) => typeof h.roundToPar === 'number' && h.roundToPar <= -4
-  },
-  {
-    id: 'sablebay:2',
-    courseId: 'sablebay',
-    holeNumber: 2,
-    name: 'Island Dagger',
-    desc: 'Stick the tee shot inside 10 feet',
-    test: (h) => stuckInside(h, 10)
-  },
-  {
-    id: 'sablebay:3',
-    courseId: 'sablebay',
-    holeNumber: 3,
-    name: 'Sable Eagle',
-    desc: 'Eagle the par 5',
-    test: (h) => h.strokes - h.par <= -2
-  },
+// Named star-challenge builders (keep the desc + test in lockstep).
+const S = (name: string, desc: string, test: (h: HoleMasteryInput) => boolean): StarChallenge => ({
+  name,
+  desc,
+  test
+});
 
-  // ---- Wildwood Glen (parkland; tight woods, pure greens) ----
-  {
-    id: 'wildwood:1',
-    courseId: 'wildwood',
-    holeNumber: 1,
-    name: 'One-Putt Wonder',
-    desc: 'Use 3 putts or fewer for the whole round',
-    test: (h) => typeof h.roundPutts === 'number' && h.roundPutts <= 3
-  },
-  {
-    id: 'wildwood:2',
-    courseId: 'wildwood',
-    holeNumber: 2,
-    name: 'Glen Dart',
-    desc: 'Stick the tee shot inside 10 feet',
-    test: (h) => stuckInside(h, 10)
-  },
-  {
-    id: 'wildwood:3',
-    courseId: 'wildwood',
-    holeNumber: 3,
-    name: 'Glen Eagle',
-    desc: 'Eagle the par 5',
-    test: (h) => h.strokes - h.par <= -2
-  },
+const ladder = (
+  courseId: string,
+  holeNumber: number,
+  stars: [StarChallenge, StarChallenge, StarChallenge]
+): HoleMasteryDef => ({ id: `${courseId}:${holeNumber}`, courseId, holeNumber, stars });
 
-  // ---- Timberline (forest; tight spruce corridors) ----
-  {
-    id: 'timberline:1',
-    courseId: 'timberline',
-    holeNumber: 1,
-    name: 'Pure Corridor',
-    desc: 'Hit the fairway and make birdie',
-    test: (h) => !!h.fairwayHit && h.strokes - h.par <= -1
-  },
-  {
-    id: 'timberline:2',
-    courseId: 'timberline',
-    holeNumber: 2,
-    name: 'Thin-Air Dart',
-    desc: 'Stick the tee shot inside 10 feet',
-    test: (h) => stuckInside(h, 10)
-  },
-  {
-    id: 'timberline:3',
-    courseId: 'timberline',
-    holeNumber: 3,
-    name: 'Timber Eagle',
-    desc: 'Eagle the par 5',
-    test: (h) => h.strokes - h.par <= -2
-  },
+export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
+  // ---- Sable Bay (coastal; water everywhere; island par 3) ----
+  ladder('sablebay', 1, [
+    S('Steady Start', 'Make par or better', par),
+    S('Harbour Birdie', 'Birdie the hole', birdie),
+    S('Flawless Four', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('sablebay', 2, [
+    S('Dry Landing', 'Make par or better without finding water', (h) => par(h) && noWater(h)),
+    S('Island Birdie', 'Birdie the island green', birdie),
+    S('Island Dagger', 'Stick the tee shot inside 6 feet', (h) => inside(h, 6))
+  ]),
+  ladder('sablebay', 3, [
+    S('Reach the Bay', 'Make par or better', par),
+    S('Coastline Birdie', 'Birdie the par 5', birdie),
+    S('Sable Eagle', 'Eagle the par 5', eagle)
+  ]),
 
-  // ---- Port Johnson Links (links; pot bunkers, real wind) ----
-  {
-    id: 'portjohnson:1',
-    courseId: 'portjohnson',
-    holeNumber: 1,
-    name: 'Wind Craftsman',
-    desc: 'Par or better in 8+ wind without touching sand',
-    test: (h) => h.strokes - h.par <= 0 && !h.sandHit && (h.windSpeed ?? 0) >= 8
-  },
-  {
-    id: 'portjohnson:2',
-    courseId: 'portjohnson',
-    holeNumber: 2,
-    name: 'Redan Dagger',
-    desc: 'Stick the tee shot inside 10 feet',
-    test: (h) => stuckInside(h, 10)
-  },
-  {
-    id: 'portjohnson:3',
-    courseId: 'portjohnson',
-    holeNumber: 3,
-    name: 'Links Eagle',
-    desc: 'Eagle the par 5',
-    test: (h) => h.strokes - h.par <= -2
-  }
+  // ---- Wildwood Glen (parkland; tight tree-lined fairways; creeks) ----
+  ladder('wildwood', 1, [
+    S('Split the Trees', 'Make par or better', par),
+    S('Glen Birdie', 'Birdie the hole', birdie),
+    S('Flawless Glen', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('wildwood', 2, [
+    S('Find the Green', 'Hit the green in regulation', gir),
+    S('Glen Dart', 'Make birdie', birdie),
+    S('Trust the Read', 'Birdie without using True Vision', (h) => birdie(h) && !h.usedTrueVision)
+  ]),
+  ladder('wildwood', 3, [
+    S('Down the Glen', 'Make par or better', par),
+    S('Wildwood Birdie', 'Birdie the par 5', birdie),
+    S('Glen Eagle', 'Eagle the par 5', eagle)
+  ]),
+
+  // ---- Timberline (forest; tight spruce corridors; pure greens) ----
+  ladder('timberline', 1, [
+    S('Corridor Drive', 'Hit the fairway and make par', (h) => fir(h) && par(h)),
+    S('Pine Birdie', 'Birdie the hole', birdie),
+    S('Flawless Timber', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('timberline', 2, [
+    S('Thin-Air Green', 'Hit the green in regulation', gir),
+    S('Mountain Birdie', 'Green in regulation and one putt', (h) => gir(h) && onePutt(h)),
+    S('Mountain Roll', 'Hole a putt of 15 feet or longer', (h) => (h.longestPuttFt ?? 0) >= 15)
+  ]),
+  ladder('timberline', 3, [
+    S('Sand-Free Timber', 'Make par avoiding the sand', (h) => par(h) && noSand(h)),
+    S('Timber Birdie', 'Birdie the par 5', birdie),
+    S('Timber Eagle', 'Eagle the par 5', eagle)
+  ]),
+
+  // ---- Port Johnson Links (links; pot bunkers; real wind) ----
+  ladder('portjohnson', 1, [
+    S('Pot Luck', 'Make par avoiding every bunker', (h) => par(h) && noSand(h)),
+    S('Links Birdie', 'Birdie the hole', birdie),
+    S('Flawless Links', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('portjohnson', 2, [
+    S('Find the Redan', 'Hit the green in regulation', gir),
+    S('Into the Breeze', 'Hit the green in 8+ wind', (h) => gir(h) && (h.windSpeed ?? 0) >= 8),
+    S('Redan Dagger', 'Stick the tee shot inside 6 feet', (h) => inside(h, 6))
+  ]),
+  ladder('portjohnson', 3, [
+    S('Clean Passage', 'Make par with no sand or water', (h) => par(h) && noSand(h) && noWater(h)),
+    S('Harbour Birdie', 'Birdie the par 5', birdie),
+    S('Links Eagle', 'Eagle the par 5', eagle)
+  ])
 ];
 
-/** Lookup by course + hole (undefined when a hole has no authored challenge). */
-export function thirdStarFor(courseId: string, holeNumber: number): ThirdStarDef | undefined {
+/** The full three-star ladder for a course + hole (undefined when unauthored). */
+export function thirdStarFor(courseId: string, holeNumber: number): HoleMasteryDef | undefined {
   return MASTERY_CHALLENGES.find((d) => d.courseId === courseId && d.holeNumber === holeNumber);
 }
+
+/** Alias reading more naturally at call sites now that a hole has a full ladder. */
+export const holeMasteryFor = thirdStarFor;

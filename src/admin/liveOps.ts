@@ -114,7 +114,12 @@ function readOnlySections(): string {
     return `<tr><td>Day ${i + 1}</td><td>${r.label.replace(/^Day \d+ · /, '')}${r.milestone ? ' · milestone badge' : ''}</td></tr>`;
   }).join('');
   const mastery = MASTERY_CHALLENGES.map(
-    (m) => `<tr><td><code>${esc(m.id)}</code></td><td><b>${esc(m.name)}</b></td><td>${esc(m.desc)}</td></tr>`
+    (m) =>
+      `<tr><td><code>${esc(m.id)}</code></td><td>` +
+      m.stars.map((s, i) => `<b>★${i + 1}</b> ${esc(s.name)}`).join(' · ') +
+      `</td><td>` +
+      m.stars.map((s) => esc(s.desc)).join(' · ') +
+      `</td></tr>`
   ).join('');
   const ach = ACHIEVEMENTS.map(
     (a) => `<tr><td><code>${esc(a.id)}</code></td><td><b>${esc(a.name)}</b></td><td>${esc(a.desc)}</td><td>+${a.xp} XP · +${a.coins} 🪙</td></tr>`

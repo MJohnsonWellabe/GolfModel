@@ -2,12 +2,16 @@
 
 **Status:** AUTHORITATIVE (domain: course & hole authoring).
 
-**Addendum (2026-07-17) — mastery-star authoring:** every hole carries three mastery
-stars (par-or-better, birdie-or-better, and an authored HARD third star defined in
-`src/data/masteryChallenges.ts`). The current spine: the par 3 demands the tee shot
-inside 10 feet, the par 5 demands an eagle, and the par 4 carries a course-specific
-test (round-scale conditions like "shoot 4 under" are supported). New courses must
-author all three stars as part of hole design.
+**Addendum (2026-07-18) — mastery-star authoring:** every hole carries a
+three-star LADDER of progressively harder, hole-specific challenges authored in
+`src/data/masteryChallenges.ts` (star 1 approachable, star 2 skilled, star 3 a
+rare mastery feat). Each star is an independent test over the hole result
+(score, fairway, GIR, putts, hazards, approach distance, wind, True Vision,
+long putt). Typical shape: solid play → a birdie or a flawless
+fairway-green-one-putt → an eagle / dagger / no-hazard or no-True-Vision feat.
+New courses must author all three challenges per hole as part of hole design,
+and every ladder must be fully clearable in a single strong round (covered by
+tests/mastery.test.ts).
 
 # Bite-Sized Golf
 ## Course Design Bible

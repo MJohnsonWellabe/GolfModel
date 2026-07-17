@@ -1,12 +1,12 @@
 /**
  * Three-star hole mastery (retention plan, Part 5). Pure engine + versioned
- * state; the authored third-star challenge definitions live in
- * src/data/masteryChallenges.ts (explicit course data — no conditions
- * scattered through gameplay code).
+ * state; the authored challenges live in src/data/masteryChallenges.ts as
+ * explicit course data — three progressively harder, hole-specific challenges
+ * per hole (no conditions scattered through gameplay code).
  *
- *  Star 1 — complete the hole at par or better.
- *  Star 2 — complete the hole at birdie or better.
- *  Star 3 — complete that hole's authored skill challenge.
+ *  Star 1 — an approachable goal (solid play).
+ *  Star 2 — a skilled goal (a birdie or a clean hole).
+ *  Star 3 — a mastery goal (the rare one — an eagle, a hole-out, a dagger).
  *
  * Stars are PERMANENT (a bitmask per hole, only ever OR-ed in), duplicate
  * awards are structurally impossible, and state merges by union for
@@ -15,13 +15,15 @@
 
 export interface MasteryState {
   v: 1;
-  /** `${courseId}:${holeNumber}` → star bitmask (bit0 par, bit1 birdie, bit2 challenge). */
+  /** `${courseId}:${holeNumber}` → star bitmask (bit0 star1, bit1 star2, bit2 star3). */
   stars: Record<string, number>;
 }
 
-export const STAR_PAR = 1;
-export const STAR_BIRDIE = 2;
-export const STAR_CHALLENGE = 4;
+/** Positional star bits (bit0 = the first/easiest authored challenge). */
+export const STAR_1 = 1;
+export const STAR_2 = 2;
+export const STAR_3 = 4;
+export const STAR_BITS = [STAR_1, STAR_2, STAR_3] as const;
 
 export function emptyMastery(): MasteryState {
   return { v: 1, stars: {} };
@@ -64,30 +66,38 @@ export interface HoleMasteryInput {
   sandHit?: boolean;
   /** Longest putt holed on this hole (feet). */
   longestPuttFt?: number;
+  /** Putts taken on THIS hole (1 = one-putt; 0 = holed from off the green). */
+  holePutts?: number;
   /** Approach finish distance from the pin (feet) when the green was hit. */
   approachFt?: number | null;
   /** Player was on fire for at least one swing of this hole. */
   onFire?: boolean;
   /** Wind speed for this hole. */
   windSpeed?: number;
-  /** WHOLE-ROUND context (third stars are evaluated at round end, so
-   *  round-scale challenges — "shoot 4 under", "3 putts or fewer" — can
-   *  anchor to a hole slot). */
+  /** WHOLE-ROUND context (evaluated at round end, so round-scale challenges —
+   *  "shoot 4 under", "3 putts or fewer" — can anchor to a hole slot). */
   roundToPar?: number;
   /** Total putts taken across the whole round. */
   roundPutts?: number;
 }
 
-export interface ThirdStarDef {
-  /** Stable id, e.g. 'sablebay:2'. */
+/** One authored star challenge (a single tier of a hole's ladder). */
+export interface StarChallenge {
+  /** Short player-facing name, e.g. 'Island Dagger'. */
+  name: string;
+  /** One-line requirement, e.g. 'Stick the tee shot inside 8 ft'. */
+  desc: string;
+  test: (h: HoleMasteryInput) => boolean;
+}
+
+/** A hole's three progressively harder challenges (tier 1 → 3). */
+export interface HoleMasteryDef {
+  /** Stable id, e.g. 'sablebay:1'. */
   id: string;
   courseId: string;
   holeNumber: number;
-  /** Short player-facing name, e.g. 'Dry Ball'. */
-  name: string;
-  /** One-line requirement, e.g. 'Avoid the water'. */
-  desc: string;
-  test: (h: HoleMasteryInput) => boolean;
+  /** Exactly three challenges, easiest first. */
+  stars: [StarChallenge, StarChallenge, StarChallenge];
 }
 
 const key = (courseId: string, holeNumber: number): string => `${courseId}:${holeNumber}`;
@@ -108,56 +118,61 @@ export function starCount(m: MasteryState, courseId?: string): number {
 }
 
 export interface MasteryResult {
-  /** Star indexes newly earned this hole (1=par, 2=birdie, 3=challenge). */
+  /** Star tiers newly earned this hole (1, 2, or 3). */
   newStars: Array<1 | 2 | 3>;
   /** Bitmask after the update. */
   stars: number;
 }
 
 /**
- * Evaluate a completed hole. Mutates `m`; returns only NEWLY earned stars
- * (already-earned stars are never re-celebrated). `def` is the hole's
- * authored third-star challenge, or undefined when none is authored.
+ * Evaluate a completed hole against its three authored challenges. Mutates
+ * `m`; returns only NEWLY earned stars (already-earned stars are never
+ * re-celebrated). Each tier is tested independently — earning a harder star
+ * does not require the easier ones, and vice versa. `def` is the hole's
+ * authored ladder, or undefined when none is authored.
  */
 export function applyHoleMastery(
   m: MasteryState,
   h: HoleMasteryInput,
-  def: ThirdStarDef | undefined
+  def: HoleMasteryDef | undefined
 ): MasteryResult {
   const k = key(h.courseId, h.holeNumber);
   const before = m.stars[k] ?? 0;
   let after = before;
-  const scored = h.strokes - h.par;
-  if (scored <= 0) after |= STAR_PAR;
-  if (scored <= -1) after |= STAR_BIRDIE;
-  if (def && def.test(h)) after |= STAR_CHALLENGE;
+  if (def) {
+    def.stars.forEach((c, i) => {
+      if (c.test(h)) after |= STAR_BITS[i];
+    });
+  }
   m.stars[k] = after;
   const gained = after & ~before;
   const newStars: Array<1 | 2 | 3> = [];
-  if (gained & STAR_PAR) newStars.push(1);
-  if (gained & STAR_BIRDIE) newStars.push(2);
-  if (gained & STAR_CHALLENGE) newStars.push(3);
+  if (gained & STAR_1) newStars.push(1);
+  if (gained & STAR_2) newStars.push(2);
+  if (gained & STAR_3) newStars.push(3);
   return { newStars, stars: after };
 }
 
 /** The single "nearby star opportunity" for the results screen: the first
- *  unearned star on the course just played, in hole order, preferring the
- *  easiest tier. Returns null when the course is fully mastered. */
+ *  unearned star on the course just played, in hole order, easiest tier first.
+ *  Returns null when the course is fully mastered. */
 export function nextStarHint(
   m: MasteryState,
   courseId: string,
   holes: Array<{ number: number; par: number }>,
-  defs: ThirdStarDef[]
+  defs: HoleMasteryDef[]
 ): { holeNumber: number; star: 1 | 2 | 3; label: string } | null {
-  for (const tier of [1, 2, 3] as const) {
+  for (const tier of [0, 1, 2] as const) {
     for (const hole of holes) {
       const bits = holeStars(m, courseId, hole.number);
-      const bit = tier === 1 ? STAR_PAR : tier === 2 ? STAR_BIRDIE : STAR_CHALLENGE;
-      if (bits & bit) continue;
-      if (tier === 1) return { holeNumber: hole.number, star: 1, label: `Par hole ${hole.number} for a star` };
-      if (tier === 2) return { holeNumber: hole.number, star: 2, label: `Birdie hole ${hole.number} for a star` };
+      if (bits & STAR_BITS[tier]) continue;
       const def = defs.find((d) => d.courseId === courseId && d.holeNumber === hole.number);
-      if (def) return { holeNumber: hole.number, star: 3, label: `${def.desc} on hole ${hole.number}` };
+      if (!def) continue;
+      return {
+        holeNumber: hole.number,
+        star: (tier + 1) as 1 | 2 | 3,
+        label: `${def.stars[tier].desc} on hole ${hole.number}`
+      };
     }
   }
   return null;
