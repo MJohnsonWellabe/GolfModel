@@ -18,7 +18,11 @@ export default defineConfig({
     viewport: { width: 720, height: 1280 },
     deviceScaleFactor: 1,
     launchOptions: {
-      executablePath: process.env.PW_CHROMIUM ?? '/opt/pw-browsers/chromium',
+      // Local sandbox ships Chromium at /opt/pw-browsers; GitHub Actions instead
+      // runs `npx playwright install chromium`, so on CI fall back to Playwright's
+      // own bundled browser (executablePath undefined) rather than the missing
+      // sandbox path.
+      executablePath: process.env.PW_CHROMIUM ?? (process.env.CI ? undefined : '/opt/pw-browsers/chromium'),
       // Software WebGL so captures work in headless/CI containers
       args: [
         '--use-gl=angle',

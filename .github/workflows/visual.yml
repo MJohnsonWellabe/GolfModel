@@ -1,0 +1,35 @@
+# Behavioral + rendering regression gate (Playwright).
+#
+# The assertion-bearing visual specs (per-frame render cost, meter-freeze on
+# water holes, a full 1v1/scramble/True-Vision round, every course boots to
+# aiming, tree occlusion) are the ONLY automated coverage of navigation,
+# rendering perf, and deploy-readiness — but they used to run only locally via
+# `npm run shots`. This runs them on every version2 push.
+#
+# Deliberately a SEPARATE workflow from deploy.yml so a slow or flaky headless
+# render never blocks the Pages deploy; treat a red run here as a signal to
+# investigate, not a deploy gate. The pure screenshot contact-sheets
+# (screenshots/clublab/seasonPassViewports) stay local-only — they have no
+# pass/fail assertions.
+name: Visual & behavioral checks
+
+on:
+  push:
+    branches: [version2]
+  workflow_dispatch:
+
+jobs:
+  playwright:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      # CI has no pre-installed browser (the sandbox does); install Chromium here.
+      # playwright.config.ts falls back to this bundled browser when CI is set.
+      - run: npx playwright install --with-deps chromium
+      - name: Assertion-bearing visual specs
+        run: npm run shots:ci

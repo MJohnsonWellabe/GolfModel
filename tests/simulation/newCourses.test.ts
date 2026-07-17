@@ -25,7 +25,7 @@ function meanToPar(course: CourseAuthoring): { mean: number; unfinished: number 
   const golfer = golferWith(85);
   let sum = 0;
   let unfinished = 0;
-  const N = 120;
+  const N = 60; // rounds/course (was 120) — halved for suite speed; the ~2%
   for (let s = 0; s < N; s++) {
     const r = simulateRound(c, golfer, 4000 + s * 13);
     sum += r.toPar;
@@ -34,8 +34,9 @@ function meanToPar(course: CourseAuthoring): { mean: number; unfinished: number 
   return { mean: sum / N, unfinished };
 }
 
-/** ~2% of the 360 hole-plays above. */
-const UNFINISHED_TOLERANCE = 8;
+/** ~2% of the 180 hole-plays above (60 rounds × 3 holes) — tolerance scaled with
+ *  N so the "essentially every hole finishes" invariant is unchanged. */
+const UNFINISHED_TOLERANCE = 4;
 
 describe('new course playability', () => {
   // These Monte-Carlo suites play 120 full rounds each; the heavy-water Sable

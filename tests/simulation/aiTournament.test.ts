@@ -84,6 +84,10 @@ describe('AI tournament', () => {
     // my -1.5 average, with Tiger usually best but not always"). Means per
     // round: JD ~-0.3..-0.7, Tiger ~-1.7..-2.3, everyone mostly in-band.
     const perOpp: Record<string, number[]> = {};
+    // 40 tournaments: the per-opponent bands here (esp. JD's -1.25 floor) sit
+    // close enough to the sampled mean that fewer tournaments make the mean
+    // wander out of band — so this one keeps its full sample for stability
+    // (the suite's speed win comes from scoring.test.ts's shared batch instead).
     for (let s = 0; s < 40; s++) {
       const t = createAiTournament(IDS, OPPONENTS, 5000 + s * 131);
       for (let r = 0; r < AI_TOUR_ROUNDS; r++) completeRound(t, COURSES, 11, 0);
