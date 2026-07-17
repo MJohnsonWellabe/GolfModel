@@ -219,4 +219,64 @@ session**, split into Replay conversion and Play Next conversion.
 - Conclusion: **Replay and Play Next do not accumulate listeners,
   observers, meshes, timers, or subscriptions.**
 
-*(Perf-gate numbers + final deliverables report appended below.)*
+### Perf gates (software-GL container) — ALL PASSED
+
+All six `tests/visual/perf.spec.ts` gates pass, including the new
+drag-to-aim RTT cadence gate:
+
+- per-frame render cost: **5.73 ms/frame** headless (committed pre-pass
+  baseline: 17.25 — SwiftShader runs vary, but the direction is decisively
+  down and far under the 60 ms ceiling).
+- meter freeze engages at ARM on both water courses (shadow/mirror
+  refreshRate 0 armed → 2 released), frozen worst frame well under the
+  stutter ceiling.
+- first-tee-shot chain: tap dispatch 0.2 ms, tap→state 1.2 ms — no ignored
+  taps; armed-idle cost cut on every heavy hole vs the unfrozen path.
+- NEW: drag-to-aim holds the parked RTTs at the live every-other-frame
+  cadence during a real pointer drag and refreezes on release — the exact
+  regression this pass fixed.
+- Timberline ground bake stays bounded (<2.5 s).
+
+### Final acceptance summary
+
+Everything in the plan's checklist that can be verified in this
+environment is verified: lag root causes identified and fixed; input
+latency measured independently of FPS; no first-tap hitch; Replay/Play
+Next hold resources level; results card fits 360×800 with one objective
+and two primary actions; records/streak/mastery/achievements idempotent
+and migration-safe; weekly + async challenges standardized and
+duplicate-proof; admin Live Ops stages/validates/publishes; marketing
+feature images configurable; guest players counted separately; store
+repriced with policy validation; sound preference persists everywhere.
+**Real-device playtest remains the owner's final gate** (software GL can't
+substitute for phone GPUs — docs/DEVICE_MATRIX.md).
+
+## Remaining manual steps (owner)
+
+1. Firebase console → Realtime Database → Rules: deploy the updated JSON
+   from docs/FIREBASE_SETUP.md (adds `/events`, `/weekly`, `/liveOpsConfig`;
+   everything degrades cleanly until then).
+2. Confirm `/admins/{uid}: true` exists (same as the Marketing Manager
+   setup).
+3. Real-device playtest across the four courses (first-tap feel, aiming
+   drags on Timberline/Wildwood water holes, several consecutive rounds via
+   Replay/Play Next).
+
+## Remaining risks
+
+- RTDB writes for weekly/tournament/rounds remain friends-tier trust
+  (client-authored; plausibility-gated, honestly documented). Server-
+  authoritative validation would need Cloud Functions.
+- Weekly ranks read the whole entries node per event — fine at current
+  scale; revisit if events grow past a few thousand entries.
+- The `/events` analytics node grows unbounded; prune or archive
+  periodically from the console (admin-read-only, so no player impact).
+- Headless perf numbers are directional; the device matrix stays the
+  arbiter for feel.
+
+## Release recommendation
+
+Ship-ready from this branch pending the two console steps and the
+real-device pass. No known blocking defects; 599 unit/simulation tests,
+6 perf gates, the repeat-round soak, the results-loop specs and the admin
+render spec all pass; `npm run build` is clean.
