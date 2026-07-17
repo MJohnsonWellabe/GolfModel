@@ -84,25 +84,42 @@ const TRAIL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> 
   ['fire', 'Inferno', 0xff5a12, 'special', 300]
 ];
 
-// kuro / jade / nova / remi are NOT here — they are Season 1 pass exclusives
+/**
+ * Deliberate character pricing structure (economy pass): every purchasable
+ * character costs 500–1,000 coins, banded by rarity so price always tracks
+ * how distinctive the character is —
+ *   standard (common) 500 · distinctive (rare) 750 · premium (special) 1000.
+ * Free starters (FREE_CHARACTERS) and Season-pass exclusives are untouched.
+ */
+export const CHARACTER_PRICE: Record<StoreItem['rarity'], number> = {
+  common: 500,
+  rare: 750,
+  special: 1000
+};
+export const CHARACTER_PRICE_MIN = 500;
+export const CHARACTER_PRICE_MAX = 1000;
+/** Every purchasable Pal costs a flat 500 (starters + season pals stay free). */
+export const PAL_PRICE = 500;
+
+// kuro / jade / nova / zuri are NOT here — they are Season 1 pass exclusives
 // (claim-only, never sold), defined as season char items in the catalog below.
 const CHARACTER_UNLOCKS: Array<[CharacterKey, StoreItem['rarity'], number]> = [
-  ['dez', 'common', 100],
-  ['beat', 'common', 100],
-  ['milo', 'common', 100],
-  ['finn', 'common', 100],
-  ['bree', 'common', 100],
-  ['coco', 'common', 100],
-  ['lily', 'rare', 200],
-  ['cole', 'rare', 200],
-  ['reid', 'rare', 200],
-  ['wren', 'rare', 200],
-  ['ivy', 'rare', 200],
-  ['dash', 'rare', 200],
-  ['enzo', 'special', 300],
-  ['knox', 'special', 300],
-  ['pia', 'special', 300],
-  ['remi', 'special', 300]
+  ['dez', 'common', CHARACTER_PRICE.common],
+  ['beat', 'common', CHARACTER_PRICE.common],
+  ['milo', 'common', CHARACTER_PRICE.common],
+  ['finn', 'common', CHARACTER_PRICE.common],
+  ['bree', 'common', CHARACTER_PRICE.common],
+  ['coco', 'common', CHARACTER_PRICE.common],
+  ['lily', 'rare', CHARACTER_PRICE.rare],
+  ['cole', 'rare', CHARACTER_PRICE.rare],
+  ['reid', 'rare', CHARACTER_PRICE.rare],
+  ['wren', 'rare', CHARACTER_PRICE.rare],
+  ['ivy', 'rare', CHARACTER_PRICE.rare],
+  ['dash', 'rare', CHARACTER_PRICE.rare],
+  ['enzo', 'special', CHARACTER_PRICE.special],
+  ['knox', 'special', CHARACTER_PRICE.special],
+  ['pia', 'special', CHARACTER_PRICE.special],
+  ['remi', 'special', CHARACTER_PRICE.special]
 ];
 
 /** Characters awarded ONLY by the Season 1 pass (not buyable). Season-flagged
@@ -195,14 +212,14 @@ export const STORE_CATALOG: StoreItem[] = [
   ),
   { id: 'pal_fox', kind: 'pal', name: 'Foxy', price: 0, rarity: 'common', pal: 'fox' },
   { id: 'pal_dragon', kind: 'pal', name: 'Ember', price: 0, rarity: 'common', pal: 'dragon' },
-  { id: 'pal_gecko', kind: 'pal', name: 'Zippy', price: 100, rarity: 'common', pal: 'gecko' },
-  { id: 'pal_crab', kind: 'pal', name: 'Clawdia', price: 200, rarity: 'rare', pal: 'crab' },
-  { id: 'pal_trex', kind: 'pal', name: 'Rexy', price: 300, rarity: 'special', pal: 'trex' },
-  // The two newest pets + the orange fox recolor — cheapest tier so they're an
-  // easy first purchase (playtest: "add the new pals to the store, make them cheap").
-  { id: 'pal_pug', kind: 'pal', name: 'Pugsley', price: 100, rarity: 'common', pal: 'pug' },
-  { id: 'pal_cat', kind: 'pal', name: 'Whiskers', price: 100, rarity: 'common', pal: 'cat' },
-  { id: 'pal_foxorange', kind: 'pal', name: 'Rusty', price: 100, rarity: 'common', pal: 'foxorange' },
+  // Every purchasable Pal costs a flat PAL_PRICE (economy pass) — rarity still
+  // labels the card, but a pal is a pal. Foxy/Ember above stay free starters.
+  { id: 'pal_gecko', kind: 'pal', name: 'Zippy', price: PAL_PRICE, rarity: 'common', pal: 'gecko' },
+  { id: 'pal_crab', kind: 'pal', name: 'Clawdia', price: PAL_PRICE, rarity: 'rare', pal: 'crab' },
+  { id: 'pal_trex', kind: 'pal', name: 'Rexy', price: PAL_PRICE, rarity: 'special', pal: 'trex' },
+  { id: 'pal_pug', kind: 'pal', name: 'Pugsley', price: PAL_PRICE, rarity: 'common', pal: 'pug' },
+  { id: 'pal_cat', kind: 'pal', name: 'Whiskers', price: PAL_PRICE, rarity: 'common', pal: 'cat' },
+  { id: 'pal_foxorange', kind: 'pal', name: 'Rusty', price: PAL_PRICE, rarity: 'common', pal: 'foxorange' },
   { id: 'clubskin_steel', kind: 'clubskin', name: 'Steel Clubs', price: 0, rarity: 'common', color: 0x9aa6b2 },
   ...CLUBSKIN_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `clubskin_${id}`, kind: 'clubskin', name, price, rarity, color })

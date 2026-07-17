@@ -40,6 +40,17 @@ const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson'];
 
 test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) => {
   test.setTimeout(1_500_000);
+  // Surface page-side failures — a scene build that throws leaves the page
+  // alive but the next scene never appears, which otherwise reads as a bare
+  // waitForFunction timeout with no cause.
+  const pageErrors: string[] = [];
+  page.on('pageerror', (err) => {
+    pageErrors.push(String(err));
+    console.log(`[soak pageerror] ${String(err)}`);
+  });
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') console.log(`[soak console.error] ${msg.text()}`);
+  });
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
 
@@ -85,8 +96,10 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
       expect(settled, `${courseId} cycle ${cycle}: nature settled`).toBe(true);
       const snap = (await page.evaluate(() => (window as any).__golfSoak())) as SoakSnap;
       visits.push({ course: courseId, cycle, snap });
+      console.log(`[soak] cycle ${cycle} ${courseId}: meshes=${snap.meshes} mats=${snap.materials} tex=${snap.textures} obs=${snap.beforeRenderObservers} heap=${snap.heapMB}MB`);
     }
   }
+  expect(pageErrors, `page errors during soak:\n${pageErrors.join('\n')}`).toEqual([]);
 
   writeFileSync('tests/visual/__shots__/soak-baseline.json', JSON.stringify(visits, null, 2));
 

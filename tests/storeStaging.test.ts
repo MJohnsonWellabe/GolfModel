@@ -9,7 +9,8 @@ import {
   duplicateItem,
   reorder,
   normalize,
-  STORE_KINDS
+  STORE_KINDS,
+  defaultPriceFor
 } from '../src/admin/storeStaging';
 
 /** A fully-valid item; override any field to craft a bad one. */
@@ -80,10 +81,39 @@ describe('validateStoreDraft', () => {
     expect(errs.some((e) => /not a valid store kind/i.test(e))).toBe(true);
   });
 
-  it('accepts every StoreKind as a category', () => {
+  it('accepts every StoreKind as a category (at its on-policy price)', () => {
     for (const kind of STORE_KINDS) {
-      expect(validateStoreDraft({ items: [item({ category: kind })] })).toEqual([]);
+      expect(validateStoreDraft({ items: [item({ category: kind, price: defaultPriceFor(kind, 'rare') })] })).toEqual([]);
     }
+  });
+
+  it('flags an off-policy character price (500–1000 coin band)', () => {
+    const low = validateStoreDraft({ items: [item({ category: 'character', price: 100 })] });
+    expect(low.some((e) => /500–1000 coin policy/.test(e))).toBe(true);
+    const high = validateStoreDraft({ items: [item({ category: 'character', price: 1500 })] });
+    expect(high.some((e) => /500–1000 coin policy/.test(e))).toBe(true);
+    expect(validateStoreDraft({ items: [item({ category: 'character', price: 750 })] })).toEqual([]);
+  });
+
+  it('flags a non-500 pal price (flat pal pricing)', () => {
+    const errs = validateStoreDraft({ items: [item({ category: 'pal', price: 100 })] });
+    expect(errs.some((e) => /should be 500 coins/.test(e))).toBe(true);
+    expect(validateStoreDraft({ items: [item({ category: 'pal', price: 500 })] })).toEqual([]);
+  });
+
+  it('usd-priced and free items are exempt from the coin policy', () => {
+    expect(validateStoreDraft({ items: [item({ category: 'character', currency: 'usd', price: 4.99 })] })).toEqual([]);
+    expect(validateStoreDraft({ items: [item({ category: 'pal', price: 0 })] })).toEqual([]);
+  });
+
+  it('defaultPriceFor matches the policy bands', () => {
+    expect(defaultPriceFor('character', 'common')).toBe(500);
+    expect(defaultPriceFor('character', 'rare')).toBe(750);
+    expect(defaultPriceFor('character', 'special')).toBe(1000);
+    expect(defaultPriceFor('pal', 'common')).toBe(500);
+    expect(defaultPriceFor('pal', 'special')).toBe(500);
+    expect(defaultPriceFor('ball', 'common')).toBe(100);
+    expect(defaultPriceFor('clubUpgrade', 'special')).toBe(500);
   });
 
   it('flags a bad rarity', () => {

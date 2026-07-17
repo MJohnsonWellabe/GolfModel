@@ -18,7 +18,7 @@
  * variable, a `paint()` re-render).
  */
 import { loadAdminDraft, saveAdminDraft, draftStatusMessage } from '../firebase/AdminDrafts';
-import { StoreKind } from '../data/storeCatalog';
+import { CHARACTER_PRICE, CHARACTER_PRICE_MAX, CHARACTER_PRICE_MIN, PAL_PRICE, StoreKind } from '../data/storeCatalog';
 import { IMAGE_LIBRARY, LibItem } from '../marketing/config';
 
 // ---- Schema ----------------------------------------------------------------
@@ -69,6 +69,16 @@ function clone<T>(o: T): T {
   return JSON.parse(JSON.stringify(o)) as T;
 }
 
+/** The pricing-policy default for a category/rarity — keeps staged items born
+ *  on-policy: characters use the rarity band (500/750/1000), pals are a flat
+ *  500, cosmetics/upgrades keep their established tiers. */
+export function defaultPriceFor(category: string, rarity: FutureStoreItem['rarity']): number {
+  if (category === 'character') return CHARACTER_PRICE[rarity];
+  if (category === 'pal') return PAL_PRICE;
+  if (category === 'clubUpgrade') return rarity === 'special' ? 500 : 300;
+  return rarity === 'special' ? 300 : rarity === 'rare' ? 200 : 100;
+}
+
 /** A fresh item with the given sort order, seeded from the committed image
  *  library + the first store kind so it is valid on creation. */
 export function newItem(sortOrder = 0): FutureStoreItem {
@@ -77,7 +87,7 @@ export function newItem(sortOrder = 0): FutureStoreItem {
     name: '',
     category: STORE_KINDS[0],
     description: '',
-    price: 0,
+    price: defaultPriceFor(STORE_KINDS[0], 'common'),
     currency: 'coins',
     image: IMAGE_LIBRARY[0]?.value ?? '',
     rarity: 'common',
@@ -178,6 +188,18 @@ export function validateStoreDraft(d: StoreStagingDraft): string[] {
     const from = (it?.availableFrom ?? '').toString().trim();
     const to = (it?.availableTo ?? '').toString().trim();
     if (from && to && from > to) errors.push(`${where}: available-from (${from}) is after available-to (${to}).`);
+    // Pricing policy (economy pass): characters 500–1000 coins, pals a flat
+    // 500. Non-blocking warnings (hardErrors keeps ids-only), but every staged
+    // item is flagged the moment it drifts off policy.
+    if (it?.currency === 'coins' && Number.isFinite(it?.price) && (it?.price as number) > 0) {
+      const price = it.price as number;
+      if (it.category === 'character' && (price < CHARACTER_PRICE_MIN || price > CHARACTER_PRICE_MAX)) {
+        errors.push(`${where}: character price ${price} is outside the ${CHARACTER_PRICE_MIN}–${CHARACTER_PRICE_MAX} coin policy.`);
+      }
+      if (it.category === 'pal' && price !== PAL_PRICE) {
+        errors.push(`${where}: pal price ${price} should be ${PAL_PRICE} coins (flat pal pricing).`);
+      }
+    }
   });
   return errors;
 }
@@ -377,7 +399,14 @@ function applyEdit(t: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
     const n = Number(t.value);
     rec[field] = Number.isFinite(n) ? n : t.value === '' ? 0 : NaN;
   } else {
+    const prevDefault = defaultPriceFor(it.category, it.rarity);
     rec[field] = t.value;
+    // Category/rarity changes snap a still-on-default price to the NEW
+    // policy default (character bands / flat pal price), so staged items are
+    // born and stay on-policy unless the admin deliberately typed a price.
+    if ((field === 'category' || field === 'rarity') && it.currency === 'coins' && it.price === prevDefault) {
+      it.price = defaultPriceFor(it.category, it.rarity);
+    }
   }
 }
 

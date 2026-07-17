@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultProfile } from '../src/profile/Profile';
-import { STORE_CATALOG, STORE_BY_ID, applyClubUpgrades, DEFAULT_OWNED, upgradePerfectZoneMult } from '../src/data/storeCatalog';
+import { CHARACTER_PRICE, FREE_CHARACTERS, PAL_PRICE, STORE_CATALOG, STORE_BY_ID, applyClubUpgrades, DEFAULT_OWNED, upgradePerfectZoneMult } from '../src/data/storeCatalog';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../src/systems/StoreEngine';
 import { assembleGolfer } from '../src/data/golfers';
 import { effectiveCarryYards } from '../src/systems/PhysicsEngine';
@@ -190,5 +190,56 @@ describe('season-pass characters are not sold in the store', () => {
     const p = defaultProfile();
     p.cosmetics.owned.push('char_kuro'); // what a pass claim does
     expect(isOwned(p, STORE_BY_ID.get('char_kuro')!)).toBe(true);
+  });
+});
+
+describe('economy pricing policy (characters 500-1000, pals flat 500)', () => {
+  it('every purchasable character costs 500-1000, banded by rarity', () => {
+    const chars = STORE_CATALOG.filter((i) => i.kind === 'character' && !i.season);
+    expect(chars.length).toBeGreaterThan(0);
+    for (const c of chars) {
+      expect(c.price, c.id).toBeGreaterThanOrEqual(500);
+      expect(c.price, c.id).toBeLessThanOrEqual(1000);
+      expect(c.price, c.id).toBe(CHARACTER_PRICE[c.rarity]);
+    }
+  });
+
+  it('every purchasable pal costs exactly 500; starters stay free', () => {
+    const pals = STORE_CATALOG.filter((i) => i.kind === 'pal' && !i.season);
+    for (const p of pals) {
+      if (p.id === 'pal_fox' || p.id === 'pal_dragon') expect(p.price, p.id).toBe(0);
+      else expect(p.price, p.id).toBe(PAL_PRICE);
+    }
+  });
+
+  it('free starter characters remain free (not sold at all)', () => {
+    for (const key of FREE_CHARACTERS) {
+      expect(STORE_BY_ID.has(`char_${key}`)).toBe(false); // not a store item
+      expect(DEFAULT_OWNED).toContain(`char_${key}`);
+    }
+  });
+
+  it('season-exclusive characters/pals keep price 0 and stay claim-only', () => {
+    const seasonItems = STORE_CATALOG.filter((i) => i.season && (i.kind === 'character' || i.kind === 'pal'));
+    expect(seasonItems.length).toBeGreaterThan(0);
+    for (const s of seasonItems) expect(s.price, s.id).toBe(0);
+  });
+
+  it('a character purchase deducts the banded price exactly', () => {
+    const p = defaultProfile();
+    p.coins = 1000;
+    expect(buyItem(p, 'char_dez').ok).toBe(true); // common → 500
+    expect(p.coins).toBe(500);
+    expect(buyItem(p, 'char_lily').ok).toBe(false); // rare → 750 > 500 left
+    expect(p.coins).toBe(500);
+  });
+
+  it('a pal purchase deducts 500 and cannot be repurchased', () => {
+    const p = defaultProfile();
+    p.coins = 600;
+    expect(buyItem(p, 'pal_gecko').ok).toBe(true);
+    expect(p.coins).toBe(100);
+    expect(buyItem(p, 'pal_gecko').ok).toBe(false);
+    expect(p.coins).toBe(100);
   });
 });
