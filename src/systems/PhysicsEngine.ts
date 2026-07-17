@@ -430,6 +430,19 @@ export class PhysicsEngine {
     );
   }
 
+  /** True inside a `keepGround` trees/building region — a woods area whose LIE
+   *  is left to the surface beneath it (so surfaceAt never reports 'trees'
+   *  there), yet whose TRUNKS are still solid. Lets the rolling-phase trunk
+   *  check treat these regions like normal 'trees' surface (so a rolling ball is
+   *  stopped by a keepGround trunk — Sable Bay's palms) WITHOUT resorting to a
+   *  raw nearTree() test that would also block balls skirting a normal treeline
+   *  edge in the fairway/rough. */
+  private inKeepGroundWoods(x: number, y: number): boolean {
+    return this.hole.hazards.some(
+      (hz) => (hz.type === 'trees' || hz.type === 'building') && hz.keepGround && pointInPolygon(x, y, hz.polygon)
+    );
+  }
+
   /**
    * Mean roll friction a putt crosses from its origin toward the aim, so the
    * launch speed reaches the target distance from ANY lie — a putt started on
@@ -761,10 +774,26 @@ export class PhysicsEngine {
       // it every time" on a corner tree — a low runner that landed just short
       // of the canopy used to roll straight through it untouched, because
       // only the airborne path was ever checked against nearTree(); the high
-      // `friction.trees` alone slows a roll, it doesn't stop one). Gated on
-      // `surf === 'trees'` so the existing surface precedence still governs
-      // (a green/bunker/water point never gets treated as a tree hit here).
-      if (surf === 'trees' && (this.nearTree(x, y, 0) || this.inBuilding(x, y))) {
+      // `friction.trees` alone slows a roll, it doesn't stop one).
+      //
+      // The old check gated this on `surf === 'trees'` — but a `keepGround:true`
+      // tree leaves the LIE to the surface beneath it, so surfaceAt() NEVER
+      // returns 'trees' for it (Pinehurst-style trees in waste sand, and every
+      // one of Sable Bay's 17 palms). A rolling ball was therefore never tested
+      // against those trunks and rolled straight through every palm, even though
+      // the ungated AIRBORNE check stops the same trunk fine. keepGround must
+      // affect ONLY the lie/friction, never whether a trunk is solid.
+      //
+      // Fix: fire whenever the ball is genuinely WITHIN a woods/building region
+      // AND reaches a trunk — `surf === 'trees'` (unchanged for normal woods) OR
+      // inside a keepGround woods/building polygon (its surface is hidden but its
+      // trunk is still solid). Gating on the REGION (not raw nearTree) preserves
+      // the old behavior for normal trees: a trunk radius that pokes a few px out
+      // of the woods polygon into the fairway/rough edge must NOT stop a ball
+      // skirting the treeline (fully decoupling here stranded balls on dense
+      // corridors — Timberline). No trunk ever sits in water (collectTreeBlobs
+      // skips those), so the water check below still owns those points.
+      if ((surf === 'trees' || this.inKeepGroundWoods(x, y)) && (this.nearTree(x, y, 0) || this.inBuilding(x, y))) {
         hitTrees = true;
         const speed0 = Math.hypot(vx, vy);
         if (speed0 > 0) {

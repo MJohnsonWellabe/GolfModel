@@ -3,7 +3,7 @@ import { PX_PER_YARD, PHYSICS } from '../../src/config';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
-import { golferWith, NO_WIND, openHole, SWING_OF } from './simHelpers';
+import { golferWith, NO_WIND, openHole, PERFECT_SWING, SWING_OF } from './simHelpers';
 import { collectTreeBlobs, hash2 } from '../../src/systems/treeField';
 import { Hazard } from '../../src/core/types';
 
@@ -85,6 +85,98 @@ describe('tree-in-fairway collision', () => {
     );
     expect(threaded.hitTrees, 'a ball down the open lane should NOT hit a tree').toBe(false);
     expect(threaded.yd, `threaded drive ${threaded.yd.toFixed(0)}yd`).toBeGreaterThan(200);
+  });
+});
+
+/**
+ * keepGround trunks stop a ROLLING ball (Sable Bay regression). A `keepGround`
+ * tree leaves the LIE to whatever surface is beneath it, so surfaceAt() never
+ * returns 'trees' for it (Sable Bay's 17 palms are all keepGround, standing on
+ * fairway/waste). The rolling-phase trunk check used to be gated on
+ * `surf === 'trees'`, so a rolling ball was NEVER tested against those trunks
+ * and rolled straight through every palm — while the ungated AIRBORNE check
+ * worked fine. The fix calls nearTree()/inBuilding() DIRECTLY in the rolling
+ * branch, exactly like the airborne one: keepGround affects only the lie, never
+ * whether a trunk is solid. A pure putt is a rolling-only shot (z stays at
+ * ground), so it exercises exactly that branch and nothing else.
+ */
+describe('keepGround trunks stop a rolling ball (Sable Bay palm regression)', () => {
+  const putter = clubById('putter');
+  const golfer = golferWith(85);
+  const CARRY_PX = putter.baseDistance * (0.259 + (85 / 100) * 0.926) * 2;
+
+  // A woods region wide/deep enough that its trunk radii sit fully INSIDE it —
+  // like a real Sable Bay palm stand — so surfaceAt reports the underlying
+  // surface across a keepGround stand (never 'trees'), yet the trunks must still
+  // collide. Both keepGround and normal versions share the SAME trunk grid
+  // (collectTreeBlobs ignores keepGround for placement).
+  function woods(keepGround: boolean): Hazard {
+    return {
+      type: 'trees',
+      keepGround,
+      spacing: 60,
+      treeR: 22,
+      polygon: [
+        [1420, 1780],
+        [1580, 1780],
+        [1580, 1440],
+        [1420, 1440]
+      ]
+    };
+  }
+
+  // The trunk nearest the stand centre — roll the ball dead at it so a straight
+  // putt is guaranteed to reach a real trunk (not thread the grid).
+  const P = collectTreeBlobs(openHole({ hazards: [woods(true)] })).reduce((best, b) =>
+    Math.hypot(b.x - 1500, b.y - 1600) < Math.hypot(best.x - 1500, best.y - 1600) ? b : best
+  );
+  const origin = { x: P.x, y: P.y + 500 }; // 500px straight below the trunk
+  const power = ((origin.y - (P.y - 250)) * 1) / CARRY_PX; // armed to overrun the trunk by ~250px
+
+  function rollPutt(hazards: Hazard[]): { finalY: number; hitTrees: boolean; surfAtP: string } {
+    const hole = openHole({ hazards });
+    const engine = new PhysicsEngine(hole, null, mulberry32(3));
+    const out = engine.simulate({
+      origin: { ...origin },
+      aimAngle: -Math.PI / 2, // straight up-field, dead at the trunk P
+      swing: PERFECT_SWING(power),
+      club: putter,
+      golfer,
+      fireBoost: 0,
+      lie: 'green',
+      wind: NO_WIND,
+      hole
+    });
+    return { finalY: out.finalPos.y, hitTrees: out.hitTrees, surfAtP: String(engine.surfaceAt(P.x, P.y)) };
+  }
+
+  it('no tree: the putt rolls well PAST the trunk line (control — the shot overruns P)', () => {
+    const r = rollPutt([]);
+    expect(r.hitTrees).toBe(false);
+    // Rolls beyond P (smaller y = further up-field past the trunk at P.y).
+    expect(r.finalY, `finalY ${r.finalY.toFixed(0)} should be well past P.y=${P.y.toFixed(0)}`).toBeLessThan(P.y - 40);
+  });
+
+  it('keepGround:true stand: surfaceAt is NOT trees there, yet the rolling ball is stopped AT/BEFORE P', () => {
+    const control = rollPutt([]);
+    const blocked = rollPutt([woods(true)]);
+    // The bug's precondition: a keepGround stand never reports the 'trees' lie.
+    expect(blocked.surfAtP, 'keepGround leaves the lie to the surface beneath').not.toBe('trees');
+    expect(blocked.hitTrees, 'a keepGround trunk must register a rolling strike').toBe(true);
+    // Stopped at/before the trunk: it never rolls through to the open-putt finish.
+    expect(blocked.finalY, `blocked finalY ${blocked.finalY.toFixed(0)} vs P.y=${P.y.toFixed(0)}`).toBeGreaterThanOrEqual(
+      P.y - PHYSICS.treeHeight // small creep past the trunk under damping is allowed
+    );
+    expect(blocked.finalY, `blocked ${blocked.finalY.toFixed(0)} vs open ${control.finalY.toFixed(0)}`).toBeGreaterThan(
+      control.finalY + 40
+    );
+  });
+
+  it('keepGround:false control: same stand reports the trees lie and also stops the roll (always worked)', () => {
+    const blocked = rollPutt([woods(false)]);
+    expect(blocked.surfAtP, 'a normal stand reports the trees lie').toBe('trees');
+    expect(blocked.hitTrees, 'a normal trunk stops the roll too').toBe(true);
+    expect(blocked.finalY, `finalY ${blocked.finalY.toFixed(0)}`).toBeGreaterThanOrEqual(P.y - PHYSICS.treeHeight);
   });
 });
 
