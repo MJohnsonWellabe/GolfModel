@@ -10,10 +10,12 @@
 import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
 import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, overallAvg, roundsByAccount } from './aggregate';
+import { aggregateRetention, flattenEvents, RawEventsNode, RetentionStats } from './retentionStats';
 import { isAdminEmail } from './adminEmails';
 import { renderMarketingManager } from './marketing';
 import { renderSeasonPassStaging } from './seasonPassStaging';
 import { renderStoreStaging } from './storeStaging';
+import { renderLiveOps } from './liveOps';
 import { loadMarketingConfig } from '../firebase/MarketingConfig';
 import { loadAdminDraft } from '../firebase/AdminDrafts';
 import { ARCHETYPES } from '../data/archetypes';
@@ -63,6 +65,22 @@ async function fetchRounds(): Promise<RoundRecord[]> {
   if (!res.ok) throw new Error(`rounds fetch failed: HTTP ${res.status}`);
   const data = (await res.json()) as Record<string, RoundRecord> | null;
   return data ? Object.values(data).filter((r) => r && typeof r.total === 'number') : [];
+}
+
+/** Best-effort fetch of the retention analytics events node (guest + account
+ *  activity). Absent node / denied read / offline → null, and the dashboard
+ *  simply omits the retention section rather than failing. */
+async function fetchRetention(): Promise<RetentionStats | null> {
+  try {
+    const res = await fetch(`${LEADERBOARD_URL}/events.json`);
+    if (!res.ok) return null;
+    const node = (await res.json()) as RawEventsNode;
+    const events = flattenEvents(node);
+    if (events.length === 0) return null;
+    return aggregateRetention(events);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -116,7 +134,49 @@ function bar(value: number, max: number): string {
   return `<div class="bar"><div class="fill" style="width:${pct.toFixed(1)}%"></div></div>`;
 }
 
-function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map(), onBack: () => void = () => void showLanding()): void {
+/** Players & Retention section — guest vs signed-in activity from the
+ *  analytics events node. Explicitly labels guests as GUESTS, never accounts. */
+function retentionSectionHtml(r: RetentionStats | null): string {
+  if (!r) {
+    return `<section><h2>Players &amp; Retention</h2>
+      <p class="sub">No analytics events yet (or the /events node is unreadable). Guest and session tracking appears here once players generate events.</p></section>`;
+  }
+  const pct = (v: number | null): string => (v === null ? '—' : `${v}%`);
+  const usage = (m: Record<string, number>): string =>
+    Object.entries(m)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `<tr><td>${esc(k)}</td><td>${v}</td></tr>`)
+      .join('');
+  return `<section><h2>Players &amp; Retention</h2>
+    <p class="sub">From the analytics events node. Guest players are counted separately — a guest is never shown as an account, and a guest who later signs in is counted once (rounds are never double-counted across the transition).</p>
+    <div class="tiles">
+      <div class="tile"><div class="tval">${r.guestPlayers}</div><div class="tlbl">Guest Players</div></div>
+      <div class="tile"><div class="tval">${r.signedInPlayers}</div><div class="tlbl">Signed-In Players</div></div>
+      <div class="tile"><div class="tval">${r.totalUniquePlayers}</div><div class="tlbl">Total Unique Players</div></div>
+      <div class="tile"><div class="tval">${r.totalSessions}</div><div class="tlbl">Total Sessions</div></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="tval">${r.roundsStarted}</div><div class="tlbl">Rounds Started</div></div>
+      <div class="tile"><div class="tval">${r.roundsCompleted}</div><div class="tlbl">Rounds Completed</div></div>
+      <div class="tile"><div class="tval">${r.replaySelected}</div><div class="tlbl">Replay Selections</div></div>
+      <div class="tile"><div class="tval">${r.playNextSelected}</div><div class="tlbl">Play Next Selections</div></div>
+    </div>
+    <div class="tiles">
+      <div class="tile"><div class="tval">${pct(r.nextRoundConversion)}</div><div class="tlbl">Next-Round Conversion</div></div>
+      <div class="tile"><div class="tval">${pct(r.replayConversion)}</div><div class="tlbl">↳ via Replay</div></div>
+      <div class="tile"><div class="tval">${pct(r.playNextConversion)}</div><div class="tlbl">↳ via Play Next</div></div>
+      <div class="tile"><div class="tval">${r.dailyCompleted}</div><div class="tlbl">Daily Challenges Done</div></div>
+    </div>
+    <table><tr><th>Rounds completed as…</th><th>Count</th></tr>
+      <tr><td>Guest Players</td><td>${r.guestRoundsCompleted}</td></tr>
+      <tr><td>Signed-In Players</td><td>${r.signedInRoundsCompleted}</td></tr>
+    </table>
+    <h3>Rounds started by course</h3><table><tr><th>Course</th><th>Started</th></tr>${usage(r.byCourse)}</table>
+    <h3>Rounds started by mode</h3><table><tr><th>Mode</th><th>Started</th></tr>${usage(r.byMode)}</table>
+  </section>`;
+}
+
+function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map(), onBack: () => void = () => void showLanding(), retention: RetentionStats | null = null): void {
   // Keep only rounds on courses that still exist; type tables filter to the
   // live archetype roster below.
   const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
@@ -141,6 +201,8 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
       <div class="tile"><div class="tval">${fmtPar(overall.avgToPar)}</div><div class="tlbl">Avg to par</div></div>
       <div class="tile"><div class="tval">${putts.tracked ? putts.overall.avgPutts : '—'}</div><div class="tlbl">Avg putts</div></div>
     </div></section>`;
+
+  html += retentionSectionHtml(retention);
 
   html += `<section><h2>Average score by course</h2><table>
     <tr><th>Course</th><th>Rounds</th><th>Avg total</th><th>Avg to par</th><th></th></tr>`;
@@ -219,12 +281,12 @@ let adminEmail: string | null = null;
 async function openDashboard(): Promise<void> {
   $('app').innerHTML = `<p class="sub">Loading rounds…</p>`;
   try {
-    const rounds = await fetchRounds();
+    const [rounds, retention] = await Promise.all([fetchRounds(), fetchRetention()]);
     // Best-effort XP backfill for accounts whose newest round predates
     // RoundRecord.xp (silently yields nothing under the shipped profile rules).
     const uids = [...new Set(rounds.map((r) => r.uid).filter((u): u is string => !!u))];
     const xpBackfill = await fetchAccountXp(uids);
-    render(rounds, xpBackfill, () => void showLanding());
+    render(rounds, xpBackfill, () => void showLanding(), retention);
   } catch (e) {
     $('app').innerHTML = `<button id="backHome" class="btn back">← Admin home</button>
       <p class="sub">Failed to load rounds: ${esc(String(e))}</p>`;
@@ -298,6 +360,7 @@ async function fillLandingStatus(): Promise<void> {
   }
   await fillDraftStatus('season', 'nextSeasonPass');
   await fillDraftStatus('store', 'futureStoreItems');
+  await fillDraftStatus('liveops', 'retentionLiveOps');
 }
 
 /** The admin landing: four workspace destinations. Auth is enforced here — the
@@ -317,6 +380,7 @@ async function showLanding(): Promise<void> {
       ${destCardHtml('marketing', '🎬', 'Marketing Manager', 'Edit the public About page: montage, gameplay clips, hero copy and every marketing image.', 'Loading…', '')}
       ${destCardHtml('season', '🏆', 'Next Season Pass Staging', 'Draft the next season pass — theme, dates, levels and rewards. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
+      ${destCardHtml('liveops', '🔁', 'Retention / Live Ops', 'Daily Challenge and Weekly Featured overrides — stage, validate, publish. Reward math stays code-defined.', 'Loading…', '')}
     </div>`;
   document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
   document.getElementById('adminGrid')!.addEventListener('click', (e) => {
@@ -335,6 +399,9 @@ async function showLanding(): Promise<void> {
         break;
       case 'store':
         void renderStoreStaging($('app'), back);
+        break;
+      case 'liveops':
+        void renderLiveOps($('app'), back);
         break;
       default:
         break;

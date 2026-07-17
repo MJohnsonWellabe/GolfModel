@@ -23,10 +23,10 @@ test('admin landing + staging areas render', async ({ page }) => {
     (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
   }, ADMIN_EMAIL);
 
-  // Landing: four destination cards.
+  // Landing: five destination cards (dashboard, marketing, season, store, live ops).
   await page.waitForSelector('.adminGrid .adminCard', { state: 'visible' });
   const cards = await page.locator('.adminGrid .adminCard').count();
-  expect(cards).toBe(4);
+  expect(cards).toBe(5);
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'tests/visual/__shots__/admin-landing.png', fullPage: true });
 
@@ -55,4 +55,14 @@ test('admin landing + staging areas render', async ({ page }) => {
   await page.waitForSelector('#mm', { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'tests/visual/__shots__/admin-marketing-manager.png', fullPage: true });
+
+  // Back to landing, then Retention / Live Ops.
+  await page.evaluate((email) => {
+    (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
+  }, ADMIN_EMAIL);
+  await page.waitForSelector('.adminGrid .adminCard', { state: 'visible' });
+  await page.locator('.adminCard[data-card="liveops"] .acOpen').click();
+  await page.waitForSelector('#liveops', { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'tests/visual/__shots__/admin-liveops.png', fullPage: true });
 });
