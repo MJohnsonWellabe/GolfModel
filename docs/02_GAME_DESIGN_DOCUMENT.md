@@ -1241,3 +1241,34 @@ FB9 putting rework had lifted the excellent tier back toward ≈ −2, but losin
 ~10% of driver carry costs skilled players par-5 reachability and returns the
 whole tier curve to the Phase 2 calibration above — excellent ≈ −0.8 per 3
 holes. Tier order and the "−3 is an accomplishment" rule are preserved.
+
+## v1.0 convergence pass (gameplay trust & shot physics)
+
+Four "no hidden assistance / believable dispersion" fixes, all regression-gated:
+
+- **Slope-aware putt pace (A1).** The putt power meter now reads the REAL green
+  break for its pace target (the aim LINE still runs on a flat, no-slope engine
+  so it never reveals the break — the player still owns the read). Previously
+  the pace math ran on the flat aim engine, so its slope compensation was always
+  zero and an uphill putt died short (~20ft on a steep read) while a downhill one
+  ran long. On-green pace on a flat green is unchanged.
+- **Fringe-transition pace (A1b).** A putt sitting barely off the green (~1in of
+  fringe) used to lose distance far out of proportion to the fringe it crossed —
+  a near-cliff, not the smooth cost it should be. Root cause was the launch-speed
+  friction sampler missing a sub-step fringe stretch at the origin while the
+  roll integrator over-braked the first step; fixed with origin-weighted
+  trapezoidal sampling. Fringe friction itself is unchanged; an all-green putt is
+  byte-identical.
+- **Rough dispersion (A3/ADJ-2).** Non-perfect strikes from rough now scatter
+  noticeably wider (good ≈ 2-5× the fairway, miss clearly worse and harder to
+  control) while a PERFECT strike stays tight — skill (striking the meter) is
+  rewarded. `lieError.rough` 3.5°→4.0°; lie quality multipliers perfect
+  0.5→0.30 / good 1.0→1.15 / miss 1.6→2.1. Carry loss (0.75×) is unchanged.
+- **Tee default aim (A4).** A tee shot's default aim lays the club's FULL carry
+  out down the strategic corridor instead of clubbing DOWN to a lay-up elbow
+  inside the driver's range (Wildwood 3). It still never parks the default aim in
+  water (it lays up short of a wet full-carry point).
+
+Also hardened: True Vision is a v1.0 quality gate (A2/ADJ-6) — a perfect,
+noise-free shot lands exactly where True Vision showed it (parity regression
+tests across every course, surface, slope, club, spin and wind).
