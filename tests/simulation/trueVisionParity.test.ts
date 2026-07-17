@@ -53,11 +53,12 @@ interface Scenario {
 
 /** Run the shipped derivation and return {tv, real} finalPos for a scenario. */
 function endpoints(s: Scenario): { tv: Point; real: Point; club: string; power: number } {
-  // Shipped wiring: FLAT preview engine (aim line), real heightfield engine
-  // (pace + shot). AimControl gets the real engine as its slope/pace engine.
+  // Shipped wiring: FLAT preview engine drives the aim line AND the (flat, dumb)
+  // putt pace; the real heightfield engine runs True Vision + the real shot. The
+  // same `power` feeds both sides below, so parity holds regardless of pace model.
   const previewEngine = new PhysicsEngine({ ...s.hole, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
   const engine2d = new PhysicsEngine(s.hole, buildHeightField(s.hole), () => 0.5);
-  const aim = new AimControl(s.hole, previewEngine, engine2d);
+  const aim = new AimControl(s.hole, previewEngine);
   const ctx: ShotContext = { ball: s.ball, lie: s.lie, golfer, fireBoost: s.fireBoost ?? 0, strokes: s.strokes };
   if (s.clubId) aim.setClubById(s.clubId);
   else aim.autoSelectClub(ctx);

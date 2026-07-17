@@ -507,10 +507,11 @@ class HoleScene {
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
     // real shot uses engine2d (terrain + wind).
     this.previewEngine = new PhysicsEngine({ ...this.hole, slope: { angle: 0, strength: 0 } }, null);
-    // Aim LINE/preview uses the flat previewEngine; the putt PACE math uses the
-    // real terrain+slope engine2d (slopeEngine) so uphill/downhill putts get the
-    // correct power without the aim line revealing the break (A1).
-    this.aim = new AimControl(this.hole, this.previewEngine, this.engine2d);
+    // Aim LINE/preview AND the putt PACE both run on the flat previewEngine: the
+    // normal aim is a dumb, flat model that never reveals or compensates for the
+    // break (slope/elevation/fringe/green speed). Reading the green — or using
+    // True Vision, which simulates the complete shot — is the player's job.
+    this.aim = new AimControl(this.hole, this.previewEngine);
     // Shared per-hole conditions (fair across competitors)
     this.wind = windForHole(round.holeIdx);
     const buildT0 = performance.now();

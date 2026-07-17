@@ -182,40 +182,47 @@ describe('putting — mishits are punished', () => {
 
 
 /**
- * Port Johnson h3 long UPHILL putt — the shipped-wiring regression for A1. The
- * old version of this test built ONE slope-aware engine and handed it to
- * AimControl, so it never exercised the real bug: in the shipped game the aim
- * LINE runs on a FLAT, no-slope preview engine (so it never reveals the break)
- * and only the PACE + the real shot run on the terrain+slope engine (engine2d).
- * Before A1 the putt pace was queried on the FLAT engine → slopeAccelAlong === 0
- * → no uphill compensation → the putt died ~20ft short. This now wires exactly
- * the shipped path (flat aim engine + real-heightfield shot engine) and pins
- * both the fix AND that the wiring is what matters. Deterministic (preview:true)
- * so it can't drift with pace-noise retuning.
+ * Port Johnson h3 long UPHILL putt — the RESTORED aim / True-Vision separation
+ * (P5). REVERSES the earlier "slope-aware putt pace" change. Design intent
+ * (confirmed by the product owner): the normal aiming meter is a DUMB, FLAT
+ * model — a perfect stroke sends the ball the AIMED distance on a flat-green
+ * model, with NO hidden compensation for slope/elevation/break/fringe/green
+ * speed. Both the aim LINE and the putt PACE run on the shipped FLAT, no-slope
+ * preview engine, so a perfect PIN-aimed putt on a real uphill green comes up
+ * SHORT — the player must read the break (or use True Vision) and aim PAST the
+ * hole. True Vision is the tool that simulates the COMPLETE shot on the real
+ * terrain+slope engine (engine2d) and accurately predicts that short endpoint.
+ * Deterministic (preview:true) so it can't drift with pace-noise retuning.
+ *
+ * RATIONALE FOR THE CHANGED EXPECTATION: this describe block previously asserted
+ * that a perfect pin-aimed uphill putt REACHES the hole via a slope-aware pace
+ * meter. That secret compensation hid the read from the player and is reverted;
+ * the block now pins the restored behavior — dumb aim comes up short, and True
+ * Vision predicts exactly that.
  */
-describe('putting — Port Johnson long uphill regression (real shipped wiring)', () => {
+describe('putting — Port Johnson long uphill: dumb aim comes up short, True Vision predicts it', () => {
   const course = loadCourse(portjohnson as unknown as CourseAuthoring);
   const pj3 = course.holes[2];
   const origin = { x: pj3.pin.x - ftToPx(78), y: pj3.pin.y };
   const ctx = { ball: origin, lie: 'green' as const, golfer, fireBoost: 0, strokes: 2 };
 
-  function puttWith(slopeAwarePace: boolean): { traveledFt: number; remainingFt: number } {
-    // FLAT aim/preview engine (no slope, no heightfield) — the shipped aim line.
-    const previewEngine = new PhysicsEngine({ ...pj3, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
-    // Real terrain+slope shot engine — the shipped engine2d.
-    const engine2d = new PhysicsEngine(pj3, buildHeightField(pj3), () => 0.5);
-    // slopeAwarePace: give AimControl the real engine for PACE (the A1 fix).
-    // Otherwise it falls back to the flat previewEngine for pace (the old bug).
-    const aim = slopeAwarePace
-      ? new AimControl(pj3, previewEngine, engine2d)
-      : new AimControl(pj3, previewEngine);
-    aim.setClubById('putter');
-    aim.yaw = 0;
-    aim.distPx = ftToPx(78);
-    const power = aim.barToPhysicsPower(aim.barPowerTarget(ctx), ctx);
-    const out = engine2d.simulate({
+  // FLAT aim/preview engine (no slope, no heightfield) — the shipped aim LINE
+  // AND the shipped putt PACE (P5: the normal aim never reads the break).
+  const previewEngine = new PhysicsEngine({ ...pj3, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
+  // Real terrain+slope shot engine — the shipped engine2d, and what True Vision
+  // engine2d for the noise-free True Vision prediction (preview strips the
+  // random pace noise, so rng is irrelevant here).
+  const engine2d = new PhysicsEngine(pj3, buildHeightField(pj3), () => 0.5);
+  const aim = new AimControl(pj3, previewEngine);
+  aim.setClubById('putter');
+  aim.yaw = 0;
+  aim.distPx = ftToPx(78); // aim exactly AT the pin — a "dumb" pin-aimed putt
+  const power = aim.barToPhysicsPower(aim.barPowerTarget(ctx), ctx);
+
+  function shot(engine: PhysicsEngine, preview: boolean): { traveledFt: number; remainingFt: number } {
+    const out = engine.simulate({
       origin, aimAngle: aim.yaw, swing: PERFECT_SWING(power), club: putter,
-      golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: pj3, preview: true
+      golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: pj3, preview
     });
     return {
       traveledFt: Math.hypot(out.finalPos.x - origin.x, out.finalPos.y - origin.y) / PX_PER_YARD * 3,
@@ -223,19 +230,33 @@ describe('putting — Port Johnson long uphill regression (real shipped wiring)'
     };
   }
 
-  it('a perfect 78ft uphill putt reaches the hole with slope-aware pace', () => {
-    const r = puttWith(true);
-    expect(r.traveledFt, `traveled ${r.traveledFt.toFixed(1)}ft`).toBeGreaterThan(70);
-    expect(r.remainingFt, `remaining ${r.remainingFt.toFixed(1)}ft`).toBeLessThan(12);
+  it('a perfect PIN-aimed uphill putt comes up clearly SHORT (dumb flat aim, no slope comp)', () => {
+    // A stroke that hits the pace target exactly (the noise-free perfect stroke)
+    // dies short of the ~78ft pin — exactly the separation the design wants: the
+    // flat aim never compensates for the climb, so the player must aim past.
+    const r = shot(engine2d, true);
+    expect(r.remainingFt, `remaining ${r.remainingFt.toFixed(1)}ft`).toBeGreaterThan(15);
+    expect(r.traveledFt, `traveled ${r.traveledFt.toFixed(1)}ft`).toBeLessThan(70);
   });
 
-  it('the SHIPPED wiring is what fixes it: pacing on the flat aim engine dies ~20ft short', () => {
-    const bug = puttWith(false);
-    // The pre-A1 behavior — pace queried on the flat preview engine — leaves the
-    // uphill putt well short (the reported failure). The fix wiring above must be
-    // dramatically better (the assertion in the previous test).
-    expect(bug.remainingFt, `bug remaining ${bug.remainingFt.toFixed(1)}ft`).toBeGreaterThan(15);
-    expect(bug.remainingFt).toBeGreaterThan(puttWith(true).remainingFt + 5);
+  it('True Vision predicts that short endpoint (its prediction tracks the real result)', () => {
+    // True Vision is the noise-free prediction on the real engine.
+    const trueVision = shot(engine2d, true);
+    // The real live putt scatters around that prediction (pace noise). Its
+    // EXPECTED (median) outcome is what True Vision honestly shows — no hidden
+    // pace help that would make a dumb pin-aim reach an uphill pin.
+    const reals: number[] = [];
+    for (let i = 0; i < 300; i++) {
+      reals.push(shot(new PhysicsEngine(pj3, buildHeightField(pj3), mulberry32(500 + i)), false).remainingFt);
+    }
+    reals.sort((a, b) => a - b);
+    const medianReal = reals[Math.floor(reals.length / 2)];
+    expect(
+      Math.abs(trueVision.remainingFt - medianReal),
+      `TV ${trueVision.remainingFt.toFixed(2)}ft vs median real ${medianReal.toFixed(2)}ft`
+    ).toBeLessThan(4);
+    // And True Vision itself shows the ball SHORT — it predicts the shortfall.
+    expect(trueVision.remainingFt, `TV remaining ${trueVision.remainingFt.toFixed(1)}ft`).toBeGreaterThan(15);
   });
 });
 
@@ -288,7 +309,9 @@ describe('putting — fringe-transition pace scales with fringe distance, not a 
     const hole = { ...fringeHole(), pin };
     const engine = new PhysicsEngine(hole, null, () => 0.5);
     const flatPreview = new PhysicsEngine({ ...hole, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
-    const aim = new AimControl(hole, flatPreview, engine);
+    // Flat green (slope 0), so the aim's flat pace model is byte-identical to the
+    // shipped derivation — this test isolates the fringe surface cost, not slope.
+    const aim = new AimControl(hole, flatPreview);
     aim.setClubById('putter');
     aim.yaw = -Math.PI / 2;
     aim.distPx = puttLenPx;

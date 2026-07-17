@@ -1,4 +1,4 @@
-import { PHYSICS, PX_PER_YARD, SWING } from '../../config';
+import { PX_PER_YARD, SWING } from '../../config';
 import { CLUBS } from '../../data/clubs';
 import { effectiveCarryYards, PhysicsEngine } from '../../systems/PhysicsEngine';
 import { angleTo, clamp, dist } from '../../utils/Geometry';
@@ -43,8 +43,9 @@ const PUTT_DIST_PER_PX = 0.12;
 /**
  * Shot setup: which club, where you're aiming, and the preview arc.
  * Also owns the putt meter scaling — a full putt stroke rolls exactly to the
- * aim spot, so the bar's power target is derived from the pin distance and
- * the green's slope along the aim line.
+ * aim spot on a FLAT-green model. The aim is deliberately "dumb": it never
+ * compensates for slope, elevation, break, fringe or green speed. True Vision
+ * is the tool that predicts the real outcome; the player reads the green.
  *
  * Pure state + math; the scene renders the results and re-arms the meter.
  */
@@ -62,14 +63,7 @@ export class AimControl {
 
   constructor(
     private readonly hole: HoleData,
-    private readonly engine: PhysicsEngine,
-    /** Slope-aware engine used ONLY for PACE queries (putt power comp). The real
-     *  game passes the terrain+slope shot engine (engine2d) here while `engine`
-     *  stays the FLAT preview engine, so the aim LINE never reveals slope/wind
-     *  (computePreview/surfaceAt run on `engine`) but the putt POWER math reads
-     *  the true green break. Defaults to `engine` for callers that build a
-     *  single slope-aware engine (tests, AI). */
-    private readonly slopeEngine: PhysicsEngine = engine
+    private readonly engine: PhysicsEngine
   ) {}
 
   get club(): ClubSpec {
@@ -116,27 +110,21 @@ export class AimControl {
    * 4-ft putt and a 40-ft putt (or a 10-yd chip and a 45-yd chip) show an
    * identical bar, only the aim spot differs. So the aim distance is baked
    * into the bar's scale instead of into the target position: fullPowerMark
-   * maps to the aim distance. Putts include first-order green-slope pace so a
-   * perfect stroke at the target reaches the aimed spot even on long uphill
-   * reads; the player still owns the line/break and can add or take off pace by
-   * dragging the aim.
+   * maps to the aim distance.
+   *
+   * The normal aim is a DUMB, FLAT model: a perfect stroke sends the ball the
+   * AIMED distance on a flat-green model, with NO hidden compensation for
+   * slope, elevation, break, fringe or green speed. On a real uphill green the
+   * ball therefore comes up short — the player must read the green (or use True
+   * Vision) and aim PAST the hole. True Vision is the tool that simulates the
+   * complete shot and shows the true predicted outcome; the normal aim never
+   * secretly does that work for the player.
    */
   meterScalePx(ctx: ShotContext): number {
     if (!this.isDistanceAimed(ctx)) return this.maxCarryPx(ctx);
-    let targetPx = this.distPx;
-    if (this.isPutting) {
-      // PACE uses the REAL slope engine (see slopeEngine): on the flat preview
-      // engine slopeAccelAlong is always 0, so uphill putts came up short and
-      // downhill ran long (no compensation). The aim LINE stays flat.
-      const along = this.slopeEngine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
-      // PhysicsEngine's putter launch uses v² = 2·μ·carryPx, then the real
-      // integrator applies the green's acceleration along the putt. Solve the
-      // matching constant-acceleration distance equation for the carry value
-      // that stops at the aimed distance: carry = D·(μ - aAlong)/μ.
-      const mu = PHYSICS.friction.green;
-      const slopePace = (mu - along) / mu;
-      targetPx *= clamp(slopePace > 1 ? 1 + (slopePace - 1) * 1.25 : slopePace, 0.45, 1.9);
-    }
+    // Flat model: a perfect stroke sends the ball exactly the aimed distance.
+    // No slope/elevation/break term — reading the green is the player's job.
+    const targetPx = this.distPx;
     return targetPx / SWING.fullPowerMark;
   }
 

@@ -1246,12 +1246,19 @@ holes. Tier order and the "−3 is an accomplishment" rule are preserved.
 
 Four "no hidden assistance / believable dispersion" fixes, all regression-gated:
 
-- **Slope-aware putt pace (A1).** The putt power meter now reads the REAL green
-  break for its pace target (the aim LINE still runs on a flat, no-slope engine
-  so it never reveals the break — the player still owns the read). Previously
-  the pace math ran on the flat aim engine, so its slope compensation was always
-  zero and an uphill putt died short (~20ft on a steep read) while a downhill one
-  ran long. On-green pace on a flat green is unchanged.
+- **Dumb aim / True-Vision separation (A1, RESTORED in P5).** The normal aiming
+  meter is deliberately a FLAT model: a perfect stroke sends the ball the AIMED
+  distance on a flat green, with NO hidden compensation for slope, elevation,
+  break, fringe or green speed. Both the aim LINE and the putt PACE run on the
+  flat, no-slope preview engine, so a perfect PIN-aimed putt on a real uphill
+  green comes up short — the player must READ the green (or use True Vision) and
+  aim PAST the hole; a downhill one runs long unless aimed short. On-screen
+  honest INFO (the ▲uphill / ▼downhill "aim longer/shorter" readout) helps the
+  read, but the meter never secretly does it. A brief earlier pass wrongly made
+  the pace meter slope-aware (auto-compensating the break); that hid the read
+  from the player and was reverted — True Vision, which simulates the COMPLETE
+  shot on the real terrain+slope engine, is the tool that shows the true
+  predicted outcome. On-green pace on a flat green is unchanged.
 - **Fringe-transition pace (A1b).** A putt sitting barely off the green (~1in of
   fringe) used to lose distance far out of proportion to the fringe it crossed —
   a near-cliff, not the smooth cost it should be. Root cause was the launch-speed
