@@ -62,7 +62,14 @@ export class AimControl {
 
   constructor(
     private readonly hole: HoleData,
-    private readonly engine: PhysicsEngine
+    private readonly engine: PhysicsEngine,
+    /** Slope-aware engine used ONLY for PACE queries (putt power comp). The real
+     *  game passes the terrain+slope shot engine (engine2d) here while `engine`
+     *  stays the FLAT preview engine, so the aim LINE never reveals slope/wind
+     *  (computePreview/surfaceAt run on `engine`) but the putt POWER math reads
+     *  the true green break. Defaults to `engine` for callers that build a
+     *  single slope-aware engine (tests, AI). */
+    private readonly slopeEngine: PhysicsEngine = engine
   ) {}
 
   get club(): ClubSpec {
@@ -118,7 +125,10 @@ export class AimControl {
     if (!this.isDistanceAimed(ctx)) return this.maxCarryPx(ctx);
     let targetPx = this.distPx;
     if (this.isPutting) {
-      const along = this.engine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
+      // PACE uses the REAL slope engine (see slopeEngine): on the flat preview
+      // engine slopeAccelAlong is always 0, so uphill putts came up short and
+      // downhill ran long (no compensation). The aim LINE stays flat.
+      const along = this.slopeEngine.slopeAccelAlong(ctx.ball, this.yaw, this.distPx);
       // PhysicsEngine's putter launch uses v² = 2·μ·carryPx, then the real
       // integrator applies the green's acceleration along the putt. Solve the
       // matching constant-acceleration distance equation for the carry value
