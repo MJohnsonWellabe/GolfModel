@@ -195,5 +195,28 @@ Primary metric (computed by Admin → Dashboard → Players & Retention):
 **% of completed rounds followed by another started round in the same
 session**, split into Replay conversion and Play Next conversion.
 
-*(Validation results + final deliverables report appended at release
-validation.)*
+## Release validation
+
+### Repeat-round soak (Phase 0A acceptance) — PASSED
+
+`tests/visual/soak.spec.ts`, 2 full cycles × 4 courses in one page lifetime
+(the Replay / Play Next path — no reload ever happens between rounds), at a
+390×844 phone viewport under software GL:
+
+| Course | Meshes c0→c1 | Materials | Textures | Observers | Engine scenes |
+| --- | --- | --- | --- | --- | --- |
+| Sable Bay | ~723 → ~723 | 83 → 85 | 38 → 40 | 12 → 12 | 1 |
+| Wildwood | ~2.2k ± petals | 92 → 92 | 29 → 28 | 10 → 10 | 1 |
+| Timberline | ~1948 ± 3 | 72 → 72 | 19 → 19 | 10 → 10 | 1 |
+| Port Johnson | ~5.87k ± 15 | 69 → 69 | 38 → 38 | 10 → 10 | 1 |
+
+- The engine never holds more than the one live scene; before-render
+  observers, materials, textures and particle systems return to the same
+  level on every revisit; zero page errors across the full cycle.
+- Mesh counts carry ambient-spawner variance (Wildwood's petal field) —
+  bounded, non-monotonic, and excluded as noise; JS heap is non-monotonic
+  (GC) and recorded but not asserted.
+- Conclusion: **Replay and Play Next do not accumulate listeners,
+  observers, meshes, timers, or subscriptions.**
+
+*(Perf-gate numbers + final deliverables report appended below.)*
