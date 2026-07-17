@@ -189,9 +189,40 @@ export function avgPutts(rounds: RoundRecord[]): { overall: PuttAvg; byCourse: P
   };
 }
 
-/** Rounds played per signed-in account, newest-played first. Rounds saved
- *  before account tracking shipped (or somehow missing a uid) are grouped
- *  under 'untracked' rather than dropped, so the round count stays honest. */
+/** Guest-play summary from the shared rounds: total guest rounds and the
+ *  number of distinct guest devices (stable `g-…` ids). Kept SEPARATE from
+ *  accounts — guests are counted, never shown as an account (Constitution
+ *  rule 18). Works off `/rounds` directly, so it needs no analytics rules. */
+export interface GuestSummary {
+  rounds: number;
+  devices: number;
+  avgTotal: number | null;
+  lastPlayed: number | null;
+}
+export function guestSummary(rounds: RoundRecord[]): GuestSummary {
+  const devices = new Set<string>();
+  let n = 0;
+  let total = 0;
+  let lastPlayed = -Infinity;
+  for (const r of rounds) {
+    if (!r.guest) continue;
+    n++;
+    total += r.total;
+    if (r.uid) devices.add(r.uid);
+    if (r.d > lastPlayed) lastPlayed = r.d;
+  }
+  return {
+    rounds: n,
+    devices: devices.size,
+    avgTotal: n ? round1(total / n) : null,
+    lastPlayed: n ? lastPlayed : null
+  };
+}
+
+/** Rounds played per signed-in account, newest-played first. GUEST rounds are
+ *  excluded here (they're summarized by guestSummary). Rounds saved before
+ *  account tracking shipped (or somehow missing a uid) are grouped under
+ *  'untracked' rather than dropped, so the account round count stays honest. */
 export function roundsByAccount(rounds: RoundRecord[]): { tracked: AccountRounds[]; untracked: number } {
   const acc = new Map<
     string,
@@ -199,6 +230,7 @@ export function roundsByAccount(rounds: RoundRecord[]): { tracked: AccountRounds
   >();
   let untracked = 0;
   for (const r of rounds) {
+    if (r.guest) continue; // counted by guestSummary, never as an account
     if (!r.uid) {
       untracked++;
       continue;

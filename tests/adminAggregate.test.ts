@@ -7,6 +7,7 @@ import {
   avgByHole,
   avgPutts,
   avgPuttsByHole,
+  guestSummary,
   overallAvg,
   roundsByAccount,
   splitGolferId
@@ -164,5 +165,30 @@ describe('roundsByAccount', () => {
     ];
     const r = roundsByAccount(rounds);
     expect(r.tracked.map((a) => a.uid)).toEqual(['b', 'a']);
+  });
+});
+
+describe('guest play', () => {
+  it('summarizes guest rounds by device and keeps them out of the account table', () => {
+    const rounds = [
+      round({ uid: 'u-acct', total: 12 }),
+      round({ uid: 'g-dev1', guest: true, total: 14, d: 10 }),
+      round({ uid: 'g-dev1', guest: true, total: 16, d: 20 }),
+      round({ uid: 'g-dev2', guest: true, total: 18, d: 30 })
+    ];
+    const g = guestSummary(rounds);
+    expect(g.rounds).toBe(3);
+    expect(g.devices).toBe(2);
+    expect(g.avgTotal).toBe(16); // (14+16+18)/3
+    expect(g.lastPlayed).toBe(30);
+    // Guests never appear as accounts.
+    const acc = roundsByAccount(rounds);
+    expect(acc.tracked.map((a) => a.uid)).toEqual(['u-acct']);
+    expect(acc.untracked).toBe(0);
+  });
+
+  it('reports zeros when there are no guest rounds', () => {
+    const g = guestSummary([round({ uid: 'u' })]);
+    expect(g).toEqual({ rounds: 0, devices: 0, avgTotal: null, lastPlayed: null });
   });
 });

@@ -9,7 +9,7 @@
  */
 import { FIREBASE, LEADERBOARD_URL } from '../config';
 import { RoundRecord } from '../firebase/History';
-import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, overallAvg, roundsByAccount } from './aggregate';
+import { avgByArchetype, avgByCourse, avgByHole, avgPutts, avgPuttsByHole, guestSummary, overallAvg, roundsByAccount } from './aggregate';
 import { aggregateRetention, flattenEvents, RawEventsNode, RetentionStats } from './retentionStats';
 import { isAdminEmail } from './adminEmails';
 import { renderMarketingManager } from './marketing';
@@ -186,6 +186,7 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
   const archetypes = avgByArchetype(rounds).filter((t) => ACTIVE_ARCHETYPES.has(t.type));
   const putts = avgPutts(rounds);
   const accounts = roundsByAccount(rounds);
+  const guests = guestSummary(rounds);
   const overall = overallAvg(rounds);
   const fmtPar = (v: number): string => (v > 0 ? `+${v}` : `${v}`);
   const maxTotal = Math.max(...courses.map((c) => c.avgTotal), 1);
@@ -268,6 +269,14 @@ function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new 
     }
     html += `</table>`;
   }
+  // Guest (anonymous) play — counted from the shared /rounds node (works
+  // without the analytics rules), shown separately and never as an account.
+  html += `<div class="guestLine"><b>Guest players:</b> ${guests.rounds} round(s) from ${guests.devices} device(s)`;
+  if (guests.rounds > 0) {
+    html += ` · avg ${guests.avgTotal}`;
+    if (guests.lastPlayed) html += ` · last ${new Date(guests.lastPlayed).toLocaleDateString()}`;
+  }
+  html += `</div>`;
   html += `</section>`;
 
   $('app').innerHTML = html;

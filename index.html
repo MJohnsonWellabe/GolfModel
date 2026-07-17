@@ -1066,6 +1066,61 @@
         font-weight: 800;
         color: #ffd54f;
       }
+      /* Expandable per-hole mastery drill-down */
+      .masteryDetails {
+        margin: -6px 0 14px;
+        text-align: left;
+      }
+      .masteryDetails > summary {
+        cursor: pointer;
+        color: #a9c9b0;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 6px 0;
+      }
+      .mCourse {
+        margin: 8px 0;
+      }
+      .mCourseHead {
+        font-size: 13px;
+        font-weight: 800;
+        color: #eef5ea;
+        margin-bottom: 4px;
+      }
+      .mCourseHead .mCount {
+        color: #ffd54f;
+        font-weight: 900;
+      }
+      .mRow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 3px 0;
+        font-size: 12px;
+      }
+      .mHole {
+        flex: 0 0 88px;
+        color: #a9c9b0;
+      }
+      .mStars {
+        flex: 0 0 auto;
+        letter-spacing: 2px;
+        font-size: 15px;
+      }
+      .mStars .mStar {
+        color: rgba(255, 255, 255, 0.28);
+      }
+      .mStars .mStar.got {
+        color: #ffd54f;
+      }
+      .mChal {
+        flex: 1 1 auto;
+        min-width: 0;
+        color: #8aa;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .profStats div {
         background: rgba(255, 255, 255, 0.06);
         border-radius: 10px;

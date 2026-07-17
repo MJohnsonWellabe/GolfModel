@@ -19,10 +19,15 @@ export interface RoundRecord {
   putts?: number;
   /** Putts taken per hole, parallel to holes[]. */
   hputts?: number[];
-  /** Signed-in account uid (absent on rounds recorded before account tracking,
-   *  and never present for signed-out play — saveRound is only ever called for
-   *  a signed-in profile, so every uid here is a real Firebase uid). */
+  /** Signed-in account uid, OR the device's stable GUEST id (`g-…`) when this
+   *  is a guest round (see `guest`). Absent only on rounds recorded before
+   *  account tracking shipped. */
   uid?: string;
+  /** True for a signed-out (guest) round. Guest rounds are written to the
+   *  shared `/rounds` node so the admin dashboard can COUNT them (Constitution
+   *  rule 18 — guests are real players), but they are kept off the player-
+   *  facing leaderboard and never shown as an account. */
+  guest?: boolean;
   /** Player's post-round lifetime XP total (grow-only). Lets the admin surface
    *  per-account XP from the public /rounds node without reading the private
    *  profiles/{uid} tree. Absent on rounds recorded before this field shipped. */
@@ -122,7 +127,9 @@ export async function fetchAllRounds(): Promise<{ rounds: RoundRecord[]; shared:
   }
 }
 
-/** Best rounds for a course + mode, lowest total first (ties: earliest wins). */
+/** Best rounds for a course + mode, lowest total first (ties: earliest wins).
+ *  Guest rounds are excluded — the player-facing leaderboard stays account-only
+ *  even though guest rounds are recorded for admin measurement. */
 export function bestRounds(
   rounds: RoundRecord[],
   course: string,
@@ -130,15 +137,17 @@ export function bestRounds(
   n: number
 ): RoundRecord[] {
   return rounds
-    .filter((r) => r.course === course && r.mode === mode)
+    .filter((r) => !r.guest && r.course === course && r.mode === mode)
     .sort((a, b) => a.total - b.total || a.d - b.d)
     .slice(0, n);
 }
 
-/** Is this round strictly better than every OTHER round on that course+mode? */
+/** Is this round strictly better than every OTHER (non-guest) round on that
+ *  course+mode? A guest round never counts as a public course record. */
 export function isNewRecord(rounds: RoundRecord[], round: RoundRecord): boolean {
+  if (round.guest) return false;
   const others = rounds.filter(
-    (r) => r.id !== round.id && r.course === round.course && r.mode === round.mode
+    (r) => !r.guest && r.id !== round.id && r.course === round.course && r.mode === round.mode
   );
   if (others.length === 0) return true;
   return round.total < Math.min(...others.map((r) => r.total));

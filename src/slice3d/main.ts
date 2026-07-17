@@ -76,7 +76,7 @@ import {
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
-import { applyHoleMastery, HoleMasteryInput, nextStarHint, starCount } from '../systems/Mastery';
+import { applyHoleMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BIRDIE, STAR_CHALLENGE, STAR_PAR } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
@@ -551,6 +551,11 @@ class HoleScene {
    *  and left alone until the putt is struck or the turn ends. */
   private trueVisionRoot!: TransformNode;
   private trueVisionDots: Mesh[] = [];
+  /** Golden, enlarged terminal marker showing exactly where the ball comes to
+   *  rest on the revealed line — so short vs long relative to the cup reads at
+   *  a glance (playtest: "make it clearer if you're going to come up short or
+   *  long"). */
+  private trueVisionEnd!: Mesh;
   /** World point the aim-distance/elevation readout floats over (FB2/FB4). */
   private aimReadoutWorld: { x: number; y: number } | null = null;
   private aerial = false;
@@ -717,6 +722,17 @@ class HoleScene {
       dot.parent = this.trueVisionRoot;
       this.trueVisionDots.push(dot);
     }
+    // Golden endpoint puck — bigger + a bright gold glow so the resting spot
+    // pops out from the red line and reads clearly short/long of the cup.
+    const tvEndMat = new StandardMaterial('trueVisionEndMat', this.scene);
+    tvEndMat.diffuseColor = new Color3(1, 0.85, 0.1);
+    tvEndMat.emissiveColor = new Color3(1, 0.82, 0.05);
+    tvEndMat.disableLighting = true;
+    const tvEnd = MeshBuilder.CreateDisc('trueVisionEnd', { radius: 0.45, tessellation: 24 }, this.scene);
+    tvEnd.rotation.x = Math.PI / 2;
+    tvEnd.material = tvEndMat;
+    tvEnd.parent = this.trueVisionRoot;
+    this.trueVisionEnd = tvEnd;
     this.trueVisionRoot.setEnabled(false);
 
     this.camera = new FreeCamera('cam', new Vector3(0, 8, 0), this.scene);
@@ -1669,15 +1685,23 @@ class HoleScene {
    *  reveal stays legible in the overhead putt view the same way. */
   private showTrueVisionPath(path: TrajectoryPoint[], scale: number): void {
     const pts = this.resamplePathByArcLength(path, this.trueVisionDots.length);
+    // Leave the last visible red dot off so the golden endpoint puck owns the
+    // resting spot without a red dot doubled underneath it.
+    const lastVisible = this.trueVisionDots.length - 2;
     this.trueVisionDots.forEach((dot, i) => {
-      if (i % 2 === 1) {
-        dot.scaling.setAll(0); // the "dash" gaps
+      if (i % 2 === 1 || i === lastVisible) {
+        dot.scaling.setAll(0); // the "dash" gaps + the slot the gold puck takes
         return;
       }
       const p = pts[i] ?? pts[pts.length - 1];
       dot.position = w2b(p.x, p.y, 0.12 + this.gh(p.x, p.y));
       dot.scaling.setAll(scale);
     });
+    // Golden puck at the ACTUAL final resting point (raw path end, not a
+    // resampled dot) — where the ball stops for the current aim + pace.
+    const end = path[path.length - 1] ?? pts[pts.length - 1];
+    this.trueVisionEnd.position = w2b(end.x, end.y, 0.18 + this.gh(end.x, end.y));
+    this.trueVisionEnd.scaling.setAll(scale * 2.6);
     this.trueVisionRoot.setEnabled(true);
   }
 
@@ -2958,14 +2982,17 @@ function showSummary(): void {
     holes: me.scores.slice(0, holes.length),
     putts: holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0),
     hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0),
-    uid: profile.id,
-    xp: profile.xp
+    // Signed in → the real Firebase uid; guest → the device's STABLE guest id
+    // (so a guest's rounds group together across a session), flagged `guest`.
+    uid: signedIn ? profile.id : guestId(),
+    ...(signedIn ? { xp: profile.xp } : { guest: true })
   };
-  // Records/coins only persist for a signed-in account (account-gated model):
-  // a signed-out round still plays and shows its rewards, but nothing is saved.
-  // signedIn gates this, so profile.id is always the real Firebase uid here
-  // (never the pre-sign-in "guest-…" id) — see adoptCloudAccount.
-  if (signedIn) saveRound(record);
+  // Account PROGRESS (coins/records/profile) stays account-gated — a guest
+  // round persists nothing to the profile. But the round itself IS recorded to
+  // the shared /rounds node for EVERYONE, so the admin dashboard counts guest
+  // play (Constitution rule 18). Guest rounds are flagged and never appear on
+  // the player-facing leaderboard or as an account (see aggregate/bestRounds).
+  saveRound(record);
   // Season pass: the round's XP also advances the pass track (accrues for
   // everyone while the season runs; claiming needs the pass).
   const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp');
@@ -3226,6 +3253,38 @@ function rewardStripHtml(events: RewardEvent[]): string {
   return html;
 }
 
+/** Per-course, per-hole mastery breakdown for the profile drill-down: three
+ *  stars per hole (par-or-better / birdie / the authored challenge), each shown
+ *  filled or empty with its requirement, so the player sees exactly what's left. */
+function masteryDetailHtml(p: PlayerProfile): string {
+  const star = (on: boolean): string => (on ? '★' : '☆');
+  return COURSE_LIST.map((c) => {
+    const course = COURSES[c.id];
+    const holes = course.holes.slice(0, holesThisRound());
+    const rows = holes
+      .map((h) => {
+        const bits = holeStars(p.retention.mastery, c.id, h.number);
+        const def = thirdStarFor(c.id, h.number);
+        const cell = (on: boolean, label: string): string =>
+          `<span class="mStar${on ? ' got' : ''}" title="${escapeHtml(label)}">${star(on)}</span>`;
+        return (
+          `<div class="mRow"><span class="mHole">H${h.number} · par ${h.par}</span>` +
+          `<span class="mStars">` +
+          cell((bits & STAR_PAR) !== 0, 'Par or better') +
+          cell((bits & STAR_BIRDIE) !== 0, 'Birdie or better') +
+          cell((bits & STAR_CHALLENGE) !== 0, def?.desc ?? 'Skill challenge') +
+          `</span>` +
+          `<span class="mChal">${escapeHtml(def?.desc ?? '')}</span></div>`
+        );
+      })
+      .join('');
+    return (
+      `<div class="mCourse"><div class="mCourseHead">${c.icon} ${escapeHtml(course.name)} ` +
+      `<span class="mCount">${starCount(p.retention.mastery, c.id)}/9</span></div>${rows}</div>`
+    );
+  }).join('');
+}
+
 /** Profile overlay: level ring, career stats and achievements (Phase 6). */
 function renderProfile(): void {
   const p = profile;
@@ -3250,11 +3309,14 @@ function renderProfile(): void {
     statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
     statCell(`⭐ ${starCount(p.retention.mastery)}`, 'Mastery stars') +
     `</div>` +
-    // Compact course-by-course mastery totals (Part 5): totals only, the
-    // hole-level drill-down lives on the course cards / results screen.
+    // Course-by-course mastery totals + an expandable per-hole drill-down so
+    // the player can see exactly which stars are done and which remain.
     `<div class="profMastery">` +
     COURSE_LIST.map((c) => `<span class="chip">${c.icon} ${starCount(p.retention.mastery, c.id)}/9</span>`).join('') +
     `</div>` +
+    `<details class="masteryDetails"><summary>View mastery stars by hole</summary>` +
+    masteryDetailHtml(p) +
+    `</details>` +
     // Your Challenges (1v1): who you challenged, the result, and the W-L
     // record — filled asynchronously from the shared /challenges docs.
     (p.retention.challenges.length

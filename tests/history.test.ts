@@ -63,3 +63,21 @@ describe('isNewRecord', () => {
     expect(isNewRecord([otherCourse, mine], mine)).toBe(true);
   });
 });
+
+describe('guest rounds stay off the player-facing leaderboard', () => {
+  it('bestRounds excludes guest rounds even when they are the lowest', () => {
+    const rounds = [
+      round({ id: 'acct', total: 12 }),
+      round({ id: 'guest', total: 6, guest: true }) // a great guest score
+    ];
+    const best = bestRounds(rounds, 'Amen Corner', 'solo', 5);
+    expect(best.map((r) => r.id)).toEqual(['acct']);
+  });
+
+  it('a guest round is never a new course record, and never blocks one', () => {
+    const guestLow = round({ id: 'g', total: 6, guest: true });
+    const mine = round({ id: 'm', total: 10 });
+    expect(isNewRecord([guestLow], guestLow)).toBe(false); // guests can't set records
+    expect(isNewRecord([guestLow, mine], mine)).toBe(true); // guest low doesn't block me
+  });
+});
