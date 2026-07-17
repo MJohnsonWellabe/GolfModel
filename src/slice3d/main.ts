@@ -4708,8 +4708,11 @@ void (async () => {
   // only gets the cloud value once adoptCloudAccount finishes, so checking
   // synchronously at load used to pop the modal for a signed-in player on
   // every reload, right before their name loaded in underneath it. Skipped in
-  // the screenshot-harness boot.
-  if (!profile.name.trim() && !SHOT.hole) promptName(false);
+  // the screenshot-harness boot (?hole) and under automation (Playwright drives
+  // specific screens/flows and sets names programmatically — onboarding is not
+  // what those specs exercise, and it must not sit over the wizard/canvas).
+  const automated = typeof navigator !== 'undefined' && navigator.webdriver;
+  if (!profile.name.trim() && !SHOT.hole && !automated) promptName(false);
 })();
 
 /** The setup choices, prefilled from the profile so returning players jump
