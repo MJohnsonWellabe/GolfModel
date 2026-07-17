@@ -1283,8 +1283,18 @@
         display: flex;
         flex-direction: column;
         justify-content: flex-end; /* name/meta read over the bottom of the art */
+        /* Grid items default to min-width:auto (their content's min-content), so
+           a long course name would blow the 1fr track past the viewport. Let the
+           card shrink to its track and keep the 2-up grid inside the screen. */
+        min-width: 0;
       }
-      .modeGrid--courses .archCard .an { font-size: 14px; }
+      /* Higher specificity than `.archCard .an` (which forces nowrap), so a long
+         course name wraps to a second line instead of being clipped by the card. */
+      .modeGrid--courses .archCard .an {
+        font-size: 14px;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
       .modeGrid--courses .courseMeta { margin-top: 5px; }
       @media (max-width: 380px) {
         .modeGrid--courses { grid-template-columns: 1fr; }
@@ -1310,26 +1320,27 @@
         background-size: cover;
         background-position: center;
       }
-      .courseCard .ahead { align-items: center; gap: 6px; margin-bottom: 0; }
-      /* Color-coded difficulty chip (compact, right-aligned in the name row). */
-      .courseCard .atag.diff {
-        flex: 0 0 auto;
-        margin-left: auto;
-        padding: 2px 9px;
-        border-radius: 999px;
-        font-size: 10px;
+      /* Name row is now full width (the difficulty chip lives in the meta row),
+         so a long name wraps to a second line instead of forcing the card — and
+         the track — past the screen edge. */
+      .courseCard .ahead { display: block; margin-bottom: 0; min-width: 0; }
+      /* Wrapping itself is set on `.modeGrid--courses .archCard .an` above (it
+         needs the extra specificity to beat `.archCard .an`'s nowrap). */
+      .courseCard .an { line-height: 1.15; }
+      /* Color-coded difficulty chip — a color-filled pill in the meta row. The
+         two-class selectors below beat `.courseMeta span`'s dark base fill. */
+      .courseMeta .diff {
+        color: #12241b;
         font-weight: 900;
         letter-spacing: 0.5px;
         text-transform: uppercase;
-        color: #12241b;
-        text-overflow: clip;
       }
-      .diff-balanced { background: linear-gradient(180deg, #a8e6a1, #6cc26a); }
-      .diff-daring { background: linear-gradient(180deg, #ffd08a, #ef9a3d); }
-      .diff-tight { background: linear-gradient(180deg, #9fd0ff, #5aa0e6); }
-      .diff-windy { background: linear-gradient(180deg, #d3dbe2, #9aa8b5); }
+      .courseMeta .diff.diff-balanced { background: linear-gradient(180deg, #a8e6a1, #6cc26a); }
+      .courseMeta .diff.diff-daring { background: linear-gradient(180deg, #ffd08a, #ef9a3d); }
+      .courseMeta .diff.diff-tight { background: linear-gradient(180deg, #9fd0ff, #5aa0e6); }
+      .courseMeta .diff.diff-windy { background: linear-gradient(180deg, #d3dbe2, #9aa8b5); }
       .courseTag { font-size: 11px; line-height: 1.3; color: #e2efdc; margin: 5px 0 0; }
-      .courseMeta { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .courseMeta { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
       .courseMeta span { padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,0.36); color: #f3ead0; font-size: 11px; font-weight: 800; }
       .archCard .ahead {
         display: flex;

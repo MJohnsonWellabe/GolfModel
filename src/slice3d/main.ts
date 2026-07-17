@@ -4019,9 +4019,10 @@ function renderCourse(): void {
       const diff = c.difficulty.toLowerCase();
       return (
         `<div class="archCard modeCard courseCard${selected ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
-        `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
-        `<span class="atag diff diff-${diff}">${c.difficulty}</span></div>` +
-        `<div class="courseMeta"><span>${tag}</span><span>Best ${bestCourseScore(c.id)}</span></div>` +
+        `<div class="ahead"><span class="an">${c.icon} ${c.name}</span></div>` +
+        `<div class="courseMeta">` +
+        `<span class="diff diff-${diff}">${c.difficulty}</span>` +
+        `<span>${tag}</span><span>Best ${bestCourseScore(c.id)}</span></div>` +
         (selected ? `<div class="stepHint courseTag">${sub}</div>` : '') +
         `</div>`
       );
