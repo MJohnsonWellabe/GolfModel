@@ -117,6 +117,32 @@ describe('collectTreeBlobs specimen-tree fallback', () => {
     }
   });
 
+  it('Timberline 2 front-of-green pine: collision slides left of the rendered tree', () => {
+    // v1.0 Final UX item 2 — the lone pine guarding the front of Timberline's
+    // 2nd green caught too many approaches. Its collisionOffset moves ONLY the
+    // hitbox ~3 yd (6 px) to the player's left (−x, playing up the hole); the
+    // rendered trunk, its canopy radius and the baked shadow (both forRender)
+    // must not move at all.
+    const course = loadCourse(timberline as unknown as CourseAuthoring);
+    const h2 = course.holes.find((h) => h.number === 2)!;
+    const specimen = h2.hazards.find((hz) => hz.type === 'trees' && hz.collisionOffset)!;
+    expect(specimen, 'the offset pine is authored in the course data').toBeTruthy();
+    const solo = { ...h2, hazards: [specimen] } as HoleData;
+
+    const collide = collectTreeBlobs(solo, 0, false);
+    const render = collectTreeBlobs(solo, 0, true);
+    expect(collide).toHaveLength(1);
+    expect(render).toHaveLength(1);
+    // Collision hitbox sits 6 px left of the rendered trunk; y and radius match.
+    expect(collide[0].x).toBeCloseTo(render[0].x - 6, 5);
+    expect(collide[0].y).toBeCloseTo(render[0].y, 5);
+    expect(collide[0].r).toBeCloseTo(render[0].r, 5);
+    // The rendered tree still sits at its authored polygon centroid (~428,510),
+    // i.e. the art did NOT move.
+    expect(render[0].x).toBeCloseTo(428, 0);
+    expect(render[0].y).toBeCloseTo(510, 0);
+  });
+
   it('every authored trees hazard on every course yields at least one trunk', () => {
     const courses = { timberline, wildwood, sablebay, portjohnson };
     for (const [id, json] of Object.entries(courses)) {

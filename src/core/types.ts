@@ -136,6 +136,17 @@ export interface Hazard {
    */
   renderOffset?: [number, number];
   /**
+   * Trees only, COLLISION ONLY: nudge the trunk COLLISION center [dx, dy] world
+   * units from its authored polygon position, WITHOUT moving the rendered trunk,
+   * its canopy radius, or the baked drop-shadow (all of which read the
+   * `forRender` path and stay put). The exact inverse of `renderOffset`: this
+   * shifts only the ball-flight hitbox. Used where a rendered specimen tree
+   * catches too many shots and the collision needs to slide off the line while
+   * the tree stays exactly where the art places it (Timberline 2's front-of-
+   * green pine — moved ~3 yd to the player's left).
+   */
+  collisionOffset?: [number, number];
+  /**
    * Trees only, VISUAL ONLY: a denser grid step used instead of `spacing`
    * when rendering (never for collision/shadows). Lets woods look genuinely
    * thick without the extra trunks ever being able to trap a ball — canopy

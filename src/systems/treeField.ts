@@ -123,7 +123,11 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     // the baked shadow always use the real `spacing`, never this one).
     const step = (forRender ? hz.visualSpacing : undefined) ?? hz.spacing ?? 52;
     const jitter = step * (36 / 52);
-    const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : [0, 0];
+    // Render/shadow apply the VISUAL renderOffset; collision applies the
+    // inverse collisionOffset. forRender=false is the collision path only (the
+    // baked shadow and 3D mesh both pass forRender=true), so a collisionOffset
+    // slides a trunk's hitbox without touching where the tree is drawn.
+    const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : hz.collisionOffset ?? [0, 0];
     // Natural edge thinning: woods should peter out toward their boundary
     // instead of stopping on a ruler line (visual pass 7). Estimate how deep a
     // trunk sits with four offset point-in-polygon probes and keep edge trunks

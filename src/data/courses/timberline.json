@@ -1256,7 +1256,8 @@
               501.3
             ]
           ],
-          "treeR": 26
+          "treeR": 26,
+          "collisionOffset": [-6, 0]
         }
       ],
       "gardens": [
