@@ -386,6 +386,7 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     ),
     achievements: [...new Set([...(a.achievements ?? []), ...(b.achievements ?? [])])],
     stats,
+    daily: mergeDaily(a.daily, b.daily),
     tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
     season: mergeSeason(a.season, b.season),
     perks: mergePerks(a.perks, b.perks),
@@ -394,6 +395,26 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     equippedPerk: newer.equippedPerk ?? null,
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
   };
+}
+
+/** Daily-challenge state must merge MONOTONICALLY, not by last-write-wins: it
+ *  fell out of the `...newer` spread, so a stale cross-device sync where the
+ *  same day still reads `done:false` but carries a NEWER updatedAt used to
+ *  RE-OPEN a completed challenge and pay the bonus a second time. For the SAME
+ *  date key `done` is sticky — true if EITHER side completed it (mirrors the
+ *  season `claimed` union). Different date keys are a genuine day rollover, so
+ *  the LATER calendar day wins (a new day legitimately resets `done:false`). */
+function mergeDaily(
+  a?: PlayerProfile['daily'],
+  b?: PlayerProfile['daily']
+): PlayerProfile['daily'] {
+  const fresh = { date: '', challengeId: '', done: false };
+  const da = a ?? fresh;
+  const db = b ?? fresh;
+  if (da.date === db.date) {
+    return { date: da.date, challengeId: da.challengeId || db.challengeId, done: da.done || db.done };
+  }
+  return da.date >= db.date ? da : db;
 }
 
 /** Union perks by id; grow-only counters take the max so a charge consumed on

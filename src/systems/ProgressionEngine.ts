@@ -22,12 +22,15 @@ export type RewardEvent =
   | { kind: 'achievement'; name: string; desc: string }
   | { kind: 'levelUp'; level: number };
 
-/** Yesterday's YYYY-MM-DD, for the streak-continuity check. */
+/** Yesterday's YYYY-MM-DD, for the streak-continuity check. Uses LOCAL calendar
+ *  time to match todayKey() in slice3d/main.ts — mixing UTC here with a local
+ *  today made the streak/daily date logic disagree near midnight in negative-UTC
+ *  zones. new Date(y, m-1, d-1) constructs the previous local day directly, so
+ *  it's DST-safe (no fixed 86.4M-ms subtraction that can slip an hour). */
 function prevDay(dateKey: string): string {
   const [y, m, d] = dateKey.split('-').map(Number);
-  const t = Date.UTC(y, m - 1, d) - 86400000;
-  const dt = new Date(t);
-  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}-${String(dt.getUTCDate()).padStart(2, '0')}`;
+  const dt = new Date(y, m - 1, d - 1);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
 }
 
 export function applyRound(profile: PlayerProfile, r: RoundStats, dateKey = ''): RewardEvent[] {

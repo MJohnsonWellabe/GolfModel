@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProfile } from '../src/profile/Profile';
+import { defaultProfile, mergeProfiles } from '../src/profile/Profile';
 import {
   ACHIEVEMENTS,
   COINS,
@@ -116,6 +116,62 @@ describe('daily challenges', () => {
     // …and skipping a day resets to 1.
     applyRound(p, dud(), '2026-07-14');
     expect(p.dailyStreak).toBe(1);
+  });
+
+  // Helper: find a day in 2026 whose challenge is "under par" (a −1 round clears it).
+  function underParDay(): string {
+    for (let mo = 1; mo <= 12; mo++) {
+      for (let d = 1; d <= 28; d++) {
+        const key = `2026-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        if (dailyChallengeFor(key).id === 'under_par') return key;
+      }
+    }
+    return '';
+  }
+
+  // Regression (F1): the daily challenge must pay its bonus ONCE. `daily` fell
+  // out of mergeProfiles' last-write-wins spread, so a stale cross-device sync
+  // whose copy still read done:false — but carried a NEWER updatedAt — RE-OPENED
+  // a completed challenge, letting the next round bank the bonus a SECOND time.
+  it('a stale sync (done:false, newer updatedAt) cannot re-open a completed daily', () => {
+    const day = underParDay();
+    expect(day).not.toBe('');
+
+    // Device A completes today's challenge (done:true), stamped at T.
+    const completed = defaultProfile();
+    applyRound(completed, roundOf({ toPar: -1, strokes: 11 }), day);
+    expect(completed.daily.done).toBe(true);
+    completed.updatedAt = 100;
+
+    // A stale cloud copy for the SAME day still says the challenge is not done,
+    // but with a NEWER updatedAt — last-write-wins would pick it and re-open it.
+    const stale = defaultProfile();
+    stale.daily = { date: day, challengeId: completed.daily.challengeId, done: false };
+    stale.updatedAt = 200;
+
+    const merged = mergeProfiles(completed, stale);
+    // Monotonic union keeps the completion sticky despite the newer stale copy.
+    expect(merged.daily.done).toBe(true);
+
+    // A second completing round on the same day must NOT pay the daily again.
+    const xpBefore = merged.xp;
+    const events = applyRound(merged, roundOf({ toPar: -1, strokes: 11 }), day);
+    expect(events.some((e) => e.kind === 'daily')).toBe(false);
+    const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp')!;
+    // XP grew only by the plain round reward — no daily bonus folded in.
+    expect(merged.xp - xpBefore).toBe(roundXp.amount);
+  });
+
+  it('a genuine new day (later date key) still resets the challenge to un-done', () => {
+    const a = defaultProfile();
+    a.daily = { date: '2026-07-10', challengeId: 'under_par', done: true };
+    a.updatedAt = 100;
+    const b = defaultProfile();
+    b.daily = { date: '2026-07-11', challengeId: 'under_par', done: false };
+    b.updatedAt = 50; // older, but a strictly later calendar day
+    const merged = mergeProfiles(a, b);
+    expect(merged.daily.date).toBe('2026-07-11');
+    expect(merged.daily.done).toBe(false);
   });
 
   it('the streak carries across month boundaries', () => {
