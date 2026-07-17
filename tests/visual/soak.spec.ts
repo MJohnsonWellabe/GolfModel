@@ -43,6 +43,9 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
   // Surface page-side failures — a scene build that throws leaves the page
   // alive but the next scene never appears, which otherwise reads as a bare
   // waitForFunction timeout with no cause.
+  // Software-GL raster cost scales with pixels — run the soak at a phone
+  // viewport so eight full course builds don't starve the GPU process.
+  await page.setViewportSize({ width: 390, height: 844 });
   const pageErrors: string[] = [];
   page.on('pageerror', (err) => {
     pageErrors.push(String(err));
@@ -69,7 +72,7 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
       await page.waitForFunction(
         (prev) => ((window as any).__slice3d?.seq ?? 0) > prev,
         prevSeq,
-        { timeout: 60_000 }
+        { timeout: 180_000 }
       );
       await page.evaluate(() => (window as any).__slice3d.skipIntro());
       await page.waitForFunction(
@@ -85,13 +88,13 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
       // scatter drain + ship swap are done and resource counts are meaningful.
       // SwiftShader renders cost ~25-40ms each, so bursts stay small.
       let settled = false;
-      for (let burst = 0; burst < 40 && !settled; burst++) {
+      for (let burst = 0; burst < 60 && !settled; burst++) {
         settled = (await page.evaluate(() => {
           const scene = (window as any).__slice3d.scene;
-          for (let i = 0; i < 25; i++) scene.render();
+          for (let i = 0; i < 15; i++) scene.render();
           return (window as any).__golfSoak().natureSettled as boolean;
         })) as boolean;
-        await page.waitForTimeout(50);
+        await page.waitForTimeout(120);
       }
       expect(settled, `${courseId} cycle ${cycle}: nature settled`).toBe(true);
       const snap = (await page.evaluate(() => (window as any).__golfSoak())) as SoakSnap;
