@@ -968,6 +968,28 @@ export class PhysicsEngine {
     return dist(from, this.hole.pin) / PX_PER_YARD;
   }
 
+  /**
+   * True when a ball at (x,y) sits close enough to the green to reasonably
+   * DEFAULT to the putter: on the green itself, or within the tight, mown
+   * VISUAL collar (FRINGE_VISUAL ≈ 3.5 yd) — the "very small fringe area" a
+   * player would actually putt from.
+   *
+   * Defers to surfaceAt for the surface TYPE first, so a fairway ribbon or a
+   * bunker lapping the green (which classify as 'fairway'/'sand' even right at
+   * the edge) is never puttable — then applies the tight-collar test only
+   * within genuine fringe. This is deliberately the TIGHT collar, not the broad
+   * 16-yd FRINGE_MARGIN lie zone: a ball 10 yd off the green plays a short-game
+   * club even though it still carries the cleaner 'fringe' lie, and proximity to
+   * the PIN never enters into it.
+   */
+  puttableFromHere(x: number, y: number): boolean {
+    const surf = this.surfaceAt(x, y);
+    if (surf === 'green') return true;
+    if (surf !== 'fringe') return false;
+    const h = this.hole;
+    return pointInGreens(x, y, h.green, h.green2, FRINGE_VISUAL);
+  }
+
   static get maxStrokes(): number {
     return RULES.maxStrokes;
   }

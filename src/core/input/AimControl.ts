@@ -232,11 +232,16 @@ export class AimControl {
   autoSelectClub(ctx: ShotContext): void {
     const needed = this.engine.yardsToPin(ctx.ball);
     let id: string;
-    if (ctx.lie === 'green') {
-      id = 'putter';
-    } else if (ctx.lie === 'sand') {
+    if (ctx.lie === 'sand') {
+      // A bunker never putts, even a greenside one lapping the collar.
       id = needed > 130 ? '9i' : 'sw';
-    } else if (ctx.lie === 'fringe' && needed < 35) {
+    } else if (this.engine.puttableFromHere(ctx.ball.x, ctx.ball.y)) {
+      // Putter defaults ONLY on the green or within the tight mown collar (the
+      // "very small fringe area") — NEVER merely because the pin is close. A
+      // ball out on the fairway, in the rough, or across a bunker from a nearby
+      // pin plays a short-game club, not the putter. This gates on the ball's
+      // ACTUAL position (not the passed lie), so a stale lie carried over from a
+      // prior shot can never mis-arm the putter off the green.
       id = 'putter';
     } else {
       id = 'driver';

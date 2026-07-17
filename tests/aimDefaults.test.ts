@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AimControl, ShotContext } from '../src/core/input/AimControl';
-import { PhysicsEngine } from '../src/systems/PhysicsEngine';
+import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../src/systems/PhysicsEngine';
 import { buildHeightField } from '../src/systems/HeightField';
 import { CourseAuthoring, loadCourse } from '../src/data/courseLoader';
 import { Golfer, HoleData, Point, Surface } from '../src/core/types';
@@ -196,5 +196,122 @@ describe('default aim complete setup path with ordinary golfer', () => {
     const s = setup(h, ball, 'fairway', 1);
     expect(dist(s.point, h.pin)).toBeGreaterThan(80);
     expect(s.engine.surfaceAt(s.point.x, s.point.y)).not.toBe('water');
+  });
+});
+
+/**
+ * The putter default must be gated on the ball's actual SURFACE, never on how
+ * close the pin is (v1.0 Final UX pass, item 1). A synthetic hole gives exact
+ * control: a round green with open rough to the south/east, a fairway ribbon
+ * running up to it from the north (tee side), and a greenside bunker to the
+ * west. Points are FOUND by scanning and their surface is asserted first, so
+ * the cases stay valid even as the green's wobbled edge shifts.
+ */
+describe('putter defaults on surface, not pin distance', () => {
+  /** Round green at (500,700), r=40px (20yd). Rough is the default off-surface. */
+  function collarHole(): HoleData {
+    return {
+      number: 1,
+      par: 4,
+      yardage: 400,
+      world: { width: 1000, height: 1000 },
+      tee: { x: 500, y: 120 },
+      green: { cx: 500, cy: 700, rx: 40, ry: 40 },
+      slope: { angle: 0, strength: 0 },
+      pin: { x: 500, y: 700 },
+      // Fairway ribbon from the tee (north) running right up onto the green's
+      // north collar — a ball here is "just off the green" yet plays a pitch.
+      fairway: [[[452, 150], [548, 150], [548, 668], [452, 668]]],
+      // Greenside bunker lapping the green's west edge.
+      hazards: [{ type: 'bunker', polygon: [[430, 688], [463, 688], [463, 712], [430, 712]] }],
+      aiTargets: []
+    };
+  }
+
+  const hole = collarHole();
+  const engine = new PhysicsEngine(hole, buildHeightField(hole));
+  const center: Point = { x: hole.green.cx, y: hole.green.cy };
+
+  /** March 1px at a time from the green centre along (dx,dy) and return the
+   *  first point whose surface satisfies `want`. Fails loudly if none in 200px. */
+  function scan(dx: number, dy: number, want: (s: Surface) => boolean): Point {
+    for (let r = 0; r <= 200; r++) {
+      const p = { x: center.x + dx * r, y: center.y + dy * r };
+      if (want(engine.surfaceAt(p.x, p.y))) return p;
+    }
+    throw new Error('no matching point found while scanning');
+  }
+
+  function clubAt(ball: Point, lie: Surface): string {
+    const aim = new AimControl(hole, engine);
+    const ctx: ShotContext = { ball, lie, golfer: GOLFER, fireBoost: 0, strokes: 1 };
+    aim.autoSelectClub(ctx);
+    return aim.club.id;
+  }
+
+  it('centre of the green defaults to the putter', () => {
+    expect(engine.surfaceAt(center.x, center.y)).toBe('green');
+    expect(clubAt(center, 'green')).toBe('putter');
+  });
+
+  it('a ball at the very edge of the green still putts', () => {
+    // Last on-green point scanning south before the surface leaves the green.
+    let edge = center;
+    for (let r = 0; r <= 200; r++) {
+      const p = { x: center.x, y: center.y + r };
+      if (engine.surfaceAt(p.x, p.y) !== 'green') break;
+      edge = p;
+    }
+    expect(engine.surfaceAt(edge.x, edge.y)).toBe('green');
+    expect(clubAt(edge, 'green')).toBe('putter');
+  });
+
+  it('one inch outside the green (tight mown collar) putts by the small-fringe rule', () => {
+    // First fringe point south of the green — well inside FRINGE_VISUAL.
+    const p = scan(0, 1, (s) => s === 'fringe');
+    expect(engine.puttableFromHere(p.x, p.y)).toBe(true);
+    expect(dist(p, center) - hole.green.ry).toBeLessThan(FRINGE_VISUAL + 1);
+    expect(clubAt(p, 'fringe')).toBe('putter');
+  });
+
+  it('a fringe lie BEYOND the tight collar plays a short-game club, not the putter', () => {
+    // A point ~mid-way through the 16yd fringe lie zone: still 'fringe', but
+    // clear of the tight visual collar, so proximity to the pin must NOT putt.
+    const r = hole.green.ry + (FRINGE_VISUAL + FRINGE_MARGIN) / 2;
+    const p = { x: center.x, y: center.y + r };
+    expect(engine.surfaceAt(p.x, p.y)).toBe('fringe');
+    expect(engine.puttableFromHere(p.x, p.y)).toBe(false);
+    expect(clubAt(p, 'fringe')).not.toBe('putter');
+  });
+
+  it('a fairway lie right beside the green plays a short-game club', () => {
+    // Scan north (tee side) for the first fairway point off the green.
+    const p = scan(0, -1, (s) => s === 'fairway');
+    expect(dist(p, center) - hole.green.ry).toBeLessThan(FRINGE_MARGIN); // genuinely near
+    expect(engine.puttableFromHere(p.x, p.y)).toBe(false);
+    expect(clubAt(p, 'fairway')).not.toBe('putter');
+  });
+
+  it('a rough lie near the green plays a short-game club', () => {
+    const p = scan(0, 1, (s) => s === 'rough');
+    expect(engine.puttableFromHere(p.x, p.y)).toBe(false);
+    expect(clubAt(p, 'rough')).not.toBe('putter');
+  });
+
+  it('a greenside bunker plays a wedge, never the putter', () => {
+    const p = scan(-1, 0, (s) => s === 'sand');
+    expect(clubAt(p, 'sand')).toBe('sw');
+    expect(engine.puttableFromHere(p.x, p.y)).toBe(false);
+  });
+
+  it('a stale off-green lie cannot mis-arm the putter (position wins)', () => {
+    // A ball sitting out in the fairway but still carrying a stale lie='green'
+    // from a prior shot must NOT default to the putter — the decision reads the
+    // ball's real position, not the carried-over surface.
+    const fairwayBall = scan(0, -1, (s) => s === 'fairway');
+    expect(clubAt(fairwayBall, 'green')).not.toBe('putter');
+    // And the converse: a genuine on-green ball with a stale lie='fairway' still
+    // arms the putter.
+    expect(clubAt(center, 'fairway')).toBe('putter');
   });
 });
