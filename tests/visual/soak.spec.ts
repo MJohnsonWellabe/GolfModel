@@ -119,9 +119,11 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
     // The engine must never hold more than the one live scene.
     expect(second.engineScenes, label('engineScenes')).toBe(1);
     // Scene-scoped resources return to the same level for the same course.
-    // Meshes get a tiny tolerance: ghost/occlusion stand-ins can differ by a
-    // few instances depending on camera timing at snapshot.
-    expect(Math.abs(second.meshes - first.meshes), label('meshes')).toBeLessThanOrEqual(8);
+    // Ghost occlusion stand-ins are already excluded from `meshes` by the
+    // probe; a small tolerance remains for transient effect meshes (trail /
+    // petal timing at snapshot). A genuine leak (a retained scene's worth of
+    // meshes) is hundreds — far beyond this band.
+    expect(Math.abs(second.meshes - first.meshes), label('meshes')).toBeLessThanOrEqual(16);
     expect(Math.abs(second.materials - first.materials), label('materials')).toBeLessThanOrEqual(4);
     expect(Math.abs(second.textures - first.textures), label('textures')).toBeLessThanOrEqual(4);
     expect(

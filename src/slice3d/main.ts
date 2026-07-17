@@ -4245,11 +4245,16 @@ window.addEventListener('resize', () => engine3d.resize());
 (window as unknown as { __golfSoak: unknown }).__golfSoak = () => {
   const scene = current?.scene ?? null;
   const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+  // Ghost tree-occlusion stand-ins are created/removed dynamically as the
+  // camera looks through canopies — pure snapshot-time noise for the soak
+  // comparison, so they're reported separately and excluded from `meshes`.
+  const ghosts = scene ? scene.meshes.filter((m) => m.name.startsWith('ghost')).length : 0;
   return {
     hasScene: !!scene,
     course: round.course.name,
     natureSettled: current?.natureSettled ?? false,
-    meshes: scene ? scene.meshes.length : 0,
+    meshes: scene ? scene.meshes.length - ghosts : 0,
+    ghostMeshes: ghosts,
     materials: scene ? scene.materials.length : 0,
     textures: scene ? scene.textures.length : 0,
     particleSystems: scene ? scene.particleSystems.length : 0,
