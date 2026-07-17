@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Append-only architecture changelog through the V1 passes; the bottom Phaser-era snapshot is long superseded. Current architecture lives in docs/04_TECHNICAL_ARCHITECTURE.md and docs/technical/.
+
 # Johnson's Golf
 ## Architecture Review — Phase 1A Deliverable
 

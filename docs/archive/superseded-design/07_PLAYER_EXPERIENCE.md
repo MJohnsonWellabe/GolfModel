@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Superseded by docs/vision/03_PLAYER_EXPERIENCE.md. The emotional-beat catalog here remains good source material for the V2 Delight phases.
+
 # 07_PLAYER_EXPERIENCE.md
 
 # Johnson's Golf

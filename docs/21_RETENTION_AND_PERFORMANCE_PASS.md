@@ -1,5 +1,7 @@
 # 21 — Retention & Performance Recovery Pass (v2)
 
+**Status:** IMPLEMENTATION RECORD (retention & performance recovery pass) — the evidence behind docs/technical/PERFORMANCE_AND_QUALITY_GATES.md.
+
 Implementation record for the "Bite-Sized Golf — Complete Player Retention and
 Performance Recovery Plan". Working branch: `claude/build-ship-version2-nk7w38`
 (targeting `version2`). This document is updated as phases land; the final

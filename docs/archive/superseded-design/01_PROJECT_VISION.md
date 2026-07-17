@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Superseded by docs/vision/00_EXECUTIVE_VISION.md and 02_PRODUCT_PHILOSOPHY.md.
+
 # 01_PROJECT_VISION.md
 
 ## Bite-Sized Golf

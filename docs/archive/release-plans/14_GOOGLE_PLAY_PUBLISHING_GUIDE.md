@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> DEFERRED: native app-store builds require separate strategic approval (vision/04_V2_MASTER_ROADMAP.md, Deferred possibilities). This runbook is retained intact for when that decision is made.
+
 # 14_GOOGLE_PLAY_PUBLISHING_GUIDE.md
 
 # Johnson's Golf

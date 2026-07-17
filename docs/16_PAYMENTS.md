@@ -91,18 +91,10 @@ Optionally set each Payment Link's after-payment redirect to
 `https://bsgolf.fun/?purchase=success` for a nicer return (not required — the
 claim loop delivers on the next visit regardless).
 
-## ~~One-time setup~~ (superseded — see the sections above)
+## One-time setup (superseded copy removed)
 
-### 1. Stripe (≈15 minutes)
-
-1. Create an account at dashboard.stripe.com and complete business/bank
-   verification (required before live payments pay out).
-2. **Products** → add two products, each with a one-time price:
-   - `1000 J-Coins` — $10.00
-   - `Season Pass — Season One` — $5.00
-3. **Payment Links** → create one link per product. On each link:
-   - **Metadata** (under advanced options): add key `product` with value
-
+> A duplicated, superseded setup section was removed here on 2026-07-17 — the
+> live setup instructions are in the sections above.
 ## How it works
 
 ```

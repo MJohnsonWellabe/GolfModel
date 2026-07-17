@@ -1,5 +1,10 @@
 # Deploying Bite-Sized Golf to bsgolf.fun
 
+> **Scope:** this document covers the PRODUCTION deployment only
+> (`version2` → GitHub Pages → bsgolf.fun). The V2 roadmap adds a separate
+> development deployment URL — see
+> `docs/technical/DEVELOPMENT_ENVIRONMENT_AND_RELEASES.md`.
+
 How the live game gets from this repo to the custom domain **bsgolf.fun**
 (registered at GoDaddy), and what to do when something breaks.
 

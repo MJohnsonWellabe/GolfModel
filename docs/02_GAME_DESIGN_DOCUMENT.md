@@ -1,6 +1,27 @@
 # 02_GAME_DESIGN_DOCUMENT.md
 
-# Johnson's Golf
+**Status:** AUTHORITATIVE (domain: gameplay systems & tuning) — subordinate to
+`docs/vision/01_DESIGN_CONSTITUTION.md` per the precedence order in `docs/README.md`.
+Appendix A and the calibration notes are the authoritative record of the current
+physics tuning.
+
+**Reconciliation notes (2026-07-17):**
+- *Game modes:* the shipped mode set is Solo, 1v1 vs an AI rival, Scramble with an
+  AI partner, and the AI Tournament. Separately, **1v1 async challenges vs other
+  players** (share link, both scores tracked, W-L record in the profile) shipped in
+  the retention pass — the "1 vs 1" mode below refers to the AI rival mode only.
+- *Daily Challenge, Weekly Featured Round, hole mastery stars, records, streak:* all
+  SHIPPED (see `docs/21_RETENTION_AND_PERFORMANCE_PASS.md`); governed by
+  `docs/content/CONTENT_AND_LIVEOPS_STRATEGY.md`. Ignore any "future mode" framing
+  for the Daily below.
+- *Named golfer identities:* the original Jeff/Matt/Zac personas were replaced by the
+  generic-named chibi roster with decoupled archetypes (`src/data/archetypes.ts`);
+  named identities are not surfaced.
+- *Apparel:* chibi models ship one clothing material for the whole outfit — true
+  per-garment recolor requires garment-split models or a texture atlas (relevant to
+  V2 character-personality work).
+
+# Bite-Sized Golf
 ## Game Design Document
 Version 1.0
 

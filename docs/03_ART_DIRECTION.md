@@ -1,6 +1,8 @@
 # 03_ART_DIRECTION.md
 
-# Johnson's Golf
+**Status:** AUTHORITATIVE (domain: art direction & course visual identity) — the concrete authoring spec behind Design Constitution rule 12.
+
+# Bite-Sized Golf
 ## Art Direction & Presentation Guide
 Version 1.0
 

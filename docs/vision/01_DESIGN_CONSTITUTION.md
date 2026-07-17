@@ -35,6 +35,8 @@ Startup should be fast. Menus should be shallow. Replays should be immediate. Pl
 
 Characters, Pals, outfits, trails, celebrations, and other cosmetic items may express identity but may not provide competitive shot advantages.
 
+**Grandfathered exception (decided 2026-07-17):** the shipped club-upgrade system (two coin-purchased tiers per club family granting small stat bonuses and a wider perfect zone, shown as gold clubs) is retained as the one sanctioned progression-power system: earned only with playable coins, no real-money path, transparent capped effect. It may be tuned but not expanded; any NEW gameplay-affecting equipment remains deferred per the V2 roadmap.
+
 ## 9. Retention must be earned
 
 Use mastery, personal records, Daily and Weekly challenges, visible improvement, collection, surprise, and community comparison. Do not use loot boxes, energy systems, fear-based countdowns, forced ads, or deliberately opaque economies.

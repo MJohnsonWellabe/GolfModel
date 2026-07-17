@@ -1,6 +1,15 @@
 # 10_COURSE_DESIGN_BIBLE.md
 
-# Johnson's Golf
+**Status:** AUTHORITATIVE (domain: course & hole authoring).
+
+**Addendum (2026-07-17) — mastery-star authoring:** every hole carries three mastery
+stars (par-or-better, birdie-or-better, and an authored HARD third star defined in
+`src/data/masteryChallenges.ts`). The current spine: the par 3 demands the tee shot
+inside 10 feet, the par 5 demands an eagle, and the par 4 carries a course-specific
+test (round-scale conditions like "shoot 4 under" are supported). New courses must
+author all three stars as part of hole design.
+
+# Bite-Sized Golf
 ## Course Design Bible
 Version 1.0
 

@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Dated point-in-time audit. The course-presentation issues it diagnosed were addressed by the subsequent course redo. Its asset-licensing flag was promoted to docs/technical/DEVELOPMENT_ENVIRONMENT_AND_RELEASES.md.
+
 # Johnson's Golf — Roadmap & Vision Check-In
 
 **Date:** 2026-07-08 · **Branch reviewed:** `version2` @ `ce58d9d` · **Type:** full studio review (all roles)

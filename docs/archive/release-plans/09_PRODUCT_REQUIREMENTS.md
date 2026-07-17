@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> The V1.0 PRD, superseded by docs/vision/. NOTE: its 100-400 coin store tiers predate the current economy (characters 500/750/1000, pals 500 - see vision/02_PRODUCT_PHILOSOPHY.md); its "battle pass out of scope" line predates the live Season Pass.
+
 # 09_PRODUCT_REQUIREMENTS.md
 
 # Johnson's Golf

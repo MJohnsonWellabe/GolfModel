@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Process-origin history; fully absorbed by docs/README.md, the Design Constitution, and the Claude phase sequence.
+
 # Workflow
 
 The **master prompt is your constitution**. It establishes the game's identity, priorities, and design philosophy. The phase prompts are then individual work orders that reference that vision.

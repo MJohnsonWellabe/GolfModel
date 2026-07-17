@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> The completed V1.0 roadmap. Superseded by docs/vision/04_V2_MASTER_ROADMAP.md and docs/roadmap/CLAUDE_PHASE_SEQUENCE.md. NOTE: its "club upgrades / equipment system" deliverables are grandfathered-as-shipped only; new gameplay-affecting equipment is deferred per the V2 roadmap.
+
 # 05_DEVELOPMENT_ROADMAP.md
 
 # Johnson's Golf

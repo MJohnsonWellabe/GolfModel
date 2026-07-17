@@ -1,5 +1,7 @@
 # 20 — v1.0 Final UX & Admin Expansion Pass — Deliverables
 
+**Status:** IMPLEMENTATION RECORD (v1.0 final UX & admin pass).
+
 A focused usability + admin-control pass. No broad rewrites; gameplay feel is
 preserved except where a change was explicitly requested. Each item below lists
 the root cause / decision, the files touched, and how it was verified.

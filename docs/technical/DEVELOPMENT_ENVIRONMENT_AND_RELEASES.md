@@ -146,6 +146,15 @@ Provide controlled ways to:
 
 These controls must never be available to normal production players.
 
+## Asset licensing note (promoted from the 2026-07-08 audit)
+
+Purchased asset-pack source archives (e.g. CGTrader packs under
+`asset-packs/`) must not be redistributed through the public GitHub Pages
+deployment in raw source form. Keep raw purchased archives out of the public
+repo or move them to private storage; ship only the curated, converted assets
+the game actually uses. Each pack keeps a provenance README. Review this
+before the next release.
+
 ## Definition of done for Phase 1
 
 - Admin can use the development game on mobile and desktop.

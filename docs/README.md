@@ -64,4 +64,39 @@ Each major document should use one of these states:
 - `studio/BITE_SIZED_GOLF_STUDIO.md`
 - `roadmap/CLAUDE_PHASE_SEQUENCE.md`
 
+## Retained domain and record documents (reconciled 2026-07-17)
+
+Domain specifications (AUTHORITATIVE for their domain, subordinate to the
+governing set above; each carries reconciliation notes where the old text
+lagged current policy):
+
+- `02_GAME_DESIGN_DOCUMENT.md` — gameplay systems, physics tuning (Appendix A)
+- `03_ART_DIRECTION.md` — art, camera, and course visual identity
+- `04_TECHNICAL_ARCHITECTURE.md` — architecture and course-authoring schema
+- `08_LIVE_SERVICE_AND_PROGRESSION.md` — accounts, progression, Season Pass
+- `10_COURSE_DESIGN_BIBLE.md` — course/hole authoring (incl. mastery stars)
+- `gameplay/CORE_GAMEPLAY_PILLARS.md` — gameplay feel protections
+
+Active operational runbooks (do not archive):
+
+- `FIREBASE_SETUP.md` — authoritative RTDB rules + console steps
+- `15_DEPLOY_BSGOLF_FUN.md` — production deployment + DNS + rollback
+- `16_PAYMENTS.md` — Stripe products and fulfillment
+- `DEVICE_MATRIX.md` — real-device test matrix
+- `visual-bar.md` — course presentation acceptance checks
+- `17_MARKETING_PLAN.md` — go-to-market plan
+
+Implementation records (evidence, not governing guidance):
+
+- `20_V1_FINAL_UX_ADMIN_PASS.md`
+- `21_RETENTION_AND_PERFORMANCE_PASS.md`
+- `03B_REFERENCE_GUIDE.md` (creative reference)
+
+Everything else from the old numbered set now lives under `archive/`
+(superseded-design, release-plans, implementation-history) with retirement
+banners. Notable decisions recorded during reconciliation: the shipped club
+stat upgrades are a grandfathered exception (constitution rule 8), and the
+Google Play native-build runbook is archived as deferred pending separate
+approval.
+
 The goal of this structure is simple: Claude should always know what the game is, what it is not, which standards are non-negotiable, and what to build next.

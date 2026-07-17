@@ -23,8 +23,8 @@ two-tone striped greens, genuinely-3D flora, wispy sky):
 | **Port Johnson Links** | Links — a treeless, windswept ocean coast: dense 3D fescue, revetted pot bunkers (a Principal's-Nose driving decision), the sea in play down each hole, and an S-shaped par 5 |
 
 The project's vision, design and roadmap live in [`docs/`](docs/) — start with
-[`docs/01_PROJECT_VISION.md`](docs/01_PROJECT_VISION.md). The living technical
-review is [`docs/ARCHITECTURE_REVIEW.md`](docs/ARCHITECTURE_REVIEW.md).
+[`docs/vision/00_EXECUTIVE_VISION.md`](docs/vision/00_EXECUTIVE_VISION.md). The living technical
+review is [`docs/04_TECHNICAL_ARCHITECTURE.md`](docs/04_TECHNICAL_ARCHITECTURE.md) (history: [`docs/archive/implementation-history/ARCHITECTURE_REVIEW.md`](docs/archive/implementation-history/ARCHITECTURE_REVIEW.md)).
 
 ## How to play
 

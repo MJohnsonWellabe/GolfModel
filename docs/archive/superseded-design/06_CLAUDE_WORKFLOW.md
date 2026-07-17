@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Superseded by docs/README.md (reading order + precedence) and docs/roadmap/CLAUDE_PHASE_SEQUENCE.md. Its engineering-hygiene rules were folded into the root CLAUDE.md. NOTE: its solution-priority list demoted performance to #4; the Design Constitution (rule 2) supersedes that ordering.
+
 # 06_CLAUDE_WORKFLOW.md
 
 # Johnson's Golf

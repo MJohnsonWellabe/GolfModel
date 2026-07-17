@@ -1,6 +1,13 @@
 # 04_TECHNICAL_ARCHITECTURE.md
 
-# Johnson's Golf
+**Status:** AUTHORITATIVE (domain: technical architecture & course-authoring schema) —
+subordinate to `docs/technical/` per `docs/README.md`. The Firestore/Cloud-Functions
+sections below are HISTORICAL (the stack note is correct: a single Firebase Realtime
+Database over REST). Environments, branches, releases, and performance gates are
+governed by `docs/technical/DEVELOPMENT_ENVIRONMENT_AND_RELEASES.md` and
+`docs/technical/PERFORMANCE_AND_QUALITY_GATES.md`.
+
+# Bite-Sized Golf
 ## Technical Architecture
 Version 1.0
 

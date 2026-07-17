@@ -7,7 +7,7 @@ loop) but **not** real on-device frame rate. This matrix is the checklist for
 the physical-device passes that only a human can run — Matt fills the result
 columns from real hardware.
 
-Docs 09 performance targets: **60 fps target, 30 fps floor, < 5 s cold load.**
+Performance targets (docs/technical/PERFORMANCE_AND_QUALITY_GATES.md): **60 fps target, 30 fps floor, < 5 s cold load.**
 
 ## How to run a device pass
 

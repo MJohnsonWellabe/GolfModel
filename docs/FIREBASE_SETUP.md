@@ -15,6 +15,13 @@ the shared leaderboard) — or any project you prefer.
 > sign-in is no longer required** — only **Google** is. (Leaving Anonymous
 > enabled is harmless.)
 
+> **Environment note (V2):** this runbook configures the single PRODUCTION
+> project (`golfgame-9c11e`). The V2 environment strategy
+> (`docs/technical/DEVELOPMENT_ENVIRONMENT_AND_RELEASES.md`) calls for a
+> SEPARATE development Firebase project with its own rules, authorized
+> domains, and data — set that up by repeating these steps against the dev
+> project when V2 Phase 1 lands.
+
 ## Console checklist (you)
 
 1. **Enable sign-in providers** — Firebase console → Build → Authentication →

@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> V1.0 release-candidate session record. Active Firebase setup facts live in docs/FIREBASE_SETUP.md.
+
 # Session Exit — 2026-07-09
 
 Handoff for Johnson's Golf. Where the project stands, what shipped this session,

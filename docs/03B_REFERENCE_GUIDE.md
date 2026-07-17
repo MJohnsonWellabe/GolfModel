@@ -1,6 +1,8 @@
 # 03B_REFERENCE_GUIDE.md
 
-# Johnson's Golf
+**Status:** HISTORICAL reference (creative inspiration catalog) — still-useful touchstones; not governing guidance.
+
+# Bite-Sized Golf
 ## Creative Reference Guide
 Version 1.0
 

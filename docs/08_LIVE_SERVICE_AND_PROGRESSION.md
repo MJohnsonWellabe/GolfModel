@@ -1,6 +1,23 @@
 # 08_LIVE_SERVICE_AND_PROGRESSION.md
 
-# Johnson's Golf
+**Status:** AUTHORITATIVE (domain: accounts, progression & Season Pass) — subordinate
+to `docs/vision/` and `docs/content/CONTENT_AND_LIVEOPS_STRATEGY.md`.
+
+**Reconciliation notes (2026-07-17):**
+- *Store pricing:* the 100-400 coin tier table below is SUPERSEDED for characters and
+  Pals — current policy is characters **500/750/1000 by rarity** and Pals a flat
+  **500** (`vision/02_PRODUCT_PHILOSOPHY.md`); cosmetic tints remain 100/200/300 and
+  club upgrades 300/500. `src/data/storeCatalog.ts` is canonical.
+- *Club upgrades:* the stat-granting upgrades below are the GRANDFATHERED exception
+  documented in Design Constitution rule 8 — tune, don't expand.
+- *Weekly:* the task-checklist "Weekly Challenge" described below was never built; the
+  shipped design is the **Weekly Featured Round** (standardized shared seed,
+  improvement-only leaderboard) per the content strategy.
+- *Retention systems:* daily streak (7-day cycle + protection token), hole mastery
+  stars, personal records, and 1v1 async challenges SHIPPED in the retention pass
+  (`docs/21_RETENTION_AND_PERFORMANCE_PASS.md`).
+
+# Bite-Sized Golf
 ## Live Service, Progression & Online Systems
 Version 1.0
 

@@ -1,3 +1,7 @@
+> **HISTORICAL:** This document is retained for context and does not override the current documentation library. See `docs/README.md` for authoritative guidance.
+>
+> Superseded by docs/vision/. NOTE: the club-upgrade stat system described here is GRANDFATHERED as the one sanctioned progression-power exception (see vision/01_DESIGN_CONSTITUTION.md rule 8); the "graphics first" priority ordering is superseded by the executive priorities in vision/00_EXECUTIVE_VISION.md.
+
 # Bite-Sized Golf - Master Vision and Development Prompt
 
 I want you to stop thinking of this as a series of isolated coding tasks.
