@@ -147,7 +147,7 @@ function variance(xs: number[]): number {
   return xs.reduce((a, b) => a + (b - mean) ** 2, 0) / xs.length;
 }
 
-describe('Rough-lie dispersion does not widen a GOOD swing beyond its historical baseline', () => {
+describe('Rough-lie dispersion widens NON-perfect strikes but keeps them bounded (ADJ-2)', () => {
   it('a PERFECT rough shot is tighter than a GOOD one, which is tighter than a MISS', () => {
     const perfect = lateralP90Lie('perfect', 'rough');
     const good = lateralP90Lie('good', 'rough');
@@ -156,17 +156,92 @@ describe('Rough-lie dispersion does not widen a GOOD swing beyond its historical
     expect(good, `good=${good.toFixed(1)} miss=${miss.toFixed(1)}`).toBeLessThan(miss);
   });
 
-  it("a GOOD rough shot's variance vs a GOOD tee shot's isolates the lie-noise term at its historical (1x) strength, not 2x", () => {
+  it("a GOOD rough shot's lie-noise variance is the deliberately-widened ADJ-2 level — moderate, not a runaway", () => {
     // Same club/quality/accuracy-click on both lies → the residual/click terms
     // contribute IDENTICAL variance either way, so the difference in total
-    // variance is purely the added lie-noise variance. lieError.rough is 3.5°;
-    // at a fixed 1x ("good" stays at the historical baseline) that variance
-    // contribution is bounded well under what a reintroduced 2x would produce.
+    // variance is purely the added lie-noise variance.
+    //
+    // ADJ-2 rough tuning: lieError.rough 3.5°→4.0° and the GOOD lieQualityMult
+    // 1.0→1.15 (a deliberate widen so a non-perfect strike from rough scatters
+    // NOTICEABLY more than from the fairway — see the band tests below). That
+    // moves this contribution from ~40yd² to ~86yd². The point of the ceiling is
+    // to keep GOOD *moderate*: a tiny timing error must not explode into a
+    // miss-sized spray. A runaway (e.g. good mult jumping to ~2.0) would land
+    // near ~260yd², so 150 cleanly separates "deliberately wider" from "runaway".
     const roughVar = variance(signedLaterals('good', 'rough'));
     const teeVar = variance(signedLaterals('good', 'tee'));
     const lieVarYds = roughVar - teeVar;
-    // Measured: ~40yd² at the fixed 1x multiplier vs ~190yd² if the old bug's
-    // 2x is reintroduced — comfortable margin either side of this ceiling.
-    expect(lieVarYds, `lie-noise variance contribution ≈${lieVarYds.toFixed(1)} yd²`).toBeLessThan(100);
+    expect(lieVarYds, `lie-noise variance contribution ≈${lieVarYds.toFixed(1)} yd²`).toBeLessThan(150);
   });
+});
+
+/**
+ * ADJ-2 rough dispersion BANDS at ~80 / ~140 / ~200 yards (pw / 5i / driver from
+ * a rough lie). The tuning goal, validated deterministically here:
+ *   - PERFECT starts almost exactly on line (minimal residual — tight even from
+ *     rough, and far tighter than a good strike).
+ *   - GOOD disperses NOTICEABLY wider than the fairway (≥ ~2×) but stays
+ *     recoverable — a tiny timing error must NOT produce a huge miss.
+ *   - MISS is CLEARLY worse than the fairway AND clearly worse than a good rough
+ *     strike — meaningfully harder to control.
+ *   - Carry loss stays believable (the rough plays ~0.75× the fairway carry).
+ * All measured with a seeded RNG so the bands are deterministic; thresholds
+ * carry ~25% headroom around the measured p90s so an honest retune can breathe
+ * but a regression (perfect blowing up, good/miss collapsing to fairway, or a
+ * runaway spray) trips them.
+ */
+describe('ADJ-2 rough dispersion bands (~80 / ~140 / ~200 yд)', () => {
+  interface Band { p90: number; carryMed: number; }
+  function band(clubId: string, quality: 'perfect' | 'good' | 'miss', lie: Surface, n = 3000): Band {
+    const rng = mulberry32(2026 + clubId.length * 31 + quality.length * 7 + lie.length * 13);
+    const engine = new PhysicsEngine(hole, null, rng);
+    const club = clubById(clubId);
+    const lats: number[] = [];
+    const carries: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const out = engine.simulate({
+        origin: { x: 1500, y: 2800 }, aimAngle: -Math.PI / 2,
+        swing: SWING_OF(0.95, quality, 0), club, golfer, fireBoost: 0, lie, wind: NO_WIND, hole
+      });
+      lats.push(Math.abs(out.finalPos.x - 1500) / PX_PER_YARD);
+      carries.push((2800 - out.finalPos.y) / PX_PER_YARD);
+    }
+    lats.sort((a, b) => a - b);
+    carries.sort((a, b) => a - b);
+    return { p90: lats[Math.floor(n * 0.9)], carryMed: carries[Math.floor(n * 0.5)] };
+  }
+
+  // [label, club, perfect p90 ceiling, good recoverable ceiling]
+  const bands: Array<[string, string, number, number]> = [
+    ['~80yd  (pw)', 'pw', 5, 16],
+    ['~140yd (5i)', '5i', 8, 26],
+    ['~200yd (driver)', 'driver', 11, 36]
+  ];
+
+  for (const [label, clubId, perfectCeil, goodCeil] of bands) {
+    it(`${label}: perfect tight · good noticeably wider than fairway but recoverable · miss clearly worst`, () => {
+      const pPerf = band(clubId, 'perfect', 'rough').p90;
+      const rGood = band(clubId, 'good', 'rough');
+      const rMiss = band(clubId, 'miss', 'rough').p90;
+      const fGood = band(clubId, 'good', 'fairway').p90;
+      const fMiss = band(clubId, 'miss', 'fairway').p90;
+      const fCarry = band(clubId, 'good', 'fairway').carryMed;
+
+      // PERFECT: minimal residual from rough (tight, and far under a good strike).
+      expect(pPerf, `perfect rough p90=${pPerf.toFixed(1)}`).toBeLessThanOrEqual(perfectCeil);
+      expect(pPerf, `perfect=${pPerf.toFixed(1)} good=${rGood.p90.toFixed(1)}`).toBeLessThan(rGood.p90 * 0.5);
+
+      // GOOD: noticeably wider than the fairway good (≥ ~2×) but recoverable.
+      expect(rGood.p90, `good rough=${rGood.p90.toFixed(1)} vs fairway good=${fGood.toFixed(1)}`).toBeGreaterThan(fGood * 2);
+      expect(rGood.p90, `good rough p90=${rGood.p90.toFixed(1)} (recoverable ceiling ${goodCeil})`).toBeLessThanOrEqual(goodCeil);
+
+      // MISS: clearly worse than the fairway miss AND than a good rough strike.
+      expect(rMiss, `miss rough=${rMiss.toFixed(1)} vs fairway miss=${fMiss.toFixed(1)}`).toBeGreaterThan(fMiss * 1.5);
+      expect(rMiss, `miss rough=${rMiss.toFixed(1)} vs good rough=${rGood.p90.toFixed(1)}`).toBeGreaterThan(rGood.p90 * 1.3);
+
+      // Carry loss stays believable — the rough plays ~0.75× the fairway carry.
+      expect(rGood.carryMed / fCarry, `rough/fairway carry=${(rGood.carryMed / fCarry).toFixed(2)}`).toBeGreaterThan(0.65);
+      expect(rGood.carryMed / fCarry).toBeLessThan(0.85);
+    });
+  }
 });

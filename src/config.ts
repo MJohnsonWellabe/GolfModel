@@ -272,7 +272,7 @@ export const PHYSICS = {
   lieError: {
     tee: 0,
     fairway: 0,
-    rough: 3.5,
+    rough: 4.0,
     sand: 5,
     fringe: 0.5,
     green: 0,

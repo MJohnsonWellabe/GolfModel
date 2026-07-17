@@ -542,7 +542,7 @@ export class PhysicsEngine {
     // suddenly landing at 2x, and a miss at 4x, its old scatter, when only
     // PERFECT was ever meant to tighten). Keep 'good' at that original 1x
     // baseline, shrink 'perfect', and widen 'miss' only moderately.
-    const lieQualityMult = swing.accuracyQuality === 'perfect' ? 0.5 : swing.accuracyQuality === 'good' ? 1 : 1.6;
+    const lieQualityMult = swing.accuracyQuality === 'perfect' ? 0.3 : swing.accuracyQuality === 'good' ? 1.15 : 2.1;
     const lieNoise = params.preview ? 0 : gaussianOf(this.rng, 0, (PHYSICS.lieError[lie] ?? 0) * lieQualityMult);
     const residualSigma =
       (PHYSICS.perfectDispersionDeg[clubFamily(club)] ?? 0) *
