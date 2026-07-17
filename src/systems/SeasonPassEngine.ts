@@ -67,6 +67,23 @@ export function addSeasonXp(profile: PlayerProfile, def: SeasonDef, amount: numb
   profile.season.xp += Math.max(0, amount);
 }
 
+/** True once the player owns THIS season's pass — the gate for hiding/blocking
+ *  the Buy button. Owning a PRIOR season's pass does not count (its id differs). */
+export function ownsPass(profile: PlayerProfile, def: SeasonDef): boolean {
+  return profile.season.id === def.id && profile.season.owned;
+}
+
+/** When a NEW season goes live (the active def's id differs from the one the
+ *  profile is tracking), reset the season sub-object to the new season: fresh
+ *  XP/claims and — critically — owned:false, so a player who bought LAST
+ *  season's pass can (and must) buy the new one. Idempotent — a no-op while the
+ *  ids already match. Call before reading/rendering season state or starting a
+ *  pass purchase. */
+export function rolloverSeason(profile: PlayerProfile, def: SeasonDef): void {
+  if (profile.season.id === def.id) return;
+  profile.season = { id: def.id, xp: 0, claimed: [], owned: false };
+}
+
 export function claimState(profile: PlayerProfile, def: SeasonDef, level: number): ClaimState {
   if (profile.season.claimed.includes(level)) return 'claimed';
   if (seasonLevel(def, profile.season.xp) < level) return 'locked';

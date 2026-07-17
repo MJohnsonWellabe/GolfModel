@@ -1278,11 +1278,14 @@
         gap: 8px;
       }
       .modeGrid--courses .courseCard {
-        min-height: 86px;
-        padding: 10px 12px;
+        min-height: 88px;
+        padding: 9px 11px;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end; /* name/meta read over the bottom of the art */
       }
       .modeGrid--courses .archCard .an { font-size: 14px; }
-      .modeGrid--courses .courseMeta { margin-top: 6px; }
+      .modeGrid--courses .courseMeta { margin-top: 5px; }
       @media (max-width: 380px) {
         .modeGrid--courses { grid-template-columns: 1fr; }
       }
@@ -1301,13 +1304,33 @@
       }
       .courseCard {
         min-height: 104px;
-        background-image: linear-gradient(90deg, rgba(5, 20, 14, 0.32), rgba(5, 20, 14, 0.82)), var(--course-art);
+        /* Bottom-weighted scrim: the course art reads clearly up top, text stays
+           legible over the darkened base. */
+        background-image: linear-gradient(180deg, rgba(5, 20, 14, 0.04) 0%, rgba(5, 20, 14, 0.32) 48%, rgba(4, 16, 11, 0.86) 100%), var(--course-art);
         background-size: cover;
         background-position: center;
       }
-      .courseCard .ahead { align-items: flex-start; }
-      .courseMeta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
-      .courseMeta span { padding: 4px 8px; border-radius: 999px; background: rgba(0,0,0,0.3); color: #f3ead0; font-size: 11px; font-weight: 800; }
+      .courseCard .ahead { align-items: center; gap: 6px; margin-bottom: 0; }
+      /* Color-coded difficulty chip (compact, right-aligned in the name row). */
+      .courseCard .atag.diff {
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding: 2px 9px;
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        color: #12241b;
+        text-overflow: clip;
+      }
+      .diff-balanced { background: linear-gradient(180deg, #a8e6a1, #6cc26a); }
+      .diff-daring { background: linear-gradient(180deg, #ffd08a, #ef9a3d); }
+      .diff-tight { background: linear-gradient(180deg, #9fd0ff, #5aa0e6); }
+      .diff-windy { background: linear-gradient(180deg, #d3dbe2, #9aa8b5); }
+      .courseTag { font-size: 11px; line-height: 1.3; color: #e2efdc; margin: 5px 0 0; }
+      .courseMeta { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+      .courseMeta span { padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,0.36); color: #f3ead0; font-size: 11px; font-weight: 800; }
       .archCard .ahead {
         display: flex;
         align-items: baseline;

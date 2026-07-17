@@ -6,7 +6,9 @@ import {
   addSeasonXp,
   claimReward,
   claimState,
+  ownsPass,
   rewardLabel,
+  rolloverSeason,
   seasonActive,
   seasonLevel,
   totalSeasonXp
@@ -234,5 +236,38 @@ describe('sales gate', () => {
   it('opens at midnight UTC on launch day, 2026-07-14', () => {
     expect(salesOpen(SEASON_1, new Date('2026-07-13T23:59:00Z').getTime())).toBe(false);
     expect(salesOpen(SEASON_1, new Date('2026-07-14T00:00:00Z').getTime())).toBe(true);
+  });
+});
+
+describe('pass ownership + season rollover (no double-buy)', () => {
+  it('ownsPass is true only for the CURRENT season', () => {
+    const p = defaultProfile();
+    expect(ownsPass(p, SEASON_1)).toBe(false);
+    p.season.owned = true; // owns the current (s1) pass
+    expect(ownsPass(p, SEASON_1)).toBe(true);
+    // A profile still tracking a PRIOR season's ownership does not count as
+    // owning the active season's pass (the buy button must reappear).
+    p.season.id = 's0';
+    expect(ownsPass(p, SEASON_1)).toBe(false);
+  });
+
+  it('rollover resets owned/xp/claims when a new season goes live, so the new pass is buyable', () => {
+    const p = defaultProfile();
+    p.season = { id: 's0', xp: 5000, claimed: [1, 2, 3], owned: true };
+    rolloverSeason(p, SEASON_1); // active season is now s1
+    expect(p.season.id).toBe(SEASON_1.id);
+    expect(p.season.owned).toBe(false); // must buy the new season's pass
+    expect(p.season.xp).toBe(0);
+    expect(p.season.claimed).toEqual([]);
+    expect(ownsPass(p, SEASON_1)).toBe(false);
+  });
+
+  it('rollover is a no-op while the season id already matches (keeps ownership/progress)', () => {
+    const p = defaultProfile();
+    p.season = { id: SEASON_1.id, xp: 1234, claimed: [1], owned: true };
+    rolloverSeason(p, SEASON_1);
+    expect(p.season.owned).toBe(true);
+    expect(p.season.xp).toBe(1234);
+    expect(p.season.claimed).toEqual([1]);
   });
 });

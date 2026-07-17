@@ -51,7 +51,7 @@ import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defau
 import { ACHIEVEMENTS, COINS, emptyRoundStats, RoundStats, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { addSeasonXp, claimReward, claimState, levelProgress, rewardLabel, seasonActive } from '../systems/SeasonPassEngine';
+import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
@@ -3169,6 +3169,10 @@ function updateStoreBanner(): void {
 function renderSeasonPass(): void {
   const p = profile;
   const def = SEASON_1;
+  // If a new season has gone live since this profile last synced, reset the
+  // season sub-object (fresh XP/claims, owned:false) so last season's owners can
+  // buy the new pass. No-op while the ids match.
+  rolloverSeason(p, def);
   refreshEntitlements();
   const { level: lvl, intoLevel, levelCost } = levelProgress(def, p.season.xp);
   const active = seasonActive(def, Date.now());
@@ -3217,7 +3221,7 @@ function renderSeasonPass(): void {
       : `🔒 Lv ${level}`;
     return `<div class="storeCard${hero} ${cls}" data-level="${level}" data-claim="${state === 'claimable' ? '1' : ''}">${rewardIcon(reward)}<div class="sName">${name}</div><div class="sPrice">${line}</div></div>`;
   }).join('');
-  const footer = p.season.owned
+  const footer = ownsPass(p, def)
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
     : !salesOpen(def, Date.now())
       ? `<div class="spNote">🔒 Season Pass purchases coming soon — every round already counts toward the track.</div>`
@@ -3269,6 +3273,13 @@ function renderSeasonPass(): void {
   const buyBtn = document.getElementById('spBuy');
   if (buyBtn)
     onTap(buyBtn, () => {
+      // Defensive re-check at tap time: the button is only rendered when the
+      // pass isn't owned, but a stale render or the raw Stripe link must never
+      // let an owner pay twice for the same season.
+      if (ownsPass(profile, def)) {
+        showMsg("You already own this season's pass", 1800);
+        return;
+      }
       void cloudUid().then((uid) => {
         if (uid) startPurchase('seasonpass_s1', uid);
         else showMsg('Sign in first — the pass attaches to your account', 1800);
@@ -3955,18 +3966,28 @@ function renderMode(): void {
   );
 }
 
-/** Wildwood's blossom mechanism (theme.blossomChance) needs an extra
- *  tree_sakura GLB no other course requests — a load cost unique to
- *  Wildwood, worst on hole 1 (cold browser cache, first hole of the round).
- *  Warm the HTTP cache for it as early as course selection settles on
- *  Wildwood, well before hole 1's buildCourse() actually needs the asset —
- *  fetch-only (no Babylon scene exists yet at course-select time), fire-
- *  and-forget, never blocks. */
-let sakuraPrefetched = false;
-function prefetchWildwoodAssets(): void {
-  if (sakuraPrefetched) return;
-  sakuraPrefetched = true;
-  void fetch('models/nature/tree_sakura.glb').catch(() => {});
+/** Warm the browser HTTP cache for a course's heaviest GLB assets the instant
+ *  the picker settles on it — well before hole 1's buildCourse() needs them — so
+ *  EVERY course gets the smooth-cold-cache first load Wildwood already had (this
+ *  generalizes the old Wildwood-only sakura prefetch; Wildwood was the only
+ *  course that pre-warmed, a large part of why it felt smoothest to load).
+ *  Derived from the course's own theme: tree species (treeKeys), heather
+ *  variants, the sea-backdrop sailboat, plus Wildwood's blossom-only tree_sakura
+ *  (not in treeKeys). Fetch-only (no Babylon scene exists at course-select
+ *  time), fire-and-forget — a missing file just 404s harmlessly and a shot never
+ *  depends on it. */
+const DEFAULT_TREE_KEYS = ['tree_oak', 'tree_maple', 'tree_birch', 'tree_aspen'];
+const prefetchedCourses = new Set<string>();
+function prefetchCourseAssets(courseId: string): void {
+  if (prefetchedCourses.has(courseId)) return;
+  prefetchedCourses.add(courseId);
+  const course = COURSES[courseId];
+  if (!course) return;
+  const theme = resolveTheme(course);
+  const keys = new Set<string>([...(theme.treeKeys ?? DEFAULT_TREE_KEYS), ...(theme.heatherKeys ?? [])]);
+  if (courseId === 'wildwood') keys.add('tree_sakura'); // blossom overlay, not in treeKeys
+  keys.forEach((k) => void fetch(`models/nature/${k}.glb`).catch(() => {}));
+  if (theme.backdrop === 'sea') void fetch('models/nature/ship.glb').catch(() => {});
 }
 
 function bestCourseScore(courseId: string): string {
@@ -3977,7 +3998,7 @@ function bestCourseScore(courseId: string): string {
 }
 
 function renderCourse(): void {
-  if (sel.courseId === 'wildwood') prefetchWildwoodAssets();
+  prefetchCourseAssets(sel.courseId);
   stepBodyEl.innerHTML =
     `<div class="stepTitle">Choose your course</div>` +
     `<div class="modeGrid modeGrid--courses">` +
@@ -3985,12 +4006,19 @@ function renderCourse(): void {
       const course = COURSES[c.id];
       const tag = `Par ${course.holes.slice(0, Math.min(RULES.holesPerRound, course.holes.length)).reduce((a, h) => a + h.par, 0)}`;
       const sub = c.tag;
+      // Compact cards fit a phone without scrolling: name + a color-coded
+      // difficulty chip, then a tight Par/Best line. The full identity sentence
+      // is revealed ONLY on the selected card (the one the player is weighing),
+      // so the grid stays short until you commit to a course.
+      const selected = sel.courseId === c.id;
+      const diff = c.difficulty.toLowerCase();
       return (
-        `<div class="archCard modeCard courseCard${sel.courseId === c.id ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
+        `<div class="archCard modeCard courseCard${selected ? ' sel' : ''}" style="--course-art:url('${c.art}')" data-course="${c.id}">` +
         `<div class="ahead"><span class="an">${c.icon} ${c.name}</span>` +
-        `<span class="atag">${tag}</span></div>` +
-        `<div class="stepHint" style="margin:6px 0 0">${sub}</div>` +
-        `<div class="courseMeta"><span>${c.difficulty}</span><span>Best: ${bestCourseScore(c.id)}</span></div></div>`
+        `<span class="atag diff diff-${diff}">${c.difficulty}</span></div>` +
+        `<div class="courseMeta"><span>${tag}</span><span>Best ${bestCourseScore(c.id)}</span></div>` +
+        (selected ? `<div class="stepHint courseTag">${sub}</div>` : '') +
+        `</div>`
       );
     }).join('') +
     `</div>`;
