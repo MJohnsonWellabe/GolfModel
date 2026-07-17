@@ -2867,6 +2867,9 @@ function showSummary(): void {
   if (adv.usedProtection) analytics.track('streak_protection_used', { streak_length: adv.state.current });
   // Daily challenge completed this round → the day's streak reward (claimable
   // exactly once per date; cross-device claims union so it can never re-pay).
+  for (const a of events) {
+    if (a.kind === 'achievement') analytics.track('achievement_earned', { achievement_id: a.id });
+  }
   const dailyEvent = events.find((e) => e.kind === 'daily');
   let streakRewardLine = '';
   if (dailyEvent) {

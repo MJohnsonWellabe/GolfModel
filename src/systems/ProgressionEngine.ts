@@ -20,7 +20,7 @@ export type RewardEvent =
   | { kind: 'xp'; amount: number }
   | { kind: 'coins'; amount: number }
   | { kind: 'daily'; name: string; streak: number }
-  | { kind: 'achievement'; name: string; desc: string }
+  | { kind: 'achievement'; id: string; name: string; desc: string }
   | { kind: 'levelUp'; level: number };
 
 /** Yesterday's YYYY-MM-DD, for the streak-continuity check. Uses LOCAL calendar
@@ -112,7 +112,7 @@ export function applyRound(
       profile.xp += a.xp;
       profile.coins += a.coins;
       profile.coinsEarned += a.coins; // grow-only lifetime tally
-      events.push({ kind: 'achievement', name: a.name, desc: a.desc });
+      events.push({ kind: 'achievement', id: a.id, name: a.name, desc: a.desc });
     }
   }
   // A late achievement XP bump can cross another level threshold

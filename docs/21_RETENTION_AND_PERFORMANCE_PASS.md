@@ -122,4 +122,78 @@ deliverables report lives at the bottom.
 - All states migrate from any stored shape and merge grow-only (duplicate
   rewards structurally impossible across devices/offline reconciliation).
 
-*(This document is extended as integration phases land.)*
+## Integration (Phases 1–5, landed)
+
+- **Results screen** (`showSummary`): compact score header (total · to-par ·
+  PB comparison), records broken/near-miss lines, reward strip, streak day
+  reward + protection notice, weekly/challenge lines, ONE contextual next
+  objective (deterministic priority: open daily → nearby mastery star → PB
+  within 1–2 → season level near → next course), expandable Round details
+  scorecard, primary **Replay** + **Play Next: <course>** actions and a
+  ghost row (Records · Profile · ⚔ Share · Menu). Fits 360×800 with no
+  primary scrolling (Playwright-gated).
+- **Replay / Play Next**: Replay restarts the same setup from the first tee;
+  Play Next follows the fixed rotation sablebay → wildwood → timberline →
+  portjohnson (button names its destination, unavailable courses skipped).
+  Verified end-to-end by `tests/visual/results.spec.ts`.
+- **Per-hole mastery capture**: water/sand/fairway/GIR/putt-length/approach/
+  True-Vision/fire/wind facts accumulate during play and fold into the
+  permanent star bitmask at hole completion. Course cards + profile show
+  compact star totals.
+- **Streak**: advances on a completed round per local calendar day; one
+  automatic protection token per 7-day cycle bridges a single missed day;
+  the day's streak reward pays when the daily challenge completes
+  (idempotent per date, claims union across devices).
+- **Daily card** (landing) + setup banner, live-ops date overrides resolved
+  at menu time with a deterministic fallback.
+- **Weekly Featured**: standardized shared seed per ISO week (identical
+  wind/pins for every entrant), compact landing row, submit-only-on-best +
+  server-side improvement-only rule.
+- **Async challenges**: every round is seeded, so any finished round shares
+  as a `?c=` link; incoming links show one banner and replay the exact
+  setup; outcomes reported on the results card.
+- **Celebrations**: golden burst + one line for ace / eagle+ / 25ft+ putt /
+  15yd+ chip-in only; respects reduced motion; never interrupts ordinary
+  shots.
+- **Progressive disclosure**: new devices see core golf + Play only;
+  daily/weekly/season/store reveal after the first completed round.
+- **Achievements**: 21 curated across scoring/putting/driving/accuracy/
+  recovery/mastery/consistency/fire/daily/competitive; profile shows earned
+  + 3 next targets (no locked wall).
+
+## Reward-economy audit (Part 12)
+
+Coin faucets after the repricing:
+- per round: 20 + 10 × strokes-under-par (typical 20–50)
+- daily challenge: 25 + streak day reward (25/30/0/25/45/0/100 over the
+  7-day cycle ≈ +32/day average)
+- achievements: 1,440 coins lifetime across all 21
+- tournament win +50; AI-tournament purses unchanged
+
+A player finishing ~3 rounds/day with the daily done earns roughly 150–220
+coins/day. Against the new prices that makes a standard character (500) a
+~3-day goal, a premium character (1000) a ~5–7-day goal, and a pal (500) a
+~3-day goal — meaningful without grinding, so **no automatic reward
+inflation was applied** (the audit did not show the prices unreasonable).
+No new currencies were introduced; every reward pays in coins/XP/cosmetics
+that already exist, and all grants are idempotent (grow-only counters,
+per-date claims, bitmask stars, union merges).
+
+## Analytics event schema (Part 13)
+
+Events (batched to `/events`, gid always + uid when signed in, sid per
+load): `app_open, identity_linked, round_started, round_completed,
+replay_selected, play_next_selected, next_course_started, daily_completed,
+streak_advanced, streak_protection_used, mastery_star_earned,
+achievement_earned*, weekly_round_started, weekly_round_completed,
+async_challenge_created, async_challenge_opened, async_challenge_completed`
+with properties from {course, mode, score_to_par, round_duration,
+destination_course, streak_length, mastery_star_id, weekly_event, result,
+returning_player, app_version}. Never logged: emails, tokens, names,
+per-shot personal data (a privacy guard strips name-like keys at enqueue).
+Primary metric (computed by Admin → Dashboard → Players & Retention):
+**% of completed rounds followed by another started round in the same
+session**, split into Replay conversion and Play Next conversion.
+
+*(Validation results + final deliverables report appended at release
+validation.)*
