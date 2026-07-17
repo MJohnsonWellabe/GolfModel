@@ -52,6 +52,7 @@ import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defau
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
+import { guestId } from '../profile/GuestIdentity';
 import { dailyOverrideFor, LiveOpsConfig, weeklyOverrideFor } from '../data/liveOpsConfig';
 import { fetchLiveOpsConfigREST } from '../firebase/LiveOpsConfig';
 import { weeklyEventFor, weeklyStanding, weeklyTimeLeft, WeeklyEvent } from '../systems/WeeklyFeatured';
@@ -65,6 +66,14 @@ import {
   parseChallengeParam,
   sanitizeName
 } from '../systems/AsyncChallenge';
+import {
+  ChallengeDoc,
+  createChallengeDoc,
+  fetchChallenge,
+  makeChallengeId,
+  outcomeFor,
+  submitChallengeResponse
+} from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
 import { applyHoleMastery, HoleMasteryInput, nextStarHint, starCount } from '../systems/Mastery';
@@ -1674,6 +1683,17 @@ class HoleScene {
 
   private hideTrueVision(): void {
     this.trueVisionRoot.setEnabled(false);
+    this.setGolferGhost(false);
+  }
+
+  /** While the True Vision line is up, the golfer fades translucent (same idea
+   *  as the tree-occlusion ghosts) — he often stands square between the low
+   *  putt camera and the cup, hiding the very line the charge paid for. */
+  private golferGhosted = false;
+  private setGolferGhost(on: boolean): void {
+    if (this.golferGhosted === on) return;
+    this.golferGhosted = on;
+    for (const m of this.golfer.root.getChildMeshes(false)) m.visibility = on ? 0.28 : 1;
   }
 
   /** Tap handler (putting only): consume one charge, simulate the putt the
@@ -1719,6 +1739,7 @@ class HoleScene {
     const end = path[path.length - 1] ?? ctx.ball;
     const span = Math.hypot(end.x - ctx.ball.x, end.y - ctx.ball.y);
     this.showTrueVisionPath(path, this.aimDotScale(span));
+    this.setGolferGhost(true);
     this.refreshTrueVisionBtn();
   }
 
@@ -2669,34 +2690,40 @@ function beginRoundTracking(): void {
   });
 }
 
-/** Fold the HUMAN player's completed hole into the permanent mastery state
- *  (Part 5). Runs at hole completion, off the input path; duplicate stars are
- *  structurally impossible (bitmask OR). */
-function applyHoleMasteryForHuman(holeIdx: number, strokes: number): void {
-  const hole = round.course.holes[holeIdx];
-  if (!hole || !strokes) return;
+/** Fold the HUMAN player's completed round into the permanent mastery state
+ *  (Part 5). Runs once at ROUND end so the round-scale third stars ("shoot 4
+ *  under", "3 putts or fewer") can evaluate; duplicate stars stay structurally
+ *  impossible (bitmask OR). */
+function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToPar: number): void {
   const courseId = courseIdByName(round.course.name);
-  const facts = shotAcc.holeFacts[hole.number] ?? freshHoleFacts();
-  const input: HoleMasteryInput = {
-    courseId,
-    holeNumber: hole.number,
-    par: hole.par,
-    strokes,
-    usedTrueVision: facts.usedTrueVision,
-    fairwayHit: facts.fairway,
-    gir: shotAcc.girHoles.has(hole.number),
-    waterHit: facts.water,
-    sandHit: facts.sand,
-    longestPuttFt: facts.longestPuttFt,
-    approachFt: facts.approachFt,
-    onFire: facts.onFire,
-    windSpeed: facts.windSpeed
-  };
-  const res = applyHoleMastery(profile.retention.mastery, input, thirdStarFor(courseId, hole.number));
-  for (const star of res.newStars) {
-    roundNewStars.push({ hole: hole.number, star });
-    analytics.track('mastery_star_earned', { mastery_star_id: `${courseId}:${hole.number}:${star}`, course: courseId });
-  }
+  const roundPutts = holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0);
+  holes.forEach((hole, i) => {
+    const strokes = scores[i] ?? 0;
+    if (!strokes) return;
+    const facts = shotAcc.holeFacts[hole.number] ?? freshHoleFacts();
+    const input: HoleMasteryInput = {
+      courseId,
+      holeNumber: hole.number,
+      par: hole.par,
+      strokes,
+      usedTrueVision: facts.usedTrueVision,
+      fairwayHit: facts.fairway,
+      gir: shotAcc.girHoles.has(hole.number),
+      waterHit: facts.water,
+      sandHit: facts.sand,
+      longestPuttFt: facts.longestPuttFt,
+      approachFt: facts.approachFt,
+      onFire: facts.onFire,
+      windSpeed: facts.windSpeed,
+      roundToPar,
+      roundPutts
+    };
+    const res = applyHoleMastery(profile.retention.mastery, input, thirdStarFor(courseId, hole.number));
+    for (const star of res.newStars) {
+      roundNewStars.push({ hole: hole.number, star });
+      analytics.track('mastery_star_earned', { mastery_star_id: `${courseId}:${hole.number}:${star}`, course: courseId });
+    }
+  });
 }
 
 function playHole(): void {
@@ -2708,7 +2735,6 @@ function playHole(): void {
     round.players.forEach((p, i) => {
       p.scores[round.holeIdx] = scores[i] ?? 0;
     });
-    applyHoleMasteryForHuman(round.holeIdx, scores[0] ?? 0);
     round.holeIdx += 1;
     if (round.holeIdx < holesThisRound()) {
       playHole();
@@ -2807,6 +2833,9 @@ function showSummary(): void {
 
   // ---- Retention layer (Part 1/2): records, 7-day streak, analytics -------
   const courseId = courseIdByName(round.course.name);
+  // Mastery stars evaluate at round end (round-scale third stars need the
+  // final to-par and putt totals).
+  applyRoundMasteryForHuman(holes, me.scores, totals[0] - totalPar);
   // Previous course best BEFORE this round folds in (PB comparison line).
   const prevBest = profile.retention.records.bestByCourse[courseId]?.total ?? null;
   const recEvents: RecordEvent[] = applyRoundRecords(profile.retention.records, {
@@ -2845,11 +2874,26 @@ function showSummary(): void {
       weeklyLine = `<div class="rwLine ach">🏆 Weekly best: ${totals[0]} — sign in to post it to the leaderboard</div>`;
     }
   }
-  // Async challenge outcome (Part 9).
+  // Async challenge outcome (Part 9): report the result AND post it to the
+  // shared results doc (write-once) so both sides' "Your Challenges" list can
+  // settle who won.
   let challengeLine = '';
   if (round.challenge) {
     const out = challengeOutcome(round.challenge, totals[0]);
     analytics.track('async_challenge_completed', { result: out, course: courseId });
+    if (round.challenge.cid) {
+      void submitChallengeResponse(round.challenge.cid, {
+        playerId: challengePlayerId(),
+        name: sanitizeName(profile.name || 'A rival'),
+        total: totals[0],
+        toPar: totals[0] - totalPar,
+        at: Date.now()
+      });
+      profile.retention.challenges = [
+        { cid: round.challenge.cid, at: Date.now() },
+        ...profile.retention.challenges.filter((c) => c.cid !== round.challenge!.cid)
+      ].slice(0, 30);
+    }
     const who = escapeHtml(round.challenge.creator || 'Your rival');
     challengeLine =
       out === 'beat'
@@ -3073,9 +3117,13 @@ function showSummary(): void {
     showSetup();
   });
   document.getElementById('recBtn')!.addEventListener('pointerdown', () => renderRecords());
-  // Async challenge share (Part 9): this round's exact setup (course + seed)
-  // and score become a compact ?c= link — copy to clipboard, prompt fallback.
+  // 1v1 challenge share: this round's exact setup (course + seed) and score
+  // become a tracked challenge — the doc records both sides' results so "Your
+  // Challenges" in the profile can show who won. The share sheet opens a
+  // ready-to-text message; clipboard/prompt fallbacks where share isn't
+  // available.
   document.getElementById('shareChBtn')?.addEventListener('pointerdown', () => {
+    const cid = makeChallengeId();
     const def: AsyncChallengeDef = {
       v: 1,
       courseId,
@@ -3085,15 +3133,43 @@ function showSummary(): void {
       toPar: totals[0] - totalPar,
       creator: sanitizeName(profile.name || 'A friend'),
       at: Date.now(),
-      exp: 0
+      exp: 0,
+      cid
     };
+    // Best-effort results doc + my pointer to it (works for guests too; the
+    // link itself stays self-contained if the write doesn't land).
+    void createChallengeDoc({
+      cid,
+      courseId,
+      seed: def.seed,
+      createdAt: def.at,
+      creator: {
+        playerId: challengePlayerId(),
+        name: def.creator,
+        total: totals[0],
+        toPar: totals[0] - totalPar,
+        at: def.at
+      }
+    });
+    profile.retention.challenges = [
+      { cid, at: def.at },
+      ...profile.retention.challenges.filter((c) => c.cid !== cid)
+    ].slice(0, 30);
+    persistProfile();
     const url = challengeUrl(def, `${window.location.origin}${window.location.pathname}`);
+    const toParTxt = def.toPar === 0 ? 'even par' : def.toPar > 0 ? `+${def.toPar}` : `${def.toPar}`;
+    const text = `I shot ${toParTxt} at ${round.course.name}. Can you do better? ${url}`;
     analytics.track('async_challenge_created', { course: courseId });
-    const copied = (): void => showMsg('⚔ Challenge link copied — send it to a friend!', 2200);
-    if (navigator.clipboard?.writeText) {
-      navigator.clipboard.writeText(url).then(copied, () => window.prompt('Copy this challenge link:', url));
+    const copied = (): void => showMsg('⚔ Challenge copied — text it to a friend!', 2200);
+    if (typeof navigator.share === 'function') {
+      navigator.share({ text }).catch(() => {
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(copied, () => window.prompt('Send this challenge:', text));
+        else window.prompt('Send this challenge:', text);
+      });
+    } else if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(copied, () => window.prompt('Send this challenge:', text));
     } else {
-      window.prompt('Copy this challenge link:', url);
+      window.prompt('Send this challenge:', text);
     }
   });
   // A new course record is confirmed against the merged (local+shared) list.
@@ -3179,6 +3255,12 @@ function renderProfile(): void {
     `<div class="profMastery">` +
     COURSE_LIST.map((c) => `<span class="chip">${c.icon} ${starCount(p.retention.mastery, c.id)}/9</span>`).join('') +
     `</div>` +
+    // Your Challenges (1v1): who you challenged, the result, and the W-L
+    // record — filled asynchronously from the shared /challenges docs.
+    (p.retention.challenges.length
+      ? `<div class="chSection"><div class="chHead">⚔ Your Challenges <span id="chRecord" class="chip"></span></div>` +
+        `<div id="chList" class="chList"><span class="chPending">Loading results…</span></div></div>`
+      : '') +
     // Achievements: earned first, then a FEW useful next targets — never the
     // whole locked wall (Part 6).
     `<div class="achList">` +
@@ -3247,6 +3329,57 @@ function renderProfile(): void {
   document.getElementById('resetRecords')!.addEventListener('click', confirmResetRecords);
   wireAccountRow();
   refreshProfileAdminZone();
+  void fillChallengeSection(p);
+}
+
+/** The stable identity used on 1v1 challenge docs: the account uid when
+ *  signed in, else the device's guest id (survives sessions — a raw guest
+ *  profile id is re-rolled every visit and would orphan the player's own
+ *  challenges). */
+function challengePlayerId(): string {
+  return signedIn ? profile.id : guestId();
+}
+
+/** Fill the profile's "Your Challenges" rows + W-L record from the shared
+ *  /challenges docs (bounded, async, never blocks the profile paint). */
+async function fillChallengeSection(p: PlayerProfile): Promise<void> {
+  if (!p.retention.challenges.length) return;
+  const refs = p.retention.challenges.slice(0, 8);
+  const docs = (await Promise.all(refs.map((r) => fetchChallenge(r.cid)))).filter(
+    (d): d is ChallengeDoc => !!d
+  );
+  const list = document.getElementById('chList');
+  if (!list) return; // profile closed while fetching
+  const myId = challengePlayerId();
+  let w = 0;
+  let l = 0;
+  let t = 0;
+  const rows = docs.map((doc) => {
+    const iAmCreator = doc.creator.playerId === myId;
+    const responses = Object.values(doc.responses ?? {});
+    const opponent = iAmCreator ? (responses[0]?.name ?? 'Waiting for reply…') : doc.creator.name || 'A rival';
+    const mine = iAmCreator ? doc.creator.total : doc.responses?.[myId]?.total;
+    const theirs = iAmCreator
+      ? responses.length
+        ? Math.min(...responses.map((r) => r.total))
+        : null
+      : doc.creator.total;
+    const out = outcomeFor(doc, myId);
+    if (out === 'won') w++;
+    else if (out === 'lost') l++;
+    else if (out === 'tied') t++;
+    const badge = out === 'won' ? 'W' : out === 'lost' ? 'L' : out === 'tied' ? 'T' : '⏳';
+    const courseName = COURSES[doc.courseId]?.name ?? doc.courseId;
+    const score = mine !== undefined ? `${mine}${theirs !== null ? ` vs ${theirs}` : ''}` : '—';
+    return (
+      `<div class="chRow"><span class="chBadge ch-${out}">${badge}</span>` +
+      `<b>${escapeHtml(opponent)}</b><span class="chMeta">${escapeHtml(courseName)}</span>` +
+      `<span class="chScore">${score}</span></div>`
+    );
+  });
+  list.innerHTML = rows.join('') || `<span class="chPending">Results unavailable right now</span>`;
+  const rec = document.getElementById('chRecord');
+  if (rec) rec.textContent = `${w}-${l}${t ? `-${t}` : ''}`;
 }
 
 /** Admin-only zone inside the Profile screen (moved here from the main menu
@@ -3697,6 +3830,10 @@ function renderSeasonPass(): void {
   refreshEntitlements();
   const { level: lvl, intoLevel, levelCost } = levelProgress(def, p.season.xp);
   const active = seasonActive(def, Date.now());
+  // Everything currently claimable, for the one-tap Claim All next to Back.
+  const claimableLevels = Array.from({ length: def.levels }, (_, i) => i + 1).filter(
+    (level) => claimState(p, def, level) === 'claimable'
+  );
   if (spPage < 0) spPage = Math.min(9, Math.floor(Math.max(0, Math.min(lvl, def.levels - 1)) / 5));
   const tabs = Array.from(
     { length: def.levels / 5 },
@@ -3766,7 +3903,11 @@ function renderSeasonPass(): void {
     `<div class="recTabs spTabs">${tabs}</div>` +
     `<div class="storeGrid spStoreGrid">${cards}</div>` +
     footer +
-    `<button id="spBack">Back</button></div>`;
+    `<div class="btnRow">` +
+    (claimableLevels.length
+      ? `<button id="spClaimAll" class="spBuy">Claim All (${claimableLevels.length})</button>`
+      : '') +
+    `<button id="spBack">Back</button></div></div>`;
   seasonEl.querySelectorAll('.spTab').forEach((el) =>
     el.addEventListener('pointerdown', () => {
       spPage = Number((el as HTMLElement).dataset.page);
@@ -3805,6 +3946,27 @@ function renderSeasonPass(): void {
         if (uid) startPurchase('seasonpass_s1', uid);
         else showMsg('Sign in first — the pass attaches to your account', 1800);
       });
+    });
+  // Claim All: sweep every currently-claimable level in one tap, one persist,
+  // one cloud sync. claimReward itself stays the single grant path (idempotent
+  // — a level can never pay twice), so this is pure convenience.
+  const claimAllBtn = document.getElementById('spClaimAll');
+  if (claimAllBtn)
+    onTap(claimAllBtn, () => {
+      let claimed = 0;
+      for (const level of claimableLevels) {
+        if (claimReward(p, def, level).ok) claimed++;
+      }
+      if (!claimed) return;
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(p).then((res) => {
+          applyCloudMerge(p, res.profile);
+          showCloudStatus(res.status, true);
+        });
+      updateSeasonLink();
+      showMsg(`🎫 Claimed ${claimed} reward${claimed > 1 ? 's' : ''}!`, 1600);
+      renderSeasonPass();
     });
   // 'click' — see the #lkLock comment in renderLockerRoom.
   document.getElementById('spBack')!.addEventListener('click', () => {

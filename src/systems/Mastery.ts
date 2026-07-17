@@ -70,6 +70,12 @@ export interface HoleMasteryInput {
   onFire?: boolean;
   /** Wind speed for this hole. */
   windSpeed?: number;
+  /** WHOLE-ROUND context (third stars are evaluated at round end, so
+   *  round-scale challenges — "shoot 4 under", "3 putts or fewer" — can
+   *  anchor to a hole slot). */
+  roundToPar?: number;
+  /** Total putts taken across the whole round. */
+  roundPutts?: number;
 }
 
 export interface ThirdStarDef {

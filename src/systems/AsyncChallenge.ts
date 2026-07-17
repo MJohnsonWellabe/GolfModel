@@ -35,6 +35,9 @@ export interface AsyncChallengeDef {
   at: number;
   /** Optional expiry (epoch ms); 0 = never. */
   exp: number;
+  /** Results-doc id under /challenges (1v1 result tracking). Empty for a
+   *  link-only challenge (older links stay valid). */
+  cid: string;
 }
 
 const NAME_MAX = 20;
@@ -68,7 +71,7 @@ function b64urlDecode(s: string): string | null {
 /** Encode a challenge to a compact, URL-safe code. */
 export function encodeChallenge(def: AsyncChallengeDef): string {
   // Compact positional payload (versioned) — much shorter than raw JSON keys.
-  const payload = [1, def.courseId, def.mode, def.seed, def.total, def.toPar, sanitizeName(def.creator), def.at, def.exp];
+  const payload = [1, def.courseId, def.mode, def.seed, def.total, def.toPar, sanitizeName(def.creator), def.at, def.exp, def.cid ?? ''];
   return b64urlEncode(JSON.stringify(payload));
 }
 
@@ -80,7 +83,7 @@ export function decodeChallenge(code: string): AsyncChallengeDef | null {
   try {
     const arr = JSON.parse(raw) as unknown[];
     if (!Array.isArray(arr) || arr[0] !== 1) return null;
-    const [, courseId, mode, seed, total, toPar, creator, at, exp] = arr;
+    const [, courseId, mode, seed, total, toPar, creator, at, exp, cid] = arr;
     if (typeof courseId !== 'string' || !/^[a-z0-9_-]{1,32}$/.test(courseId)) return null;
     if (typeof mode !== 'string' || !/^[a-z0-9_-]{1,16}$/.test(mode)) return null;
     if (typeof seed !== 'number' || !Number.isFinite(seed)) return null;
@@ -97,7 +100,9 @@ export function decodeChallenge(code: string): AsyncChallengeDef | null {
       toPar: Math.round(toPar),
       creator: sanitizeName(typeof creator === 'string' ? creator : ''),
       at,
-      exp
+      exp,
+      // Pre-1v1 links carry no cid — they stay valid as link-only challenges.
+      cid: typeof cid === 'string' && /^[A-Za-z0-9_-]{0,32}$/.test(cid) ? cid : ''
     };
   } catch {
     return null;

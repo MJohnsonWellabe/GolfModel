@@ -975,6 +975,80 @@
         gap: 8px;
         margin-bottom: 14px;
       }
+      /* Your Challenges (1v1) — compact rows + W-L record chip */
+      .chSection {
+        margin: 0 0 14px;
+        text-align: left;
+      }
+      .chHead {
+        font-size: 14px;
+        font-weight: 900;
+        color: #ffd54f;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .chHead .chip {
+        background: rgba(255, 213, 79, 0.14);
+        border: 1px solid rgba(255, 213, 79, 0.3);
+        border-radius: 999px;
+        padding: 2px 10px;
+        font-size: 12px;
+      }
+      .chRow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.05);
+        margin-bottom: 4px;
+        font-size: 13px;
+      }
+      .chRow b {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .chRow .chMeta {
+        color: #a9c9b0;
+        font-size: 12px;
+      }
+      .chRow .chScore {
+        font-weight: 800;
+        color: #fff;
+      }
+      .chBadge {
+        flex: none;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 900;
+        background: rgba(255, 255, 255, 0.12);
+      }
+      .chBadge.ch-won {
+        background: #2e8b47;
+        color: #fff;
+      }
+      .chBadge.ch-lost {
+        background: #b23a3a;
+        color: #fff;
+      }
+      .chBadge.ch-tied {
+        background: #c9a227;
+        color: #201800;
+      }
+      .chPending {
+        color: #a9c9b0;
+        font-size: 12px;
+      }
       /* Course-by-course mastery star totals (compact chips, Part 5) */
       .profMastery {
         display: flex;

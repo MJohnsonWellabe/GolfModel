@@ -2397,21 +2397,33 @@ export function buildCourse(
   gtx.beginPath();
   gtx.ellipse(texW / 2, texW / 2, ((maxR + 2) / side) * texW, ((maxR + 2) / side) * texW, 0, 0, Math.PI * 2);
   gtx.clip();
-  gtx.strokeStyle = 'rgba(255,255,255,0.42)';
-  gtx.lineWidth = 1.5;
+  // Two-tone lines: a soft dark underlay beneath the white stroke. On dark
+  // parkland greens the underlay disappears into the turf (no visible change);
+  // on PALE links turf (Port Johnson — worst on the big bright Redan green of
+  // hole 2) the white-only grid washed out to invisible, and the dark edge is
+  // what keeps it readable (playtest: "putting grid isn't showing up on hole
+  // 2 at Port Johnson").
   const stepPx = (4 / side) * texW; // one cell ≈ 2 yards
-  for (let x = (texW / 2) % stepPx; x <= texW; x += stepPx) {
-    gtx.beginPath();
-    gtx.moveTo(x, 0);
-    gtx.lineTo(x, texW);
-    gtx.stroke();
-  }
-  for (let y = (texW / 2) % stepPx; y <= texW; y += stepPx) {
-    gtx.beginPath();
-    gtx.moveTo(0, y);
-    gtx.lineTo(texW, y);
-    gtx.stroke();
-  }
+  const drawLines = (): void => {
+    for (let x = (texW / 2) % stepPx; x <= texW; x += stepPx) {
+      gtx.beginPath();
+      gtx.moveTo(x, 0);
+      gtx.lineTo(x, texW);
+      gtx.stroke();
+    }
+    for (let y = (texW / 2) % stepPx; y <= texW; y += stepPx) {
+      gtx.beginPath();
+      gtx.moveTo(0, y);
+      gtx.lineTo(texW, y);
+      gtx.stroke();
+    }
+  };
+  gtx.strokeStyle = 'rgba(12,44,24,0.55)';
+  gtx.lineWidth = 3.5;
+  drawLines();
+  gtx.strokeStyle = 'rgba(255,255,255,0.6)';
+  gtx.lineWidth = 1.5;
+  drawLines();
   gtx.restore();
   gridTex.update(false);
   gridTex.hasAlpha = true;

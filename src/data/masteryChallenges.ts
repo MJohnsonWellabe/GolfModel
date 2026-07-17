@@ -1,120 +1,126 @@
 /**
  * Authored third-star skill challenges — explicit course data, one per hole
- * (retention plan, Part 5: "create explicit course-data definitions for the
- * third star rather than scattering hardcoded conditions through gameplay
- * code"). Each is deterministic and testable against HoleMasteryInput.
+ * (retention plan, Part 5). Each is deterministic and testable against
+ * HoleMasteryInput. Evaluated at ROUND end, so round-scale conditions can
+ * anchor to a hole slot.
  *
- * Authoring notes: every course runs par 4 / par 3 / par 5. Challenges lean
- * into each course's character — Sable Bay and Port Johnson punish water and
- * sand, Wildwood rewards precision through the trees, Timberline rewards
- * clean striking in the pines.
+ * HARD by design (playtest round 2: "course stars should be harder to get").
+ * The standard spine on every course (holes run par 4 / par 3 / par 5):
+ *   - the par 3 (hole 2): stick the tee shot inside TEN feet;
+ *   - the par 5 (hole 3): EAGLE it.
+ * The par 4 (hole 1) carries the course-specific test — including the two
+ * round-scale monsters: shoot better than −3, and ≤3 putts for the round.
  */
 
 import { ThirdStarDef } from '../systems/Mastery';
 
+/** Tee shot finished on the green inside `ft` feet (par-3 dagger test). */
+const stuckInside = (h: { approachFt?: number | null }, ft: number): boolean =>
+  typeof h.approachFt === 'number' && h.approachFt >= 0 && h.approachFt <= ft;
+
 export const MASTERY_CHALLENGES: ThirdStarDef[] = [
-  // ---- Sable Bay (coastal; water everywhere, waste sand, island green) ----
+  // ---- Sable Bay (coastal; water everywhere, the island par 3) ----
   {
     id: 'sablebay:1',
     courseId: 'sablebay',
     holeNumber: 1,
-    name: 'Dry Run',
-    desc: 'Make par or better without finding water',
-    test: (h) => h.strokes - h.par <= 0 && !h.waterHit
+    name: 'Card Wrecker',
+    desc: 'Shoot 4 under or better for the round',
+    test: (h) => typeof h.roundToPar === 'number' && h.roundToPar <= -4
   },
   {
     id: 'sablebay:2',
     courseId: 'sablebay',
     holeNumber: 2,
-    name: 'Island Nerve',
-    desc: 'Hit the green in regulation',
-    test: (h) => !!h.gir
+    name: 'Island Dagger',
+    desc: 'Stick the tee shot inside 10 feet',
+    test: (h) => stuckInside(h, 10)
   },
   {
     id: 'sablebay:3',
     courseId: 'sablebay',
     holeNumber: 3,
-    name: 'Clean Passage',
-    desc: 'Avoid water and sand for the whole hole',
-    test: (h) => !h.waterHit && !h.sandHit
+    name: 'Sable Eagle',
+    desc: 'Eagle the par 5',
+    test: (h) => h.strokes - h.par <= -2
   },
 
-  // ---- Wildwood Glen (parkland; creeks, tight woods) ----
+  // ---- Wildwood Glen (parkland; tight woods, pure greens) ----
   {
     id: 'wildwood:1',
     courseId: 'wildwood',
     holeNumber: 1,
-    name: 'Split the Trees',
-    desc: 'Hit the fairway off the tee',
-    test: (h) => !!h.fairwayHit
+    name: 'One-Putt Wonder',
+    desc: 'Use 3 putts or fewer for the whole round',
+    test: (h) => typeof h.roundPutts === 'number' && h.roundPutts <= 3
   },
   {
     id: 'wildwood:2',
     courseId: 'wildwood',
     holeNumber: 2,
-    name: 'Trust Your Read',
-    desc: 'Make par or better without True Vision',
-    test: (h) => h.strokes - h.par <= 0 && !h.usedTrueVision
+    name: 'Glen Dart',
+    desc: 'Stick the tee shot inside 10 feet',
+    test: (h) => stuckInside(h, 10)
   },
   {
     id: 'wildwood:3',
     courseId: 'wildwood',
     holeNumber: 3,
-    name: 'Stick It Close',
-    desc: 'Land your approach inside 15 feet',
-    test: (h) => typeof h.approachFt === 'number' && h.approachFt >= 0 && h.approachFt <= 15
+    name: 'Glen Eagle',
+    desc: 'Eagle the par 5',
+    test: (h) => h.strokes - h.par <= -2
   },
 
-  // ---- Timberline (forest; tight spruce corridors, honest bounces) ----
+  // ---- Timberline (forest; tight spruce corridors) ----
   {
     id: 'timberline:1',
     courseId: 'timberline',
     holeNumber: 1,
-    name: 'Corridor Drive',
-    desc: 'Hit the fairway and make par or better',
-    test: (h) => !!h.fairwayHit && h.strokes - h.par <= 0
+    name: 'Pure Corridor',
+    desc: 'Hit the fairway and make birdie',
+    test: (h) => !!h.fairwayHit && h.strokes - h.par <= -1
   },
   {
     id: 'timberline:2',
     courseId: 'timberline',
     holeNumber: 2,
-    name: 'Mountain Roll',
-    desc: 'Hole a putt of 15 feet or longer',
-    test: (h) => (h.longestPuttFt ?? 0) >= 15
+    name: 'Thin-Air Dart',
+    desc: 'Stick the tee shot inside 10 feet',
+    test: (h) => stuckInside(h, 10)
   },
   {
     id: 'timberline:3',
     courseId: 'timberline',
     holeNumber: 3,
-    name: 'Timber Line',
-    desc: 'Make birdie or better without finding sand',
-    test: (h) => h.strokes - h.par <= -1 && !h.sandHit
+    name: 'Timber Eagle',
+    desc: 'Eagle the par 5',
+    test: (h) => h.strokes - h.par <= -2
   },
 
-  // ---- Port Johnson Links (links; pot bunkers, wind) ----
+  // ---- Port Johnson Links (links; pot bunkers, real wind) ----
   {
     id: 'portjohnson:1',
     courseId: 'portjohnson',
     holeNumber: 1,
-    name: 'Pot Luck',
-    desc: 'Stay out of every bunker',
-    test: (h) => !h.sandHit
+    name: 'Wind Craftsman',
+    desc: 'Par or better in 8+ wind without touching sand',
+    test: (h) => h.strokes - h.par <= 0 && !h.sandHit && (h.windSpeed ?? 0) >= 8
   },
   {
     id: 'portjohnson:2',
     courseId: 'portjohnson',
     holeNumber: 2,
-    name: 'Into the Breeze',
-    desc: 'Hit the green in regulation in 8+ wind',
-    test: (h) => !!h.gir && (h.windSpeed ?? 0) >= 8
+    name: 'Redan Dagger',
+    desc: 'Stick the tee shot inside 10 feet',
+    test: (h) => stuckInside(h, 10)
   },
   {
     id: 'portjohnson:3',
     courseId: 'portjohnson',
     holeNumber: 3,
-    name: 'Links Craft',
-    desc: 'Make par or better avoiding sand and water',
-    test: (h) => h.strokes - h.par <= 0 && !h.sandHit && !h.waterHit
+    name: 'Links Eagle',
+    desc: 'Eagle the par 5',
+    test: (h) => h.strokes - h.par <= -2
   }
 ];
 

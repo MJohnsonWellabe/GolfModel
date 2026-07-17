@@ -114,14 +114,43 @@ export interface PlayerProfile {
   updatedAt: number;
 }
 
+/** One 1v1 challenge this player is part of (creator or responder) — the
+ *  "Your Challenges" profile list. Results live in the shared /challenges
+ *  doc; this is just the pointer. */
+export interface ChallengeRef {
+  cid: string;
+  /** Epoch ms this player joined (created or responded). */
+  at: number;
+}
+
 export interface RetentionState {
   records: PersonalRecords;
   streak: StreakState;
   mastery: MasteryState;
+  /** 1v1 challenges joined, newest first, capped. Merges by union (cid). */
+  challenges: ChallengeRef[];
 }
 
 export function emptyRetention(): RetentionState {
-  return { records: emptyRecords(), streak: emptyStreak(), mastery: emptyMastery() };
+  return { records: emptyRecords(), streak: emptyStreak(), mastery: emptyMastery(), challenges: [] };
+}
+
+const CHALLENGE_REF_CAP = 30;
+
+function migrateChallengeRefs(raw: unknown): ChallengeRef[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((c): c is ChallengeRef => !!c && typeof c.cid === 'string' && typeof c.at === 'number')
+    .slice(0, CHALLENGE_REF_CAP);
+}
+
+function mergeChallengeRefs(a: ChallengeRef[], b: ChallengeRef[]): ChallengeRef[] {
+  const byCid = new Map<string, ChallengeRef>();
+  for (const c of [...a, ...b]) {
+    const cur = byCid.get(c.cid);
+    if (!cur || c.at < cur.at) byCid.set(c.cid, c);
+  }
+  return [...byCid.values()].sort((x, y) => y.at - x.at).slice(0, CHALLENGE_REF_CAP);
 }
 
 function migrateRetention(raw: unknown): RetentionState {
@@ -129,7 +158,8 @@ function migrateRetention(raw: unknown): RetentionState {
   return {
     records: migrateRecords(r.records),
     streak: migrateStreak(r.streak),
-    mastery: migrateMastery(r.mastery)
+    mastery: migrateMastery(r.mastery),
+    challenges: migrateChallengeRefs(r.challenges)
   };
 }
 
@@ -139,7 +169,8 @@ function mergeRetention(a: RetentionState | undefined, b: RetentionState | undef
   return {
     records: mergeRecords(ma.records, mb.records),
     streak: mergeStreak(ma.streak, mb.streak),
-    mastery: mergeMastery(ma.mastery, mb.mastery)
+    mastery: mergeMastery(ma.mastery, mb.mastery),
+    challenges: mergeChallengeRefs(ma.challenges, mb.challenges)
   };
 }
 

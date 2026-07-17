@@ -9,6 +9,7 @@ import {
   parseChallengeParam,
   sanitizeName
 } from '../src/systems/AsyncChallenge';
+import { ChallengeDoc, outcomeFor } from '../src/firebase/Challenges';
 
 function def(over: Partial<AsyncChallengeDef> = {}): AsyncChallengeDef {
   return {
@@ -21,6 +22,7 @@ function def(over: Partial<AsyncChallengeDef> = {}): AsyncChallengeDef {
     creator: 'Matt',
     at: 1750000000000,
     exp: 0,
+    cid: '',
     ...over
   };
 }
@@ -68,5 +70,62 @@ describe('async challenge codes', () => {
     expect(challengeOutcome(def({ total: 11 }), 10)).toBe('beat');
     expect(challengeOutcome(def({ total: 11 }), 11)).toBe('tied');
     expect(challengeOutcome(def({ total: 11 }), 12)).toBe('lost');
+  });
+});
+
+describe('1v1 result-tracking cid', () => {
+  it('round-trips a cid through the code', () => {
+    const d = def({ cid: 'ch1234abcd' });
+    expect(decodeChallenge(encodeChallenge(d))!.cid).toBe('ch1234abcd');
+  });
+
+  it('a pre-1v1 link (no cid element) decodes with an empty cid', () => {
+    const legacy = Buffer.from(
+      JSON.stringify([1, 'sablebay', 'solo', 42, 11, -1, 'Matt', 1750000000000, 0])
+    ).toString('base64url');
+    const d = decodeChallenge(legacy)!;
+    expect(d.courseId).toBe('sablebay');
+    expect(d.cid).toBe('');
+  });
+
+  it('a hostile cid is dropped, not propagated', () => {
+    const bad = Buffer.from(
+      JSON.stringify([1, 'sablebay', 'solo', 42, 11, -1, 'Matt', 1750000000000, 0, '../evil path'])
+    ).toString('base64url');
+    expect(decodeChallenge(bad)!.cid).toBe('');
+  });
+});
+
+describe('challenge outcome resolution (Challenges.outcomeFor)', () => {
+  const doc = (over: Partial<ChallengeDoc> = {}): ChallengeDoc => ({
+    cid: 'chabc123',
+    courseId: 'sablebay',
+    seed: 42,
+    createdAt: 1,
+    creator: { playerId: 'p-creator', name: 'Matt', total: 11, toPar: -1, at: 1 },
+    ...over
+  });
+
+  it('creator is pending until someone responds', () => {
+    expect(outcomeFor(doc(), 'p-creator')).toBe('pending');
+  });
+
+  it('creator wins when no response beats the target; loses when one does', () => {
+    const beaten = doc({ responses: { 'p-r': { playerId: 'p-r', name: 'A', total: 10, toPar: -2, at: 2 } } });
+    expect(outcomeFor(beaten, 'p-creator')).toBe('lost');
+    expect(outcomeFor(beaten, 'p-r')).toBe('won');
+    const held = doc({ responses: { 'p-r': { playerId: 'p-r', name: 'A', total: 12, toPar: 0, at: 2 } } });
+    expect(outcomeFor(held, 'p-creator')).toBe('won');
+    expect(outcomeFor(held, 'p-r')).toBe('lost');
+  });
+
+  it('equal totals tie for both sides', () => {
+    const tied = doc({ responses: { 'p-r': { playerId: 'p-r', name: 'A', total: 11, toPar: -1, at: 2 } } });
+    expect(outcomeFor(tied, 'p-creator')).toBe('tied');
+    expect(outcomeFor(tied, 'p-r')).toBe('tied');
+  });
+
+  it('a bystander with no response is pending', () => {
+    expect(outcomeFor(doc(), 'p-nobody')).toBe('pending');
   });
 });

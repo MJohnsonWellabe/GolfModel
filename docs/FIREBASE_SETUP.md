@@ -109,6 +109,15 @@ the shared leaderboard) — or any project you prefer.
              }
            }
          }
+       },
+       "challenges": {
+         ".read": true,
+         "$cid": {
+           ".write": "!data.exists()",
+           "responses": {
+             "$player": { ".write": "!data.exists()" }
+           }
+         }
        }
      }
    }
@@ -135,7 +144,10 @@ the shared leaderboard) — or any project you prefer.
    mine other players' activity. `weekly` holds Weekly Featured Round
    leaderboards: world-readable; a player's entry can be created once and
    then only replaced by a BETTER (lower) total — duplicate or worse
-   submissions are rejected server-side.
+   submissions are rejected server-side. `challenges` holds 1v1 challenge
+   results ("I shot -2 — can you do better?"): world-readable; the challenge
+   doc and each player's response are write-once, so neither side can edit a
+   posted score.
    `liveOpsConfig` is the retention live-ops override layer (Daily Challenge
    date pins, Weekly Featured course overrides — Admin → Retention / Live
    Ops): world-readable like `marketingConfig` (players resolve it at menu
