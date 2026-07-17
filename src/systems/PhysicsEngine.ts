@@ -440,15 +440,28 @@ export class PhysicsEngine {
    * water/trees sample can't blow the launch speed up.
    */
   private puttRollFriction(origin: Point, dir: number, distPx: number): number {
-    const steps = 6;
+    // TRAPEZOIDAL sampling over the whole path INCLUDING the origin and endpoint
+    // (was 6 interior midpoints). Two reasons, both proven by the fringe
+    // regression sims:
+    //  1. The midpoint rule MISSED any surface stretch shorter than distPx/6 at
+    //     the very start — a putt sitting ~1in off the green (on fringe) had its
+    //     whole launch budgeted for pure green, so it under-powered.
+    //  2. The forward-Euler roll brakes at the START-of-step surface for a full
+    //     ~1px step, so a putt STARTING on fringe pays fringe friction over that
+    //     whole first step. Weighting the origin (½ in the trapezoid) budgets
+    //     the launch for exactly that initial-lie braking.
+    // An all-green putt still averages EXACTLY friction.green (every sample is
+    // green), so on-green pace and the Appendix-A make rates are byte-identical.
+    const steps = 8;
     const cap = PHYSICS.friction.rough;
     const dx = Math.cos(dir);
     const dy = Math.sin(dir);
     let sum = 0;
-    for (let i = 0; i < steps; i++) {
-      const t = (distPx * (i + 0.5)) / steps;
+    for (let i = 0; i <= steps; i++) {
+      const t = (distPx * i) / steps;
       const surf = this.surfaceAt(origin.x + dx * t, origin.y + dy * t);
-      sum += Math.min(PHYSICS.friction[surf] ?? PHYSICS.friction.green, cap);
+      const w = i === 0 || i === steps ? 0.5 : 1;
+      sum += w * Math.min(PHYSICS.friction[surf] ?? PHYSICS.friction.green, cap);
     }
     return sum / steps;
   }

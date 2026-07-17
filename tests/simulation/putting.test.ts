@@ -7,6 +7,8 @@ import { ftToPx, golferWith, NO_WIND, openHole, PERFECT_SWING, SWING_OF } from '
 import portjohnson from '../../src/data/courses/portjohnson.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { AimControl } from '../../src/core/input/AimControl';
+import { buildHeightField } from '../../src/systems/HeightField';
+import { HoleData } from '../../src/core/types';
 
 /**
  * Putting feel (recalibrated on playtest FB9). The old model leaned on huge
@@ -179,32 +181,161 @@ describe('putting — mishits are punished', () => {
 });
 
 
-describe('putting — Port Johnson long uphill True Vision regression', () => {
-  it('a perfect 78ft final-hole putt uses slope-aware pace instead of dying 20ft short', () => {
-    const course = loadCourse(portjohnson as unknown as CourseAuthoring);
-    const pj3 = course.holes[2];
-    const engine = new PhysicsEngine(pj3, null, () => 0.5);
-    const aim = new AimControl(pj3, engine);
+/**
+ * Port Johnson h3 long UPHILL putt — the shipped-wiring regression for A1. The
+ * old version of this test built ONE slope-aware engine and handed it to
+ * AimControl, so it never exercised the real bug: in the shipped game the aim
+ * LINE runs on a FLAT, no-slope preview engine (so it never reveals the break)
+ * and only the PACE + the real shot run on the terrain+slope engine (engine2d).
+ * Before A1 the putt pace was queried on the FLAT engine → slopeAccelAlong === 0
+ * → no uphill compensation → the putt died ~20ft short. This now wires exactly
+ * the shipped path (flat aim engine + real-heightfield shot engine) and pins
+ * both the fix AND that the wiring is what matters. Deterministic (preview:true)
+ * so it can't drift with pace-noise retuning.
+ */
+describe('putting — Port Johnson long uphill regression (real shipped wiring)', () => {
+  const course = loadCourse(portjohnson as unknown as CourseAuthoring);
+  const pj3 = course.holes[2];
+  const origin = { x: pj3.pin.x - ftToPx(78), y: pj3.pin.y };
+  const ctx = { ball: origin, lie: 'green' as const, golfer, fireBoost: 0, strokes: 2 };
+
+  function puttWith(slopeAwarePace: boolean): { traveledFt: number; remainingFt: number } {
+    // FLAT aim/preview engine (no slope, no heightfield) — the shipped aim line.
+    const previewEngine = new PhysicsEngine({ ...pj3, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
+    // Real terrain+slope shot engine — the shipped engine2d.
+    const engine2d = new PhysicsEngine(pj3, buildHeightField(pj3), () => 0.5);
+    // slopeAwarePace: give AimControl the real engine for PACE (the A1 fix).
+    // Otherwise it falls back to the flat previewEngine for pace (the old bug).
+    const aim = slopeAwarePace
+      ? new AimControl(pj3, previewEngine, engine2d)
+      : new AimControl(pj3, previewEngine);
     aim.setClubById('putter');
     aim.yaw = 0;
     aim.distPx = ftToPx(78);
-    const origin = { x: pj3.pin.x - ftToPx(78), y: pj3.pin.y };
-    const ctx = { ball: origin, lie: 'green' as const, golfer, fireBoost: 0, strokes: 2 };
     const power = aim.barToPhysicsPower(aim.barPowerTarget(ctx), ctx);
-    const out = engine.simulate({
-      origin,
-      aimAngle: aim.yaw,
-      swing: PERFECT_SWING(power),
-      club: putter,
-      golfer,
-      fireBoost: 0,
-      lie: 'green',
-      wind: NO_WIND,
-      hole: pj3
+    const out = engine2d.simulate({
+      origin, aimAngle: aim.yaw, swing: PERFECT_SWING(power), club: putter,
+      golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: pj3, preview: true
     });
-    const traveledFt = Math.hypot(out.finalPos.x - origin.x, out.finalPos.y - origin.y) / PX_PER_YARD * 3;
-    const remainingFt = Math.hypot(out.finalPos.x - pj3.pin.x, out.finalPos.y - pj3.pin.y) / PX_PER_YARD * 3;
-    expect(traveledFt).toBeGreaterThan(65);
-    expect(remainingFt).toBeLessThan(10);
+    return {
+      traveledFt: Math.hypot(out.finalPos.x - origin.x, out.finalPos.y - origin.y) / PX_PER_YARD * 3,
+      remainingFt: Math.hypot(out.finalPos.x - pj3.pin.x, out.finalPos.y - pj3.pin.y) / PX_PER_YARD * 3
+    };
+  }
+
+  it('a perfect 78ft uphill putt reaches the hole with slope-aware pace', () => {
+    const r = puttWith(true);
+    expect(r.traveledFt, `traveled ${r.traveledFt.toFixed(1)}ft`).toBeGreaterThan(70);
+    expect(r.remainingFt, `remaining ${r.remainingFt.toFixed(1)}ft`).toBeLessThan(12);
+  });
+
+  it('the SHIPPED wiring is what fixes it: pacing on the flat aim engine dies ~20ft short', () => {
+    const bug = puttWith(false);
+    // The pre-A1 behavior — pace queried on the flat preview engine — leaves the
+    // uphill putt well short (the reported failure). The fix wiring above must be
+    // dramatically better (the assertion in the previous test).
+    expect(bug.remainingFt, `bug remaining ${bug.remainingFt.toFixed(1)}ft`).toBeGreaterThan(15);
+    expect(bug.remainingFt).toBeGreaterThan(puttWith(true).remainingFt + 5);
+  });
+});
+
+/**
+ * Fringe-transition pace (ADJ-1 regression). A ball resting barely off the green
+ * on ~1 inch of fringe must roll almost exactly like the same putt entirely on
+ * the green — a hair of fringe must NOT be a ~20ft cliff. PROVEN root cause of
+ * the old penalty: the launch-speed friction sampler (puttRollFriction) took 6
+ * interior MIDPOINTS, so it missed a sub-(distance/6) fringe stretch at the
+ * origin, while the forward-Euler roll brakes at the START-of-step surface for a
+ * full ~1px step — a putt STARTING on fringe therefore paid fringe friction over
+ * that whole first step with no launch budget for it, and came up short. It is
+ * NOT that fringe friction (300) is too high (deep-fringe putts were fine); the
+ * defect was the transition accounting. Trapezoidal origin-weighted sampling
+ * fixes it. These sims are deterministic (preview:true) — the noise-free pace
+ * model True Vision shows — so the loss they measure is the pure surface model.
+ */
+describe('putting — fringe-transition pace scales with fringe distance, not a cliff (ADJ-1)', () => {
+  const fringeHole = (): HoleData => ({
+    number: 1, par: 4, yardage: 400,
+    world: { width: 3000, height: 3000 },
+    tee: { x: 1500, y: 2800 },
+    green: { cx: 1500, cy: 600, rx: 300, ry: 300 },
+    slope: { angle: 0, strength: 0 },
+    pin: { x: 1500, y: 600 },
+    // Fairway kept far BELOW the green so the green keeps a real fringe collar
+    // (a fairway overlapping the green margin suppresses 'fringe' in surfaceAt).
+    fairway: [[[1200, 2900], [1800, 2900], [1800, 1400], [1200, 1400]]],
+    hazards: [], aiTargets: []
+  });
+
+  // Locate the actual green→fringe edge along +y (the green boundary carries a
+  // directional wobble, so it isn't exactly at ry).
+  const probe = new PhysicsEngine(fringeHole(), null, () => 0.5);
+  let greenEdgeY = 900;
+  for (let y = 850; y < 1050; y += 0.1) {
+    if (probe.surfaceAt(1500, y) === 'fringe' && probe.surfaceAt(1500, y - 0.1) === 'green') {
+      greenEdgeY = y;
+      break;
+    }
+  }
+
+  /** Deterministic shortfall (ft) of a perfect putt started `fringeDepthPx` past
+   *  the green edge (negative = inside the green), aimed `puttFt` up onto the
+   *  green — armed exactly as the game arms a putt (flat aim engine). */
+  function trial(fringeDepthPx: number, puttFt: number): { surf: string; short: number } {
+    const puttLenPx = ftToPx(puttFt);
+    const ball = { x: 1500, y: greenEdgeY + fringeDepthPx };
+    const pin = { x: 1500, y: ball.y - puttLenPx };
+    const hole = { ...fringeHole(), pin };
+    const engine = new PhysicsEngine(hole, null, () => 0.5);
+    const flatPreview = new PhysicsEngine({ ...hole, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
+    const aim = new AimControl(hole, flatPreview, engine);
+    aim.setClubById('putter');
+    aim.yaw = -Math.PI / 2;
+    aim.distPx = puttLenPx;
+    const lie = engine.surfaceAt(ball.x, ball.y);
+    const c = { ball, lie, golfer, fireBoost: 0, strokes: 2 };
+    const power = aim.barToPhysicsPower(aim.barPowerTarget(c), c);
+    const out = engine.simulate({
+      origin: ball, aimAngle: aim.yaw, swing: PERFECT_SWING(power), club: putter,
+      golfer, fireBoost: 0, lie, wind: NO_WIND, hole, preview: true
+    });
+    const trav = Math.hypot(out.finalPos.x - ball.x, out.finalPos.y - ball.y) / PX_PER_YARD * 3;
+    return { surf: String(lie), short: puttFt - trav };
+  }
+
+  const inch = (n: number) => ftToPx(n / 12);
+
+  it('Case A — entirely on green: a perfect 20ft putt finishes on the hole', () => {
+    const a = trial(-8, 20);
+    expect(a.surf).toBe('green');
+    expect(Math.abs(a.short), `A short=${a.short.toFixed(2)}ft`).toBeLessThan(0.5);
+  });
+
+  it('Case B — ~1 inch of fringe: within ~1ft of the on-green putt (a hair of fringe is NOT a ~20ft cliff)', () => {
+    const a = trial(-8, 20);
+    const b = trial(inch(1), 20);
+    expect(b.surf).toBe('fringe');
+    expect(Math.abs(b.short - a.short), `B=${b.short.toFixed(2)} A=${a.short.toFixed(2)}`).toBeLessThan(1);
+    expect(b.short, `1in fringe cost ${b.short.toFixed(2)}ft`).toBeLessThan(3); // nowhere near 20ft
+  });
+
+  it('Case C — several feet into fringe: still recovers, loss stays small and bounded', () => {
+    for (const depthFt of [3, 6]) {
+      const c = trial(ftToPx(depthFt), 20);
+      expect(c.surf).toBe('fringe');
+      expect(Math.abs(c.short), `${depthFt}ft-into short=${c.short.toFixed(2)}ft`).toBeLessThan(3);
+    }
+  });
+
+  it('the loss is CONTINUOUS across fringe depth — a smooth ramp, no step at the tiniest crossing', () => {
+    const shorts = [0.05, 0.25, 0.5, 1, 2, 4, 8, 16].map((inches) => trial(inch(inches), 20).short);
+    for (let i = 1; i < shorts.length; i++) {
+      expect(
+        Math.abs(shorts[i] - shorts[i - 1]),
+        `adjacent jump too big; shorts=[${shorts.map((s) => s.toFixed(2)).join(', ')}]`
+      ).toBeLessThan(1);
+    }
+    // And the deepest sampled crossing is still a small loss, never a cliff.
+    expect(Math.max(...shorts.map(Math.abs))).toBeLessThan(3);
   });
 });
