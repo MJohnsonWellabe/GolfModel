@@ -18,6 +18,10 @@ import { renderStoreStaging } from './storeStaging';
 import { renderLiveOps } from './liveOps';
 import { loadMarketingConfig } from '../firebase/MarketingConfig';
 import { loadAdminDraft } from '../firebase/AdminDrafts';
+import { ENV } from '../config/env';
+import { buildLabelLong } from '../core/buildInfo';
+import { mountEnvBadge } from '../core/envBadge';
+import { enableFlagOverrides } from '../core/flags';
 import { ARCHETYPES } from '../data/archetypes';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
@@ -381,6 +385,9 @@ async function showLanding(): Promise<void> {
       <p class="sub">Not authorized${email ? ` for ${esc(email)}` : ''}.</p>`;
     return;
   }
+  // Confirmed admin — allow flag overrides on this device (a no-op for the
+  // sensitive dev-only flags, which stay additionally hard-gated to non-prod).
+  enableFlagOverrides(true);
   $('app').innerHTML = `<button id="backGame" class="btn back">← Back to game</button>
     <h1>⛳ Bite-Sized Golf — Admin</h1>
     <p class="sub">Signed in as ${esc(email)} · choose a workspace</p>
@@ -390,7 +397,10 @@ async function showLanding(): Promise<void> {
       ${destCardHtml('season', '🏆', 'Next Season Pass Staging', 'Draft the next season pass — theme, dates, levels and rewards. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('liveops', '🔁', 'Retention / Live Ops', 'Daily Challenge and Weekly Featured overrides — stage, validate, publish. Reward math stays code-defined.', 'Loading…', '')}
-    </div>`;
+    </div>
+    <p class="sub" style="margin-top:22px;opacity:0.6;font-size:12px">
+      Environment: <b>${ENV.name.toUpperCase()}</b> · build ${esc(buildLabelLong())}
+    </p>`;
   document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
   document.getElementById('adminGrid')!.addEventListener('click', (e) => {
     const el = (e.target as HTMLElement).closest('[data-open]') as HTMLElement | null;
@@ -454,4 +464,5 @@ async function boot(): Promise<void> {
   void showLanding();
 };
 
+mountEnvBadge();
 void boot();

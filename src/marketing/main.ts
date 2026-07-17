@@ -16,6 +16,7 @@
 import { CHARACTERS } from '../data/characters';
 import { PALS } from '../data/pals';
 import { LEADERBOARD_URL } from '../config';
+import { mountEnvBadge } from '../core/envBadge';
 import {
   Clip,
   MontageRender,
@@ -412,6 +413,7 @@ renderClipGrid(resolveRenderModel(null).clips);
 renderMontage(resolveRenderModel(null).montage);
 wireClipPlayback();
 wireImageFallbacks();
+mountEnvBadge();
 
 // Then overlay the live config if one is published; failure/absence is a no-op.
 void (async () => {

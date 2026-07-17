@@ -19,9 +19,12 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
 });
 
 /** With Firebase configured, the profile offers a Link Google account control
- *  and an account-status line (Phase 5). */
+ *  and an account-status line (Phase 5). The default development environment is
+ *  intentionally local-only (dormant cloud — src/config/env.ts), which correctly
+ *  hides this control; `?env=prod` resolves the configured production Firebase so
+ *  we can capture the account row. No sign-in happens, so nothing is written. */
 test('profile shows the cloud account row when auth is configured', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?env=prod');
   await page.waitForSelector('#acctProfileLinkOut');
   await page.evaluate(() => (document.getElementById('acctProfileLinkOut') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#linkGoogle');

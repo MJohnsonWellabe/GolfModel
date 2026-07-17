@@ -1,10 +1,66 @@
 # Development Environment and Release Strategy
 
-**Status:** ACTIVE PLAN
+**Status:** PARTIALLY IMPLEMENTED (V2 foundation landed; hosting/console steps deferred)
 
 ## Goal
 
 Allow ongoing development and admin-only playtesting while the public game remains stable and available.
+
+## Implementation status (V2 code foundation)
+
+The code foundation is in place; nothing here changes production behavior — the
+resolver returns the exact production literals on a production hostname.
+
+**Landed:**
+
+- **Environment resolver** — `src/config/env.ts` resolves `prod` vs `dev` from
+  the hostname (production hostnames listed in `PROD_HOSTNAMES`), with a
+  `?env=dev` / `?env=prod` override. It returns a validated `EnvConfig`
+  (Firebase identifiers, env name, analytics namespace, admin path, log level)
+  and throws on a partially configured dev project. `src/config.ts` re-exports
+  `LEADERBOARD_URL` / `FIREBASE` from it, so every existing read site is
+  unchanged.
+- **Data isolation via local-only dev** — until a separate dev Firebase project
+  is configured, development runs LOCAL-ONLY: an empty Firebase `apiKey` keeps
+  the whole auth/cloud layer dormant and an empty leaderboard URL makes every
+  REST transport a no-op. Development therefore *cannot* write to production
+  data. This is the documented transitional strategy (chosen over a
+  same-project `dev/` namespace because it needs no path retrofit and removes
+  any chance of a stray production write). Set the `VITE_DEV_FIREBASE_*` build
+  variables to point development at a real dev project instead.
+- **Feature flags** — `src/core/flags.ts`: a registry with per-environment
+  defaults, each flag declaring owner + removal condition. Admins (and dev) may
+  override via `?ff.<key>=on|off` or `localStorage`; normal production players
+  always get the default.
+- **Environment badge** — `src/core/envBadge.ts` injects an unmistakable `DEV`
+  badge (with the build label) outside production; a no-op on the live site and
+  suppressed during screenshot captures. Mounted on the game, admin, and
+  marketing pages.
+- **Build stamp** — `vite.config.ts` injects app version + git SHA + build time
+  (`src/core/buildInfo.ts`); surfaced in the admin footer and the dev badge for
+  support.
+- **Dev build workflow (dormant)** — `.github/workflows/deploy-dev.yml` builds
+  and tests on `develop` / manual dispatch and uploads a downloadable artifact.
+  It can never run on `version2` and publishes nowhere by default.
+
+**Deferred human steps (none block the game staying up):**
+
+1. Create a separate **dev Firebase project**; add its public config as the
+   repo secrets `DEV_FIREBASE_*` (the dev workflow already forwards them to the
+   build as `VITE_DEV_FIREBASE_*`).
+2. Choose a **dev hosting target** (a second Pages site in another repo,
+   Netlify, or Firebase Hosting on the dev project — a single repo can host only
+   one Pages site, which production owns) and add the guarded publish step to
+   `deploy-dev.yml`.
+3. Point a **dev subdomain / DNS** at that target.
+4. Establish the permanent **branch structure** (`develop` alongside
+   `version2`).
+
+**Still to build in code (documented follow-up, not required for the polish
+work):** the minimal-auth shell that authorizes a dev tester before loading the
+game, and the development test-data controls (grant coins, reset mastery,
+simulate dates) behind the `devTools` flag — that flag is additionally
+hard-gated to non-prod at its consumption site.
 
 ## Required environments
 
@@ -157,10 +213,20 @@ before the next release.
 
 ## Definition of done for Phase 1
 
-- Admin can use the development game on mobile and desktop.
-- Non-admin access is rejected.
-- Development and production data are isolated.
-- Environment identity is unmistakable.
-- Both environments build and test independently.
-- Promotion and rollback are documented and rehearsed.
-- Production remains playable throughout development.
+- Development and production data are isolated. — **Done** (dev is local-only
+  until a dev project exists; it cannot write to production).
+- Environment identity is unmistakable. — **Done** (DEV badge + build stamp).
+- Configuration is environment-resolved and validated. — **Done**
+  (`src/config/env.ts`).
+- Production remains playable throughout development. — **Done** (resolver
+  returns the live literals on production hostnames; no production path changed).
+- Both environments build and test independently. — **Partial** (production
+  `deploy.yml` unchanged; `deploy-dev.yml` builds/tests on `develop` but does
+  not publish until a dev host is chosen).
+- Admin can use the development game on mobile and desktop. — **Deferred**
+  (needs the dev hosting target above).
+- Non-admin access is rejected. — **Deferred** (minimal-auth dev shell is the
+  documented code follow-up; the admin allowlist + `devTools` gating are in
+  place as the seam).
+- Promotion and rollback are documented and rehearsed. — Documented above;
+  rehearsal pending the dev host.

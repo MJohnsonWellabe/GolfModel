@@ -1,29 +1,29 @@
 /** Global gameplay tuning and screen constants. */
 
+import { ENV } from './config/env';
+
 export const GAME_WIDTH = 720;
 export const GAME_HEIGHT = 1280;
 
 /**
- * Shared leaderboard endpoint — a Firebase Realtime Database URL, e.g.
- * "https://johnsons-golf-default-rtdb.firebaseio.com".
+ * Shared leaderboard endpoint — a Firebase Realtime Database URL.
  * Empty string = leaderboard lives on each device only (localStorage).
- * See README "Shared leaderboard" for the 3-minute setup.
+ *
+ * Resolved per-environment by `src/config/env.ts`: production returns the live
+ * golfgame-9c11e RTDB URL; development returns its own dev-project URL, or an
+ * empty string (local-only) until a dev project is configured. Every existing
+ * read site keeps importing `LEADERBOARD_URL` unchanged.
  */
-export const LEADERBOARD_URL = 'https://golfgame-9c11e-default-rtdb.firebaseio.com';
+export const LEADERBOARD_URL = ENV.leaderboardUrl;
 
 /**
- * Firebase web-app config (Phase 5 accounts & cloud saves). These values are
- * PUBLIC identifiers (security lives in the database rules) — paste them from
- * the Firebase console per docs/FIREBASE_SETUP.md. Empty apiKey = the whole
- * auth/cloud-save layer stays dormant and the game runs local-only.
+ * Firebase web-app config (accounts & cloud saves). These values are PUBLIC
+ * identifiers (security lives in the database rules). Resolved per-environment
+ * by `src/config/env.ts` — production uses the golfgame-9c11e project;
+ * development uses its own project or stays dormant (empty apiKey = the whole
+ * auth/cloud-save layer is inert and the game runs local-only).
  */
-export const FIREBASE = {
-  apiKey: 'AIzaSyAdEG6OgXAL8qugqO4PZUv37QKAV193r8M',
-  authDomain: 'golfgame-9c11e.firebaseapp.com',
-  projectId: 'golfgame-9c11e',
-  appId: '1:122624336711:web:7dd59548b19d434d60a262',
-  databaseURL: LEADERBOARD_URL
-} as const;
+export const FIREBASE = ENV.firebase;
 
 /** World pixels per yard — every distance in the game maps through this. */
 export const PX_PER_YARD = 2.0;

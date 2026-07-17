@@ -18,6 +18,7 @@ import {
 } from '@babylonjs/core';
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
+import { mountEnvBadge } from '../core/envBadge';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
@@ -4457,6 +4458,9 @@ function showAiTourBoard(): void {
 
 engine3d.runRenderLoop(() => current?.render());
 window.addEventListener('resize', () => engine3d.resize());
+
+// Unmistakable DEV badge outside production; a no-op on the live site.
+mountEnvBadge();
 
 // Perf probe for the Playwright FPS baseline (Phase 9).
 (window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();

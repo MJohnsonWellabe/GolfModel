@@ -7,10 +7,33 @@ import { defineConfig } from 'vite';
 // Pages — see .github/workflows/deploy.yml. The docs/ folder holds the
 // project's design documentation, not the build.
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+
+// Build stamp — surfaced in the admin footer / dev badge for support, so a
+// bug report can name the exact build. Git SHA is best-effort (a shallow CI
+// checkout or a non-git tarball just yields 'unknown').
+const require = createRequire(import.meta.url);
+const pkgVersion = (require('./package.json') as { version: string }).version;
+function gitSha(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+  } catch {
+    return 'unknown';
+  }
+}
+const buildDefine = {
+  __APP_VERSION__: JSON.stringify(pkgVersion),
+  __BUILD_SHA__: JSON.stringify(gitSha()),
+  __BUILD_TIME__: JSON.stringify(new Date().toISOString())
+};
 
 export default defineConfig({
   base: './',
   publicDir: 'assets',
+  define: buildDefine,
   // Vitest collects unit tests only — tests/visual/*.spec.ts belong to the
   // Playwright screenshot harness (`npm run shots`), not the unit runner.
   test: {

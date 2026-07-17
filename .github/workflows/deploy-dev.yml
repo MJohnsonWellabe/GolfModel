@@ -1,0 +1,60 @@
+# Development build (DORMANT until a dev target is configured).
+#
+# This workflow exists so the dev environment is one step away from live, WITHOUT
+# putting production at any risk:
+#   - It triggers ONLY on the `develop` branch and manual dispatch. It can never
+#     run on `version2`, so it cannot touch the production Pages deployment
+#     (that stays owned entirely by deploy.yml).
+#   - It builds and tests the dev bundle and uploads it as a downloadable
+#     artifact. It does NOT publish anywhere by default — a single repo (one
+#     GitHub Pages site) can't host two live deployments, so the dev hosting
+#     target is a deliberate, deferred human decision (see
+#     docs/technical/DEVELOPMENT_ENVIRONMENT_AND_RELEASES.md).
+#
+# To activate a real dev deployment later:
+#   1. Create the separate dev Firebase project and add its public config as repo
+#      secrets: DEV_FIREBASE_API_KEY, DEV_FIREBASE_AUTH_DOMAIN,
+#      DEV_FIREBASE_PROJECT_ID, DEV_FIREBASE_APP_ID, DEV_FIREBASE_DB_URL.
+#      (Absent → the dev build runs local-only; still valid.)
+#   2. Pick a dev host (a second Pages site in another repo, Netlify, Firebase
+#      Hosting on the dev project, …) and add its publish step below, guarded by
+#      the DEV_DEPLOY_ENABLED repo variable so it stays inert until you opt in.
+name: Build Dev (dormant)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build # tsc --noEmit + vite build → dist/
+        env:
+          # Wired to the dev Firebase project when the secrets exist; empty →
+          # the resolver keeps development local-only (see src/config/env.ts).
+          VITE_DEV_FIREBASE_API_KEY: ${{ secrets.DEV_FIREBASE_API_KEY }}
+          VITE_DEV_FIREBASE_AUTH_DOMAIN: ${{ secrets.DEV_FIREBASE_AUTH_DOMAIN }}
+          VITE_DEV_FIREBASE_PROJECT_ID: ${{ secrets.DEV_FIREBASE_PROJECT_ID }}
+          VITE_DEV_FIREBASE_APP_ID: ${{ secrets.DEV_FIREBASE_APP_ID }}
+          VITE_DEV_FIREBASE_DB_URL: ${{ secrets.DEV_FIREBASE_DB_URL }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-build
+          path: dist
+          retention-days: 7
+
+  # Deferred: publish step intentionally omitted until a dev host is chosen.
+  # When added, guard it with `if: vars.DEV_DEPLOY_ENABLED == 'true'` so it can
+  # never publish accidentally.
