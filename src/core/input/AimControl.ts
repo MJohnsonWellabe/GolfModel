@@ -187,10 +187,19 @@ export class AimControl {
     if (ctx.strokes >= 1 || pinDist <= maxCarry) candidates.push(this.hole.pin);
     candidates.push(...this.routePointsAhead(ctx.ball, Math.min(pinDist, maxCarry)));
     if (!candidates.includes(this.hole.pin)) candidates.push(this.hole.pin);
+    // Armed distance for a candidate. The PIN is aimed AT (an approach must not
+    // overswing the green). A strategic ROUTE waypoint instead arms a FULL carry
+    // down its line — a tee shot lays OUT down the corridor rather than clubbing
+    // down to the elbow: capping distPx at the nearest waypoint threw away
+    // 10-33yd of a strong driver's carry (Wildwood 3 "The Long Meadow", whose T0
+    // sits ~255yd out). The armed LANDING point must be dry, so the wetness probe
+    // now tests the FULL-carry point, not the (often short) waypoint.
+    const armDist = (t: Point): number =>
+      t === this.hole.pin ? Math.min(dist(ctx.ball, t), maxCarry) : maxCarry;
     let pick = candidates[0];
     for (const t of candidates) {
-      const d = Math.min(dist(ctx.ball, t), maxCarry);
       const yaw = angleTo(ctx.ball, t);
+      const d = armDist(t);
       const wet =
         this.engine.surfaceAt(ctx.ball.x + Math.cos(yaw) * d, ctx.ball.y + Math.sin(yaw) * d) ===
         'water';
@@ -200,9 +209,24 @@ export class AimControl {
       }
     }
     this.yaw = angleTo(ctx.ball, pick);
-    // Aim AT the chosen spot (a safe lay-up arms a shorter swing), capped at
-    // the club's full carry.
-    this.distPx = Math.min(dist(ctx.ball, pick), maxCarry);
+    // Full carry down the chosen line (or AT the pin) — but never park the
+    // default aim in water: if the full-carry point is wet, lay up to the
+    // longest dry distance short of it.
+    this.distPx = this.dryAimDistance(ctx.ball, this.yaw, armDist(pick));
+  }
+
+  /** Longest aim distance (≤ `maxDist`, world px) down `yaw` whose LANDING point
+   *  is dry. Arms the full carry when the corridor is dry there; otherwise steps
+   *  back to lay up short of the water so the default aim never parks in a
+   *  hazard. The ball rests on land, so a short distance is always dry. */
+  private dryAimDistance(from: Point, yaw: number, maxDist: number): number {
+    const dx = Math.cos(yaw);
+    const dy = Math.sin(yaw);
+    const step = PX_PER_YARD * 3; // 3yd back-off granularity
+    for (let d = maxDist; d > step; d -= step) {
+      if (this.engine.surfaceAt(from.x + dx * d, from.y + dy * d) !== 'water') return d;
+    }
+    return Math.min(maxDist, step);
   }
 
   /** Fairway waypoints ahead of the ball (closer to the pin than the ball is),

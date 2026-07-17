@@ -4,7 +4,7 @@ import { PhysicsEngine } from '../src/systems/PhysicsEngine';
 import { buildHeightField } from '../src/systems/HeightField';
 import { CourseAuthoring, loadCourse } from '../src/data/courseLoader';
 import { Golfer, HoleData, Point, Surface } from '../src/core/types';
-import { dist } from '../src/utils/Geometry';
+import { angleTo, dist } from '../src/utils/Geometry';
 import portjohnson from '../src/data/courses/portjohnson.json';
 import sablebay from '../src/data/courses/sablebay.json';
 import timberline from '../src/data/courses/timberline.json';
@@ -93,10 +93,48 @@ describe('default aim strategic intent', () => {
     expect(dist(h.tee, p)).toBeGreaterThan(300);
   });
 
-  it('par 5 tee shots choose an authored strategic landing area', () => {
+  it('par 5 tee shots lay a full carry out down an authored strategic corridor', () => {
+    // A4 change of behavior: an ELITE driver no longer clubs DOWN to the nearest
+    // lay-up waypoint — it lays a FULL carry out down the corridor, using the
+    // player's length. So the aim POINT legitimately overshoots the near elbow
+    // (here ~58px past it) instead of landing on it. What must still hold: the
+    // aim points straight down an authored ROUTE line (its bearing matches a
+    // waypoint's to within ~3.5°) and lands on dry, in-play ground.
     const h = timber.holes.find((x) => x.par === 5)!;
     const p = defaultAim(h, h.tee, 'tee', 0, ELITE);
-    expect(Math.min(...(h.aiTargets ?? []).map((t) => dist(p, t)))).toBeLessThan(45);
+    const aimBearing = angleTo(h.tee, p);
+    const minBearingErr = Math.min(
+      ...(h.aiTargets ?? []).map((t) => Math.abs(angleTo(h.tee, t) - aimBearing))
+    );
+    expect(minBearingErr, `bearing err ${minBearingErr.toFixed(3)}rad`).toBeLessThan(0.06);
+    expect(dist(h.tee, p)).toBeGreaterThan(300);
+    const engine = new PhysicsEngine(h, buildHeightField(h));
+    expect(engine.surfaceAt(p.x, p.y)).not.toBe('water');
+  });
+
+  it('Wildwood 3 (The Long Meadow): an elite driver lays a FULL carry down the T0 corridor, dry', () => {
+    // A4 regression. T0 sits ~255yd out and a drivingPower-100 driver carries
+    // ~288yd. resetAim used to CAP the tee aim at T0 via min(dist(ball,pick),
+    // maxCarry), clubbing the driver down ~33yd. It now arms the club's FULL
+    // carry straight down the T0 corridor and lands on dry fairway.
+    const h = wild.holes.find((x) => x.number === 3)!;
+    const engine = new PhysicsEngine(h, buildHeightField(h));
+    const aim = new AimControl(h, engine);
+    const ctx: ShotContext = { ball: h.tee, lie: 'tee', golfer: ELITE, fireBoost: 0, strokes: 0 };
+    aim.autoSelectClub(ctx);
+    aim.resetAim(ctx);
+    const maxCarry = aim.maxCarryPx(ctx);
+    const p = aim.aimPoint(h.tee);
+    expect(aim.club.id).toBe('driver');
+    // Armed at the club's full carry — NOT capped at the ~255yd T0 waypoint.
+    expect(
+      aim.distPx,
+      `distPx=${aim.distPx.toFixed(1)} maxCarry=${maxCarry.toFixed(1)}`
+    ).toBeGreaterThanOrEqual(maxCarry - 0.01);
+    // Aimed straight down the T0 corridor and lands dry.
+    const t0 = h.aiTargets![0];
+    expect(Math.abs(angleTo(h.tee, t0) - aim.yaw), 'aimed down the T0 line').toBeLessThan(0.06);
+    expect(engine.surfaceAt(p.x, p.y)).not.toBe('water');
   });
 
   it('reachable approaches aim at the flag', () => {
