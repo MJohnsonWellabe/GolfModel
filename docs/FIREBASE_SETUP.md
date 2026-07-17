@@ -78,6 +78,15 @@ the shared leaderboard) — or any project you prefer.
              }
            }
          }
+       },
+       "marketingConfig": {
+         ".read": true,
+         ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+       },
+       "admins": {
+         "$uid": {
+           ".read": "auth != null && auth.uid === $uid"
+         }
        }
      }
    }
@@ -89,7 +98,36 @@ the shared leaderboard) — or any project you prefer.
    mode — the `aces` block is required or the ace leaderboard can't post.
    `entitlements` records real-money purchases: written ONLY by the Stripe
    webhook Cloud Function (admin SDK bypasses rules — docs/16_PAYMENTS.md);
-   a player can read their own and flip `claimed` to true, never back.)
+   a player can read their own and flip `claimed` to true, never back.
+   `marketingConfig` is the public About-page content (Marketing Manager, below):
+   world-readable so every player's page renders it, admin-write only.)
+
+## Marketing Manager (`/marketingConfig`) — MANUAL console steps (you)
+
+The admin dashboard (`admin.html` → 🎬 Marketing Manager) edits the public
+About page (`marketing.html`) and publishes to the RTDB node `/marketingConfig`.
+Read is public; write is restricted to allow-listed admin UIDs. Two one-time
+console steps make **Publish** work — until they're done, Publish returns a clean
+`permission denied` and the live About page simply keeps rendering its built-in
+static fallback (nothing breaks, the change just doesn't go live):
+
+1. **Add the rules** — the `"marketingConfig"` and `"admins"` blocks are already
+   included in the Realtime Database → Rules JSON above. Deploy them (they do NOT
+   weaken any existing rule — they only add two new nodes).
+
+2. **Add yourself to `/admins`** — Realtime Database → Data → add a child so the
+   write rule (`root.child('admins').child(auth.uid).val() === true`) passes:
+   ```json
+   { "admins": { "<your-firebase-uid>": true } }
+   ```
+   Find `<your-firebase-uid>` in Authentication → Users (the "User UID" column)
+   for the owner Google account (mattjohnson912@gmail.com). Set the value to the
+   boolean `true`.
+
+After both steps, publishing from the Marketing Manager writes `/marketingConfig`
+and the change goes live for all players with no source edits. The public page
+reads it via a plain REST GET (`${LEADERBOARD_URL}/marketingConfig.json`) and
+falls back to the static content on any absence/failure/offline.
 
 ## What the game then does (already implemented)
 
