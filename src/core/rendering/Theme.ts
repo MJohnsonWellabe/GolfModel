@@ -43,6 +43,11 @@ export interface CourseTheme {
   /** Horizon scenery: layered mountain ridges, a sea horizon with dunes, or
    *  'none' (no backdrop scenery — a dense treeline + open sky is the scenery). */
   backdrop: 'peaks' | 'sea' | 'none';
+  /** Ambient course life preset (V2 Phase 4, `atmosphere` feature flag —
+   *  see docs/content/COURSE_ATMOSPHERE_BIBLE.md): coastal gulls, forest
+   *  butterflies/songbirds, alpine hawks/mist, or none. Unset defaults to
+   *  'coastal' on sea-backdrop courses (the shipped gulls), else 'none'. */
+  atmosphere?: 'coastal' | 'forest' | 'alpine' | 'none';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
   /** Ground-scatter density multiplier (grass tufts/bushes/flowers); 1 = default. */
@@ -347,6 +352,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'waterReflect'
     | 'waterReflectStrength'
     | 'tallGrass'
+    | 'atmosphere'
   >;
   for (const key of Object.keys(t) as ScalarKey[]) {
     if (!(key in spec)) continue;
@@ -394,6 +400,14 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandPlantStep === 'number') t.sandPlantStep = spec.sandPlantStep;
   if (typeof spec.sandPlantKeep === 'number') t.sandPlantKeep = spec.sandPlantKeep;
   if (spec.seaDunes === false) t.seaDunes = false;
+  if (
+    spec.atmosphere === 'coastal' ||
+    spec.atmosphere === 'forest' ||
+    spec.atmosphere === 'alpine' ||
+    spec.atmosphere === 'none'
+  ) {
+    t.atmosphere = spec.atmosphere;
+  }
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
   if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;

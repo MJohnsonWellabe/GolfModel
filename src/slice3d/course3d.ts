@@ -42,6 +42,7 @@ import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWi
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
+import { AtmosphereKind, buildAtmosphere } from './atmosphere';
 import { buildBreakDots } from './breakDots';
 import { renderPacing } from './renderPacing';
 import {
@@ -1025,60 +1026,15 @@ export function buildCourse(
     });
   }
 
-  // Ambient birds (V2 Phase 4 atmosphere — flag-gated, dev-on/prod-off). A few
-  // dark billboard gulls drift high across the COASTAL skies (the 'sea'-backdrop
-  // links courses, Sable Bay & Port Johnson); the forest and parkland stay
-  // quiet. Kept out of the water reflection render list (name 'bird*' matches
-  // none of its patterns) so they never force a mirror redraw, and disposed with
-  // the scene like the clouds. Alloc-free per frame: positions advance in place.
-  if (featureFlag('atmosphere') && theme.backdrop === 'sea') {
-    const birdTex = new DynamicTexture('birdTex', { width: 64, height: 32 }, scene, true);
-    const bx = birdTex.getContext() as CanvasRenderingContext2D;
-    bx.clearRect(0, 0, 64, 32);
-    bx.strokeStyle = 'rgba(44,52,64,0.8)';
-    bx.lineWidth = 3;
-    bx.lineCap = 'round';
-    bx.beginPath(); // a simple gull "M": two shallow wing arcs
-    bx.moveTo(8, 20);
-    bx.quadraticCurveTo(20, 9, 32, 18);
-    bx.quadraticCurveTo(44, 9, 56, 20);
-    bx.stroke();
-    birdTex.update(false);
-    birdTex.hasAlpha = true;
-    const birdMat = new StandardMaterial('birdMat', scene);
-    birdMat.emissiveTexture = birdTex;
-    birdMat.opacityTexture = birdTex;
-    birdMat.disableLighting = true;
-    birdMat.emissiveColor = new Color3(0.17, 0.2, 0.26);
-    birdMat.backFaceCulling = false;
-    const birds: Array<{ mesh: Mesh; v: number; x0: number; baseY: number; ph: number; bob: number }> = [];
-    const BIRDS = 4;
-    for (let i = 0; i < BIRDS; i++) {
-      const j = hash2(i * 9.7, i * 3.3);
-      const b = MeshBuilder.CreatePlane(`bird${i}`, { width: 26, height: 13 }, scene);
-      b.material = birdMat;
-      b.billboardMode = Mesh.BILLBOARDMODE_ALL;
-      b.applyFog = false;
-      const pos = w2b(
-        hole.tee.x - 1300 + i * (2600 / BIRDS) + j * 260,
-        hole.tee.y - 1400 - (i % 3) * 240,
-        600 + ((i * 53) % 3) * 90 + j * 70
-      );
-      b.position = pos;
-      birds.push({ mesh: b, v: 7 + j * 5, x0: pos.x, baseY: pos.y, ph: j * Math.PI * 2, bob: 4 + j * 3 });
-    }
-    let birdT = 0;
-    scene.onBeforeRenderObservable.add(() => {
-      if (isFrozen()) return;
-      const dt = scene.getEngine().getDeltaTime() / 1000;
-      birdT += dt;
-      for (const b of birds) {
-        b.mesh.position.x += dt * b.v;
-        // Loop the flock back so the sky is never left empty on a longer hover.
-        if (b.mesh.position.x - b.x0 > 2600) b.mesh.position.x = b.x0 - 200;
-        b.mesh.position.y = b.baseY + Math.sin(birdT * 0.8 + b.ph) * b.bob;
-      }
-    });
+  // Ambient course life (V2 Phase 4 atmosphere — flag-gated, dev-on/prod-off).
+  // Per-course presets (coastal gulls / forest butterflies+songbirds / alpine
+  // hawks+mist) live in slice3d/atmosphere.ts; the theme's `atmosphere` key
+  // picks the preset, defaulting to the shipped coastal gulls on sea-backdrop
+  // courses. See docs/content/COURSE_ATMOSPHERE_BIBLE.md for budgets and
+  // safety rules (parked-RTT, frozen captures, disposal, aim readability).
+  if (featureFlag('atmosphere')) {
+    const kind: AtmosphereKind = theme.atmosphere ?? (theme.backdrop === 'sea' ? 'coastal' : 'none');
+    buildAtmosphere(scene, kind, { tee: hole.tee, pin: hole.pin }, w2b);
   }
 
   // ------------------------------------------------------------ backdrop

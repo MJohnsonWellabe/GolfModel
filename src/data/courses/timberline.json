@@ -87,7 +87,8 @@
     "sandGrainTile": 18,
     "bunkerStones": true,
     "mowWidth": 8,
-    "greenMowPattern": "checker"
+    "greenMowPattern": "checker",
+    "atmosphere": "alpine"
   },
   "holes": [
     {

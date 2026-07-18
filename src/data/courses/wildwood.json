@@ -54,7 +54,8 @@
       "grass_g",
       "grass_h",
       "stone_a"
-    ]
+    ],
+    "atmosphere": "forest"
   },
   "holes": [
     {
