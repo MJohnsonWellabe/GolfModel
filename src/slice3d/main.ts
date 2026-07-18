@@ -602,6 +602,11 @@ class HoleScene {
   /** True once the scatter drain + ship swap have fully settled — the point
    *  where scene resource counts are meaningful (read by the soak spec). */
   natureSettled = false;
+  /** Resolves once the course can actually paint (ground shader compiled) — the
+   *  loading veil and flyover wait on this so no blue clearColor frame shows. */
+  get groundReady(): Promise<void> {
+    return this.course3d.groundReady;
+  }
   private static BALL_REST = 0.5;
   /** Putting view uses honest, consistent real-world scale (config PUTT_VIEW):
    *  a ~6ft golfer and a ball sized to the cup (~2.5× the ball), so nothing on
@@ -1221,11 +1226,20 @@ class HoleScene {
         this.introTimers.push(setTimeout(resolve, MAX_NATURE_WAIT_MS));
       })
     ]);
+    // Also wait for the ground shader to be renderable so the sweep never
+    // travels over the blue sky clearColor (the veil-less per-hole path relies
+    // on this). Same cap so a stalled compile can never hang the intro.
+    const groundReadyOrTimeout = Promise.race([
+      this.course3d.groundReady,
+      new Promise<void>((resolve) => {
+        this.introTimers.push(setTimeout(resolve, MAX_NATURE_WAIT_MS));
+      })
+    ]);
     void this.course3d.natureReady.then(() => {
       markPerf(round.course.name, this.hole.number, 'nature-ready');
       this.natureSettled = true; // soak/perf specs poll this for true steady state
     });
-    void Promise.all([teeHoldDone, natureReadyOrTimeout]).then(() => {
+    void Promise.all([teeHoldDone, natureReadyOrTimeout, groundReadyOrTimeout]).then(() => {
       markPerf(round.course.name, this.hole.number, 'intro-travel-start');
       beginTravel();
     });
@@ -2739,7 +2753,19 @@ function buildWithLoading(build: () => void): void {
     try {
       build();
     } finally {
-      requestAnimationFrame(() => requestAnimationFrame(() => hideLoading()));
+      // Lift the veil only once the course can actually paint (ground shader
+      // compiled) plus one frame — so the player never sees the blue sky
+      // clearColor while a heavy hole (Wildwood h1) compiles its ground material
+      // on the first frame. A 4s safety cap guarantees the veil always lifts
+      // even if the compile stalls or fails.
+      let lifted = false;
+      const lift = (): void => {
+        if (lifted) return;
+        lifted = true;
+        requestAnimationFrame(() => hideLoading());
+      };
+      void (current?.groundReady ?? Promise.resolve()).then(lift);
+      setTimeout(lift, 4000);
     }
   };
   requestAnimationFrame(() => requestAnimationFrame(go));
