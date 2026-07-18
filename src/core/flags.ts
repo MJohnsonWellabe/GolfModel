@@ -67,6 +67,16 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
   },
   {
+    key: 'personality',
+    description:
+      'V2 Phase 3 character personality: per-character idle tempo, aim waggle, ' +
+      'celebration selection/amplitude, and dejection depth (data in ' +
+      'characterPersonality.ts). Cosmetic only; off = the shared V1 behavior.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
     key: 'atmosphere',
     description:
       'V2 Phase 4 ambient course life (drifting birds/gulls, ship bob, per-course ' +

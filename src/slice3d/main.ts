@@ -29,6 +29,7 @@ import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, S
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
+import { personalityFor } from '../data/characterPersonality';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import { courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import wildwood from '../data/courses/wildwood.json';
@@ -646,7 +647,15 @@ class HoleScene {
     // One golfer, ball, fire streak and (for AI) brain per competitor. In
     // solo that's one; in 1v1/scramble two play the hole together.
     round.players.forEach((part, i) => {
-      const g = new Golfer3D(this.scene, shadows, part.golfer.character, part.golfer.look);
+      const g = new Golfer3D(
+        this.scene,
+        shadows,
+        part.golfer.character,
+        part.golfer.look,
+        // Personality (V2 Phase 3): flag-gated so production keeps the shared
+        // V1 behavior until release. Off/unknown → the neutral set inside.
+        flag('personality') ? personalityFor(part.golfer.character) : undefined
+      );
       g.root.setEnabled(false);
       // The human player wears their equipped apparel (outfit colorway + club
       // skin); AI opponents keep the defaults (Phase 7 store — playtest FB9).

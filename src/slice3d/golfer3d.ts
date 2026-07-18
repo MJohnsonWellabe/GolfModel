@@ -12,6 +12,7 @@ import {
   VertexData
 } from '@babylonjs/core';
 import { GolferLook } from '../core/types';
+import { NEUTRAL_PERSONALITY, PersonalityParams } from '../data/characterPersonality';
 import { CharacterInstance, instantiateCharacter } from './characterModels';
 import { w2b } from './course3d';
 
@@ -369,6 +370,10 @@ export class Golfer3D {
   private swinging = false;
   private reactionT = -1;
   private reactionKind: 'celebrate' | 'deject' = 'celebrate';
+  /** Personality parameters (V2 Phase 3) — playback-rate/amplitude tuning on
+   *  the existing cosmetic animation only. Defaults to the neutral set, which
+   *  reproduces the shared V1 behavior exactly (the flag-off path). */
+  private readonly personality: PersonalityParams;
 
   // Club rig (shared by both bodies) + procedural-body pivots.
   private shoulderPivot!: TransformNode;
@@ -402,7 +407,14 @@ export class Golfer3D {
   private rootBoneRestRot: Quaternion | null = null;
   private rootBoneRestPos: Vector3 | null = null;
 
-  constructor(scene: Scene, shadows: ShadowGenerator, character?: string, look?: GolferLook) {
+  constructor(
+    scene: Scene,
+    shadows: ShadowGenerator,
+    character?: string,
+    look?: GolferLook,
+    personality?: PersonalityParams
+  ) {
+    this.personality = personality ?? NEUTRAL_PERSONALITY;
     this.root = new TransformNode('golfer', scene);
     // Scale the whole golfer (body model + club rig, both children of root) so
     // they grow together and read clearly at the gameplay camera distance.
@@ -442,7 +454,7 @@ export class Golfer3D {
             this.rootBoneRestPos = this.rootBone.position.clone();
           }
           this.idleAnim = inst.anims.get('Idle') ?? null;
-          this.idleAnim?.start(true, 1.0);
+          this.idleAnim?.start(true, this.personality.idleSpeed);
           this.applyModelPose(0);
         })
         .catch((err) => {
@@ -484,12 +496,16 @@ export class Golfer3D {
       this.addressBlend += (blendTo - this.addressBlend) * Math.min(1, dt * 14);
       this.applyAddressClubPose();
       if (this.swinging) return;
+      // Waggle/sway carry the character's personality: amplitude and tempo
+      // multipliers on the same base motion (neutral = exactly the V1 feel).
+      const p = this.personality;
+      const waggle = this.aiming ? Math.sin(this.idleTime * 2.4 * p.waggleRate) * 0.05 * p.waggleAmp : 0;
       if (this.modelBacked) {
-        this.wristPivot.rotation.x = this.aiming ? Math.sin(this.idleTime * 2.4) * 0.05 : 0;
+        this.wristPivot.rotation.x = waggle;
       } else {
-        this.torso.rotation.z = Math.sin(this.idleTime * 1.3) * 0.015;
-        this.head.rotation.z = Math.sin(this.idleTime * 1.3 + 0.5) * 0.02;
-        this.wristPivot.rotation.x = this.aiming ? Math.sin(this.idleTime * 2.4) * 0.05 : 0;
+        this.torso.rotation.z = Math.sin(this.idleTime * 1.3 * p.idleSpeed) * 0.015;
+        this.head.rotation.z = Math.sin(this.idleTime * 1.3 * p.idleSpeed + 0.5) * 0.02;
+        this.wristPivot.rotation.x = waggle;
       }
     });
 
@@ -884,24 +900,31 @@ export class Golfer3D {
     if (this.modelBacked) {
       this.idleAnim?.stop();
       this.setPose(0);
+      // Personality picks the clip: a Showman Song-Jumps ordinary birdies, a
+      // Cool Customer gives an ace nothing but the standard Win nod. 'song'
+      // falls back to Win where a pack variant lacks the clip.
+      const wants = kind === 'epic' ? this.personality.epicClip : kind === 'celebrate' ? this.personality.celebrateClip : 'sad';
       const clip =
-        kind === 'epic'
-          ? this.inst?.anims.get('Song Jump') ?? this.inst?.anims.get('Win')
-          : this.inst?.anims.get(kind === 'celebrate' ? 'Win' : 'Sad');
+        wants === 'sad'
+          ? this.inst?.anims.get('Sad')
+          : wants === 'song'
+            ? this.inst?.anims.get('Song Jump') ?? this.inst?.anims.get('Win')
+            : this.inst?.anims.get('Win');
       clip?.start(false, 1.0);
     }
   }
 
   private applyReaction(): void {
     const t = this.reactionT;
-    if (t > 1.6) {
+    const p = this.personality;
+    if (t > p.reactionHold) {
       this.reactionT = -1;
       if (this.modelBacked) {
         this.inst?.anims.get('Win')?.stop();
         this.inst?.anims.get('Sad')?.stop();
         this.inst?.anims.get('Song Jump')?.stop();
         this.setPose(0);
-        this.idleAnim?.start(true, 1.0);
+        this.idleAnim?.start(true, p.idleSpeed);
         if (this.modelPivot) this.modelPivot.position.y = 0;
       } else {
         this.root.position.y = 0;
@@ -911,10 +934,13 @@ export class Golfer3D {
       }
       return;
     }
+    // Hop/slump amplitudes carry personality (neutral = the V1 numbers). The
+    // hop window tracks reactionHold so shorter reactions still land flat.
+    const hopWin = Math.min(1.2, p.reactionHold * 0.75);
     if (this.modelBacked) {
       // Win/Sad clips carry the pose; add a couple of happy hops on celebrate.
       if (this.reactionKind === 'celebrate' && this.modelPivot) {
-        this.modelPivot.position.y = Math.abs(Math.sin(Math.min(t, 1.2) * Math.PI * 2)) * 0.55;
+        this.modelPivot.position.y = Math.abs(Math.sin(Math.min(t, hopWin) * Math.PI * 2 * p.hopRate)) * 0.55 * p.hopAmp;
       }
       return;
     }
@@ -923,12 +949,12 @@ export class Golfer3D {
       this.shoulderPivot.rotation.x = Math.PI * 0.9 * up;
       this.wristPivot.rotation.x = -0.4 * up;
       this.head.rotation.x = -0.25 * up;
-      this.root.position.y = Math.abs(Math.sin(Math.min(t, 1.2) * Math.PI * 2)) * 0.55;
+      this.root.position.y = Math.abs(Math.sin(Math.min(t, hopWin) * Math.PI * 2 * p.hopRate)) * 0.55 * p.hopAmp;
     } else {
       const down = Math.min(1, t * 3);
       this.shoulderPivot.rotation.x = -0.15 * down;
-      this.head.rotation.x = 0.5 * down;
-      this.torso.rotation.x = 0.12 * down;
+      this.head.rotation.x = 0.5 * down * p.dejectDepth;
+      this.torso.rotation.x = 0.12 * down * p.dejectDepth;
     }
   }
 }
