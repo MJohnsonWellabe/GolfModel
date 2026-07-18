@@ -172,6 +172,11 @@ export interface Course3D {
    *  on this before starting camera work that shows off the whole hole (the
    *  intro flyover), so nothing pops into view mid-sweep. */
   natureReady: Promise<void>;
+  /** Resolves once the ground material's shader is compiled and the course can
+   *  actually paint. Wait on this before lifting the loading veil / starting the
+   *  flyover so the sky clearColor never shows through as a "blue screen" while
+   *  the heavy ground shader compiles on the first frame. */
+  groundReady: Promise<void>;
   /** Fade any tree canopy standing between the camera and the golfer so the
    *  character never disappears behind foliage the camera happens to be
    *  looking through (playtest: "trees near the camera block your view of
@@ -414,6 +419,17 @@ export function buildCourse(
   }
   groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
+  // Compile the ground shader NOW (during the loading veil) instead of lazily on
+  // the first visible frame. The ground material is heavy (bake diffuse +
+  // detailMap + bumpTexture) and, until its shader is ready, the ground mesh is
+  // skipped and the sky clearColor shows through as a "blue screen" on the
+  // heaviest holes (Wildwood h1). `groundReady` resolves once the ground can
+  // paint so the veil/flyover can wait for a rendered course. It never rejects —
+  // a compile failure still resolves so nothing can hang on it.
+  const groundReady: Promise<void> = groundMat
+    .forceCompilationAsync(ground)
+    .then(() => undefined)
+    .catch(() => undefined);
 
   // ----------------------------------------------------- green complex mesh
   // The putting surface is BUILT, not painted: a gently raised plateau with a
@@ -2647,6 +2663,9 @@ export function buildCourse(
     // Scatter drain AND the ship swap-in — the flyover gate waits on both
     // (still bounded by main.ts's MAX_NATURE_WAIT_MS fallback).
     natureReady: Promise.all([natureReady, shipReady]).then(() => undefined),
+    // Resolves once the ground shader is compiled and the course can paint — the
+    // loading veil and flyover wait on this so no blue frame is ever shown.
+    groundReady,
     updateTreeOcclusion,
     refreshParkedRTTs: (): void => {
       // Only while parked/frozen — otherwise the freeze observer owns the cadence.
