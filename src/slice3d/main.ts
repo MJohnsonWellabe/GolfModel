@@ -19,6 +19,7 @@ import {
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { mountEnvBadge } from '../core/envBadge';
+import { flag } from '../core/flags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
@@ -544,6 +545,12 @@ class HoleScene {
   private wind: Wind;
   private puff: ParticleSystem;
   private shakeT = 0;
+  // Camera "punch" on a full-swing strike (Phase 6 juice): a brief recoil along
+  // the camera's view axis that the normal camera lerp then recovers from.
+  // Alloc-free — the direction and a scratch offset are reused each frame.
+  private camPunchT = 0;
+  private readonly camPunchDir = new Vector3();
+  private readonly _camPunchScratch = new Vector3();
   private aimRoot!: TransformNode;
   private aimDots: Mesh[] = [];
   private aimRing!: Mesh;
@@ -828,6 +835,18 @@ class HoleScene {
     this.puff.color1 = c;
     this.puff.color2 = new Color4(c.r, c.g, c.b, 0.45);
     this.puff.manualEmitCount = 14;
+  }
+
+  /** A soft "in the hole" puff at the cup on a made putt (Phase 6 juice). The
+   *  bigger golden shower for special hole-outs (celebrateHoleOut) overrides
+   *  this in the same tick, so a long putt keeps its full celebration. Reuses
+   *  the shared puff — no new allocation. */
+  private cupBurst(): void {
+    const pin = this.hole.pin;
+    (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 0.6 + this.gh(pin.x, pin.y)));
+    this.puff.color1 = new Color4(1, 1, 0.96, 0.8);
+    this.puff.color2 = new Color4(0.82, 0.94, 1, 0.4);
+    this.puff.manualEmitCount = 12;
   }
 
   private ctx(): ShotContext {
@@ -1938,12 +1957,19 @@ class HoleScene {
           break;
         }
       }
-      const trail = club.id === 'putter' ? null : new TrailMesh('trail', this.ball, this.scene, 0.12, 46, true);
+      const onFire = club.id !== 'putter' && this.fires[this.turnIdx].isOnFire;
+      // On-fire shots streak bolder and longer for extra drama (Phase 6 juice);
+      // the flag off keeps the original trail dimensions while retaining the
+      // existing on-fire trail COLOUR below.
+      const bold = onFire && flag('juice');
+      const trail =
+        club.id === 'putter'
+          ? null
+          : new TrailMesh('trail', this.ball, this.scene, bold ? 0.17 : 0.12, bold ? 60 : 46, true);
       if (trail) {
         const tmat = new StandardMaterial('trailMat', this.scene);
         // On-fire shots streak orange; otherwise the human's equipped trail
         // tint (AI keeps plain white). Phase 6 fire + Phase 7 store.
-        const onFire = this.fires[this.turnIdx].isOnFire;
         const tint = this.comps[this.turnIdx].isAI ? 0xffffff : equippedColor(profile, 'trail', 0xffffff);
         const isDefaultTrail = tint === 0xffffff;
         // Unlit: the trail glows its own tint instead of being washed toward
@@ -1973,7 +1999,17 @@ class HoleScene {
         spin
       };
       this.state.phase = 'flying';
-      if (club.id !== 'putter') this.shakeT = 0.18;
+      if (club.id !== 'putter') {
+        this.shakeT = 0.18;
+        // Impact recoil: kick the camera back along its own view line, harder
+        // for a driver than a wedge. Reduced Motion keeps the still frame.
+        if (flag('juice') && !profile.settings.reducedMotion) {
+          this.camPunchDir.copyFrom(this.camera.position).subtractInPlace(this.camera.getTarget());
+          const len = this.camPunchDir.length();
+          if (len > 1e-3) this.camPunchDir.scaleInPlace(1 / len);
+          this.camPunchT = 0.16;
+        }
+      }
     });
   }
 
@@ -2002,6 +2038,10 @@ class HoleScene {
       // Per-hole reaction reflects the SCORE: happy at par or better, sad
       // over par (FB7). Eagles+ get the big Song Jump.
       this.golfer.react(this.holeReaction(this.state.strokes));
+      // A soft puff at the cup on every made putt — the little "it dropped!"
+      // beat ordinary holes were missing (Phase 6). celebrateHoleOut's golden
+      // shower overrides it in the same tick for the special moments.
+      if (!c.isAI && club.id === 'putter' && flag('juice')) this.cupBurst();
       // Surprise & delight (Part 10): a tasteful golden burst + one-line
       // celebration for the genuinely special skill moments only — never for
       // ordinary shots, no modals, no perf cost (reuses the landing puff).
@@ -2557,6 +2597,13 @@ class HoleScene {
           new Vector3((Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp, (Math.random() - 0.5) * amp)
         );
       }
+    }
+    // Impact recoil, decaying along the stored view axis (alloc-free scratch).
+    if (this.camPunchT > 0) {
+      this.camPunchT -= dt;
+      const push = 2.6 * Math.max(0, this.camPunchT) / 0.16;
+      this._camPunchScratch.copyFrom(this.camPunchDir).scaleInPlace(push);
+      this.camera.position.addInPlace(this._camPunchScratch);
     }
 
     // Fade any tree canopy standing between the camera and the golfer (a torso-
@@ -4474,6 +4521,9 @@ window.addEventListener('resize', () => engine3d.resize());
 
 // Unmistakable DEV badge outside production; a no-op on the live site.
 mountEnvBadge();
+// Gate the Phase 2 screen-entrance animations: the CSS is scoped under
+// html.ff-delight, so production (flag off) keeps today's instant screen swaps.
+document.documentElement.classList.toggle('ff-delight', flag('delight'));
 
 // Perf probe for the Playwright FPS baseline (Phase 9).
 (window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();

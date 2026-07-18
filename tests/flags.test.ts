@@ -28,6 +28,15 @@ describe('feature flags', () => {
     expect(flag('does-not-exist')).toBe(false);
   });
 
+  it('the V2 polish flags are dev-on / prod-off (preview in dev, release by flip)', () => {
+    for (const key of ['delight', 'juice', 'atmosphere']) {
+      const def = FLAG_DEFS.find((d) => d.key === key);
+      expect(def, key).toBeTruthy();
+      expect(def!.defaults.dev, `${key} dev`).toBe(true);
+      expect(def!.defaults.prod, `${key} prod`).toBe(false);
+    }
+  });
+
   it('allFlags snapshots every registered flag with a resolved value', () => {
     const snap = allFlags();
     expect(snap.map((s) => s.def.key)).toEqual(FLAG_DEFS.map((d) => d.key));

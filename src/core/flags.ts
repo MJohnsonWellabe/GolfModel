@@ -47,6 +47,33 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     owner: 'matt',
     defaults: { prod: false, dev: true },
     removeWhen: 'never — permanent development affordance, gated to non-prod + admin'
+  },
+  {
+    key: 'delight',
+    description:
+      'V2 Phase 2 screen-entrance animations (landing/wizard/results fade-ins). ' +
+      'Toggles the html.ff-delight class the CSS is scoped under.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
+    key: 'juice',
+    description:
+      'V2 Phase 6 shot juice: camera punch on strike, a made-putt cup burst, and ' +
+      'bolder/longer on-fire ball trails. Does not affect the existing shot feel when off.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
+    key: 'atmosphere',
+    description:
+      'V2 Phase 4 ambient course life (drifting birds/gulls, ship bob, per-course ' +
+      'motion tuning). Procedural, parked-RTT-safe.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
   }
 ];
 

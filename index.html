@@ -53,19 +53,22 @@
           opacity: 1;
         }
       }
-      .animIn {
+      /* All entrance animation is scoped under html.ff-delight, toggled by the
+         `delight` feature flag (dev-on, prod-off). Production keeps today's
+         instant screen swaps until the flag is flipped on. */
+      html.ff-delight .animIn {
         animation: screenIn var(--dur-screen) var(--ease-out) both;
       }
-      .animPop {
+      html.ff-delight .animPop {
         animation: popIn var(--dur-ui) var(--ease-spring) both;
       }
       /* Opacity-only fade for full-screen containers, where a transform could
          nudge a fixed scroll panel. */
-      .fadeIn {
+      html.ff-delight .fadeIn {
         animation: fadeIn var(--dur-screen) var(--ease-out) both;
       }
       /* Landing content rises in whenever the overlay is shown. */
-      #landing.on .landingInner {
+      html.ff-delight #landing.on .landingInner {
         animation: screenIn var(--dur-screen) var(--ease-out) both;
       }
       /* Motion off — honor BOTH the OS setting and the in-game Reduced Motion
