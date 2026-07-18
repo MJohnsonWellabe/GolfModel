@@ -196,6 +196,85 @@
         color: #9fbf9a;
         text-align: right;
       }
+      /* Cinematic celebration banner (V2 delight — replaces the emoji/plain
+         showMsg for the earned moments). A letterboxed band in the upper
+         third: gradient-filled display type between gold hairlines, springing
+         in over the celebration camera's push toward the golfer (who stays
+         framed BELOW the band). Flag-gated at the call site; reduced motion
+         keeps the band but drops the animation. */
+      #cineBanner {
+        position: fixed;
+        left: 0;
+        right: 0;
+        top: 13%;
+        z-index: 12;
+        display: none;
+        text-align: center;
+        pointer-events: none;
+      }
+      #cineBanner.on { display: block; }
+      .cineInner {
+        padding: 20px 12px 22px;
+        background: linear-gradient(180deg, transparent, rgba(3, 9, 5, 0.62) 20%, rgba(3, 9, 5, 0.62) 80%, transparent);
+      }
+      .cineRule {
+        width: min(52vw, 340px);
+        height: 2px;
+        margin: 0 auto;
+        background: linear-gradient(90deg, transparent, rgba(255, 214, 92, 0.9), transparent);
+      }
+      .cineTitle {
+        font-size: clamp(46px, 12vw, 96px);
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        line-height: 0.98;
+        text-transform: uppercase;
+        margin: 6px 0 2px;
+        background: linear-gradient(180deg, #fff7d6 8%, #ffd23e 46%, #c8901a 88%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.65));
+      }
+      .cine-great .cineTitle {
+        background: linear-gradient(180deg, #f4fff2 8%, #9fe8a8 48%, #3f9e58 90%);
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+      .cine-great .cineRule {
+        background: linear-gradient(90deg, transparent, rgba(151, 226, 162, 0.85), transparent);
+      }
+      .cine-fire .cineTitle {
+        background: linear-gradient(180deg, #fff3d9 6%, #ffab3d 46%, #d84f10 90%);
+        -webkit-background-clip: text;
+        background-clip: text;
+      }
+      .cine-fire .cineRule {
+        background: linear-gradient(90deg, transparent, rgba(255, 150, 60, 0.9), transparent);
+      }
+      .cineSub {
+        margin-top: 6px;
+        color: #f2efe4;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.28em;
+        text-transform: uppercase;
+        opacity: 0.92;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+      }
+      @keyframes cineIn {
+        0% { opacity: 0; transform: scale(0.82); }
+        60% { opacity: 1; transform: scale(1.04); }
+        100% { opacity: 1; transform: none; }
+      }
+      #cineBanner.cineAnim .cineInner {
+        animation: cineIn 0.5s var(--ease-spring) both;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #cineBanner.cineAnim .cineInner { animation: none !important; }
+      }
+      html.reduce-motion #cineBanner.cineAnim .cineInner { animation: none !important; }
+
       #msg {
         position: fixed;
         top: 34%;
@@ -707,7 +786,19 @@
       }
       .landingNav .wide { grid-column: 1 / -1; }
       @media (max-width: 760px) {
-        #landing { align-items: flex-end; }
+        /* Portrait: `cover` leaves no vertical slack (the image's height fits
+           exactly), which parked the island green dead-center — right behind
+           the menu. Enlarge the image (auto 150%) and frame it high so the
+           green sits in the clear upper third above the bottom-anchored menu,
+           with the scrim light on top (island stays bright) and dark below
+           (menu stays readable). */
+        #landing {
+          align-items: flex-end;
+          background:
+            linear-gradient(180deg, rgba(2, 12, 8, 0.16) 0%, rgba(2, 12, 8, 0.4) 46%, rgba(2, 12, 8, 0.88) 76%),
+            url('assets/marketing/img/sablebay-island.png') center 94% / auto 150% no-repeat,
+            #071d12;
+        }
         .landingInner {
           min-height: 100dvh;
           grid-template-columns: 1fr;
@@ -2913,6 +3004,7 @@
     <div id="badge" class="panel">Bite-Sized Golf<br />Wildwood Glen</div>
     <div id="prompt"></div>
     <div id="msg"></div>
+    <div id="cineBanner" aria-live="polite"></div>
     <div id="banner"></div>
     <div id="summary" class="panel"></div>
     <div id="meter"></div>

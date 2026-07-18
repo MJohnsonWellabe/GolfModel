@@ -199,6 +199,9 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
 
   const pickMat = (slot: string, key: string, meshName: string): StandardMaterial => {
     // Card-style props pick by prop key first (their slots are generic)
+    // Kenney desert rocks/mesas: single-tone dry rock — every slot (incl. the
+    // kit's decorative 'grass' cap) takes the stone tint (theme stoneTint).
+    if (key.startsWith('rock_desert') || key.startsWith('mesa_')) return stoneMat;
     if (key.startsWith('grass')) return grassMat;
     if (key.startsWith('flower')) return flowerMat;
     // Forest-pack floor props ship one generic "MainMaterial" slot for the
@@ -250,13 +253,29 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`load timed out after ${ms}ms`)), ms))
     ]);
   const loadContainer = (key: string) => withTimeout(LoadAssetContainerAsync(`models/nature/${key}.glb`, scene), 15000);
+  // Weak-connection hardening (playtest: a whole hole rendered bald — every
+  // fetch failed inside one bad-network window): three attempts with short
+  // backoff instead of one immediate retry, so a multi-second outage recovers
+  // props instead of dropping the entire scatter for the hole.
+  const loadWithRetries = async (key: string) => {
+    let lastErr: unknown;
+    for (const delayMs of [0, 1200, 3500]) {
+      if (delayMs) await new Promise((r) => setTimeout(r, delayMs));
+      try {
+        return await loadContainer(key);
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    throw lastErr;
+  };
 
   const out = new Map<string, NatureProto>();
   await Promise.all(
     keys.map(async (key) => {
       let container;
       try {
-        container = await loadContainer(key).catch(() => loadContainer(key));
+        container = await loadWithRetries(key);
       } catch (err) {
         // Fault-tolerant by design: a flaky fetch loses ONE prop, never the
         // whole forest (a rejected Promise.all used to blank every prop).

@@ -208,6 +208,16 @@ export interface CourseTheme {
    *  the classic sky-hazed domes; a desert course sets terracotta so the
    *  horizon reads as red-rock mesas (Red Hollow). */
   hillTint?: number;
+  /** Nature-prototype mesa models placed along the 'peaks' horizon INSTEAD of
+   *  the procedural domes (e.g. Red Hollow's Kenney cliff silhouettes). */
+  peakKeys?: readonly string[];
+  /** Stone/rock prop tint (nature palette). Default neutral granite gray;
+   *  Red Hollow sets red rock. */
+  stoneTint?: number;
+  /** Bare (grassless) rough: the ambient scatter plants NO grass tufts and NO
+   *  flowers on rough — bushes and scatter props (rocks) carry the detail,
+   *  with the scatter band widened so rock density reads intentional. */
+  bareRough?: boolean;
   /**
    * Links tall grass (marram/fescue). When set, the rough grows sparse, tall
    * wind-grass tufts up to `cap` world units (well above the knee-high default),
@@ -354,6 +364,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bunkerLipFescue'
     | 'horizonTint'
     | 'hillTint'
+    | 'peakKeys'
+    | 'stoneTint'
+    | 'bareRough'
     | 'waterReflect'
     | 'waterReflectStrength'
     | 'tallGrass'
@@ -459,6 +472,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.horizonTint =
     spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
   if (spec.hillTint !== undefined) t.hillTint = parseColor(spec.hillTint, shade(t.skyTop, 1.06));
+  if (spec.stoneTint !== undefined) t.stoneTint = parseColor(spec.stoneTint, 0x7e7c72);
+  if (spec.bareRough === true) t.bareRough = true;
+  t.peakKeys = strings(spec.peakKeys);
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
   const tg = spec.tallGrass as { cap?: unknown; density?: unknown; waste?: unknown } | undefined;

@@ -770,7 +770,7 @@ export function buildCourse(
     foliage: theme.treeCanopy,
     foliageLight: theme.treeCanopyLight,
     grass: shade(theme.rough, 1.1),
-    stone: 0x7e7c72,
+    stone: theme.stoneTint ?? 0x7e7c72,
     grassLit: theme.lushGrass
   };
   // Only download the props this course's theme actually places (about half
@@ -784,6 +784,7 @@ export function buildCourse(
       ...(theme.scatterKeys ?? []),
       ...(theme.bushKeys ?? BUSH_KEYS),
       ...(theme.cloudKeys ?? []),
+      ...(theme.peakKeys ?? []),
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
@@ -799,6 +800,14 @@ export function buildCourse(
   ];
 
   // -------------------------------------------------------------------- sky
+  // Per-hole sky variation (V2, atmosphere flag): the same palette family
+  // reads as a different moment of the day on every hole — the gradient
+  // drifts a few percent lighter/darker and the cloud layout reshuffles.
+  // Deterministic per hole number; flag off keeps the one shared sky.
+  const skySeed = featureFlag('atmosphere') ? hole.number * 13.7 : 0;
+  const skyDrift = featureFlag('atmosphere') ? (hash2(hole.number * 7.3, hole.number * 3.1) - 0.5) * 0.16 : 0;
+  const skyTopHole = shade(theme.skyTop, 1 + skyDrift);
+  const skyBottomHole = shade(theme.skyBottom, 1 + skyDrift * 0.5);
   const sky = MeshBuilder.CreateSphere('sky', { diameter: 9000, sideOrientation: Mesh.BACKSIDE }, scene);
   sky.position = new Vector3(w / 2, 0, -h / 2);
   const skyTex = new DynamicTexture('skyTex', { width: 8, height: 256 }, scene, true);
@@ -808,16 +817,16 @@ export function buildCourse(
   if (theme.horizonTint !== undefined) {
     // Richer dome: an extra mid stop smooths the zenith falloff and a warm
     // band glows just above the treeline before dissolving into the haze.
-    grad.addColorStop(0, hex(theme.skyTop));
-    grad.addColorStop(0.3, hex(shade(theme.skyTop, 1.16)));
-    grad.addColorStop(0.55, hex(shade(theme.skyTop, 1.35)));
-    grad.addColorStop(0.76, hex(theme.skyBottom));
+    grad.addColorStop(0, hex(skyTopHole));
+    grad.addColorStop(0.3, hex(shade(skyTopHole, 1.16)));
+    grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
+    grad.addColorStop(0.76, hex(skyBottomHole));
     grad.addColorStop(0.88, hex(theme.horizonTint));
     grad.addColorStop(1, hex(theme.haze));
   } else {
-    grad.addColorStop(0, hex(theme.skyTop));
-    grad.addColorStop(0.55, hex(shade(theme.skyTop, 1.35)));
-    grad.addColorStop(0.8, hex(theme.skyBottom));
+    grad.addColorStop(0, hex(skyTopHole));
+    grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
+    grad.addColorStop(0.8, hex(skyBottomHole));
     grad.addColorStop(1, hex(theme.haze));
   }
   (sctx as CanvasRenderingContext2D).fillStyle = grad;
@@ -948,14 +957,14 @@ export function buildCourse(
     for (let i = 0; i < 6; i++) {
       // Rounded cumulus mounds at varied heights (no flat band). Smaller and a
       // touch firmer than the softest pass so they read as real clouds.
-      const j = hash2(i * 12.1, i * 4.7);
+      const j = hash2(i * 12.1 + skySeed, i * 4.7);
       const pw = 520 + j * 340;
       place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
     }
     for (let i = 0; i < 10; i++) {
       // Thin cirrus streaks — more of them, wide across the dome at varied
       // heights, kept low-opacity so they stay airy waves.
-      const j = hash2(i * 7.9 + 2, i * 9.3);
+      const j = hash2(i * 7.9 + 2 + skySeed, i * 9.3);
       const pw = 860 + j * 540;
       place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / 10) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
     }
@@ -980,7 +989,7 @@ export function buildCourse(
       for (let i = 0; i < count; i++) {
         const proto = protos.get(keys[i % keys.length]);
         if (!proto) continue;
-        const jitter = hash2(i * 17.3, i * 5.1);
+        const jitter = hash2(i * 17.3 + skySeed, i * 5.1);
         const far = i % 2 === 1; // alternate near/far bands
         const pos = w2b(
           hole.tee.x - 1700 + i * (3600 / count) + jitter * 220,
@@ -1238,12 +1247,70 @@ export function buildCourse(
     const hillMat = mat(scene, 'hill', hillBase, {
       emissive: shade(theme.hillTint !== undefined ? theme.hillTint : theme.skyTop, 0.62)
     });
-    for (let i = -3; i <= 3; i++) {
-      const dome = MeshBuilder.CreateSphere(`hill${i}`, { diameter: 1400 + Math.abs(i) * 260, segments: 10 }, scene);
-      dome.material = hillMat;
-      // Very flat (wide, low) so it's a soft swell, not a peak; parked far back.
-      dome.scaling = new Vector3(1.4, 0.16 + ((Math.abs(i) * 7) % 5) * 0.01, 1);
-      dome.position = w2b(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
+    if (theme.peakKeys?.length) {
+      // Sourced mesa silhouettes (Kenney cliff models — playtest: "find red
+      // mountain assets, not assets you create") instead of the procedural
+      // domes. Fog at horizon distance washed the tint to pale haze, so the
+      // mesas opt OUT of fog and pre-mix the haze into their color instead —
+      // stable warm red-rock silhouettes with atmospheric depth per row.
+      const peakKeys = theme.peakKeys;
+      const mix = (a: number, b: number, t: number): number => {
+        const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+        const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+        return (
+          (Math.round(ar + (br - ar) * t) << 16) |
+          (Math.round(ag + (bg - ag) * t) << 8) |
+          Math.round(ab + (bb - ab) * t)
+        );
+      };
+      const rowMat = (t: number): StandardMaterial => {
+        const c = mix(hillBase, theme.haze, t);
+        const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.72) });
+        return m2;
+      };
+      const nearMat = rowMat(0.3);
+      const farMat = rowMat(0.55);
+      void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
+        // Two overlapping depth rows: a tighter near line and a taller far
+        // line peeking through the gaps — reads as a range, not spaced blocks.
+        const rows: Array<{ dy: number; matr: StandardMaterial; hMul: number; count: number; spread: number }> = [
+          { dy: 0, matr: nearMat, hMul: 1, count: 9, spread: 520 },
+          { dy: 620, matr: farMat, hMul: 1.5, count: 7, spread: 700 }
+        ];
+        rows.forEach((row, ri) => {
+          const half = Math.floor(row.count / 2);
+          for (let i = -half; i <= half; i++) {
+            const proto = protos.get(peakKeys[(((i + 12) * 5) + ri * 3) % peakKeys.length]);
+            if (!proto) continue;
+            const j = hash2(i * 3.7 + 11 + ri * 7, i * 8.9);
+            const targetH = (170 + Math.abs(i) * 26 + j * 120) * row.hMul;
+            const pos = w2b(
+              hole.pin.x + i * row.spread + (j - 0.5) * 300 + 120,
+              hole.pin.y - peakDist - 260 - row.dy - j * 160,
+              -16
+            );
+            const sMul = targetH / proto.height;
+            for (const part of proto.parts) {
+              const cl = part.clone(`hillMesa${ri}_${i}`);
+              cl.material = row.matr;
+              cl.position = pos.clone();
+              cl.scaling = new Vector3(sMul * (1.5 + j * 1.0), sMul, sMul * 1.2);
+              cl.rotation = new Vector3(0, j * Math.PI * 2, 0);
+              cl.applyFog = false;
+              cl.setEnabled(true);
+              cl.freezeWorldMatrix();
+            }
+          }
+        });
+      });
+    } else {
+      for (let i = -3; i <= 3; i++) {
+        const dome = MeshBuilder.CreateSphere(`hill${i}`, { diameter: 1400 + Math.abs(i) * 260, segments: 10 }, scene);
+        dome.material = hillMat;
+        // Very flat (wide, low) so it's a soft swell, not a peak; parked far back.
+        dome.scaling = new Vector3(1.4, 0.16 + ((Math.abs(i) * 7) % 5) * 0.01, 1);
+        dome.position = w2b(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
+      }
     }
   }
 
@@ -1732,7 +1799,10 @@ export function buildCourse(
           // kept low (grass cards read as flat "2D blocks" the taller they get,
           // playtest) — the 3D bushes/flowers carry the visual interest instead.
           const cap = lush ? 3.4 : 3.0;
-          if (roll < 0.5) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
+          const bare = theme.bareRough === true; // desert: no grass in the rough at all
+          if (roll < 0.5) {
+            if (!bare) place(grasses, jx, jy, Math.min(cap, (2.0 + hash2(jx, jy) * 1.2) * theme.roughTuftHeight), 3, tint);
+          }
           // Bushes/flowers are tall enough to visually crowd under a canopy's
           // true (overhanging) edge, so they respect the tree clearance;
           // forest-floor litter below is deliberately allowed close to trees.
@@ -1744,23 +1814,25 @@ export function buildCourse(
             placeProto(e.proto, jx, jy, bh, lush ? bushTint(jx, jy) : undefined);
           }
           // Flowers: multi-colored + a wider band when lush (patchier bloom).
-          else if (roll < (lush ? 0.64 : 0.59) && !nearTrees(jx, jy))
+          else if (!bare && roll < (lush ? 0.64 : 0.59) && !nearTrees(jx, jy))
             place(flowers, jx, jy, 1.6 + hash2(jx + 3, jy) * 0.9, 13, lush ? flowerTint(jx, jy) : undefined);
           // Forest-floor props (ferns/stumps/logs/deadwood) where the theme
           // asks for them — rare, visual only (never physics). Heights are
           // keyed: a fallen trunk is height-scaled from its LYING pose (big
           // height = huge length), a broken snag should tower like a dead
           // spar, everything else stays knee-high.
-          else if (scatter.length && roll < (lush ? 0.68 : 0.625)) {
+          else if (scatter.length && roll < (theme.bareRough ? 0.78 : lush ? 0.68 : 0.625)) {
             const e = scatter[Math.floor(hash2(jx + 17, jy - 17) * scatter.length) % scatter.length];
             const sh =
               e.key === 'tree_broken'
                 ? 5.5 + hash2(jx, jy + 9) * 2.5
                 : e.key === 'tree_fallen'
                   ? 1.6 + hash2(jx, jy + 9) * 0.6
-                  : e.key.startsWith('stone')
-                    ? 0.8 + hash2(jx, jy + 9) * 0.9
-                    : 2.4 + hash2(jx + 7, jy) * 1.1;
+                  : e.key.startsWith('rock_desert')
+                    ? 1.1 + hash2(jx, jy + 9) * 1.9
+                    : e.key.startsWith('stone')
+                      ? 0.8 + hash2(jx, jy + 9) * 0.9
+                      : 2.4 + hash2(jx + 7, jy) * 1.1;
             // A theme can list a tintable species (a bush/flower/grass key) in
             // scatterKeys alongside plain forest-floor props (ferns, stumps,
             // stones) — its prototype parts are still registered for the

@@ -59,7 +59,7 @@ import {
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { applyTeeVariants, pickAuthoredPin } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
@@ -110,7 +110,7 @@ import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
-import { computeTrueVisionPath } from '../systems/TrueVision';
+import { computeTrueVisionOutcome } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
@@ -257,6 +257,29 @@ function showCloudStatus(status: CloudSaveStatus, quiet = false): void {
   } else if (status === 'saved' && !quiet) {
     showMsg('✓ Saved to your account', 1100);
   }
+}
+
+/** Cinematic celebration banner (V2 delight): display type between gold
+ *  hairlines for the EARNED moments — no emojis, no plain toast. Falls back
+ *  to showMsg when the delight flag is off, so production keeps today's
+ *  presentation until release. */
+const cineEl = document.getElementById('cineBanner');
+let cineTimer: ReturnType<typeof setTimeout> | null = null;
+function showCineBanner(title: string, sub: string, tier: 'epic' | 'great' | 'fire', ms: number): void {
+  if (!flag('delight') || !cineEl) {
+    showMsg(sub ? `${title} — ${sub}` : title, ms);
+    return;
+  }
+  cineEl.innerHTML =
+    `<div class="cineInner cine-${tier}"><div class="cineRule"></div>` +
+    `<div class="cineTitle">${escapeHtml(title)}</div>` +
+    `<div class="cineRule"></div>` +
+    (sub ? `<div class="cineSub">${escapeHtml(sub)}</div>` : '') +
+    `</div>`;
+  cineEl.classList.add('on');
+  replayAnim(cineEl, 'cineAnim');
+  if (cineTimer) clearTimeout(cineTimer);
+  cineTimer = setTimeout(() => cineEl.classList.remove('on'), ms);
 }
 
 const sounds: Record<string, number> = {
@@ -1831,7 +1854,13 @@ class HoleScene {
     this.trueVisionRoot.setEnabled(true);
   }
 
+  /** The last reveal's promise (see revealTrueVision). Cleared whenever the
+   *  reveal leaves the screen — executeShot snapshots it FIRST, since it also
+   *  hides the dots at strike time. */
+  private tvReveal: { yaw: number; clubId: string; outcome: ShotOutcome } | null = null;
+
   private hideTrueVision(): void {
+    this.tvReveal = null;
     this.trueVisionRoot.setEnabled(false);
     this.setGolferGhost(false);
   }
@@ -1843,7 +1872,10 @@ class HoleScene {
   private setGolferGhost(on: boolean): void {
     if (this.golferGhosted === on) return;
     this.golferGhosted = on;
-    for (const m of this.golfer.root.getChildMeshes(false)) m.visibility = on ? 0.28 : 1;
+    // 0.12 (was 0.28): playtest — the golfer still hid the revealed line at a
+    // quarter visibility; at ~an eighth he reads as a faint hologram and the
+    // red dots/cup stay fully legible through him.
+    for (const m of this.golfer.root.getChildMeshes(false)) m.visibility = on ? 0.12 : 1;
   }
 
   /** Tap handler (putting only): consume one charge, simulate the putt the
@@ -1878,7 +1910,7 @@ class HoleScene {
       return;
     }
     const ctx = this.ctx();
-    const path = computeTrueVisionPath(this.engine2d, this.hole, ctx, {
+    const tvOutcome = computeTrueVisionOutcome(this.engine2d, this.hole, ctx, {
       aimAngle: this.aim.yaw,
       power: this.aim.barToPhysicsPower(this.aim.barPowerTarget(ctx), ctx),
       club: this.aim.club,
@@ -1886,6 +1918,12 @@ class HoleScene {
       spin: this.strike.shapeSpin,
       launchMult: this.strike.launchMult
     });
+    const path = tvOutcome.path;
+    // Keep the reveal as a PROMISE: if the golden dot shows the cup and the
+    // player answers with a perfect-perfect stroke on this exact read (same
+    // aim + club), executeShot plays this outcome verbatim — a flushed putt
+    // on a revealed make can never lip out on band-width power noise.
+    this.tvReveal = { yaw: this.aim.yaw, clubId: this.aim.club.id, outcome: tvOutcome };
     const end = path[path.length - 1] ?? ctx.ball;
     const span = Math.hypot(end.x - ctx.ball.x, end.y - ctx.ball.y);
     this.showTrueVisionPath(path, this.aimDotScale(span));
@@ -1979,6 +2017,8 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     markPerf(round.course.name, this.hole.number, 'shot-resolved');
+    // Snapshot the True Vision promise BEFORE hideTrueVision() clears it.
+    const tvReveal = this.tvReveal;
     this.state.phase = 'swinging';
     // Meter's done and the flight camera is about to take over: let the scatter
     // finish filling AND release the mirror/shadow freeze so they animate live
@@ -2036,11 +2076,32 @@ class HoleScene {
       // forgiving tree hitbox.
       stroke: this.state.strokes
     });
-    const outcome = this.engine2d.integrateLaunch(launch, spin, 0);
+    let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
+    // True Vision's promise (playtest: "if my yellow dot is in the hole and I
+    // hit perfect perfect, I shouldn't miss"): a PERFECT-PERFECT stroke on the
+    // exact revealed read (same aim + club, reveal showed the ball dropping)
+    // plays the previewed outcome verbatim. Execution is still fully earned —
+    // any aim change or non-perfect input takes the normal physics path, and a
+    // revealed MISS is never upgraded.
+    if (
+      tvReveal &&
+      !this.ai &&
+      tvReveal.outcome.holed &&
+      tvReveal.yaw === this.aim.yaw &&
+      tvReveal.clubId === club.id &&
+      converted.powerQuality === 'perfect' &&
+      converted.accuracyQuality === 'perfect'
+    ) {
+      outcome = tvReveal.outcome;
+    }
     this.strike.resetDot();
     // Feed the streak AFTER the shot resolves with the pre-shot boost
     if (fire.recordSwing(converted)) {
-      showMsg(`🔥 ${this.curPart().golfer.name} is ON FIRE!`, 1600);
+      if (!this.ai && flag('delight')) {
+        showCineBanner('ON FIRE', `${this.curPart().golfer.name} is heating up`, 'fire', 1800);
+      } else {
+        showMsg(`🔥 ${this.curPart().golfer.name} is ON FIRE!`, 1600);
+      }
       play('fire');
     }
     this.state.strokes += 1 + (outcome.waterPenalty ? 1 : 0);
@@ -2153,7 +2214,18 @@ class HoleScene {
     if (outcome.holed) {
       play('hole');
       c.holed = true;
-      showMsg(`${this.curPart().golfer.name}: ${scoreName(this.state.strokes, this.hole.par)}`, 2200);
+      // Surprise & delight: a golden burst + cinematic banner for the special
+      // skill moments (ace/eagle/long putt/chip-in). When one is coming, the
+      // base score toast is SKIPPED — one celebration, not a toast pile-up.
+      const celebrated = !c.isAI && this.celebrateHoleOut(origin, preLie, club, outcome);
+      if (!celebrated) {
+        if (!c.isAI && flag('delight') && this.state.strokes <= this.hole.par - 1) {
+          // Ordinary birdies earn the smaller cinematic treatment.
+          showCineBanner(scoreName(this.state.strokes, this.hole.par).toUpperCase(), this.holeSubLabel(), 'great', 2200);
+        } else {
+          showMsg(`${this.curPart().golfer.name}: ${scoreName(this.state.strokes, this.hole.par)}`, 2200);
+        }
+      }
       if (this.state.strokes < this.hole.par) setTimeout(() => play('chime'), 450);
       // Per-hole reaction reflects the SCORE: happy at par or better, sad
       // over par (FB7). Eagles+ get the big Song Jump.
@@ -2216,16 +2288,29 @@ class HoleScene {
     preLie: HoleState['lie'],
     club: ClubSpec,
     outcome: ShotOutcome
-  ): void {
+  ): boolean {
     const toPar = this.state.strokes - this.hole.par;
     const puttFt = club.id === 'putter' ? (dist(origin, this.hole.pin) / PX_PER_YARD) * 3 : 0;
     const chipInYd = club.id !== 'putter' && preLie !== 'green' ? dist(origin, outcome.finalPos) / PX_PER_YARD : 0;
+    // Cinematic moment (delight on) or the classic line (flag off) — decided
+    // together so the caller can skip the base score toast when a bigger
+    // celebration is coming.
+    let cine: { title: string; sub: string; tier: 'epic' | 'great' } | null = null;
     let line = '';
-    if (this.state.strokes === 1) line = '⛳ HOLE-IN-ONE!!';
-    else if (toPar <= -2) line = '🦅 EAGLE!';
-    else if (puttFt >= 25) line = `🎯 ${Math.round(puttFt)}-footer — what a putt!`;
-    else if (chipInYd >= 15) line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
-    if (!line) return;
+    if (this.state.strokes === 1) {
+      cine = { title: 'HOLE-IN-ONE', sub: this.holeSubLabel(), tier: 'epic' };
+      line = '⛳ HOLE-IN-ONE!!';
+    } else if (toPar <= -2) {
+      cine = { title: scoreName(this.state.strokes, this.hole.par).toUpperCase(), sub: this.holeSubLabel(), tier: 'epic' };
+      line = '🦅 EAGLE!';
+    } else if (puttFt >= 25) {
+      cine = { title: 'WHAT A PUTT', sub: `${Math.round(puttFt)}-footer drops`, tier: 'great' };
+      line = `🎯 ${Math.round(puttFt)}-footer — what a putt!`;
+    } else if (chipInYd >= 15) {
+      cine = { title: 'CHIP-IN', sub: `from ${Math.round(chipInYd)} yards`, tier: 'great' };
+      line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
+    }
+    if (!cine) return false;
     // Golden burst at the cup — three staggered emits read as a shower.
     const pin = this.hole.pin;
     (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 1 + this.gh(pin.x, pin.y)));
@@ -2238,11 +2323,21 @@ class HoleScene {
         this.puff.manualEmitCount = 18;
       }, delayMs);
     }
+    const chosen = cine;
     setTimeout(() => {
       if (this.disposed) return;
-      showMsg(line, 2400);
+      // The celebration camera is mid-push toward the golfer by now — the
+      // banner letterboxes the top while the character celebrates below it.
+      if (flag('delight')) showCineBanner(chosen.title, chosen.sub, chosen.tier, 2400);
+      else showMsg(line, 2400);
       this.shakeT = Math.max(this.shakeT, profile.settings.reducedMotion ? 0 : 0.22);
     }, 500);
+    return true;
+  }
+
+  /** "Hole 2 · Devil's Kitchen" — the banner's context line. */
+  private holeSubLabel(): string {
+    return `Hole ${this.hole.number}${this.hole.name ? ` · ${this.hole.name}` : ''}`;
   }
 
   /** Accumulate the human's shot-based round stats for progression (Phase 6). */
@@ -4991,32 +5086,93 @@ function persistProfile(): void {
  * sign-in this device, fold any pre-existing local progress up first (grow-only
  * merge, nothing lost), then pull+merge+push the cloud copy.
  */
-async function adoptCloudAccount(): Promise<void> {
+/** "This device was signed in" hint — lets a reload render the CACHED account
+ *  copy instantly (weak-connection fix) while the real auth check + cloud sync
+ *  reconcile in the background. Written after a successful adopt, cleared on
+ *  sign-out; carries the display name so the Profile button labels correctly
+ *  before Firebase's SDK chunks have even downloaded. */
+const SIGNIN_HINT_KEY = 'bsg-signed-in-hint-v1';
+function readSignInHint(): { uid: string; name: string } | null {
+  try {
+    const raw = localStorage.getItem(SIGNIN_HINT_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { uid?: unknown; name?: unknown };
+    return typeof v.uid === 'string' && v.uid ? { uid: v.uid, name: typeof v.name === 'string' ? v.name : '' } : null;
+  } catch {
+    return null;
+  }
+}
+function writeSignInHint(uid: string, name: string): void {
+  try {
+    localStorage.setItem(SIGNIN_HINT_KEY, JSON.stringify({ uid, name }));
+  } catch {
+    /* hint is best-effort */
+  }
+}
+function clearSignInHint(): void {
+  try {
+    localStorage.removeItem(SIGNIN_HINT_KEY);
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** Bring the CACHED account copy live locally (no network): merge the local
+ *  legacy/cache, enable persistence, and refresh every profile-driven surface.
+ *  Shared by the real adoption and the optimistic hint boot path. */
+function adoptLocalCache(): void {
   if (!legacyMerged) {
     Object.assign(profile, mergeProfiles(profile, legacyLocal));
     legacyMerged = true;
   }
   signedIn = true; // enable persistence before the sync writes back
-  const res = await cloudSyncProfile(profile);
+  analytics.setUid(profile.id);
+  syncSelFromProfile();
+  refreshLandingCards();
+}
+
+async function adoptCloudAccount(): Promise<void> {
+  adoptLocalCache();
+  // The cloud phase is capped: on a bad connection the RTDB get() can hang for
+  // minutes, and everything after this await (account menu, name prompt) used
+  // to hang with it. The UI is already correct from the local cache; a timed-
+  // out sync reports offline and the next persist/round-end sync reconciles.
+  const res = await Promise.race([
+    cloudSyncProfile(profile),
+    new Promise<CloudSaveResultLike>((resolve) => setTimeout(() => resolve({ profile, status: 'offline' }), 12000))
+  ]);
   Object.assign(profile, res.profile);
   applyDeviceSettings(); // this device's audio/motion prefs win over the cloud copy
   saveProfile(profile); // cache the account locally for offline/reload
   showCloudStatus(res.status);
   syncSelFromProfile();
+  refreshLandingCards(); // cloud may have brought newer daily/weekly state
   // Attribute this device's guest activity to the account WITHOUT
   // double-counting: subsequent events carry uid+gid, and the linked event
   // lets the dashboard fold earlier guest sessions into this player.
   analytics.setUid(profile.id);
   analytics.track('identity_linked');
+  void linkedAccountName().then((name) => {
+    writeSignInHint(profile.id, name ?? '');
+    updateLandingProfileButton(name ?? undefined);
+  });
   refreshEntitlements(); // deliver purchases made while away / on other devices
 }
+type CloudSaveResultLike = { profile: PlayerProfile; status: CloudSaveStatus };
 
 /** Sign out: return to a clean slate. Wipe the local view + persisted data so a
  *  signed-out browser shows no coins/records; the account stays safe in the
  *  cloud under its uid and returns on next sign-in. */
 async function doSignOut(): Promise<void> {
   await signOutAccount();
+  resetToSignedOut();
+}
+
+/** Local half of signing out — also used when a persisted session turns out
+ *  to be gone (revoked/expired) after an optimistic hint boot. */
+function resetToSignedOut(): void {
   signedIn = false;
+  clearSignInHint();
   // Don't resurrect the previous account's local data into a later sign-in.
   legacyMerged = true;
   clearLocalProfile();
@@ -5025,6 +5181,8 @@ async function doSignOut(): Promise<void> {
   applyDeviceSettings(); // device audio/motion prefs survive sign-out
   analytics.setUid(null);
   syncSelFromProfile();
+  refreshLandingCards();
+  updateLandingProfileButton();
 }
 
 /** Re-prefill the setup wizard from the live profile (after a cloud adopt or a
@@ -5046,7 +5204,19 @@ function refreshWizardIfVisible(): void {
 // On boot, adopt the account only if a real Google session persists; otherwise
 // stay on the empty guest view and prompt the player to sign in.
 void (async () => {
-  if (authConfigured() && (await isSignedIn())) {
+  // LOCAL-FIRST (weak-connection fix): a device that was signed in renders its
+  // cached account copy IMMEDIATELY — daily/weekly completion, coins, and the
+  // Profile button label — before Firebase's SDK chunks have even downloaded.
+  // The real auth check + cloud sync below reconcile (or revert) when they
+  // resolve. Without this, every reload (including Admin → back) showed an
+  // empty guest view until the network caught up.
+  const hint = authConfigured() ? readSignInHint() : null;
+  if (hint) {
+    adoptLocalCache();
+    updateLandingProfileButton(hint.name || undefined);
+  }
+  const auth = authConfigured() ? await authState() : 'out';
+  if (auth === 'in') {
     await adoptCloudAccount();
     // Stripe's success URL lands back here with ?purchase=success — the
     // adopt above already kicked off the entitlement claim.
@@ -5054,6 +5224,12 @@ void (async () => {
       showMsg('Thanks! Applying your purchase…', 2200);
       history.replaceState(null, '', window.location.pathname);
     }
+  } else if (auth === 'out' && hint) {
+    // DEFINITIVELY signed out (revoked/expired) — mirror the sign-out reset
+    // so the optimistic view never lingers on a dead account. 'unknown'
+    // (offline / SDK unreachable) keeps the cached view: local play continues
+    // and the next good connection reconciles.
+    resetToSignedOut();
   }
   renderAcctMenu();
   // First visit / fresh guest with no name yet — ask once (editable later in
@@ -5622,6 +5798,19 @@ function showLanding(): void {
   pendingTournament = null;
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
+  refreshLandingCards();
+  updateLandingProfileButton();
+}
+
+/** Render the landing's profile-driven surfaces (daily/weekly cards, Season
+ *  Pass/Store reveal) from the CURRENT profile. Split out of showLanding so
+ *  the async account adoption can re-run it when the profile fills in — the
+ *  cards used to render once from the boot-empty profile and only recover
+ *  after a Play Now round-trip re-entered showLanding (playtest: "results
+ *  wiped until I go to play now and back"). No-op while the landing is
+ *  hidden. */
+function refreshLandingCards(): void {
+  if (!landingEl.classList.contains('on')) return;
   // Progressive disclosure (Part 11): a brand-new player sees core golf and
   // one big Play action — the daily/weekly cards and Season Pass/Store
   // entries reveal after the first completed round on this device.
@@ -5641,7 +5830,6 @@ function showLanding(): void {
     updateDailyBanner();
     updateWeeklyCard();
   }
-  updateLandingProfileButton();
 }
 
 function showSetup(): void {

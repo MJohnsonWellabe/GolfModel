@@ -159,6 +159,28 @@ export async function isSignedIn(): Promise<boolean> {
 }
 
 /**
+ * Three-state auth check for boot flows that render optimistically from a
+ * local cache: 'in' / 'out' are DEFINITIVE answers from a restored auth
+ * state; 'unknown' means the SDK itself was unreachable (offline / chunks
+ * failed to download / 15s cap) — the caller must NOT treat that as signed
+ * out, or a weak connection wipes a genuinely signed-in device's view.
+ */
+export async function authState(): Promise<'in' | 'out' | 'unknown'> {
+  if (!authConfigured()) return 'out';
+  try {
+    const handlesOrTimeout = await Promise.race([
+      ensureFirebase(),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 15000))
+    ]);
+    if (!handlesOrTimeout) return 'unknown';
+    const u = handlesOrTimeout.auth.currentUser;
+    return u && !u.isAnonymous ? 'in' : 'out';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/**
  * Display name (or email) of the linked account, or null when the session is
  * still an anonymous guest / unconfigured. Drives the "Signed in as …" label so
  * the Profile and menu reflect the persistent link state instead of always

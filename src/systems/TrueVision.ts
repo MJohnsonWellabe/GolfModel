@@ -1,4 +1,4 @@
-import { ClubSpec, HoleData, SpinState, TrajectoryPoint, Wind } from '../core/types';
+import { ClubSpec, HoleData, ShotOutcome, SpinState, TrajectoryPoint, Wind } from '../core/types';
 import { ShotContext } from '../core/input/AimControl';
 import { PhysicsEngine } from './PhysicsEngine';
 
@@ -26,13 +26,17 @@ export interface TrueVisionShot {
   launchMult?: number;
 }
 
-export function computeTrueVisionPath(
+/** The full previewed outcome — path AND result. The caller keeps this so a
+ *  flushed stroke on an unchanged read can play the previewed make EXACTLY
+ *  (the golden endpoint is a promise: if it shows the cup and the player
+ *  answers with perfect power + perfect accuracy, the ball drops). */
+export function computeTrueVisionOutcome(
   engine: PhysicsEngine,
   hole: HoleData,
   ctx: ShotContext,
   shot: TrueVisionShot
-): TrajectoryPoint[] {
-  const outcome = engine.simulate({
+): ShotOutcome {
+  return engine.simulate({
     origin: ctx.ball,
     aimAngle: shot.aimAngle,
     swing: { power: shot.power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
@@ -47,5 +51,13 @@ export function computeTrueVisionPath(
     launchMult: shot.launchMult ?? 1,
     stroke: ctx.strokes
   });
-  return outcome.path;
+}
+
+export function computeTrueVisionPath(
+  engine: PhysicsEngine,
+  hole: HoleData,
+  ctx: ShotContext,
+  shot: TrueVisionShot
+): TrajectoryPoint[] {
+  return computeTrueVisionOutcome(engine, hole, ctx, shot).path;
 }
