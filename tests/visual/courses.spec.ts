@@ -47,7 +47,9 @@ test('a flaky nature-prop fetch recovers via retry', async ({ page }) => {
 test('wizard course step lists every course', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
-  // Advance to the Course step (step index 1) via the Next button.
+  // Boot lands on the menu, not the wizard — open the setup wizard first
+  // (Play), then advance from Mode (step 0) to the Course step (step 1).
+  await page.evaluate(() => (document.getElementById('landingPlay') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.modeCard[data-course]');
   const count = await page.locator('.modeCard[data-course]').count();

@@ -17,21 +17,24 @@ type Cand = { x: number; y: number; r: number; parts: number };
 async function boot(page: import('@playwright/test').Page, course: string, hole: number): Promise<void> {
   await page.goto(`/?course=${course}&hole=${hole}&cam=tee`);
   await page.waitForFunction(() => (window as unknown as { __shotReady?: boolean }).__shotReady === true, undefined, {
-    timeout: 30_000
+    timeout: 60_000
   });
 }
 
-test('every wooded course registers occlusion candidates (incl. Sable Bay island palms)', async ({ page }) => {
-  for (const [course, hole, min] of [
-    ['timberline', 1, 50],
-    ['wildwood', 1, 50],
-    ['sablebay', 2, 4] // the 4 accent palms ringing the island green
-  ] as const) {
+// One test PER course so each boots on a fresh page/context. Booting all three
+// heavy WebGL scenes on a single reused page exhausts the CI software renderer
+// and the third navigation aborts ("frame detached") — the isolation fixes it.
+for (const [course, hole, min] of [
+  ['timberline', 1, 50],
+  ['wildwood', 1, 50],
+  ['sablebay', 2, 4] // the 4 accent palms ringing the island green
+] as const) {
+  test(`${course} h${hole} registers occlusion candidates`, async ({ page }) => {
     await boot(page, course, hole);
     const n = await page.evaluate(() => (window as any).__slice3d.occlusionCandidates().length as number);
     expect(n, `${course} h${hole} occlusion candidates`).toBeGreaterThanOrEqual(min);
-  }
-});
+  });
+}
 
 test('a tree between the camera and the golfer is faded to a ghost', async ({ page }) => {
   await boot(page, 'timberline', 1);

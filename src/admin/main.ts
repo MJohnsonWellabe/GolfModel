@@ -398,7 +398,13 @@ async function showLanding(): Promise<void> {
       ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('liveops', '🔁', 'Retention / Live Ops', 'Daily Challenge and Weekly Featured overrides — stage, validate, publish. Reward math stays code-defined.', 'Loading…', '')}
     </div>
-    <p class="sub" style="margin-top:22px;opacity:0.6;font-size:12px">
+    <p class="sub" style="margin-top:22px">
+      <a id="openDev" href="index.html?env=dev" style="color:#ffcf33;font-weight:600;text-decoration:none">
+        🧪 Open Dev Preview →
+      </a>
+      <span style="opacity:0.7"> — the game with the in-progress polish (delight, juice, ambient life) turned on. Production stays unchanged.</span>
+    </p>
+    <p class="sub" style="margin-top:6px;opacity:0.6;font-size:12px">
       Environment: <b>${ENV.name.toUpperCase()}</b> · build ${esc(buildLabelLong())}
     </p>`;
   document.getElementById('backGame')!.addEventListener('click', () => (window.location.href = 'index.html'));
