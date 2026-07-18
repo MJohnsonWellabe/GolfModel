@@ -117,3 +117,43 @@ describe('aggregateRetention — counters and conversion', () => {
     expect(s.replayConversion).toBeNull();
   });
 });
+
+describe('dayReturnRates (D1/D7 — analytics framework)', () => {
+  const DAY = 86_400_000;
+  const base = Date.UTC(2026, 6, 1, 12); // July 1 2026 noon UTC
+  const at = (gid: string, dayOffset: number): AnalyticsEvent => ({
+    e: 'app_open',
+    t: base + dayOffset * DAY,
+    sid: `s-${gid}-${dayOffset}`,
+    gid
+  });
+
+  it('computes D1 over fully-observed cohorts only', () => {
+    // g-a returns on day 1; g-b does not; g-late first seen too recently to judge.
+    const events = [at('g-a', 0), at('g-a', 1), at('g-b', 0), at('g-late', 2)];
+    const s = aggregateRetention(events);
+    // newest = day 2; g-a and g-b's day-1 windows have fully elapsed; g-late's has not.
+    expect(s.d1ReturnRate).toBe(50);
+    // No player has a fully-elapsed day-7 window yet.
+    expect(s.d7ReturnRate).toBeNull();
+  });
+
+  it('computes D7 and resolves linked identities as one player', () => {
+    const events: AnalyticsEvent[] = [
+      at('g-a', 0),
+      { ...at('g-a', 7), uid: 'u-1' }, // g-a signed in on day 7 — same player
+      at('g-b', 0),
+      at('g-b', 3), // active mid-week but NOT on day 7
+      at('g-obs', 8) // pushes newest past every day-7 window
+    ];
+    const s = aggregateRetention(events);
+    // Cohort: g-a(=u-1) and g-b (g-obs unjudgeable). g-a returned on day 7.
+    expect(s.d7ReturnRate).toBe(50);
+  });
+
+  it('is null on empty input', () => {
+    const s = aggregateRetention([ev('round_started')]);
+    expect(s.d1ReturnRate).toBeNull();
+    expect(s.d7ReturnRate).toBeNull();
+  });
+});

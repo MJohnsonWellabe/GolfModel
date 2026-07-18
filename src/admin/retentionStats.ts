@@ -59,6 +59,57 @@ export interface RetentionStats {
   /** Split of rounds started/completed by identity at event time. */
   guestRoundsCompleted: number;
   signedInRoundsCompleted: number;
+  /** D1/D7 return: of players first seen on a day with ≥1/≥7 full days of
+   *  observation after it, the % with any event on day+1 / day+7 (UTC day
+   *  keys). Null until at least one player is measurable. */
+  d1ReturnRate: number | null;
+  d7ReturnRate: number | null;
+}
+
+/** UTC day key for an epoch-ms timestamp. */
+function dayKey(t: number): string {
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * D1/D7 return rates (docs/technical/ANALYTICS_FRAMEWORK.md). Players are
+ * resolved identities (linked gid→uid counts once). A player only enters a
+ * cohort when the observation window fully elapsed before the newest event
+ * in the data — otherwise "hasn't returned YET" would read as churn.
+ */
+export function dayReturnRates(
+  events: AnalyticsEvent[],
+  resolveId: (ev: AnalyticsEvent) => string
+): { d1: number | null; d7: number | null } {
+  if (events.length === 0) return { d1: null, d7: null };
+  const daysByPlayer = new Map<string, Set<string>>();
+  const firstSeen = new Map<string, number>();
+  let newest = 0;
+  for (const ev of events) {
+    const id = resolveId(ev);
+    if (!id || !ev.t) continue;
+    newest = Math.max(newest, ev.t);
+    const days = daysByPlayer.get(id) ?? new Set<string>();
+    days.add(dayKey(ev.t));
+    daysByPlayer.set(id, days);
+    firstSeen.set(id, Math.min(firstSeen.get(id) ?? Infinity, ev.t));
+  }
+  const rate = (offsetDays: number): number | null => {
+    let cohort = 0;
+    let returned = 0;
+    for (const [id, first] of firstSeen) {
+      // Full observation: the target day must have completely elapsed.
+      const targetDayStart = first + offsetDays * DAY_MS;
+      if (targetDayStart + DAY_MS > newest) continue;
+      cohort += 1;
+      if (daysByPlayer.get(id)?.has(dayKey(targetDayStart))) returned += 1;
+    }
+    return cohort > 0 ? Math.round((returned / cohort) * 1000) / 10 : null;
+  };
+  return { d1: rate(1), d7: rate(7) };
 }
 
 export function aggregateRetention(events: AnalyticsEvent[]): RetentionStats {
@@ -155,6 +206,11 @@ export function aggregateRetention(events: AnalyticsEvent[]): RetentionStats {
   const pct = (num: number, den: number): number | null =>
     den > 0 ? Math.round((num / den) * 1000) / 10 : null;
 
+  // D1/D7 on resolved identities: a linked gid resolves to its uid.
+  const returns = dayReturnRates(events, (ev) =>
+    ev.uid ? ev.uid : ev.gid ? (linkedGids.get(ev.gid) ?? ev.gid) : ''
+  );
+
   return {
     guestPlayers: guestGids.size,
     signedInPlayers: uids.size,
@@ -172,6 +228,8 @@ export function aggregateRetention(events: AnalyticsEvent[]): RetentionStats {
     replayConversion: pct(followedViaReplay, completions),
     playNextConversion: pct(followedViaPlayNext, completions),
     guestRoundsCompleted,
-    signedInRoundsCompleted
+    signedInRoundsCompleted,
+    d1ReturnRate: returns.d1,
+    d7ReturnRate: returns.d7
   };
 }

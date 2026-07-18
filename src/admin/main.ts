@@ -171,6 +171,10 @@ function retentionSectionHtml(r: RetentionStats | null): string {
       <div class="tile"><div class="tval">${pct(r.playNextConversion)}</div><div class="tlbl">↳ via Play Next</div></div>
       <div class="tile"><div class="tval">${r.dailyCompleted}</div><div class="tlbl">Daily Challenges Done</div></div>
     </div>
+    <div class="tiles">
+      <div class="tile"><div class="tval">${pct(r.d1ReturnRate)}</div><div class="tlbl">D1 Return Rate</div></div>
+      <div class="tile"><div class="tval">${pct(r.d7ReturnRate)}</div><div class="tlbl">D7 Return Rate</div></div>
+    </div>
     <table><tr><th>Rounds completed as…</th><th>Count</th></tr>
       <tr><td>Guest Players</td><td>${r.guestRoundsCompleted}</td></tr>
       <tr><td>Signed-In Players</td><td>${r.signedInRoundsCompleted}</td></tr>

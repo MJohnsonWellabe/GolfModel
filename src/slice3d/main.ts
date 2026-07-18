@@ -3343,7 +3343,9 @@ function showSummary(): void {
     sel.courseId = nextId;
     analytics.track('play_next_selected', { course: courseId, destination_course: nextId, mode: sel.mode });
     startRound(0);
-    analytics.track('next_course_started', { course: nextId, mode: sel.mode });
+    // next_course_started deprecated 2026-07-18: pure duplicate of
+    // play_next_selected(destination_course) + the round_started that follows
+    // (docs/technical/ANALYTICS_FRAMEWORK.md).
   });
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
@@ -5683,7 +5685,9 @@ function startRound(startHoleIdx = 0): void {
   round.tournament = null;
   round.weeklyEventId = pendingWeekly ? pendingWeekly.id : null;
   round.challenge = pendingChallenge;
-  if (pendingWeekly) analytics.track('weekly_round_started', { course: sel.courseId, weekly_event: pendingWeekly.id });
+  // weekly_round_started deprecated 2026-07-18: the weekly funnel is served by
+  // round_started + weekly_round_completed; no dashboard consumed the started
+  // side (docs/technical/ANALYTICS_FRAMEWORK.md).
   if (pendingChallenge) analytics.track('async_challenge_opened', { course: pendingChallenge.courseId });
   pendingWeekly = null;
   pendingChallenge = null;
