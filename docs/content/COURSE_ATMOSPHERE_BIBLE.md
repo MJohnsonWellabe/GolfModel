@@ -84,11 +84,15 @@ readability
 
 ### Red Hollow — "the desert canyon" (expansion, `newCourses` flag)
 
-- **Visual motif:** emerald fairway ribbons through red-rock waste; a sunlit
-  red mountain range (the CC-BY `mountain_range_red` diorama, terracotta lit
-  through its normal map) over tinted mesa walls (`hillTint`/`peakKeys`);
-  volcanic Black-Desert rock clusters and bare red ground (`bareRough`) — no
-  grass rough, no trees.
+- **Visual motif:** emerald fairway ribbons through red-rock waste hugging
+  the turf; the CC-BY `mountain_range_red` diorama (terracotta lit through
+  its normal map) LAYERED at several depths/sizes/mirrorings as the whole
+  horizon (no procedural mesas), with a warm backstop wall closing saddle
+  gaps; rock vocabulary is the stylized cluster in dark volcanic + bright
+  sunlit red at all scales; bare red ground (`bareRough`), no grass rough,
+  no bushes, no trees. H3's Wolf Wash is a DRY winding creek (waste sand,
+  rocks, dead scrub — no water anywhere on the course), and h1/h3 each have
+  a mountainside drop-off edge (negative plateau elevation).
 - **Ambient life (implemented):** 2 vultures riding slow, wide thermals very
   high (`desert` preset). Deliberately no mist, no birdsong.
 - **Ambient bed:** hot dry wind (higher band than alpine, slower gusts) with
@@ -98,8 +102,11 @@ readability
 ### Wild Valley — "the sand hills" (expansion, `newCourses` flag)
 
 - **Visual motif:** bright rolling golden fescue (sunlit straw-gold cards,
-  pre-graded in the glbs), pale blowout sand, sparse pines; treeline horizon
-  under wispy cirrus. Think Sand Valley (WI) / Wild Horse (NE).
+  pre-graded in the glbs) — dense, TREELESS open sand hills under wispy
+  cirrus. Blowouts are deep center-weighted bowls (`wasteDepthScale`) broken
+  into lobes with rough ridges between them, pulled tight against the turf,
+  every edge packed with golden fescue (`bunkerLipPacked`). Think Sand
+  Valley (WI) / Wild Horse (NE).
 - **Ambient life (implemented):** the `forest` preset (butterflies over the
   fescue margins + songbirds) — prairie life shares its silhouettes.
 - **Ambient bed:** soft prairie wind under sparse meadow chirps (`prairie`).

@@ -1278,6 +1278,24 @@ export function buildCourse(
       const tintedKeys = peakKeys.filter((k) => !k.startsWith('mountain') && !k.startsWith('canyon'));
       void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
         if (texturedKeys.length) {
+          // Opaque terracotta backstop behind the deepest range layer: the
+          // decimated diorama prims leave saddle gaps that showed SKY-BLUE
+          // through the mountains at the horizon (playtest: "a blue layer in
+          // the back behind the green before the mountain"). A warm wall
+          // behind every layer turns any through-gap into hazy far desert.
+          // Placement: just behind the deepest range layer, but INSIDE the
+          // sky dome's surface distance (~4.8k on the horizon ray here) —
+          // any farther and the sky mesh wins the depth test and the wall
+          // never shows. Kept short enough that the far echo silhouettes
+          // still rise above it.
+          const bsC = mix(hillBase, theme.haze, 0.5);
+          const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 240 }, scene);
+          const bsMat = mat(scene, 'rangeBackstopM', bsC, { emissive: shade(bsC, 0.85) });
+          bsMat.backFaceCulling = false;
+          bs.material = bsMat;
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, 85, 0));
+          bs.applyFog = false;
+          bs.freezeWorldMatrix();
           // These packs are full RANGE DIORAMAS (many peaks arranged by the
           // artist) — place each exactly ONCE, centered behind the green, so
           // the arrangement reads as authored. Multiple shifted instances
@@ -1299,29 +1317,42 @@ export function buildCourse(
               bmax = bmax ? Vector3.Maximize(bmax, bb.maximum) : bb.maximum.clone();
             }
             if (!bmin || !bmax) return;
-            // A full range diorama gets exactly one, centered placement (its
-            // peaks are already arranged by the artist); a single massif gets
-            // a main placement plus a smaller offset echo so it reads as a
-            // range without the copy being obvious.
+            // LAYERED RANGE (playtest: "get rid of the boxy mountains and
+            // just layer the good ones a few times at various depths and
+            // sizes"): the same range diorama placed several times — nearer/
+            // larger center, smaller echoes off to the sides and pushed
+            // deeper — with alternating mirroring so the repeats don't read
+            // as copies. All bounds-centered and grounded.
             const spots = key.startsWith('mountain_range')
-              ? [{ dx: 0, dy: 0, h: 340 }]
+              ? [
+                  { dx: 120, dy: 220, h: 360, mirror: false },
+                  { dx: -1500, dy: -450, h: 300, mirror: true },
+                  { dx: 1450, dy: -350, h: 320, mirror: false },
+                  { dx: -520, dy: -1350, h: 250, mirror: true },
+                  { dx: 620, dy: -1500, h: 230, mirror: false }
+                ]
               : [
-                  { dx: -80 + ki * 500, dy: 0, h: 440 },
-                  { dx: 880 + ki * 500, dy: -380, h: 300 }
+                  { dx: -80 + ki * 500, dy: 0, h: 440, mirror: false },
+                  { dx: 880 + ki * 500, dy: -380, h: 300, mirror: true }
                 ];
             for (let si = 0; si < spots.length; si++) {
               const spot = spots[si];
               const sMul = spot.h / proto.height;
-              const anchor = w2b(hole.pin.x + spot.dx, hole.pin.y - peakDist + 220 + spot.dy, -35);
+              const anchor = w2b(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
+              // Mirroring negates local X, so the recentering offset's X
+              // component flips sign with it. The 1.3 width stretch widens
+              // each layer so adjacent silhouettes overlap — high saddles
+              // between instances were letting slivers of blue sky through.
+              const sx = (spot.mirror ? -sMul : sMul) * 1.3;
               const off = new Vector3(
-                -((bmin.x + bmax.x) / 2) * sMul,
+                ((bmin.x + bmax.x) / 2) * -sx,
                 -bmin.y * sMul,
                 -((bmin.z + bmax.z) / 2) * sMul
               );
               for (const part of proto.parts) {
                 const cl = part.clone(`hillRange${ki}_${si}`);
                 cl.position = anchor.add(off);
-                cl.scaling = new Vector3(sMul, sMul, sMul);
+                cl.scaling = new Vector3(sx, sMul, sMul);
                 cl.applyFog = false;
                 cl.setEnabled(true);
                 cl.freezeWorldMatrix();
@@ -1888,9 +1919,14 @@ export function buildCourse(
                   ? 1.6 + hash2(jx, jy + 9) * 0.6
                   : e.key.startsWith('rock_desert')
                     ? 1.1 + hash2(jx, jy + 9) * 1.9
-                    : e.key.startsWith('stone')
-                      ? 0.8 + hash2(jx, jy + 9) * 0.9
-                      : 2.4 + hash2(jx + 7, jy) * 1.1;
+                    : e.key.startsWith('rocks_red')
+                      ? // The cluster diorama is much wider than tall — keep
+                        // scatter placements low so a "small rocks" patch
+                        // stays boulder-scale in the rough.
+                        0.9 + hash2(jx, jy + 9) * 1.5
+                      : e.key.startsWith('stone')
+                        ? 0.8 + hash2(jx, jy + 9) * 0.9
+                        : 2.4 + hash2(jx + 7, jy) * 1.1;
             // A theme can list a tintable species (a bush/flower/grass key) in
             // scatterKeys alongside plain forest-floor props (ferns, stumps,
             // stones) — its prototype parts are still registered for the
@@ -2201,12 +2237,17 @@ export function buildCourse(
               // Rough side only — never crowd fairway/green/sand edges.
               if (engine.surfaceAt(ox, oy) !== 'rough') continue;
               if (Math.hypot(ox - hole.pin.x, oy - hole.pin.y) < 130) continue;
-              if (Math.hypot(ox - hole.tee.x, oy - hole.tee.y) < 90) continue;
+              // 140 (was 90): the cluster diorama's footprint is far wider
+              // than its height, so a rim placement near the tee could hang
+              // a rock slab over the tee camera (playtest screenshot).
+              if (Math.hypot(ox - hole.tee.x, oy - hole.tee.y) < 140) continue;
               const e = rims[Math.floor(hash2(ox + 5, oy + 1) * rims.length) % rims.length];
-              // Boulder-to-outcrop scale, biggest pieces rarest.
+              // Boulder-to-outcrop scale, biggest pieces rarest. Cluster
+              // heights stay modest — the diorama spreads several rocks over
+              // a wide footprint, so height 9 already reads as an outcrop.
               const big = hash2(ox * 0.7, oy * 0.9);
               const rh = e.key.startsWith('rocks_red')
-                ? 6 + big * 10
+                ? 3.5 + big * 5.5
                 : e.key.startsWith('mesa')
                   ? 5 + big * 9
                   : 2.2 + big * 3.4;
@@ -2329,6 +2370,36 @@ export function buildCourse(
             const fairwayOk = surf === 'fairway' && !theme.bunkerFescueAvoidFairway;
             if (surf !== 'rough' && surf !== 'sand' && !fairwayOk) continue;
             place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
+          }
+        }
+        // PACKED lip (theme.bunkerLipPacked — Wild Valley): beyond the
+        // mounded clumps above, walk EVERY bunker's full perimeter and pack
+        // fescue tightly along the sand line ("the edges of every bunker
+        // should be absolutely lined with that bright gold grass — not
+        // uniformly but really packed"). ~72% of steps plant (broken, not a
+        // hedge), each straddling the lip with jitter.
+        if (theme.bunkerLipPacked) {
+          for (const hz of hole.hazards) {
+            if (hz.type !== 'bunker') continue;
+            const n = hz.polygon.length;
+            for (let i = 0; i < n; i++) {
+              const [x1, y1] = hz.polygon[i];
+              const [x2, y2] = hz.polygon[(i + 1) % n];
+              const segLen = Math.hypot(x2 - x1, y2 - y1);
+              const steps = Math.max(1, Math.round(segLen / 7));
+              for (let sIdx = 0; sIdx < steps; sIdx++) {
+                const t = (sIdx + 0.5) / steps;
+                const px = x1 + (x2 - x1) * t;
+                const py = y1 + (y2 - y1) * t;
+                if (hash2(px * 1.7, py * 2.3) > 0.72) continue;
+                const jx = px + (hash2(px + 19, py) - 0.5) * 7;
+                const jy = py + (hash2(py + 19, px) - 0.5) * 7;
+                const surf = engine.surfaceAt(jx, jy);
+                if (surf !== 'rough' && surf !== 'sand' && surf !== 'fairway') continue;
+                if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 90) continue;
+                place(pool, jx, jy, 2.4 + hash2(jx + 5, jy - 5) * 3.2);
+              }
+            }
           }
         }
       });

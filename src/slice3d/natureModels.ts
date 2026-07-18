@@ -101,8 +101,15 @@ export const GRANITE_KEYS = ['stone_d', 'stone_e', 'stone_f'] as const;
  *  range. Opt-in via theme.peakKeys; keeps its imported rock textures. */
 export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red'] as const;
 /** The rest of the CC-BY red desert set (asset-packs/red-desert-set-README.md):
- *  stylized rock clusters for waste rims, canyon slabs for the mid-ground. */
-export const DESERT_SET_KEYS = ['rocks_red_cluster', 'canyon_red_a', 'canyon_red_b'] as const;
+ *  stylized rock clusters for waste rims, canyon slabs for the mid-ground.
+ *  `rocks_red_bright` is the SAME cluster glb loaded under an alias key with
+ *  a sunlit bright-red material — playtest asked for the good rock "in
+ *  bright red and deep red/black at various sizes" and instances share their
+ *  prototype's material, so two looks need two prototypes. */
+export const DESERT_SET_KEYS = ['rocks_red_cluster', 'rocks_red_bright', 'canyon_red_a', 'canyon_red_b'] as const;
+
+/** Alias keys → the glb file they load (see DESERT_SET_KEYS). */
+const KEY_FILE_ALIASES: Record<string, string> = { rocks_red_bright: 'rocks_red_cluster' };
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -262,7 +269,8 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       p,
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`load timed out after ${ms}ms`)), ms))
     ]);
-  const loadContainer = (key: string) => withTimeout(LoadAssetContainerAsync(`models/nature/${key}.glb`, scene), 15000);
+  const loadContainer = (key: string) =>
+    withTimeout(LoadAssetContainerAsync(`models/nature/${KEY_FILE_ALIASES[key] ?? key}.glb`, scene), 15000);
   // Weak-connection hardening (playtest: a whole hole rendered bald — every
   // fetch failed inside one bad-network window): three attempts with short
   // backoff instead of one immediate retry, so a multi-second outage recovers
@@ -364,7 +372,15 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           tm.useAlphaFromDiffuseTexture = true;
           tm.diffuseTexture.getAlphaFromRGB = false;
         }
-        if (isDesertDiorama && tex) {
+        if (key === 'rocks_red_bright' && tex) {
+          // Bright sunlit-red variant of the rock cluster: LIT (the cluster
+          // meshes have real normals, unlike the grass cards) with a strong
+          // red-shifted diffuse over the photo texture and a warm emissive
+          // floor — reads as glowing red sandstone next to the dark volcanic
+          // rocks_red_cluster look.
+          tm.diffuseColor = new Color3(1.9, 0.85, 0.7);
+          tm.emissiveColor = c3(0x6a2418);
+        } else if (isDesertDiorama && tex) {
           // The red-desert dioramas ship photo textures with the sun already
           // baked in — show the baked photo at full brightness (like the
           // unlit cloud cards) instead of re-lighting it. (Emissive texture
@@ -386,6 +402,7 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // gold reads exactly as authored, with a gentle lift.
           tm.emissiveTexture = tex;
           tm.disableLighting = true;
+          tex.level = 1.2; // BRIGHT gold (playtest) — the pre-graded straw, lifted
         } else {
           tm.emissiveColor = c3(0x5a5a5a); // lift so the texture isn't dark under the sun
         }

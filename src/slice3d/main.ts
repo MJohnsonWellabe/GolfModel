@@ -703,7 +703,10 @@ class HoleScene {
     // the default per-pointer-move mesh pick serves nothing. Skip it.
     this.scene.skipPointerMovePicking = true;
     const heightT0 = performance.now();
-    this.engine2d = new PhysicsEngine(this.hole, buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1));
+    this.engine2d = new PhysicsEngine(
+      this.hole,
+      buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1, this.theme.wasteDepthScale ?? 0)
+    );
     markPerf(round.course.name, this.hole.number, `heightfield-ready:${Math.round(performance.now() - heightT0)}ms`);
     // Aim/preview run on a flat, no-slope engine so the aim line never
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The

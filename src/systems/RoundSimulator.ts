@@ -42,6 +42,8 @@ export interface SimulateHoleOpts {
    *  Threaded from the course theme so the headless physics matches the live
    *  round's terrain (Sable Bay's deeper dished traps). */
   bunkerDepthScale?: number;
+  /** Waste blowout dish multiplier (theme.wasteDepthScale); defaults 0 (flat). */
+  wasteDepthScale?: number;
 }
 
 /**
@@ -60,7 +62,11 @@ export function drawWind(rng: Rng, windMin = 2, windMax = 20): Wind {
 export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleOpts): HoleSimResult {
   const { rng } = opts;
   const wind = opts.wind ?? drawWind(rng, opts.windMin, opts.windMax);
-  const engine = new PhysicsEngine(hole, buildHeightField(hole, opts.bunkerDepthScale ?? 1), rng);
+  const engine = new PhysicsEngine(
+    hole,
+    buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0),
+    rng
+  );
   const ai = new AIController(golfer, new FireSystem(), engine, rng);
 
   let ball = { ...hole.tee };
@@ -102,13 +108,16 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
 export function simulateRound(course: CourseData, golfer: Golfer, seed: number, holeCount?: number): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
-  const bunkerDepthScale = resolveTheme(course).bunkerDepthScale ?? 1;
+  const theme = resolveTheme(course);
+  const bunkerDepthScale = theme.bunkerDepthScale ?? 1;
+  const wasteDepthScale = theme.wasteDepthScale ?? 0;
   const results = holes.map((h) =>
     simulateHole(h, golfer, {
       rng,
       windMin: course.minWind,
       windMax: course.maxWind,
-      bunkerDepthScale
+      bunkerDepthScale,
+      wasteDepthScale
     })
   );
   const total = results.reduce((a, r) => a + r.strokes, 0);

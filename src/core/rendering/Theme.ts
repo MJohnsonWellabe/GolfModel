@@ -116,6 +116,18 @@ export interface CourseTheme {
    *  rendered mesh — a deeper bunker is a genuinely deeper pothole. Revetted
    *  pot bunkers (WALL_DEPTH) are unaffected. */
   bunkerDepthScale?: number;
+  /** Dig a dish under WASTE bunkers too (default: waste sand stays flat).
+   *  Multiplier on DISH_DEPTH, same physics/mesh sharing as
+   *  bunkerDepthScale. Only reasonably COMPACT waste polygons dig — a long
+   *  winding wash (a dry creek) stays flat, since the dish is a centroid
+   *  dome and would crater far outside an elongated shape. Wild Valley uses
+   *  this so its blowouts are genuinely deep bowls, deepest at the center. */
+  wasteDepthScale?: number;
+  /** Pack fescue tightly along EVERY bunker's full perimeter (in addition to
+   *  the bunkerLipFescue clumps): ~72% of ~7-unit steps plant a tuft
+   *  straddling the sand line. Wild Valley's "edges absolutely lined with
+   *  bright gold grass" look. Requires heatherKeys; cosmetic only. */
+  bunkerLipPacked?: boolean;
   /** Keep bunker-lip fescue OFF the fairway surface — it only lands on rough
    *  or sand. Default false: fescue accepts fairway too (a fairway-side
    *  bunker with no rough anywhere along its rim would otherwise get no lip
@@ -343,6 +355,8 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandPlantStep'
     | 'sandPlantKeep'
     | 'bunkerDepthScale'
+    | 'wasteDepthScale'
+    | 'bunkerLipPacked'
     | 'bunkerFescueAvoidFairway'
     | 'seaDunes'
     | 'lushGrass'
@@ -412,7 +426,12 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.scatterKeys = strings(spec.scatterKeys);
   // bush/grass/flower keys are defaulted (unified system), so fall back to the
   // default mix when a course omits them instead of wiping to undefined.
-  t.bushKeys = strings(spec.bushKeys) ?? DEFAULT_THEME.bushKeys;
+  // bushKeys shares treeKeys' explicit-empty semantics: an authored [] means
+  // "NO bushes on this course" (desert bare rough / open sand hills),
+  // distinct from omitting the key.
+  t.bushKeys = Array.isArray(spec.bushKeys)
+    ? (strings(spec.bushKeys) ?? [])
+    : DEFAULT_THEME.bushKeys;
   t.grassKeys = strings(spec.grassKeys) ?? DEFAULT_THEME.grassKeys;
   t.flowerKeys = strings(spec.flowerKeys) ?? DEFAULT_THEME.flowerKeys;
   t.gardenColors = strings(spec.gardenColors);
@@ -468,7 +487,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.sandGrainTile === 'number') t.sandGrainTile = spec.sandGrainTile;
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
   if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
+  if (typeof spec.bunkerLipPacked === 'boolean') t.bunkerLipPacked = spec.bunkerLipPacked;
   if (typeof spec.bunkerDepthScale === 'number') t.bunkerDepthScale = spec.bunkerDepthScale;
+  if (typeof spec.wasteDepthScale === 'number') t.wasteDepthScale = spec.wasteDepthScale;
   if (typeof spec.bunkerFescueAvoidFairway === 'boolean') t.bunkerFescueAvoidFairway = spec.bunkerFescueAvoidFairway;
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a

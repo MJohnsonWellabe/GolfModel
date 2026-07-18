@@ -14,7 +14,7 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 90
+      "heapMB": 86
     }
   },
   {
@@ -24,7 +24,7 @@
       "hasScene": true,
       "course": "Wildwood Glen",
       "natureSettled": true,
-      "meshes": 2324,
+      "meshes": 2352,
       "ghostMeshes": 0,
       "materials": 97,
       "textures": 33,
@@ -42,7 +42,7 @@
       "hasScene": true,
       "course": "Timberline",
       "natureSettled": true,
-      "meshes": 1948,
+      "meshes": 1954,
       "ghostMeshes": 0,
       "materials": 75,
       "textures": 21,
@@ -50,7 +50,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 164
+      "heapMB": 162
     }
   },
   {
@@ -60,15 +60,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5887,
+      "meshes": 5881,
       "ghostMeshes": 0,
       "materials": 71,
-      "textures": 38,
+      "textures": 39,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 207
+      "heapMB": 215
     }
   },
   {
@@ -78,15 +78,15 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 492,
+      "meshes": 1671,
       "ghostMeshes": 0,
-      "materials": 96,
-      "textures": 38,
+      "materials": 84,
+      "textures": 56,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 172
+      "heapMB": 201
     }
   },
   {
@@ -96,15 +96,15 @@
       "hasScene": true,
       "course": "Wild Valley",
       "natureSettled": true,
-      "meshes": 8907,
+      "meshes": 13842,
       "ghostMeshes": 0,
-      "materials": 72,
-      "textures": 32,
+      "materials": 62,
+      "textures": 28,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 235
+      "heapMB": 277
     }
   },
   {
@@ -114,7 +114,7 @@
       "hasScene": true,
       "course": "Sable Bay",
       "natureSettled": true,
-      "meshes": 733,
+      "meshes": 735,
       "ghostMeshes": 0,
       "materials": 87,
       "textures": 41,
@@ -122,7 +122,7 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 183
+      "heapMB": 185
     }
   },
   {
@@ -140,7 +140,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 197
+      "heapMB": 207
     }
   },
   {
@@ -150,15 +150,15 @@
       "hasScene": true,
       "course": "Timberline",
       "natureSettled": true,
-      "meshes": 1954,
+      "meshes": 1960,
       "ghostMeshes": 0,
       "materials": 75,
-      "textures": 21,
+      "textures": 22,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 190
+      "heapMB": 204
     }
   },
   {
@@ -168,15 +168,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5887,
+      "meshes": 5888,
       "ghostMeshes": 0,
       "materials": 71,
-      "textures": 38,
+      "textures": 39,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 222
+      "heapMB": 220
     }
   },
   {
@@ -186,15 +186,15 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 492,
+      "meshes": 1662,
       "ghostMeshes": 0,
-      "materials": 96,
-      "textures": 38,
+      "materials": 84,
+      "textures": 56,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 197
+      "heapMB": 227
     }
   },
   {
@@ -204,15 +204,15 @@
       "hasScene": true,
       "course": "Wild Valley",
       "natureSettled": true,
-      "meshes": 8896,
+      "meshes": 13847,
       "ghostMeshes": 0,
-      "materials": 72,
-      "textures": 32,
+      "materials": 62,
+      "textures": 28,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 238
+      "heapMB": 269
     }
   }
 ]

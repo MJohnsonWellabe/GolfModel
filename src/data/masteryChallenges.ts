@@ -122,7 +122,9 @@ export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
   ]),
   ladder('redhollow', 3, [
     S('Run the Canyon', 'Make par or better', par),
-    S('Dry Wolf', 'Birdie without finding the creek', (h) => birdie(h) && noWater(h)),
+    // Wolf Wash is a DRY creek (waste sand) — staying out of it is a
+    // no-sand feat, not a no-water one.
+    S('Dry Wolf', 'Birdie clear of the dry wash and waste', (h) => birdie(h) && noSand(h)),
     S('Wolf Eagle', 'Eagle the par 5', eagle)
   ]),
 

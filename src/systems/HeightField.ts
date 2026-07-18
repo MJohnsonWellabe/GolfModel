@@ -167,7 +167,7 @@ export class HeightField {
  *  shallower, rounded dome dish so they read as a natural hollow. Beach/waste
  *  sand stays flat — a coastal band or a sprawling links waste area is
  *  ground-level sand, not a dug trap. */
-export function buildHeightField(hole: HoleData, bunkerDepthScale = 1): HeightField | null {
+export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDepthScale = 0): HeightField | null {
   const pts: ElevationPoint[] = [...(hole.elevation ?? [])];
   for (const hz of hole.hazards) {
     if (hz.type !== 'bunker') continue;
@@ -176,6 +176,20 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1): HeightFi
     const cx = xs.reduce((a, b) => a + b, 0) / xs.length;
     const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
     const r = Math.max(...hz.polygon.map((p) => Math.hypot(p[0] - cx, p[1] - cy)));
+    if (hz.waste && !hz.beach && wasteDepthScale > 0) {
+      // Waste blowout dish (theme.wasteDepthScale — Wild Valley): a rounded
+      // dome dish like an ordinary bunker's, deepest at the center. Only for
+      // COMPACT polygons — the dish is a circle at the centroid, so a long
+      // winding wash (max/mean radius ratio ≫ 1) would crater terrain far
+      // outside its own shape; those stay flat.
+      const meanR =
+        hz.polygon.reduce((a, p) => a + Math.hypot(p[0] - cx, p[1] - cy), 0) / hz.polygon.length;
+      if (r / Math.max(1, meanR) < 1.8 && !pointInGreens(cx, cy, hole.green, hole.green2, GREEN_KEEPOUT)) {
+        const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + 10);
+        if (dishR > 0) pts.push({ x: cx, y: cy, h: -DISH_DEPTH * wasteDepthScale, r: dishR });
+      }
+      continue;
+    }
     if (hz.wall) {
       // A flat sunken floor (plateau) a touch WIDER than the trap so the whole
       // sand sits low and the skirt (where the wall stands) hugs the rim.

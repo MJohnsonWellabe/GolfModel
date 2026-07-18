@@ -104,24 +104,27 @@ const redhollow = {
     fringe: '#5d9a52', green: '#3f9150', greenLight: '#57a962',
     sand: '#cf6438', sandDark: '#a34526',
     water: '#2b6f9e', waterDeep: '#1c4d74',
-    treeCanopy: '#5a7a3d', treeCanopyLight: '#6f8f4a', treeTrunk: '#7a5238',
+    // Dead-brown "tumbleweed" foliage: Red Hollow has no trees, so the
+    // canopy slots only color bush_b — dry scrub for the creek bed/waste.
+    treeCanopy: '#8a6a42', treeCanopyLight: '#a08050', treeTrunk: '#7a5238',
     haze: '#f0d9c0', hazeStrength: 0.55,
     horizonTint: '#eec39a', hillTint: '#b4633e',
     backdrop: 'peaks', blossomChance: 0,
     treeKeys: [],
-    // mountain_range_red: the CC-BY range diorama, lit terracotta through
-    // its normal map (it ships no albedo — the relief IS the texture). The
-    // other dioramas don't work as backdrops: red_canyon_landscape is an
-    // aerial terrain slab, red_sand_desert_canyon's atlas collapses at
-    // 512px, and decimated mountain_red degrades to white blocks.
-    peakKeys: ['mountain_range_red', 'mesa_a', 'mesa_b', 'mesa_c'],
-    wasteRimKeys: ['rocks_red_cluster', 'rock_desert_a', 'rock_desert_b', 'rock_desert_d', 'rock_desert_f'],
+    // Playtest round 3: NO boxy Kenney mesas — the horizon is only the
+    // CC-BY range diorama (lit terracotta through its normal map), which
+    // course3d LAYERS at several depths/sizes/mirrorings. Rocks are the
+    // stylized cluster in dark volcanic + bright sunlit red; the boxy
+    // rock_desert props and green sage bushes are gone.
+    peakKeys: ['mountain_range_red'],
+    wasteRimKeys: ['rocks_red_cluster', 'rocks_red_bright'],
     stoneTint: '#b0522f',
     bareRough: true,
-    scatterKeys: ['rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d', 'rock_desert_e', 'rock_desert_f', 'rock_desert_g', 'rock_desert_h'],
-    sandPlantKeys: ['rock_desert_g', 'rock_desert_h', 'bush_b'],
-    sandPlantStep: 90, sandPlantKeep: 0.4,
-    sandSculpt: 0.25, bunkerDepthScale: 1.35,
+    bushKeys: [],
+    scatterKeys: ['rocks_red_cluster', 'rocks_red_bright'],
+    sandPlantKeys: ['rocks_red_cluster', 'bush_b'],
+    sandPlantStep: 70, sandPlantKeep: 0.45,
+    sandSculpt: 0.25, bunkerDepthScale: 1.35, wasteDepthScale: 1.4,
     tuftDensity: 0.8, roughTuftHeight: 1.2,
     edgeWobble: 2.6, mowPattern: 'diagonal', mowWidth: 26,
     greenMowPattern: 'diagonal',
@@ -137,10 +140,12 @@ const redhollow = {
       centerline: [[330, 1100], [332, 960], [362, 820], [432, 690], [510, 560], [545, 448], [556, 385]],
       width: [46, 68, 82, 80, 66, 54, 44],
       hazards: [
-        // The red-rock canyon cutting the dogleg's inside (carry = reward).
-        { type: 'bunker', waste: true, polygon: blob(710, 840, 175, 240, 14, 0.32, 11, 0.4) },
-        // Rim waste along the left edge (miss long-left finds red rock).
-        { type: 'bunker', waste: true, polygon: blob(150, 560, 110, 260, 12, 0.4, 12) },
+        // The red-rock canyon cutting the dogleg's inside (carry = reward) —
+        // pulled IN against the fairway (playtest: "pull the sand way over
+        // to both sides in towards the fairway").
+        { type: 'bunker', waste: true, polygon: blob(645, 830, 165, 235, 14, 0.32, 11, 0.4) },
+        // Rim waste hugging the fairway's left edge.
+        { type: 'bunker', waste: true, polygon: blob(235, 570, 130, 260, 12, 0.4, 12) },
         { type: 'bunker', polygon: blob(478, 300, 34, 26, 9, 0.3, 13) },
         { type: 'bunker', polygon: blob(636, 402, 30, 24, 9, 0.3, 14) }
       ],
@@ -150,9 +155,13 @@ const redhollow = {
         { x: 420, y: 700, h: 1.4, r: 170 },
         { x: 560, y: 330, h: 2.8, r: 128, shape: 'plateau' },
         { x: 700, y: 810, h: 3.4, r: 190 },
-        { x: 130, y: 520, h: 3.0, r: 150 },
         { x: 840, y: 420, h: 3.8, r: 150 },
-        { x: 90, y: 1000, h: 2.6, r: 130 }
+        // MOUNTAINSIDE DROP-OFF (playtest: "one side should look like it
+        // drops off like that Sand Hollow hole"): the whole left edge falls
+        // away below the waste rim — the fairway reads perched on a bench.
+        { x: 30, y: 950, h: -7, r: 210, shape: 'plateau' },
+        { x: 15, y: 620, h: -7.5, r: 220, shape: 'plateau' },
+        { x: 40, y: 330, h: -6.5, r: 200, shape: 'plateau' }
       ],
     },
     {
@@ -169,16 +178,16 @@ const redhollow = {
         { type: 'bunker', waste: true, polygon: blob(450, 668, 300, 78, 16, 0.26, 21) },
         { type: 'bunker', polygon: blob(360, 476, 30, 24, 9, 0.32, 22) },
         { type: 'bunker', polygon: blob(548, 452, 28, 22, 9, 0.32, 23) },
-        // Red rock shoulders framing the green mesa.
-        { type: 'bunker', waste: true, polygon: blob(160, 430, 100, 170, 12, 0.4, 24) },
-        { type: 'bunker', waste: true, polygon: blob(748, 400, 100, 180, 12, 0.4, 25) }
+        // Red rock shoulders framing the green mesa — tight to the green.
+        { type: 'bunker', waste: true, polygon: blob(232, 432, 100, 170, 12, 0.4, 24) },
+        { type: 'bunker', waste: true, polygon: blob(668, 402, 100, 180, 12, 0.4, 25) }
       ],
       aiTargets: [[450, 470]],
       elevation: [
         { x: 450, y: 820, h: 2.6, r: 140, shape: 'plateau' },
         { x: 450, y: 430, h: 3.2, r: 130, shape: 'plateau' },
-        { x: 150, y: 400, h: 4.2, r: 150 },
-        { x: 760, y: 380, h: 4.6, r: 160 },
+        { x: 225, y: 395, h: 4.2, r: 150 },
+        { x: 690, y: 375, h: 4.6, r: 160 },
         { x: 120, y: 840, h: 2.8, r: 120 }
       ],
     },
@@ -192,11 +201,15 @@ const redhollow = {
       centerline: [[820, 1420], [790, 1280], [700, 1150], [580, 1040], [488, 930], [450, 800], [428, 680], [390, 560], [352, 470], [338, 408]],
       width: [50, 72, 84, 82, 76, 72, 66, 58, 50, 44],
       hazards: [
-        // Wolf Creek: winds up the left, crossing the lay-up zone once.
-        { type: 'water', polygon: stream([[210, 1180], [300, 1080], [420, 990], [560, 940], [640, 860], [620, 740], [540, 640], [430, 600], [330, 540], [270, 450], [252, 380]], 46, 31) },
-        // Red waste flanking the first landing zone's right.
-        { type: 'bunker', waste: true, polygon: blob(940, 1050, 150, 240, 13, 0.38, 32) },
-        { type: 'bunker', waste: true, polygon: blob(720, 520, 130, 150, 12, 0.4, 33) },
+        // Wolf Wash: the old creek DRAINED (playtest: "no water on 3 — a
+        // little winding rock creek, rocks and dead tumbleweed"). Same
+        // winding line, now a red waste ribbon; sandPlantKeys fills it with
+        // rock clusters + dry scrub, and the waste-rim system lines its
+        // banks with red rock.
+        { type: 'bunker', waste: true, polygon: stream([[210, 1180], [300, 1080], [420, 990], [560, 940], [640, 860], [620, 740], [540, 640], [430, 600], [330, 540], [270, 450], [252, 380]], 46, 31) },
+        // Red waste flanking the first landing zone's right — pulled in.
+        { type: 'bunker', waste: true, polygon: blob(868, 1040, 130, 220, 13, 0.38, 32) },
+        { type: 'bunker', waste: true, polygon: blob(655, 525, 115, 140, 12, 0.4, 33) },
         { type: 'bunker', polygon: blob(408, 288, 30, 24, 9, 0.3, 34) },
         { type: 'bunker', polygon: blob(276, 432, 26, 22, 9, 0.28, 35) }
       ],
@@ -205,10 +218,13 @@ const redhollow = {
         { x: 820, y: 1470, h: 2.0, r: 140, shape: 'plateau' },
         { x: 620, y: 1090, h: 1.6, r: 190 },
         { x: 330, y: 320, h: 2.6, r: 132, shape: 'plateau' },
-        { x: 960, y: 1030, h: 3.6, r: 190 },
+        { x: 880, y: 1000, h: 2.4, r: 150 },
         { x: 740, y: 500, h: 3.2, r: 160 },
-        { x: 1030, y: 420, h: 4.0, r: 170 },
-        { x: 130, y: 900, h: 3.0, r: 160 }
+        { x: 130, y: 900, h: 3.0, r: 160 },
+        // Mountainside drop-off down the whole right edge (see h1).
+        { x: 1140, y: 1150, h: -7, r: 210, shape: 'plateau' },
+        { x: 1155, y: 800, h: -8, r: 230, shape: 'plateau' },
+        { x: 1130, y: 450, h: -6.5, r: 200, shape: 'plateau' }
       ],
     }
   ]
@@ -229,20 +245,23 @@ const wildvalley = {
     treeCanopy: '#44603a', treeCanopyLight: '#587547', treeTrunk: '#6d5642',
     haze: '#eaf0e2', hazeStrength: 0.5,
     backdrop: 'none', cloudStyle: 'wispy', blossomChance: 0,
-    treeKeys: ['tree_spruce', 'tree_pine'],
-    accentTreeKeys: ['tree_birch'],
-    backdropTreeStep: 96,
-    scatterKeys: ['fern_kenney', 'stone_d', 'bush_b'],
+    // Playtest round 3: NO trees ("I don't think Wild Horse has trees
+    // really") — open sand-hills horizon, golden fescue carries the look.
+    treeKeys: [],
+    bushKeys: [],
     heatherKeys: ['heather_fescue_a', 'heather_fescue_b', 'heather_fescue_c'],
     bunkerLipFescue: true,
+    // Every bunker's edge packed with the golden fescue, and blowouts dug
+    // into genuinely deep center-weighted bowls.
+    bunkerLipPacked: true,
     lushGrass: true,
     stripeStrength: 1.3,
-    tallGrass: { cap: 7, density: 11, waste: true },
+    tallGrass: { cap: 7, density: 17, waste: true },
     roughTuftHeight: 1.9,
-    tuftDensity: 1.6,
-    sandPlantKeys: ['heather_fescue_b', 'bush_b'],
-    sandPlantStep: 88, sandPlantKeep: 0.45,
-    sandSculpt: 0.5, bunkerDepthScale: 1.55,
+    tuftDensity: 2.2,
+    sandPlantKeys: ['heather_fescue_b'],
+    sandPlantStep: 80, sandPlantKeep: 0.5,
+    sandSculpt: 0.85, bunkerDepthScale: 2.3, wasteDepthScale: 2.8,
     edgeWobble: 3.0, mowPattern: 'classic', mowWidth: 28,
     greenMowPattern: 'checker',
     atmosphere: 'forest'
@@ -257,13 +276,16 @@ const wildvalley = {
       centerline: [[470, 1100], [462, 960], [452, 830], [468, 700], [496, 560], [508, 440], [510, 372]],
       width: [50, 78, 92, 88, 78, 62, 48],
       hazards: [
-        // The signature diagonal blowout splitting the drive zone.
-        { type: 'bunker', waste: true, polygon: blob(705, 775, 140, 120, 14, 0.36, 41, 0.7) },
-        { type: 'bunker', waste: true, polygon: blob(210, 900, 130, 180, 12, 0.42, 42) },
+        // The signature blowout field: pulled tight against the fairway and
+        // BROKEN into lobes with rough gaps between them (playtest: "brown
+        // patches breaking the full bunkers up") — each compact lobe digs
+        // its own deep bowl via wasteDepthScale.
+        { type: 'bunker', waste: true, polygon: blob(628, 800, 95, 85, 12, 0.36, 41, 0.7) },
+        { type: 'bunker', waste: true, polygon: blob(712, 665, 78, 70, 11, 0.38, 46) },
+        { type: 'bunker', waste: true, polygon: blob(305, 925, 95, 110, 12, 0.42, 42) },
+        { type: 'bunker', waste: true, polygon: blob(258, 762, 70, 78, 11, 0.4, 47) },
         { type: 'bunker', polygon: blob(430, 340, 34, 26, 9, 0.34, 43) },
-        { type: 'bunker', polygon: blob(596, 330, 30, 24, 9, 0.34, 44) },
-        // A kettle-moraine pine stand right of the approach.
-        { type: 'trees', spacing: 66, keepGround: true, polygon: blob(800, 420, 110, 150, 10, 0.35, 45) }
+        { type: 'bunker', polygon: blob(596, 330, 30, 24, 9, 0.34, 44) }
       ],
       aiTargets: [[455, 830], [495, 560]],
       elevation: [
@@ -280,25 +302,31 @@ const wildvalley = {
       number: 2, name: 'The Kettle', par: 3,
       world: { width: 880, height: 920 },
       tee: [440, 760], teeBox: { w: 26, d: 18 },
-      green: { cx: 430, cy: 430, rx: 70, ry: 58, rot: 0 },
-      slope: { angle: 3.1, strength: 0.3 },
-      centerline: [[440, 600], [434, 520]],
+      // KIDNEY-BEAN green (playtest: the flat par 3 had no challenge): two
+      // lobes bending around a deep pot bunker tucked into the notch, with
+      // the terrain tilting off the green INTO that bunker — a miss on the
+      // fat side feeds down and gets caught.
+      green: { cx: 400, cy: 440, rx: 62, ry: 50, rot: 0.3 },
+      green2: { cx: 480, cy: 380, rx: 52, ry: 44, rot: 0.3 },
+      slope: { angle: 3.1, strength: 0.34 },
+      centerline: [[440, 600], [428, 530]],
       width: [56, 62],
       hazards: [
-        // Deep kettle blowout guarding the direct line front-right.
-        { type: 'bunker', waste: true, polygon: blob(602, 578, 88, 84, 12, 0.34, 51) },
-        { type: 'bunker', polygon: blob(330, 500, 34, 26, 9, 0.34, 52) },
-        { type: 'bunker', waste: true, polygon: blob(180, 600, 110, 140, 12, 0.42, 53) },
-        { type: 'trees', spacing: 70, keepGround: true, polygon: blob(730, 360, 100, 140, 10, 0.35, 54) }
+        // The notch bunker in the crook of the kidney.
+        { type: 'bunker', polygon: blob(497, 472, 34, 30, 10, 0.3, 55) },
+        // Deep kettle blowout guarding the direct line front-right — in tight.
+        { type: 'bunker', waste: true, polygon: blob(568, 565, 84, 80, 12, 0.34, 51) },
+        { type: 'bunker', polygon: blob(318, 510, 34, 26, 9, 0.34, 52) },
+        { type: 'bunker', waste: true, polygon: blob(248, 588, 100, 130, 12, 0.42, 53) }
       ],
-      aiTargets: [[434, 500]],
+      aiTargets: [[400, 470]],
       elevation: [
         { x: 440, y: 780, h: 1.8, r: 130, shape: 'plateau' },
-        // The punchbowl: a ring of dune shoulders cupping the green.
-        { x: 300, y: 380, h: 2.8, r: 110 },
-        { x: 560, y: 380, h: 2.8, r: 110 },
+        // Big NW shoulder: the green cants toward the notch bunker so balls
+        // missing on the high side release down into it.
+        { x: 350, y: 375, h: 3.6, r: 155 },
         { x: 430, y: 250, h: 3.0, r: 120 },
-        { x: 430, y: 430, h: 1.2, r: 150, shape: 'plateau' },
+        { x: 585, y: 315, h: 2.6, r: 110 },
         { x: 150, y: 700, h: 2.4, r: 130 }
       ],
     },
@@ -311,15 +339,17 @@ const wildvalley = {
       centerline: [[400, 1410], [420, 1270], [470, 1130], [540, 1010], [610, 880], [660, 750], [700, 620], [730, 500], [752, 420]],
       width: [54, 80, 96, 94, 88, 80, 70, 58, 48],
       hazards: [
-        // Barrens both sides — the fairway is an island of turf in sand.
-        { type: 'bunker', waste: true, polygon: blob(180, 1050, 160, 320, 15, 0.4, 61) },
-        { type: 'bunker', waste: true, polygon: blob(900, 1120, 190, 260, 14, 0.42, 62) },
+        // Barrens both sides, pulled tight to the turf and broken into deep
+        // lobed bowls with rough ridges between them.
+        { type: 'bunker', waste: true, polygon: blob(285, 1160, 115, 150, 13, 0.4, 61) },
+        { type: 'bunker', waste: true, polygon: blob(248, 940, 95, 125, 12, 0.42, 68) },
+        { type: 'bunker', waste: true, polygon: blob(822, 1185, 125, 140, 13, 0.42, 62) },
+        { type: 'bunker', waste: true, polygon: blob(858, 985, 105, 120, 12, 0.4, 69) },
         // Cross-cluster at the second-shot decision point.
         { type: 'bunker', polygon: blob(560, 700, 44, 30, 10, 0.34, 63) },
         { type: 'bunker', polygon: blob(572, 706, 34, 26, 10, 0.3, 64) },
-        { type: 'bunker', waste: true, polygon: blob(320, 520, 130, 170, 12, 0.42, 65) },
-        { type: 'bunker', polygon: blob(846, 380, 34, 26, 9, 0.34, 66) },
-        { type: 'trees', spacing: 68, keepGround: true, polygon: blob(1050, 700, 110, 190, 10, 0.35, 67) }
+        { type: 'bunker', waste: true, polygon: blob(388, 535, 105, 135, 12, 0.42, 65) },
+        { type: 'bunker', polygon: blob(846, 380, 34, 26, 9, 0.34, 66) }
       ],
       aiTargets: [[470, 1130], [620, 860], [700, 600]],
       elevation: [
