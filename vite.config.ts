@@ -53,6 +53,19 @@ export default defineConfig({
         admin: resolve(__dirname, 'admin.html'),
         // Owner-reached press/marketing kit (linked from the admin dashboard)
         marketing: resolve(__dirname, 'marketing.html')
+      },
+      output: {
+        // Initial-load fix: the game shipped as ONE ~7 MB chunk, so every
+        // deploy (new content hash) forced phones to re-download the entire
+        // bundle — including the never-changing Babylon engine. Splitting the
+        // vendor libraries into their own chunks keeps their hashes STABLE
+        // across app-code deploys (repeat visits hit cache) and lets a cold
+        // load fetch engine + app in parallel over HTTP/2.
+        manualChunks(id: string) {
+          if (id.includes('node_modules/@babylonjs/')) return 'babylon';
+          if (id.includes('node_modules/firebase/') || id.includes('node_modules/@firebase/')) return 'firebase';
+          return undefined;
+        }
       }
     }
   }
