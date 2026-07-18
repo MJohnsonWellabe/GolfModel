@@ -16,11 +16,18 @@ import { streakRewardFor } from '../systems/Streak';
 import { weeklyEventFor, WEEKLY_ROTATION } from '../systems/WeeklyFeatured';
 import {
   emptyLiveOpsConfig,
+  LiveOpsAuditEntry,
   LiveOpsConfig,
   migrateLiveOpsConfig,
-  validateLiveOpsConfig
+  validateLiveOpsConfig,
+  warnLiveOpsConfig
 } from '../data/liveOpsConfig';
-import { loadLiveOpsConfig, publishLiveOpsConfig } from '../firebase/LiveOpsConfig';
+import {
+  loadLiveOpsAudit,
+  loadLiveOpsConfig,
+  loadPrevLiveOpsConfig,
+  publishLiveOpsConfig
+} from '../firebase/LiveOpsConfig';
 import { loadAdminDraft, saveAdminDraft, draftStatusMessage } from '../firebase/AdminDrafts';
 
 export const LIVEOPS_DRAFT_KEY = 'retentionLiveOps';
@@ -39,6 +46,8 @@ let draft: LiveOpsConfig;
 let mountApp: HTMLElement;
 let mountBack: () => void;
 let statusMsg = '';
+let auditEntries: LiveOpsAuditEntry[] = [];
+let hasPrev = false;
 
 const COURSE_NAMES: Record<string, string> = {
   sablebay: 'Sable Bay',
@@ -60,7 +69,35 @@ export async function renderLiveOps(app: HTMLElement, onBack: () => void): Promi
     : published
       ? `Loaded published v${published.version}.`
       : 'No draft or published config yet — starting empty.';
+  // Formalization (Phase 7): the audit trail + rollback availability. Both are
+  // best-effort reads — the editor works fine if they come back empty.
+  [auditEntries, hasPrev] = await Promise.all([
+    loadLiveOpsAudit(),
+    loadPrevLiveOpsConfig().then((p) => !!p)
+  ]);
   paint();
+}
+
+function thisWeekId(): string {
+  return weeklyEventFor(new Date()).id;
+}
+
+function auditSection(): string {
+  const rows = auditEntries
+    .map((e) => {
+      const when = new Date(e.at).toISOString().replace('T', ' ').replace(/\..*$/, ' UTC');
+      const act = e.action === 'revert' ? '↩ revert' : '🚀 publish';
+      return `<tr><td>${esc(when)}</td><td>${act}</td><td>v${e.version}</td><td>${esc(
+        e.by
+      )}</td><td>${e.dailyCount}d · ${e.weeklyCount}w</td></tr>`;
+    })
+    .join('');
+  const body = rows
+    ? `<table><tr><th>When</th><th>Action</th><th>Ver</th><th>By</th><th>Overrides</th></tr>${rows}</table>`
+    : `<p class="sub">No publish history yet.</p>`;
+  return `<section><h2>Audit trail</h2>
+    <p class="sub">Every publish and revert to <code>/liveOpsConfig</code>, newest first (from <code>/adminAudit/liveOps</code>).</p>
+    ${body}</section>`;
 }
 
 function todayKey(): string {
@@ -171,10 +208,18 @@ function paint(): void {
 
     <section><h2>Save &amp; publish</h2>
       <p class="sub">Save keeps a private draft (<code>/adminDrafts/${LIVEOPS_DRAFT_KEY}</code>). Publish validates and writes the public <code>/liveOpsConfig</code> node players read. Active configuration and drafts never mix.</p>
+      <p class="sub">${
+        draft.version
+          ? `Draft carries v${draft.version}${draft.publishedBy ? ` · last published by ${esc(draft.publishedBy)}` : ''}.`
+          : 'Not published yet.'
+      }</p>
       <button class="btn" data-action="save">💾 Save draft</button>
       <button class="btn" data-action="publish">🚀 Publish to live</button>
+      <button class="btn back" data-action="revert"${hasPrev ? '' : ' disabled title="No previous published version to roll back to"'}>↩ Revert to previous</button>
       <p class="sub" id="lo-status"></p>
     </section>
+
+    ${auditSection()}
 
     ${readOnlySections()}
   </div>`;
@@ -237,6 +282,9 @@ function onClick(e: Event): void {
     case 'publish':
       void doPublish();
       break;
+    case 'revert':
+      void doRevert();
+      break;
     default:
       break;
   }
@@ -254,22 +302,63 @@ async function doPublish(): Promise<void> {
     status(`⛔ Publish blocked:<ul>${errors.map((e2) => `<li>${esc(e2)}</li>`).join('')}</ul>`);
     return;
   }
+  const warnings = warnLiveOpsConfig(draft, todayKey(), thisWeekId());
   status('Publishing…');
   const payload: LiveOpsConfig = {
     ...draft,
     version: (Number(draft.version) || 0) + 1,
     publishedAt: Date.now()
   };
-  const res = await publishLiveOpsConfig(payload);
+  const res = await publishLiveOpsConfig(payload, 'publish');
   if (res.status === 'saved') {
     draft.version = payload.version;
     draft.publishedAt = payload.publishedAt;
-    status(`✅ Published v${payload.version} — live for all players.`);
+    // Refresh the rollback + audit state now that a new version is live.
+    [auditEntries, hasPrev] = await Promise.all([
+      loadLiveOpsAudit(),
+      loadPrevLiveOpsConfig().then((p) => !!p)
+    ]);
+    paint();
+    const warnHtml = warnings.length
+      ? `<br>⚠ Heads up:<ul>${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>`
+      : '';
+    status(`✅ Published v${payload.version} — live for all players.${warnHtml}`);
   } else if (res.status === 'denied') {
     status('⛔ Permission denied — deploy the /liveOpsConfig rule + /admins node (docs/FIREBASE_SETUP.md).');
   } else if (res.status === 'skipped') {
     status('⚠️ Not signed in — sign in as an admin to publish.');
   } else {
     status(`⚠️ Publish failed (offline/other): ${esc(res.error ?? 'unknown')}.`);
+  }
+}
+
+async function doRevert(): Promise<void> {
+  status('Loading the previous published config…');
+  const prev = await loadPrevLiveOpsConfig();
+  if (!prev) {
+    status('⚠️ No previous published version to roll back to.');
+    return;
+  }
+  status('Reverting…');
+  const payload: LiveOpsConfig = {
+    ...prev,
+    version: (Number(draft.version) || 0) + 1,
+    publishedAt: Date.now()
+  };
+  const res = await publishLiveOpsConfig(payload, 'revert');
+  if (res.status === 'saved') {
+    draft = migrateLiveOpsConfig(payload);
+    [auditEntries, hasPrev] = await Promise.all([
+      loadLiveOpsAudit(),
+      loadPrevLiveOpsConfig().then((p) => !!p)
+    ]);
+    paint();
+    status(`✅ Reverted — republished the previous config as v${payload.version}.`);
+  } else if (res.status === 'denied') {
+    status('⛔ Permission denied — deploy the /liveOpsConfig rule + /admins node (docs/FIREBASE_SETUP.md).');
+  } else if (res.status === 'skipped') {
+    status('⚠️ Not signed in — sign in as an admin to revert.');
+  } else {
+    status(`⚠️ Revert failed (offline/other): ${esc(res.error ?? 'unknown')}.`);
   }
 }

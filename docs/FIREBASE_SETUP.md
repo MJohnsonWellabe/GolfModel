@@ -107,6 +107,14 @@ the shared leaderboard) — or any project you prefer.
          ".read": true,
          ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
        },
+       "liveOpsConfigPrev": {
+         ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+         ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+       },
+       "adminAudit": {
+         ".read": "auth != null && root.child('admins').child(auth.uid).val() === true",
+         ".write": "auth != null && root.child('admins').child(auth.uid).val() === true"
+       },
        "weekly": {
          ".read": true,
          "$eventId": {
@@ -160,7 +168,14 @@ the shared leaderboard) — or any project you prefer.
    Ops): world-readable like `marketingConfig` (players resolve it at menu
    time with a deterministic local fallback), admin-write only. Reward
    amounts, mastery conditions and achievement definitions stay code-defined
-   and are NOT in this node.)
+   and are NOT in this node.
+   `liveOpsConfigPrev` and `adminAudit` back the Live Ops formalization
+   (Phase 7): on each publish the previously-live config is snapshotted to
+   `liveOpsConfigPrev` (the one-click **Revert to previous** rollback point)
+   and an append-only record is written under `adminAudit/liveOps` (who
+   published/reverted, when, which version). Both are admin-read/write only —
+   players never touch them — so they are safe to add and unrelated to the
+   world-readable `liveOpsConfig` the game reads.)
 
 ## Marketing Manager (`/marketingConfig`) — MANUAL console steps (you)
 

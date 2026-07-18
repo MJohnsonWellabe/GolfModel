@@ -22,10 +22,23 @@ import { WEEKLY_ROTATION } from '../systems/WeeklyFeatured';
 export interface LiveOpsConfig {
   version: number;
   publishedAt: number;
+  /** Email of the admin who published this version (audit trail, Phase 7). */
+  publishedBy?: string;
   /** date key (YYYY-MM-DD) → daily challenge id (from DAILY_CHALLENGES). */
   dailyOverrides: Record<string, string>;
   /** weekly event id (e.g. 'w2026-29') → course id override. */
   weeklyOverrides: Record<string, string>;
+}
+
+/** One published-config audit record (append-only /adminAudit/liveOps). */
+export interface LiveOpsAuditEntry {
+  at: number;
+  by: string;
+  version: number;
+  dailyCount: number;
+  weeklyCount: number;
+  /** 'publish' for a normal publish, 'revert' when rolling back. */
+  action: 'publish' | 'revert';
 }
 
 export function emptyLiveOpsConfig(): LiveOpsConfig {
@@ -42,6 +55,7 @@ export function migrateLiveOpsConfig(raw: unknown): LiveOpsConfig {
   const c = raw as Partial<LiveOpsConfig>;
   base.version = typeof c.version === 'number' ? c.version : 0;
   base.publishedAt = typeof c.publishedAt === 'number' ? c.publishedAt : 0;
+  if (typeof c.publishedBy === 'string' && c.publishedBy) base.publishedBy = c.publishedBy;
   for (const [k, v] of Object.entries(c.dailyOverrides ?? {})) {
     if (DATE_KEY.test(k) && typeof v === 'string') base.dailyOverrides[k] = v;
   }
@@ -66,6 +80,27 @@ export function validateLiveOpsConfig(cfg: LiveOpsConfig): string[] {
     if (!courses.has(courseId)) errors.push(`Weekly override ${week}: unknown course id "${courseId}".`);
   }
   return errors;
+}
+
+/**
+ * Non-blocking notices (Phase 7): things worth flagging to the admin that do
+ * NOT block a publish — chiefly overrides pinned to a date/week already in the
+ * past, which are inert (the day/week has passed) and usually a typo. `todayKey`
+ * is YYYY-MM-DD; `thisWeekId` is the current wYYYY-WW id.
+ */
+export function warnLiveOpsConfig(cfg: LiveOpsConfig, todayKey: string, thisWeekId: string): string[] {
+  const warnings: string[] = [];
+  for (const date of Object.keys(cfg.dailyOverrides ?? {})) {
+    if (DATE_KEY.test(date) && date < todayKey) {
+      warnings.push(`Daily override ${date} is in the past — it will never take effect.`);
+    }
+  }
+  for (const week of Object.keys(cfg.weeklyOverrides ?? {})) {
+    if (WEEK_KEY.test(week) && week < thisWeekId) {
+      warnings.push(`Weekly override ${week} is in the past — it will never take effect.`);
+    }
+  }
+  return warnings;
 }
 
 /** The effective daily challenge id for a date: override, else null (caller
