@@ -2,6 +2,7 @@ import '@babylonjs/loaders/glTF';
 import {
   Color3,
   LoadAssetContainerAsync,
+  Matrix,
   Mesh,
   Scene,
   StandardMaterial,
@@ -95,6 +96,13 @@ export const REED_KEYS = ['reed_cattail'] as const;
  *  so they keep their real rock texture instead of the flat stoneMat.
  *  Opt-in via theme.scatterKeys/shorelineKeys (coastal courses). */
 export const GRANITE_KEYS = ['stone_d', 'stone_e', 'stone_f'] as const;
+/** Uploaded PHOTO-textured mountain massif (asset-packs/red-mountain,
+ *  CC-BY-4.0 with attribution in the pack README) — Red Hollow's horizon
+ *  range. Opt-in via theme.peakKeys; keeps its imported rock textures. */
+export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red'] as const;
+/** The rest of the CC-BY red desert set (asset-packs/red-desert-set-README.md):
+ *  stylized rock clusters for waste rims, canyon slabs for the mid-ground. */
+export const DESERT_SET_KEYS = ['rocks_red_cluster', 'canyon_red_a', 'canyon_red_b'] as const;
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -111,7 +119,9 @@ const ALL_KEYS = [
   ...UPLOADED_KEYS,
   ...PALM_KEYS,
   ...REED_KEYS,
-  ...GRANITE_KEYS
+  ...GRANITE_KEYS,
+  ...MOUNTAIN_KEYS,
+  ...DESERT_SET_KEYS
 ];
 
 export interface NaturePalette {
@@ -304,15 +314,45 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       // SOURCE material name gets its own cached textured material rather
       // than collapsing to one.
       const isHeather = key.startsWith('heather');
+      /** The CC-BY red-desert packs (mountain range, canyon slabs, rock
+       *  clusters): photo-textured Sketchfab dioramas with sun baked into
+       *  the albedo. */
+      const isDesertDiorama =
+        (MOUNTAIN_KEYS as readonly string[]).includes(key) ||
+        (DESERT_SET_KEYS as readonly string[]).includes(key);
       const keepTexture =
         isHeather ||
         (UPLOADED_KEYS as readonly string[]).includes(key) ||
-        (GRANITE_KEYS as readonly string[]).includes(key);
+        (GRANITE_KEYS as readonly string[]).includes(key) ||
+        (MOUNTAIN_KEYS as readonly string[]).includes(key) ||
+        (DESERT_SET_KEYS as readonly string[]).includes(key);
       const texturedMats = new Map<string, StandardMaterial>();
       const buildTexturedMat = (mm: Mesh, matName: string): StandardMaterial => {
         const tm = new StandardMaterial(`natTex-${key}-${matName}`, scene);
-        const src = mm.material as unknown as { albedoTexture?: Texture; getActiveTextures?: () => Texture[] };
-        const tex = src?.albedoTexture ?? src?.getActiveTextures?.()?.[0];
+        const src = mm.material as unknown as {
+          albedoTexture?: Texture;
+          bumpTexture?: Texture;
+          getActiveTextures?: () => Texture[];
+        };
+        // For the desert dioramas, trust ONLY the real albedo slot — the
+        // getActiveTextures fallback happily returns a normal map, which
+        // painted the whole mountain range purple.
+        const tex = isDesertDiorama
+          ? src?.albedoTexture
+          : (src?.albedoTexture ?? src?.getActiveTextures?.()?.[0]);
+        if (isDesertDiorama && !tex && src?.bumpTexture) {
+          // The red_desert_mountains range ships NO albedo — all its rock
+          // detail lives in the normal map. Light a terracotta base through
+          // that normal map: the sun carves real ridged relief into the
+          // silhouette ("mountains in the background have no texture").
+          tm.diffuseColor = c3(0xb45636);
+          tm.bumpTexture = src.bumpTexture;
+          tm.emissiveColor = c3(0x54291a);
+          tm.specularColor = c3(0x000000);
+          tm.backFaceCulling = false;
+          tm.forceDepthWrite = true;
+          return tm;
+        }
         if (tex) {
           // Cut the card down to its true silhouette using the photo's OWN
           // alpha channel. IMPORTANT: use ONLY the diffuse alpha — an extra
@@ -324,7 +364,31 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           tm.useAlphaFromDiffuseTexture = true;
           tm.diffuseTexture.getAlphaFromRGB = false;
         }
-        tm.emissiveColor = c3(0x5a5a5a); // lift so the texture isn't dark under the sun
+        if (isDesertDiorama && tex) {
+          // The red-desert dioramas ship photo textures with the sun already
+          // baked in — show the baked photo at full brightness (like the
+          // unlit cloud cards) instead of re-lighting it. (Emissive texture
+          // ADDS to the flat emissive color, so the color stays black here.)
+          tm.emissiveColor = c3(0x000000);
+          tm.emissiveTexture = tex;
+          tm.disableLighting = true;
+          // The stylized rock albedos are baked DARK (volcanic Black-Desert
+          // look — wanted, but at 1.0 they collapse to silhouettes against
+          // the bright waste). Texture.level is a straight multiplier.
+          if (key.startsWith('rocks_red')) tex.level = 1.6;
+        } else if (key.startsWith('heather_fescue') && tex) {
+          // Sand-hills fescue should read GOLDEN (playtest: "brighter,
+          // longer grass, more vibrant — think Sand Valley"). The card
+          // photos are pre-warmed to sunlit gold in the glbs themselves
+          // (the source olive photo defeated every material-level fix: the
+          // cards' baked normals kill dynamic lighting, and shader emissive
+          // paths kept collapsing them to dark scrub). Render UNLIT so the
+          // gold reads exactly as authored, with a gentle lift.
+          tm.emissiveTexture = tex;
+          tm.disableLighting = true;
+        } else {
+          tm.emissiveColor = c3(0x5a5a5a); // lift so the texture isn't dark under the sun
+        }
         tm.specularColor = c3(0x000000);
         tm.backFaceCulling = false;
         tm.transparencyMode = 1; // ALPHATEST — crisp cutout
@@ -390,8 +454,10 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // That rendered every tree_a/b trunk as a flat black silhouette at
           // any camera (visual audit: "trunks go black up close") — no amount
           // of lighting can recover a ×0 vertex color. Photo-textured props
-          // (keepTexture) keep their authored attributes untouched.
-          if (!keepTexture) p.useVertexColors = false;
+          // (keepTexture) keep their authored attributes untouched — EXCEPT
+          // the red-desert dioramas, whose baked COLOR_0 (Sketchfab vertex
+          // AO) multiplied their albedo to near-black mottle in-scene.
+          if (!keepTexture || isDesertDiorama) p.useVertexColors = false;
           // Park below ground (kept enabled — Babylon only draws an instanced
           // mesh's instances while its source mesh is enabled).
           p.position.y = -9000;
@@ -404,7 +470,33 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           parts.push(p);
         });
       }
-      if (parts.length) out.set(key, { parts, height: maxY - minY || 1 });
+      if (parts.length) {
+        // Some source glbs bake a large node offset into their geometry
+        // (grass_g's blades sit ~245 units from its origin), so every
+        // instance rendered far from where it was planted — the rough tufts
+        // were simply invisible on-course. When the combined bounds sit far
+        // from the origin relative to the prop's own size, treat it as an
+        // authoring error and recenter the geometry over the origin (one
+        // shared shift, so multi-part props keep their arrangement).
+        let mnx = Infinity, mnz = Infinity, mxx = -Infinity, mxz = -Infinity;
+        for (const p of parts) {
+          const bb = p.getBoundingInfo().boundingBox;
+          mnx = Math.min(mnx, bb.minimum.x);
+          mnz = Math.min(mnz, bb.minimum.z);
+          mxx = Math.max(mxx, bb.maximum.x);
+          mxz = Math.max(mxz, bb.maximum.z);
+        }
+        const cx = (mnx + mxx) / 2;
+        const cz = (mnz + mxz) / 2;
+        const size = Math.max(mxx - mnx, mxz - mnz, maxY - minY, 0.001);
+        if (Math.hypot(cx, cz) > size * 2) {
+          for (const p of parts) {
+            p.bakeTransformIntoVertices(Matrix.Translation(-cx, 0, -cz));
+            p.refreshBoundingInfo();
+          }
+        }
+        out.set(key, { parts, height: maxY - minY || 1 });
+      }
     })
   );
   // Per-instance color variation needs a 'color' instanced buffer on each

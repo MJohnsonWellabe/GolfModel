@@ -1,0 +1,11 @@
+Model Information:
+* title:	Red Mountain
+* source:	https://sketchfab.com/3d-models/red-mountain-99f2123d3e99462d894fe6e3a6bdc698
+* author:	Poly-Polygonal (https://sketchfab.com/Poly-Polygonal)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Red Mountain" (https://sketchfab.com/3d-models/red-mountain-99f2123d3e99462d894fe6e3a6bdc698) by Poly-Polygonal (https://sketchfab.com/Poly-Polygonal) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

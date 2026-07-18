@@ -8,8 +8,8 @@
     "sunY": 120,
     "fairway": "#3e8f4a",
     "fairwayDark": "#357c40",
-    "rough": "#c2945f",
-    "roughDark": "#a67a48",
+    "rough": "#bc6f42",
+    "roughDark": "#9a5530",
     "fringe": "#5d9a52",
     "green": "#3f9150",
     "greenLight": "#57a962",
@@ -28,11 +28,19 @@
     "blossomChance": 0,
     "treeKeys": [],
     "peakKeys": [
+      "mountain_range_red",
       "mesa_a",
       "mesa_b",
       "mesa_c"
     ],
-    "stoneTint": "#a8543a",
+    "wasteRimKeys": [
+      "rocks_red_cluster",
+      "rock_desert_a",
+      "rock_desert_b",
+      "rock_desert_d",
+      "rock_desert_f"
+    ],
+    "stoneTint": "#b0522f",
     "bareRough": true,
     "scatterKeys": [
       "rock_desert_a",

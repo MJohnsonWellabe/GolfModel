@@ -79,7 +79,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'newCourses',
     description:
-      'V2 content expansion: Red Hollow + Kettle Barrens in the course roster, ' +
+      'V2 content expansion: Red Hollow + Wild Valley in the course roster, ' +
       'Play Next rotation, and wizard. Off = the original four-course roster.',
     owner: 'matt',
     defaults: { prod: false, dev: true },

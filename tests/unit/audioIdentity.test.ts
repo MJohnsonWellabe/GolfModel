@@ -45,7 +45,7 @@ describe('landing thumps', () => {
 
 describe('ambient beds', () => {
   it('every shipped course has a bed and every bed has parameters', () => {
-    for (const id of ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens']) {
+    for (const id of ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley']) {
       const kind = COURSE_BEDS[id];
       expect(kind, id).toBeTruthy();
       expect(BED_PARAMS[kind], kind).toBeTruthy();

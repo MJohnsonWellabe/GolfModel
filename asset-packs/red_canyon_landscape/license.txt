@@ -1,0 +1,11 @@
+Model Information:
+* title:	Red Canyon Landscape
+* source:	https://sketchfab.com/3d-models/red-canyon-landscape-6c483f7e87d541e5a1fb17bc2154a0be
+* author:	Šimon Ustal (https://sketchfab.com/simonustal)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Red Canyon Landscape" (https://sketchfab.com/3d-models/red-canyon-landscape-6c483f7e87d541e5a1fb17bc2154a0be) by Šimon Ustal (https://sketchfab.com/simonustal) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

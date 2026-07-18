@@ -100,7 +100,7 @@ const redhollow = {
   theme: {
     skyTop: '#4f9bd9', skyBottom: '#f2d9b8', sunX: 520, sunY: 120,
     fairway: '#3e8f4a', fairwayDark: '#357c40',
-    rough: '#c2945f', roughDark: '#a67a48',
+    rough: '#bc6f42', roughDark: '#9a5530',
     fringe: '#5d9a52', green: '#3f9150', greenLight: '#57a962',
     sand: '#cf6438', sandDark: '#a34526',
     water: '#2b6f9e', waterDeep: '#1c4d74',
@@ -109,8 +109,14 @@ const redhollow = {
     horizonTint: '#eec39a', hillTint: '#b4633e',
     backdrop: 'peaks', blossomChance: 0,
     treeKeys: [],
-    peakKeys: ['mesa_a', 'mesa_b', 'mesa_c'],
-    stoneTint: '#a8543a',
+    // mountain_range_red: the CC-BY range diorama, lit terracotta through
+    // its normal map (it ships no albedo — the relief IS the texture). The
+    // other dioramas don't work as backdrops: red_canyon_landscape is an
+    // aerial terrain slab, red_sand_desert_canyon's atlas collapses at
+    // 512px, and decimated mountain_red degrades to white blocks.
+    peakKeys: ['mountain_range_red', 'mesa_a', 'mesa_b', 'mesa_c'],
+    wasteRimKeys: ['rocks_red_cluster', 'rock_desert_a', 'rock_desert_b', 'rock_desert_d', 'rock_desert_f'],
+    stoneTint: '#b0522f',
     bareRough: true,
     scatterKeys: ['rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d', 'rock_desert_e', 'rock_desert_f', 'rock_desert_g', 'rock_desert_h'],
     sandPlantKeys: ['rock_desert_g', 'rock_desert_h', 'bush_b'],
@@ -210,15 +216,15 @@ const redhollow = {
 
 // ------------------------------------------------------------ Kettle Barrens
 // Erin Hills x Sand Valley (skewed Sand Valley): rolling fescue sand barrens.
-const kettlebarrens = {
-  name: 'Kettle Barrens',
+const wildvalley = {
+  name: 'Wild Valley',
   version: 2,
   theme: {
-    skyTop: '#66aede', skyBottom: '#e9f0e4', sunX: 420, sunY: 120,
-    fairway: '#93a75a', fairwayDark: '#81964d',
-    rough: '#a89a5e', roughDark: '#877946',
-    fringe: '#8aa05c', green: '#7c9e54', greenLight: '#92b366',
-    sand: '#e3cf9e', sandDark: '#c2a871',
+    skyTop: '#57a9e8', skyBottom: '#eef4e2', sunX: 420, sunY: 120,
+    fairway: '#7cb551', fairwayDark: '#6ca344',
+    rough: '#d6b060', roughDark: '#b6913f',
+    fringe: '#8fbb58', green: '#6fae4a', greenLight: '#8cc95f',
+    sand: '#f3e6bb', sandDark: '#dcc78e',
     water: '#3a7fae', waterDeep: '#235a84',
     treeCanopy: '#44603a', treeCanopyLight: '#587547', treeTrunk: '#6d5642',
     haze: '#eaf0e2', hazeStrength: 0.5,
@@ -227,9 +233,13 @@ const kettlebarrens = {
     accentTreeKeys: ['tree_birch'],
     backdropTreeStep: 96,
     scatterKeys: ['fern_kenney', 'stone_d', 'bush_b'],
-    heatherKeys: ['heather_fescue_a', 'heather_fescue_b', 'heather_fescue_c', 'heather_purple'],
+    heatherKeys: ['heather_fescue_a', 'heather_fescue_b', 'heather_fescue_c'],
     bunkerLipFescue: true,
-    tallGrass: { cap: 6, density: 7, waste: true },
+    lushGrass: true,
+    stripeStrength: 1.3,
+    tallGrass: { cap: 7, density: 11, waste: true },
+    roughTuftHeight: 1.9,
+    tuftDensity: 1.6,
     sandPlantKeys: ['heather_fescue_b', 'bush_b'],
     sandPlantStep: 88, sandPlantKeep: 0.45,
     sandSculpt: 0.5, bunkerDepthScale: 1.55,
@@ -357,4 +367,4 @@ function emit(course, id) {
   for (const h of out.holes) console.log(`${id} h${h.number} "${h.name}" par ${h.par} ${h.yardage}yd`);
 }
 emit(redhollow, 'redhollow');
-emit(kettlebarrens, 'kettlebarrens');
+emit(wildvalley, 'wildvalley');

@@ -1,0 +1,11 @@
+Model Information:
+* title:	Red Desert Mountains
+* source:	https://sketchfab.com/3d-models/red-desert-mountains-e31d4a971b3649e19162b5f809bfc2c0
+* author:	Angry_Filin (https://sketchfab.com/angry_filin)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Red Desert Mountains" (https://sketchfab.com/3d-models/red-desert-mountains-e31d4a971b3649e19162b5f809bfc2c0) by Angry_Filin (https://sketchfab.com/angry_filin) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

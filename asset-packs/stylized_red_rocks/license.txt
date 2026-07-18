@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stylized red rocks
+* source:	https://sketchfab.com/3d-models/stylized-red-rocks-43601d9c52ce4521a58f65fd730e9d2f
+* author:	SlagPerch 3D (https://sketchfab.com/slagperch3d)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stylized red rocks" (https://sketchfab.com/3d-models/stylized-red-rocks-43601d9c52ce4521a58f65fd730e9d2f) by SlagPerch 3D (https://sketchfab.com/slagperch3d) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

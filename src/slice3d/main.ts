@@ -43,7 +43,7 @@ import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
 import portjohnson from '../data/courses/portjohnson.json';
 import redhollow from '../data/courses/redhollow.json';
-import kettlebarrens from '../data/courses/kettlebarrens.json';
+import wildvalley from '../data/courses/wildvalley.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -401,7 +401,7 @@ const COURSES: Record<string, CourseData> = {
   ...(flag('newCourses')
     ? {
         redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
-        kettlebarrens: loadCourse(kettlebarrens as unknown as CourseAuthoring)
+        wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring)
       }
     : {})
 };
@@ -426,7 +426,7 @@ const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; 
   { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
   // V2 content expansion — filtered out below when the newCourses flag is off.
   { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
-  { id: 'kettlebarrens', name: 'Kettle Barrens', tag: 'Sand barrens · rolling fescue, huge blowouts, no water', icon: '⛳', art: 'marketing/img/kettlebarrens-blowout.png', difficulty: 'Rolling' }
+  { id: 'wildvalley', name: 'Wild Valley', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
 ].filter((c) => COURSES[c.id]);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
@@ -3101,7 +3101,7 @@ function playHole(): void {
 // The expansion ids ride at the end; nextCourseIdAfter already skips any id
 // missing from COURSES, so with the newCourses flag off the rotation is the
 // original four and with it on the two new courses join the loop.
-const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens'];
+const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley'];
 function nextCourseIdAfter(cur: string): string {
   const i = PLAY_NEXT_ROTATION.indexOf(cur);
   for (let step = 1; step <= PLAY_NEXT_ROTATION.length; step++) {

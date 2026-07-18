@@ -92,7 +92,7 @@ describe('hole mastery — three progressive challenges per hole', () => {
 
 describe('authored challenge data', () => {
   const HOLES = [1, 2, 3];
-  const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens'];
+  const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley'];
 
   it('every hole of every course authors exactly three named, described challenges', () => {
     for (const c of COURSES) {

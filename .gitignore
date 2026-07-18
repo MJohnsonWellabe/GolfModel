@@ -30,3 +30,14 @@ playwright-report/
 
 # Firebase CLI cache (functions deploys — docs/16_PAYMENTS.md)
 .firebase/
+
+# Raw Sketchfab source packs (huge; only the converted assets/models/nature
+# outputs ship — licenses + provenance READMEs stay tracked).
+asset-packs/red_desert_mountains/scene.*
+asset-packs/red_desert_mountains/textures/
+asset-packs/red_canyon_landscape/scene.*
+asset-packs/red_canyon_landscape/textures/
+asset-packs/red_sand_desert_canyon/scene.*
+asset-packs/red_sand_desert_canyon/textures/
+asset-packs/stylized_red_rocks/scene.*
+asset-packs/stylized_red_rocks/textures/

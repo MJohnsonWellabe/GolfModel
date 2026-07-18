@@ -3,9 +3,10 @@
 **Status:** IMPLEMENTATION RECORD (approved by Matt 2026-07-18 with changes:
 TWO new courses instead of one, names changed from the "Cholla" draft)
 **Shipped (dev-flagged):** `newCourses` — **Red Hollow** (Sand Hollow Resort
-× Wolf Creek: emerald fairways over red-rock canyon carries) and **Kettle
-Barrens** (Erin Hills × Sand Valley, skewed Sand Valley: rolling fescue sand
-barrens, huge blowouts, no water); `layouts` — authored pin sets (3 per
+× Wolf Creek: emerald fairways over red-rock canyon carries) and **Wild
+Valley** (Erin Hills × Sand Valley, skewed Sand Valley — renamed from the
+"Kettle Barrens" draft in the 2026-07 playtest: rolling golden fescue sand
+hills, huge blowouts, no water); `layouts` — authored pin sets (3 per
 green, front/tucked/side) + alternate tees across ALL six courses, drawn by
 the round seed so shared-seed rounds (Weekly/challenges) stay identical for
 everyone. Playability enforced by the Monte-Carlo suite; WEEKLY_ROTATION

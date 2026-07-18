@@ -214,6 +214,9 @@ export interface CourseTheme {
   /** Stone/rock prop tint (nature palette). Default neutral granite gray;
    *  Red Hollow sets red rock. */
   stoneTint?: number;
+  /** LARGE rock/cliff formations planted along the rims of waste bunkers
+   *  (per-edge, land side) — Red Hollow's canyon-wall read. Opt-in. */
+  wasteRimKeys?: readonly string[];
   /** Bare (grassless) rough: the ambient scatter plants NO grass tufts and NO
    *  flowers on rough — bushes and scatter props (rocks) carry the detail,
    *  with the scatter band widened so rock density reads intentional. */
@@ -365,6 +368,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'horizonTint'
     | 'hillTint'
     | 'peakKeys'
+    | 'wasteRimKeys'
     | 'stoneTint'
     | 'bareRough'
     | 'waterReflect'
@@ -475,6 +479,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (spec.stoneTint !== undefined) t.stoneTint = parseColor(spec.stoneTint, 0x7e7c72);
   if (spec.bareRough === true) t.bareRough = true;
   t.peakKeys = strings(spec.peakKeys);
+  t.wasteRimKeys = strings(spec.wasteRimKeys);
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
   const tg = spec.tallGrass as { cap?: unknown; density?: unknown; waste?: unknown } | undefined;

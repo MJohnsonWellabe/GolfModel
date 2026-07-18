@@ -4,7 +4,7 @@ import timberline from '../../src/data/courses/timberline.json';
 import wildwood from '../../src/data/courses/wildwood.json';
 import portjohnson from '../../src/data/courses/portjohnson.json';
 import redhollow from '../../src/data/courses/redhollow.json';
-import kettlebarrens from '../../src/data/courses/kettlebarrens.json';
+import wildvalley from '../../src/data/courses/wildvalley.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
@@ -87,12 +87,12 @@ describe('new course playability', () => {
     expect(mean, `Red Hollow mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 35000);
 
-  it('Kettle Barrens plays to a sane average and every hole finishes', () => {
+  it('Wild Valley plays to a sane average and every hole finishes', () => {
     // Wide Sand Valley fairways, punishing blowouts: generous off the tee,
     // honest around the greens. The gate catches an unescapable blowout.
-    const { mean, unfinished } = meanToPar(kettlebarrens as unknown as CourseAuthoring);
+    const { mean, unfinished } = meanToPar(wildvalley as unknown as CourseAuthoring);
     expect(unfinished, `unfinished holes ${unfinished}`).toBeLessThanOrEqual(UNFINISHED_TOLERANCE);
-    expect(mean, `Kettle Barrens mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Kettle Barrens mean ${mean.toFixed(2)}`).toBeLessThan(8);
+    expect(mean, `Wild Valley mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
+    expect(mean, `Wild Valley mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 35000);
 });

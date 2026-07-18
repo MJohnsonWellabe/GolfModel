@@ -84,18 +84,22 @@ readability
 
 ### Red Hollow — "the desert canyon" (expansion, `newCourses` flag)
 
-- **Visual motif:** emerald fairway ribbons through red-rock waste; terracotta
-  mesa horizon (`hillTint`); no trees — stone/scrub scatter.
+- **Visual motif:** emerald fairway ribbons through red-rock waste; a sunlit
+  red mountain range (the CC-BY `mountain_range_red` diorama, terracotta lit
+  through its normal map) over tinted mesa walls (`hillTint`/`peakKeys`);
+  volcanic Black-Desert rock clusters and bare red ground (`bareRough`) — no
+  grass rough, no trees.
 - **Ambient life (implemented):** 2 vultures riding slow, wide thermals very
   high (`desert` preset). Deliberately no mist, no birdsong.
 - **Ambient bed:** hot dry wind (higher band than alpine, slower gusts) with
   sparse insect clicks.
 - **Light/time assumption:** hard midday desert light, warm dust haze.
 
-### Kettle Barrens — "the sand barrens" (expansion, `newCourses` flag)
+### Wild Valley — "the sand hills" (expansion, `newCourses` flag)
 
-- **Visual motif:** rolling golden fescue, pale blowout sand, sparse pines;
-  treeline horizon under wispy cirrus.
+- **Visual motif:** bright rolling golden fescue (sunlit straw-gold cards,
+  pre-graded in the glbs), pale blowout sand, sparse pines; treeline horizon
+  under wispy cirrus. Think Sand Valley (WI) / Wild Horse (NE).
 - **Ambient life (implemented):** the `forest` preset (butterflies over the
   fescue margins + songbirds) — prairie life shares its silhouettes.
 - **Ambient bed:** soft prairie wind under sparse meadow chirps (`prairie`).

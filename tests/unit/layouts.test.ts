@@ -8,7 +8,7 @@ import wildwood from '../../src/data/courses/wildwood.json';
 import timberline from '../../src/data/courses/timberline.json';
 import portjohnson from '../../src/data/courses/portjohnson.json';
 import redhollow from '../../src/data/courses/redhollow.json';
-import kettlebarrens from '../../src/data/courses/kettlebarrens.json';
+import wildvalley from '../../src/data/courses/wildvalley.json';
 
 const ROSTER: Array<[string, CourseAuthoring]> = [
   ['sablebay', sablebay as unknown as CourseAuthoring],
@@ -16,7 +16,7 @@ const ROSTER: Array<[string, CourseAuthoring]> = [
   ['timberline', timberline as unknown as CourseAuthoring],
   ['portjohnson', portjohnson as unknown as CourseAuthoring],
   ['redhollow', redhollow as unknown as CourseAuthoring],
-  ['kettlebarrens', kettlebarrens as unknown as CourseAuthoring]
+  ['wildvalley', wildvalley as unknown as CourseAuthoring]
 ];
 
 function inPoly(x: number, y: number, poly: number[][]): boolean {

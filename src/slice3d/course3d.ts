@@ -785,6 +785,7 @@ export function buildCourse(
       ...(theme.bushKeys ?? BUSH_KEYS),
       ...(theme.cloudKeys ?? []),
       ...(theme.peakKeys ?? []),
+      ...(theme.wasteRimKeys ?? []),
       ...STONE_KEYS,
       ...(theme.grassKeys ?? GRASS_KEYS),
       ...(theme.flowerKeys ?? FLOWER_KEYS),
@@ -1268,19 +1269,76 @@ export function buildCourse(
         const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.72) });
         return m2;
       };
-      const nearMat = rowMat(0.3);
-      const farMat = rowMat(0.55);
+      const nearMat = rowMat(0.18);
+      const farMat = rowMat(0.42);
+      // PHOTO-textured massifs (theme peakKeys starting 'mountain', e.g. the
+      // CC-BY red mountain) form the NEAR range with their real rock
+      // textures; the tinted Kenney mesa silhouettes recede behind them.
+      const texturedKeys = peakKeys.filter((k) => k.startsWith('mountain') || k.startsWith('canyon'));
+      const tintedKeys = peakKeys.filter((k) => !k.startsWith('mountain') && !k.startsWith('canyon'));
       void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
-        // Two overlapping depth rows: a tighter near line and a taller far
-        // line peeking through the gaps — reads as a range, not spaced blocks.
+        if (texturedKeys.length) {
+          // These packs are full RANGE DIORAMAS (many peaks arranged by the
+          // artist) — place each exactly ONCE, centered behind the green, so
+          // the arrangement reads as authored. Multiple shifted instances
+          // scattered diorama pieces across the sky (one slab ended up over
+          // the tee camera).
+          texturedKeys.forEach((key, ki) => {
+            const proto = protos.get(key);
+            if (!proto) return;
+            // A diorama's origin is wherever its artist left it — often far
+            // from the visual center (the first attempt floated the range in
+            // the sky). Measure the combined geometry bounds and place BY
+            // them: bounds center over the target point, bounds bottom sunk
+            // just below the horizon ground line.
+            let bmin: Vector3 | null = null;
+            let bmax: Vector3 | null = null;
+            for (const part of proto.parts) {
+              const bb = part.getBoundingInfo().boundingBox;
+              bmin = bmin ? Vector3.Minimize(bmin, bb.minimum) : bb.minimum.clone();
+              bmax = bmax ? Vector3.Maximize(bmax, bb.maximum) : bb.maximum.clone();
+            }
+            if (!bmin || !bmax) return;
+            // A full range diorama gets exactly one, centered placement (its
+            // peaks are already arranged by the artist); a single massif gets
+            // a main placement plus a smaller offset echo so it reads as a
+            // range without the copy being obvious.
+            const spots = key.startsWith('mountain_range')
+              ? [{ dx: 0, dy: 0, h: 340 }]
+              : [
+                  { dx: -80 + ki * 500, dy: 0, h: 440 },
+                  { dx: 880 + ki * 500, dy: -380, h: 300 }
+                ];
+            for (let si = 0; si < spots.length; si++) {
+              const spot = spots[si];
+              const sMul = spot.h / proto.height;
+              const anchor = w2b(hole.pin.x + spot.dx, hole.pin.y - peakDist + 220 + spot.dy, -35);
+              const off = new Vector3(
+                -((bmin.x + bmax.x) / 2) * sMul,
+                -bmin.y * sMul,
+                -((bmin.z + bmax.z) / 2) * sMul
+              );
+              for (const part of proto.parts) {
+                const cl = part.clone(`hillRange${ki}_${si}`);
+                cl.position = anchor.add(off);
+                cl.scaling = new Vector3(sMul, sMul, sMul);
+                cl.applyFog = false;
+                cl.setEnabled(true);
+                cl.freezeWorldMatrix();
+              }
+            }
+          });
+        }
+        // Tinted silhouette rows behind the textured range (or standalone
+        // when a course lists only mesa keys).
         const rows: Array<{ dy: number; matr: StandardMaterial; hMul: number; count: number; spread: number }> = [
           { dy: 0, matr: nearMat, hMul: 1, count: 9, spread: 520 },
           { dy: 620, matr: farMat, hMul: 1.5, count: 7, spread: 700 }
         ];
-        rows.forEach((row, ri) => {
+        if (tintedKeys.length) rows.forEach((row, ri) => {
           const half = Math.floor(row.count / 2);
           for (let i = -half; i <= half; i++) {
-            const proto = protos.get(peakKeys[(((i + 12) * 5) + ri * 3) % peakKeys.length]);
+            const proto = protos.get(tintedKeys[(((i + 12) * 5) + ri * 3) % tintedKeys.length]);
             if (!proto) continue;
             const j = hash2(i * 3.7 + 11 + ri * 7, i * 8.9);
             const targetH = (170 + Math.abs(i) * 26 + j * 120) * row.hMul;
@@ -1806,7 +1864,7 @@ export function buildCourse(
           // Bushes/flowers are tall enough to visually crowd under a canopy's
           // true (overhanging) edge, so they respect the tree clearance;
           // forest-floor litter below is deliberately allowed close to trees.
-          else if (roll < 0.55 && bushSet.length && !nearTrees(jx, jy)) {
+          else if (roll < (theme.bareRough ? 0.62 : 0.55) && bushSet.length && !nearTrees(jx, jy)) {
             // The tall leafy plant (bush_kenney_b) stands a touch higher than the
             // rounded shrub; both stay knee-to-waist so they never read as walls.
             const e = bushSet[Math.floor(hash2(jx + 7, jy - 7) * bushSet.length) % bushSet.length];
@@ -1821,7 +1879,7 @@ export function buildCourse(
           // keyed: a fallen trunk is height-scaled from its LYING pose (big
           // height = huge length), a broken snag should tower like a dead
           // spar, everything else stays knee-high.
-          else if (scatter.length && roll < (theme.bareRough ? 0.78 : lush ? 0.68 : 0.625)) {
+          else if (scatter.length && roll < (theme.bareRough ? 0.82 : lush ? 0.68 : 0.625)) {
             const e = scatter[Math.floor(hash2(jx + 17, jy - 17) * scatter.length) % scatter.length];
             const sh =
               e.key === 'tree_broken'
@@ -2106,6 +2164,59 @@ export function buildCourse(
       }
       });
     }
+    // Waste-rim cliff formations (theme.wasteRimKeys — Red Hollow's canyon
+    // walls): walk each WASTE bunker's perimeter and plant LARGE tinted rock/
+    // cliff formations on the land side, so the red waste reads carved below
+    // rock rims (references: fairways perched against stratified rock).
+    // Same per-edge normal technique as the shoreline band below.
+    if (theme.wasteRimKeys && theme.wasteRimKeys.length) {
+      popQueue.push(() => {
+        const rims = pickKeyed(theme.wasteRimKeys ?? []);
+        if (!rims.length) return;
+        for (const hz of hole.hazards) {
+          if (hz.type !== 'bunker' || !hz.waste) continue;
+          const n = hz.polygon.length;
+          for (let i = 0; i < n; i++) {
+            const [x1, y1] = hz.polygon[i];
+            const [x2, y2] = hz.polygon[(i + 1) % n];
+            const segLen = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.round(segLen / 34));
+            let nx = -(y2 - y1) / (segLen || 1);
+            let ny = (x2 - x1) / (segLen || 1);
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            if (engine.surfaceAt(mx + nx * 8, my + ny * 8) === 'sand') {
+              nx = -nx;
+              ny = -ny;
+            }
+            for (let sIdx = 0; sIdx < steps; sIdx++) {
+              const t = (sIdx + 0.5) / steps;
+              const px = x1 + (x2 - x1) * t;
+              const py = y1 + (y2 - y1) * t;
+              const roll = hash2(px * 1.3, py * 2.7);
+              if (roll > 0.55) continue; // broken formations, not a wall
+              const off = 6 + hash2(px + 3, py - 8) * 10;
+              const ox = px + nx * off + (hash2(px, py + 11) - 0.5) * 8;
+              const oy = py + ny * off + (hash2(py, px - 3) - 0.5) * 8;
+              // Rough side only — never crowd fairway/green/sand edges.
+              if (engine.surfaceAt(ox, oy) !== 'rough') continue;
+              if (Math.hypot(ox - hole.pin.x, oy - hole.pin.y) < 130) continue;
+              if (Math.hypot(ox - hole.tee.x, oy - hole.tee.y) < 90) continue;
+              const e = rims[Math.floor(hash2(ox + 5, oy + 1) * rims.length) % rims.length];
+              // Boulder-to-outcrop scale, biggest pieces rarest.
+              const big = hash2(ox * 0.7, oy * 0.9);
+              const rh = e.key.startsWith('rocks_red')
+                ? 6 + big * 10
+                : e.key.startsWith('mesa')
+                  ? 5 + big * 9
+                  : 2.2 + big * 3.4;
+              placeProto(e.proto, ox, oy, rh);
+            }
+          }
+        }
+      });
+    }
+
     // Shoreline margin scatter (theme.shorelineKeys — opt-in per course): real
     // water always announces its edge, but every waterline in the game met the
     // turf as two flat colors (visual audit: "shorelines have no margin"). Walk

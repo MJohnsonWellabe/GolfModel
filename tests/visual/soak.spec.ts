@@ -36,7 +36,7 @@ interface SoakSnap {
   heapMB: number | null;
 }
 
-const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens'];
+const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley'];
 
 test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) => {
   test.setTimeout(1_500_000);
