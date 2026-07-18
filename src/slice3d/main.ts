@@ -17,6 +17,7 @@ import {
   Viewport
 } from '@babylonjs/core';
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
+import { countUpValue } from '../core/countUp';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { mountEnvBadge } from '../core/envBadge';
 import { flag } from '../core/flags';
@@ -849,6 +850,29 @@ class HoleScene {
     this.puff.manualEmitCount = 12;
   }
 
+  /** A small white-gold sparkle at the ball on a PERFECT strike (perfect power
+   *  + perfect accuracy) — the "flushed it" tell (Phase 6 juice). Reuses the
+   *  shared puff system; a manual emit, so zero steady-state cost. */
+  private perfectSparkle(): void {
+    const b = this.state.ballPos;
+    (this.puff.emitter as Vector3).copyFrom(w2b(b.x, b.y, 0.8 + this.gh(b.x, b.y)));
+    this.puff.color1 = new Color4(1, 1, 0.9, 0.9);
+    this.puff.color2 = new Color4(1, 0.85, 0.4, 0.5);
+    this.puff.manualEmitCount = 10;
+  }
+
+  /** One short haptic tick where supported (Android Chrome; iOS Safari has no
+   *  vibration API). Kept to single sub-40ms pulses on genuinely earned beats
+   *  (perfect strike, hole-out) so it stays a tell, not a buzz. */
+  private hapticTick(ms: number): void {
+    if (profile.settings.reducedMotion) return;
+    try {
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate(ms);
+    } catch {
+      /* never let a haptic failure touch the shot path */
+    }
+  }
+
   private ctx(): ShotContext {
     return {
       ball: this.state.ballPos,
@@ -885,6 +909,13 @@ class HoleScene {
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
+    // Fire vignette (juice): while an on-fire HUMAN is at address, a static
+    // warm edge glow carries the state beyond the meter. CSS-only overlay;
+    // cleared on launch (executeShot) and scene teardown (dispose).
+    document.documentElement.classList.toggle(
+      'fire-vignette',
+      flag('juice') && fire.isOnFire && !this.comps[this.turnIdx].isAI
+    );
     // The meter owns renderPacing.meterActive only while its cursor is actually
     // sweeping, so idle aiming stays unblocked and background scenery keeps
     // filling. But the camera is now PARKED at address: freeze the two dominant
@@ -1880,6 +1911,8 @@ class HoleScene {
     renderPacing.meterActive = false;
     renderPacing.cameraParked = false;
     shotCapture.setRotationPaused(false);
+    // The address-time fire vignette ends the moment the shot launches.
+    document.documentElement.classList.remove('fire-vignette');
     this.pal?.setAiming(false); // stop the address dance once the swing starts
     this.aimRoot.setEnabled(false);
     this.hideTrueVision(); // "stays up until the shot is struck" ends here
@@ -2009,6 +2042,18 @@ class HoleScene {
           if (len > 1e-3) this.camPunchDir.scaleInPlace(1 / len);
           this.camPunchT = 0.16;
         }
+        // Perfect strike (perfect power AND accuracy on a human full swing):
+        // a small sparkle at the ball + one short haptic tick — the moment of
+        // contact finally tells the player they flushed it (Phase 6 juice).
+        if (
+          flag('juice') &&
+          !this.ai &&
+          converted.powerQuality === 'perfect' &&
+          converted.accuracyQuality === 'perfect'
+        ) {
+          this.perfectSparkle();
+          this.hapticTick(20);
+        }
       }
     });
   }
@@ -2042,6 +2087,23 @@ class HoleScene {
       // beat ordinary holes were missing (Phase 6). celebrateHoleOut's golden
       // shower overrides it in the same tick for the special moments.
       if (!c.isAI && club.id === 'putter' && flag('juice')) this.cupBurst();
+      if (!c.isAI && flag('juice')) this.hapticTick(30);
+      // Celebration camera (Phase 2 Pass C): ease into a slow push-in toward
+      // the celebrating golfer for the reaction window. Reuses the normal
+      // camTarget lerp with a gentle gain — no new camera, and this window
+      // never accepts input. Reduced motion keeps the current framing.
+      if (!c.isAI && flag('delight') && !profile.settings.reducedMotion) {
+        const g = this.golfer.root.getAbsolutePosition();
+        // Dolly in along the current ground-plane view line toward the golfer,
+        // settling at a three-quarter close-up that keeps the flag in frame.
+        const back = this.camera.position.subtract(g);
+        back.y = 0;
+        const len = back.length();
+        if (len > 1e-3) back.scaleInPlace(1 / len);
+        this.camTarget.pos = g.add(back.scale(11)).add(new Vector3(0, 4.6, 0));
+        this.camTarget.look = g.add(new Vector3(0, 2.1, 0));
+        this.camTarget.k = 1.1;
+      }
       // Surprise & delight (Part 10): a tasteful golden burst + one-line
       // celebration for the genuinely special skill moments only — never for
       // ordinary shots, no modals, no perf cost (reuses the landing puff).
@@ -2676,6 +2738,7 @@ class HoleScene {
 
   dispose(): void {
     this.disposed = true;
+    document.documentElement.classList.remove('fire-vignette');
     // Cancel any still-pending intro-flyover timers outright (they were only
     // no-op'd by the disposed guard before — harmless, but the timers
     // lingered past scene teardown).
@@ -2721,7 +2784,18 @@ function showLoading(msg = 'Loading course…'): void {
   loadingEl?.classList.add('on');
 }
 function hideLoading(): void {
-  loadingEl?.classList.remove('on');
+  if (!loadingEl) return;
+  // Delight: release the veil with a short fade (CSS transition under
+  // ff-delight) instead of a hard swap. The .fading class keeps display:flex
+  // through the transition; reduced motion (or flag off) keeps today's
+  // instant release.
+  if (flag('delight') && !profile.settings.reducedMotion && loadingEl.classList.contains('on')) {
+    loadingEl.classList.add('fading');
+    loadingEl.classList.remove('on');
+    setTimeout(() => loadingEl.classList.remove('fading'), 400);
+  } else {
+    loadingEl.classList.remove('on');
+  }
 }
 /** Show the loading veil, wait for it to actually PAINT, then run a heavy,
  *  main-thread-blocking build — so tapping "Tee off" gives instant feedback
@@ -2730,8 +2804,8 @@ function hideLoading(): void {
  *  setTimeout fallback still runs the build where rAF is throttled (headless /
  *  backgrounded tabs). The veil lifts one frame after the build so the fresh
  *  course paints first. Runs `build` exactly once. */
-function buildWithLoading(build: () => void): void {
-  showLoading();
+function buildWithLoading(build: () => void, msg?: string): void {
+  showLoading(msg);
   let ran = false;
   const go = (): void => {
     if (ran) return;
@@ -2810,7 +2884,12 @@ function playHole(): void {
     });
     round.holeIdx += 1;
     if (round.holeIdx < holesThisRound()) {
-      playHole();
+      // Between holes the next scene builds synchronously — without a veil the
+      // screen froze on the old hole's last frame for the whole build. Run the
+      // rebuild behind the same paint-guaranteed veil as round start, labeled
+      // with the upcoming hole so the cut reads as the round's rhythm.
+      const next = round.course.holes[round.holeIdx];
+      buildWithLoading(() => playHole(), next ? `Hole ${next.number} · Par ${next.par}` : undefined);
     } else {
       showSummary();
     }
@@ -3114,8 +3193,8 @@ function showSummary(): void {
 
   // ---- Compact results card (Part 1): score + PB, records, ONE objective,
   // expandable details, and the two primary actions (Replay / Play Next) ----
-  const pbLabel =
-    prevBest === null ? 'First round here' : totals[0] < prevBest ? '🏆 New best!' : `Best: ${prevBest}`;
+  const isNewBest = prevBest !== null && totals[0] < prevBest;
+  const pbLabel = prevBest === null ? 'First round here' : isNewBest ? '🏆 New best!' : `Best: ${prevBest}`;
   // Records broken / near-missed — cap at two lines so the card stays calm.
   const recLines = recEvents
     .slice(0, 2)
@@ -3139,7 +3218,7 @@ function showSummary(): void {
     `<div id="recBanner" class="recBanner"></div>` +
     `<div class="scoreHead"><span class="big">${totals[0]}</span>` +
     `<span class="toPar">${parLabel(totals[0])}</span>` +
-    `<span class="pb">${pbLabel}</span></div>` +
+    `<span class="pb${isNewBest ? ' newBest' : ''}">${pbLabel}</span></div>` +
     starLine +
     recLines +
     rewardStripHtml(events) +
@@ -3168,6 +3247,27 @@ function showSummary(): void {
         `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
   replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
+  // Reveal cascade (Pass B): children stagger in under ff-delight (CSS is
+  // scoped, so the class is inert with the flag off). Re-added per show so the
+  // fresh innerHTML's children animate every round.
+  summaryEl.classList.add('cascade');
+  // Score count-up: the big total counts to the real score over ~0.6 s. The
+  // pure countUpValue clamp guarantees the exact final number; reduced motion
+  // and flag-off render the final value on the first frame.
+  const bigEl = summaryEl.querySelector<HTMLElement>('.scoreHead .big');
+  if (bigEl && flag('delight') && !profile.settings.reducedMotion && totals[0] > 0) {
+    const t0 = performance.now();
+    const DUR = 600;
+    const step = (now: number): void => {
+      // The card was torn down (replay/menu tapped mid-count) → stop quietly.
+      if (!bigEl.isConnected) return;
+      const t = (now - t0) / DUR;
+      bigEl.textContent = String(countUpValue(0, totals[0], t));
+      if (t < 1) requestAnimationFrame(step);
+    };
+    bigEl.textContent = '0';
+    requestAnimationFrame(step);
+  }
   // Tournament: submit this round as the player's entry (first score stands)
   // and show the live standings (Phase 8).
   if (round.tournament) void submitTournamentRound(round.tournament.code, record, holes.length);

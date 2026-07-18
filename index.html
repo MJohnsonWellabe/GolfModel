@@ -71,12 +71,52 @@
       html.ff-delight #landing.on .landingInner {
         animation: screenIn var(--dur-screen) var(--ease-out) both;
       }
+      /* Results reveal cascade (Phase 2 Pass B): the card's children stagger
+         in top-to-bottom so the score lands first and the reveal reads as a
+         sequence, not a wall. Capped at the first 12 children so a
+         reward-heavy card never delays the primary buttons; later children
+         join the 12th's beat. Flag-off / reduced motion = single frame. */
+      html.ff-delight #summary.cascade > * {
+        animation: screenIn var(--dur-screen) var(--ease-out) both;
+        animation-delay: calc(var(--dur-fast) * 4);
+      }
+      html.ff-delight #summary.cascade > *:nth-child(1) { animation-delay: 0s; }
+      html.ff-delight #summary.cascade > *:nth-child(2) { animation-delay: 0.045s; }
+      html.ff-delight #summary.cascade > *:nth-child(3) { animation-delay: 0.09s; }
+      html.ff-delight #summary.cascade > *:nth-child(4) { animation-delay: 0.135s; }
+      html.ff-delight #summary.cascade > *:nth-child(5) { animation-delay: 0.18s; }
+      html.ff-delight #summary.cascade > *:nth-child(6) { animation-delay: 0.225s; }
+      html.ff-delight #summary.cascade > *:nth-child(7) { animation-delay: 0.27s; }
+      html.ff-delight #summary.cascade > *:nth-child(8) { animation-delay: 0.315s; }
+      html.ff-delight #summary.cascade > *:nth-child(9) { animation-delay: 0.36s; }
+      html.ff-delight #summary.cascade > *:nth-child(10) { animation-delay: 0.405s; }
+      html.ff-delight #summary.cascade > *:nth-child(11) { animation-delay: 0.45s; }
+      html.ff-delight #summary.cascade > *:nth-child(12) { animation-delay: 0.48s; }
+      /* One-shot shimmer for the "New best!" tag and record lines — a single
+         highlight sweep, never looping (results screens must stay calm). */
+      @keyframes recShimmer {
+        0% { filter: brightness(1); }
+        45% { filter: brightness(1.65); }
+        100% { filter: brightness(1); }
+      }
+      html.ff-delight #summary .pb.newBest,
+      html.ff-delight #summary .recLine {
+        animation: screenIn var(--dur-screen) var(--ease-out) both,
+          recShimmer 0.9s var(--ease-in-out) 0.45s 1;
+      }
+      html.ff-delight #summary .starLine {
+        animation: popIn var(--dur-ui) var(--ease-spring) both;
+      }
       /* Motion off — honor BOTH the OS setting and the in-game Reduced Motion
          toggle (mirrored onto html.reduce-motion by applyDeviceSettings). */
       @media (prefers-reduced-motion: reduce) {
         .animIn,
         .animPop,
         .fadeIn,
+        #summary.cascade > *,
+        #summary .pb.newBest,
+        #summary .recLine,
+        #summary .starLine,
         #landing.on .landingInner {
           animation: none !important;
         }
@@ -84,6 +124,10 @@
       html.reduce-motion .animIn,
       html.reduce-motion .animPop,
       html.reduce-motion .fadeIn,
+      html.reduce-motion #summary.cascade > *,
+      html.reduce-motion #summary .pb.newBest,
+      html.reduce-motion #summary .recLine,
+      html.reduce-motion #summary .starLine,
       html.reduce-motion #landing.on .landingInner {
         animation: none !important;
       }
@@ -705,6 +749,29 @@
       }
       #loading.on {
         display: flex;
+      }
+      /* Delight: the veil releases with a short fade instead of vanishing.
+         Kept as a .fading helper class so the display:none swap can wait for
+         the fade (hideLoading). Instant under reduced motion / flag off. */
+      html.ff-delight #loading.fading {
+        display: flex;
+        opacity: 0;
+        transition: opacity var(--dur-screen) var(--ease-out);
+        pointer-events: none;
+      }
+      /* Fire vignette (juice): a static warm edge glow while an on-fire human
+         is at address. Pure composited CSS on a non-interactive overlay —
+         edges only, so the ball/aim corridor stays clean. */
+      #fireVignette {
+        position: fixed;
+        inset: 0;
+        display: none;
+        pointer-events: none;
+        z-index: 4;
+        box-shadow: inset 0 0 90px 18px rgba(255, 110, 20, 0.28);
+      }
+      html.fire-vignette #fireVignette {
+        display: block;
       }
       #loadingBox {
         display: flex;
@@ -2835,6 +2902,7 @@
   </head>
   <body>
     <canvas id="scene"></canvas>
+    <div id="fireVignette" aria-hidden="true"></div>
     <div id="loading" aria-live="polite" aria-busy="true">
       <div id="loadingBox">
         <div id="loadingSpin"></div>
