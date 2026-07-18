@@ -44,8 +44,12 @@ the shared leaderboard) — or any project you prefer.
    ```
    These are **public identifiers** — committing them is safe and standard;
    all security lives in the database rules below.
-5. **Deploy database rules** — Build → Realtime Database → Rules → replace
-   with:
+5. **Deploy database rules** — these are now version-controlled in
+   `database.rules.json` and deployed by CI (`.github/workflows/deploy-database.yml`)
+   on any push to `version2` that changes them, using the `FIREBASE_SERVICE_ACCOUNT`
+   secret. **No manual console paste is needed** once that secret is set — edit
+   `database.rules.json` and push. The block below is the same content, kept here
+   as the manual fallback (Build → Realtime Database → Rules → replace with):
    ```json
    {
      "rules": {

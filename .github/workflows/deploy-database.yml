@@ -1,0 +1,56 @@
+# Deploy Realtime Database security rules from database.rules.json.
+#
+# The rules are now version-controlled and deployed by CI — no more pasting the
+# JSON into the Firebase console by hand. On a push to version2 that changes the
+# rules file, this deploys ONLY the database rules (nothing else is touched).
+#
+# DORMANT until the FIREBASE_SERVICE_ACCOUNT repo secret exists (the same secret
+# deploy-functions.yml uses — Settings → Secrets and variables → Actions). Until
+# then the job no-ops, so it never blocks the Pages deploy, and the console rules
+# stay whatever they are. Once the secret is set, the NEXT rules push makes the
+# live rules exactly match database.rules.json.
+name: Deploy Database Rules
+
+on:
+  push:
+    branches: [version2]
+    paths:
+      - 'database.rules.json'
+      - 'firebase.json'
+      - '.github/workflows/deploy-database.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secret is configured
+        id: gate
+        env:
+          SVC: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$SVC" ]; then
+            echo "FIREBASE_SERVICE_ACCOUNT secret not set — skipping rules deploy."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.ready == 'true'
+        with:
+          node-version: 20
+
+      - name: Write service-account key
+        if: steps.gate.outputs.ready == 'true'
+        run: echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Deploy database rules
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/sa.json
+        run: npx firebase-tools deploy --only database --project golfgame-9c11e --non-interactive
