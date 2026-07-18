@@ -11,6 +11,79 @@
     <title>Bite-Sized Golf</title>
     <link rel="icon" href="data:," />
     <style>
+      /* ---- Delight: central easing + timing table (Phase 2) --------------
+         One source of truth for motion curves and durations so every animated
+         surface shares the same feel instead of scattered magic numbers. */
+      :root {
+        --ease-out: cubic-bezier(0.22, 1, 0.36, 1); /* soft settle */
+        --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+        --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* gentle overshoot */
+        --dur-fast: 0.12s;
+        --dur-ui: 0.2s;
+        --dur-screen: 0.34s;
+        --dur-slow: 0.6s;
+      }
+      /* Screen/content entrance: a soft fade + rise, shared by the landing,
+         setup wizard steps, and the results screen. */
+      @keyframes screenIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes popIn {
+        from {
+          opacity: 0;
+          transform: scale(0.94);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      .animIn {
+        animation: screenIn var(--dur-screen) var(--ease-out) both;
+      }
+      .animPop {
+        animation: popIn var(--dur-ui) var(--ease-spring) both;
+      }
+      /* Opacity-only fade for full-screen containers, where a transform could
+         nudge a fixed scroll panel. */
+      .fadeIn {
+        animation: fadeIn var(--dur-screen) var(--ease-out) both;
+      }
+      /* Landing content rises in whenever the overlay is shown. */
+      #landing.on .landingInner {
+        animation: screenIn var(--dur-screen) var(--ease-out) both;
+      }
+      /* Motion off — honor BOTH the OS setting and the in-game Reduced Motion
+         toggle (mirrored onto html.reduce-motion by applyDeviceSettings). */
+      @media (prefers-reduced-motion: reduce) {
+        .animIn,
+        .animPop,
+        .fadeIn,
+        #landing.on .landingInner {
+          animation: none !important;
+        }
+      }
+      html.reduce-motion .animIn,
+      html.reduce-motion .animPop,
+      html.reduce-motion .fadeIn,
+      html.reduce-motion #landing.on .landingInner {
+        animation: none !important;
+      }
       html,
       body {
         margin: 0;

@@ -2809,6 +2809,18 @@ function nextObjectiveLine(courseId: string, total: number, prevBestTotal: numbe
   return `Play ${COURSES[next].name} next to improve your course record`;
 }
 
+/**
+ * Replay a CSS entrance animation on a PERSISTENT element (one that is shown/
+ * hidden rather than re-created). Removing the class, forcing a reflow, then
+ * re-adding it restarts the keyframes so the fade plays on every show. A no-op
+ * feel under Reduced Motion, where the CSS zeroes the animation. (Phase 2.)
+ */
+function replayAnim(el: HTMLElement, cls: string): void {
+  el.classList.remove(cls);
+  void el.offsetWidth; // force reflow so the animation can restart
+  el.classList.add(cls);
+}
+
 function showSummary(): void {
   current?.dispose();
   current = null;
@@ -3108,6 +3120,7 @@ function showSummary(): void {
         `<button id="shareChBtn" class="ghostBtn">⚔ Share</button>` +
         `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
+  replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
   // Tournament: submit this round as the player's entry (first score stands)
   // and show the live standings (Phase 8).
   if (round.tournament) void submitTournamentRound(round.tournament.code, record, holes.length);
@@ -4593,6 +4606,10 @@ function applyDeviceSettings(): void {
   profile.settings.ambience = deviceSettings.ambience;
   profile.settings.reducedMotion = deviceSettings.reducedMotion;
   applyAmbienceVolume();
+  // Mirror the in-game Reduced Motion preference onto the root element so the
+  // CSS delight (screen fade-ins, transitions) can honor it alongside the OS
+  // `prefers-reduced-motion` media query. Both switch the same motion off.
+  document.documentElement.classList.toggle('reduce-motion', deviceSettings.reducedMotion);
 }
 
 /** Update + persist device preferences (guests included), then apply live. */
@@ -5231,6 +5248,7 @@ function renderStepBody(): void {
   else if (label === 'Course') renderCourse();
   else if (label === 'Ready') renderTournamentReady();
   else renderOpponent();
+  replayAnim(stepBodyEl, 'animIn'); // each wizard step slides gently into place
 }
 
 function updateNav(): void {
