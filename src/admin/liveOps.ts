@@ -23,6 +23,11 @@ import {
   warnLiveOpsConfig
 } from '../data/liveOpsConfig';
 import {
+  detectRedundantOverrides,
+  previewDailySchedule,
+  previewWeeklySchedule
+} from '../data/liveOpsSchedule';
+import {
   loadLiveOpsAudit,
   loadLiveOpsConfig,
   loadPrevLiveOpsConfig,
@@ -172,6 +177,39 @@ function readOnlySections(): string {
     </section>`;
 }
 
+/** Schedule preview (Studio Module 1 / Prompt 14): what the DRAFT will make
+ *  players actually see — next 14 dailies + next 6 weeklies, provenance
+ *  marked. Built from the same resolvers the game uses, so it cannot drift. */
+function scheduleSection(): string {
+  const daily = previewDailySchedule(draft, todayKey(), 14)
+    .map((d) => {
+      const tag =
+        d.source === 'override'
+          ? d.redundant
+            ? ' <b title="Pins what this day already serves — safe to remove">📌 override (no-op)</b>'
+            : ' <b>📌 override</b>'
+          : '';
+      return `<tr><td><code>${esc(d.date)}</code></td><td>${esc(d.challengeName)}</td><td>${tag}</td></tr>`;
+    })
+    .join('');
+  const weekly = previewWeeklySchedule(draft, new Date(), 6)
+    .map((w) => {
+      const tag =
+        w.source === 'override'
+          ? w.redundant
+            ? ' <b title="Pins what this week already runs — safe to remove">📌 override (no-op)</b>'
+            : ' <b>📌 override</b>'
+          : '';
+      return `<tr><td><code>${esc(w.weekId)}</code></td><td>${esc(COURSE_NAMES[w.courseId] ?? w.courseId)}</td><td>${tag}</td></tr>`;
+    })
+    .join('');
+  return `<section><h2>Schedule preview (draft)</h2>
+    <p class="sub">The player-effective schedule this draft produces — deterministic defaults with your overrides applied. Updates as you edit, BEFORE publishing.</p>
+    <h3>Next 14 dailies</h3><table>${daily}</table>
+    <h3>Next 6 Weekly Featured</h3><table>${weekly}</table>
+  </section>`;
+}
+
 function paint(): void {
   const today = todayKey();
   const todaysDefault = dailyChallengeFor(today);
@@ -218,6 +256,8 @@ function paint(): void {
       <button class="btn back" data-action="revert"${hasPrev ? '' : ' disabled title="No previous published version to roll back to"'}>↩ Revert to previous</button>
       <p class="sub" id="lo-status"></p>
     </section>
+
+    ${scheduleSection()}
 
     ${auditSection()}
 
@@ -302,7 +342,10 @@ async function doPublish(): Promise<void> {
     status(`⛔ Publish blocked:<ul>${errors.map((e2) => `<li>${esc(e2)}</li>`).join('')}</ul>`);
     return;
   }
-  const warnings = warnLiveOpsConfig(draft, todayKey(), thisWeekId());
+  const warnings = [
+    ...warnLiveOpsConfig(draft, todayKey(), thisWeekId()),
+    ...detectRedundantOverrides(draft)
+  ];
   status('Publishing…');
   const payload: LiveOpsConfig = {
     ...draft,
