@@ -13,6 +13,11 @@ export default defineConfig({
   timeout: 120_000,
   fullyParallel: false,
   workers: 1,
+  // CI only: one retry absorbs shared-runner infrastructure flakes (browser
+  // context protocol errors, marginal timing under load — the perf gates doc
+  // calls headless numbers "directional"). A REAL regression still fails both
+  // attempts; locally tests stay strict at zero retries.
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: 'http://127.0.0.1:5199',
     viewport: { width: 720, height: 1280 },
