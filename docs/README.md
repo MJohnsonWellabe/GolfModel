@@ -76,6 +76,10 @@ lagged current policy):
 - `08_LIVE_SERVICE_AND_PROGRESSION.md` — accounts, progression, Season Pass
 - `10_COURSE_DESIGN_BIBLE.md` — course/hole authoring (incl. mastery stars)
 - `gameplay/CORE_GAMEPLAY_PILLARS.md` — gameplay feel protections
+- `content/CHARACTER_PERSONALITY_BIBLE.md` — who each character is (V2 Phase 3)
+- `content/COURSE_ATMOSPHERE_BIBLE.md` — per-course ambient identity (V2 Phase 4)
+- `technical/ANALYTICS_FRAMEWORK.md` — event registry + metric definitions (V2 Prompt 16)
+- `studio/STUDIO_TECHNICAL_ARCHITECTURE.md` — Studio module map + backlog (V2 Prompt 15)
 
 Active operational runbooks (do not archive):
 
@@ -90,7 +94,13 @@ Implementation records (evidence, not governing guidance):
 
 - `20_V1_FINAL_UX_ADMIN_PASS.md`
 - `21_RETENTION_AND_PERFORMANCE_PASS.md`
+- `22_V2_DELIGHT_AUDIT.md` (V2 Prompts 4–6 + 13)
+- `23_V2_AUDIO_IDENTITY.md` (V2 Prompts 11–12)
 - `03B_REFERENCE_GUIDE.md` (creative reference)
+
+Proposals awaiting approval (not building yet):
+
+- `24_CONTENT_EXPANSION_PROPOSAL.md` (V2 Prompt 17 — Cholla Canyon + alternate layouts)
 
 Everything else from the old numbered set now lives under `archive/`
 (superseded-design, release-plans, implementation-history) with retirement
