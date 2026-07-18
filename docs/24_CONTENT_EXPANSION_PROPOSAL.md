@@ -1,9 +1,19 @@
-# Content Expansion Proposal — "Cholla Canyon" + Alternate Layouts
+# Content Expansion — Approved & Implemented (dev)
 
-**Status:** DRAFT (Prompt 17 deliverable — proposal only, per the roadmap:
-"Do not automatically implement the proposal")
-**Gate:** implement only after the V2 polish phases have soaked in dev and
-the flag set has shipped; requires explicit approval.
+**Status:** IMPLEMENTATION RECORD (approved by Matt 2026-07-18 with changes:
+TWO new courses instead of one, names changed from the "Cholla" draft)
+**Shipped (dev-flagged):** `newCourses` — **Red Hollow** (Sand Hollow Resort
+× Wolf Creek: emerald fairways over red-rock canyon carries) and **Kettle
+Barrens** (Erin Hills × Sand Valley, skewed Sand Valley: rolling fescue sand
+barrens, huge blowouts, no water); `layouts` — authored pin sets (3 per
+green, front/tucked/side) + alternate tees across ALL six courses, drawn by
+the round seed so shared-seed rounds (Weekly/challenges) stay identical for
+everyone. Playability enforced by the Monte-Carlo suite; WEEKLY_ROTATION
+deliberately unchanged until the prod flag flip.
+
+The original draft below is retained for the reasoning record.
+
+---
 
 ## Why this package
 

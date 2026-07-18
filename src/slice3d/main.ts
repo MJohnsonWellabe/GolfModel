@@ -42,6 +42,8 @@ import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
 import portjohnson from '../data/courses/portjohnson.json';
+import redhollow from '../data/courses/redhollow.json';
+import kettlebarrens from '../data/courses/kettlebarrens.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -55,6 +57,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
+import { applyTeeVariants, pickAuthoredPin } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, isSignedIn, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
@@ -368,7 +371,16 @@ const COURSES: Record<string, CourseData> = {
   wildwood: loadCourse(wildwood as unknown as CourseAuthoring),
   sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
   timberline: loadCourse(timberline as unknown as CourseAuthoring),
-  portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring)
+  portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring),
+  // V2 content expansion (newCourses flag, dev-on/prod-off): absent from the
+  // roster with the flag off, so every downstream surface (wizard, Play Next
+  // rotation, records fallbacks) sees the original four courses untouched.
+  ...(flag('newCourses')
+    ? {
+        redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
+        kettlebarrens: loadCourse(kettlebarrens as unknown as CourseAuthoring)
+      }
+    : {})
 };
 
 /** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
@@ -388,8 +400,11 @@ const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; 
   { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
   { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'marketing/img/sablebay-island.png', difficulty: 'Daring' },
   { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' }
-];
+  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
+  // V2 content expansion — filtered out below when the newCourses flag is off.
+  { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
+  { id: 'kettlebarrens', name: 'Kettle Barrens', tag: 'Sand barrens · rolling fescue, huge blowouts, no water', icon: '⛳', art: 'marketing/img/kettlebarrens-blowout.png', difficulty: 'Rolling' }
+].filter((c) => COURSES[c.id]);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
@@ -513,7 +528,11 @@ function pinForHole(idx: number): Point {
   if (!round.holePins[idx]) {
     const h = round.course.holes[idx];
     const rng = round.seed !== undefined ? mulberry32(round.seed * 2003 + idx * 97 + 7) : Math.random;
-    round.holePins[idx] = randomPinForGreen(h.green, h.green2, rng);
+    // Layouts (flag-gated): a hole with AUTHORED pin placements draws among
+    // those deliberate positions; otherwise (or flag off) the classic random
+    // ellipse pin. Same seeded stream either way.
+    const authored = flag('layouts') ? pickAuthoredPin(h, rng) : null;
+    round.holePins[idx] = authored ?? randomPinForGreen(h.green, h.green2, rng);
   }
   return round.holePins[idx];
 }
@@ -2929,6 +2948,10 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
 
 function playHole(): void {
   current?.dispose();
+  // Layouts (flag-gated): materialize this seed's tee variants onto the round
+  // course. Idempotent + deterministic (same seed → same tees), so calling it
+  // per hole is safe; without authored `tees` it returns the course unchanged.
+  if (flag('layouts')) round.course = applyTeeVariants(round.course, round.seed);
   refreshAmbienceBed(); // per-course bed follows the round (V2 Phase 5)
   // Restore the gameplay chrome the results screen hid.
   swingBtn.style.display = '';
@@ -2954,7 +2977,10 @@ function playHole(): void {
 
 /** The canonical Play Next rotation (Part 1): a simple, predictable order the
  *  player can learn. Unavailable courses are skipped safely. */
-const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson'];
+// The expansion ids ride at the end; nextCourseIdAfter already skips any id
+// missing from COURSES, so with the newCourses flag off the rotation is the
+// original four and with it on the two new courses join the loop.
+const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens'];
 function nextCourseIdAfter(cur: string): string {
   const i = PLAY_NEXT_ROTATION.indexOf(cur);
   for (let step = 1; step <= PLAY_NEXT_ROTATION.length; step++) {

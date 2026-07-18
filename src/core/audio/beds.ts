@@ -16,14 +16,16 @@
 
 import { ambienceBus, audioContext } from './engine';
 
-export type BedKind = 'coastal' | 'harbor' | 'forest' | 'alpine';
+export type BedKind = 'coastal' | 'harbor' | 'forest' | 'alpine' | 'desert' | 'prairie';
 
-/** Course → bed (bible identities). */
+/** Course → bed (bible identities; expansion courses per their briefs). */
 export const COURSE_BEDS: Record<string, BedKind> = {
   sablebay: 'coastal',
   portjohnson: 'harbor',
   wildwood: 'forest',
-  timberline: 'alpine'
+  timberline: 'alpine',
+  redhollow: 'desert',
+  kettlebarrens: 'prairie'
 };
 
 /** All the taste knobs in one place (see doc: tuned on-device later). */
@@ -31,7 +33,13 @@ export const BED_PARAMS = {
   coastal: { lowpassHz: 420, swellHz: 0.09, swellDepth: 0.5, base: 0.4 },
   harbor: { lowpassHz: 300, swellHz: 0.055, swellDepth: 0.55, base: 0.36, hornGapS: [75, 120], hornGain: 0.1 },
   forest: { hissHz: 3000, hissQ: 2, hissGain: 0.07, chirpGapS: [4, 9], chirpGain: 0.1 },
-  alpine: { bandHz: 700, bandQ: 0.7, gustHz: 0.05, gustDepth: 0.6, base: 0.3 }
+  alpine: { bandHz: 700, bandQ: 0.7, gustHz: 0.05, gustDepth: 0.6, base: 0.3 },
+  // Red Hollow: hot dry wind (higher band than alpine, slower gusts) with
+  // sparse insect clicks instead of birdsong.
+  desert: { bandHz: 1100, bandQ: 0.6, gustHz: 0.035, gustDepth: 0.55, base: 0.26, clickGapS: [6, 14], clickGain: 0.06 },
+  // Kettle Barrens: soft prairie wind under sparse meadow chirps — between
+  // the alpine gusts and the forest's chatter.
+  prairie: { bandHz: 850, bandQ: 0.65, gustHz: 0.06, gustDepth: 0.5, base: 0.24, chirpGapS: [7, 14], chirpGain: 0.08 }
 } as const;
 
 let noiseBuf: AudioBuffer | null = null;
@@ -165,13 +173,33 @@ function buildBed(ctx: AudioContext, bus: AudioNode, kind: BedKind, bed: ActiveB
     });
     return;
   }
-  // alpine wind
-  const p = BED_PARAMS.alpine;
+  // wind-family beds: alpine / desert / prairie share the band-passed gust
+  // core and differ in band, pace, and their sparse accent.
+  const p = BED_PARAMS[kind];
   const bp = ctx.createBiquadFilter();
   bp.type = 'bandpass';
   bp.frequency.value = p.bandHz;
   bp.Q.value = p.bandQ;
   noiseSwell(ctx, bus, bed, bp, p.base, p.gustHz, p.gustDepth);
+  if (kind === 'desert') {
+    const d = BED_PARAMS.desert;
+    // Insect click: one very short high tick, occasionally doubled.
+    recurring(bed, d.clickGapS, () => {
+      tone(ctx, bus, 4200, 4200, 0.03, d.clickGain, 'square');
+      if (Math.random() < 0.4) {
+        const t2 = setTimeout(() => {
+          if (active === bed) tone(ctx, bus, 4400, 4400, 0.03, d.clickGain * 0.8, 'square');
+        }, 120);
+        bed.timers.push(t2);
+      }
+    });
+  } else if (kind === 'prairie') {
+    const pr = BED_PARAMS.prairie;
+    recurring(bed, pr.chirpGapS, () => {
+      const f = 2400 + Math.random() * 700;
+      tone(ctx, bus, f, f + 350, 0.12, pr.chirpGain, 'sine');
+    });
+  }
 }
 
 /** Start (or switch to) the bed for `kind`. No-op when it's already playing.

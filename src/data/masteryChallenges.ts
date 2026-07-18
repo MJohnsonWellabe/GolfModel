@@ -107,6 +107,40 @@ export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
     S('Clean Passage', 'Make par with no sand or water', (h) => par(h) && noSand(h) && noWater(h)),
     S('Harbour Birdie', 'Birdie the par 5', birdie),
     S('Links Eagle', 'Eagle the par 5', eagle)
+  ]),
+
+  // ---- Red Hollow (desert canyon; red-rock waste; carry golf) ----
+  ladder('redhollow', 1, [
+    S('Off the Rock', 'Make par avoiding the red sand', (h) => par(h) && noSand(h)),
+    S('Rimrock Birdie', 'Birdie the hole', birdie),
+    S('Canyon Flush', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('redhollow', 2, [
+    S('Clear the Kitchen', 'Carry the chasm — green in regulation', gir),
+    S('Kitchen Birdie', 'Birdie across the chasm', birdie),
+    S('Devil Dagger', 'Stick the tee shot inside 6 feet', (h) => inside(h, 6))
+  ]),
+  ladder('redhollow', 3, [
+    S('Run the Canyon', 'Make par or better', par),
+    S('Dry Wolf', 'Birdie without finding the creek', (h) => birdie(h) && noWater(h)),
+    S('Wolf Eagle', 'Eagle the par 5', eagle)
+  ]),
+
+  // ---- Kettle Barrens (sand barrens; fescue; huge blowouts) ----
+  ladder('kettlebarrens', 1, [
+    S('Thread the Blowout', 'Hit the fairway and make par', (h) => fir(h) && par(h)),
+    S('Barrens Birdie', 'Birdie the hole', birdie),
+    S('Flawless Barrens', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('kettlebarrens', 2, [
+    S('Into the Kettle', 'Hit the green in regulation', gir),
+    S('Kettle Birdie', 'Green in regulation and one putt', (h) => gir(h) && onePutt(h)),
+    S('Punchbowl Roll', 'Hole a putt of 15 feet or longer', (h) => (h.longestPuttFt ?? 0) >= 15)
+  ]),
+  ladder('kettlebarrens', 3, [
+    S('Out of the Sandbox', 'Make par avoiding every bunker', (h) => par(h) && noSand(h)),
+    S('Sandbox Birdie', 'Birdie the par 5', birdie),
+    S('Barrens Eagle', 'Eagle the par 5', eagle)
   ])
 ];
 

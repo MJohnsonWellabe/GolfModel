@@ -92,7 +92,7 @@ describe('hole mastery — three progressive challenges per hole', () => {
 
 describe('authored challenge data', () => {
   const HOLES = [1, 2, 3];
-  const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson'];
+  const COURSES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'kettlebarrens'];
 
   it('every hole of every course authors exactly three named, described challenges', () => {
     for (const c of COURSES) {
@@ -108,7 +108,7 @@ describe('authored challenge data', () => {
         }
       }
     }
-    expect(MASTERY_CHALLENGES).toHaveLength(12);
+    expect(MASTERY_CHALLENGES).toHaveLength(18);
   });
 
   it('each hole ladder is fully clearable — some plausible play earns all three stars', () => {

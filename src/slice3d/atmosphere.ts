@@ -26,7 +26,7 @@ import { hash2 } from '../systems/treeField';
  * from the course theme.
  */
 
-export type AtmosphereKind = 'coastal' | 'forest' | 'alpine' | 'none';
+export type AtmosphereKind = 'coastal' | 'forest' | 'alpine' | 'desert' | 'none';
 
 interface Anchor {
   tee: { x: number; y: number };
@@ -254,6 +254,45 @@ function buildAlpineLife(scene: Scene, anchor: Anchor, w2b: W2B): void {
   });
 }
 
+/** Desert life (Red Hollow): two vultures riding thermals in wide, slow
+ *  circles very high — the hawk pattern, darker and lazier, no mist. */
+function buildDesertLife(scene: Scene, anchor: Anchor, w2b: W2B): void {
+  const vultureMat = billboardMat(scene, 'hawkV', { w: 64, h: 32 }, new Color3(0.12, 0.1, 0.09), (ctx, w, h) =>
+    paintWings(ctx, w, h, 0.9)
+  );
+  const vultures: Array<{ mesh: Mesh; cx: number; cy: number; r: number; ph: number; rate: number; alt: number }> = [];
+  for (let i = 0; i < 2; i++) {
+    const j = hash2(i * 8.7 + 5, i * 3.1);
+    const m = MeshBuilder.CreatePlane(`hawkVult${i}`, { width: 24, height: 12 }, scene);
+    m.material = vultureMat;
+    m.billboardMode = Mesh.BILLBOARDMODE_ALL;
+    m.applyFog = false;
+    vultures.push({
+      mesh: m,
+      cx: (anchor.tee.x + anchor.pin.x) / 2 + (j - 0.5) * 800,
+      cy: (anchor.tee.y + anchor.pin.y) / 2 - 800 - i * 600,
+      r: 320 + j * 180,
+      ph: j * Math.PI * 2,
+      rate: 0.07 + j * 0.04,
+      alt: 700 + i * 130 + j * 60
+    });
+  }
+  let t = 0;
+  scene.onBeforeRenderObservable.add(() => {
+    if (isFrozen()) return;
+    const dt = scene.getEngine().getDeltaTime() / 1000;
+    t += dt;
+    for (const v of vultures) {
+      const a = t * v.rate * Math.PI * 2 + v.ph;
+      const p = v.mesh.position;
+      const target = w2b(v.cx + Math.cos(a) * v.r, v.cy + Math.sin(a) * v.r, 0);
+      p.x = target.x;
+      p.z = target.z;
+      p.y = target.y + v.alt + Math.sin(t * 0.4 + v.ph) * 10;
+    }
+  });
+}
+
 /**
  * Build the ambient life for a hole. The caller resolves `kind` from the
  * course theme and gates on the `atmosphere` feature flag; 'none' is a no-op.
@@ -262,4 +301,5 @@ export function buildAtmosphere(scene: Scene, kind: AtmosphereKind, anchor: Anch
   if (kind === 'coastal') buildGulls(scene, anchor, w2b);
   else if (kind === 'forest') buildForestLife(scene, anchor, w2b);
   else if (kind === 'alpine') buildAlpineLife(scene, anchor, w2b);
+  else if (kind === 'desert') buildDesertLife(scene, anchor, w2b);
 }

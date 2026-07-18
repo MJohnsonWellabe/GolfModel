@@ -14,6 +14,7 @@ describe('theme atmosphere key (V2 Phase 4)', () => {
     expect(resolveTheme(themed({ atmosphere: 'forest' })).atmosphere).toBe('forest');
     expect(resolveTheme(themed({ atmosphere: 'alpine' })).atmosphere).toBe('alpine');
     expect(resolveTheme(themed({ atmosphere: 'coastal' })).atmosphere).toBe('coastal');
+    expect(resolveTheme(themed({ atmosphere: 'desert' })).atmosphere).toBe('desert');
     expect(resolveTheme(themed({ atmosphere: 'none' })).atmosphere).toBe('none');
     expect(resolveTheme(themed({ atmosphere: 'blizzard' })).atmosphere).toBeUndefined();
     expect(resolveTheme(themed({})).atmosphere).toBeUndefined();

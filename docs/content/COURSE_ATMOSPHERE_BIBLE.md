@@ -82,6 +82,25 @@ readability
   detectable, so simply keep it rare and quiet).
 - **Light/time assumption:** slightly hazier, later-day warmth.
 
+### Red Hollow — "the desert canyon" (expansion, `newCourses` flag)
+
+- **Visual motif:** emerald fairway ribbons through red-rock waste; terracotta
+  mesa horizon (`hillTint`); no trees — stone/scrub scatter.
+- **Ambient life (implemented):** 2 vultures riding slow, wide thermals very
+  high (`desert` preset). Deliberately no mist, no birdsong.
+- **Ambient bed:** hot dry wind (higher band than alpine, slower gusts) with
+  sparse insect clicks.
+- **Light/time assumption:** hard midday desert light, warm dust haze.
+
+### Kettle Barrens — "the sand barrens" (expansion, `newCourses` flag)
+
+- **Visual motif:** rolling golden fescue, pale blowout sand, sparse pines;
+  treeline horizon under wispy cirrus.
+- **Ambient life (implemented):** the `forest` preset (butterflies over the
+  fescue margins + songbirds) — prairie life shares its silhouettes.
+- **Ambient bed:** soft prairie wind under sparse meadow chirps (`prairie`).
+- **Light/time assumption:** open midwestern light, gentle haze.
+
 ## Data model
 
 Course JSON opts in via the theme block: `"atmosphere": "coastal" | "forest"

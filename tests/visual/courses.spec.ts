@@ -53,5 +53,7 @@ test('wizard course step lists every course', async ({ page }) => {
   await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.modeCard[data-course]');
   const count = await page.locator('.modeCard[data-course]').count();
-  expect(count).toBe(4);
+  // Tests run against the dev environment, where the newCourses flag adds the
+  // two expansion courses to the original four (prod stays 4 until release).
+  expect(count).toBe(6);
 });

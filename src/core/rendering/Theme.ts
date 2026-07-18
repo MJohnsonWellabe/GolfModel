@@ -47,7 +47,7 @@ export interface CourseTheme {
    *  see docs/content/COURSE_ATMOSPHERE_BIBLE.md): coastal gulls, forest
    *  butterflies/songbirds, alpine hawks/mist, or none. Unset defaults to
    *  'coastal' on sea-backdrop courses (the shipped gulls), else 'none'. */
-  atmosphere?: 'coastal' | 'forest' | 'alpine' | 'none';
+  atmosphere?: 'coastal' | 'forest' | 'alpine' | 'desert' | 'none';
   /** Fraction of trees that bloom pink (azaleas/cherries). */
   blossomChance: number;
   /** Ground-scatter density multiplier (grass tufts/bushes/flowers); 1 = default. */
@@ -204,6 +204,10 @@ export interface CourseTheme {
   /** Warm band low on the sky dome (sunlit horizon glow). Unset = the
    *  historical 4-stop gradient, byte-identical. */
   horizonTint?: number;
+  /** Tint for the far-horizon backdrop hills ('peaks' backdrop). Unset keeps
+   *  the classic sky-hazed domes; a desert course sets terracotta so the
+   *  horizon reads as red-rock mesas (Red Hollow). */
+  hillTint?: number;
   /**
    * Links tall grass (marram/fescue). When set, the rough grows sparse, tall
    * wind-grass tufts up to `cap` world units (well above the knee-high default),
@@ -349,6 +353,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bunkerStones'
     | 'bunkerLipFescue'
     | 'horizonTint'
+    | 'hillTint'
     | 'waterReflect'
     | 'waterReflectStrength'
     | 'tallGrass'
@@ -404,6 +409,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     spec.atmosphere === 'coastal' ||
     spec.atmosphere === 'forest' ||
     spec.atmosphere === 'alpine' ||
+    spec.atmosphere === 'desert' ||
     spec.atmosphere === 'none'
   ) {
     t.atmosphere = spec.atmosphere;
@@ -452,6 +458,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   // fixed cream that only suits the parkland default.
   t.horizonTint =
     spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
+  if (spec.hillTint !== undefined) t.hillTint = parseColor(spec.hillTint, shade(t.skyTop, 1.06));
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
   const tg = spec.tallGrass as { cap?: unknown; density?: unknown; waste?: unknown } | undefined;

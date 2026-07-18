@@ -67,6 +67,25 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
   },
   {
+    key: 'layouts',
+    description:
+      'V2 content expansion: seeded alternate tee/pin layouts. Authored pin sets ' +
+      'replace the random-ellipse pin; alternate tees join the seeded draw. ' +
+      'Off = the original random pins + fixed tees, byte-identical.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
+    key: 'newCourses',
+    description:
+      'V2 content expansion: Red Hollow + Kettle Barrens in the course roster, ' +
+      'Play Next rotation, and wizard. Off = the original four-course roster.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release (incl. WEEKLY_ROTATION growth), then remove'
+  },
+  {
     key: 'audio',
     description:
       'V2 Phase 5 audio identity: WebAudio SFX variation (impacts/putt/swing), ' +

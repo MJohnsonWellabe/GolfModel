@@ -332,6 +332,16 @@ export interface HoleData {
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */
   elevation?: Array<{ x: number; y: number; h: number; r: number; shape?: 'dome' | 'plateau' }>;
+  /** Authored alternate PIN placements (V2 layouts, `layouts` flag). When
+   *  present, the round's seeded pin draw picks among these deliberate
+   *  positions instead of a random point on the green; every entry must sit
+   *  inside the green (unit-enforced). Absent → random ellipse pin as ever. */
+  pins?: Point[];
+  /** Alternate TEE positions (the authored `tee` is always variant 0). The
+   *  round seed picks a variant, so Replay and shared-seed rounds (Weekly,
+   *  challenges) keep identical layouts for everyone. Alternates are authored
+   *  near the standard tee complex so aiTargets/elevation stay valid. */
+  tees?: Point[];
 }
 
 export interface CourseData {

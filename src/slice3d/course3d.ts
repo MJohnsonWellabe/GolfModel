@@ -1216,7 +1216,12 @@ export function buildCourse(
     // + Fuji peak read as hard triangle mountains, which playtest wanted gone.
     // Flattened, haze-tinted domes sit low behind the treeline so the horizon
     // reads as gentle rolling land, never a spiky range.
-    const hillMat = mat(scene, 'hill', shade(theme.skyTop, 1.06), { emissive: shade(theme.skyTop, 0.62) });
+    // hillTint (optional theme knob): a desert course tints the domes
+    // terracotta so the horizon reads as red-rock mesas instead of haze.
+    const hillBase = theme.hillTint ?? shade(theme.skyTop, 1.06);
+    const hillMat = mat(scene, 'hill', hillBase, {
+      emissive: shade(theme.hillTint !== undefined ? theme.hillTint : theme.skyTop, 0.62)
+    });
     for (let i = -3; i <= 3; i++) {
       const dome = MeshBuilder.CreateSphere(`hill${i}`, { diameter: 1400 + Math.abs(i) * 260, segments: 10 }, scene);
       dome.material = hillMat;

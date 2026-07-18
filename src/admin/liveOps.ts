@@ -58,7 +58,11 @@ const COURSE_NAMES: Record<string, string> = {
   sablebay: 'Sable Bay',
   wildwood: 'Wildwood Glen',
   timberline: 'Timberline',
-  portjohnson: 'Port Johnson Links'
+  portjohnson: 'Port Johnson Links',
+  // Expansion courses (newCourses flag): named here so previews/audit rows
+  // render them properly if/when they join WEEKLY_ROTATION at release.
+  redhollow: 'Red Hollow',
+  kettlebarrens: 'Kettle Barrens'
 };
 
 export async function renderLiveOps(app: HTMLElement, onBack: () => void): Promise<void> {
