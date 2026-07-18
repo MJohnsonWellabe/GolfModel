@@ -17,6 +17,10 @@ import {
   Viewport
 } from '@babylonjs/core';
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
+import { activeBedKind, BedKind, COURSE_BEDS, startBed } from '../core/audio/beds';
+import { setAmbienceMasterVolume } from '../core/audio/engine';
+import { playBuffer } from '../core/audio/sfx';
+import { LANDING_THUMP, variedParams } from '../core/audio/variation';
 import { countUpValue } from '../core/countUp';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { mountEnvBadge } from '../core/envBadge';
@@ -252,7 +256,7 @@ function showCloudStatus(status: CloudSaveStatus, quiet = false): void {
 
 const sounds: Record<string, number> = {
   swing: 0.5, 'impact-driver': 0.9, 'impact-iron': 0.8, 'impact-wedge': 0.7,
-  putt: 0.7, hole: 0.9, splash: 0.8, chime: 0.75
+  putt: 0.7, hole: 0.9, splash: 0.8, chime: 0.75, ui: 0.35
 };
 /** One cached, decoded element per SFX key. `new Audio(...)` on every play
  *  re-fetched and re-decoded the sample inside the shot/impact handlers — a
@@ -265,6 +269,14 @@ function play(key: string): void {
     // Compute the volume FIRST so a muted player never allocates any element.
     const vol = Math.max(0, Math.min(1, (sounds[key] ?? 0.7) * profile.settings.sound));
     if (vol <= 0) return;
+    // V2 audio identity (flag-gated): the WebAudio path adds controlled
+    // per-key variation. It reports false while unavailable or still
+    // decoding a key, in which case the proven HTMLAudio path below carries
+    // that play — a sound is never lost to the new pipeline.
+    if (flag('audio')) {
+      const v = variedParams(key);
+      if (playBuffer(key, vol * v.gainMult, { rate: v.rate })) return;
+    }
     let a = sfxCache.get(key);
     if (!a) {
       a = new Audio(`sfx/${key}.wav`);
@@ -282,9 +294,20 @@ function play(key: string): void {
 }
 let ambienceStarted = false;
 let ambienceEl: HTMLAudioElement | null = null;
+/** The bed for the round's current course (V2 Phase 5), default coastal. */
+function bedForCurrentCourse(): BedKind {
+  return COURSE_BEDS[courseIdByName(round.course.name)] ?? 'coastal';
+}
 function startAmbience(): void {
   if (ambienceStarted) return;
   ambienceStarted = true;
+  // V2 audio identity (flag-gated): a per-course procedural bed replaces the
+  // one shared wav loop. Falls back to the wav whenever WebAudio is
+  // unavailable; the flag off never touches the new path at all.
+  if (flag('audio')) {
+    setAmbienceMasterVolume(profile.settings.ambience);
+    if (startBed(bedForCurrentCourse())) return;
+  }
   try {
     const a = new Audio('sfx/ambience.wav');
     a.loop = true;
@@ -295,8 +318,15 @@ function startAmbience(): void {
     ambienceStarted = false;
   }
 }
+/** Re-point the ambient bed at the current course (round start / Play Next).
+ *  No-op until the first gesture has started ambience, or with the flag off. */
+function refreshAmbienceBed(): void {
+  if (!ambienceStarted || !flag('audio') || !activeBedKind()) return;
+  startBed(bedForCurrentCourse());
+}
 /** Push the current ambience-volume setting to the live loop (slider drag). */
 function applyAmbienceVolume(): void {
+  setAmbienceMasterVolume(profile.settings.ambience);
   if (ambienceEl) ambienceEl.volume = Math.max(0, Math.min(1, profile.settings.ambience));
 }
 
@@ -2602,7 +2632,19 @@ class HoleScene {
           this.flight.landPos = { x: p.x, y: p.y };
           if (!this.flight.isPutt) {
             this.setCamLanding({ x: p.x, y: p.y }, this.flight.dir);
-            this.landingPuff(p.x, p.y, this.engine2d.surfaceAt(p.x, p.y) === 'sand');
+            const landSurface = this.engine2d.surfaceAt(p.x, p.y);
+            this.landingPuff(p.x, p.y, landSurface === 'sand');
+            // Surface-shaped landing thump (V2 Phase 5): the touchdown gets a
+            // soft 'hit' — bright/quiet on short grass, darker in rough,
+            // deep + low-passed in sand. Water keeps its splash; runs off the
+            // flight tick, never an input path.
+            if (flag('audio')) {
+              const spec = LANDING_THUMP[landSurface];
+              if (spec) {
+                const vol = Math.max(0, Math.min(1, spec.volume * profile.settings.sound));
+                if (vol > 0) playBuffer('hit', vol, { rate: spec.rate * variedParams('hit').rate, lowpassHz: spec.lowpassHz });
+              }
+            }
             // A long slopey-green trickle can play out for many seconds — offer
             // the skip (a tap jumps to the resting spot) when there's a real
             // roll left to watch.
@@ -2884,6 +2926,7 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
 
 function playHole(): void {
   current?.dispose();
+  refreshAmbienceBed(); // per-course bed follows the round (V2 Phase 5)
   // Restore the gameplay chrome the results screen hid.
   swingBtn.style.display = '';
   hudEl.style.display = '';
@@ -3285,6 +3328,7 @@ function showSummary(): void {
   // profile), back to the first tee with one tap. Play Next: the rotation's
   // next course, same mode/loadout, no course-select menu.
   document.getElementById('replayBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui'); // quiet confirmation on the primary actions only
     summaryEl.style.display = 'none';
     aiTour = null;
     sel.courseId = courseId;
@@ -3292,6 +3336,7 @@ function showSummary(): void {
     startRound(0);
   });
   document.getElementById('playNextBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
     summaryEl.style.display = 'none';
     aiTour = null;
     if (sel.mode === 'aitour') sel.mode = 'solo'; // a course pick isn't a new tournament

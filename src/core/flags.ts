@@ -67,6 +67,16 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
   },
   {
+    key: 'audio',
+    description:
+      'V2 Phase 5 audio identity: WebAudio SFX variation (impacts/putt/swing), ' +
+      'surface-shaped landing thumps, per-course procedural ambient beds, and the ' +
+      'results-screen UI tick. Off = the original HTMLAudio pipeline, byte-identical.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
     key: 'personality',
     description:
       'V2 Phase 3 character personality: per-character idle tempo, aim waggle, ' +
