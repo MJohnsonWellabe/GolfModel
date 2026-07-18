@@ -21,10 +21,12 @@ import { activeBedKind, BedKind, COURSE_BEDS, startBed } from '../core/audio/bed
 import { setAmbienceMasterVolume } from '../core/audio/engine';
 import { playBuffer } from '../core/audio/sfx';
 import { LANDING_THUMP, variedParams } from '../core/audio/variation';
+import { ENV } from '../config/env';
 import { countUpValue } from '../core/countUp';
+import { devDateOverride, devNow, devToolsActive, setDevDateOverride } from '../core/devTools';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { mountEnvBadge } from '../core/envBadge';
-import { flag } from '../core/flags';
+import { allFlags, flag, setFlagOverride } from '../core/flags';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
@@ -83,8 +85,8 @@ import {
   submitChallengeResponse
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
-import { advanceStreak, claimStreakReward, cycleDay, streakRewardFor } from '../systems/Streak';
-import { applyHoleMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
+import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
+import { applyHoleMastery, emptyMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
 import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
@@ -483,7 +485,8 @@ function holeFactsFor(holeNumber: number): HoleFacts {
 
 /** Today's day key (YYYY-MM-DD) for the daily challenge. */
 function todayKey(): string {
-  const d = new Date();
+  // devNow() is real time unless dev tools simulate a date (non-prod only).
+  const d = devNow();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
@@ -3573,6 +3576,7 @@ function renderProfile(): void {
     `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
     `</div>` +
     `<div id="profAdminZone"></div>` +
+    `<div id="profDevZone"></div>` +
     `<button id="profBack">Back</button></div>`;
   // 'click' (not 'pointerdown') — see the #lkLock comment in renderLockerRoom:
   // hiding this full-screen overlay on the down-stroke lets the release land
@@ -3608,6 +3612,7 @@ function renderProfile(): void {
   document.getElementById('resetRecords')!.addEventListener('click', confirmResetRecords);
   wireAccountRow();
   refreshProfileAdminZone();
+  refreshProfileDevZone();
   void fillChallengeSection(p);
 }
 
@@ -3666,6 +3671,80 @@ async function fillChallengeSection(p: PlayerProfile): Promise<void> {
  *  Dashboard link, the debug True Vision grant, and the gift-to-another-
  *  account form, all gated behind the same allow-listed email check
  *  refreshAdminLink() used to gate the old menu buttons with. */
+/** Development test-data controls (devTools flag consumer — hard-gated to
+ *  non-prod via devToolsActive(), see core/devTools.ts). Local profile state
+ *  only: grant coins, reset mastery/achievements, reset streak, simulate the
+ *  Daily/Weekly date, and flip feature-flag overrides. Cloud seeding waits
+ *  for the dev Firebase project (documented deferral). */
+function refreshProfileDevZone(): void {
+  const zone = document.getElementById('profDevZone');
+  if (!zone) return;
+  zone.innerHTML = '';
+  if (!devToolsActive()) return;
+  const dateNow = devDateOverride();
+  const flagRows = allFlags()
+    .map(
+      ({ def, value }) =>
+        `<div class="devFlagRow"><code>${def.key}</code> ${value ? '🟢 on' : '⚪ off'} ` +
+        `<button class="ghostBtn devFlagBtn" data-flag="${def.key}" data-to="${value ? 'off' : 'on'}">${value ? 'turn off' : 'turn on'}</button>` +
+        `<button class="ghostBtn devFlagBtn" data-flag="${def.key}" data-to="clear">default</button></div>`
+    )
+    .join('');
+  zone.innerHTML =
+    `<div class="profAdminSection"><div class="profAdminTitle">🛠 Dev Tools (${ENV.name} only)</div>` +
+    `<button id="devGrantCoins" class="ghostBtn">🪙 Grant 1,000 coins</button>` +
+    `<button id="devResetMastery" class="ghostBtn">⭐ Reset mastery + achievements</button>` +
+    `<button id="devResetStreak" class="ghostBtn">🔥 Reset streak</button>` +
+    `<div class="profAdminTitle">Simulate date ${dateNow ? `(active: ${dateNow})` : '(off — real time)'}</div>` +
+    `<input id="devDate" type="date" class="giftInput" value="${dateNow ?? todayKey()}" />` +
+    `<button id="devDateSet" class="ghostBtn">Set date</button>` +
+    `<button id="devDateClear" class="ghostBtn">Real time</button>` +
+    `<div class="acctHint">Daily/Weekly systems read the simulated date; reopen the menu to see it applied.</div>` +
+    `<div class="profAdminTitle">Feature flags (sticky overrides, reload applies)</div>` +
+    flagRows +
+    `</div>`;
+  document.getElementById('devGrantCoins')!.addEventListener('pointerdown', () => {
+    profile.coins += 1000;
+    profile.coinsEarned += 1000;
+    persistProfile();
+    showMsg('🛠 +1,000 coins (dev)', 1200);
+    renderProfile();
+  });
+  document.getElementById('devResetMastery')!.addEventListener('pointerdown', () => {
+    profile.retention.mastery = emptyMastery();
+    profile.achievements = [];
+    persistProfile();
+    showMsg('🛠 Mastery + achievements reset (dev)', 1400);
+    renderProfile();
+  });
+  document.getElementById('devResetStreak')!.addEventListener('pointerdown', () => {
+    profile.retention.streak = emptyStreak();
+    profile.dailyStreak = 0;
+    persistProfile();
+    showMsg('🛠 Streak reset (dev)', 1200);
+    renderProfile();
+  });
+  document.getElementById('devDateSet')!.addEventListener('pointerdown', () => {
+    const v = (document.getElementById('devDate') as HTMLInputElement).value;
+    setDevDateOverride(v || null);
+    showMsg(`🛠 Simulating ${v}`, 1400);
+    renderProfile();
+  });
+  document.getElementById('devDateClear')!.addEventListener('pointerdown', () => {
+    setDevDateOverride(null);
+    showMsg('🛠 Back to real time', 1200);
+    renderProfile();
+  });
+  zone.querySelectorAll<HTMLElement>('.devFlagBtn').forEach((btn) => {
+    btn.addEventListener('pointerdown', () => {
+      const key = btn.dataset.flag!;
+      const to = btn.dataset.to!;
+      setFlagOverride(key, to === 'clear' ? null : to === 'on');
+      window.location.reload();
+    });
+  });
+}
+
 function refreshProfileAdminZone(): void {
   const zone = document.getElementById('profAdminZone');
   if (!zone) return;
@@ -5542,7 +5621,7 @@ function effectiveDailyChallenge(dateKey: string): DailyChallenge {
 
 /** This week's featured event, with any published live-ops course override. */
 function effectiveWeeklyEvent(): WeeklyEvent {
-  const ev = weeklyEventFor(new Date());
+  const ev = weeklyEventFor(devNow());
   const override = weeklyOverrideFor(liveOps, ev.id);
   return override && COURSES[override] ? { ...ev, courseId: override } : ev;
 }
@@ -5749,72 +5828,16 @@ function updateLandingProfileButton(name?: string): void {
   }
 }
 
+/** Refresh the landing's account-facing chrome. Historically this rendered a
+ * dedicated #acctMenu sign-in block; that element no longer exists in the
+ * landing DOM (sign-in lives in Profile's account row, reached via the
+ * #landingProfile button), so all that remains live is keeping the Profile
+ * button's label in sync with the signed-in account. */
 function renderAcctMenu(): void {
-  const el = document.getElementById('acctMenu');
-  updateLandingProfileButton();
-  if (!el) return;
-  if (!authConfigured()) {
-    el.innerHTML = '';
-    return;
-  }
-  // Signed-out: a prominent sign-in button with a "save your progress" subtitle
-  // so the account's purpose is obvious, plus a small ghost link into Profile
-  // (guests still have local settings/stats worth reaching). Signed-in: a
-  // "Signed in as …" row that IS the Profile entry point (tap to open) with a
-  // Log out button. State is driven by the `signedIn` flag (set by
-  // adopt/sign-out).
-  const showSignInButton = (): void => {
-    el.innerHTML =
-      `<button id="acctLinkBtn" class="acctBtn">🔑 Sign in with Google</button>` +
-      `<div class="acctHint">Sign in to save your coins &amp; progress</div>` +
-      `<button id="acctProfileLinkOut" class="ghostLink">👤 Profile &amp; Settings</button>`;
-    document.getElementById('acctProfileLinkOut')!.addEventListener('pointerdown', () => renderProfile());
-    const btn = document.getElementById('acctLinkBtn') as HTMLButtonElement;
-    // iOS Safari only honors signInWithPopup's window.open as a trusted user
-    // gesture inside a 'click' event — pointerdown gets silently blocked with
-    // no catchable error, unlike wireAccountRow's onclick handler which works.
-    btn.onclick = () => {
-      btn.disabled = true;
-      btn.textContent = '🔑 Opening Google…';
-      void signInWithGoogle().then((name) => {
-        if (!name) {
-          btn.disabled = false;
-          btn.textContent = '🔑 Sign in with Google';
-          return;
-        }
-        if (name === 'redirect') {
-          btn.textContent = '🔑 Redirecting…';
-          return;
-        }
-        void adoptCloudAccount().then(() => {
-          showSignedIn(name);
-          refreshWizardIfVisible();
-        });
-      });
-    };
-  };
-  const showSignedIn = (name: string): void => {
-    el.innerHTML =
-      `<div class="acctSignedIn">` +
-      `<span class="acctWho">✓ Signed in as <b>${escapeHtml(name)}</b></span>` +
-      `<button id="acctProfileRow" class="acctProfileBtn">👤 Profile</button>` +
-      `<button id="acctLogout" class="acctLogout">Log out</button></div>`;
-    document.getElementById('acctProfileRow')!.addEventListener('pointerdown', () => renderProfile());
-    (document.getElementById('acctLogout') as HTMLButtonElement).onclick = () => {
-      void doSignOut().then(() => {
-        showSignInButton();
-        refreshWizardIfVisible();
-      });
-    };
-  };
   if (signedIn) {
-    void linkedAccountName().then((name) => {
-      updateLandingProfileButton(name ?? undefined);
-      showSignedIn(name ?? 'your account');
-    });
+    void linkedAccountName().then((name) => updateLandingProfileButton(name ?? undefined));
   } else {
     updateLandingProfileButton();
-    showSignInButton();
   }
 }
 

@@ -5,8 +5,10 @@ import { expect, test } from '@playwright/test';
  *  so a scroll flick that merely starts on the button can't trigger a wipe. */
 test('reset records asks for confirmation before wiping', async ({ page }) => {
   await page.goto('/');
-  await page.waitForSelector('#acctProfileLinkOut');
-  await page.evaluate(() => (document.getElementById('acctProfileLinkOut') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  // #landingProfile is the landing's Profile entry (the old #acctProfileLinkOut
+  // sign-in block no longer exists in the landing DOM).
+  await page.waitForSelector('#landingProfile');
+  await page.evaluate(() => (document.getElementById('landingProfile') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#resetRecords');
   // First tap only opens the confirm modal — no wipe yet.
   await page.evaluate(() => (document.getElementById('resetRecords') as HTMLElement).dispatchEvent(new Event('click')));
@@ -25,8 +27,8 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
  *  we can capture the account row. No sign-in happens, so nothing is written. */
 test('profile shows the cloud account row when auth is configured', async ({ page }) => {
   await page.goto('/?env=prod');
-  await page.waitForSelector('#acctProfileLinkOut');
-  await page.evaluate(() => (document.getElementById('acctProfileLinkOut') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.waitForSelector('#landingProfile');
+  await page.evaluate(() => (document.getElementById('landingProfile') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#linkGoogle');
   // Signed out the control reads "Sign in with Google"; signed in, "Log out".
   await expect(page.locator('#linkGoogle')).toContainText('Google');

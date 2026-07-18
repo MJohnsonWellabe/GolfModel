@@ -58,9 +58,12 @@ resolver returns the exact production literals on a production hostname.
 
 **Still to build in code (documented follow-up, not required for the polish
 work):** the minimal-auth shell that authorizes a dev tester before loading the
-game, and the development test-data controls (grant coins, reset mastery,
-simulate dates) behind the `devTools` flag — that flag is additionally
-hard-gated to non-prod at its consumption site.
+game. The development test-data controls landed 2026-07-18 (`src/core/devTools.ts`
++ the profile screen's Dev Tools panel): grant coins, reset mastery/achievements,
+reset streak, simulate the Daily/Weekly date, and sticky feature-flag overrides —
+all behind the `devTools` flag AND hard-gated to non-prod via `devToolsActive()`
+(an admin forcing the flag on the live site still gets nothing). Cloud-side
+seeding (test accounts, leaderboard states) waits for the dev Firebase project.
 
 ## Required environments
 
