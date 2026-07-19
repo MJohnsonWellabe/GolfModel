@@ -66,7 +66,7 @@ function pointInPoly(x, y, poly) {
   return inside;
 }
 function computedAltTee(h) {
-  const cl = h.centerline;
+  const cl = h.centerline ?? h.fairways[0].centerline;
   const aim = cl.length > 1 ? cl[1] : [h.green.cx, h.green.cy];
   let [tx, ty] = [aim[0] - h.tee[0], aim[1] - h.tee[1]];
   const l = Math.hypot(tx, ty) || 1;
@@ -140,28 +140,41 @@ const redhollow = {
       centerline: [[330, 1100], [332, 960], [362, 820], [432, 690], [510, 560], [545, 448], [556, 385]],
       width: [46, 68, 82, 80, 66, 54, 44],
       hazards: [
-        // The red-rock canyon cutting the dogleg's inside (carry = reward) —
-        // pulled IN against the fairway (playtest: "pull the sand way over
-        // to both sides in towards the fairway").
+        // The red-rock canyon cutting the dogleg's inside (carry = reward).
         { type: 'bunker', waste: true, polygon: blob(645, 830, 165, 235, 14, 0.32, 11, 0.4) },
-        // Rim waste hugging the fairway's left edge.
+        // Rim waste hugging the fairway's left edge — the sand spills over
+        // the shelf lip toward the canyon below.
         { type: 'bunker', waste: true, polygon: blob(235, 570, 130, 260, 12, 0.4, 12) },
+        // CANYON FLOOR waste, 16+ units below the shelf (a ball over the
+        // edge is deep in the red floor — no OOB rule exists, so the floor
+        // is at least a brutal waste recovery).
+        { type: 'bunker', waste: true, polygon: blob(58, 640, 62, 420, 14, 0.3, 15) },
         { type: 'bunker', polygon: blob(478, 300, 34, 26, 9, 0.3, 13) },
         { type: 'bunker', polygon: blob(636, 402, 30, 24, 9, 0.3, 14) }
       ],
       aiTargets: [[362, 820], [500, 570]],
+      // TERRAIN PASS: the whole hole rides a +4 shelf; tee on a +10 bench,
+      // green on a distinct +8.5 bench; the LEFT edge is a real CLIFF —
+      // steep-skirt walls dropping ~20 to a canyon-floor waste strip.
       elevation: [
-        { x: 330, y: 1150, h: 1.8, r: 130, shape: 'plateau' },
-        { x: 420, y: 700, h: 1.4, r: 170 },
-        { x: 560, y: 330, h: 2.8, r: 128, shape: 'plateau' },
-        { x: 700, y: 810, h: 3.4, r: 190 },
-        { x: 840, y: 420, h: 3.8, r: 150 },
-        // MOUNTAINSIDE DROP-OFF (playtest: "one side should look like it
-        // drops off like that Sand Hollow hole"): the whole left edge falls
-        // away below the waste rim — the fairway reads perched on a bench.
-        { x: 30, y: 950, h: -7, r: 210, shape: 'plateau' },
-        { x: 15, y: 620, h: -7.5, r: 220, shape: 'plateau' },
-        { x: 40, y: 330, h: -6.5, r: 200, shape: 'plateau' }
+        { x: 450, y: 680, h: 4, r: 520, shape: 'plateau' },
+        { x: 330, y: 1140, h: 8, r: 150, shape: 'plateau' },
+        { x: 560, y: 330, h: 4.5, r: 122, shape: 'plateau' },
+        // Right-side rock benches framing the two landing zones.
+        { x: 830, y: 780, h: 4, r: 170 },
+        { x: 800, y: 420, h: 5, r: 160 },
+        // The cliff: a long steep-skirt wall carving the canyon.
+        { x: 58, y: 940, x2: 58, y2: 320, h: -22, r: 175, shape: 'plateau', skirt: 0.82 },
+        { x: 70, y: 1120, h: -14, r: 150, shape: 'plateau', skirt: 0.8 }
+      ],
+      landforms: [
+        // Major red-rock masses framing the landing zones and the bench.
+        { key: 'rocks_red_bright', x: 245, y: 880, h: 11 },
+        { key: 'rocks_red_cluster', x: 520, y: 965, h: 8 },
+        { key: 'rocks_red_bright', x: 665, y: 590, h: 12 },
+        { key: 'rocks_red_cluster', x: 838, y: 700, h: 10 },
+        { key: 'rocks_red_bright', x: 665, y: 250, h: 13 },
+        { key: 'rocks_red_cluster', x: 430, y: 205, h: 9 }
       ],
     },
     {
@@ -170,25 +183,37 @@ const redhollow = {
       tee: [450, 800], teeBox: { w: 26, d: 18 },
       green: { cx: 450, cy: 430, rx: 62, ry: 50, rot: -0.2 },
       slope: { angle: 4.4, strength: 0.35 },
-      // Par 3: a short apron ribbon in front of the green only — the rest is chasm.
-      centerline: [[450, 545], [450, 490]],
-      width: [52, 58],
+      // Par 3: a short apron ribbon on the mesa top only — the rest is canyon.
+      centerline: [[450, 520], [450, 480]],
+      width: [50, 56],
       hazards: [
-        // The chasm: a full-width red-rock void between tee and green.
-        { type: 'bunker', waste: true, polygon: blob(450, 668, 300, 78, 16, 0.26, 21) },
+        // The KITCHEN: a genuine canyon between the tee mesa and the green
+        // mesa — the waste marks its sunken floor ~28 units below the green.
+        { type: 'bunker', waste: true, polygon: blob(450, 655, 330, 95, 16, 0.26, 21) },
         { type: 'bunker', polygon: blob(360, 476, 30, 24, 9, 0.32, 22) },
         { type: 'bunker', polygon: blob(548, 452, 28, 22, 9, 0.32, 23) },
-        // Red rock shoulders framing the green mesa — tight to the green.
-        { type: 'bunker', waste: true, polygon: blob(232, 432, 100, 170, 12, 0.4, 24) },
-        { type: 'bunker', waste: true, polygon: blob(668, 402, 100, 180, 12, 0.4, 25) }
+        // Canyon-floor waste wrapping the mesa's flanks.
+        { type: 'bunker', waste: true, polygon: blob(220, 560, 110, 200, 12, 0.4, 24) },
+        { type: 'bunker', waste: true, polygon: blob(690, 545, 110, 210, 12, 0.4, 25) }
       ],
       aiTargets: [[450, 470]],
+      // TERRAIN PASS (signature): highest tee (+14 mesa), green on an
+      // ISOLATED +10 mesa with near-vertical steep-skirt faces, and a true
+      // −16 canyon floor between/around them — ~26 units of visible relief
+      // under the carry. Flanking mesas rise +12/13 with rock stacks on top.
       elevation: [
-        { x: 450, y: 820, h: 2.6, r: 140, shape: 'plateau' },
-        { x: 450, y: 430, h: 3.2, r: 130, shape: 'plateau' },
-        { x: 225, y: 395, h: 4.2, r: 150 },
-        { x: 690, y: 375, h: 4.6, r: 160 },
-        { x: 120, y: 840, h: 2.8, r: 120 }
+        { x: 450, y: 822, h: 15, r: 172, shape: 'plateau', skirt: 0.8 },
+        { x: 450, y: 428, h: 10, r: 128, shape: 'plateau', skirt: 0.9 },
+        { x: 155, y: 640, x2: 760, y2: 640, h: -16, r: 120, shape: 'plateau', skirt: 0.72 },
+        { x: 145, y: 390, h: 12, r: 155, shape: 'plateau', skirt: 0.85 },
+        { x: 770, y: 375, h: 13, r: 165, shape: 'plateau', skirt: 0.85 }
+      ],
+      landforms: [
+        // Rock stacks on the flanking mesas + a sentinel by the tee.
+        { key: 'rocks_red_bright', x: 150, y: 360, h: 14 },
+        { key: 'rocks_red_cluster', x: 770, y: 340, h: 15 },
+        { key: 'rocks_red_cluster', x: 235, y: 810, h: 9 },
+        { key: 'rocks_red_bright', x: 680, y: 830, h: 10 }
       ],
     },
     {
@@ -198,33 +223,54 @@ const redhollow = {
       green: { cx: 330, cy: 330, rx: 58, ry: 48, rot: 0.5 },
       green2: { cx: 282, cy: 288, rx: 40, ry: 34, rot: 0.5 },
       slope: { angle: 5.6, strength: 0.34 },
-      centerline: [[820, 1420], [790, 1280], [700, 1150], [580, 1040], [488, 930], [450, 800], [428, 680], [390, 560], [352, 470], [338, 408]],
-      width: [50, 72, 84, 82, 76, 72, 66, 58, 50, 44],
+      // TWO fairway ribbons with a real GAP where Wolf Wash crosses — the
+      // crossing is genuinely waste (physics and look), not paint under turf.
+      fairways: [
+        { centerline: [[820, 1420], [790, 1280], [700, 1150], [640, 1075]], width: [50, 72, 84, 80] },
+        { centerline: [[520, 900], [450, 800], [428, 680], [390, 560], [352, 470], [338, 408]], width: [76, 74, 68, 58, 50, 44] }
+      ],
       hazards: [
-        // Wolf Wash: the old creek DRAINED (playtest: "no water on 3 — a
-        // little winding rock creek, rocks and dead tumbleweed"). Same
-        // winding line, now a red waste ribbon; sandPlantKeys fills it with
-        // rock clusters + dry scrub, and the waste-rim system lines its
-        // banks with red rock.
-        { type: 'bunker', waste: true, polygon: stream([[210, 1180], [300, 1080], [420, 990], [560, 940], [640, 860], [620, 740], [540, 640], [430, 600], [330, 540], [270, 450], [252, 380]], 46, 31) },
-        // Red waste flanking the first landing zone's right — pulled in.
-        { type: 'bunker', waste: true, polygon: blob(868, 1040, 130, 220, 13, 0.38, 32) },
+        // Wolf Wash: the dry rocky creek, rerouted so it genuinely CROSSES
+        // the fairway between the first and second shelves (through the gap
+        // between the two fairway ribbons), then runs up the second
+        // ribbon's left flank. sandPlantKeys fills it with rock clusters +
+        // dry scrub; the waste-rim system lines its banks.
+        { type: 'bunker', waste: true, polygon: stream([[210, 1180], [330, 1090], [470, 1030], [600, 985], [700, 940], [660, 840], [560, 760], [520, 705], [480, 625], [450, 545], [438, 465], [430, 400]], 52, 31) },
+        // Red waste flanking the first landing zone's right.
+        { type: 'bunker', waste: true, polygon: blob(880, 1030, 130, 220, 13, 0.38, 32) },
         { type: 'bunker', waste: true, polygon: blob(655, 525, 115, 140, 12, 0.4, 33) },
         { type: 'bunker', polygon: blob(408, 288, 30, 24, 9, 0.3, 34) },
         { type: 'bunker', polygon: blob(276, 432, 26, 22, 9, 0.28, 35) }
       ],
       aiTargets: [[700, 1150], [470, 850], [400, 570]],
+      // TERRAIN PASS: three shelves stepping DOWN the S (+10 tee shelf →
+      // +5 mid shelf → +1 valley, green back up on a +7 bench), the wash
+      // CARVED into the ground between shelves (sunken, uneven, with rocky
+      // bumps the ball genuinely interacts with), and the mountainside
+      // drop-off along the right edge.
       elevation: [
-        { x: 820, y: 1470, h: 2.0, r: 140, shape: 'plateau' },
-        { x: 620, y: 1090, h: 1.6, r: 190 },
-        { x: 330, y: 320, h: 2.6, r: 132, shape: 'plateau' },
-        { x: 880, y: 1000, h: 2.4, r: 150 },
-        { x: 740, y: 500, h: 3.2, r: 160 },
+        { x: 815, y: 1430, x2: 690, y2: 1140, h: 10, r: 170, shape: 'plateau' },
+        { x: 495, y: 850, x2: 435, y2: 690, h: 5, r: 150, shape: 'plateau' },
+        { x: 322, y: 352, h: 7, r: 150, shape: 'plateau' },
+        // The wash bed: carved down, with eroded rocky bumps inside it.
+        { x: 640, y: 1000, x2: 470, y2: 1030, h: -3.5, r: 75 },
+        { x: 700, y: 940, x2: 640, y2: 1000, h: -3, r: 60 },
+        { x: 585, y: 995, h: 1.2, r: 20 },
+        { x: 520, y: 1015, h: 1.0, r: 16 },
+        { x: 660, y: 965, h: 1.1, r: 18 },
         { x: 130, y: 900, h: 3.0, r: 160 },
-        // Mountainside drop-off down the whole right edge (see h1).
-        { x: 1140, y: 1150, h: -7, r: 210, shape: 'plateau' },
-        { x: 1155, y: 800, h: -8, r: 230, shape: 'plateau' },
-        { x: 1130, y: 450, h: -6.5, r: 200, shape: 'plateau' }
+        { x: 740, y: 500, h: 3.2, r: 160 },
+        // Mountainside drop-off down the whole right edge.
+        { x: 1135, y: 1250, x2: 1150, y2: 500, h: -14, r: 200, shape: 'plateau', skirt: 0.8 }
+      ],
+      landforms: [
+        // Rock walls at the shelf steps and wash banks; a green backdrop.
+        { key: 'rocks_red_cluster', x: 690, y: 1085, h: 9 },
+        { key: 'rocks_red_bright', x: 755, y: 1005, h: 8 },
+        { key: 'rocks_red_cluster', x: 415, y: 1085, h: 7 },
+        { key: 'rocks_red_bright', x: 565, y: 640, h: 10 },
+        { key: 'rocks_red_cluster', x: 200, y: 250, h: 12 },
+        { key: 'rocks_red_bright', x: 95, y: 700, h: 9 }
       ],
     }
   ]
@@ -256,9 +302,9 @@ const wildvalley = {
     bunkerLipPacked: true,
     lushGrass: true,
     stripeStrength: 1.3,
-    tallGrass: { cap: 7, density: 17, waste: true },
+    tallGrass: { cap: 7, density: 24, waste: true },
     roughTuftHeight: 1.9,
-    tuftDensity: 2.2,
+    tuftDensity: 2.6,
     sandPlantKeys: ['heather_fescue_b'],
     sandPlantStep: 80, sandPlantKeep: 0.5,
     sandSculpt: 0.85, bunkerDepthScale: 2.3, wasteDepthScale: 2.8,
@@ -275,27 +321,32 @@ const wildvalley = {
       slope: { angle: 1.2, strength: 0.28 },
       centerline: [[470, 1100], [462, 960], [452, 830], [468, 700], [496, 560], [508, 440], [510, 372]],
       width: [50, 78, 92, 88, 78, 62, 48],
+      // STRATEGIC bunkering (terrain pass): every trap answers a shot.
+      // Drive zone: a deep pot pinches the aggressive inside line and a big
+      // blowout catches the wide-left bailout. Approach: a cross-pot short-
+      // right of the lay-up line; two pots defend the green shelf's front.
       hazards: [
-        // The signature blowout field: pulled tight against the fairway and
-        // BROKEN into lobes with rough gaps between them (playtest: "brown
-        // patches breaking the full bunkers up") — each compact lobe digs
-        // its own deep bowl via wasteDepthScale.
-        { type: 'bunker', waste: true, polygon: blob(628, 800, 95, 85, 12, 0.36, 41, 0.7) },
-        { type: 'bunker', waste: true, polygon: blob(712, 665, 78, 70, 11, 0.38, 46) },
-        { type: 'bunker', waste: true, polygon: blob(305, 925, 95, 110, 12, 0.42, 42) },
-        { type: 'bunker', waste: true, polygon: blob(258, 762, 70, 78, 11, 0.4, 47) },
-        { type: 'bunker', polygon: blob(430, 340, 34, 26, 9, 0.34, 43) },
-        { type: 'bunker', polygon: blob(596, 330, 30, 24, 9, 0.34, 44) }
+        { type: 'bunker', waste: true, polygon: blob(590, 770, 78, 72, 12, 0.36, 41, 0.7) },
+        { type: 'bunker', waste: true, polygon: blob(302, 886, 88, 105, 12, 0.42, 42) },
+        { type: 'bunker', polygon: blob(420, 468, 40, 30, 10, 0.34, 48) },
+        { type: 'bunker', polygon: blob(444, 332, 32, 26, 9, 0.34, 43) },
+        { type: 'bunker', polygon: blob(592, 342, 34, 26, 9, 0.34, 44) }
       ],
       aiTargets: [[455, 830], [495, 560]],
+      // TERRAIN PASS: continuous dune RIDGES frame a real valley the
+      // fairway occupies (no isolated bumps) — tee on a high shoulder,
+      // gentle cross-rolls through the valley floor, green tucked on a
+      // shelf between the right ridge's end and the far ridge.
       elevation: [
-        { x: 470, y: 1150, h: 1.6, r: 130, shape: 'plateau' },
-        { x: 510, y: 300, h: 2.2, r: 126, shape: 'plateau' },
-        { x: 300, y: 650, h: 2.4, r: 170 },
-        { x: 700, y: 980, h: 2.8, r: 180 },
-        { x: 850, y: 560, h: 2.2, r: 150 },
-        { x: 140, y: 380, h: 2.6, r: 150 },
-        { x: 620, y: 180, h: 2.0, r: 140 }
+        { x: 210, y: 1050, x2: 300, y2: 520, h: 5.5, r: 155 },
+        { x: 740, y: 1000, x2: 660, y2: 430, h: 6.5, r: 175 },
+        { x: 280, y: 180, x2: 760, y2: 230, h: 5, r: 145 },
+        { x: 470, y: 1155, h: 6, r: 145, shape: 'plateau' },
+        { x: 510, y: 292, h: 4, r: 112, shape: 'plateau' },
+        { x: 350, y: 800, x2: 600, y2: 760, h: 2.2, r: 95 },
+        { x: 380, y: 560, x2: 640, y2: 610, h: 2.5, r: 100 },
+        { x: 150, y: 1200, x2: 90, y2: 800, h: 3.5, r: 120 },
+        { x: 880, y: 780, x2: 930, y2: 400, h: 4, r: 130 }
       ],
     },
     {
@@ -314,20 +365,27 @@ const wildvalley = {
       hazards: [
         // The notch bunker in the crook of the kidney.
         { type: 'bunker', polygon: blob(497, 472, 34, 30, 10, 0.3, 55) },
-        // Deep kettle blowout guarding the direct line front-right — in tight.
-        { type: 'bunker', waste: true, polygon: blob(568, 565, 84, 80, 12, 0.34, 51) },
-        { type: 'bunker', polygon: blob(318, 510, 34, 26, 9, 0.34, 52) },
-        { type: 'bunker', waste: true, polygon: blob(248, 588, 100, 130, 12, 0.42, 53) }
+        // A second pot cut into the kettle's inner west face.
+        { type: 'bunker', polygon: blob(332, 484, 30, 26, 9, 0.32, 56) },
+        // Deep kettle blowout guarding the direct line front-right.
+        { type: 'bunker', waste: true, polygon: blob(560, 562, 84, 80, 12, 0.34, 51) },
+        { type: 'bunker', waste: true, polygon: blob(252, 600, 90, 115, 12, 0.42, 53) }
       ],
       aiTargets: [[400, 470]],
+      // TERRAIN PASS: THE KETTLE earns its name — a horseshoe of dune walls
+      // (west/north/east ridge segments, h5.5-6.5) encloses the green bench,
+      // open only at the front-right entrance; the bench still cants toward
+      // the notch bunker so high-side misses feed down into it. Rolling
+      // entrance ridges flank the tee shot.
       elevation: [
-        { x: 440, y: 780, h: 1.8, r: 130, shape: 'plateau' },
-        // Big NW shoulder: the green cants toward the notch bunker so balls
-        // missing on the high side release down into it.
-        { x: 350, y: 375, h: 3.6, r: 155 },
-        { x: 430, y: 250, h: 3.0, r: 120 },
-        { x: 585, y: 315, h: 2.6, r: 110 },
-        { x: 150, y: 700, h: 2.4, r: 130 }
+        { x: 272, y: 560, x2: 262, y2: 368, h: 8, r: 135 },
+        { x: 336, y: 286, x2: 520, y2: 252, h: 8, r: 135 },
+        { x: 566, y: 300, x2: 588, y2: 470, h: 7.5, r: 125 },
+        { x: 430, y: 420, h: 2.5, r: 150, shape: 'plateau' },
+        { x: 360, y: 380, h: 2.2, r: 110 },
+        { x: 440, y: 780, h: 3, r: 135, shape: 'plateau' },
+        { x: 150, y: 680, x2: 360, y2: 640, h: 3, r: 105 },
+        { x: 520, y: 680, x2: 700, y2: 620, h: 3.4, r: 115 }
       ],
     },
     {
@@ -338,28 +396,34 @@ const wildvalley = {
       slope: { angle: 0.4, strength: 0.3 },
       centerline: [[400, 1410], [420, 1270], [470, 1130], [540, 1010], [610, 880], [660, 750], [700, 620], [730, 500], [752, 420]],
       width: [54, 80, 96, 94, 88, 80, 70, 58, 48],
+      // STRATEGIC bunkering: blowout on the outside of LZ1's bailout, a
+      // carry pot at the first ridge's end, a blowout under the second
+      // ridge at LZ2's aggressive line, the cross-pots at the lay-up
+      // decision, and two green-complex pots (front-left saddle + right).
       hazards: [
-        // Barrens both sides, pulled tight to the turf and broken into deep
-        // lobed bowls with rough ridges between them.
-        { type: 'bunker', waste: true, polygon: blob(285, 1160, 115, 150, 13, 0.4, 61) },
-        { type: 'bunker', waste: true, polygon: blob(248, 940, 95, 125, 12, 0.42, 68) },
-        { type: 'bunker', waste: true, polygon: blob(822, 1185, 125, 140, 13, 0.42, 62) },
-        { type: 'bunker', waste: true, polygon: blob(858, 985, 105, 120, 12, 0.4, 69) },
-        // Cross-cluster at the second-shot decision point.
-        { type: 'bunker', polygon: blob(560, 700, 44, 30, 10, 0.34, 63) },
-        { type: 'bunker', polygon: blob(572, 706, 34, 26, 10, 0.3, 64) },
-        { type: 'bunker', waste: true, polygon: blob(388, 535, 105, 135, 12, 0.42, 65) },
+        { type: 'bunker', waste: true, polygon: blob(272, 1196, 94, 122, 13, 0.4, 61) },
+        { type: 'bunker', polygon: blob(608, 1062, 40, 32, 10, 0.34, 71) },
+        { type: 'bunker', waste: true, polygon: blob(775, 935, 105, 120, 12, 0.42, 62) },
+        { type: 'bunker', polygon: blob(684, 660, 28, 22, 10, 0.34, 63) },
+        { type: 'bunker', polygon: blob(676, 690, 24, 20, 10, 0.3, 64) },
+        { type: 'bunker', polygon: blob(682, 425, 36, 28, 9, 0.32, 72) },
         { type: 'bunker', polygon: blob(846, 380, 34, 26, 9, 0.34, 66) }
       ],
       aiTargets: [[470, 1130], [620, 860], [700, 600]],
+      // TERRAIN PASS: alternating OFFSET diagonal ridges the fairway
+      // threads between — each landing zone is a saddle between ridge ends,
+      // and the last ridge partially SCREENS the elevated green complex
+      // (lay back for a view, or carry the shoulder blind).
       elevation: [
-        { x: 400, y: 1460, h: 1.8, r: 140, shape: 'plateau' },
-        { x: 760, y: 330, h: 2.4, r: 130, shape: 'plateau' },
-        { x: 250, y: 1000, h: 2.6, r: 180 },
-        { x: 880, y: 1100, h: 2.8, r: 190 },
-        { x: 500, y: 650, h: 2.2, r: 170 },
-        { x: 1020, y: 480, h: 2.4, r: 160 },
-        { x: 160, y: 300, h: 2.2, r: 150 }
+        { x: 150, y: 1150, x2: 520, y2: 1060, h: 5, r: 155 },
+        { x: 640, y: 980, x2: 1020, y2: 880, h: 5.5, r: 165 },
+        { x: 300, y: 700, x2: 640, y2: 600, h: 4.5, r: 145 },
+        { x: 560, y: 470, x2: 860, y2: 430, h: 5, r: 135 },
+        { x: 400, y: 1460, h: 4, r: 140, shape: 'plateau' },
+        { x: 760, y: 320, h: 5, r: 132, shape: 'plateau' },
+        { x: 180, y: 400, x2: 420, y2: 330, h: 3.5, r: 120 },
+        { x: 1000, y: 640, x2: 1120, y2: 420, h: 4, r: 130 },
+        { x: 240, y: 1330, x2: 560, y2: 1290, h: 2.4, r: 100 }
       ],
     }
   ]
@@ -371,27 +435,34 @@ function emit(course, id) {
     name: course.name,
     version: 2,
     theme: course.theme,
-    holes: course.holes.map((h) => ({
-      number: h.number,
-      name: h.name,
-      par: h.par,
-      yardage: pathYards([[h.tee[0], h.tee[1]], ...h.centerline.slice(1), [h.green.cx, h.green.cy]]),
-      world: h.world,
-      tee: { x: h.tee[0], y: h.tee[1] },
-      teeBox: h.teeBox,
-      green: h.green,
-      ...(h.green2 ? { green2: h.green2 } : {}),
-      slope: h.slope,
-      ...(() => {
-        const pins = computedPins(h);
-        const alt = computedAltTee(h);
-        return { pin: pins[0], pins, ...(alt ? { tees: [alt] } : {}) };
-      })(),
-      fairway: [{ centerline: h.centerline, width: h.width }],
-      hazards: h.hazards,
-      aiTargets: h.aiTargets.map(([x, y]) => ({ x, y })),
-      elevation: h.elevation
-    }))
+    holes: course.holes.map((h) => {
+      // A hole authors either one ribbon (centerline+width) or several
+      // (fairways: [{centerline,width}] — e.g. Wolf Run's wash-split pair).
+      const ribbons = h.fairways ?? [{ centerline: h.centerline, width: h.width }];
+      const pathPts = ribbons.flatMap((r) => r.centerline);
+      return {
+        number: h.number,
+        name: h.name,
+        par: h.par,
+        yardage: pathYards([[h.tee[0], h.tee[1]], ...pathPts.slice(1), [h.green.cx, h.green.cy]]),
+        world: h.world,
+        tee: { x: h.tee[0], y: h.tee[1] },
+        teeBox: h.teeBox,
+        green: h.green,
+        ...(h.green2 ? { green2: h.green2 } : {}),
+        slope: h.slope,
+        ...(() => {
+          const pins = computedPins(h);
+          const alt = computedAltTee(h);
+          return { pin: pins[0], pins, ...(alt ? { tees: [alt] } : {}) };
+        })(),
+        fairway: ribbons,
+        hazards: h.hazards,
+        aiTargets: h.aiTargets.map(([x, y]) => ({ x, y })),
+        elevation: h.elevation,
+        ...(h.landforms ? { landforms: h.landforms } : {})
+      };
+    })
   };
   writeFileSync(`src/data/courses/${id}.json`, JSON.stringify(out, null, 2) + '\n');
   for (const h of out.holes) console.log(`${id} h${h.number} "${h.name}" par ${h.par} ${h.yardage}yd`);

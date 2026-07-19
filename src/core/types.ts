@@ -328,6 +328,11 @@ export interface HoleData {
    *  to (e.g. Sable Bay h2's wooden footbridge out to the island green).
    *  Render-only — no physics footprint. */
   props?: Array<{ key: string; x: number; y: number; rot?: number; len?: number }>;
+  /** Authored MAJOR rock landforms (terrain identity pass): a nature
+   *  prototype key + world position + height. Deliberate framing masses —
+   *  canyon walls, mesa stacks, wash banks — distinct from the random rough
+   *  scatter. Render-only, no physics footprint. */
+  landforms?: Array<{ key: string; x: number; y: number; h: number }>;
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */

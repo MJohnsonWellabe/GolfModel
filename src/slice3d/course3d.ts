@@ -792,6 +792,8 @@ export function buildCourse(
       ...(theme.heatherKeys ?? []),
       ...(theme.shorelineKeys ?? []),
       ...(theme.sandPlantKeys ?? []),
+      // Authored major landforms (hole.landforms — terrain identity pass).
+      ...(hole.landforms ?? []).map((l) => l.key),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
       // The real sakura model backs the blossom system wherever it's used
@@ -1288,12 +1290,16 @@ export function buildCourse(
           // any farther and the sky mesh wins the depth test and the wall
           // never shows. Kept short enough that the far echo silhouettes
           // still rise above it.
+          // Tall DOWNWARD: the terrain identity pass raised tees onto +8..15
+          // benches, and an elevated camera sees over the finite ground
+          // mesh's far edge — sky showed as a blue band UNDER the ranges
+          // until the wall extended well below the horizon line.
           const bsC = mix(hillBase, theme.haze, 0.5);
-          const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 240 }, scene);
+          const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 560 }, scene);
           const bsMat = mat(scene, 'rangeBackstopM', bsC, { emissive: shade(bsC, 0.85) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, 85, 0));
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, -80, 0));
           bs.applyFog = false;
           bs.freezeWorldMatrix();
           // These packs are full RANGE DIORAMAS (many peaks arranged by the
@@ -1317,33 +1323,55 @@ export function buildCourse(
               bmax = bmax ? Vector3.Maximize(bmax, bb.maximum) : bb.maximum.clone();
             }
             if (!bmin || !bmax) return;
-            // LAYERED RANGE (playtest: "get rid of the boxy mountains and
-            // just layer the good ones a few times at various depths and
-            // sizes"): the same range diorama placed several times — nearer/
-            // larger center, smaller echoes off to the sides and pushed
-            // deeper — with alternating mirroring so the repeats don't read
-            // as copies. All bounds-centered and grounded.
+            // LAYERED RANGE, per-hole COMPOSITION (terrain identity pass:
+            // "every hole must have a visibly different background
+            // silhouette"): the same range diorama in a different
+            // arrangement per hole — h1 a right-weighted low range (the
+            // cliff side carries the view), h2 one dominant central massif
+            // (the signature), h3 a long LOW mesa band (wide-stretched,
+            // squat, flat-top skyline). Alternating mirroring + width
+            // stretches keep repeats from reading as copies; all
+            // bounds-centered and grounded.
+            // Each composition ends in a full-width CURTAIN layer (wMul 4.5+
+            // at the deepest allowed depth): a jagged mountain wall spanning
+            // the whole horizon so no sky gap or flat backstop edge shows
+            // between/beside the nearer layers — elevated tees (h2's +15
+            // mesa) see over the short backstop otherwise.
+            const holeMod = (hole.number - 1) % 3;
             const spots = key.startsWith('mountain_range')
-              ? [
-                  { dx: 120, dy: 220, h: 360, mirror: false },
-                  { dx: -1500, dy: -450, h: 300, mirror: true },
-                  { dx: 1450, dy: -350, h: 320, mirror: false },
-                  { dx: -520, dy: -1350, h: 250, mirror: true },
-                  { dx: 620, dy: -1500, h: 230, mirror: false }
-                ]
+              ? holeMod === 0
+                ? [
+                    { dx: 900, dy: 150, h: 300, mirror: false, wMul: 1.3 },
+                    { dx: -1500, dy: -650, h: 240, mirror: true, wMul: 1.3 },
+                    { dx: 2400, dy: -800, h: 260, mirror: false, wMul: 1.3 },
+                    { dx: -200, dy: -1500, h: 230, mirror: true, wMul: 4.5 }
+                  ]
+                : holeMod === 1
+                  ? [
+                      { dx: 0, dy: 320, h: 430, mirror: false, wMul: 1.15 },
+                      { dx: -1950, dy: -700, h: 280, mirror: true, wMul: 1.3 },
+                      { dx: 1950, dy: -800, h: 300, mirror: false, wMul: 1.3 },
+                      { dx: 250, dy: -1500, h: 245, mirror: false, wMul: 4.5 }
+                    ]
+                  : [
+                      { dx: -1100, dy: 120, h: 190, mirror: true, wMul: 2.2 },
+                      { dx: 800, dy: 60, h: 210, mirror: false, wMul: 2.0 },
+                      { dx: -300, dy: -1500, h: 200, mirror: true, wMul: 5.0 }
+                    ]
               : [
-                  { dx: -80 + ki * 500, dy: 0, h: 440, mirror: false },
-                  { dx: 880 + ki * 500, dy: -380, h: 300, mirror: true }
+                  { dx: -80 + ki * 500, dy: 0, h: 440, mirror: false, wMul: 1 },
+                  { dx: 880 + ki * 500, dy: -380, h: 300, mirror: true, wMul: 1 }
                 ];
             for (let si = 0; si < spots.length; si++) {
               const spot = spots[si];
               const sMul = spot.h / proto.height;
               const anchor = w2b(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
               // Mirroring negates local X, so the recentering offset's X
-              // component flips sign with it. The 1.3 width stretch widens
-              // each layer so adjacent silhouettes overlap — high saddles
-              // between instances were letting slivers of blue sky through.
-              const sx = (spot.mirror ? -sMul : sMul) * 1.3;
+              // component flips sign with it. The width stretch widens each
+              // layer so adjacent silhouettes overlap (high saddles between
+              // instances let slivers of blue sky through) — and per-hole
+              // compositions push it further (h3's 2x = squat mesa band).
+              const sx = (spot.mirror ? -sMul : sMul) * (spot.wMul ?? 1.3);
               const off = new Vector3(
                 ((bmin.x + bmax.x) / 2) * -sx,
                 -bmin.y * sMul,
@@ -2200,6 +2228,22 @@ export function buildCourse(
       }
       });
     }
+    // Authored MAJOR landforms (hole.landforms — terrain identity pass):
+    // deliberate rock masses framing landing zones, shelf edges, wash banks
+    // and mesa tops, placed exactly where the hole data says. Distinct from
+    // the random scatter below.
+    if (hole.landforms && hole.landforms.length) {
+      const lf = hole.landforms;
+      popQueue.push(() => {
+        const keyed = pickKeyed([...new Set(lf.map((l) => l.key))]);
+        const byKey = new Map(keyed.map((e) => [e.key, e.proto]));
+        for (const l of lf) {
+          const proto = byKey.get(l.key);
+          if (proto) placeProto(proto, l.x, l.y, l.h);
+        }
+      });
+    }
+
     // Waste-rim cliff formations (theme.wasteRimKeys — Red Hollow's canyon
     // walls): walk each WASTE bunker's perimeter and plant LARGE tinted rock/
     // cliff formations on the land side, so the red waste reads carved below

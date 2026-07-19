@@ -24,6 +24,16 @@ export interface ElevationPoint {
   r: number;
   /** dome = smooth hill; plateau = flat top (inner 55%) with smooth skirt. */
   shape?: 'dome' | 'plateau';
+  /** Optional segment end (terrain identity pass): when set, distance is
+   *  measured to the SEGMENT (x,y)→(x2,y2) instead of the point — one entry
+   *  becomes a long dune ridge, valley wall, bench or canyon rim rather than
+   *  an isolated circular bump. */
+  x2?: number;
+  y2?: number;
+  /** Plateau flat-fraction override (default 0.55). 0.8–0.92 gives a
+   *  near-vertical cliff face at the grid resolution — mesa sides, canyon
+   *  walls, blowout lips. Ignored for domes. */
+  skirt?: number;
 }
 
 const CELL = 8; // grid resolution, world px — smooth macro terrain only
@@ -107,18 +117,34 @@ export class HeightField {
     // the rolling-hills pass multiplied the authored point counts (~70/hole).
     // Same math, same result, ~50× less work.
     for (const p of points) {
-      const gx0 = Math.max(0, Math.floor((p.x - p.r) / CELL));
-      const gx1 = Math.min(this.gw - 1, Math.ceil((p.x + p.r) / CELL));
-      const gy0 = Math.max(0, Math.floor((p.y - p.r) / CELL));
-      const gy1 = Math.min(this.gh - 1, Math.ceil((p.y + p.r) / CELL));
+      const x2 = p.x2 ?? p.x;
+      const y2 = p.y2 ?? p.y;
+      const gx0 = Math.max(0, Math.floor((Math.min(p.x, x2) - p.r) / CELL));
+      const gx1 = Math.min(this.gw - 1, Math.ceil((Math.max(p.x, x2) + p.r) / CELL));
+      const gy0 = Math.max(0, Math.floor((Math.min(p.y, y2) - p.r) / CELL));
+      const gy1 = Math.min(this.gh - 1, Math.ceil((Math.max(p.y, y2) + p.r) / CELL));
+      const dx = x2 - p.x;
+      const dy = y2 - p.y;
+      const segLen2 = dx * dx + dy * dy;
+      // Plateau flat fraction: default 0.55; higher = steeper skirt (cliff).
+      const flat = Math.min(0.95, Math.max(0.05, p.skirt ?? 0.55));
       for (let gy = gy0; gy <= gy1; gy++) {
         for (let gx = gx0; gx <= gx1; gx++) {
-          const d = Math.hypot(gx * CELL - p.x, gy * CELL - p.y) / p.r;
+          const wx = gx * CELL;
+          const wy = gy * CELL;
+          // Distance to the segment (degenerates to the point when no x2/y2).
+          let px = p.x;
+          let py = p.y;
+          if (segLen2 > 0) {
+            const tt = Math.min(1, Math.max(0, ((wx - p.x) * dx + (wy - p.y) * dy) / segLen2));
+            px = p.x + dx * tt;
+            py = p.y + dy * tt;
+          }
+          const d = Math.hypot(wx - px, wy - py) / p.r;
           if (d >= 1) continue;
           let t: number;
           if (p.shape === 'plateau') {
-            // Flat inner 55%, smoothstep skirt to the rim
-            const s = Math.min(1, Math.max(0, (d - 0.55) / 0.45));
+            const s = Math.min(1, Math.max(0, (d - flat) / (1 - flat)));
             t = 1 - s * s * (3 - 2 * s);
           } else {
             const s = 1 - d;

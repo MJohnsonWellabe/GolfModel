@@ -125,7 +125,14 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
     // classes below (materials/textures/observers/particle systems/scenes)
     // are held tight: a genuinely retained scene adds hundreds of meshes AND
     // dozens of materials, which still trips every one of these gates.
-    expect(Math.abs(second.meshes - first.meshes), label('meshes')).toBeLessThanOrEqual(64);
+    // PROPORTIONAL band (was a fixed 64): seeded pin/tee layouts shift the
+    // planting keep-out radii between cycles, and that variance scales with
+    // total instance count — Wild Valley's terrain-pass prairie (~19k
+    // instances) legitimately oscillates ~±90 without any retention. 1% of
+    // the course's own count keeps the gate meaningful at every density: a
+    // genuinely retained scene re-adds its full planting (thousands).
+    const meshBand = Math.max(64, Math.round(first.meshes * 0.01));
+    expect(Math.abs(second.meshes - first.meshes), label('meshes')).toBeLessThanOrEqual(meshBand);
     expect(Math.abs(second.materials - first.materials), label('materials')).toBeLessThanOrEqual(4);
     expect(Math.abs(second.textures - first.textures), label('textures')).toBeLessThanOrEqual(4);
     expect(
