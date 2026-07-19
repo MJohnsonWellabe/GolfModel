@@ -135,3 +135,41 @@ not clumps on bare ground. Perf guard: soak instance counts recorded below.
 - Backdrop variation reuses the one CC-BY range diorama in different
   compositions/mirrorings/scales per hole (no second range asset exists);
   silhouettes differ per hole but share rock DNA.
+
+## 6. Identity pass 3 — landform-first rebuild (2026-07-19)
+
+Follow-up direction: the pass above was "technically correct but
+artistically missing" — rebuild composition until every hole is
+recognizable from one screenshot, with a hero landform per hole.
+Landform first, golf second; backgrounds must connect to play.
+
+What changed (all six holes rebuilt around ONE enormous landform each):
+
+- **RH1 — THE CLIFF WALL.** A 28-34-high wall runs the entire right side
+  (two segments; the southern face crowds the drive corridor), wraps
+  behind the green into an amphitheater spur, with a 15-deep ravine along
+  the left edge. Rock stacks crown the wall crest.
+- **RH2 — THE MESA.** The canyon floor IS the default ground; the tee
+  (+27) and green (+22, skirt 0.92) mesas rise from it, and a mesa FIELD
+  (h22-30 walls) runs past every world edge so the canyon reads endless.
+- **RH3 — THE WINDING CANYON.** The hole plays on the canyon floor between
+  18-24-high rim walls tracking the S-curve on both sides; shelf steps and
+  the crossing wash live INSIDE the canyon; rim formations crown the tops.
+- **WV1 — THE GREAT RIDGE.** One h15 wind-sculpted dune runs the whole
+  right side with blowouts cut into its flank; the fairway flows down the
+  valley at its foot; edge dunes continue the system past every side.
+- **WV2 — THE AMPHITHEATER.** The kettle scaled to landform: h11-12.5
+  enclosing walls (open front-right), rim shoulders running past both
+  edges, green low on the bowl floor (tee +4.5 looks INTO the bowl).
+- **WV3 — THE BLOWOUT WALL.** Two mega-ridges (h11-12) cross the hole; a
+  three-bowl blowout complex is torn out of the second ridge's face on the
+  aggressive line; the green rides high behind the last ridge's shoulder.
+
+Backdrop compositions now end in full-width curtain layers per hole, and
+the backstop wall spans -540..+60 (top LOW so its flat cream top never
+shows above range saddles; bottom deep so elevated tees can't see sky
+under the ranges). WV amplitude gate widened to 20 for the hero landforms.
+
+Screenshot iteration rounds: 3 (wall visibility from tee FOV, amphitheater
+amplification, curtain/backstop seam fixes). All 12 terrain gates, 17 sim
+playability, 673 fast tests green after each round.

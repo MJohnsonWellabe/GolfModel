@@ -130,7 +130,10 @@ describe('Wild Valley terrain identity', () => {
         }
       }
       expect(max - min, `h${i + 1} ridge-to-valley`).toBeGreaterThanOrEqual(6);
-      expect(max - min, `h${i + 1} stays sandhills, not mountains`).toBeLessThanOrEqual(16);
+      // 20 (was 16): identity pass 3 scales the hero dunes to true
+      // landforms (h11-13, the amphitheater's enclosing walls) with deep
+      // blowout bowls cut into their faces.
+      expect(max - min, `h${i + 1} stays sandhills, not mountains`).toBeLessThanOrEqual(20);
     }
   });
 

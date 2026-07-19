@@ -1295,11 +1295,15 @@ export function buildCourse(
           // mesh's far edge — sky showed as a blue band UNDER the ranges
           // until the wall extended well below the horizon line.
           const bsC = mix(hillBase, theme.haze, 0.5);
-          const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 560 }, scene);
+          const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 600 }, scene);
           const bsMat = mat(scene, 'rangeBackstopM', bsC, { emissive: shade(bsC, 0.85) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, -80, 0));
+          // Top stays LOW (+60): the wall only seals the under-horizon gap —
+          // any higher and its flat cream top shows above the range layers'
+          // low saddles as a slab (playtest zoom). Bottom reaches -540 so
+          // elevated tees can't see under it either.
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, -240, 0));
           bs.applyFog = false;
           bs.freezeWorldMatrix();
           // These packs are full RANGE DIORAMAS (many peaks arranged by the
@@ -1342,9 +1346,10 @@ export function buildCourse(
               ? holeMod === 0
                 ? [
                     { dx: 900, dy: 150, h: 300, mirror: false, wMul: 1.3 },
-                    { dx: -1500, dy: -650, h: 240, mirror: true, wMul: 1.3 },
+                    { dx: -1500, dy: -650, h: 240, mirror: true, wMul: 1.8 },
                     { dx: 2400, dy: -800, h: 260, mirror: false, wMul: 1.3 },
-                    { dx: -200, dy: -1500, h: 230, mirror: true, wMul: 4.5 }
+                    { dx: -1400, dy: -1500, h: 230, mirror: true, wMul: 2.5 },
+                    { dx: 800, dy: -1520, h: 220, mirror: false, wMul: 2.5 }
                   ]
                 : holeMod === 1
                   ? [
