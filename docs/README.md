@@ -80,6 +80,7 @@ lagged current policy):
 - `content/COURSE_ATMOSPHERE_BIBLE.md` — per-course ambient identity (V2 Phase 4)
 - `technical/ANALYTICS_FRAMEWORK.md` — event registry + metric definitions (V2 Prompt 16)
 - `technical/BOUNDED_PLAYABLE_WORLD.md` — bounded playable world + off-course void (dev rule, `boundedWorld` flag)
+- `technical/COURSE_AND_BOUNDED_WORLD_FIELD_GUIDE.md` — **designer handoff**: how the generated dev courses, the bounded world, and the terrain gates fit together (read before editing Red Hollow / Wild Prairie geometry)
 - `studio/STUDIO_TECHNICAL_ARCHITECTURE.md` — Studio module map + backlog (V2 Prompt 15)
 
 Active operational runbooks (do not archive):
