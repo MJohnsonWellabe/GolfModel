@@ -40,7 +40,7 @@ import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern'
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
-import { distToBoundary, pointInBoundary } from '../systems/PlayableBoundary';
+import { pointInBoundary } from '../systems/PlayableBoundary';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { AtmosphereKind, buildAtmosphere } from './atmosphere';
@@ -312,22 +312,21 @@ export function buildCourse(
     scene
   );
   ground.position = new Vector3(w / 2, 0, -h / 2);
-  // BOUNDED WORLD: everything past the playable boundary becomes off-course
-  // void. Inside the boundary the full authored terrain renders; outside it the
-  // ground DROPS AWAY into fog-hidden depth (rule: "edge geometry that drops
-  // away before the cutoff" + "atmospheric fog concealing the edge"), so the
-  // compact world reads as deliberate nothingness rather than an unfinished map.
+  // BOUNDED WORLD: the playable boundary governs where DETAIL (scatter/rocks)
+  // is generated and where the off-course penalty applies — but the ground MESH
+  // keeps the authored terrain everywhere (inside AND outside the boundary), so
+  // authored cliffs, canyon walls and rim rocks stay correctly grounded (no
+  // sinking, no floating) and read as the world's natural edge. Everything past
+  // the rendered terrain is masked by the fogged void-floor plane + haze (built
+  // below), so the compact world resolves as deliberate desert nothingness
+  // rather than a blue map edge. (An earlier pass dropped the mesh into a trench
+  // here; that sank the rim rocks and exposed the sky dome — removed.)
   const boundary = hole.boundary;
-  const VOID_FEATHER = 26; // px of down-ramp so the fall-away isn't a hard wall
-  const VOID_DROP = 58; // world units the ground sinks below the play plane
   const heightAt = (wx: number, wy: number): number => {
     const terrain = engine.groundAt(wx, wy);
-    if (boundary) {
-      if (pointInBoundary(wx, wy, boundary)) return terrain;
-      const d = distToBoundary(wx, wy, boundary); // distance OUTSIDE the boundary
-      const t = Math.min(1, d / VOID_FEATHER);
-      return terrain - t * VOID_DROP - smoothNoise(wx * 0.5, wy * 0.5) * 3 * t;
-    }
+    // Bounded world: authored terrain straight out to the mesh edge — no scenery
+    // mound beyond the world edge (the void floor + fog own the horizon).
+    if (boundary) return terrain;
     // Playable interior: the authored heightfield (the SAME terrain physics
     // rolls on — engine.groundAt), plus scenery mounds that ramp up smoothly
     // beyond the world edge only.
@@ -343,14 +342,44 @@ export function buildCourse(
     const t = Math.min(1, out / 140);
     return terrain + t * (6 + smoothNoise(wx * 0.6, wy * 0.6) * 2.5 + smoothNoise(wx, wy) * 2.2);
   };
+  let minMeshY = Infinity;
   ground.updateMeshPositions((positions) => {
     for (let i = 0; i < positions.length; i += 3) {
       const wx = positions[i] + w / 2;
       const wy = -(positions[i + 2] - h / 2) ;
-      positions[i + 1] = heightAt(wx, wy);
+      const y = heightAt(wx, wy);
+      positions[i + 1] = y;
+      if (y < minMeshY) minMeshY = y;
     }
   }, true);
   ground.receiveShadows = true;
+
+  // BOUNDED WORLD: a large fogged "void floor" masks everything beyond the
+  // rendered terrain so the compact world never exposes a blue sky-dome edge or
+  // a rectangular map cutoff (playtest: "blue dead space in the background").
+  // It reuses the sea-plane trick (applyFog = true) so its far reaches dissolve
+  // into the course's own haze — desert/prairie holes read as hazy nothingness
+  // past the authored cliffs and corridor. Placed just below the lowest terrain
+  // so it never occludes an in-view canyon/blowout, and skipped on sea courses
+  // (their ocean plane already owns the horizon).
+  if (boundary && theme.backdrop !== 'sea') {
+    const voidFloor = MeshBuilder.CreateGround(
+      'voidFloor',
+      { width: 16000, height: 16000, subdivisions: 1 },
+      scene
+    );
+    const floorY = (Number.isFinite(minMeshY) ? minMeshY : 0) - 5;
+    voidFloor.position = new Vector3(w / 2, floorY, -h / 2);
+    const vMat = new StandardMaterial('voidFloorMat', scene);
+    vMat.diffuseColor = c3(theme.haze);
+    vMat.emissiveColor = c3(shade(theme.haze, 0.55));
+    vMat.specularColor = new Color3(0, 0, 0);
+    voidFloor.material = vMat;
+    voidFloor.applyFog = true;
+    voidFloor.receiveShadows = false;
+    voidFloor.isPickable = false;
+    voidFloor.freezeWorldMatrix();
+  }
 
   // Adaptive bake resolution: the ground albedo bake is synchronous, so its
   // cost scales with the padded world area × scale². Capping the texel budget

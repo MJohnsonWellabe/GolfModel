@@ -75,11 +75,17 @@ Reuses the existing out-of-bounds pipeline (`PhysicsEngine`,
 
 ## Playable world vs void (rendering)
 
-- **`course3d.heightAt`** — inside the boundary the full authored terrain
-  renders; outside it the ground drops away (`-58` units over a 26 px feather)
-  into fog-hidden depth. Combined with the existing EXP2 `theme.haze` fog, the
-  edge reads as deliberate nothingness ("edge geometry that drops away before
-  the cutoff" + "atmospheric fog concealing the edge").
+- **Terrain + void floor** — the ground MESH keeps the authored terrain
+  everywhere (inside AND outside the boundary), so authored cliffs, canyon walls
+  and rim rocks stay correctly grounded (no sinking, no floating) and read as the
+  world's natural edge. Everything past the rendered terrain is masked by a
+  single large **fogged void-floor plane** (`course3d.ts`, reusing the sea-plane
+  trick: `applyFog = true`, colored `theme.haze`, placed just below the lowest
+  terrain, skipped on sea courses) — its far reaches dissolve into the course's
+  own haze, so the compact world resolves as deliberate hazy nothingness rather
+  than a blue sky-dome edge or a rectangular map cutoff. (An earlier revision
+  dropped the mesh into a trench instead; that sank the rim rocks and exposed the
+  sky dome, so it was replaced by the void floor.)
 - **Ground scatter** (grass, bushes, flowers, rocks, forest litter) — a
   `pointInBoundary` gate at the top of the scatter loop skips every cell in the
   void. Trees are already bounded per-hazard-polygon; authored `landforms`

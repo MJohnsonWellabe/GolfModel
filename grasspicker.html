@@ -1,0 +1,126 @@
+<!doctype html>
+<!-- Dev-only grass asset picker (never linked from the game). Playtest pass 9:
+     lay every plausible prairie-rough grass card side by side under one light
+     and scale so Matt can choose the replacement. npm run dev, then open
+     /grasspicker.html (or capture it). Each model carries a numbered billboard;
+     the legend panel maps number -> key, file path and current in-game
+     treatment. NO course data is changed by this page. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #d8d2c4; font-family: system-ui, sans-serif; }
+      #c { position: absolute; left: 0; top: 0; width: 74%; height: 100%; }
+      #legend { position: absolute; right: 0; top: 0; width: 26%; height: 100%; overflow: auto; box-sizing: border-box; padding: 14px 16px; background: #23201b; color: #efe9dc; font-size: 13px; }
+      #legend h2 { font-size: 15px; margin: 0 0 10px; color: #ffd98a; }
+      #legend .row { padding: 6px 0; border-bottom: 1px solid #3a352c; }
+      #legend .n { display: inline-block; width: 20px; font-weight: 700; color: #ffd98a; }
+      #legend .k { font-weight: 600; }
+      #legend .p { color: #b7ad98; font-size: 11px; }
+      #legend .t { color: #9fd0a0; font-size: 11px; }
+      #legend .cur { color: #ff9; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="legend"><h2>Prairie rough — grass options</h2><div id="rows"></div></div>
+    <script type="module">
+      import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4, LoadAssetContainerAsync, MeshBuilder, DynamicTexture, StandardMaterial } from '@babylonjs/core';
+      import '@babylonjs/loaders/glTF';
+
+      // key, file, in-game treatment note, current?
+      const ITEMS = [
+        ['heather_fescue_b', 'gold photo card, UNLIT (the current prairie grass)', true],
+        ['heather_fescue_a', 'gold photo card, UNLIT (same family as current)'],
+        ['heather_fescue_c', 'gold photo card, UNLIT (was the removed orange shrub)'],
+        ['heather_purple', 'purple-bloom photo card, UNLIT'],
+        ['grass_c', 'Grass-F tuft, flat/lit recolor'],
+        ['grass_d', 'Grass-F tuft, flat/lit recolor'],
+        ['grass_e', 'Grass-F tuft, flat/lit recolor'],
+        ['grass_f', 'Grass-F tuft, flat/lit recolor'],
+        ['grass_g', 'meadow wispy blade, flat/lit recolor'],
+        ['grass_h', 'meadow wispy blade, flat/lit recolor'],
+        ['grass_i', 'dense golden block, flat/lit recolor']
+      ];
+
+      const canvas = document.getElementById('c');
+      const engine = new Engine(canvas, true, { preserveDrawingBuffer: true });
+      const scene = new Scene(engine);
+      scene.clearColor = new Color4(0.85, 0.82, 0.77, 1);
+      const cam = new ArcRotateCamera('cam', -Math.PI / 2, 0.92, 30, new Vector3(0, 1.0, -5.2), scene);
+      cam.attachControl(canvas, true);
+      // Identical lighting for every card.
+      new HemisphericLight('h', new Vector3(0, 1, 0), scene).intensity = 0.95;
+      const dir = new DirectionalLight('d', new Vector3(-0.4, -1, -0.5), scene);
+      dir.intensity = 0.55;
+
+      const COLS = 4, SP = 3.4;
+      const rowsEl = document.getElementById('rows');
+
+      function label(text, x, y, z) {
+        const dt = new DynamicTexture('lbl', { width: 128, height: 64 }, scene, true);
+        dt.hasAlpha = true;
+        const ctx = dt.getContext();
+        ctx.clearRect(0, 0, 128, 64);
+        ctx.fillStyle = '#1b1813';
+        ctx.beginPath(); ctx.arc(64, 32, 26, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffd98a';
+        ctx.font = 'bold 34px system-ui';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(text, 64, 34);
+        dt.update();
+        const mat = new StandardMaterial('lblM', scene);
+        mat.emissiveTexture = dt; mat.opacityTexture = dt; mat.disableLighting = true;
+        const p = MeshBuilder.CreatePlane('lblP', { size: 1.1 }, scene);
+        p.material = mat; p.position.set(x, y, z); p.billboardMode = 7;
+      }
+
+      async function run() {
+        for (let i = 0; i < ITEMS.length; i++) {
+          const [key, note, cur] = ITEMS[i];
+          const col = i % COLS, row = Math.floor(i / COLS);
+          const x = (col - (COLS - 1) / 2) * SP;
+          const z = -row * SP;
+          // pedestal
+          const ped = MeshBuilder.CreateCylinder('ped' + i, { diameter: 2.2, height: 0.15, tessellation: 20 }, scene);
+          ped.position.set(x, 0, z);
+          const pm = new StandardMaterial('pm' + i, scene);
+          pm.diffuseColor = new Color3(0.72, 0.55, 0.32);
+          ped.material = pm;
+          let topY = 2.4;
+          try {
+            const c = await LoadAssetContainerAsync(`models/nature/${key}.glb`, scene);
+            c.addAllToScene();
+            const rootNode = c.rootNodes[0];
+            rootNode.computeWorldMatrix(true);
+            const b = rootNode.getHierarchyBoundingVectors(true);
+            const hgt = b.max.y - b.min.y || 1;
+            const wdt = b.max.x - b.min.x || 1;
+            const dpt = b.max.z - b.min.z || 1;
+            // Uniform SCALE by the largest dimension so wide crossed-cards and
+            // tall tufts all fit the same ~2.2-unit envelope (fair comparison).
+            const s = 2.2 / Math.max(hgt, wdt, dpt);
+            rootNode.scaling.setAll(s);
+            rootNode.position.set(x, 0, z);
+            rootNode.computeWorldMatrix(true);
+            const b2 = rootNode.getHierarchyBoundingVectors(true);
+            rootNode.position.y += 0.08 - b2.min.y;
+            topY = (b2.max.y - b2.min.y) + 0.4;
+          } catch (e) {
+            console.warn('load failed', key, e);
+          }
+          label(String(i + 1), x, topY, z);
+          const div = document.createElement('div');
+          div.className = 'row';
+          div.innerHTML = `<span class="n">${i + 1}</span><span class="k ${cur ? 'cur' : ''}">${key}${cur ? ' ★ current' : ''}</span>` +
+            `<div class="p">assets/models/nature/${key}.glb</div><div class="t">${note}</div>`;
+          rowsEl.appendChild(div);
+        }
+        engine.runRenderLoop(() => scene.render());
+        let f = 0;
+        scene.onAfterRenderObservable.add(() => { if (++f === 25) window.__ready = true; });
+      }
+      run();
+    </script>
+  </body>
+</html>

@@ -189,3 +189,60 @@ describe('h2 tier putts behave', () => {
     expect(['green', 'fringe']).toContain(out.surface);
   });
 });
+
+// PASS 9 (playtest): far more fairside rock on Rimrock + a three-rock fairway
+// cluster. These gate the tester's explicit asks.
+describe('Rimrock pass-9 rock frequency + fairway cluster', () => {
+  it('h1 carries 50+ side rocks in all four shades', () => {
+    const lf = hole.landforms ?? [];
+    expect(lf.length).toBeGreaterThanOrEqual(50);
+    for (const key of ['rocks_red_bright', 'rocks_red_mid', 'rocks_red_dark', 'rocks_red_cluster'])
+      expect(lf.some((l) => l.key === key), `shade ${key}`).toBe(true);
+  });
+
+  it('all three fairway rocks carom a struck ball', () => {
+    const rocks = hole.hazards.filter((hz) => hz.type === 'rock');
+    expect(rocks.length).toBe(3);
+    for (const rk of rocks) {
+      const origin = { x: rk.cx!, y: rk.cy! + 110 };
+      const out = engineWith(3).simulate({
+        origin,
+        aimAngle: Math.atan2(rk.cy! - origin.y, rk.cx! - origin.x),
+        swing: PERFECT,
+        club: putter,
+        golfer,
+        fireBoost: 0,
+        lie: 'fairway',
+        wind: NO_WIND,
+        hole
+      });
+      expect(out.hitRock, `rock @${rk.cx},${rk.cy} caroms`).toBe(true);
+    }
+  });
+
+  it('each fairway rock leaves a clean playable lane beside it', () => {
+    // A ball rolled down a lane one rock-radius + 26px to the side must NOT
+    // hit that rock — i.e. there is real room to play past the cluster.
+    const rocks = hole.hazards.filter((hz) => hz.type === 'rock');
+    for (const rk of rocks) {
+      const offset = rk.r! + 26;
+      let cleanLane = false;
+      for (const side of [-1, 1]) {
+        const origin = { x: rk.cx! + side * offset, y: rk.cy! + 110 };
+        const out = engineWith(5).simulate({
+          origin,
+          aimAngle: -Math.PI / 2, // straight up the hole, parallel past the rock
+          swing: PERFECT,
+          club: putter,
+          golfer,
+          fireBoost: 0,
+          lie: 'fairway',
+          wind: NO_WIND,
+          hole
+        });
+        if (!out.hitRock) cleanLane = true;
+      }
+      expect(cleanLane, `rock @${rk.cx},${rk.cy} has a clean lane`).toBe(true);
+    }
+  });
+});

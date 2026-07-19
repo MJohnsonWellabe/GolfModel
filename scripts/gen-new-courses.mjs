@@ -167,7 +167,10 @@ const redhollow = {
       // landing band (Monte Carlo: rests x380-410 / y588-685, mean 254yd)
       // into two true ~17yd lanes.
       centerline: [[330, 1100], [332, 960], [348, 820], [380, 690], [412, 580], [468, 470], [528, 392]],
-      width: [46, 68, 84, 96, 90, 54, 44],
+      // PASS 9 (playtest): the drive zone widens further (112/108 around
+      // y580-690) so a THREE-rock cluster — the existing boulder plus two more
+      // ~37yd up — leaves real lanes both sides and a thread between.
+      width: [46, 68, 88, 112, 108, 58, 44],
       hazards: [
         // PASS 6 — TRUE OUT OF BOUNDS from the SHELF EDGE down: the
         // boundary tracks the exact line where the shelf starts to fall
@@ -181,6 +184,13 @@ const redhollow = {
         // the left lane hugs the OB cliff for the straighter approach into
         // the wrapped green; right is the safe bail against the wall toe.
         rock(393, 648, 13),
+        // PASS 9 (playtest): two MORE collidable boulders ~37yd up the hole
+        // (30-40yd request), one offset left and one right of center, roughly
+        // symmetric — a rock garden the drive must pick a way through. Modest
+        // (h8/h9) with the widened fairway so both outer lanes stay playable
+        // and a thread runs between; measured against the driver landing band.
+        rock(400, 574, 8, 'rocks_red_mid'),
+        rock(432, 574, 9, 'rocks_red_dark'),
         // Canyon floor dressing (inside the OB — visual only).
         { type: 'bunker', waste: true, polygon: blob(105, 900, 95, 330, 14, 0.3, 15) },
         { type: 'bunker', waste: true, polygon: blob(170, 420, 100, 240, 13, 0.32, 17) },
@@ -273,7 +283,36 @@ const redhollow = {
         // Green complex.
         { key: 'rocks_red_bright', x: 640, y: 330, h: 9 },
         { key: 'rocks_red_mid', x: 470, y: 250, h: 8 },
-        { key: 'rocks_red_cluster', x: 590, y: 258, h: 12 }
+        { key: 'rocks_red_cluster', x: 590, y: 258, h: 12 },
+        // PASS 9 (playtest): heavier rock frequency up BOTH sides of the
+        // fairway — 50+ boulders total, all on supported flat ground at/above
+        // shelf level (never below the cliffs), staged the length of the hole
+        // and framed by the gameplay cameras. Varied shade (all four keys) and
+        // size (S 5-8 / M 10-14 / L 15-18).
+        // Right wall crest + benches (flat plateau tops looming over the play).
+        { key: 'rocks_red_cluster', x: 810, y: 860, h: 15 },
+        { key: 'rocks_red_mid', x: 832, y: 760, h: 14 },
+        { key: 'rocks_red_bright', x: 852, y: 540, h: 14 },
+        { key: 'rocks_red_dark', x: 818, y: 400, h: 13 },
+        { key: 'rocks_red_mid', x: 858, y: 690, h: 13 },
+        { key: 'rocks_red_bright', x: 700, y: 900, h: 18 },
+        // Right flank pressing the corridor (wall-toe benches, shelf level up).
+        { key: 'rocks_red_mid', x: 500, y: 1100, h: 12 },
+        { key: 'rocks_red_dark', x: 520, y: 980, h: 15 },
+        { key: 'rocks_red_bright', x: 520, y: 680, h: 13 },
+        { key: 'rocks_red_cluster', x: 556, y: 560, h: 13 },
+        { key: 'rocks_red_mid', x: 524, y: 452, h: 11 },
+        { key: 'rocks_red_dark', x: 502, y: 384, h: 9 },
+        // Left-rim brink (on the shelf just short of the OB fall).
+        { key: 'rocks_red_bright', x: 300, y: 1120, h: 7 },
+        { key: 'rocks_red_mid', x: 300, y: 1060, h: 8 },
+        { key: 'rocks_red_dark', x: 320, y: 760, h: 7 },
+        { key: 'rocks_red_bright', x: 322, y: 542, h: 7 },
+        { key: 'rocks_red_mid', x: 360, y: 402, h: 6 },
+        // Extra drive/approach frames on the shelf.
+        { key: 'rocks_red_cluster', x: 382, y: 1000, h: 9 },
+        { key: 'rocks_red_bright', x: 360, y: 884, h: 8 },
+        { key: 'rocks_red_mid', x: 410, y: 760, h: 10 }
       ],
       // The sheer wall's visible face (see elevation): a rock-textured strip
       // extruded along the toe, tee to green taper.
@@ -309,20 +348,23 @@ const redhollow = {
       // small promontory lobes (+) and erosion notches (−) placed on the
       // skirt ring, well clear of the smooth tee/putting surfaces.
       elevation: [
-        // PASS 6: the tee mesa RAISED well above the green mesa (34 vs 22)
-        // — a genuinely downhill carry, read by the HUD elevation delta.
-        { x: 450, y: 815, h: 34, r: 150, shape: 'plateau', skirt: 0.86 },
+        // PASS 6: the tee mesa RAISED well above the green mesa — a genuinely
+        // downhill carry, read by the HUD elevation delta. PASS 9: nudged 34→36
+        // to keep the ≥8-unit tee-over-green drop now the back tier sits +4.0.
+        { x: 450, y: 815, h: 36, r: 150, shape: 'plateau', skirt: 0.86 },
         // Tee mesa erosion: two promontories, one bite.
         { x: 322, y: 872, h: 8, r: 52, shape: 'plateau', skirt: 0.6 },
         { x: 585, y: 748, h: 6, r: 46, shape: 'plateau', skirt: 0.6 },
         { x: 388, y: 700, h: -7, r: 40, shape: 'plateau', skirt: 0.62 },
         { x: 450, y: 425, h: 22, r: 135, shape: 'plateau', skirt: 0.92 },
-        // PASS 7: UNMISTAKABLE TWO-TIER GREEN — the back tier +3.0 (≈3.75ft)
-        // over a ~16px ramp (peak local slope ≈16°, the steepest the 8px
-        // field can express; a putt can't die ON the mid-face — it feeds to
-        // a tier). Redhollow's putt-step gate runs at 2.4 for this ramp;
-        // pins are authored on the two flats, never the ramp.
-        { x: 426, y: 392, x2: 474, y2: 386, h: 3.0, r: 60, shape: 'plateau', skirt: 0.73 },
+        // PASS 9 (playtest: "the two tiers are not different enough"): the back
+        // tier is raised to +3.8 (≈4.75ft, up from 3.0/3.75ft — near the top of
+        // the requested 3-5ft band) over a ~17px ramp (r60, skirt 0.72). The
+        // narrow-but-steep ramp keeps every 8px step ≤2.4 (a putt can't die on
+        // the mid-face, it feeds to a tier) AND lets a downhill putt still roll
+        // down to the lower tier without flying the green (rockPass gate). A
+        // lower→upper putt now plays clearly uphill. Pins on the two flats only.
+        { x: 426, y: 392, x2: 474, y2: 386, h: 3.8, r: 60, shape: 'plateau', skirt: 0.72 },
         // Green mesa erosion (all outside the green + fringe).
         { x: 330, y: 330, h: 7, r: 46, shape: 'plateau', skirt: 0.6 },
         { x: 578, y: 500, h: 6, r: 42, shape: 'plateau', skirt: 0.6 },
@@ -558,7 +600,7 @@ const wildvalley = {
       // y 534–653, mean (475,593) = 269yd. The fairway balloons to 150
       // around that band and the hole bends visibly after the split.
       centerline: [[470, 1100], [460, 960], [455, 830], [462, 700], [472, 590], [468, 470], [496, 385]],
-      width: [50, 84, 110, 132, 150, 96, 56],
+      width: [50, 84, 108, 128, 138, 92, 56],
       hazards: [
         // THE SPLIT: a deep central bunker in the actual drive zone —
         // ~26yd wide, fully inside the 75yd-wide fairway, leaving ~24yd of
@@ -566,14 +608,14 @@ const wildvalley = {
         { type: 'bunker', polygon: blob(472, 592, 26, 30, 12, 0.42, 49) },
         // Flank blowouts pressed against the drive zone's edges (torn from
         // the great ridge's flank right, the counter-ridge left).
-        { type: 'bunker', waste: true, polygon: blob(650, 650, 88, 96, 14, 0.52, 41, 0.7) },
+        { type: 'bunker', waste: true, polygon: blob(626, 652, 90, 96, 14, 0.52, 41, 0.7) },
         { type: 'bunker', waste: true, polygon: blob(286, 668, 94, 116, 14, 0.5, 42) },
         // Short-of-the-zone blowout that eats a mishit drive.
         { type: 'bunker', waste: true, polygon: blob(610, 834, 80, 74, 13, 0.46, 45) },
         // Lay-up cross-pot inside the fairway's left half.
         { type: 'bunker', polygon: blob(440, 476, 18, 22, 9, 0.34, 48) },
         // Green-front defenders.
-        { type: 'bunker', polygon: blob(446, 334, 32, 26, 9, 0.34, 43) },
+        { type: 'bunker', polygon: blob(442, 332, 36, 30, 9, 0.34, 43) },
         { type: 'bunker', polygon: blob(586, 340, 34, 26, 9, 0.34, 44) }
       ],
       aiTargets: [[440, 700], [478, 468]],
@@ -629,10 +671,10 @@ const wildvalley = {
       hazards: [
         // The notch bunker in the crook of the kidney — enlarged: it now
         // guards the direct line at the back-right pin.
-        { type: 'bunker', polygon: blob(500, 470, 40, 34, 11, 0.32, 55) },
+        { type: 'bunker', depthMul: 1.7, polygon: blob(500, 470, 42, 36, 11, 0.32, 55) },
         // West-face pot, enlarged — it eats the "safe" bailout away from
         // the back-right pin.
-        { type: 'bunker', polygon: blob(330, 486, 36, 30, 10, 0.32, 56) },
+        { type: 'bunker', depthMul: 1.6, polygon: blob(330, 486, 40, 34, 10, 0.32, 56) },
         // Blowouts pulled ONTO the approach dispersion: a push-right miss
         // feeds the east blowout; a pull/short-left finds the west one.
         // Both pressed against the kettle floor's edge, deep and ragged.
@@ -659,7 +701,7 @@ const wildvalley = {
         // back-right pin lobe — the preferred pin sits on its small flat,
         // guarded by real slope on every side (not by edge proximity), the
         // south falloff feeding toward the notch bunker.
-        { x: 502, y: 352, x2: 522, y2: 392, h: 1.2, r: 40, shape: 'plateau', skirt: 0.5 },
+        { x: 502, y: 352, x2: 522, y2: 392, h: 1.5, r: 46, shape: 'plateau', skirt: 0.55 },
         { x: 440, y: 780, h: 4.5, r: 135, shape: 'plateau' },
         { x: 150, y: 680, x2: 360, y2: 640, h: 3, r: 105 },
         { x: 520, y: 680, x2: 700, y2: 620, h: 3.4, r: 115 }
