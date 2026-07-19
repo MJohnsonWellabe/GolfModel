@@ -141,6 +141,18 @@ export const PHYSICS = {
    *  Nudged to 38 so a clipped ball keeps a little more pace instead of dropping
    *  stone dead at the trunk (playtest: in-trees too severe). */
   treeKillSpeed: 38,
+  /** Rock carom ('rock' hazards): fraction of the NORMAL velocity component
+   *  returned by the boulder — stone is lively, unlike the dead treeDamp. */
+  rockRestitution: 0.38,
+  /** Fraction of the TANGENTIAL component kept through a rock carom. */
+  rockTangentKeep: 0.85,
+  /** Vertical speed kept on an airborne rock-face hit (irregular face). */
+  rockVzKeep: 0.7,
+  /** Push-out clearance (world px) past the rock radius after any contact —
+   *  the ball can never end a step inside the cylinder (no trapping). */
+  rockPushOut: 0.5,
+  /** Height (world units) when an authored rock entry omits it. */
+  rockDefaultHeight: 10,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
   /** Cup radius, world px — HONEST: this is BOTH the drawn hole (course3d) and

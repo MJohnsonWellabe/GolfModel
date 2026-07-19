@@ -120,13 +120,30 @@ export interface Hazard {
    *  region keeps its underlying look — but a ball finishing inside it takes
    *  a one-stroke penalty and drops in bounds roughly where it crossed the
    *  line (PhysicsEngine.resolveShot, mirrored by the AI simulator). */
-  type: 'water' | 'bunker' | 'trees' | 'building' | 'ob';
+  /** 'rock' = a solid boulder the ball CAROMS off (PhysicsEngine.rockContact:
+   *  swept cylinder, true normal reflection — unlike trees' stop-and-damp).
+   *  Rendered by course3d as a grounded nature prototype at (cx,cy). Its
+   *  polygon is a generated octagon of radius r so generic hazard consumers
+   *  never see undefined. */
+  type: 'water' | 'bunker' | 'trees' | 'building' | 'ob' | 'rock';
   polygon: Polygon;
   /** Water only: surface height (world units) the pond renders at. */
   level?: number;
   /** Ordinary bunkers only: extra multiplier on this ONE bunker's dish depth
    *  (on top of theme.bunkerDepthScale) — Devil's Kitchen's erosion bowls. */
   depthMul?: number;
+  /** Rock only: collision cylinder center (world px). */
+  cx?: number;
+  cy?: number;
+  /** Rock only: collision cylinder radius (world px). Kept in a documented
+   *  ratio to `height` (~1:1 for the rocks_red_* clusters) so the hitbox
+   *  tracks the visible footprint — gate-enforced in tests. */
+  r?: number;
+  /** Rock only: boulder height (world units) — also the visual target height
+   *  passed to placeProto, so collider and mesh cannot drift apart. */
+  height?: number;
+  /** Rock only: nature prototype key rendered at (cx,cy). */
+  key?: string;
   /**
    * Trees only: grid step (world units) between trunks inside the polygon,
    * default 52 — lower is denser woods. Lives on the hazard (course data),
@@ -357,6 +374,13 @@ export interface HoleData {
    *  canyon walls, mesa stacks, wash banks — distinct from the random rough
    *  scatter. Render-only, no physics footprint. */
   landforms?: Array<{ key: string; x: number; y: number; h: number }>;
+  /** Authored cliff-face polylines (world px): a rock-textured wall strip is
+   *  extruded along each — bottom at the terrain just below the toe, top
+   *  pulled `inset` px uphill (default 8) — the VISIBLE near-vertical face
+   *  over a heightfield slope the 8px grid cannot render sheer (Red Hollow
+   *  h1's rising right wall). Render-only; physics stays the heightfield,
+   *  whose steep face already returns any ball to the toe. */
+  cliffWalls?: Array<{ points: Array<[number, number]>; inset?: number }>;
   /** Layup waypoints the AI aims at when the pin is out of reach. */
   aiTargets: Point[];
   /** Authored macro-terrain control points (see systems/HeightField.ts). */
@@ -422,5 +446,7 @@ export interface ShotOutcome {
   obPenalty: boolean;
   /** True when the ball struck trees mid-flight. */
   hitTrees: boolean;
+  /** True when the ball caromed off a 'rock' hazard (flight or roll). */
+  hitRock?: boolean;
   holed: boolean;
 }

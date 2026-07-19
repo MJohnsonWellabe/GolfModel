@@ -106,10 +106,24 @@ export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red'] as const;
  *  a sunlit bright-red material — playtest asked for the good rock "in
  *  bright red and deep red/black at various sizes" and instances share their
  *  prototype's material, so two looks need two prototypes. */
-export const DESERT_SET_KEYS = ['rocks_red_cluster', 'rocks_red_bright', 'canyon_red_a', 'canyon_red_b'] as const;
+export const DESERT_SET_KEYS = [
+  'rocks_red_cluster',
+  'rocks_red_bright',
+  'rocks_red_mid',
+  'rocks_red_dark',
+  'canyon_red_a',
+  'canyon_red_b'
+] as const;
 
-/** Alias keys → the glb file they load (see DESERT_SET_KEYS). */
-const KEY_FILE_ALIASES: Record<string, string> = { rocks_red_bright: 'rocks_red_cluster' };
+/** Alias keys → the glb file they load (see DESERT_SET_KEYS). The four
+ *  rocks_red_* keys are ONE glb under four materials — sunlit bright, mid
+ *  terracotta, baked volcanic (cluster) and deep shadowed dark — so authored
+ *  placement can mix natural geological shades without new source assets. */
+const KEY_FILE_ALIASES: Record<string, string> = {
+  rocks_red_bright: 'rocks_red_cluster',
+  rocks_red_mid: 'rocks_red_cluster',
+  rocks_red_dark: 'rocks_red_cluster'
+};
 const ALL_KEYS = [
   ...TREE_KEYS,
   ...BROADLEAF_KEYS,
@@ -380,6 +394,20 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // rocks_red_cluster look.
           tm.diffuseColor = new Color3(1.9, 0.85, 0.7);
           tm.emissiveColor = c3(0x6a2418);
+        } else if (key === 'rocks_red_mid' && tex) {
+          // Mid terracotta shade: between the sunlit bright and the baked
+          // volcanic cluster — lit like the bright variant but calmer, so
+          // mixed placements read as natural geological variation.
+          tm.diffuseColor = new Color3(1.35, 0.72, 0.58);
+          tm.emissiveColor = c3(0x5a2016);
+          tex.level = 1.35;
+        } else if (key === 'rocks_red_dark' && tex) {
+          // Deep shadowed shade: the baked volcanic photo shown unlit but
+          // barely lifted — canyon-shadow basalt next to the other three.
+          tm.emissiveColor = c3(0x000000);
+          tm.emissiveTexture = tex;
+          tm.disableLighting = true;
+          tex.level = 1.15;
         } else if (isDesertDiorama && tex) {
           // The red-desert dioramas ship photo textures with the sun already
           // baked in — show the baked photo at full brightness (like the

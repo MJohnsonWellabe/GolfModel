@@ -14,12 +14,120 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 115
+      "heapMB": 109
     }
   },
   {
     "course": "wildwood",
     "cycle": 0,
+    "snap": {
+      "hasScene": true,
+      "course": "Wildwood Glen",
+      "natureSettled": true,
+      "meshes": 2352,
+      "ghostMeshes": 0,
+      "materials": 97,
+      "textures": 33,
+      "particleSystems": 2,
+      "beforeRenderObservers": 11,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 137
+    }
+  },
+  {
+    "course": "timberline",
+    "cycle": 0,
+    "snap": {
+      "hasScene": true,
+      "course": "Timberline",
+      "natureSettled": true,
+      "meshes": 1954,
+      "ghostMeshes": 0,
+      "materials": 75,
+      "textures": 21,
+      "particleSystems": 2,
+      "beforeRenderObservers": 11,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 145
+    }
+  },
+  {
+    "course": "portjohnson",
+    "cycle": 0,
+    "snap": {
+      "hasScene": true,
+      "course": "Port Johnson Links",
+      "natureSettled": true,
+      "meshes": 5900,
+      "ghostMeshes": 0,
+      "materials": 71,
+      "textures": 38,
+      "particleSystems": 2,
+      "beforeRenderObservers": 11,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 190
+    }
+  },
+  {
+    "course": "redhollow",
+    "cycle": 0,
+    "snap": {
+      "hasScene": true,
+      "course": "Red Hollow",
+      "natureSettled": true,
+      "meshes": 1258,
+      "ghostMeshes": 0,
+      "materials": 119,
+      "textures": 94,
+      "particleSystems": 2,
+      "beforeRenderObservers": 10,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 198
+    }
+  },
+  {
+    "course": "wildvalley",
+    "cycle": 0,
+    "snap": {
+      "hasScene": true,
+      "course": "Wild Prairie",
+      "natureSettled": true,
+      "meshes": 25308,
+      "ghostMeshes": 0,
+      "materials": 56,
+      "textures": 24,
+      "particleSystems": 2,
+      "beforeRenderObservers": 10,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 341
+    }
+  },
+  {
+    "course": "sablebay",
+    "cycle": 1,
+    "snap": {
+      "hasScene": true,
+      "course": "Sable Bay",
+      "natureSettled": true,
+      "meshes": 728,
+      "ghostMeshes": 0,
+      "materials": 87,
+      "textures": 40,
+      "particleSystems": 2,
+      "beforeRenderObservers": 13,
+      "engineScenes": 1,
+      "sfxCacheSize": 0,
+      "heapMB": 155
+    }
+  },
+  {
+    "course": "wildwood",
+    "cycle": 1,
     "snap": {
       "hasScene": true,
       "course": "Wildwood Glen",
@@ -32,115 +140,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 140
-    }
-  },
-  {
-    "course": "timberline",
-    "cycle": 0,
-    "snap": {
-      "hasScene": true,
-      "course": "Timberline",
-      "natureSettled": true,
-      "meshes": 1953,
-      "ghostMeshes": 0,
-      "materials": 75,
-      "textures": 21,
-      "particleSystems": 2,
-      "beforeRenderObservers": 11,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 146
-    }
-  },
-  {
-    "course": "portjohnson",
-    "cycle": 0,
-    "snap": {
-      "hasScene": true,
-      "course": "Port Johnson Links",
-      "natureSettled": true,
-      "meshes": 5879,
-      "ghostMeshes": 0,
-      "materials": 71,
-      "textures": 39,
-      "particleSystems": 2,
-      "beforeRenderObservers": 11,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 178
-    }
-  },
-  {
-    "course": "redhollow",
-    "cycle": 0,
-    "snap": {
-      "hasScene": true,
-      "course": "Red Hollow",
-      "natureSettled": true,
-      "meshes": 1856,
-      "ghostMeshes": 0,
-      "materials": 84,
-      "textures": 56,
-      "particleSystems": 2,
-      "beforeRenderObservers": 10,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 170
-    }
-  },
-  {
-    "course": "wildvalley",
-    "cycle": 0,
-    "snap": {
-      "hasScene": true,
-      "course": "Wild Valley",
-      "natureSettled": true,
-      "meshes": 18605,
-      "ghostMeshes": 0,
-      "materials": 62,
-      "textures": 28,
-      "particleSystems": 2,
-      "beforeRenderObservers": 10,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 287
-    }
-  },
-  {
-    "course": "sablebay",
-    "cycle": 1,
-    "snap": {
-      "hasScene": true,
-      "course": "Sable Bay",
-      "natureSettled": true,
-      "meshes": 733,
-      "ghostMeshes": 0,
-      "materials": 87,
-      "textures": 41,
-      "particleSystems": 2,
-      "beforeRenderObservers": 13,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 148
-    }
-  },
-  {
-    "course": "wildwood",
-    "cycle": 1,
-    "snap": {
-      "hasScene": true,
-      "course": "Wildwood Glen",
-      "natureSettled": true,
-      "meshes": 2349,
-      "ghostMeshes": 0,
-      "materials": 97,
-      "textures": 32,
-      "particleSystems": 2,
-      "beforeRenderObservers": 11,
-      "engineScenes": 1,
-      "sfxCacheSize": 0,
-      "heapMB": 171
+      "heapMB": 173
     }
   },
   {
@@ -150,15 +150,15 @@
       "hasScene": true,
       "course": "Timberline",
       "natureSettled": true,
-      "meshes": 1949,
+      "meshes": 1952,
       "ghostMeshes": 0,
       "materials": 75,
-      "textures": 21,
+      "textures": 22,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 157
+      "heapMB": 166
     }
   },
   {
@@ -168,15 +168,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5894,
+      "meshes": 5870,
       "ghostMeshes": 0,
       "materials": 71,
-      "textures": 39,
+      "textures": 38,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 183
+      "heapMB": 212
     }
   },
   {
@@ -186,15 +186,15 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 1856,
+      "meshes": 1257,
       "ghostMeshes": 0,
-      "materials": 84,
-      "textures": 56,
+      "materials": 119,
+      "textures": 94,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 188
+      "heapMB": 219
     }
   },
   {
@@ -202,17 +202,17 @@
     "cycle": 1,
     "snap": {
       "hasScene": true,
-      "course": "Wild Valley",
+      "course": "Wild Prairie",
       "natureSettled": true,
-      "meshes": 18607,
+      "meshes": 25022,
       "ghostMeshes": 0,
-      "materials": 62,
-      "textures": 28,
+      "materials": 56,
+      "textures": 24,
       "particleSystems": 2,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 283
+      "heapMB": 331
     }
   }
 ]

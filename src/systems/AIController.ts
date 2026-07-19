@@ -52,6 +52,7 @@ export class AIController {
       breakAccel(x: number, y: number): { ax: number; ay: number };
       slopeAccelAlong?(from: Point, yaw: number, distPx: number): number;
       surfaceAt?(x: number, y: number): Surface;
+      groundAt?(x: number, y: number): number;
     } | null = null,
     /** Uniform random source — inject a seeded rng for deterministic sims. */
     private readonly rng: Rng = Math.random,
@@ -60,7 +61,15 @@ export class AIController {
   ) {}
 
   decide(ballPos: Point, lie: Surface, wind: Wind, hole: HoleData): AIDecision {
-    const aimPoint = this.chooseTarget(ballPos, lie, hole);
+    let aimPoint = this.chooseTarget(ballPos, lie, hole);
+    // Walled in (a canyon face/mesa cliff between ball and target that no
+    // wedge loft can clear at this range): pitch out downhill first — the
+    // same idea as the trees punch-out. Without this the AI bangs a wedge
+    // into the wall forever (Devil's Kitchen back-canyon sims).
+    if (lie !== 'green' && lie !== 'tee') {
+      const esc = this.wallEscapeTarget(ballPos, aimPoint);
+      if (esc) aimPoint = esc;
+    }
     const club = this.chooseClub(ballPos, aimPoint, lie);
 
     // Compensate ~80% of expected wind drift by shifting the aim point.
@@ -195,13 +204,68 @@ export class AIController {
     return best ?? pin;
   }
 
+  /**
+   * "Plays-like" elevation adjustment, in yards: a target BELOW the ball
+   * extends the carry (the ground meets the falling ball later), above
+   * shortens it. ~1.1yd per height unit matches a mid-iron's descent
+   * geometry — the same compensation a human reads off the HUD's ▲/▼
+   * elevation label. Without this the AI airmails every raised-tee par 3
+   * (Devil's Kitchen sims proved it: long into the back canyon all day).
+   */
+  private elevPlaysLikeYds(ballPos: Point, aimPoint: Point): number {
+    if (!this.terrain?.groundAt) return 0;
+    const rise = this.terrain.groundAt(aimPoint.x, aimPoint.y) - this.terrain.groundAt(ballPos.x, ballPos.y);
+    return rise * 1.1;
+  }
+
+  /**
+   * A pitch-out spot when the direct line is blocked by a terrain WALL the
+   * highest-lofted club cannot clear at that range (rise steeper than
+   * ~0.57·run inside the first ~56px — a genuine cliff face, not a slope).
+   * Escapes along the local downhill (breakAccel points down-slope: away
+   * from the wall by construction), or straight back from the target when
+   * the ground under the ball is flat. Null when the line is clear.
+   */
+  private wallEscapeTarget(ballPos: Point, target: Point): Point | null {
+    if (!this.terrain?.groundAt) return null;
+    const g0 = this.terrain.groundAt(ballPos.x, ballPos.y);
+    const yaw = angleTo(ballPos, target);
+    const cs = Math.cos(yaw);
+    const sn = Math.sin(yaw);
+    let blocked = false;
+    for (let t = 10; t <= 100; t += 6) {
+      const rise = this.terrain.groundAt(ballPos.x + cs * t, ballPos.y + sn * t) - g0;
+      if (rise > Math.max(14, t * 0.52)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (!blocked) return null;
+    // Escape direction: straight AWAY from the wall by default; follow the
+    // local downhill instead only when it clearly agrees (a flat bowl floor
+    // returns junk near-zero gradients that can point back INTO the wall).
+    // The hop is sized so ONE pitch-out reaches ground with enough run-up
+    // for the next shot's arc to clear the wall.
+    const HOP = 120;
+    const b = this.terrain.breakAccel(ballPos.x, ballPos.y);
+    const l = Math.hypot(b.ax, b.ay);
+    if (l > 0.5 && (b.ax * -cs + b.ay * -sn) / l > 0.3) {
+      return { x: ballPos.x + (b.ax / l) * HOP, y: ballPos.y + (b.ay / l) * HOP };
+    }
+    return { x: ballPos.x - cs * HOP, y: ballPos.y - sn * HOP };
+  }
+
   private chooseClub(ballPos: Point, aimPoint: Point, lie: Surface): ClubSpec {
     if (lie === 'green') return clubById('putter');
-    const neededYds = dist(ballPos, aimPoint) / PX_PER_YARD;
+    const neededYds = Math.max(2, dist(ballPos, aimPoint) / PX_PER_YARD + this.elevPlaysLikeYds(ballPos, aimPoint));
 
     if (lie === 'sand') {
-      // Escape club unless the target is genuinely far.
-      return neededYds > 130 ? clubById('9i') : clubById('sw');
+      // Escape club — but only while the SW can genuinely make the
+      // distance. Sand cuts carry hard (lieDistance 0.55): a fixed 130yd
+      // threshold sent 44yd sand wedges at 110yd targets, whose arcs died
+      // against canyon walls short of the green (Devil's Kitchen sims).
+      const swReach = effectiveCarryYards(clubById('sw'), this.golfer, this.fire.statBoost, lie);
+      return neededYds > swReach * 1.25 ? clubById('9i') : clubById('sw');
     }
     if (lie === 'fringe' && neededYds < 35) return clubById('putter');
 
@@ -251,7 +315,10 @@ export class AIController {
   ): SwingResult {
     const { distance, accuracy } = statsForClub(club, this.golfer, this.fire.statBoost);
     const carry = effectiveCarryYards(club, this.golfer, this.fire.statBoost, lie);
-    const neededYds = dist(ballPos, aimPoint) / PX_PER_YARD;
+    // Full shots rate their power for the elevation-adjusted distance (putts
+    // have their own slope-aware pace path below).
+    const elevAdj = club.id === 'putter' ? 0 : this.elevPlaysLikeYds(ballPos, aimPoint);
+    const neededYds = Math.max(1, dist(ballPos, aimPoint) / PX_PER_YARD + elevAdj);
     // Floors are ABSOLUTE distances, not power fractions — a fractional
     // floor rams tap-ins past the cup and blasts greenside chips over the
     // green (worse the higher the stat, since carry scales with it).

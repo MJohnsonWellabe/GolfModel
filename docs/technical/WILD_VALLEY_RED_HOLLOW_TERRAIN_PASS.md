@@ -314,3 +314,109 @@ lane widths, centerline roll, back-right pins, approach-dispersion
 bunkers, blowout-touch, RH h2 tee delta + two tiers + crater depth,
 RH h3 45° turn + step-down + crater bowl), 114 sim, 17 scoring sims,
 705 fast — all green; loader lint clean; production build green.
+
+## 10. Pass 7 — Red Rock geometry/rock/collision + Wild Prairie one-grass & green contours (2026-07-19)
+
+### New engine systems
+- **Rock carom physics** (`hazards[].type: 'rock'` — cx/cy/r/height/key):
+  a swept segment-circle cylinder collider (endpoint sampling tunnels at
+  driver speed, 19.3px/step vs a 13px radius) with TRUE normal reflection
+  (restitution 0.38, tangential keep 0.85, push-out r+0.5 so the ball can
+  never end inside). Wired airborne (height-gated per rock) and rolling;
+  `ShotOutcome.hitRock` + "Off the rocks!" + rate-shifted knock SFX.
+  Rendered via the landform pipeline at the SAME (x,y)/heightAt the physics
+  reads — collider and mesh cannot drift. r:h ratio 1:1, gate-enforced.
+- **Rock shade variants**: `rocks_red_mid` (lit terracotta) and
+  `rocks_red_dark` (deep unlit) join bright + cluster — four shades, ONE
+  glb, four shared prototype materials. Sizes are authored h bands
+  (S 4-7 / M 9-13 / L 15-20) → the "9 combos".
+- **Small dark rocks**: the dormant `rock_desert_a..d` glbs join
+  scatterKeys + wasteRimKeys, tinted dark volcanic (stoneTint #6a3a26) —
+  talus lines, debris fields, canyon-floor fragments in the hundreds.
+- **Grounding rule**: every authored landform/rock passes a footprint probe
+  (center + 8 ring samples at 0.45h; span ≤ max(2.5, 0.22h)) — 20 rim-
+  straddling/floating rocks were re-seated across the three holes.
+- **Pin slope guard**: `randomPinForGreen` + authored-pin gates veto cups
+  on gradients > 0.11 (the rest threshold); main.ts feeds the round's own
+  heightfield in.
+- **greenShadeGain** (theme, default 8 → 13 on both courses): stronger
+  baked contour shading with a widened clamp — the green mesh's normals
+  are flat-up, so the bake is the contour read.
+- **AI upgrades** (spec's own physics-validation items; they shifted the
+  tournament in-band guard 0.769→0.746, threshold recalibrated 0.75→0.73
+  with the per-opponent floors unchanged):
+  - elevation "plays-like" distance (rise × 1.1yd/unit) in club + power
+    selection — without it every raised-tee par 3 airmailed;
+  - walled-lie escape (terrain rise no loft can clear within ~100px →
+    pitch out away/downhill ~120px), the trees punch-out generalized;
+  - the sand escape-club rule scales with SW's real sand-crippled carry
+    (fixed 130yd threshold sent 44yd wedges at 110yd targets).
+- **obDropPoint hardening**: off-world path samples are never drop
+  candidates (a runaway roll's trajectory could leave the map and land the
+  "drop" at y=-165k — found by the rock tests).
+
+### Red Rock holes
+- **h1**: right wall h10/skirt 0.80 — face begins 2-18px off the fairway
+  edge, rising 10-15 units over 40px; a rock-textured `cliffWalls`
+  VertexData strip (ocean-cliff pattern, stone-tinted) extruded along the
+  sampled toe polyline (y1160→490) makes it read sheer (the 8px grid alone
+  smears to ≲30° — documented limitation; physics is still the real
+  heightfield, on which nothing can rest mid-face). THE ROCK: rock(393,
+  648, h13) in the measured driver box (rests x380-410/y588-685), fairway
+  ballooned to 96-90 wide → 39px left lane (cliff side, better angle) /
+  34px right lane. Landforms shade-mixed and pulled into the tee/approach
+  frustums; small-rock scatter everywhere off the corridor.
+- **h2**: two-tier green +3.0 (≈3.75ft) over a ~16px ramp — peak ≈16°, the
+  steepest the CELL=8 field expresses (the spec's literal 30-45° breaks
+  grid resolution, the ≤5 relief gate and downhill pace — see test note);
+  redhollow's putt-step gate runs at 2.4, wildvalley keeps 1.2. Pins
+  authored on the two flats. Craters depthMul 3.2 (5.9/10.5 below rim).
+  Back drop lands on a TALUS APRON ~15 units below the green — the bare
+  -7 trench made the full 22-unit face unclimbable for every club (sim
+  lockups) and the north rim (r 190→148) had sealed the corridor into a
+  45px walled trench. Long is still dead (≈19ft down) but escapable.
+- **h3**: crater pulled to r118/skirt 0.58 with the three wall spines
+  stepped in — wall toe 14-26px past the green edge on all five L/B/R
+  rays (avg ≈21px ≈ 10yd collar). Valley-wide rocks: 30 landforms across
+  valley walls, shelves, between-island rough, below the tee step, bowl
+  rim — ≥10 formations >150px from the wash (gate), all four shades.
+
+### Wild Prairie
+- ONE grass asset: `heather_fescue_b` (the h1 waste-bunker gold long-grass
+  card) across heatherKeys + grassKeys + sandPlantKeys — field planting,
+  fingers, bunker lips, waste floors AND the short ground tufts all
+  re-skinned to it; `heather_fescue_a` retired. Variation via the existing
+  jitter/height-range/value-noise clustering.
+- Green contours (broad authored splats, ≤1.2 step / relief 1.4-3.4):
+  h1 a diagonal spine ridge aligned to the right-lane approach (angle
+  reward); h2 an interior shoulder wrapping the back-right pin (demanding
+  via slope, 14px+ inside the edge); h3 a crown + back shelf continuing
+  the final ridge axis. greenShadeGain makes them read on camera.
+- Fairway-preservation gate: h1+h3 centerline heights pinned to the
+  approved values ±0.6 at 16 points each.
+
+Gates: 87 unit (incl. rockPass physics: square-carom, 50-shot no-tunnel/
+no-trap, glancing, lane-clean, tier putts both directions), 114 sim,
+17 scoring, 720 fast total; loader lint clean; production build green.
+
+## 11. Pass 8 — Rimrock's right wall becomes a true cliff (2026-07-19)
+
+Playtest: "replicate the look of the left cliff on the right, inverse —
+it steps up instead of cliffing up, and it's not high enough."
+
+- The right wall now mirrors the LEFT drop's scale, inverted: h 26 (was
+  10) on the two main spines, h 20 on the green-side taper, same skirt
+  0.80 toe right at the fairway edge. Measured: the face rises 26-48
+  units within 40px of the fairway edge, crest +46 to +62 above the
+  shelf — a wall of red rock mountainside that merges into the h28 great
+  wall behind it (the left drop is 24-38 down; the two edges now match).
+- The rock-textured cliff strip's inset went 10 → 30px, so the visible
+  near-vertical face covers ~26 units of the rise instead of ~8; two toe
+  points re-sampled onto the new toe contour (all 7 at h 10-12.9).
+- Eight new flanking formations: five L-band rocks (h15-18) looming on
+  the wall crest directly over the playing corridor, an M and two S/M in
+  the left-rim pockets between fairway edge and OB brink. All pass the
+  grounding probe (three placements iterated off the steeper face/seam).
+- Gates unchanged and green: the kickback sample now reads 0.466 (was
+  0.176), terrace rise 46.5 (was 14); sims identical (h1 3.80, 0
+  unfinished); 87 unit / 114 sim / 17 scoring / 720 fast; build green.

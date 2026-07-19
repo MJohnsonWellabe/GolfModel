@@ -556,7 +556,18 @@ function pinForHole(idx: number): Point {
     // those deliberate positions; otherwise (or flag off) the classic random
     // ellipse pin. Same seeded stream either way.
     const authored = flag('layouts') ? pickAuthoredPin(h, rng) : null;
-    round.holePins[idx] = authored ?? randomPinForGreen(h.green, h.green2, rng);
+    // Contoured greens (tiers, crowns, shelves): veto random cups on slopes
+    // too steep to hold a resting ball — the same heightfield the round
+    // plays on, so the veto and the roll agree exactly.
+    const theme = resolveTheme(round.course);
+    const hf = buildHeightField(h, theme.bunkerDepthScale ?? 1, theme.wasteDepthScale ?? 0);
+    const gradMag = hf
+      ? (x: number, y: number) => {
+          const g = hf.gradientAt(x, y);
+          return Math.hypot(g.x, g.y);
+        }
+      : undefined;
+    round.holePins[idx] = authored ?? randomPinForGreen(h.green, h.green2, rng, gradMag);
   }
   return round.holePins[idx];
 }
@@ -2315,6 +2326,15 @@ class HoleScene {
     } else if (outcome.obPenalty) {
       showMsg('OUT OF BOUNDS! +1 penalty', 1500);
       this.golfer.react('deject');
+    } else if (outcome.hitRock) {
+      // Stone knock: the existing 'hit' buffer, rate-shifted brighter than a
+      // turf thump so the carom reads as rock, not ground.
+      if (flag('audio')) {
+        const vol = Math.max(0, Math.min(1, 0.8 * profile.settings.sound));
+        if (vol > 0) playBuffer('hit', vol, { rate: 1.5, lowpassHz: 2600 });
+      }
+      showMsg('Off the rocks!', 1200);
+      if (!c.isAI) this.showShotReadout(origin, outcome, club);
     } else if (!c.isAI) {
       this.showShotReadout(origin, outcome, club);
     }
