@@ -6,7 +6,7 @@
       "hasScene": true,
       "course": "Sable Bay",
       "natureSettled": true,
-      "meshes": 725,
+      "meshes": 727,
       "ghostMeshes": 0,
       "materials": 85,
       "textures": 39,
@@ -14,7 +14,7 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 97
+      "heapMB": 115
     }
   },
   {
@@ -32,7 +32,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 134
+      "heapMB": 140
     }
   },
   {
@@ -42,7 +42,7 @@
       "hasScene": true,
       "course": "Timberline",
       "natureSettled": true,
-      "meshes": 1949,
+      "meshes": 1953,
       "ghostMeshes": 0,
       "materials": 75,
       "textures": 21,
@@ -50,7 +50,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 138
+      "heapMB": 146
     }
   },
   {
@@ -60,15 +60,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5887,
+      "meshes": 5879,
       "ghostMeshes": 0,
       "materials": 71,
-      "textures": 38,
+      "textures": 39,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 191
+      "heapMB": 178
     }
   },
   {
@@ -78,7 +78,7 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 1797,
+      "meshes": 1856,
       "ghostMeshes": 0,
       "materials": 84,
       "textures": 56,
@@ -86,7 +86,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 190
+      "heapMB": 170
     }
   },
   {
@@ -96,7 +96,7 @@
       "hasScene": true,
       "course": "Wild Valley",
       "natureSettled": true,
-      "meshes": 18651,
+      "meshes": 18605,
       "ghostMeshes": 0,
       "materials": 62,
       "textures": 28,
@@ -104,7 +104,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 288
+      "heapMB": 287
     }
   },
   {
@@ -114,15 +114,15 @@
       "hasScene": true,
       "course": "Sable Bay",
       "natureSettled": true,
-      "meshes": 730,
+      "meshes": 733,
       "ghostMeshes": 0,
       "materials": 87,
-      "textures": 40,
+      "textures": 41,
       "particleSystems": 2,
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 154
+      "heapMB": 148
     }
   },
   {
@@ -132,7 +132,7 @@
       "hasScene": true,
       "course": "Wildwood Glen",
       "natureSettled": true,
-      "meshes": 2345,
+      "meshes": 2349,
       "ghostMeshes": 0,
       "materials": 97,
       "textures": 32,
@@ -140,7 +140,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 173
+      "heapMB": 171
     }
   },
   {
@@ -158,7 +158,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 171
+      "heapMB": 157
     }
   },
   {
@@ -168,15 +168,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5887,
+      "meshes": 5894,
       "ghostMeshes": 0,
       "materials": 71,
-      "textures": 38,
+      "textures": 39,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 203
+      "heapMB": 183
     }
   },
   {
@@ -186,7 +186,7 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 1795,
+      "meshes": 1856,
       "ghostMeshes": 0,
       "materials": 84,
       "textures": 56,
@@ -204,7 +204,7 @@
       "hasScene": true,
       "course": "Wild Valley",
       "natureSettled": true,
-      "meshes": 18583,
+      "meshes": 18607,
       "ghostMeshes": 0,
       "materials": 62,
       "textures": 28,
@@ -212,7 +212,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 287
+      "heapMB": 283
     }
   }
 ]
