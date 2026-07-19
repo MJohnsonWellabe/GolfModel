@@ -14,7 +14,7 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 90
+      "heapMB": 109
     }
   },
   {
@@ -24,15 +24,15 @@
       "hasScene": true,
       "course": "Wildwood Glen",
       "natureSettled": true,
-      "meshes": 2317,
+      "meshes": 2352,
       "ghostMeshes": 0,
       "materials": 97,
-      "textures": 32,
+      "textures": 33,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 141
+      "heapMB": 137
     }
   },
   {
@@ -50,7 +50,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 135
+      "heapMB": 145
     }
   },
   {
@@ -60,7 +60,7 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5893,
+      "meshes": 5900,
       "ghostMeshes": 0,
       "materials": 71,
       "textures": 38,
@@ -68,7 +68,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 185
+      "heapMB": 190
     }
   },
   {
@@ -78,7 +78,7 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 1260,
+      "meshes": 1258,
       "ghostMeshes": 0,
       "materials": 119,
       "textures": 94,
@@ -86,7 +86,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 169
+      "heapMB": 198
     }
   },
   {
@@ -96,7 +96,7 @@
       "hasScene": true,
       "course": "Wild Prairie",
       "natureSettled": true,
-      "meshes": 24983,
+      "meshes": 25308,
       "ghostMeshes": 0,
       "materials": 56,
       "textures": 24,
@@ -104,7 +104,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 335
+      "heapMB": 341
     }
   },
   {
@@ -114,7 +114,7 @@
       "hasScene": true,
       "course": "Sable Bay",
       "natureSettled": true,
-      "meshes": 730,
+      "meshes": 728,
       "ghostMeshes": 0,
       "materials": 87,
       "textures": 40,
@@ -122,7 +122,7 @@
       "beforeRenderObservers": 13,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 152
+      "heapMB": 155
     }
   },
   {
@@ -134,13 +134,13 @@
       "natureSettled": true,
       "meshes": 2345,
       "ghostMeshes": 0,
-      "materials": 100,
-      "textures": 33,
+      "materials": 97,
+      "textures": 32,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 165
+      "heapMB": 173
     }
   },
   {
@@ -150,15 +150,15 @@
       "hasScene": true,
       "course": "Timberline",
       "natureSettled": true,
-      "meshes": 1954,
+      "meshes": 1952,
       "ghostMeshes": 0,
       "materials": 75,
-      "textures": 21,
+      "textures": 22,
       "particleSystems": 2,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 158
+      "heapMB": 166
     }
   },
   {
@@ -168,7 +168,7 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 5902,
+      "meshes": 5870,
       "ghostMeshes": 0,
       "materials": 71,
       "textures": 38,
@@ -176,7 +176,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 186
+      "heapMB": 212
     }
   },
   {
@@ -186,7 +186,7 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 1251,
+      "meshes": 1257,
       "ghostMeshes": 0,
       "materials": 119,
       "textures": 94,
@@ -194,7 +194,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 205
+      "heapMB": 219
     }
   },
   {
@@ -204,7 +204,7 @@
       "hasScene": true,
       "course": "Wild Prairie",
       "natureSettled": true,
-      "meshes": 25311,
+      "meshes": 25022,
       "ghostMeshes": 0,
       "materials": 56,
       "textures": 24,
@@ -212,7 +212,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 329
+      "heapMB": 331
     }
   }
 ]
