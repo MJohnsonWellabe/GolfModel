@@ -190,6 +190,10 @@ export class PhysicsEngine {
    *  which is called on every physics sample and every scatter cell. */
   private readonly hzBox: Array<[number, number, number, number]>;
 
+  /** Solid boulders the ball caroms off ('rock' hazards) — swept-cylinder
+   *  colliders authored in a fixed ratio to the rendered rock's height. */
+  private readonly rocks: Array<{ cx: number; cy: number; r: number; h: number }>;
+
   constructor(
     private readonly hole: HoleData,
     private readonly hf: HeightField | null = null,
@@ -197,6 +201,14 @@ export class PhysicsEngine {
     private readonly rng: Rng = Math.random
   ) {
     this.treeTrunks = collectTreeBlobs(hole);
+    this.rocks = hole.hazards
+      .filter((hz) => hz.type === 'rock')
+      .map((hz) => ({
+        cx: hz.cx ?? 0,
+        cy: hz.cy ?? 0,
+        r: hz.r ?? 10,
+        h: hz.height ?? PHYSICS.rockDefaultHeight
+      }));
     this.hzBox = hole.hazards.map((hz) => {
       let minX = Infinity;
       let minY = Infinity;
@@ -407,6 +419,66 @@ export class PhysicsEngine {
   }
 
   /**
+   * Swept rock contact for the step (x0,y0)→(x1,y1): the step hits a boulder
+   * iff the SEGMENT passes within r of its center — endpoint sampling alone
+   * tunnels (a driver moves ~19px per dt step, more than a rock radius), so
+   * this is the same swept-capture trick the cup uses. `heightAbove` gates
+   * airborne hits per rock (a ball flying above a boulder clears it); rolling
+   * passes 0. Returns the contact normal and a push-out position past r, so
+   * the ball can never end a step inside the cylinder.
+   */
+  private rockContact(
+    x0: number,
+    y0: number,
+    x1: number,
+    y1: number,
+    heightAbove: number
+  ): { nx: number; ny: number; px: number; py: number } | null {
+    for (const rk of this.rocks) {
+      if (heightAbove >= rk.h) continue;
+      const dx = x1 - x0;
+      const dy = y1 - y0;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? ((rk.cx - x0) * dx + (rk.cy - y0) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const qx = x0 + t * dx;
+      const qy = y0 + t * dy;
+      let nx = qx - rk.cx;
+      let ny = qy - rk.cy;
+      const d = Math.hypot(nx, ny);
+      if (d >= rk.r) continue;
+      if (d < 1e-6) {
+        // Dead-center: bounce straight back along the incoming direction.
+        nx = -dx;
+        ny = -dy;
+      }
+      const nl = Math.hypot(nx, ny) || 1;
+      nx /= nl;
+      ny /= nl;
+      const out = rk.r + PHYSICS.rockPushOut;
+      return { nx, ny, px: rk.cx + nx * out, py: rk.cy + ny * out };
+    }
+    return null;
+  }
+
+  /** Component-wise carom off a rock: the normal component reflects at
+   *  rockRestitution, the tangential component keeps rockTangentKeep — a real
+   *  directional rebound, unlike the trees' stop-and-damp. */
+  private rockRebound(
+    c: { nx: number; ny: number },
+    vx: number,
+    vy: number
+  ): { vx: number; vy: number } {
+    const vn = vx * c.nx + vy * c.ny; // < 0 when moving into the rock
+    const vtX = vx - vn * c.nx;
+    const vtY = vy - vn * c.ny;
+    return {
+      vx: vtX * PHYSICS.rockTangentKeep - vn * PHYSICS.rockRestitution * c.nx,
+      vy: vtY * PHYSICS.rockTangentKeep - vn * PHYSICS.rockRestitution * c.ny
+    };
+  }
+
+  /**
    * Sand that PLAYS FIRM — a coastal beach or a links waste area rather than a
    * maintained scoring bunker. A ball bounces and runs across it (no dead plug);
    * only a true scoring bunker plugs. A scoring bunker overlapping the beach
@@ -608,6 +680,7 @@ export class PhysicsEngine {
     let vz: number;
     let rolling: boolean;
     let hitTrees = false;
+    let hitRock = false;
     let waterPenalty = false;
     let holed = false;
     let lipped = false;
@@ -665,11 +738,26 @@ export class PhysicsEngine {
           vy += Math.cos(dir) * sa * dt;
         }
         vz -= g * dt;
+        const ax0 = x;
+        const ay0 = y;
         x += vx * dt;
         y += vy * dt;
         z += vz * dt;
 
         const ground = this.groundAt(x, y);
+        // Rock carom (before the tree check — a boulder is solid stone): a
+        // swept test over the whole step so a fast drive can't tunnel through
+        // a 14px boulder between samples.
+        if (this.rocks.length && z - ground < PHYSICS.treeHeight) {
+          const rc = this.rockContact(ax0, ay0, x, y, Math.max(0, z - ground));
+          if (rc) {
+            hitRock = true;
+            ({ vx, vy } = this.rockRebound(rc, vx, vy));
+            vz *= PHYSICS.rockVzKeep;
+            x = rc.px;
+            y = rc.py;
+          }
+        }
         // Tree collision: any ball inside the trunk band (below treeHeight) that
         // reaches an actual tree canopy is stopped — whether it is rising or
         // descending (a low liner into a tree stops just like a drop into one,
@@ -892,8 +980,19 @@ export class PhysicsEngine {
       // with neither endpoint inside cupRadius. Test the whole step segment so
       // an on-line putt at capturable pace still drops rather than skimming past
       // (playtest FB9 — "rolled right over the hole").
-      const nx = x + vx * dt;
-      const ny = y + vy * dt;
+      let nx = x + vx * dt;
+      let ny = y + vy * dt;
+      // Rock carom on the ground: a roller that reaches a boulder deflects
+      // around its base (swept, same anti-tunnel guarantee as flight).
+      if (this.rocks.length) {
+        const rc = this.rockContact(x, y, nx, ny, 0);
+        if (rc) {
+          hitRock = true;
+          ({ vx, vy } = this.rockRebound(rc, vx, vy));
+          nx = rc.px;
+          ny = rc.py;
+        }
+      }
       const crossesCup = distToSegment(hole.pin.x, hole.pin.y, x, y, nx, ny) < PHYSICS.cupRadius;
       if (speed < PHYSICS.cupCaptureSpeed && crossesCup) {
         holed = true;
@@ -956,7 +1055,7 @@ export class PhysicsEngine {
       surface = this.surfaceAt(finalPos.x, finalPos.y);
     }
 
-    return { path, finalPos, surface, waterPenalty, obPenalty, hitTrees, holed };
+    return { path, finalPos, surface, waterPenalty, obPenalty, hitTrees, hitRock, holed };
   }
 
   /** Inside any 'ob' hazard region (not a surface — checked at rest only). */
@@ -966,16 +1065,23 @@ export class PhysicsEngine {
 
   /** The last path point still in bounds ≈ where the ball crossed the OB
    *  line, nudged a touch back along the path so the drop never sits ON the
-   *  painted edge. Falls back to the shot origin. */
+   *  painted edge. Falls back to the shot origin. Path samples OUTSIDE the
+   *  hole's world are never drop candidates — a runaway roll's trajectory
+   *  can leave the map entirely, and those samples are also "not inside the
+   *  OB polygon" even though they're nowhere playable. */
   private obDropPoint(path: TrajectoryPoint[], origin: Point): Point {
+    const w = this.hole.world.width;
+    const hgt = this.hole.world.height;
+    const inWorld = (px: number, py: number): boolean => px >= 10 && px <= w - 10 && py >= 10 && py <= hgt - 10;
     for (let i = path.length - 1; i >= 0; i--) {
       const p = path[i];
+      if (!inWorld(p.x, p.y)) continue;
       if (!this.inOutOfBounds(p.x, p.y) && this.surfaceAt(p.x, p.y) !== 'water') {
         // Step ~10 units farther back along the path when possible.
         for (let j = i - 1; j >= 0; j--) {
           const q = path[j];
           if (Math.hypot(q.x - p.x, q.y - p.y) >= 10) {
-            return this.inOutOfBounds(q.x, q.y) ? { x: p.x, y: p.y } : { x: q.x, y: q.y };
+            return this.inOutOfBounds(q.x, q.y) || !inWorld(q.x, q.y) ? { x: p.x, y: p.y } : { x: q.x, y: q.y };
           }
         }
         return { x: p.x, y: p.y };

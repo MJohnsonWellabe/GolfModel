@@ -794,6 +794,9 @@ export function buildCourse(
       ...(theme.sandPlantKeys ?? []),
       // Authored major landforms (hole.landforms — terrain identity pass).
       ...(hole.landforms ?? []).map((l) => l.key),
+      // Solid collidable boulders ('rock' hazards) — rendered as grounded
+      // prototypes at their collision centers.
+      ...hole.hazards.filter((hz) => hz.type === 'rock').map((hz) => hz.key ?? 'rocks_red_bright'),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
       // The real sakura model backs the blossom system wherever it's used
@@ -2288,12 +2291,18 @@ export function buildCourse(
     // deliberate rock masses framing landing zones, shelf edges, wash banks
     // and mesa tops, placed exactly where the hole data says. Distinct from
     // the random scatter below.
-    if (hole.landforms && hole.landforms.length) {
-      const lf = hole.landforms;
+    // Collidable boulders share the landform pipeline: the SAME (x,y) the
+    // physics cylinder uses, grounded by placeProto at heightAt(x,y) — the
+    // exact surface PhysicsEngine reads — so mesh and collider cannot drift.
+    const rockHazards = hole.hazards
+      .filter((hz) => hz.type === 'rock')
+      .map((hz) => ({ key: hz.key ?? 'rocks_red_bright', x: hz.cx ?? 0, y: hz.cy ?? 0, h: hz.height ?? 10 }));
+    const authoredMasses = [...(hole.landforms ?? []), ...rockHazards];
+    if (authoredMasses.length) {
       popQueue.push(() => {
-        const keyed = pickKeyed([...new Set(lf.map((l) => l.key))]);
+        const keyed = pickKeyed([...new Set(authoredMasses.map((l) => l.key))]);
         const byKey = new Map(keyed.map((e) => [e.key, e.proto]));
-        for (const l of lf) {
+        for (const l of authoredMasses) {
           const proto = byKey.get(l.key);
           if (proto) placeProto(proto, l.x, l.y, l.h);
         }
@@ -2671,6 +2680,76 @@ export function buildCourse(
       cliff.isPickable = false;
       cliff.freezeWorldMatrix();
     }
+  }
+
+  // Authored CLIFF-FACE strips (hole.cliffWalls — Red Hollow h1's sheer right
+  // wall): the 8px heightfield can only express ~30° between cells, so the
+  // rising wall's toe gets a rock-textured strip extruded to the terrain a few
+  // px UPHILL — the visible face reads near-vertical while physics stays the
+  // real heightfield (whose steep slope already returns every ball to the
+  // toe; nothing can rest behind the strip). Same quad-strip recipe as the
+  // ocean cliffs above, tinted to the course's stone palette.
+  if (hole.cliffWalls && hole.cliffWalls.length) {
+    const faceMat = new StandardMaterial('cliffFace', scene);
+    faceMat.diffuseTexture = new Texture('textures/rock_wall.jpg', scene);
+    faceMat.bumpTexture = new Texture('textures/rock_normal.png', scene);
+    faceMat.specularColor = new Color3(0.05, 0.05, 0.05);
+    if (theme.stoneTint !== undefined) {
+      const st = theme.stoneTint;
+      const r = ((st >> 16) & 0xff) / 255;
+      const g = ((st >> 8) & 0xff) / 255;
+      const b = (st & 0xff) / 255;
+      faceMat.diffuseColor = new Color3(0.6 + r * 0.9, 0.6 + g * 0.9, 0.6 + b * 0.9);
+    }
+    faceMat.backFaceCulling = false;
+    // Uphill unit direction from a numerical gradient of the same heightAt
+    // the terrain mesh displaces with — the strip follows the wall wherever
+    // the authoring puts its toe.
+    const uphill = (x: number, y: number): [number, number] => {
+      const gx = heightAt(x + 4, y) - heightAt(x - 4, y);
+      const gy = heightAt(x, y + 4) - heightAt(x, y - 4);
+      const l = Math.hypot(gx, gy) || 1;
+      return [gx / l, gy / l];
+    };
+    hole.cliffWalls.forEach((wall, wi) => {
+      const inset = wall.inset ?? 8;
+      const pts = wall.points;
+      const positions: number[] = [];
+      const indices: number[] = [];
+      const uvs: number[] = [];
+      let uRun = 0;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i];
+        const b = pts[i + 1];
+        const [uax, uay] = uphill(a[0], a[1]);
+        const [ubx, uby] = uphill(b[0], b[1]);
+        const at: [number, number] = [a[0] + uax * inset, a[1] + uay * inset];
+        const bt: [number, number] = [b[0] + ubx * inset, b[1] + uby * inset];
+        const topA = w2b(at[0], at[1], heightAt(at[0], at[1]) + 0.3);
+        const topB = w2b(bt[0], bt[1], heightAt(bt[0], bt[1]) + 0.3);
+        const botA = w2b(a[0], a[1], heightAt(a[0], a[1]) - 0.4);
+        const botB = w2b(b[0], b[1], heightAt(b[0], b[1]) - 0.4);
+        const base = positions.length / 3;
+        for (const v of [topA, topB, botB, botA]) positions.push(v.x, v.y, v.z);
+        const segU = Math.hypot(b[0] - a[0], b[1] - a[1]) / 40;
+        uvs.push(uRun, 1, uRun + segU, 1, uRun + segU, 0, uRun, 0);
+        uRun += segU;
+        indices.push(base, base + 2, base + 1, base, base + 3, base + 2);
+      }
+      if (!positions.length) return;
+      const face = new Mesh(`cliffFace-${wi}`, scene);
+      const vd = new VertexData();
+      vd.positions = positions;
+      vd.indices = indices;
+      vd.uvs = uvs;
+      const normals: number[] = [];
+      VertexData.ComputeNormals(positions, indices, normals);
+      vd.normals = normals;
+      vd.applyToMesh(face);
+      face.material = faceMat;
+      face.isPickable = false;
+      face.freezeWorldMatrix();
+    });
   }
 
   // -------------------------------------------------------------------- pin

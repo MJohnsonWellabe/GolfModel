@@ -73,13 +73,20 @@ export function slopeShadeAt(engine: PhysicsEngine, theme: CourseTheme): (wx: nu
   // the right when theme.sunX > 360, always from up-screen (low world y).
   const sx = theme.sunX > 360 ? 0.45 : -0.45;
   const sy = -0.35;
+  // Contour-forward courses (theme.greenShadeGain — Wild Prairie's rolling
+  // greens, Red Hollow's tiers) bake stronger relief contrast, with the
+  // clamp widened in step so the extra gain isn't flattened right back off.
+  const gain = theme.greenShadeGain ?? SLOPE_SHADE_GAIN;
+  const boosted = gain > SLOPE_SHADE_GAIN;
+  const lo = boosted ? 0.7 : 0.78;
+  const hi = boosted ? 1.26 : 1.18;
   const D = 6; // finite-difference half-step, world px (HeightField cell = 8)
   return (wx: number, wy: number): number => {
     const hx = (engine.groundAt(wx + D, wy) - engine.groundAt(wx - D, wy)) / (2 * D);
     const hy = (engine.groundAt(wx, wy + D) - engine.groundAt(wx, wy - D)) / (2 * D);
     // Uphill normal (-hx, -hy) toward the sun → lit; away → shaded.
-    const s = 1 + (-hx * sx - hy * sy) * SLOPE_SHADE_GAIN;
-    return s < 0.78 ? 0.78 : s > 1.18 ? 1.18 : s;
+    const s = 1 + (-hx * sx - hy * sy) * gain;
+    return s < lo ? lo : s > hi ? hi : s;
   };
 }
 

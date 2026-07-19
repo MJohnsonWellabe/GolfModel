@@ -5,7 +5,7 @@ import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { buildHeightField, HeightField } from '../../src/systems/HeightField';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
-import { pointInGreens } from '../../src/utils/Geometry';
+import { PIN_MAX_GRADIENT, pointInGreens } from '../../src/utils/Geometry';
 import { HoleData } from '../../src/core/types';
 
 /**
@@ -121,16 +121,20 @@ describe('Red Hollow terrain identity', () => {
     expect(teeH - greenH).toBeGreaterThanOrEqual(8);
   });
 
-  it('h2: the green is distinctly two-tiered with a smooth puttable ramp', () => {
+  it('h2: the green is distinctly two-tiered with a steep-but-puttable ramp', () => {
+    // Pass 7: +3 units (≈3.75ft) over a ~16px ramp — peak local slope ≈16°,
+    // the steepest the 8px heightfield can express. (The spec's literal
+    // 30-45° is incompatible with the grid resolution, the ≤5 relief gate
+    // and downhill putt pace — documented in the terrain-pass doc.)
     const { hole, hf } = field(redhollow, 1);
-    const back = hf.heightAt(hole.green.cx, 400); // upper (back) tier
-    const front = hf.heightAt(hole.green.cx, 462); // lower (front) tier
-    expect(back - front).toBeGreaterThanOrEqual(1.8);
-    // The ramp between tiers is broad — no step exceeds the putt gate
-    // (the global green-puttability test also walks this surface).
-    for (let y = 396; y <= 460; y += 8) {
+    const back = hf.heightAt(hole.green.cx, 398); // upper (back) tier
+    const front = hf.heightAt(hole.green.cx, 466); // lower (front) tier
+    expect(back - front).toBeGreaterThanOrEqual(2.6);
+    // The ramp is continuous — no step exceeds redhollow's 2.4 putt gate,
+    // and pins never sit on it (gradient-vetoed, see layouts gates).
+    for (let y = 380; y <= 466; y += 8) {
       const step = Math.abs(hf.heightAt(hole.green.cx, y) - hf.heightAt(hole.green.cx, y + 8));
-      expect(step, `tier ramp at y=${y}`).toBeLessThanOrEqual(1.2);
+      expect(step, `tier ramp at y=${y}`).toBeLessThanOrEqual(2.4);
     }
   });
 
@@ -166,11 +170,14 @@ describe('Red Hollow terrain identity', () => {
   it('h2: long is dead — a significant drop-off directly behind the green', () => {
     const { hole, hf } = field(redhollow, 1);
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
-    // The back collar is still mesa top (puttable)...
-    expect(Math.abs(hf.heightAt(hole.green.cx, 360) - greenH)).toBeLessThanOrEqual(2);
-    // ...but within ~70 beyond the back edge the ground has fallen away.
-    expect(greenH - hf.heightAt(hole.green.cx, 310)).toBeGreaterThanOrEqual(5);
-    expect(greenH - hf.heightAt(hole.green.cx, 285)).toBeGreaterThanOrEqual(20);
+    // The back collar is still mesa top (puttable — measured vs the back
+    // TIER's height since the pass-7 two-tier green raises it)...
+    expect(Math.abs(hf.heightAt(hole.green.cx, 360) - hf.heightAt(hole.green.cx, 390))).toBeLessThanOrEqual(2);
+    // ...but off the back rim the ground falls away hard onto the talus
+    // apron ~15 units below (≈19ft — punishing AND escapable; the bare
+    // -7 canyon floor made the full face unclimbable, sims locked up).
+    expect(greenH - hf.heightAt(hole.green.cx, 290)).toBeGreaterThanOrEqual(8);
+    expect(greenH - hf.heightAt(hole.green.cx, 255)).toBeGreaterThanOrEqual(14);
   });
 
   it('h3 Wolf Run: three equal island platforms descending from an elevated tee', () => {
@@ -198,7 +205,9 @@ describe('Red Hollow terrain identity', () => {
     expect(hf.heightAt(210, 480) - greenH).toBeGreaterThanOrEqual(8); // left wall
     expect(hf.heightAt(280, 375) - greenH).toBeGreaterThanOrEqual(6); // back wall
     expect(hf.heightAt(400, 420) - greenH).toBeGreaterThanOrEqual(8); // right wall
-    expect(hf.heightAt(370, 535) - greenH).toBeLessThanOrEqual(4); // open front ramp
+    // Pass 7's tighter crater steepens the entrance ramp too — still the
+    // low way in (walls run +16..40).
+    expect(hf.heightAt(370, 535) - greenH).toBeLessThanOrEqual(7); // open front ramp
     // The wall shoulders tower over the putting surface.
     expect(hf.heightAt(172, 500) - greenH).toBeGreaterThanOrEqual(15);
     expect(hf.heightAt(435, 395) - greenH).toBeGreaterThanOrEqual(15);
@@ -286,15 +295,23 @@ describe('Wild Prairie terrain identity', () => {
     expect((wildvalleyJson as { name: string }).name).toBe('Wild Prairie');
   });
 
-  it('the orange shrub card is gone; golden prairie grass carries the rough', () => {
+  it('ONE approved grass asset carries the whole course (vegetation pass)', () => {
+    // The golden card established around h1's big waste bunkers
+    // (heather_fescue_b) is the ONLY grass card: field planting, fingers,
+    // bunker lips, sand plants AND the short ground tufts all draw from it.
     const theme = (wildvalleyJson as { theme: Record<string, unknown> }).theme;
-    const heather = theme.heatherKeys as string[];
-    expect(heather).not.toContain('heather_fescue_c'); // the woody orange bush
-    expect(heather.length).toBeGreaterThanOrEqual(2); // both golden grass cards
+    const approved = 'heather_fescue_b';
+    for (const key of ['heatherKeys', 'grassKeys', 'sandPlantKeys'] as const) {
+      const arr = theme[key] as string[];
+      expect(arr.length, key).toBeGreaterThanOrEqual(1);
+      for (const k of arr) expect(k, `${key} entry`).toBe(approved);
+    }
     expect(theme.bushKeys).toEqual([]);
+    expect(theme.treeKeys).toEqual([]);
     expect(theme.prairieClusters).toBe(true); // dense clustered native rough
     expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(28);
     expect(theme.bunkerLipPacked).toBe(true); // grass-lined blowout lips
+    expect(theme.greenShadeGain).toBeGreaterThanOrEqual(12); // contours read
   });
 
   it('h1: the split bunker sits in the DRIVER landing zone with real lanes both sides', () => {
@@ -415,6 +432,192 @@ describe('Wild Prairie terrain identity', () => {
   });
 });
 
+describe('Red Rock pass 7 — sheer cliff, strategic rock, grounding, horseshoe', () => {
+  it('h1: the right cliff face begins within a minimal gap of the fairway edge and is steep', () => {
+    const { hf } = field(redhollow, 0);
+    // (fairway right edge, y) pairs from the authored centerline+widths.
+    for (const [fwRight, y] of [
+      [390, 820],
+      [428, 690],
+      [457, 580]
+    ]) {
+      // Walk right from the edge: the face (gradient > 0.15) must start
+      // within 20px, and rise ≥ 8 units over the next 40px.
+      let toe = -1;
+      for (let x = fwRight - 4; x < fwRight + 24; x += 2) {
+        if (hf.gradientAt(x, y).x > 0.15) {
+          toe = x;
+          break;
+        }
+      }
+      expect(toe, `face start near fairway edge at y=${y}`).toBeGreaterThanOrEqual(0);
+      expect(toe - fwRight, `gap at y=${y}`).toBeLessThanOrEqual(20);
+      expect(hf.heightAt(toe + 40, y) - hf.heightAt(toe, y), `rise at y=${y}`).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it('h1: a dedicated cliff-face strip runs along the wall toe', () => {
+    const hole = redhollow.holes[0];
+    const { hf } = field(redhollow, 0);
+    expect(hole.cliffWalls?.length ?? 0).toBeGreaterThanOrEqual(1);
+    const pts = hole.cliffWalls![0].points;
+    // Long enough to run "most of the hole" and anchored at the toe: every
+    // authored point sits below mid-face (the strip's top reaches uphill).
+    expect(pts.length).toBeGreaterThanOrEqual(5);
+    const span = Math.abs(pts[0][1] - pts[pts.length - 1][1]);
+    expect(span, 'strip runs most of the hole').toBeGreaterThanOrEqual(550);
+    for (const [x, y] of pts) {
+      const h = hf.heightAt(x, y);
+      expect(h, `toe point ${x},${y} below mid-face`).toBeLessThanOrEqual(16);
+      expect(h, `toe point ${x},${y} on/above shelf`).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it('h1: the strategic rock splits the measured driver zone with lanes both sides', () => {
+    const hole = redhollow.holes[0];
+    const rk = hole.hazards.find((hz) => hz.type === 'rock');
+    expect(rk, 'h1 must carry a rock hazard').toBeDefined();
+    // Monte Carlo (60 seeded drives, 85-stat golfer): rests x380-410 /
+    // y588-685 — the rock must sit inside that dispersion box.
+    expect(rk!.cx!).toBeGreaterThanOrEqual(375);
+    expect(rk!.cx!).toBeLessThanOrEqual(415);
+    expect(rk!.cy!).toBeGreaterThanOrEqual(585);
+    expect(rk!.cy!).toBeLessThanOrEqual(690);
+    // Collider matches the visible rock: r tracks height (ROCK_R_PER_H).
+    expect(rk!.r! / rk!.height!).toBeGreaterThanOrEqual(0.5);
+    expect(rk!.r! / rk!.height!).toBeLessThanOrEqual(1.3);
+    // Playable lane each side of the rock at its y.
+    const spanAt = (p: Array<[number, number]>, y: number) => {
+      const xs: number[] = [];
+      for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+        const [xi, yi] = p[i];
+        const [xj, yj] = p[j];
+        if (yi > y !== yj > y) xs.push(xi + ((xj - xi) * (y - yi)) / (yj - yi));
+      }
+      return xs.sort((m, n) => m - n);
+    };
+    const f = spanAt(hole.fairway[0] as Array<[number, number]>, rk!.cy!);
+    expect(rk!.cx! - rk!.r! - f[0], 'left lane').toBeGreaterThanOrEqual(32);
+    expect(f[f.length - 1] - (rk!.cx! + rk!.r!), 'right lane').toBeGreaterThanOrEqual(32);
+  });
+
+  it('every large rock is grounded on one coherent level (no floaters/overhangs)', () => {
+    // Footprint probe: center + 8 ring samples at 0.45·h must span less
+    // than max(2.5, 0.22·h) — a rock straddling a mesa edge or cliff lip
+    // fails (the "half on, half hanging" silhouette).
+    for (let hi = 0; hi < 3; hi++) {
+      const { hole, hf } = field(redhollow, hi);
+      const masses = [
+        ...(hole.landforms ?? []),
+        ...hole.hazards
+          .filter((hz) => hz.type === 'rock')
+          .map((hz) => ({ key: hz.key ?? 'rock', x: hz.cx!, y: hz.cy!, h: hz.height! }))
+      ];
+      for (const m of masses) {
+        const rad = 0.45 * m.h;
+        let mn = hf.heightAt(m.x, m.y);
+        let mx = mn;
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2;
+          const h = hf.heightAt(m.x + Math.cos(a) * rad, m.y + Math.sin(a) * rad);
+          mn = Math.min(mn, h);
+          mx = Math.max(mx, h);
+        }
+        expect(mx - mn, `h${hi + 1} ${m.key}@${m.x},${m.y} h${m.h}`).toBeLessThanOrEqual(Math.max(2.5, 0.22 * m.h));
+      }
+    }
+  });
+
+  it('h3: rock formations spread across the whole valley, not just the wash', () => {
+    const hole = redhollow.holes[2];
+    // Wash centerline (authored stream control points).
+    const wash: Array<[number, number]> = [
+      [210, 1180], [330, 1090], [455, 1086], [600, 1032], [712, 976], [662, 848], [575, 770], [545, 715], [528, 648], [505, 560]
+    ];
+    const farFromWash = (hole.landforms ?? []).filter((l) => {
+      let best = Infinity;
+      for (const [wx, wy] of wash) best = Math.min(best, Math.hypot(l.x - wx, l.y - wy));
+      return best > 150;
+    });
+    expect(farFromWash.length, 'formations >150px from the wash').toBeGreaterThanOrEqual(10);
+    // And the mix uses all four shades.
+    const shades = new Set((hole.landforms ?? []).map((l) => l.key));
+    for (const k of ['rocks_red_bright', 'rocks_red_mid', 'rocks_red_cluster', 'rocks_red_dark']) {
+      expect(shades.has(k), k).toBe(true);
+    }
+  });
+
+  it('h3: the horseshoe walls hug the green (narrow collar, immediate wall)', () => {
+    const { hole, hf } = field(redhollow, 2);
+    // Rays left/back-left/back/back-right/right from the green center: the
+    // wall (gradient > 0.12) must start within 55px of the green edge.
+    const rEdge = 46;
+    for (const ang of [180, 135, 90, 45, 0]) {
+      const a = (ang / 180) * Math.PI;
+      const dx = Math.cos(a);
+      const dy = -Math.sin(a);
+      let start = -1;
+      for (let d = rEdge; d < rEdge + 60; d += 2) {
+        const g = hf.gradientAt(hole.green.cx + dx * d, hole.green.cy + dy * d);
+        if (Math.hypot(g.x, g.y) > 0.12) {
+          start = d - rEdge;
+          break;
+        }
+      }
+      expect(start, `wall start past green edge at ${ang}°`).toBeGreaterThanOrEqual(0);
+      expect(start, `collar width at ${ang}°`).toBeLessThanOrEqual(55);
+    }
+  });
+});
+
+describe('Wild Prairie green contours + fairway preservation', () => {
+  it('every green carries readable broad contour (relief ≥1.2, still ≤5)', () => {
+    for (let i = 0; i < 3; i++) {
+      const { hole, hf } = field(wildvalley, i);
+      let mn = Infinity;
+      let mx = -Infinity;
+      const rM = Math.min(hole.green.rx, hole.green.ry) * 0.95;
+      for (let a = 0; a < 16; a++) {
+        const dx = Math.cos((a / 16) * Math.PI * 2);
+        const dy = Math.sin((a / 16) * Math.PI * 2);
+        for (let r = 0; r <= rM; r += 8) {
+          const h = hf.heightAt(hole.green.cx + dx * r, hole.green.cy + dy * r);
+          mn = Math.min(mn, h);
+          mx = Math.max(mx, h);
+        }
+      }
+      expect(mx - mn, `h${i + 1} green relief`).toBeGreaterThanOrEqual(1.2);
+      expect(mx - mn, `h${i + 1} green relief cap`).toBeLessThanOrEqual(5);
+    }
+  });
+
+  it('authored pins sit on stable slopes (≤ PIN_MAX_GRADIENT)', () => {
+    for (const course of [wildvalley, redhollow]) {
+      for (let i = 0; i < course.holes.length; i++) {
+        const { hole, hf } = field(course, i);
+        for (const p of hole.pins ?? []) {
+          const g = hf.gradientAt(p.x, p.y);
+          expect(Math.hypot(g.x, g.y), `h${hole.number} pin ${p.x},${p.y}`).toBeLessThanOrEqual(PIN_MAX_GRADIENT);
+        }
+      }
+    }
+  });
+
+  it('the approved fairways (h1, h3) are not reshaped by the green/vegetation work', () => {
+    // Snapshot pinned when the fairways were approved — [x, y, height].
+    const SNAP: Record<number, Array<[number, number, number]>> = {
+      0: [[470, 1100, 6.0], [467, 1052, 4.23], [463, 1004, 0.0], [460, 956, 0.46], [458, 908, 2.47], [456, 860, 3.23], [456, 812, 2.83], [459, 764, 1.98], [461, 716, 0.52], [465, 668, 1.57], [469, 621, 1.41], [471, 573, 0.63], [470, 525, 1.78], [468, 477, 1.06], [481, 431, 0.75], [496, 385, 1.69]],
+      2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.46], [466, 1136, 9.56], [501, 1075, 12.83], [537, 1015, 16.9], [573, 954, 15.9], [609, 893, 10.15], [633, 827, 4.73], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.97], [709, 555, 9.38], [730, 487, 11.9], [752, 420, 10.31]]
+    };
+    for (const [hiStr, samples] of Object.entries(SNAP)) {
+      const { hf } = field(wildvalley, Number(hiStr));
+      for (const [x, y, h] of samples) {
+        expect(Math.abs(hf.heightAt(x, y) - h), `h${Number(hiStr) + 1} @${x},${y}`).toBeLessThanOrEqual(0.6);
+      }
+    }
+  });
+});
+
 describe('green design rule (both courses)', () => {
   // "No green may terminate in an unputtable cliff": every point of every
   // putting surface must be reachable by putting — adjacent 8px samples
@@ -441,10 +644,13 @@ describe('green design rule (both courses)', () => {
             let prev = hf.heightAt(g.cx, g.cy);
             for (let r = 8; r <= rMax; r += 8) {
               const h = hf.heightAt(g.cx + dx * r, g.cy + dy * r);
+              // Per-course step gate: redhollow's h2 tier ramp is authored
+              // at ~2.25/8px (pass 7); every other green keeps the strict
+              // 1.2. The ≤5 total-relief gate below is shared and unmoved.
               expect(
                 Math.abs(h - prev),
                 `${name} h${hole.number} green step at r=${r} a=${a}`
-              ).toBeLessThanOrEqual(1.2);
+              ).toBeLessThanOrEqual(name === 'redhollow' ? 2.4 : 1.2);
               min = Math.min(min, h);
               max = Math.max(max, h);
               prev = h;

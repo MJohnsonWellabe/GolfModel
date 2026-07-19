@@ -32,14 +32,22 @@
     ],
     "wasteRimKeys": [
       "rocks_red_cluster",
-      "rocks_red_bright"
+      "rocks_red_bright",
+      "rocks_red_mid",
+      "rock_desert_a",
+      "rock_desert_c"
     ],
-    "stoneTint": "#b0522f",
+    "stoneTint": "#6a3a26",
     "bareRough": true,
     "bushKeys": [],
     "scatterKeys": [
       "rocks_red_cluster",
-      "rocks_red_bright"
+      "rocks_red_mid",
+      "rocks_red_dark",
+      "rock_desert_a",
+      "rock_desert_b",
+      "rock_desert_c",
+      "rock_desert_d"
     ],
     "sandPlantKeys": [
       "rocks_red_cluster",
@@ -50,6 +58,7 @@
     "sandSculpt": 0.25,
     "bunkerDepthScale": 1.35,
     "wasteDepthScale": 1.4,
+    "greenShadeGain": 13,
     "tuftDensity": 0.8,
     "roughTuftHeight": 1.2,
     "edgeWobble": 2.6,
@@ -63,7 +72,7 @@
       "number": 1,
       "name": "Rimrock",
       "par": 4,
-      "yardage": 427,
+      "yardage": 425,
       "world": {
         "width": 950,
         "height": 1240
@@ -127,15 +136,15 @@
               820
             ],
             [
-              368,
+              380,
               690
             ],
             [
-              402,
+              412,
               580
             ],
             [
-              462,
+              468,
               470
             ],
             [
@@ -146,9 +155,9 @@
           "width": [
             46,
             68,
-            82,
-            78,
-            64,
+            84,
+            96,
+            90,
             54,
             44
           ]
@@ -205,6 +214,48 @@
             [
               0,
               0
+            ]
+          ]
+        },
+        {
+          "type": "rock",
+          "cx": 393,
+          "cy": 648,
+          "r": 13,
+          "height": 13,
+          "key": "rocks_red_bright",
+          "polygon": [
+            [
+              406,
+              648
+            ],
+            [
+              402.2,
+              657.2
+            ],
+            [
+              393,
+              661
+            ],
+            [
+              383.8,
+              657.2
+            ],
+            [
+              380,
+              648
+            ],
+            [
+              383.8,
+              638.8
+            ],
+            [
+              393,
+              635
+            ],
+            [
+              402.2,
+              638.8
             ]
           ]
         },
@@ -413,12 +464,12 @@
       ],
       "aiTargets": [
         {
-          "x": 350,
+          "x": 352,
           "y": 820
         },
         {
-          "x": 412,
-          "y": 566
+          "x": 424,
+          "y": 570
         }
       ],
       "elevation": [
@@ -489,32 +540,32 @@
         {
           "x": 590,
           "y": 1150,
-          "x2": 575,
+          "x2": 578,
           "y2": 900,
-          "h": 9,
+          "h": 10,
           "r": 190,
           "shape": "plateau",
-          "skirt": 0.74
+          "skirt": 0.8
         },
         {
-          "x": 575,
+          "x": 592,
           "y": 900,
-          "x2": 600,
+          "x2": 622,
           "y2": 640,
-          "h": 9,
+          "h": 10,
           "r": 190,
           "shape": "plateau",
-          "skirt": 0.74
+          "skirt": 0.8
         },
         {
-          "x": 620,
+          "x": 630,
           "y": 640,
-          "x2": 728,
+          "x2": 736,
           "y2": 470,
-          "h": 9,
+          "h": 10,
           "r": 170,
           "shape": "plateau",
-          "skirt": 0.74
+          "skirt": 0.8
         },
         {
           "x": 855,
@@ -555,13 +606,13 @@
           "h": 14
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_dark",
           "x": 790,
           "y": 1070,
           "h": 12
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_mid",
           "x": 862,
           "y": 620,
           "h": 16
@@ -573,13 +624,25 @@
           "h": 15
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_mid",
           "x": 700,
           "y": 120,
           "h": 13
         },
         {
           "key": "rocks_red_cluster",
+          "x": 600,
+          "y": 905,
+          "h": 17
+        },
+        {
+          "key": "rocks_red_bright",
+          "x": 648,
+          "y": 700,
+          "h": 17
+        },
+        {
+          "key": "rocks_red_dark",
           "x": 208,
           "y": 1105,
           "h": 7
@@ -591,7 +654,7 @@
           "h": 8
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_mid",
           "x": 200,
           "y": 660,
           "h": 8
@@ -603,21 +666,51 @@
           "h": 7
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 330,
-          "y": 300,
-          "h": 8
+          "key": "rocks_red_dark",
+          "x": 344,
+          "y": 298,
+          "h": 7
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 448,
+          "y": 852,
+          "h": 7
         },
         {
           "key": "rocks_red_bright",
-          "x": 448,
-          "y": 852,
+          "x": 402,
+          "y": 858,
           "h": 6
         },
         {
           "key": "rocks_red_cluster",
-          "x": 530,
+          "x": 456,
+          "y": 700,
+          "h": 11
+        },
+        {
+          "key": "rocks_red_cluster",
+          "x": 540,
           "y": 640,
+          "h": 7
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 396,
+          "y": 560,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_bright",
+          "x": 532,
+          "y": 460,
+          "h": 8
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 302,
+          "y": 522,
           "h": 7
         },
         {
@@ -627,40 +720,51 @@
           "h": 9
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_mid",
           "x": 470,
           "y": 250,
           "h": 8
         },
         {
           "key": "rocks_red_cluster",
-          "x": 600,
-          "y": 905,
-          "h": 17
-        },
-        {
-          "key": "rocks_red_bright",
-          "x": 636,
-          "y": 700,
-          "h": 17
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 392,
-          "y": 612,
-          "h": 9
-        },
-        {
-          "key": "rocks_red_bright",
-          "x": 302,
-          "y": 522,
-          "h": 7
-        },
-        {
-          "key": "rocks_red_cluster",
           "x": 590,
           "y": 258,
           "h": 12
+        }
+      ],
+      "cliffWalls": [
+        {
+          "points": [
+            [
+              400,
+              1160
+            ],
+            [
+              390,
+              905
+            ],
+            [
+              404,
+              878
+            ],
+            [
+              434,
+              650
+            ],
+            [
+              452,
+              632
+            ],
+            [
+              482,
+              520
+            ],
+            [
+              514,
+              490
+            ]
+          ],
+          "inset": 10
         }
       ]
     },
@@ -693,21 +797,21 @@
         "strength": 0.35
       },
       "pin": {
-        "x": 448.7,
-        "y": 457.8
+        "x": 450,
+        "y": 398
       },
       "pins": [
         {
-          "x": 448.7,
-          "y": 457.8
+          "x": 450,
+          "y": 398
         },
         {
-          "x": 451.2,
-          "y": 403.8
+          "x": 474,
+          "y": 412
         },
         {
-          "x": 419.2,
-          "y": 431.2
+          "x": 438,
+          "y": 462
         }
       ],
       "tees": [
@@ -1100,13 +1204,13 @@
         },
         {
           "x": 426,
-          "y": 404,
+          "y": 392,
           "x2": 474,
-          "y2": 398,
-          "h": 2.2,
+          "y2": 386,
+          "h": 3,
           "r": 60,
           "shape": "plateau",
-          "skirt": 0.35
+          "skirt": 0.73
         },
         {
           "x": 330,
@@ -1141,12 +1245,12 @@
           "skirt": 0.62
         },
         {
-          "x": 398,
-          "y": 288,
-          "x2": 505,
-          "y2": 282,
-          "h": -9,
-          "r": 48,
+          "x": 310,
+          "y": 252,
+          "x2": 590,
+          "y2": 246,
+          "h": 9,
+          "r": 64,
           "shape": "plateau",
           "skirt": 0.62
         },
@@ -1176,7 +1280,7 @@
           "x2": 750,
           "y2": 60,
           "h": 30,
-          "r": 190,
+          "r": 148,
           "shape": "plateau",
           "skirt": 0.85
         },
@@ -1205,10 +1309,22 @@
           "h": 16
         },
         {
-          "key": "rocks_red_cluster",
+          "key": "rocks_red_dark",
+          "x": 128,
+          "y": 552,
+          "h": 7
+        },
+        {
+          "key": "rocks_red_mid",
           "x": 828,
           "y": 420,
           "h": 18
+        },
+        {
+          "key": "rocks_red_cluster",
+          "x": 800,
+          "y": 456,
+          "h": 8
         },
         {
           "key": "rocks_red_bright",
@@ -1217,16 +1333,16 @@
           "h": 15
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 680,
-          "y": 78,
-          "h": 13
+          "key": "rocks_red_mid",
+          "x": 688,
+          "y": 64,
+          "h": 12
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 250,
-          "y": 828,
-          "h": 10
+          "key": "rocks_red_dark",
+          "x": 330,
+          "y": 850,
+          "h": 9
         },
         {
           "key": "rocks_red_bright",
@@ -1236,81 +1352,87 @@
         },
         {
           "key": "rocks_red_cluster",
-          "x": 332,
-          "y": 472,
-          "h": 19
-        },
-        {
-          "key": "rocks_red_bright",
-          "x": 566,
-          "y": 372,
-          "h": 19
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 452,
-          "y": 292,
-          "h": 15
-        },
-        {
-          "key": "rocks_red_bright",
-          "x": 368,
-          "y": 318,
-          "h": 18
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 555,
-          "y": 505,
+          "x": 348,
+          "y": 466,
           "h": 14
         },
         {
           "key": "rocks_red_bright",
-          "x": 330,
-          "y": 452,
-          "h": 6
+          "x": 556,
+          "y": 382,
+          "h": 14
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 578,
-          "y": 432,
-          "h": 6
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 386,
-          "y": 514,
+          "key": "rocks_red_mid",
+          "x": 452,
+          "y": 310,
           "h": 12
         },
         {
           "key": "rocks_red_bright",
-          "x": 518,
-          "y": 500,
-          "h": 12
+          "x": 398,
+          "y": 352,
+          "h": 9
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 262,
-          "y": 692,
-          "h": 1
+          "key": "rocks_red_dark",
+          "x": 528,
+          "y": 502,
+          "h": 10
         },
         {
           "key": "rocks_red_bright",
+          "x": 340,
+          "y": 430,
+          "h": 5
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 560,
+          "y": 380,
+          "h": 4
+        },
+        {
+          "key": "rocks_red_cluster",
+          "x": 366,
+          "y": 542,
+          "h": 10
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 560,
+          "y": 560,
+          "h": 8
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 290,
+          "y": 700,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_cluster",
           "x": 636,
           "y": 706,
-          "h": 1
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 380,
-          "y": 882,
-          "h": 30
+          "h": 7
         },
         {
           "key": "rocks_red_bright",
+          "x": 380,
+          "y": 878,
+          "h": 12
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 286,
+          "y": 676,
+          "h": 3
+        },
+        {
+          "key": "rocks_red_mid",
           "x": 508,
-          "y": 268,
-          "h": 10
+          "y": 262,
+          "h": 9
         }
       ]
     },
@@ -1884,31 +2006,31 @@
           "x": 300,
           "y": 480,
           "h": -10,
-          "r": 135,
+          "r": 118,
           "shape": "plateau",
-          "skirt": 0.62
+          "skirt": 0.58
         },
         {
-          "x": 172,
-          "y": 570,
-          "x2": 155,
-          "y2": 430,
+          "x": 186,
+          "y": 562,
+          "x2": 170,
+          "y2": 432,
           "h": 9,
           "r": 95
         },
         {
-          "x": 195,
-          "y": 348,
-          "x2": 330,
-          "y2": 318,
+          "x": 202,
+          "y": 358,
+          "x2": 326,
+          "y2": 330,
           "h": 10,
           "r": 100
         },
         {
-          "x": 418,
-          "y": 350,
-          "x2": 452,
-          "y2": 438,
+          "x": 410,
+          "y": 360,
+          "x2": 444,
+          "y2": 442,
           "h": 9,
           "r": 90
         },
@@ -1991,16 +2113,34 @@
           "h": 13
         },
         {
+          "key": "rocks_red_mid",
+          "x": 960,
+          "y": 940,
+          "h": 16
+        },
+        {
           "key": "rocks_red_cluster",
           "x": 840,
           "y": 780,
           "h": 15
         },
         {
-          "key": "rocks_red_bright",
+          "key": "rocks_red_dark",
+          "x": 872,
+          "y": 812,
+          "h": 7
+        },
+        {
+          "key": "rocks_red_mid",
           "x": 655,
           "y": 340,
           "h": 16
+        },
+        {
+          "key": "rocks_red_bright",
+          "x": 860,
+          "y": 560,
+          "h": 14
         },
         {
           "key": "rocks_red_cluster",
@@ -2009,22 +2149,22 @@
           "h": 14
         },
         {
-          "key": "rocks_red_bright",
+          "key": "rocks_red_dark",
+          "x": 202,
+          "y": 812,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_mid",
           "x": 350,
           "y": 1260,
           "h": 12
         },
         {
-          "key": "rocks_red_cluster",
-          "x": 690,
-          "y": 1085,
-          "h": 8
-        },
-        {
           "key": "rocks_red_bright",
-          "x": 610,
-          "y": 1140,
-          "h": 7
+          "x": 92,
+          "y": 940,
+          "h": 15
         },
         {
           "key": "rocks_red_cluster",
@@ -2033,33 +2173,105 @@
           "h": 15
         },
         {
-          "key": "rocks_red_bright",
-          "x": 162,
-          "y": 486,
+          "key": "rocks_red_cluster",
+          "x": 690,
+          "y": 1085,
+          "h": 8
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 610,
+          "y": 1140,
           "h": 7
         },
         {
+          "key": "rocks_red_mid",
+          "x": 560,
+          "y": 795,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_bright",
+          "x": 332,
+          "y": 900,
+          "h": 10
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 356,
+          "y": 928,
+          "h": 4
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 560,
+          "y": 660,
+          "h": 6
+        },
+        {
           "key": "rocks_red_cluster",
-          "x": 250,
-          "y": 330,
+          "x": 700,
+          "y": 1310,
           "h": 9
         },
         {
           "key": "rocks_red_bright",
-          "x": 448,
-          "y": 392,
-          "h": 8
+          "x": 590,
+          "y": 820,
+          "h": 3
         },
         {
           "key": "rocks_red_cluster",
-          "x": 200,
-          "y": 592,
-          "h": 2
+          "x": 505,
+          "y": 720,
+          "h": 1
         },
         {
           "key": "rocks_red_bright",
+          "x": 158,
+          "y": 490,
+          "h": 7
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 150,
+          "y": 528,
+          "h": 4
+        },
+        {
+          "key": "rocks_red_cluster",
+          "x": 222,
+          "y": 296,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_mid",
+          "x": 300,
+          "y": 316,
+          "h": 6
+        },
+        {
+          "key": "rocks_red_bright",
+          "x": 442,
+          "y": 396,
+          "h": 8
+        },
+        {
+          "key": "rocks_red_dark",
+          "x": 462,
+          "y": 428,
+          "h": 4
+        },
+        {
+          "key": "rocks_red_cluster",
+          "x": 196,
+          "y": 596,
+          "h": 2
+        },
+        {
+          "key": "rocks_red_mid",
           "x": 402,
-          "y": 300,
+          "y": 302,
           "h": 9
         },
         {
@@ -2072,18 +2284,6 @@
           "key": "rocks_red_bright",
           "x": 388,
           "y": 660,
-          "h": 3
-        },
-        {
-          "key": "rocks_red_cluster",
-          "x": 505,
-          "y": 720,
-          "h": 1
-        },
-        {
-          "key": "rocks_red_bright",
-          "x": 590,
-          "y": 820,
           "h": 3
         }
       ]

@@ -143,7 +143,16 @@ export function pointInGreens(
  * given `rng` — pass a seeded generator for tournament parity, `Math.random`
  * for a fresh casual pin.
  */
-export function randomPinForGreen(green: EllipseArea, green2: EllipseArea | undefined, rng: () => number = Math.random): Point {
+export function randomPinForGreen(
+  green: EllipseArea,
+  green2: EllipseArea | undefined,
+  rng: () => number = Math.random,
+  /** Optional slope veto: |gradient| at the candidate (height units per px).
+   *  A cup on a slope steeper than PIN_MAX_GRADIENT can't hold a ball at
+   *  rest (rolling creep threshold) — contoured/tiered greens pass their
+   *  heightfield gradient here so a pin never lands on a tier ramp. */
+  gradientMagAt?: (x: number, y: number) => number
+): Point {
   // Keep the cup a sensible distance off the edge, but never more than a small
   // green can spare (a 34px-radius green can't give up 14px on every side).
   const minR = Math.min(green.rx, green.ry, ...(green2 ? [green2.rx, green2.ry] : [Infinity]));
@@ -162,11 +171,22 @@ export function randomPinForGreen(green: EllipseArea, green2: EllipseArea | unde
   for (let i = 0; i < 120; i++) {
     const x = x0 + rng() * (x1 - x0);
     const y = y0 + rng() * (y1 - y0);
-    if (pointInGreens(x, y, green, green2, -edge)) return { x, y };
+    if (!pointInGreens(x, y, green, green2, -edge)) continue;
+    // Stable-slope veto (see param doc). Only the first ~90 tries enforce
+    // it — a tiny green that is ALL slope still gets a pin, on the
+    // flattest-available principle of the fallback below.
+    if (gradientMagAt && i < 90 && gradientMagAt(x, y) > PIN_MAX_GRADIENT) continue;
+    return { x, y };
   }
   // Degenerate fallback: the authored centre (always inside its own lobe).
   return { x: green.cx, y: green.cy };
 }
+
+/** Steepest slope (height units per px) a cup may sit on: past ~0.11 the
+ *  rolling integrator's slope kick exceeds its stop threshold, so a ball
+ *  can never rest at the pin. Shared by the runtime pin picker and the
+ *  authored-pin test gates. */
+export const PIN_MAX_GRADIENT = 0.11;
 
 /**
  * Push any polygon vertex that sits on the green + collar radially outward to

@@ -43,6 +43,19 @@ function stream(points, w, seed) {
   }
   return left.concat(right.reverse());
 }
+/** A collidable boulder ('rock' hazard): swept-cylinder carom physics in
+ *  PhysicsEngine + a grounded nature prototype rendered at (cx,cy). The
+ *  collision radius tracks the visual footprint at r = h (the rocks_red_*
+ *  clusters are roughly as wide as tall) — gate-enforced in tests. The
+ *  polygon is a regular octagon so generic hazard consumers stay happy. */
+const ROCK_R_PER_H = 1.0;
+const rock = (cx, cy, h, key = 'rocks_red_bright') => {
+  const r = R(h * ROCK_R_PER_H);
+  return { type: 'rock', cx, cy, r, height: h, key, polygon: blob(cx, cy, r, r, 8, 0, 1) };
+};
+/** Large-rock authoring bands (the "3 sizes"): S h4-7, M h9-13, L h15-20 —
+ *  crossed with the three shade keys (rocks_red_bright / _mid / _cluster
+ *  a.k.a. dark volcanic, plus _dark deep-shadow) for natural variation. */
 const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const rot2 = (x, y, r) => [x * Math.cos(r) - y * Math.sin(r), x * Math.sin(r) + y * Math.cos(r)];
 function computedPins(h) {
@@ -121,14 +134,18 @@ const redhollow = {
     // stylized cluster in dark volcanic + bright sunlit red; the boxy
     // rock_desert props and green sage bushes are gone.
     peakKeys: ['mountain_range_red'],
-    wasteRimKeys: ['rocks_red_cluster', 'rocks_red_bright'],
-    stoneTint: '#b0522f',
+    // PASS 7: four rock shades on the rims + the small dark rock_desert
+    // fragments (stoneTint-darkened) as talus under cliffs and canyon-floor
+    // debris — hundreds of instances via the rough scatter.
+    wasteRimKeys: ['rocks_red_cluster', 'rocks_red_bright', 'rocks_red_mid', 'rock_desert_a', 'rock_desert_c'],
+    stoneTint: '#6a3a26',
     bareRough: true,
     bushKeys: [],
-    scatterKeys: ['rocks_red_cluster', 'rocks_red_bright'],
+    scatterKeys: ['rocks_red_cluster', 'rocks_red_mid', 'rocks_red_dark', 'rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d'],
     sandPlantKeys: ['rocks_red_cluster', 'bush_b'],
     sandPlantStep: 70, sandPlantKeep: 0.45,
     sandSculpt: 0.25, bunkerDepthScale: 1.35, wasteDepthScale: 1.4,
+    greenShadeGain: 13,
     tuftDensity: 0.8, roughTuftHeight: 1.2,
     edgeWobble: 2.6, mowPattern: 'diagonal', mowWidth: 26,
     greenMowPattern: 'diagonal',
@@ -145,8 +162,12 @@ const redhollow = {
       // presses hard against the cliff edge (left edge riding within a few
       // px of the drop) and the whole second half wraps the mountainside
       // before cutting back right to the green shelf.
-      centerline: [[330, 1100], [332, 960], [348, 820], [368, 690], [402, 580], [462, 470], [528, 392]],
-      width: [46, 68, 82, 78, 64, 54, 44],
+      // PASS 7: the drive zone balloons (widths 96/90 around y580-690) to
+      // hold THE ROCK — a collidable boulder splitting the measured driver
+      // landing band (Monte Carlo: rests x380-410 / y588-685, mean 254yd)
+      // into two true ~17yd lanes.
+      centerline: [[330, 1100], [332, 960], [348, 820], [380, 690], [412, 580], [468, 470], [528, 392]],
+      width: [46, 68, 84, 96, 90, 54, 44],
       hazards: [
         // PASS 6 — TRUE OUT OF BOUNDS from the SHELF EDGE down: the
         // boundary tracks the exact line where the shelf starts to fall
@@ -154,13 +175,19 @@ const redhollow = {
         // left edge means crossing into OB — stroke penalty, drop in the
         // rough where the ball crossed. Everything below is scenery.
         { type: 'ob', polygon: [[0, 1240], [274, 1240], [276, 1050], [281, 960], [297, 820], [318, 690], [356, 580], [400, 470], [428, 392], [430, 280], [430, 0], [0, 0]] },
+        // PASS 7 — THE ROCK: a collidable boulder ON the fairway in the
+        // driver landing zone (see rock() — swept-cylinder carom physics,
+        // grounded prototype visual). ~13yd wide, ~17yd lane both sides:
+        // the left lane hugs the OB cliff for the straighter approach into
+        // the wrapped green; right is the safe bail against the wall toe.
+        rock(393, 648, 13),
         // Canyon floor dressing (inside the OB — visual only).
         { type: 'bunker', waste: true, polygon: blob(105, 900, 95, 330, 14, 0.3, 15) },
         { type: 'bunker', waste: true, polygon: blob(170, 420, 100, 240, 13, 0.32, 17) },
         { type: 'bunker', polygon: blob(478, 300, 34, 26, 9, 0.3, 13) },
         { type: 'bunker', polygon: blob(636, 402, 30, 24, 9, 0.3, 14) }
       ],
-      aiTargets: [[350, 820], [412, 566]],
+      aiTargets: [[352, 820], [424, 570]],
       // PASS 4 — THE SIDEHILL SHELF: tee, fairway and green share ONE
       // continuous +10 shelf cut into the mountainside. LEFT: the shelf
       // simply ends — a steep 24-unit drop right at the fairway edge
@@ -182,44 +209,60 @@ const redhollow = {
         { x: 106, y: 900, x2: 148, y2: 640, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
         { x: 148, y: 640, x2: 225, y2: 440, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
         { x: 225, y: 440, x2: 290, y2: 270, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        // RIGHT: the wall begins DIRECTLY beside the fairway (no buffer),
-        // runs nearly the whole hole, and rises harder (pass 6: h9).
-        { x: 590, y: 1150, x2: 575, y2: 900, h: 9, r: 190, shape: 'plateau', skirt: 0.74 },
-        { x: 575, y: 900, x2: 600, y2: 640, h: 9, r: 190, shape: 'plateau', skirt: 0.74 },
+        // RIGHT: THE SHEER WALL (pass 7) — h10, skirt 0.80: the face
+        // compresses to a ~38px band whose slope exceeds the rolling creep
+        // threshold everywhere, so nothing rests on it; a rock-textured
+        // cliff strip (hole.cliffWalls) is extruded along this toe for the
+        // near-vertical read the 8px grid can't express. The middle spine
+        // steps right through the drive zone to hold the widened split.
+        { x: 590, y: 1150, x2: 578, y2: 900, h: 10, r: 190, shape: 'plateau', skirt: 0.8 },
+        { x: 592, y: 900, x2: 622, y2: 640, h: 10, r: 190, shape: 'plateau', skirt: 0.8 },
         // Final wall segment tapers as it nears the green complex (r170,
         // endpoint pulled NE) so the terrace skirt never crosses the putt.
-        { x: 620, y: 640, x2: 728, y2: 470, h: 9, r: 170, shape: 'plateau', skirt: 0.74 },
+        { x: 630, y: 640, x2: 736, y2: 470, h: 10, r: 170, shape: 'plateau', skirt: 0.8 },
         // The great wall rises from the terrace (pass-3 identity).
         { x: 855, y: 1240, x2: 855, y2: 140, h: 28, r: 200, shape: 'plateau', skirt: 0.86 },
         { x: 620, y: 60, x2: 950, y2: 80, h: 24, r: 170, shape: 'plateau', skirt: 0.85 },
         // Amphitheater spur wrapping behind the green (clear of the putt).
         { x: 740, y: 140, x2: 668, y2: 196, h: 14, r: 95, shape: 'plateau', skirt: 0.8 }
       ],
+      // PASS 7: shade-mixed (bright/mid/dark) and pulled INTO the gameplay
+      // cameras — the tee frames the cliff-lip line + wall toe masses, the
+      // approach frames the dogleg + green-complex formations. Sizes span
+      // the S/M/L bands.
       landforms: [
-        // PASS 5: rock outcrops as a defining feature — cliff-edge line,
-        // wall crest, landing-zone frames, green complex.
+        // Wall crest + upper terrace (visible over the sheer strip).
         { key: 'rocks_red_bright', x: 852, y: 980, h: 14 },
-        { key: 'rocks_red_cluster', x: 790, y: 1070, h: 12 },
-        { key: 'rocks_red_cluster', x: 862, y: 620, h: 16 },
+        { key: 'rocks_red_dark', x: 790, y: 1070, h: 12 },
+        { key: 'rocks_red_mid', x: 862, y: 620, h: 16 },
         { key: 'rocks_red_bright', x: 845, y: 300, h: 15 },
-        { key: 'rocks_red_cluster', x: 700, y: 120, h: 13 },
-        { key: 'rocks_red_cluster', x: 208, y: 1105, h: 7 },
-        { key: 'rocks_red_bright', x: 165, y: 905, h: 8 },
-        { key: 'rocks_red_cluster', x: 200, y: 660, h: 8 },
-        { key: 'rocks_red_bright', x: 268, y: 455, h: 7 },
-        { key: 'rocks_red_cluster', x: 330, y: 300, h: 8 },
-        { key: 'rocks_red_bright', x: 448, y: 852, h: 6 },
-        { key: 'rocks_red_cluster', x: 530, y: 640, h: 7 },
-        { key: 'rocks_red_bright', x: 640, y: 330, h: 9 },
-        { key: 'rocks_red_cluster', x: 470, y: 250, h: 8 },
-        // PASS 6: h3-level rock density — upper-terrace crests, the dogleg
-        // turn, an erosion break on the cliff line, extra green-complex
-        // stone.
+        { key: 'rocks_red_mid', x: 700, y: 120, h: 13 },
         { key: 'rocks_red_cluster', x: 600, y: 905, h: 17 },
-        { key: 'rocks_red_bright', x: 636, y: 700, h: 17 },
-        { key: 'rocks_red_cluster', x: 392, y: 612, h: 9 },
-        { key: 'rocks_red_bright', x: 302, y: 522, h: 7 },
+        { key: 'rocks_red_bright', x: 648, y: 700, h: 17 },
+        // Cliff-edge line down the left rim (the OB brink).
+        { key: 'rocks_red_dark', x: 208, y: 1105, h: 7 },
+        { key: 'rocks_red_bright', x: 165, y: 905, h: 8 },
+        { key: 'rocks_red_mid', x: 200, y: 660, h: 8 },
+        { key: 'rocks_red_bright', x: 268, y: 455, h: 7 },
+        { key: 'rocks_red_dark', x: 344, y: 298, h: 7 },
+        // Drive landing zone frames (tee camera).
+        { key: 'rocks_red_mid', x: 448, y: 852, h: 7 },
+        { key: 'rocks_red_bright', x: 402, y: 858, h: 6 },
+        { key: 'rocks_red_cluster', x: 456, y: 700, h: 11 },
+        // Dogleg + approach (approach camera).
+        { key: 'rocks_red_cluster', x: 540, y: 640, h: 7 },
+        { key: 'rocks_red_mid', x: 396, y: 560, h: 6 },
+        { key: 'rocks_red_bright', x: 532, y: 460, h: 8 },
+        { key: 'rocks_red_dark', x: 302, y: 522, h: 7 },
+        // Green complex.
+        { key: 'rocks_red_bright', x: 640, y: 330, h: 9 },
+        { key: 'rocks_red_mid', x: 470, y: 250, h: 8 },
         { key: 'rocks_red_cluster', x: 590, y: 258, h: 12 }
+      ],
+      // The sheer wall's visible face (see elevation): a rock-textured strip
+      // extruded along the toe, tee to green taper.
+      cliffWalls: [
+        { points: [[400, 1160], [390, 905], [404, 878], [434, 650], [452, 632], [482, 520], [514, 490]], inset: 10 }
       ],
     },
     {
@@ -228,6 +271,9 @@ const redhollow = {
       tee: [450, 800], teeBox: { w: 26, d: 18 },
       green: { cx: 450, cy: 430, rx: 62, ry: 50, rot: -0.2 },
       slope: { angle: 4.4, strength: 0.35 },
+      // PASS 7: pins live on the two tier FLATS (back-center + back-right on
+      // the upper tier, front on the lower) — never on the ramp between.
+      pins: [[450, 398], [474, 412], [438, 462]],
       // PASS 4: NO fairway at all — this is a pure tee-to-mesa carry.
       fairways: [],
       hazards: [
@@ -255,51 +301,68 @@ const redhollow = {
         { x: 585, y: 748, h: 6, r: 46, shape: 'plateau', skirt: 0.6 },
         { x: 388, y: 700, h: -7, r: 40, shape: 'plateau', skirt: 0.62 },
         { x: 450, y: 425, h: 22, r: 135, shape: 'plateau', skirt: 0.92 },
-        // PASS 6: TWO-TIER GREEN — a broad back tier (+2.2) with a wide,
-        // smooth, puttable ramp between tiers (slope ≈0.45 per 8px, well
-        // under the 1.2 putt-step gate; no lip, no cliff).
-        { x: 426, y: 404, x2: 474, y2: 398, h: 2.2, r: 60, shape: 'plateau', skirt: 0.35 },
+        // PASS 7: UNMISTAKABLE TWO-TIER GREEN — the back tier +3.0 (≈3.75ft)
+        // over a ~16px ramp (peak local slope ≈16°, the steepest the 8px
+        // field can express; a putt can't die ON the mid-face — it feeds to
+        // a tier). Redhollow's putt-step gate runs at 2.4 for this ramp;
+        // pins are authored on the two flats, never the ramp.
+        { x: 426, y: 392, x2: 474, y2: 386, h: 3.0, r: 60, shape: 'plateau', skirt: 0.73 },
         // Green mesa erosion (all outside the green + fringe).
         { x: 330, y: 330, h: 7, r: 46, shape: 'plateau', skirt: 0.6 },
         { x: 578, y: 500, h: 6, r: 42, shape: 'plateau', skirt: 0.6 },
         { x: 540, y: 322, h: -6, r: 36, shape: 'plateau', skirt: 0.62 },
         { x: 352, y: 528, h: -6, r: 34, shape: 'plateau', skirt: 0.62 },
-        // PASS 5: significant drop-off BEHIND the green — a broad erosion
-        // shelf bitten out of the back rim so anything long tumbles off the
-        // mesa. Kept clear of the putting surface (green edge y=380).
-        { x: 398, y: 288, x2: 505, y2: 282, h: -9, r: 48, shape: 'plateau', skirt: 0.62 },
+        // PASS 5/7: significant drop-off BEHIND the green — anything long
+        // tumbles off the mesa's back face onto a TALUS APRON ~15 units
+        // below the putting surface (a real Sand Hollow scree bench). The
+        // apron is what keeps "long is dead" honest AND playable: from the
+        // bare canyon floor (-7) the full 22-unit face out-climbs every
+        // club's loft envelope and the AI sims locked up in the trench;
+        // from the apron a wedge clears the remaining face cleanly.
+        { x: 310, y: 252, x2: 590, y2: 246, h: 9, r: 64, shape: 'plateau', skirt: 0.62 },
         // The mesa field to every edge (pass-3 identity).
         { x: 120, y: 300, x2: 60, y2: 800, h: 26, r: 200, shape: 'plateau', skirt: 0.85 },
         { x: 800, y: 250, x2: 860, y2: 750, h: 28, r: 210, shape: 'plateau', skirt: 0.85 },
-        { x: 200, y: 80, x2: 750, y2: 60, h: 30, r: 190, shape: 'plateau', skirt: 0.85 },
+        // North rim pulled back (r 190→148, pass 7): its face used to reach
+        // y~255 and closed the corridor behind the green mesa into a 45px
+        // walled trench — long misses were trapped between two cliffs. The
+        // corridor behind the bowl is now ~100px of open floor.
+        { x: 200, y: 80, x2: 750, y2: 60, h: 30, r: 148, shape: 'plateau', skirt: 0.85 },
         { x: 130, y: 920, h: 22, r: 150, shape: 'plateau', skirt: 0.85 },
         { x: 780, y: 900, h: 24, r: 160, shape: 'plateau', skirt: 0.85 }
       ],
+      // PASS 7: shade-mixed 9-combo placement, CLUSTERED (a large mass with
+      // smaller companions) instead of evenly spaced singles; every rock
+      // grounded on one coherent level (gate-enforced footprint probe).
       landforms: [
         { key: 'rocks_red_bright', x: 100, y: 520, h: 16 },
-        { key: 'rocks_red_cluster', x: 828, y: 420, h: 18 },
+        { key: 'rocks_red_dark', x: 128, y: 552, h: 7 },
+        { key: 'rocks_red_mid', x: 828, y: 420, h: 18 },
+        { key: 'rocks_red_cluster', x: 800, y: 456, h: 8 },
         { key: 'rocks_red_bright', x: 420, y: 70, h: 15 },
-        { key: 'rocks_red_cluster', x: 680, y: 78, h: 13 },
-        { key: 'rocks_red_cluster', x: 250, y: 828, h: 10 },
+        { key: 'rocks_red_mid', x: 688, y: 64, h: 12 },
+        { key: 'rocks_red_dark', x: 330, y: 850, h: 9 },
         { key: 'rocks_red_bright', x: 660, y: 850, h: 11 },
-        // PASS 5: exposed sandstone ringing the green mesa itself — rocks
-        // studding the rim and skirt so the mesa reads as bare bedrock.
-        { key: 'rocks_red_cluster', x: 332, y: 472, h: 19 },
-        { key: 'rocks_red_bright', x: 566, y: 372, h: 19 },
-        { key: 'rocks_red_cluster', x: 452, y: 292, h: 15 },
-        { key: 'rocks_red_bright', x: 368, y: 318, h: 18 },
-        { key: 'rocks_red_cluster', x: 555, y: 505, h: 14 },
-        // The deep erosion craters' outer lips.
-        { key: 'rocks_red_bright', x: 330, y: 452, h: 6 },
-        { key: 'rocks_red_cluster', x: 578, y: 432, h: 6 },
-        // PASS 6: the mesa base + canyon floor + tee mesa — the green
-        // surrounded by exposed geology, the corridor itself left clear.
-        { key: 'rocks_red_cluster', x: 386, y: 514, h: 12 },
-        { key: 'rocks_red_bright', x: 518, y: 500, h: 12 },
-        { key: 'rocks_red_cluster', x: 262, y: 692, h: 1 },
-        { key: 'rocks_red_bright', x: 636, y: 706, h: 1 },
-        { key: 'rocks_red_cluster', x: 380, y: 882, h: 30 },
-        { key: 'rocks_red_bright', x: 508, y: 268, h: 10 }
+        // Exposed sandstone ringing the green mesa — ON the mesa top (inside
+        // the rim, one coherent level; the old rim-straddlers half-hung over
+        // the skirt and read as floating).
+        { key: 'rocks_red_cluster', x: 348, y: 466, h: 14 },
+        { key: 'rocks_red_bright', x: 556, y: 382, h: 14 },
+        { key: 'rocks_red_mid', x: 452, y: 310, h: 12 },
+        { key: 'rocks_red_bright', x: 398, y: 352, h: 9 },
+        { key: 'rocks_red_dark', x: 528, y: 502, h: 10 },
+        // The deep erosion craters' outer lips (on the mesa flat).
+        { key: 'rocks_red_bright', x: 340, y: 430, h: 5 },
+        { key: 'rocks_red_mid', x: 560, y: 380, h: 4 },
+        // Mesa base + canyon floor + tee mesa — surrounded by geology, the
+        // tee-to-green corridor left clear.
+        { key: 'rocks_red_cluster', x: 366, y: 542, h: 10 },
+        { key: 'rocks_red_mid', x: 560, y: 560, h: 8 },
+        { key: 'rocks_red_dark', x: 290, y: 700, h: 6 },
+        { key: 'rocks_red_cluster', x: 636, y: 706, h: 7 },
+        { key: 'rocks_red_bright', x: 380, y: 878, h: 12 },
+        { key: 'rocks_red_dark', x: 286, y: 676, h: 3 },
+        { key: 'rocks_red_mid', x: 508, y: 262, h: 9 }
       ],
     },
     {
@@ -351,10 +414,14 @@ const redhollow = {
         // front; cliff-like horseshoe walls stack LEFT/BACK/RIGHT on the
         // rim so those misses face steep uphill recoveries, while the
         // front-right entrance stays a rolling ramp in.
-        { x: 300, y: 480, h: -10, r: 135, shape: 'plateau', skirt: 0.62 },
-        { x: 172, y: 570, x2: 155, y2: 430, h: 9, r: 95 },
-        { x: 195, y: 348, x2: 330, y2: 318, h: 10, r: 100 },
-        { x: 418, y: 350, x2: 452, y2: 438, h: 9, r: 90 },
+        // PASS 7: the horseshoe PULLED IN — crater r118 (flat bottom ~68,
+        // barely past the putting surfaces: green edge → wall toe shrinks
+        // to a narrow collar) and the three wall spines stepped toward the
+        // green so the walls visibly frame it on left/back/right.
+        { x: 300, y: 480, h: -10, r: 118, shape: 'plateau', skirt: 0.58 },
+        { x: 186, y: 562, x2: 170, y2: 432, h: 9, r: 95 },
+        { x: 202, y: 358, x2: 326, y2: 330, h: 10, r: 100 },
+        { x: 410, y: 360, x2: 444, y2: 442, h: 9, r: 90 },
         // Canyon rim walls (pass-3 winding-canyon identity; the west rim
         // shortened + a NW continuation so the bowl owns its corner).
         { x: 1045, y: 1520, x2: 975, y2: 1100, h: 20, r: 190, shape: 'plateau', skirt: 0.85 },
@@ -365,27 +432,46 @@ const redhollow = {
         { x: 78, y: 430, x2: 130, y2: 240, h: 22, r: 150, shape: 'plateau', skirt: 0.85 },
         { x: 30, y: 340, x2: 90, y2: 140, h: 24, r: 140, shape: 'plateau', skirt: 0.85 }
       ],
+      // PASS 7: the WHOLE VALLEY reads geologically active — dominant
+      // formations on the valley walls, secondary clusters on shelves and
+      // between the islands, isolated heroes in the open rough, debris
+      // companions at their feet — not just the wash banks. Shade-mixed
+      // across the four rocks_red_* materials; islands/green/corridors clear.
       landforms: [
+        // Valley walls + shelves (dominant formations).
         { key: 'rocks_red_bright', x: 985, y: 1300, h: 13 },
+        { key: 'rocks_red_mid', x: 960, y: 940, h: 16 },
         { key: 'rocks_red_cluster', x: 840, y: 780, h: 15 },
-        { key: 'rocks_red_bright', x: 655, y: 340, h: 16 },
+        { key: 'rocks_red_dark', x: 872, y: 812, h: 7 },
+        { key: 'rocks_red_mid', x: 655, y: 340, h: 16 },
+        { key: 'rocks_red_bright', x: 860, y: 560, h: 14 },
         { key: 'rocks_red_cluster', x: 170, y: 780, h: 14 },
-        { key: 'rocks_red_bright', x: 350, y: 1260, h: 12 },
-        { key: 'rocks_red_cluster', x: 690, y: 1085, h: 8 },
-        { key: 'rocks_red_bright', x: 610, y: 1140, h: 7 },
+        { key: 'rocks_red_dark', x: 202, y: 812, h: 6 },
+        { key: 'rocks_red_mid', x: 350, y: 1260, h: 12 },
+        { key: 'rocks_red_bright', x: 92, y: 940, h: 15 },
         { key: 'rocks_red_cluster', x: 120, y: 200, h: 15 },
-        // PASS 6: rocks crowning the crater bowl's horseshoe rim (left,
-        // back, right — the entrance kept clear), the final-descent edge,
-        // wash banks, and island-edge studs.
-        { key: 'rocks_red_bright', x: 162, y: 486, h: 7 },
-        { key: 'rocks_red_cluster', x: 250, y: 330, h: 9 },
-        { key: 'rocks_red_bright', x: 448, y: 392, h: 8 },
-        { key: 'rocks_red_cluster', x: 200, y: 592, h: 2 },
-        { key: 'rocks_red_bright', x: 402, y: 300, h: 9 },
-        { key: 'rocks_red_cluster', x: 528, y: 622, h: 0 },
-        { key: 'rocks_red_bright', x: 388, y: 660, h: 3 },
+        // Between the islands + open rough (secondary clusters, heroes).
+        { key: 'rocks_red_cluster', x: 690, y: 1085, h: 8 },
+        { key: 'rocks_red_dark', x: 610, y: 1140, h: 7 },
+        { key: 'rocks_red_mid', x: 560, y: 795, h: 6 },
+        { key: 'rocks_red_bright', x: 332, y: 900, h: 10 },
+        { key: 'rocks_red_dark', x: 356, y: 928, h: 4 },
+        { key: 'rocks_red_mid', x: 560, y: 660, h: 6 },
+        // Below the tee step + final descent.
+        { key: 'rocks_red_cluster', x: 700, y: 1310, h: 9 },
+        { key: 'rocks_red_bright', x: 590, y: 820, h: 3 },
         { key: 'rocks_red_cluster', x: 505, y: 720, h: 1 },
-        { key: 'rocks_red_bright', x: 590, y: 820, h: 3 }
+        // Horseshoe rim (left, back, right — entrance clear) + wash banks.
+        { key: 'rocks_red_bright', x: 158, y: 490, h: 7 },
+        { key: 'rocks_red_dark', x: 150, y: 528, h: 4 },
+        { key: 'rocks_red_cluster', x: 222, y: 296, h: 6 },
+        { key: 'rocks_red_mid', x: 300, y: 316, h: 6 },
+        { key: 'rocks_red_bright', x: 442, y: 396, h: 8 },
+        { key: 'rocks_red_dark', x: 462, y: 428, h: 4 },
+        { key: 'rocks_red_cluster', x: 196, y: 596, h: 2 },
+        { key: 'rocks_red_mid', x: 402, y: 302, h: 9 },
+        { key: 'rocks_red_cluster', x: 528, y: 622, h: 0 },
+        { key: 'rocks_red_bright', x: 388, y: 660, h: 3 }
       ],
     }
   ]
@@ -412,10 +498,19 @@ const wildvalley = {
     // really") — open sand-hills horizon, golden fescue carries the look.
     treeKeys: [],
     bushKeys: [],
-    // WILD PRAIRIE PASS: heather_fescue_c is a woody twiggy shrub card that
-    // reads as an ORANGE BUSH in the field — removed from this course. The
-    // two true golden-grass cards carry the native rough alone.
-    heatherKeys: ['heather_fescue_a', 'heather_fescue_b'],
+    // ONE APPROVED GRASS ASSET (vegetation correction pass): the golden
+    // long-grass card already established around h1's big waste bunkers
+    // (heather_fescue_b) is the ONLY grass card on this course — field
+    // planting, fingers, bunker lips, sand plants AND the short ground
+    // tufts (grassKeys override) all draw from it. Variation comes from the
+    // existing per-instance jitter/scale/cluster noise, not other species.
+    // (heather_fescue_c was the woody orange shrub, removed earlier;
+    // heather_fescue_a goes with this pass.)
+    heatherKeys: ['heather_fescue_b'],
+    grassKeys: ['heather_fescue_b'],
+    // Greens bake stronger contour shading (see CourseTexture.slopeShadeAt)
+    // so their new crowns/ridges/feeding slopes read from approach cameras.
+    greenShadeGain: 13,
     bunkerLipFescue: true,
     // Every bunker's edge packed with the golden fescue, and blowouts dug
     // into genuinely deep center-weighted bowls.
@@ -477,6 +572,11 @@ const wildvalley = {
         { x: 260, y: 105, x2: 790, y2: 140, h: 9, r: 160 },
         { x: 470, y: 1155, h: 6, r: 145, shape: 'plateau' },
         { x: 510, y: 292, h: 4, r: 112, shape: 'plateau' },
+        // GREEN CONTOUR (correction pass): a diagonal spine ridge aligned
+        // with the RIGHT-lane approach — play the right lane off the split
+        // and you putt along it; come from the left lane and every approach
+        // putt crosses it. Broad and fully puttable (~0.5 per 8px).
+        { x: 478, y: 324, x2: 540, y2: 282, h: 1.4, r: 46 },
         // WILD PRAIRIE PASS — restored hilliness: cross-ridges roll the
         // fairway itself (a carry ridge before the split, a saddle through
         // the drive zone, dune shoulders pinching the approach) without
@@ -539,6 +639,11 @@ const wildvalley = {
         { x: 700, y: 250, x2: 800, y2: 550, h: 8, r: 160 },
         { x: 430, y: 420, h: 2, r: 150, shape: 'plateau' },
         { x: 352, y: 372, h: 1.6, r: 120 },
+        // GREEN CONTOUR (correction pass): an interior shoulder wrapping the
+        // back-right pin lobe — the preferred pin sits on its small flat,
+        // guarded by real slope on every side (not by edge proximity), the
+        // south falloff feeding toward the notch bunker.
+        { x: 502, y: 352, x2: 522, y2: 392, h: 1.2, r: 40, shape: 'plateau', skirt: 0.5 },
         { x: 440, y: 780, h: 4.5, r: 135, shape: 'plateau' },
         { x: 150, y: 680, x2: 360, y2: 640, h: 3, r: 105 },
         { x: 520, y: 680, x2: 700, y2: 620, h: 3.4, r: 115 }
@@ -588,6 +693,11 @@ const wildvalley = {
         { x: 560, y: 505, x2: 860, y2: 462, h: 10, r: 165 },
         { x: 400, y: 1460, h: 4, r: 140, shape: 'plateau' },
         { x: 760, y: 320, h: 6, r: 132, shape: 'plateau' },
+        // GREEN CONTOUR (correction pass): the green continues the final
+        // fairway ridge's roll — a broad front-left crown and a back-right
+        // shelf on the same ENE axis, readable and fully puttable.
+        { x: 742, y: 348, h: 1.0, r: 50 },
+        { x: 790, y: 296, x2: 822, y2: 308, h: 1.3, r: 44, shape: 'plateau', skirt: 0.45 },
         // Edge dunes continuing both ridge systems.
         { x: 180, y: 400, x2: 420, y2: 330, h: 4.5, r: 130 },
         { x: 1050, y: 640, x2: 1130, y2: 330, h: 9, r: 170 },
@@ -629,7 +739,8 @@ function emit(course, id) {
         hazards: h.hazards,
         aiTargets: h.aiTargets.map(([x, y]) => ({ x, y })),
         elevation: h.elevation,
-        ...(h.landforms ? { landforms: h.landforms } : {})
+        ...(h.landforms ? { landforms: h.landforms } : {}),
+        ...(h.cliffWalls ? { cliffWalls: h.cliffWalls } : {})
       };
     })
   };

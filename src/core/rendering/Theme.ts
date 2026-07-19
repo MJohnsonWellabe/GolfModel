@@ -123,6 +123,11 @@ export interface CourseTheme {
    *  dome and would crater far outside an elongated shape. Wild Prairie uses
    *  this so its blowouts are genuinely deep bowls, deepest at the center. */
   wasteDepthScale?: number;
+  /** Baked slope-shading gain override (default 8, CourseTexture's
+   *  SLOPE_SHADE_GAIN). Contour-forward courses raise it so green tiers,
+   *  crowns and feeding slopes READ from the approach cameras — the green
+   *  mesh's normals are flat-up, so baked contrast is the contour channel. */
+  greenShadeGain?: number;
   /** Prairie clustering (Wild Prairie pass 2): tall-grass field density is
    *  modulated by smooth value noise — large continuous dense patches with
    *  natural sparse transitions instead of an even grid — and native grass
@@ -361,6 +366,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'sandPlantKeep'
     | 'bunkerDepthScale'
     | 'wasteDepthScale'
+    | 'greenShadeGain'
     | 'bunkerLipPacked'
     | 'prairieClusters'
     | 'bunkerFescueAvoidFairway'
@@ -497,6 +503,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.prairieClusters === 'boolean') t.prairieClusters = spec.prairieClusters;
   if (typeof spec.bunkerDepthScale === 'number') t.bunkerDepthScale = spec.bunkerDepthScale;
   if (typeof spec.wasteDepthScale === 'number') t.wasteDepthScale = spec.wasteDepthScale;
+  if (typeof spec.greenShadeGain === 'number') t.greenShadeGain = spec.greenShadeGain;
   if (typeof spec.bunkerFescueAvoidFairway === 'boolean') t.bunkerFescueAvoidFairway = spec.bunkerFescueAvoidFairway;
   // Default the sunlit horizon band to a warm-tinted lift of this course's own
   // horizon color, so it reads right under any sky (peaks/sea/none) instead of a
