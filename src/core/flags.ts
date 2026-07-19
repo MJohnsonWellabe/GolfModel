@@ -113,6 +113,19 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     owner: 'matt',
     defaults: { prod: false, dev: true },
     removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+  },
+  {
+    key: 'boundedWorld',
+    description:
+      'Global dev rule: each hole is built and rendered as a tightly bounded ' +
+      'playable world (~20 yd past the playable corridor). Beyond the boundary ' +
+      'is off-course VOID — no terrain detail, vegetation, or rocks are ' +
+      'generated, and a ball crossing it takes a one-stroke off-course penalty ' +
+      'dropped back in the rough. Populates HoleData.boundary (derived per hole, ' +
+      'or authored). Off = the classic full-world behavior, byte-identical.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'flip prod:true once the bounded-world pass is validated & approved, then remove'
   }
 ];
 

@@ -22,14 +22,14 @@ import { golferWith } from './simHelpers';
  * play hard and are recalibrated by feel later — this gate is a floor/ceiling
  * sanity check, not a calibration.
  */
-function meanToPar(course: CourseAuthoring): { mean: number; unfinished: number } {
+function meanToPar(course: CourseAuthoring, bounded = false): { mean: number; unfinished: number } {
   const c = loadCourse(course);
   const golfer = golferWith(85);
   let sum = 0;
   let unfinished = 0;
   const N = 60; // rounds/course (was 120) — halved for suite speed; the ~2%
   for (let s = 0; s < N; s++) {
-    const r = simulateRound(c, golfer, 4000 + s * 13);
+    const r = simulateRound(c, golfer, 4000 + s * 13, undefined, bounded);
     sum += r.toPar;
     for (const h of r.holes) if (!h.holed) unfinished++;
   }
@@ -95,4 +95,28 @@ describe('new course playability', () => {
     expect(mean, `Wild Prairie mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
     expect(mean, `Wild Prairie mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 35000);
+
+  // BOUNDED WORLD (`boundedWorld` flag): with a playable boundary derived for
+  // every hole, a ball into the off-course void takes a one-stroke penalty and
+  // drops back in the rough. Every hole must STILL finish and stay in a sane
+  // scoring band — the gate catches a boundary that walls a hole off or an
+  // unrecoverable relief loop.
+  const ALL: Array<[string, CourseAuthoring]> = [
+    ['Sable Bay', sablebay as unknown as CourseAuthoring],
+    ['Timberline', timberline as unknown as CourseAuthoring],
+    ['Wildwood', wildwood as unknown as CourseAuthoring],
+    ['Port Johnson', portjohnson as unknown as CourseAuthoring],
+    ['Red Hollow', redhollow as unknown as CourseAuthoring],
+    ['Wild Prairie', wildvalley as unknown as CourseAuthoring]
+  ];
+  it('every course still finishes under the bounded-world off-course penalty', () => {
+    for (const [name, json] of ALL) {
+      const { mean, unfinished } = meanToPar(json, true);
+      expect(unfinished, `${name} unfinished (bounded) ${unfinished}`).toBeLessThanOrEqual(
+        UNFINISHED_TOLERANCE * 2
+      );
+      expect(mean, `${name} mean (bounded) ${mean.toFixed(2)}`).toBeGreaterThan(-3);
+      expect(mean, `${name} mean (bounded) ${mean.toFixed(2)}`).toBeLessThan(9);
+    }
+  }, 180000);
 });

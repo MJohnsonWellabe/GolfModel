@@ -3,6 +3,7 @@ import { HeightField } from './HeightField';
 import { collectTreeBlobs, TreeBlob } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
 import { clamp, dist, distToPolygon, pointInGreens, pointInPolygon } from '../utils/Geometry';
+import { pointInBoundary } from './PlayableBoundary';
 import {
   ClubSpec,
   Golfer,
@@ -190,6 +191,11 @@ export class PhysicsEngine {
    *  which is called on every physics sample and every scatter cell. */
   private readonly hzBox: Array<[number, number, number, number]>;
 
+  /** Bounding box [minX,minY,maxX,maxY] of the playable-world boundary union,
+   *  or null when this hole has no boundary (production / bounded-world off) —
+   *  a cheap reject before the per-region point-in-polygon test. */
+  private readonly boundaryBox: [number, number, number, number] | null;
+
   constructor(
     private readonly hole: HoleData,
     private readonly hf: HeightField | null = null,
@@ -210,6 +216,34 @@ export class PhysicsEngine {
       }
       return [minX, minY, maxX, maxY];
     });
+    if (hole.boundary && hole.boundary.length) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const poly of hole.boundary) {
+        for (const [px, py] of poly) {
+          if (px < minX) minX = px;
+          if (px > maxX) maxX = px;
+          if (py < minY) minY = py;
+          if (py > maxY) maxY = py;
+        }
+      }
+      this.boundaryBox = [minX, minY, maxX, maxY];
+    } else {
+      this.boundaryBox = null;
+    }
+  }
+
+  /** BOUNDED WORLD: true when (x,y) lies OUTSIDE the hole's playable boundary
+   *  (off-course void). Always false when the hole has no boundary, so every
+   *  caller reduces to the classic full-world behavior. Bounding-box reject
+   *  first, then the per-region point-in-polygon union test. */
+  private outsideBoundary(x: number, y: number): boolean {
+    const b = this.boundaryBox;
+    if (!b || !this.hole.boundary) return false;
+    if (x < b[0] || x > b[2] || y < b[1] || y > b[3]) return true;
+    return !pointInBoundary(x, y, this.hole.boundary);
   }
 
   /** Point-in-hazard with a bounding-box reject first (see hzBox). */
@@ -806,6 +840,13 @@ export class PhysicsEngine {
         waterPenalty = true;
         break;
       }
+      // BOUNDED WORLD: the moment a rolling ball leaves the playable world it
+      // stops — no rolling on through unrendered void. The at-rest OB check
+      // below turns this resting position into a one-stroke off-course penalty
+      // with an in-bounds drop near where the ball crossed. (Airborne carries
+      // over void — e.g. a mesa-to-mesa carry — are unaffected: this is the
+      // grounded rolling phase only.)
+      if (this.outsideBoundary(x, y)) break;
       // A ball that rolls into a SCORING bunker from outside stops the instant it
       // reaches the sand (checked BEFORE slope accel, so a sloped bunker can't
       // re-accelerate it back out). A firm beach / links waste lets it run on —
@@ -959,8 +1000,10 @@ export class PhysicsEngine {
     return { path, finalPos, surface, waterPenalty, obPenalty, hitTrees, holed };
   }
 
-  /** Inside any 'ob' hazard region (not a surface — checked at rest only). */
+  /** Out of bounds: inside any 'ob' hazard region, OR (bounded world) outside
+   *  the hole's playable boundary. Both take the same one-stroke penalty + drop. */
   private inOutOfBounds(x: number, y: number): boolean {
+    if (this.outsideBoundary(x, y)) return true;
     return this.hole.hazards.some((hz) => hz.type === 'ob' && pointInPolygon(x, y, hz.polygon));
   }
 

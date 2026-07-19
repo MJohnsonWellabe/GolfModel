@@ -131,7 +131,9 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       // Keep the authored ribbon centerlines (before they collapse into offset
       // polygons) so the flyover can trace the real fairway route. Raw v1
       // polygon fairways contribute nothing here.
-      const centerlines = h.fairway.filter(isRibbon).map((f) => f.centerline);
+      const ribbons = h.fairway.filter(isRibbon);
+      const centerlines = ribbons.map((f) => f.centerline);
+      const centerlineWidths = ribbons.map((f) => f.width);
       const fairways = h.fairway.map((f) => (isRibbon(f) ? compileRibbon(f, roundCaps) : f));
       h.hazards.forEach((hz, i) => {
         if (hz.type === 'bunker' && !hz.beach) warnBunkerFairwayOverlap(data.name, h.number, i, !!hz.waste, hz.polygon, fairways);
@@ -139,7 +141,9 @@ export function loadCourse(data: CourseAuthoring): CourseData {
       return {
       ...h,
       fairway: fairways,
-      ...(centerlines.length ? { fairwayCenterlines: centerlines } : {}),
+      ...(centerlines.length
+        ? { fairwayCenterlines: centerlines, fairwayCenterlineWidths: centerlineWidths }
+        : {}),
       // Round every bunker outline once, here at the single compile choke point,
       // so physics (surfaceAt), the texture bake and the 3D scatter all read the
       // same soft-edged ring — the sand drawn and the sand played can't diverge.

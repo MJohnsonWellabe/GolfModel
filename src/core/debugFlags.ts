@@ -19,6 +19,9 @@ export interface ShotParams {
   course?: string;
   /** Freeze all ambient animation (flag wave, clouds, water sparkle, petals). */
   freeze: boolean;
+  /** Draw the playable-world boundary overlay (bounded-world debug capture).
+   *  Off for every normal screenshot; on only for the dedicated debug view. */
+  boundary: boolean;
 }
 
 function parse(): ShotParams {
@@ -30,7 +33,8 @@ function parse(): ShotParams {
     cam:
       cam === 'aerial' || cam === 'approach' || cam === 'green' || cam === 'club' ? cam : 'tee',
     course: q.get('course') || undefined,
-    freeze: q.get('freeze') === '1'
+    freeze: q.get('freeze') === '1',
+    boundary: q.get('boundary') === '1'
   };
 }
 

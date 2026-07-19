@@ -6,6 +6,7 @@ import { AIController } from './AIController';
 import { FireSystem } from './FireSystem';
 import { buildHeightField } from './HeightField';
 import { PhysicsEngine } from './PhysicsEngine';
+import { withPlayableBoundary } from './PlayableBoundary';
 
 /**
  * Headless round player: the AIController + PhysicsEngine drive a golfer
@@ -44,6 +45,10 @@ export interface SimulateHoleOpts {
   bunkerDepthScale?: number;
   /** Waste blowout dish multiplier (theme.wasteDepthScale); defaults 0 (flat). */
   wasteDepthScale?: number;
+  /** BOUNDED WORLD (`boundedWorld` flag): when true, derive a playable boundary
+   *  for the hole so the balancing AI pays the same off-course penalties the
+   *  live round does. Defaults false (classic full-world behavior). */
+  bounded?: boolean;
 }
 
 /**
@@ -62,6 +67,7 @@ export function drawWind(rng: Rng, windMin = 2, windMax = 20): Wind {
 export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleOpts): HoleSimResult {
   const { rng } = opts;
   const wind = opts.wind ?? drawWind(rng, opts.windMin, opts.windMax);
+  hole = withPlayableBoundary(hole, opts.bounded ?? false);
   const engine = new PhysicsEngine(
     hole,
     buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0),
@@ -105,7 +111,13 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
   return { strokes, putts, fairwayHit, gir, holed };
 }
 
-export function simulateRound(course: CourseData, golfer: Golfer, seed: number, holeCount?: number): RoundSimResult {
+export function simulateRound(
+  course: CourseData,
+  golfer: Golfer,
+  seed: number,
+  holeCount?: number,
+  bounded = false
+): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
   const theme = resolveTheme(course);
@@ -117,7 +129,8 @@ export function simulateRound(course: CourseData, golfer: Golfer, seed: number, 
       windMin: course.minWind,
       windMax: course.maxWind,
       bunkerDepthScale,
-      wasteDepthScale
+      wasteDepthScale,
+      bounded
     })
   );
   const total = results.reduce((a, r) => a + r.strokes, 0);

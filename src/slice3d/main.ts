@@ -110,6 +110,7 @@ import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
+import { boundaryBBox, withPlayableBoundary } from '../systems/PlayableBoundary';
 import { computeTrueVisionOutcome } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
@@ -583,10 +584,15 @@ class HoleScene {
   // Shallow-clone the hole with a randomized cup so every consumer (physics,
   // AI, aim, flag/cup mesh, HUD) reads the SAME pin — without mutating the
   // shared COURSES singleton. The authored `pin` is the fallback.
-  private hole: HoleData = { ...round.course.holes[round.holeIdx], pin: pinForHole(round.holeIdx) };
+  private hole: HoleData = withPlayableBoundary(
+    { ...round.course.holes[round.holeIdx], pin: pinForHole(round.holeIdx) },
+    flag('boundedWorld')
+  );
   private theme = resolveTheme(round.course);
   private golfers: Golfer3D[] = [];
   private balls: Mesh[] = [];
+  /** Bounded-world debug overlay line meshes (see showBoundary); empty in play. */
+  private boundaryOverlay: Mesh[] = [];
   private ais: (AIController | null)[] = [];
   /** Per-competitor state for this hole (1 for solo, 2 for 1v1/scramble). */
   private comps: Array<{
@@ -1130,7 +1136,15 @@ class HoleScene {
       const my = (this.state.ballPos.y + this.hole.pin.y) / 2;
       const span = Math.hypot(this.hole.pin.x - this.state.ballPos.x, this.hole.pin.y - this.state.ballPos.y);
       const greenR = Math.max(this.hole.green.rx, this.hole.green.ry);
-      const height = putt ? Math.max(90, span * 1.6 + greenR * 0.9) : Math.max(300, span * 1.25);
+      let height = putt ? Math.max(90, span * 1.6 + greenR * 0.9) : Math.max(300, span * 1.25);
+      // BOUNDED WORLD: never zoom the aerial so far out that it frames empty
+      // off-course void. Cap the eye height to the playable world's extent so
+      // the corridor fills the frame and only a thin fog-masked void ring shows.
+      if (this.hole.boundary && !putt) {
+        const [bx0, by0, bx1, by1] = boundaryBBox(this.hole.boundary);
+        const extent = Math.max(bx1 - bx0, by1 - by0);
+        height = Math.min(height, extent * 0.9);
+      }
       const mid = w2b(mx, my, 0);
       // Aim the eye straight down the corridor from just behind the ball end.
       const toPin = this.fwd3(this.aim.yaw);
@@ -1414,6 +1428,41 @@ class HoleScene {
         this.scene.animationGroups.forEach((g) => g.pause());
       });
     }
+  }
+
+  /** BOUNDED WORLD debug overlay (capture `?boundary=1`, or __slice3d.showBoundary()).
+   *  Draws the core playing surfaces (fairways + green) and the playable-world
+   *  boundary as floating line loops so a single aerial screenshot shows the
+   *  20-yd corridor, the expanded boundary, and the off-course void. Never shown
+   *  in normal play. Re-callable — the previous overlay is disposed first. */
+  showBoundary(): void {
+    for (const m of this.boundaryOverlay) m.dispose();
+    this.boundaryOverlay = [];
+    const h = this.hole;
+    const loop = (poly: number[][], color: Color3, lift: number): void => {
+      if (poly.length < 2) return;
+      const pts = poly.map(([x, y]) => w2b(x, y, this.gh(x, y) + lift));
+      pts.push(pts[0].clone());
+      const lines = MeshBuilder.CreateLines(`boundaryDbg${this.boundaryOverlay.length}`, { points: pts }, this.scene);
+      lines.color = color;
+      lines.isPickable = false;
+      lines.applyFog = false;
+      this.boundaryOverlay.push(lines);
+    };
+    // Core playing surfaces (green): the corridor these expand from.
+    for (const fw of h.fairway) loop(fw, new Color3(0.35, 0.95, 0.4), 3);
+    const g = h.green;
+    const greenRing: number[][] = [];
+    for (let i = 0; i <= 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const rot = g.rot ?? 0;
+      const lx = Math.cos(a) * g.rx;
+      const ly = Math.sin(a) * g.ry;
+      greenRing.push([g.cx + lx * Math.cos(rot) - ly * Math.sin(rot), g.cy + lx * Math.sin(rot) + ly * Math.cos(rot)]);
+    }
+    loop(greenRing, new Color3(0.4, 1, 0.5), 3);
+    // The playable-world boundary (the ~20-yd envelope); void lies beyond it.
+    for (const region of h.boundary ?? []) loop(region, new Color3(1, 0.85, 0.15), 6);
   }
 
   /** Club-lab hook (tests/visual/clublab.spec.ts): swap the active golfer's
@@ -4974,7 +5023,8 @@ function exposeDebug(): void {
         clubLabView: (view: 'hero' | 'face' | 'edge') => current?.clubLabView(view),
         debugTreeOcclusion: (x: number, y: number, z: number) => current?.debugTreeOcclusion(x, y, z),
         golferAbs: () => current?.golferAbs(),
-        occlusionCandidates: () => current?.occlusionCandidates()
+        occlusionCandidates: () => current?.occlusionCandidates(),
+        showBoundary: () => current?.showBoundary()
       }
     : null;
 }
@@ -6140,6 +6190,7 @@ async function startShotCapture(): Promise<void> {
   playHole();
   const scene = current!;
   scene.enterShotPose(SHOT.cam);
+  if (SHOT.boundary) scene.showBoundary();
   void Promise.all([
     scene.bodiesReady,
     new Promise((resolve) => scene.scene.executeWhenReady(() => resolve(null)))

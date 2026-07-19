@@ -120,12 +120,12 @@ export class TurnManager {
     if (!a || !b) throw new Error('resolveScramble called before both outcomes');
     const score = (o: ShotOutcome): number => {
       if (o.holed) return -1;
-      return dist(o.finalPos, this.pin) + (o.waterPenalty ? 100000 : 0);
+      return dist(o.finalPos, this.pin) + (o.waterPenalty || o.obPenalty ? 100000 : 0);
     };
     const chooseA = score(a) <= score(b);
     const chosen = chooseA ? a : b;
 
-    this.teamStrokes += 1 + (chosen.waterPenalty ? 1 : 0);
+    this.teamStrokes += 1 + (chosen.waterPenalty ? 1 : 0) + (chosen.obPenalty ? 1 : 0);
     this.teamBall = { ...chosen.finalPos };
     this.teamLie = chosen.surface;
     if (chosen.holed) this.teamHoled = true;

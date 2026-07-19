@@ -40,6 +40,7 @@ import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern'
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
+import { distToBoundary, pointInBoundary } from '../systems/PlayableBoundary';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { AtmosphereKind, buildAtmosphere } from './atmosphere';
@@ -311,14 +312,28 @@ export function buildCourse(
     scene
   );
   ground.position = new Vector3(w / 2, 0, -h / 2);
+  // BOUNDED WORLD: everything past the playable boundary becomes off-course
+  // void. Inside the boundary the full authored terrain renders; outside it the
+  // ground DROPS AWAY into fog-hidden depth (rule: "edge geometry that drops
+  // away before the cutoff" + "atmospheric fog concealing the edge"), so the
+  // compact world reads as deliberate nothingness rather than an unfinished map.
+  const boundary = hole.boundary;
+  const VOID_FEATHER = 26; // px of down-ramp so the fall-away isn't a hard wall
+  const VOID_DROP = 58; // world units the ground sinks below the play plane
   const heightAt = (wx: number, wy: number): number => {
+    const terrain = engine.groundAt(wx, wy);
+    if (boundary) {
+      if (pointInBoundary(wx, wy, boundary)) return terrain;
+      const d = distToBoundary(wx, wy, boundary); // distance OUTSIDE the boundary
+      const t = Math.min(1, d / VOID_FEATHER);
+      return terrain - t * VOID_DROP - smoothNoise(wx * 0.5, wy * 0.5) * 3 * t;
+    }
     // Playable interior: the authored heightfield (the SAME terrain physics
     // rolls on — engine.groundAt), plus scenery mounds that ramp up smoothly
     // beyond the world edge only.
     const dx = Math.max(-30 - wx, wx - (w + 30), 0);
     const dy = Math.max(-30 - wy, wy - (h + 30), 0);
     const out = Math.hypot(dx, dy);
-    const terrain = engine.groundAt(wx, wy);
     if (out <= 0) return terrain;
     // A sea-backdrop course must NOT raise a scenery mound beyond the world edge:
     // that ramp reads as a false shore ("a little green like it's land" behind an
@@ -1890,6 +1905,10 @@ export function buildCourse(
       const yRow = yy;
       popQueue.push(() => {
       for (let xx = 0; xx < w; xx += tuftStep) {
+        // BOUNDED WORLD: never generate ground scatter (grass, bushes, flowers,
+        // rocks, forest litter) outside the playable boundary — the void stays
+        // empty. Cheapest possible reject, before the surface lookup.
+        if (hole.boundary && !pointInBoundary(xx, yRow, hole.boundary)) continue;
         const surf = engine.surfaceAt(xx, yRow);
         if (surf !== 'rough' && surf !== 'fairway') continue;
         if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;

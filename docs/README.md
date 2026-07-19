@@ -79,6 +79,7 @@ lagged current policy):
 - `content/CHARACTER_PERSONALITY_BIBLE.md` — who each character is (V2 Phase 3)
 - `content/COURSE_ATMOSPHERE_BIBLE.md` — per-course ambient identity (V2 Phase 4)
 - `technical/ANALYTICS_FRAMEWORK.md` — event registry + metric definitions (V2 Prompt 16)
+- `technical/BOUNDED_PLAYABLE_WORLD.md` — bounded playable world + off-course void (dev rule, `boundedWorld` flag)
 - `studio/STUDIO_TECHNICAL_ARCHITECTURE.md` — Studio module map + backlog (V2 Prompt 15)
 
 Active operational runbooks (do not archive):

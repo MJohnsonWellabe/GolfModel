@@ -324,7 +324,24 @@ export interface HoleData {
    *  tracks the true fairway route (doglegs included) instead of cutting across
    *  polygon centroids. Absent for v1 raw-polygon fairways. */
   fairwayCenterlines?: number[][][];
+  /** Full fairway width (world px) at each centerline control point, one array
+   *  per ribbon and aligned with `fairwayCenterlines`. Kept alongside the
+   *  centerlines so systems/PlayableBoundary can rebuild the fairway corridor
+   *  (centerline + local half-width) when deriving the playable boundary.
+   *  Absent for v1 raw-polygon fairways. */
+  fairwayCenterlineWidths?: number[][];
   hazards: Hazard[];
+  /** BOUNDED PLAYABLE WORLD (`boundedWorld` flag): the union of playable
+   *  regions for this hole — "in play" means inside ANY polygon. Everything
+   *  outside is off-course VOID: no detailed terrain/vegetation/rocks are
+   *  generated there, and a ball that crosses it takes a one-stroke off-course
+   *  penalty (handled exactly like an 'ob' hazard). Normally DERIVED from the
+   *  hole's own geometry (fairways + green + tee + landing zones + playable
+   *  bunkers, expanded by the ~20 yd margin) via systems/PlayableBoundary.ts,
+   *  but a course may author it outright for exceptions (island greens,
+   *  coastlines, custom margins). Absent = the classic full-`world` behavior
+   *  (production is byte-identical while the flag is off). */
+  boundary?: Polygon[];
   /** Decorative flower beds (no collision) — see GardenBed. */
   gardens?: GardenBed[];
   /** Number of decorative sailboats to scatter on the sea behind the green
@@ -398,9 +415,10 @@ export interface ShotOutcome {
   surface: Surface;
   /** True when the ball found water — a penalty stroke applies. */
   waterPenalty: boolean;
-  /** True when the ball finished OUT OF BOUNDS (an 'ob' hazard region) — a
-   *  penalty stroke applies and finalPos is the in-bounds drop near where
-   *  the ball crossed the line. */
+  /** True when the ball finished OUT OF BOUNDS — either inside an 'ob' hazard
+   *  region OR (bounded-world) outside the hole's playable boundary. A penalty
+   *  stroke applies and finalPos is the in-bounds drop near where the ball
+   *  crossed the line. */
   obPenalty: boolean;
   /** True when the ball struck trees mid-flight. */
   hitTrees: boolean;
