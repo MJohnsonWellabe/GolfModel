@@ -135,11 +135,14 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
     // dozens of materials, which still trips every one of these gates.
     // PROPORTIONAL band (was a fixed 64): seeded pin/tee layouts shift the
     // planting keep-out radii between cycles, and that variance scales with
-    // total instance count — Wild Prairie's terrain-pass prairie (~19k
-    // instances) legitimately oscillates ~±90 without any retention. 1% of
-    // the course's own count keeps the gate meaningful at every density: a
-    // genuinely retained scene re-adds its full planting (thousands).
-    const meshBand = Math.max(64, Math.round(first.meshes * 0.01));
+    // total instance count — Wild Prairie's single-card prairie (~25k
+    // instances after the vegetation pass) legitimately oscillates ~±330
+    // without any retention (measured), Wildwood's ambient petal spawner
+    // ~±130 on 2.3k. 1.5% (floor 140) keeps the gate meaningful at every
+    // density: a genuinely retained scene re-adds its full planting
+    // (thousands of meshes AND dozens of materials — the tight durable
+    // gates below are the real retention tripwire).
+    const meshBand = Math.max(140, Math.round(first.meshes * 0.015));
     expect(Math.abs(second.meshes - first.meshes), label('meshes')).toBeLessThanOrEqual(meshBand);
     expect(Math.abs(second.materials - first.materials), label('materials')).toBeLessThanOrEqual(4);
     expect(Math.abs(second.textures - first.textures), label('textures')).toBeLessThanOrEqual(4);
