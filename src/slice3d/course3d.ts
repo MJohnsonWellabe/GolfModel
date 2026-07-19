@@ -1988,20 +1988,71 @@ export function buildCourse(
       // fall back to the theme grass cards mixed with 3D tussock clumps.
       const heatherSet = pick(theme.heatherKeys ?? []);
       const clump3d = pick(['fern_kenney', 'bush_kenney_b']);
+      // PRAIRIE CLUSTERING (theme.prairieClusters — Wild Valley pass 2):
+      // smooth value noise over ~170px cells modulates the field density —
+      // big continuous dense patches, natural sparse transitions, no even
+      // grid. Where the noise peaks, a second offset tuft doubles the core
+      // and native-grass FINGERS intrude past the fairway's cut line.
+      const clustered = theme.prairieClusters === true;
+      const CLUSTER_CELL = 170;
+      const smooth01 = (t: number): number => t * t * (3 - 2 * t);
+      const vnoise = (x: number, y: number): number => {
+        const cx = Math.floor(x / CLUSTER_CELL);
+        const cy = Math.floor(y / CLUSTER_CELL);
+        const u = smooth01(x / CLUSTER_CELL - cx);
+        const v = smooth01(y / CLUSTER_CELL - cy);
+        const n00 = hash2(cx * 13.37, cy * 7.77);
+        const n10 = hash2((cx + 1) * 13.37, cy * 7.77);
+        const n01 = hash2(cx * 13.37, (cy + 1) * 7.77);
+        const n11 = hash2((cx + 1) * 13.37, (cy + 1) * 7.77);
+        return n00 * (1 - u) * (1 - v) + n10 * u * (1 - v) + n01 * (1 - u) * v + n11 * u * v;
+      };
       for (let yy = 0; yy < h; yy += tgStep) {
         const yRow = yy;
         popQueue.push(() => {
         for (let xx = 0; xx < w; xx += tgStep) {
-          if (engine.surfaceAt(xx, yRow) !== 'rough') continue;
+          const surfHere = engine.surfaceAt(xx, yRow);
+          if (surfHere !== 'rough') {
+            // Fairway-edge fingers: where the cluster noise peaks right at
+            // the cut line, native grass presses INTO the fairway.
+            if (
+              clustered &&
+              surfHere === 'fairway' &&
+              heatherSet.length &&
+              vnoise(xx * 1.9 + 991, yRow * 1.9) > 0.63 &&
+              (engine.surfaceAt(xx + 14, yRow) === 'rough' ||
+                engine.surfaceAt(xx - 14, yRow) === 'rough' ||
+                engine.surfaceAt(xx, yRow + 14) === 'rough' ||
+                engine.surfaceAt(xx, yRow - 14) === 'rough') &&
+              !inTeePad(hole, xx, yRow) &&
+              Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) >= 70 &&
+              Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) >= 110
+            ) {
+              place(heatherSet, xx, yRow, cap * (0.5 + hash2(xx + 5, yRow - 5) * 0.3));
+            }
+            continue;
+          }
           if (inTeePad(hole, xx, yRow)) continue;
           if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 70) continue;
           if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 90) continue;
+          // Cluster mask: plant probability scales 0.25..~1.6 with the patch
+          // noise (non-clustered courses keep the historical always-plant).
+          const patch = clustered ? 0.25 + vnoise(xx, yRow) * 1.45 : 1;
+          if (clustered && hash2(xx * 3.1 + 7, yRow * 2.3 - 5) > patch) continue;
           const jx = xx + (hash2(xx + 13, yRow) - 0.5) * tgStep * 0.9;
           const jy = yRow + (hash2(yRow + 13, xx) - 0.5) * tgStep * 0.9;
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
           if (heatherSet.length) {
             place(heatherSet, jx, jy, tall);
+            // Dense patch cores: a second offset tuft doubles the stand.
+            if (clustered && patch > 1.25) {
+              const ox = jx + (hash2(jx + 31, jy) - 0.5) * tgStep * 1.4;
+              const oy = jy + (hash2(jy + 31, jx) - 0.5) * tgStep * 1.4;
+              if (engine.surfaceAt(ox, oy) === 'rough') {
+                place(heatherSet, ox, oy, cap * (0.55 + hash2(ox, oy) * 0.4));
+              }
+            }
           } else if (clump3d.length && hash2(jx + 9, jy + 4) < 0.3) {
             // ~30% 3D tussock clumps (kept a touch shorter); the rest fescue cards.
             place(clump3d, jx, jy, tall * 0.8, 3, theme.lushGrass ? grassTint(jx, jy) : undefined);

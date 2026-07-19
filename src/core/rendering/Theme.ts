@@ -123,6 +123,11 @@ export interface CourseTheme {
    *  dome and would crater far outside an elongated shape. Wild Valley uses
    *  this so its blowouts are genuinely deep bowls, deepest at the center. */
   wasteDepthScale?: number;
+  /** Prairie clustering (Wild Valley pass 2): tall-grass field density is
+   *  modulated by smooth value noise — large continuous dense patches with
+   *  natural sparse transitions instead of an even grid — and native grass
+   *  FINGERS intrude into the fairway's cut line where the noise peaks. */
+  prairieClusters?: boolean;
   /** Pack fescue tightly along EVERY bunker's full perimeter (in addition to
    *  the bunkerLipFescue clumps): ~72% of ~7-unit steps plant a tuft
    *  straddling the sand line. Wild Valley's "edges absolutely lined with
@@ -357,6 +362,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bunkerDepthScale'
     | 'wasteDepthScale'
     | 'bunkerLipPacked'
+    | 'prairieClusters'
     | 'bunkerFescueAvoidFairway'
     | 'seaDunes'
     | 'lushGrass'
@@ -488,6 +494,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   if (typeof spec.bunkerStones === 'boolean') t.bunkerStones = spec.bunkerStones;
   if (typeof spec.bunkerLipFescue === 'boolean') t.bunkerLipFescue = spec.bunkerLipFescue;
   if (typeof spec.bunkerLipPacked === 'boolean') t.bunkerLipPacked = spec.bunkerLipPacked;
+  if (typeof spec.prairieClusters === 'boolean') t.prairieClusters = spec.prairieClusters;
   if (typeof spec.bunkerDepthScale === 'number') t.bunkerDepthScale = spec.bunkerDepthScale;
   if (typeof spec.wasteDepthScale === 'number') t.wasteDepthScale = spec.wasteDepthScale;
   if (typeof spec.bunkerFescueAvoidFairway === 'boolean') t.bunkerFescueAvoidFairway = spec.bunkerFescueAvoidFairway;

@@ -42,15 +42,24 @@ function polyCentroid(poly: Array<[number, number]>): [number, number] {
 }
 
 describe('Red Hollow terrain identity', () => {
-  it('h1 Rimrock: elevated tee, shelf fairway, cliff drop to canyon floor', () => {
+  it('h1 Rimrock: ONE continuous sidehill shelf — drop left, kickback terrace right', () => {
     const { hole, hf } = field(redhollow, 0);
     const teeH = hf.heightAt(hole.tee.x, hole.tee.y);
-    const fairwayH = hf.heightAt(400, 700); // mid-shelf
+    const midH = hf.heightAt(400, 700);
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
-    const floorH = hf.heightAt(58, 640); // canyon floor strip
-    expect(teeH - fairwayH).toBeGreaterThanOrEqual(4); // elevated tee bench
-    expect(greenH - fairwayH).toBeGreaterThanOrEqual(3); // distinct green bench
-    expect(fairwayH - floorH).toBeGreaterThanOrEqual(14); // shelf-to-floor cliff
+    // Continuous shelf: tee, mid-fairway and green share one level (±3).
+    expect(Math.abs(teeH - midH)).toBeLessThanOrEqual(3);
+    expect(Math.abs(greenH - midH)).toBeLessThanOrEqual(3);
+    // LEFT: the shelf ends — well below shelf level ~110 off the line, and
+    // the canyon floor is far below.
+    expect(midH - hf.heightAt(230, 700)).toBeGreaterThanOrEqual(8);
+    expect(midH - hf.heightAt(110, 700)).toBeGreaterThanOrEqual(18);
+    // RIGHT: the mountainside rises — an upper terrace one level up.
+    expect(hf.heightAt(560, 780) - hf.heightAt(410, 780)).toBeGreaterThanOrEqual(5);
+    // The right slope KICKS BACK: gradient on the lower slope points uphill
+    // to the right, i.e. a ball there rolls left toward the fairway.
+    const g = hf.gradientAt(500, 800);
+    expect(g.x).toBeGreaterThan(0.02);
   });
 
   it('h2 Devils Kitchen: real canyon separation under the carry', () => {
@@ -75,38 +84,34 @@ describe('Red Hollow terrain identity', () => {
     expect(steepest).toBeGreaterThanOrEqual(8);
   });
 
-  it('h3 Wolf Run: the wash actually crosses between the two fairway ribbons', () => {
-    const hole = redhollow.holes[2];
-    const ribbons = authoredRibbons(redhollowJson, 2);
-    expect(ribbons.length).toBeGreaterThanOrEqual(2); // split ribbons
-    // The gap between ribbon 1's end and ribbon 2's start must be waste
-    // (the wash), verified against the authored wash polygon.
-    const wash = hole.hazards.find((h) => h.type === 'bunker' && h.waste && h.polygon.length > 20);
-    expect(wash).toBeDefined();
-    const end = ribbons[0].centerline[ribbons[0].centerline.length - 1];
-    const start = ribbons[1].centerline[0];
-    const mid = [(end[0] + start[0]) / 2, (end[1] + start[1]) / 2];
-    // Point-in-polygon over the wash outline.
-    const poly = (wash as unknown as { polygon: Array<[number, number]> }).polygon;
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-      const [xi, yi] = poly[i];
-      const [xj, yj] = poly[j];
-      if (yi > mid[1] !== yj > mid[1] && mid[0] < ((xj - xi) * (mid[1] - yi)) / (yj - yi) + xi) inside = !inside;
-    }
-    expect(inside).toBe(true);
+  it('h2: no fairway at all — a pure tee-to-mesa carry', () => {
+    expect(authoredRibbons(redhollowJson, 1).length).toBe(0);
   });
 
-  it('h3: shelves step down and the wash bed is sunken below its banks', () => {
-    const { hf } = field(redhollow, 2);
-    const shelf1 = hf.heightAt(750, 1250);
-    const shelf2 = hf.heightAt(470, 780);
-    const greenBench = hf.heightAt(330, 340);
-    expect(shelf1 - shelf2).toBeGreaterThanOrEqual(3); // stepped shelves
-    expect(greenBench).toBeGreaterThanOrEqual(5); // elevated final shelf
-    const bed = hf.heightAt(560, 1010); // in the crossing wash
-    const bank = hf.heightAt(560, 1120);
-    expect(bank - bed).toBeGreaterThanOrEqual(2); // carved, not painted
+  it('h3 Wolf Run: three equal island platforms descending from an elevated tee', () => {
+    const { hole, hf } = field(redhollow, 2);
+    const ribbons = authoredRibbons(redhollowJson, 2);
+    expect(ribbons.length).toBe(3); // island fairways
+    const teeH = hf.heightAt(hole.tee.x, hole.tee.y);
+    const islands = ribbons.map((r) => {
+      const [a, b] = [r.centerline[0], r.centerline[r.centerline.length - 1]];
+      return hf.heightAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    });
+    // Tee is a full level above the islands.
+    for (const ih of islands) expect(teeH - ih).toBeGreaterThanOrEqual(10);
+    // Islands share one height (±1.5).
+    expect(Math.max(...islands) - Math.min(...islands)).toBeLessThanOrEqual(1.5);
+    // The carry gaps between islands are canyon, below island level.
+    expect(islands[0] - hf.heightAt(590, 1040)).toBeGreaterThanOrEqual(3);
+    expect(islands[1] - hf.heightAt(430, 790)).toBeGreaterThanOrEqual(3);
+    // Green sits BELOW the islands (inside terrain, not on a pedestal)...
+    const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
+    expect(greenH).toBeLessThan(Math.min(...islands));
+    // ...in a bowl: rising ground behind/left/right, OPEN at the front.
+    expect(hf.heightAt(200, 380) - greenH).toBeGreaterThanOrEqual(3); // left wall
+    expect(hf.heightAt(300, 210) - greenH).toBeGreaterThanOrEqual(3); // back wall
+    expect(hf.heightAt(440, 300) - greenH).toBeGreaterThanOrEqual(3); // right wall
+    expect(hf.heightAt(400, 470) - greenH).toBeLessThanOrEqual(2); // open front
   });
 
   it('no water hazards anywhere on the course', () => {
@@ -180,6 +185,48 @@ describe('Wild Valley terrain identity', () => {
     }
     expect(rising).toBeGreaterThanOrEqual(3);
   });
+});
+
+describe('green design rule (both courses)', () => {
+  // "No green may terminate in an unputtable cliff": every point of every
+  // putting surface must be reachable by putting — adjacent 8px samples
+  // inside the green ellipse may not step more than 1.2 units, and total
+  // relief across the surface stays gentle.
+  const courses = [
+    ['redhollow', redhollow],
+    ['wildvalley', wildvalley]
+  ] as const;
+  for (const [name, course] of courses) {
+    it(`${name}: every putting surface is smoothly puttable`, () => {
+      const theme = resolveTheme(course);
+      for (const hole of course.holes) {
+        const hf = buildHeightField(hole, theme.bunkerDepthScale ?? 1, theme.wasteDepthScale ?? 0);
+        if (!hf) continue;
+        for (const g of [hole.green, hole.green2].filter(Boolean) as Array<NonNullable<typeof hole.green2>>) {
+          let min = Infinity;
+          let max = -Infinity;
+          for (let a = 0; a < 16; a++) {
+            // Walk a radial spoke from center to rim, checking step sizes.
+            const dx = Math.cos((a / 16) * Math.PI * 2);
+            const dy = Math.sin((a / 16) * Math.PI * 2);
+            const rMax = Math.min(g.rx, g.ry) * 0.95;
+            let prev = hf.heightAt(g.cx, g.cy);
+            for (let r = 8; r <= rMax; r += 8) {
+              const h = hf.heightAt(g.cx + dx * r, g.cy + dy * r);
+              expect(
+                Math.abs(h - prev),
+                `${name} h${hole.number} green step at r=${r} a=${a}`
+              ).toBeLessThanOrEqual(1.2);
+              min = Math.min(min, h);
+              max = Math.max(max, h);
+              prev = h;
+            }
+          }
+          expect(max - min, `${name} h${hole.number} total green relief`).toBeLessThanOrEqual(5);
+        }
+      }
+    });
+  }
 });
 
 describe('fairway terrain continuity (both courses)', () => {

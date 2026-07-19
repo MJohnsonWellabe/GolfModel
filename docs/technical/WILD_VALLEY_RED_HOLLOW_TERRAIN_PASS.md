@@ -173,3 +173,43 @@ under the ranges). WV amplitude gate widened to 20 for the hero landforms.
 Screenshot iteration rounds: 3 (wall visibility from tee FOV, amphitheater
 amplification, curtain/backstop seam fixes). All 12 terrain gates, 17 sim
 playability, 673 fast tests green after each round.
+
+## 7. Pass 4 — Red Hollow routing + Wild Valley prairie/strategy (2026-07-19)
+
+Red Hollow routing refinement (art direction unchanged):
+- **h1 Rimrock** is now ONE continuous +10 sidehill shelf (tee, fairway and
+  green all on it, gentle undulation). LEFT: the shelf simply ends — a
+  steep −24 drop at the fairway edge; physics carries anything landing
+  there down to the canyon-floor waste. RIGHT: the mountainside rises
+  immediately — the lower slope's gradient kicks slight misses back to the
+  fairway; the +8 upper terrace beyond is effectively out of bounds, and
+  the great wall climbs from it.
+- **h2 Devil's Kitchen** has NO fairway (fairways: []) — a pure tee-mesa to
+  green-mesa carry. Both mesas got natural sandstone outlines: promontory
+  lobes and erosion notches on the skirt ring, with the tee/putting
+  surfaces kept smooth.
+- **h3 Wolf Run** is now three EQUAL-height island platforms (+4) carved
+  into the canyon below an elevated tee (+18): chosen carries platform to
+  platform, island 1→3 is exactly driver range (a big hitter skips island
+  2). The green sits INSIDE an open-front bowl one level below the islands
+  — not on a pedestal.
+- **Green design rule** (new gate, both courses): every putting surface
+  must be smoothly puttable — ≤1.2-unit steps between adjacent samples and
+  ≤5 total relief across the surface. Several dune/bowl/spur skirts that
+  crossed greens were pulled off them to pass.
+
+Wild Valley pass 2 (terrain/greens preserved; prairie + strategy):
+- **Prairie clustering** (`theme.prairieClusters` + course3d): tall-grass
+  density is modulated by smooth value noise — large continuous dense
+  patches, natural transitions, double-planted cores — and native-grass
+  fingers intrude past the fairway cut line where the noise peaks. Field
+  density up again (27).
+- **Blowout architecture**: much larger, ragged outlines (jitter 0.5+),
+  browner exposed sand (#d9bd85/#b3945c), deeper bowls (wasteDepthScale 3,
+  sandSculpt 1.0), still fescue-packed lips.
+- **Strategy**: h1's widened drive zone is SPLIT by a deep mid-fairway
+  bunker (left lane / right lane / carry); h3 gets the same decision at
+  its second landing zone; h2's kettle keeps its green, with bigger
+  blowouts torn from the bowl's outer faces.
+
+Gates: 14 terrain tests, 17 sim, 675 fast — green; loader lint clean.
