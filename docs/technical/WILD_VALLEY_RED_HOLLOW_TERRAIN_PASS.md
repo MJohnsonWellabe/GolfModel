@@ -213,3 +213,47 @@ Wild Valley pass 2 (terrain/greens preserved; prairie + strategy):
   blowouts torn from the bowl's outer faces.
 
 Gates: 14 terrain tests, 17 sim, 675 fast — green; loader lint clean.
+
+## 8. Pass 5 — Red Hollow gameplay & landscape refinement (2026-07-19)
+
+A refinement pass, not a redesign — hole identities from passes 3–4 kept.
+
+New mechanic — TRUE OUT OF BOUNDS (`hazards[].type: 'ob'`):
+- An `ob` region is not a surface: rendering and lies keep the underlying
+  look (the canyon floor still shows its waste-sand dressing). Only the
+  REST position is checked — a ball finishing inside it takes a +1 stroke
+  penalty and drops in the rough approximately where it crossed
+  (PhysicsEngine.obDropPoint walks the flight line back to the last
+  in-bounds point, then ~10 units farther back). Wired through the live
+  round (main.ts, "OUT OF BOUNDS! +1 penalty") and the headless
+  RoundSimulator, so the balancing AI pays the same penalties.
+- `hazards[].depthMul` scales an ordinary bunker's dish depth per-bunker
+  (HeightField), for erosion-bowl pots.
+
+Per hole:
+- **h1 Rimrock**: the whole canyon floor left of the shelf is OB — no
+  recovery from down there; the boundary tracks the cliff base so the
+  playable shelf and upper cliff face stay in bounds. The routing bends
+  farther LEFT after the landing zone (fairway wraps the hillside,
+  x382 at y690, cutting back right only at the green shelf). The right
+  wall begins DIRECTLY beside the fairway (terrace spines at x575–620,
+  no buffer) and runs nearly the whole hole, its final segment tapering
+  (r170, endpoint pulled NE) so the skirt never crosses the putt.
+  Aggressive outcrops: a cliff-edge rock line down the entire left rim,
+  wall-crest rocks, landing-zone frames, green-complex rocks.
+- **h2 Devil's Kitchen**: unchanged design; the two greenside pots are now
+  DEEP erosion bowls (depthMul 2.2 — punishing but playable), a broad
+  erosion shelf is bitten out of the mesa's back rim (long is dead:
+  −20+ within ~70 of the back collar, the back collar itself stays
+  puttable), and the green mesa's rim + skirt are studded with exposed
+  sandstone (7 new rock landforms incl. the bowls' outer lips).
+- **h3 Wolf Run**: green complex only — the horseshoe is RAISED
+  (left 8→11, right 7.5→10.5; the back wall as TWO stacked spines, the
+  near one kept at pass-4 h9 because any taller crosses green2's rear
+  spokes, plus a farther +8 crest). Misses left/long/right funnel down
+  the walls into collection areas with lofted recoveries; the front
+  stays open. Rocks crown the raised walls.
+
+Gates: 18 terrain tests (new: h1 OB region + drop-point behavior, h2
+erosion-bowl depth ≥3.5 + back drop-off, h3 raised-wall heights),
+114 sim, 696 fast — all green; loader lint clean; production build green.

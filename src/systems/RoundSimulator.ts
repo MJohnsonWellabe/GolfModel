@@ -93,7 +93,7 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
       launchMult: d.spin ? 1 - d.spin.top * 0.18 : 1
     });
     if (d.club.id === 'putter') putts++;
-    strokes += 1 + (out.waterPenalty ? 1 : 0);
+    strokes += 1 + (out.waterPenalty ? 1 : 0) + (out.obPenalty ? 1 : 0);
     ball = { ...out.finalPos };
     lie = out.surface;
     holed = out.holed;

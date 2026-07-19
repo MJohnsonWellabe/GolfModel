@@ -23,6 +23,7 @@ const outcome = (
   finalPos,
   surface: 'fairway' as Surface,
   waterPenalty: false,
+  obPenalty: false,
   hitTrees: false,
   holed: false,
   ...over

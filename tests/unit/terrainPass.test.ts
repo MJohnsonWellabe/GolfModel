@@ -4,6 +4,7 @@ import wildvalleyJson from '../../src/data/courses/wildvalley.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { buildHeightField, HeightField } from '../../src/systems/HeightField';
+import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { HoleData } from '../../src/core/types';
 
 /**
@@ -43,23 +44,66 @@ function polyCentroid(poly: Array<[number, number]>): [number, number] {
 
 describe('Red Hollow terrain identity', () => {
   it('h1 Rimrock: ONE continuous sidehill shelf — drop left, kickback terrace right', () => {
+    // Pass 5 routing: the fairway wraps LEFT around the hillside
+    // (centerline ~x382 at y690) before cutting back to the green shelf.
     const { hole, hf } = field(redhollow, 0);
     const teeH = hf.heightAt(hole.tee.x, hole.tee.y);
-    const midH = hf.heightAt(400, 700);
+    const midH = hf.heightAt(382, 690);
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
     // Continuous shelf: tee, mid-fairway and green share one level (±3).
     expect(Math.abs(teeH - midH)).toBeLessThanOrEqual(3);
     expect(Math.abs(greenH - midH)).toBeLessThanOrEqual(3);
-    // LEFT: the shelf ends — well below shelf level ~110 off the line, and
-    // the canyon floor is far below.
-    expect(midH - hf.heightAt(230, 700)).toBeGreaterThanOrEqual(8);
-    expect(midH - hf.heightAt(110, 700)).toBeGreaterThanOrEqual(18);
-    // RIGHT: the mountainside rises — an upper terrace one level up.
-    expect(hf.heightAt(560, 780) - hf.heightAt(410, 780)).toBeGreaterThanOrEqual(5);
+    // LEFT: the shelf ends — a true cliff, the canyon floor far below.
+    expect(midH - hf.heightAt(280, 690)).toBeGreaterThanOrEqual(25);
+    expect(midH - hf.heightAt(180, 690)).toBeGreaterThanOrEqual(35);
+    // RIGHT: the wall begins directly beside the fairway — an upper
+    // terrace one level up within ~90 of the line.
+    expect(hf.heightAt(470, 780) - hf.heightAt(370, 780)).toBeGreaterThanOrEqual(5);
     // The right slope KICKS BACK: gradient on the lower slope points uphill
     // to the right, i.e. a ball there rolls left toward the fairway.
-    const g = hf.gradientAt(500, 800);
+    const g = hf.gradientAt(470, 780);
     expect(g.x).toBeGreaterThan(0.02);
+  });
+
+  it('h1: the canyon floor is TRUE out of bounds; the playing corridor is not', () => {
+    const { hole, hf } = field(redhollow, 0);
+    const ob = hole.hazards.find((hz) => hz.type === 'ob');
+    expect(ob, 'h1 must carry an ob hazard').toBeDefined();
+    const engine = new PhysicsEngine(hole, hf, () => 0.5);
+    const oob = (x: number, y: number) =>
+      (engine as unknown as { inOutOfBounds(x: number, y: number): boolean }).inOutOfBounds(x, y);
+    // The whole canyon floor is gone — no recovery from down there.
+    for (const [x, y] of [[200, 1000], [180, 800], [200, 650], [280, 450], [100, 500]]) {
+      expect(oob(x, y), `floor ${x},${y}`).toBe(true);
+    }
+    // Tee, green, targets and the fairway's left edge all stay in bounds.
+    expect(oob(hole.tee.x, hole.tee.y)).toBe(false);
+    expect(oob(hole.green.cx, hole.green.cy)).toBe(false);
+    for (const t of hole.aiTargets) expect(oob(t.x, t.y), `target ${t.x},${t.y}`).toBe(false);
+    for (const [x, y] of [[301, 1100], [305, 820], [337, 690], [382, 580]]) {
+      expect(oob(x, y), `fairway edge ${x},${y}`).toBe(false);
+    }
+  });
+
+  it('h1: an OB finish costs a penalty and drops near where the ball crossed', () => {
+    const { hole, hf } = field(redhollow, 0);
+    const engine = new PhysicsEngine(hole, hf, () => 0.5);
+    const drop = (path: Array<[number, number]>, origin: { x: number; y: number }) =>
+      (engine as unknown as {
+        obDropPoint(p: Array<{ x: number; y: number; z: number }>, o: { x: number; y: number }): { x: number; y: number };
+      }).obDropPoint(path.map(([x, y]) => ({ x, y, z: 0 })), origin);
+    // A pull that sails off the shelf at y~820 and finishes on the floor:
+    // the drop comes back to the last in-bounds stretch of the flight line.
+    const origin = { x: 330, y: 1100 };
+    const p = drop(
+      [[330, 1100], [330, 1000], [325, 920], [315, 860], [300, 820], [260, 780], [200, 760], [180, 750]],
+      origin
+    );
+    const oob = (x: number, y: number) =>
+      (engine as unknown as { inOutOfBounds(x: number, y: number): boolean }).inOutOfBounds(x, y);
+    expect(oob(p.x, p.y)).toBe(false);
+    // Near the crossing, not back at the tee.
+    expect(Math.hypot(p.x - 315, p.y - 860)).toBeLessThanOrEqual(80);
   });
 
   it('h2 Devils Kitchen: real canyon separation under the carry', () => {
@@ -88,6 +132,29 @@ describe('Red Hollow terrain identity', () => {
     expect(authoredRibbons(redhollowJson, 1).length).toBe(0);
   });
 
+  it('h2: the greenside pots are DEEP erosion bowls (pass 5 depthMul)', () => {
+    const { hole, hf } = field(redhollow, 1);
+    const pots = hole.hazards.filter((hz) => hz.type === 'bunker' && !hz.waste);
+    expect(pots.length).toBe(2);
+    for (const hz of pots) {
+      expect(hz.depthMul ?? 1, 'erosion bowls carry a depth multiplier').toBeGreaterThanOrEqual(2);
+      const [cx, cy] = polyCentroid(hz.polygon as Array<[number, number]>);
+      let rim = -Infinity;
+      for (const [px, py] of hz.polygon as Array<[number, number]>) rim = Math.max(rim, hf.heightAt(px, py));
+      expect(rim - hf.heightAt(cx, cy), `pot ${Math.round(cx)},${Math.round(cy)}`).toBeGreaterThanOrEqual(3.5);
+    }
+  });
+
+  it('h2: long is dead — a significant drop-off directly behind the green', () => {
+    const { hole, hf } = field(redhollow, 1);
+    const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
+    // The back collar is still mesa top (puttable)...
+    expect(Math.abs(hf.heightAt(hole.green.cx, 360) - greenH)).toBeLessThanOrEqual(2);
+    // ...but within ~70 beyond the back edge the ground has fallen away.
+    expect(greenH - hf.heightAt(hole.green.cx, 310)).toBeGreaterThanOrEqual(5);
+    expect(greenH - hf.heightAt(hole.green.cx, 285)).toBeGreaterThanOrEqual(20);
+  });
+
   it('h3 Wolf Run: three equal island platforms descending from an elevated tee', () => {
     const { hole, hf } = field(redhollow, 2);
     const ribbons = authoredRibbons(redhollowJson, 2);
@@ -108,10 +175,15 @@ describe('Red Hollow terrain identity', () => {
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
     expect(greenH).toBeLessThan(Math.min(...islands));
     // ...in a bowl: rising ground behind/left/right, OPEN at the front.
-    expect(hf.heightAt(200, 380) - greenH).toBeGreaterThanOrEqual(3); // left wall
-    expect(hf.heightAt(300, 210) - greenH).toBeGreaterThanOrEqual(3); // back wall
-    expect(hf.heightAt(440, 300) - greenH).toBeGreaterThanOrEqual(3); // right wall
+    // PASS 5: the horseshoe is RAISED — misses left/long/right hit real
+    // walls and funnel back to collection areas; the front door stays open.
+    expect(hf.heightAt(200, 380) - greenH).toBeGreaterThanOrEqual(8); // left wall
+    expect(hf.heightAt(300, 210) - greenH).toBeGreaterThanOrEqual(6); // back wall
+    expect(hf.heightAt(440, 300) - greenH).toBeGreaterThanOrEqual(8); // right wall
     expect(hf.heightAt(400, 470) - greenH).toBeLessThanOrEqual(2); // open front
+    // The wall shoulders tower over the putting surface.
+    expect(hf.heightAt(185, 385) - greenH).toBeGreaterThanOrEqual(15);
+    expect(hf.heightAt(450, 290) - greenH).toBeGreaterThanOrEqual(12);
   });
 
   it('no water hazards anywhere on the course', () => {

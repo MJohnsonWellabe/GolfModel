@@ -137,18 +137,25 @@ const redhollow = {
       tee: [330, 1130], teeBox: { w: 28, d: 20 },
       green: { cx: 560, cy: 330, rx: 66, ry: 52, rot: 0.35 },
       slope: { angle: 2.2, strength: 0.32 },
-      centerline: [[330, 1100], [332, 960], [362, 820], [432, 690], [510, 560], [545, 448], [556, 385]],
-      width: [46, 68, 82, 80, 66, 54, 44],
+      // PASS 5: the routing bends farther LEFT after the landing area —
+      // the fairway wraps the hillside, hugging the cliff edge before
+      // cutting back right to the green shelf.
+      centerline: [[330, 1100], [332, 960], [352, 820], [382, 690], [420, 580], [488, 470], [540, 395]],
+      width: [46, 68, 82, 78, 64, 54, 44],
       hazards: [
-        // Canyon floor along the whole left side — where a ball that rolls
-        // off the shelf edge ends up (severe slope + real physics carry it
-        // all the way down; effectively out of play).
+        // PASS 5 — TRUE OUT OF BOUNDS: the entire canyon floor left of the
+        // shelf. A ball that rolls off the cliff is gone — stroke penalty,
+        // drop in the rough approximately where it crossed. The boundary
+        // tracks the cliff base, so the sandy floor dressing below stays
+        // pure scenery.
+        { type: 'ob', polygon: [[0, 1240], [235, 1240], [222, 1050], [232, 850], [262, 640], [330, 430], [372, 280], [372, 0], [0, 0]] },
+        // Canyon floor dressing (inside the OB — visual only).
         { type: 'bunker', waste: true, polygon: blob(105, 900, 95, 330, 14, 0.3, 15) },
         { type: 'bunker', waste: true, polygon: blob(170, 420, 100, 240, 13, 0.32, 17) },
         { type: 'bunker', polygon: blob(478, 300, 34, 26, 9, 0.3, 13) },
         { type: 'bunker', polygon: blob(636, 402, 30, 24, 9, 0.3, 14) }
       ],
-      aiTargets: [[362, 820], [500, 570]],
+      aiTargets: [[362, 820], [440, 560]],
       // PASS 4 — THE SIDEHILL SHELF: tee, fairway and green share ONE
       // continuous +10 shelf cut into the mountainside. LEFT: the shelf
       // simply ends — a steep 24-unit drop right at the fairway edge
@@ -161,30 +168,43 @@ const redhollow = {
         // The shelf itself (one broad base — nothing else overlaps it).
         { x: 450, y: 720, h: 10, r: 620, shape: 'plateau', skirt: 0.78 },
         // Gentle undulation along the shelf.
-        { x: 360, y: 950, x2: 420, y2: 760, h: 1.2, r: 90 },
-        { x: 480, y: 560, x2: 520, y2: 470, h: 1.0, r: 80 },
+        { x: 350, y: 950, x2: 400, y2: 760, h: 1.2, r: 90 },
+        { x: 430, y: 560, x2: 470, y2: 480, h: 1.0, r: 80 },
         // LEFT: the drop — rims hug the fairway's left edge (offset ~55).
         { x: 90, y: 1150, x2: 95, y2: 900, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        { x: 95, y: 900, x2: 155, y2: 630, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        { x: 155, y: 630, x2: 255, y2: 420, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        { x: 255, y: 420, x2: 300, y2: 260, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        // RIGHT: the upper terrace — rims hug the fairway's right edge.
-        { x: 620, y: 1150, x2: 610, y2: 900, h: 8, r: 190, shape: 'plateau', skirt: 0.74 },
-        { x: 610, y: 900, x2: 660, y2: 640, h: 8, r: 190, shape: 'plateau', skirt: 0.74 },
-        { x: 680, y: 640, x2: 790, y2: 430, h: 8, r: 190, shape: 'plateau', skirt: 0.74 },
+        { x: 95, y: 900, x2: 140, y2: 640, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
+        { x: 140, y: 640, x2: 220, y2: 440, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
+        { x: 220, y: 440, x2: 285, y2: 270, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
+        // RIGHT: the wall begins DIRECTLY beside the fairway (pass 5 — no
+        // wide buffer) and runs nearly the whole hole.
+        { x: 590, y: 1150, x2: 575, y2: 900, h: 8, r: 190, shape: 'plateau', skirt: 0.74 },
+        { x: 575, y: 900, x2: 600, y2: 640, h: 8, r: 190, shape: 'plateau', skirt: 0.74 },
+        // Final wall segment tapers as it nears the green complex (r170,
+        // endpoint pulled NE) so the terrace skirt never crosses the putt.
+        { x: 620, y: 640, x2: 728, y2: 470, h: 8, r: 170, shape: 'plateau', skirt: 0.74 },
         // The great wall rises from the terrace (pass-3 identity).
-        { x: 880, y: 1240, x2: 880, y2: 140, h: 26, r: 200, shape: 'plateau', skirt: 0.86 },
+        { x: 855, y: 1240, x2: 855, y2: 140, h: 28, r: 200, shape: 'plateau', skirt: 0.86 },
         { x: 620, y: 60, x2: 950, y2: 80, h: 24, r: 170, shape: 'plateau', skirt: 0.85 },
         // Amphitheater spur wrapping behind the green (clear of the putt).
         { x: 740, y: 140, x2: 668, y2: 196, h: 14, r: 95, shape: 'plateau', skirt: 0.8 }
       ],
       landforms: [
-        { key: 'rocks_red_bright', x: 872, y: 980, h: 14 },
-        { key: 'rocks_red_cluster', x: 800, y: 1060, h: 12 },
-        { key: 'rocks_red_cluster', x: 885, y: 620, h: 16 },
-        { key: 'rocks_red_bright', x: 862, y: 300, h: 15 },
+        // PASS 5: rock outcrops as a defining feature — cliff-edge line,
+        // wall crest, landing-zone frames, green complex.
+        { key: 'rocks_red_bright', x: 852, y: 980, h: 14 },
+        { key: 'rocks_red_cluster', x: 790, y: 1070, h: 12 },
+        { key: 'rocks_red_cluster', x: 862, y: 620, h: 16 },
+        { key: 'rocks_red_bright', x: 845, y: 300, h: 15 },
         { key: 'rocks_red_cluster', x: 700, y: 120, h: 13 },
-        { key: 'rocks_red_bright', x: 120, y: 760, h: 8 }
+        { key: 'rocks_red_cluster', x: 208, y: 1105, h: 7 },
+        { key: 'rocks_red_bright', x: 165, y: 905, h: 8 },
+        { key: 'rocks_red_cluster', x: 200, y: 660, h: 8 },
+        { key: 'rocks_red_bright', x: 268, y: 455, h: 7 },
+        { key: 'rocks_red_cluster', x: 330, y: 300, h: 8 },
+        { key: 'rocks_red_bright', x: 448, y: 852, h: 6 },
+        { key: 'rocks_red_cluster', x: 530, y: 640, h: 7 },
+        { key: 'rocks_red_bright', x: 640, y: 330, h: 9 },
+        { key: 'rocks_red_cluster', x: 470, y: 250, h: 8 }
       ],
     },
     {
@@ -198,8 +218,11 @@ const redhollow = {
       hazards: [
         // The kitchen: canyon floor waste wall-to-wall between the mesas.
         { type: 'bunker', waste: true, polygon: blob(450, 668, 340, 98, 16, 0.26, 21) },
-        { type: 'bunker', polygon: blob(360, 476, 30, 24, 9, 0.32, 22) },
-        { type: 'bunker', polygon: blob(548, 452, 28, 22, 9, 0.32, 23) },
+        // PASS 5: the two greenside pots become DEEP erosion bowls carved
+        // into the mesa flank — punishing but playable (depthMul digs the
+        // dish well past the standard pot depth).
+        { type: 'bunker', depthMul: 2.2, polygon: blob(360, 476, 30, 24, 9, 0.32, 22) },
+        { type: 'bunker', depthMul: 2.2, polygon: blob(548, 452, 28, 22, 9, 0.32, 23) },
         { type: 'bunker', waste: true, polygon: blob(230, 550, 120, 210, 12, 0.4, 24) },
         { type: 'bunker', waste: true, polygon: blob(680, 535, 120, 220, 12, 0.4, 25) },
         { type: 'bunker', waste: true, polygon: blob(450, 205, 260, 70, 14, 0.3, 26) }
@@ -220,6 +243,10 @@ const redhollow = {
         { x: 578, y: 500, h: 6, r: 42, shape: 'plateau', skirt: 0.6 },
         { x: 540, y: 322, h: -6, r: 36, shape: 'plateau', skirt: 0.62 },
         { x: 352, y: 528, h: -6, r: 34, shape: 'plateau', skirt: 0.62 },
+        // PASS 5: significant drop-off BEHIND the green — a broad erosion
+        // shelf bitten out of the back rim so anything long tumbles off the
+        // mesa. Kept clear of the putting surface (green edge y=380).
+        { x: 398, y: 288, x2: 505, y2: 282, h: -9, r: 48, shape: 'plateau', skirt: 0.62 },
         // The mesa field to every edge (pass-3 identity).
         { x: 120, y: 300, x2: 60, y2: 800, h: 26, r: 200, shape: 'plateau', skirt: 0.85 },
         { x: 800, y: 250, x2: 860, y2: 750, h: 28, r: 210, shape: 'plateau', skirt: 0.85 },
@@ -233,7 +260,17 @@ const redhollow = {
         { key: 'rocks_red_bright', x: 420, y: 70, h: 15 },
         { key: 'rocks_red_cluster', x: 680, y: 78, h: 13 },
         { key: 'rocks_red_cluster', x: 250, y: 828, h: 10 },
-        { key: 'rocks_red_bright', x: 660, y: 850, h: 11 }
+        { key: 'rocks_red_bright', x: 660, y: 850, h: 11 },
+        // PASS 5: exposed sandstone ringing the green mesa itself — rocks
+        // studding the rim and skirt so the mesa reads as bare bedrock.
+        { key: 'rocks_red_cluster', x: 332, y: 472, h: 19 },
+        { key: 'rocks_red_bright', x: 566, y: 372, h: 19 },
+        { key: 'rocks_red_cluster', x: 452, y: 292, h: 15 },
+        { key: 'rocks_red_bright', x: 368, y: 318, h: 18 },
+        { key: 'rocks_red_cluster', x: 555, y: 505, h: 14 },
+        // The deep erosion bowls' outer lips.
+        { key: 'rocks_red_bright', x: 330, y: 452, h: 6 },
+        { key: 'rocks_red_cluster', x: 578, y: 432, h: 6 }
       ],
     },
     {
@@ -277,9 +314,16 @@ const redhollow = {
         { x: 585, y: 995, h: 1.0, r: 18 },
         // GREEN BOWL: horseshoe walls behind/left/right, OPEN at the front
         // (south-east toward island 3); the green sits inside the terrain.
-        { x: 205, y: 470, x2: 170, y2: 300, h: 8, r: 105 },
+        // PASS 5: walls RAISED left/back/right so misses funnel back down
+        // into collection areas at the wall feet — awkward lofted recoveries
+        // over the shoulder, while the front door stays open.
+        { x: 205, y: 470, x2: 170, y2: 300, h: 11, r: 105 },
+        // Back wall in two stacked spines: the near one stays at pass-4
+        // height (any taller and its skirt crosses green2's rear spokes),
+        // and a second crest farther out carries the raised horseshoe rim.
         { x: 190, y: 225, x2: 345, y2: 150, h: 9, r: 105 },
-        { x: 430, y: 240, x2: 470, y2: 350, h: 7.5, r: 95 },
+        { x: 168, y: 192, x2: 338, y2: 118, h: 8, r: 105 },
+        { x: 430, y: 240, x2: 470, y2: 350, h: 10.5, r: 95 },
         // Canyon rim walls (pass-3 winding-canyon identity).
         { x: 1045, y: 1520, x2: 975, y2: 1100, h: 20, r: 190, shape: 'plateau', skirt: 0.85 },
         { x: 940, y: 1100, x2: 770, y2: 640, h: 22, r: 200, shape: 'plateau', skirt: 0.85 },
@@ -296,7 +340,14 @@ const redhollow = {
         { key: 'rocks_red_bright', x: 350, y: 1260, h: 12 },
         { key: 'rocks_red_cluster', x: 690, y: 1085, h: 8 },
         { key: 'rocks_red_bright', x: 610, y: 1140, h: 7 },
-        { key: 'rocks_red_cluster', x: 120, y: 200, h: 15 }
+        { key: 'rocks_red_cluster', x: 120, y: 200, h: 15 },
+        // PASS 5: rocks crowning the raised horseshoe walls so the green
+        // amphitheater reads as carved stone, plus wash-bank studs.
+        { key: 'rocks_red_bright', x: 178, y: 388, h: 10 },
+        { key: 'rocks_red_cluster', x: 262, y: 172, h: 11 },
+        { key: 'rocks_red_bright', x: 452, y: 288, h: 9 },
+        { key: 'rocks_red_cluster', x: 505, y: 555, h: 4 },
+        { key: 'rocks_red_bright', x: 590, y: 820, h: 3 }
       ],
     }
   ]

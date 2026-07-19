@@ -1769,6 +1769,7 @@ class HoleScene {
       finalPos: { x: this.hole.pin.x, y: this.hole.pin.y },
       surface: 'green',
       waterPenalty: false,
+      obPenalty: false,
       hitTrees: false,
       holed: true
     };
@@ -2107,7 +2108,7 @@ class HoleScene {
       }
       play('fire');
     }
-    this.state.strokes += 1 + (outcome.waterPenalty ? 1 : 0);
+    this.state.strokes += 1 + (outcome.waterPenalty ? 1 : 0) + (outcome.obPenalty ? 1 : 0);
     this.updateHud();
 
     if (club.id !== 'putter') play('swing');
@@ -2261,6 +2262,9 @@ class HoleScene {
     } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
+      this.golfer.react('deject');
+    } else if (outcome.obPenalty) {
+      showMsg('OUT OF BOUNDS! +1 penalty', 1500);
       this.golfer.react('deject');
     } else if (!c.isAI) {
       this.showShotReadout(origin, outcome, club);

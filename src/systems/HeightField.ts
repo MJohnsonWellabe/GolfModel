@@ -246,7 +246,9 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
         const POT_R = 26;
         const potT = Math.max(0, (POT_R - r) / POT_R); // 0 at r>=26, →1 as r→0
         const dishPad = 12 - potT * 6; // 12 for large, ~6 for a tiny pot
-        const depth = DISH_DEPTH * bunkerDepthScale * (1 + potT * 0.9); // up to ~1.9x deeper for tiny
+        // hz.depthMul: per-bunker extra depth (Devil's Kitchen's erosion
+        // bowls) on top of the course-wide scale.
+        const depth = DISH_DEPTH * bunkerDepthScale * (1 + potT * 0.9) * (hz.depthMul ?? 1);
         const dishR = maxRadiusClearOfGreen(hole, cx, cy, r + dishPad);
         if (dishR > 0) pts.push({ x: cx, y: cy, h: -depth, r: dishR });
       }

@@ -116,10 +116,17 @@ export interface EllipseArea {
 export type Polygon = number[][];
 
 export interface Hazard {
-  type: 'water' | 'bunker' | 'trees' | 'building';
+  /** 'ob' = OUT OF BOUNDS (Red Hollow's canyon floors): not a surface — the
+   *  region keeps its underlying look — but a ball finishing inside it takes
+   *  a one-stroke penalty and drops in bounds roughly where it crossed the
+   *  line (PhysicsEngine.resolveShot, mirrored by the AI simulator). */
+  type: 'water' | 'bunker' | 'trees' | 'building' | 'ob';
   polygon: Polygon;
   /** Water only: surface height (world units) the pond renders at. */
   level?: number;
+  /** Ordinary bunkers only: extra multiplier on this ONE bunker's dish depth
+   *  (on top of theme.bunkerDepthScale) — Devil's Kitchen's erosion bowls. */
+  depthMul?: number;
   /**
    * Trees only: grid step (world units) between trunks inside the polygon,
    * default 52 — lower is denser woods. Lives on the hazard (course data),
@@ -391,6 +398,10 @@ export interface ShotOutcome {
   surface: Surface;
   /** True when the ball found water — a penalty stroke applies. */
   waterPenalty: boolean;
+  /** True when the ball finished OUT OF BOUNDS (an 'ob' hazard region) — a
+   *  penalty stroke applies and finalPos is the in-bounds drop near where
+   *  the ball crossed the line. */
+  obPenalty: boolean;
   /** True when the ball struck trees mid-flight. */
   hitTrees: boolean;
   holed: boolean;

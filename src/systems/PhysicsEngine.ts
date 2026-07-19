@@ -944,7 +944,44 @@ export class PhysicsEngine {
       // `finalPos` after the splash, which reads as a clean drop.
     }
 
-    return { path, finalPos, surface, waterPenalty, hitTrees, holed };
+    // OUT OF BOUNDS ('ob' hazard regions — Red Hollow's canyon floors): a
+    // ball at rest inside one takes a one-stroke penalty and drops in bounds
+    // roughly where it crossed the line (walk the path back to the last
+    // in-bounds point — same no-path-append rule as the water drop, so
+    // playback shows the ball sail over the edge and then reappear dropped).
+    let obPenalty = false;
+    if (!holed && !waterPenalty && this.inOutOfBounds(finalPos.x, finalPos.y)) {
+      obPenalty = true;
+      finalPos = this.obDropPoint(path, origin);
+      surface = this.surfaceAt(finalPos.x, finalPos.y);
+    }
+
+    return { path, finalPos, surface, waterPenalty, obPenalty, hitTrees, holed };
+  }
+
+  /** Inside any 'ob' hazard region (not a surface — checked at rest only). */
+  private inOutOfBounds(x: number, y: number): boolean {
+    return this.hole.hazards.some((hz) => hz.type === 'ob' && pointInPolygon(x, y, hz.polygon));
+  }
+
+  /** The last path point still in bounds ≈ where the ball crossed the OB
+   *  line, nudged a touch back along the path so the drop never sits ON the
+   *  painted edge. Falls back to the shot origin. */
+  private obDropPoint(path: TrajectoryPoint[], origin: Point): Point {
+    for (let i = path.length - 1; i >= 0; i--) {
+      const p = path[i];
+      if (!this.inOutOfBounds(p.x, p.y) && this.surfaceAt(p.x, p.y) !== 'water') {
+        // Step ~10 units farther back along the path when possible.
+        for (let j = i - 1; j >= 0; j--) {
+          const q = path[j];
+          if (Math.hypot(q.x - p.x, q.y - p.y) >= 10) {
+            return this.inOutOfBounds(q.x, q.y) ? { x: p.x, y: p.y } : { x: q.x, y: q.y };
+          }
+        }
+        return { x: p.x, y: p.y };
+      }
+    }
+    return { x: origin.x, y: origin.y };
   }
 
   /**
