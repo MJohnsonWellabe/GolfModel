@@ -26,7 +26,8 @@ import { countUpValue } from '../core/countUp';
 import { devDateOverride, devNow, devToolsActive, setDevDateOverride } from '../core/devTools';
 import { isFrozen, SHOT, ShotCam } from '../core/debugFlags';
 import { mountEnvBadge } from '../core/envBadge';
-import { allFlags, flag, setFlagOverride } from '../core/flags';
+import { allFlags, enableFlagOverrides, flag, setFlagOverride } from '../core/flags';
+import { adminUnlocked, clearSignInHint, readSignInHint, writeSignInHint } from '../core/signInHint';
 import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
@@ -391,15 +392,19 @@ interface RoundState {
   challenge?: AsyncChallengeDef | null;
 }
 
+// V2 content expansion (redhollow/wildvalley) loads when the newCourses flag is
+// on (dev) OR when a signed-in admin has unlocked them on this device — the
+// latter is how the two courses become playable in PRODUCTION for the admin
+// account only. Everyone else in prod gets `false` here, so the courses stay out
+// of COURSES (and every course-entry path, which all key on COURSES membership),
+// surfacing only as non-playable "Coming soon" teasers.
+const loadNewCourses = flag('newCourses') || adminUnlocked();
 const COURSES: Record<string, CourseData> = {
   wildwood: loadCourse(wildwood as unknown as CourseAuthoring),
   sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
   timberline: loadCourse(timberline as unknown as CourseAuthoring),
   portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring),
-  // V2 content expansion (newCourses flag, dev-on/prod-off): absent from the
-  // roster with the flag off, so every downstream surface (wizard, Play Next
-  // rotation, records fallbacks) sees the original four courses untouched.
-  ...(flag('newCourses')
+  ...(loadNewCourses
     ? {
         redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
         wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring)
@@ -5158,42 +5163,6 @@ function persistProfile(): void {
   if (signedIn) saveProfile(profile);
 }
 
-/**
- * Adopt the signed-in player's cloud account as the live profile. On the first
- * sign-in this device, fold any pre-existing local progress up first (grow-only
- * merge, nothing lost), then pull+merge+push the cloud copy.
- */
-/** "This device was signed in" hint — lets a reload render the CACHED account
- *  copy instantly (weak-connection fix) while the real auth check + cloud sync
- *  reconcile in the background. Written after a successful adopt, cleared on
- *  sign-out; carries the display name so the Profile button labels correctly
- *  before Firebase's SDK chunks have even downloaded. */
-const SIGNIN_HINT_KEY = 'bsg-signed-in-hint-v1';
-function readSignInHint(): { uid: string; name: string } | null {
-  try {
-    const raw = localStorage.getItem(SIGNIN_HINT_KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw) as { uid?: unknown; name?: unknown };
-    return typeof v.uid === 'string' && v.uid ? { uid: v.uid, name: typeof v.name === 'string' ? v.name : '' } : null;
-  } catch {
-    return null;
-  }
-}
-function writeSignInHint(uid: string, name: string): void {
-  try {
-    localStorage.setItem(SIGNIN_HINT_KEY, JSON.stringify({ uid, name }));
-  } catch {
-    /* hint is best-effort */
-  }
-}
-function clearSignInHint(): void {
-  try {
-    localStorage.removeItem(SIGNIN_HINT_KEY);
-  } catch {
-    /* best-effort */
-  }
-}
-
 /** Bring the CACHED account copy live locally (no network): merge the local
  *  legacy/cache, enable persistence, and refresh every profile-driven surface.
  *  Shared by the real adoption and the optimistic hint boot path. */
@@ -5208,6 +5177,11 @@ function adoptLocalCache(): void {
   refreshLandingCards();
 }
 
+/**
+ * Adopt the signed-in player's cloud account as the live profile. On the first
+ * sign-in this device, fold any pre-existing local progress up first (grow-only
+ * merge, nothing lost), then pull+merge+push the cloud copy.
+ */
 async function adoptCloudAccount(): Promise<void> {
   adoptLocalCache();
   // The cloud phase is capped: on a bad connection the RTDB get() can hang for
@@ -5230,10 +5204,37 @@ async function adoptCloudAccount(): Promise<void> {
   analytics.setUid(profile.id);
   analytics.track('identity_linked');
   void linkedAccountName().then((name) => {
-    writeSignInHint(profile.id, name ?? '');
     updateLandingProfileButton(name ?? undefined);
+    // Confirm admin (async — the email only resolves once the Firebase SDK +
+    // auth have restored) and persist it into the sign-in hint. The hint's
+    // `admin` flag is the SYNCHRONOUS signal `adminUnlocked()` reads at the next
+    // module-load to include the expansion courses in COURSES (admin-only play
+    // in production). Also widen the flag-override channel for the live game so
+    // an admin can toggle flags in prod (the game page never did this before).
+    void confirmAdminUnlock(name ?? '');
   });
   refreshEntitlements(); // deliver purchases made while away / on other devices
+}
+
+/** Resolve admin status for the signed-in account and reflect it on this device:
+ *  stamp the sign-in hint's `admin` flag (so a later load unlocks the expansion
+ *  courses synchronously), enable admin flag overrides for this session, and — on
+ *  the first unlock in a session where the courses are not yet loaded (prod) —
+ *  reload ONCE so the module-level COURSES const rebuilds with them. The
+ *  "already loaded" guard (`COURSES.redhollow`) makes the reload fire at most
+ *  once and never for a normal player or in dev. */
+async function confirmAdminUnlock(name: string): Promise<void> {
+  const email = await cloudEmail();
+  const isAdmin = isAdminEmail(email);
+  writeSignInHint(profile.id, name, isAdmin);
+  enableFlagOverrides(isAdmin);
+  // Reload only when the marker actually persisted (`adminUnlocked()` re-reads
+  // localStorage): if storage is blocked the write is a no-op, and reloading
+  // would loop forever without ever unlocking. `!COURSES.redhollow` keeps this
+  // to the first unlock in a session (never in dev, never for a normal player).
+  if (isAdmin && !COURSES.redhollow && adminUnlocked()) {
+    window.location.reload();
+  }
 }
 type CloudSaveResultLike = { profile: PlayerProfile; status: CloudSaveStatus };
 

@@ -389,6 +389,20 @@ and the terrain tests **concurrently**. Practices that kept it sane:
   so the click handler never binds them (non-selectable). Dev (newCourses on)
   shows them playable as before. **There is no per-environment course version** —
   prod is insulated only because it never loads the evolving JSON.
+- **Admin-only play in prod.** The two courses are also loaded into `COURSES`
+  when a signed-in ADMIN is present on the device, so the admin can PLAY them in
+  production while everyone else keeps the coming-soon teasers. The gate stays
+  the single `COURSES` membership choke point (no entry-path changes): the spread
+  condition is `flag('newCourses') || adminUnlocked()`. `adminUnlocked()`
+  (`src/core/signInHint.ts`) reads a synchronous `admin` flag stamped into the
+  sign-in hint (`bsg-signed-in-hint-v1`) — admin status itself is async
+  (email allowlist via `cloudEmail()`), so after sign-in `confirmAdminUnlock()`
+  persists the flag, calls `enableFlagOverrides(true)`, and reloads once (guarded
+  by `!COURSES.redhollow` + a re-read of the marker → fires at most once, never
+  in dev, never for a normal player, never loops on blocked storage). Sign-out
+  clears the hint → the courses revert to coming-soon. It's a UX gate, not a
+  security boundary (real protection is the Firebase rules); the admin plays the
+  FROZEN prod-deploy snapshot while dev keeps iterating.
 - **Promoted flags.** `delight, juice, atmosphere, audio, personality, layouts`
   are now `prod:true` (shipped). `devTools`, `newCourses`, `boundedWorld` stay
   dev-only. (Visual CI runs in dev where these were already on, so no baseline
