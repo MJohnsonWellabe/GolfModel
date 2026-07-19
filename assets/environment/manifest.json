@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "library": "bite-sized-golf-environment",
+  "branch": "assets/wild-valley-red-hollow",
+  "rules": {
+    "preferredFormat": "glb",
+    "preferredTextureFormat": "webp",
+    "heroTriangleTarget": 20000,
+    "scatterTriangleTarget": 2000,
+    "preferredScatterTriangleTarget": 500,
+    "requireLicenseFile": true,
+    "requireSourceUrl": true,
+    "requireModificationLog": true,
+    "requireBabylonValidation": true
+  },
+  "assets": [],
+  "plannedSlots": [
+    {
+      "id": "redhollow_cliff_face_a",
+      "course": "redhollow",
+      "category": "cliff",
+      "priority": 1,
+      "purpose": "Vertical face beneath a playable mesa shelf",
+      "status": "source-candidate"
+    },
+    {
+      "id": "redhollow_hero_butte_a",
+      "course": "redhollow",
+      "category": "hero-rock",
+      "priority": 1,
+      "purpose": "Unique hole skyline and midground silhouette",
+      "status": "source-candidate"
+    },
+    {
+      "id": "redhollow_wash_rock_cluster_a",
+      "course": "redhollow",
+      "category": "wash-rocks",
+      "priority": 1,
+      "purpose": "Rocky dry creek crossing with instanced stones",
+      "status": "source-candidate"
+    },
+    {
+      "id": "redhollow_mesa_shelf_a",
+      "course": "redhollow",
+      "category": "mesa",
+      "priority": 2,
+      "purpose": "Visual sidewall and rock shoulder around HeightField shelf",
+      "status": "original-or-derived"
+    },
+    {
+      "id": "wildvalley_fescue_dense_a",
+      "course": "wildvalley",
+      "category": "grass",
+      "priority": 1,
+      "purpose": "Dense golden native rough with low overdraw",
+      "status": "existing-asset-audit"
+    },
+    {
+      "id": "wildvalley_fescue_dense_b",
+      "course": "wildvalley",
+      "category": "grass",
+      "priority": 1,
+      "purpose": "Second silhouette/color variation for native rough",
+      "status": "existing-asset-audit"
+    },
+    {
+      "id": "wildvalley_blowout_lip_a",
+      "course": "wildvalley",
+      "category": "bunker-lip",
+      "priority": 2,
+      "purpose": "Optional irregular exposed lip dressing over terrain-carved blowout",
+      "status": "original-preferred"
+    }
+  ]
+}
