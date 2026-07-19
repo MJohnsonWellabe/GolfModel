@@ -99,7 +99,7 @@ readability
   sparse insect clicks.
 - **Light/time assumption:** hard midday desert light, warm dust haze.
 
-### Wild Valley — "the sand hills" (expansion, `newCourses` flag)
+### Wild Prairie — "the sand hills" (expansion, `newCourses` flag)
 
 - **Visual motif:** bright rolling golden fescue (sunlit straw-gold cards,
   pre-graded in the glbs) — dense, TREELESS open sand hills under wispy

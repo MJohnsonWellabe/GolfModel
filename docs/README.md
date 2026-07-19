@@ -100,7 +100,7 @@ Implementation records (evidence, not governing guidance):
 
 Proposals awaiting approval (not building yet):
 
-- `24_CONTENT_EXPANSION_PROPOSAL.md` (V2 Prompt 17 — Red Hollow + Wild Valley + alternate layouts)
+- `24_CONTENT_EXPANSION_PROPOSAL.md` (V2 Prompt 17 — Red Hollow + Wild Prairie + alternate layouts)
 
 Everything else from the old numbered set now lives under `archive/`
 (superseded-design, release-plans, implementation-history) with retirement

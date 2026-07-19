@@ -5,6 +5,7 @@ import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { buildHeightField, HeightField } from '../../src/systems/HeightField';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
+import { pointInGreens } from '../../src/utils/Geometry';
 import { HoleData } from '../../src/core/types';
 
 /**
@@ -44,11 +45,11 @@ function polyCentroid(poly: Array<[number, number]>): [number, number] {
 
 describe('Red Hollow terrain identity', () => {
   it('h1 Rimrock: ONE continuous sidehill shelf — drop left, kickback terrace right', () => {
-    // Pass 5 routing: the fairway wraps LEFT around the hillside
-    // (centerline ~x382 at y690) before cutting back to the green shelf.
+    // Pass 6 routing: the fairway wraps hard LEFT around the hillside
+    // (centerline ~x368 at y690) before cutting back to the green shelf.
     const { hole, hf } = field(redhollow, 0);
     const teeH = hf.heightAt(hole.tee.x, hole.tee.y);
-    const midH = hf.heightAt(382, 690);
+    const midH = hf.heightAt(368, 690);
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
     // Continuous shelf: tee, mid-fairway and green share one level (±3).
     expect(Math.abs(teeH - midH)).toBeLessThanOrEqual(3);
@@ -72,15 +73,17 @@ describe('Red Hollow terrain identity', () => {
     const engine = new PhysicsEngine(hole, hf, () => 0.5);
     const oob = (x: number, y: number) =>
       (engine as unknown as { inOutOfBounds(x: number, y: number): boolean }).inOutOfBounds(x, y);
-    // The whole canyon floor is gone — no recovery from down there.
-    for (const [x, y] of [[200, 1000], [180, 800], [200, 650], [280, 450], [100, 500]]) {
-      expect(oob(x, y), `floor ${x},${y}`).toBe(true);
+    // The whole canyon floor is gone — no recovery from down there — and
+    // (pass 6) the boundary starts AT the shelf edge: the cliff FACE is
+    // already out of bounds, not just the floor beneath it.
+    for (const [x, y] of [[200, 1000], [180, 800], [200, 650], [280, 450], [100, 500], [290, 820], [310, 690]]) {
+      expect(oob(x, y), `beyond shelf edge ${x},${y}`).toBe(true);
     }
     // Tee, green, targets and the fairway's left edge all stay in bounds.
     expect(oob(hole.tee.x, hole.tee.y)).toBe(false);
     expect(oob(hole.green.cx, hole.green.cy)).toBe(false);
     for (const t of hole.aiTargets) expect(oob(t.x, t.y), `target ${t.x},${t.y}`).toBe(false);
-    for (const [x, y] of [[301, 1100], [305, 820], [337, 690], [382, 580]]) {
+    for (const [x, y] of [[301, 1100], [305, 820], [333, 690], [374, 580]]) {
       expect(oob(x, y), `fairway edge ${x},${y}`).toBe(false);
     }
   });
@@ -113,7 +116,22 @@ describe('Red Hollow terrain identity', () => {
     const canyonH = hf.heightAt(450, 655); // kitchen floor between the mesas
     expect(greenH - canyonH).toBeGreaterThanOrEqual(22); // mesa over canyon
     expect(teeH - canyonH).toBeGreaterThanOrEqual(24); // highest tee
-    expect(teeH).toBeGreaterThan(greenH); // tee is the top of the course
+    // PASS 6: the tee is NOTABLY above the green — a real downhill carry
+    // (read by the HUD elevation delta), not a near-level one.
+    expect(teeH - greenH).toBeGreaterThanOrEqual(8);
+  });
+
+  it('h2: the green is distinctly two-tiered with a smooth puttable ramp', () => {
+    const { hole, hf } = field(redhollow, 1);
+    const back = hf.heightAt(hole.green.cx, 400); // upper (back) tier
+    const front = hf.heightAt(hole.green.cx, 462); // lower (front) tier
+    expect(back - front).toBeGreaterThanOrEqual(1.8);
+    // The ramp between tiers is broad — no step exceeds the putt gate
+    // (the global green-puttability test also walks this surface).
+    for (let y = 396; y <= 460; y += 8) {
+      const step = Math.abs(hf.heightAt(hole.green.cx, y) - hf.heightAt(hole.green.cx, y + 8));
+      expect(step, `tier ramp at y=${y}`).toBeLessThanOrEqual(1.2);
+    }
   });
 
   it('h2: the green mesa face is genuinely steep (cliff, not a ramp)', () => {
@@ -132,16 +150,16 @@ describe('Red Hollow terrain identity', () => {
     expect(authoredRibbons(redhollowJson, 1).length).toBe(0);
   });
 
-  it('h2: the greenside pots are DEEP erosion bowls (pass 5 depthMul)', () => {
+  it('h2: the greenside craters are genuinely DEEP erosion pits (pass 6)', () => {
     const { hole, hf } = field(redhollow, 1);
     const pots = hole.hazards.filter((hz) => hz.type === 'bunker' && !hz.waste);
     expect(pots.length).toBe(2);
     for (const hz of pots) {
-      expect(hz.depthMul ?? 1, 'erosion bowls carry a depth multiplier').toBeGreaterThanOrEqual(2);
+      expect(hz.depthMul ?? 1, 'erosion craters carry a depth multiplier').toBeGreaterThanOrEqual(3);
       const [cx, cy] = polyCentroid(hz.polygon as Array<[number, number]>);
       let rim = -Infinity;
       for (const [px, py] of hz.polygon as Array<[number, number]>) rim = Math.max(rim, hf.heightAt(px, py));
-      expect(rim - hf.heightAt(cx, cy), `pot ${Math.round(cx)},${Math.round(cy)}`).toBeGreaterThanOrEqual(3.5);
+      expect(rim - hf.heightAt(cx, cy), `crater ${Math.round(cx)},${Math.round(cy)}`).toBeGreaterThanOrEqual(5);
     }
   });
 
@@ -171,19 +189,40 @@ describe('Red Hollow terrain identity', () => {
     // The carry gaps between islands are canyon, below island level.
     expect(islands[0] - hf.heightAt(590, 1040)).toBeGreaterThanOrEqual(3);
     expect(islands[1] - hf.heightAt(430, 790)).toBeGreaterThanOrEqual(3);
-    // Green sits BELOW the islands (inside terrain, not on a pedestal)...
+    // PASS 6: the green sits at the bottom of a CRATER BOWL a full step
+    // below the islands — the same vertical as the tee→island drop.
     const greenH = hf.heightAt(hole.green.cx, hole.green.cy);
-    expect(greenH).toBeLessThan(Math.min(...islands));
-    // ...in a bowl: rising ground behind/left/right, OPEN at the front.
-    // PASS 5: the horseshoe is RAISED — misses left/long/right hit real
-    // walls and funnel back to collection areas; the front door stays open.
-    expect(hf.heightAt(200, 380) - greenH).toBeGreaterThanOrEqual(8); // left wall
-    expect(hf.heightAt(300, 210) - greenH).toBeGreaterThanOrEqual(6); // back wall
-    expect(hf.heightAt(440, 300) - greenH).toBeGreaterThanOrEqual(8); // right wall
-    expect(hf.heightAt(400, 470) - greenH).toBeLessThanOrEqual(2); // open front
+    expect(Math.min(...islands) - greenH).toBeGreaterThanOrEqual(12);
+    // Cliff-like horseshoe: high ground left/back/right, the crater's own
+    // rim ramp the only way in at the front-right.
+    expect(hf.heightAt(210, 480) - greenH).toBeGreaterThanOrEqual(8); // left wall
+    expect(hf.heightAt(280, 375) - greenH).toBeGreaterThanOrEqual(6); // back wall
+    expect(hf.heightAt(400, 420) - greenH).toBeGreaterThanOrEqual(8); // right wall
+    expect(hf.heightAt(370, 535) - greenH).toBeLessThanOrEqual(4); // open front ramp
     // The wall shoulders tower over the putting surface.
-    expect(hf.heightAt(185, 385) - greenH).toBeGreaterThanOrEqual(15);
-    expect(hf.heightAt(450, 290) - greenH).toBeGreaterThanOrEqual(12);
+    expect(hf.heightAt(172, 500) - greenH).toBeGreaterThanOrEqual(15);
+    expect(hf.heightAt(435, 395) - greenH).toBeGreaterThanOrEqual(15);
+  });
+
+  it('h3: the final shot turns ~45° left off the last island and steps down', () => {
+    const { hole, hf } = field(redhollow, 2);
+    const ribbons = authoredRibbons(redhollowJson, 2);
+    const cl = ribbons[2].centerline;
+    const [a, b] = [cl[0], cl[cl.length - 1]];
+    const axis = [b[0] - a[0], b[1] - a[1]];
+    const approach = [hole.green.cx - b[0], hole.green.cy - b[1]];
+    const dot = axis[0] * approach[0] + axis[1] * approach[1];
+    const deg =
+      (Math.acos(dot / (Math.hypot(axis[0], axis[1]) * Math.hypot(approach[0], approach[1]))) * 180) / Math.PI;
+    // "approximately 45 degrees left"
+    expect(deg).toBeGreaterThanOrEqual(30);
+    expect(deg).toBeLessThanOrEqual(60);
+    // Left, specifically: in y-down screen coords "left of travel" means a
+    // negative cross product (facing north (0,-1), west (-1,0) gives -1).
+    expect(axis[0] * approach[1] - axis[1] * approach[0]).toBeLessThan(0);
+    // The descent is real terrain, comparable to the tee→island step.
+    const islandH = hf.heightAt((a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    expect(islandH - hf.heightAt(hole.green.cx, hole.green.cy)).toBeGreaterThanOrEqual(12);
   });
 
   it('no water hazards anywhere on the course', () => {
@@ -193,7 +232,7 @@ describe('Red Hollow terrain identity', () => {
   });
 });
 
-describe('Wild Valley terrain identity', () => {
+describe('Wild Prairie terrain identity', () => {
   it('every hole rolls: ridge-to-valley amplitude in the sandhills band', () => {
     for (let i = 0; i < 3; i++) {
       const { hole, hf } = field(wildvalley, i);
@@ -240,6 +279,123 @@ describe('Wild Valley terrain identity', () => {
         const nearest = Math.min(...anchors.map((a) => Math.hypot(a.x - cx, a.y - cy)));
         expect(nearest, `h${hole.number} bunker at ${Math.round(cx)},${Math.round(cy)}`).toBeLessThanOrEqual(230);
       }
+    }
+  });
+
+  it('the course is named Wild Prairie (id stays wildvalley for saves)', () => {
+    expect((wildvalleyJson as { name: string }).name).toBe('Wild Prairie');
+  });
+
+  it('the orange shrub card is gone; golden prairie grass carries the rough', () => {
+    const theme = (wildvalleyJson as { theme: Record<string, unknown> }).theme;
+    const heather = theme.heatherKeys as string[];
+    expect(heather).not.toContain('heather_fescue_c'); // the woody orange bush
+    expect(heather.length).toBeGreaterThanOrEqual(2); // both golden grass cards
+    expect(theme.bushKeys).toEqual([]);
+    expect(theme.prairieClusters).toBe(true); // dense clustered native rough
+    expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(28);
+    expect(theme.bunkerLipPacked).toBe(true); // grass-lined blowout lips
+  });
+
+  it('h1: the split bunker sits in the DRIVER landing zone with real lanes both sides', () => {
+    // Monte Carlo (60 seeded drives, 85-stat golfer): rests y 534-653.
+    const hole = wildvalley.holes[0];
+    const split = hole.hazards.find((hz) => hz.type === 'bunker' && !hz.waste)!;
+    const poly = split.polygon as Array<[number, number]>;
+    const [, cy] = polyCentroid(poly);
+    expect(cy).toBeGreaterThanOrEqual(530);
+    expect(cy).toBeLessThanOrEqual(660);
+    const spanAt = (p: Array<[number, number]>, y: number) => {
+      const xs: number[] = [];
+      for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+        const [xi, yi] = p[i];
+        const [xj, yj] = p[j];
+        if (yi > y !== yj > y) xs.push(xi + ((xj - xi) * (y - yi)) / (yj - yi));
+      }
+      xs.sort((m, n) => m - n);
+      return xs;
+    };
+    const b = spanAt(poly, cy);
+    const f = spanAt(hole.fairway[0] as Array<[number, number]>, cy);
+    // ≥19yd of bunker, ≥19yd of legitimate fairway on EACH side (38px = 19yd).
+    expect(b[b.length - 1] - b[0], 'central bunker width').toBeGreaterThanOrEqual(38);
+    expect(b[0] - f[0], 'left lane').toBeGreaterThanOrEqual(38);
+    expect(f[f.length - 1] - b[b.length - 1], 'right lane').toBeGreaterThanOrEqual(38);
+  });
+
+  it('h1: the fairway itself rolls (no smooth ramp)', () => {
+    const { hf } = field(wildvalley, 0);
+    const cl = authoredRibbons(wildvalleyJson, 0)[0].centerline;
+    let min = Infinity;
+    let max = -Infinity;
+    for (let i = 1; i < cl.length; i++) {
+      const [x0, y0] = cl[i - 1];
+      const [x1, y1] = cl[i];
+      const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0) / 8);
+      for (let s = 0; s <= n; s++) {
+        const h = hf.heightAt(x0 + ((x1 - x0) * s) / n, y0 + ((y1 - y0) * s) / n);
+        min = Math.min(min, h);
+        max = Math.max(max, h);
+      }
+    }
+    expect(max - min, 'centerline relief').toBeGreaterThanOrEqual(4);
+  });
+
+  it('h2: pins favor the back-right and all sit on puttable green', () => {
+    const { hole, hf } = field(wildvalley, 1);
+    const pins = hole.pins ?? [];
+    expect(pins.length).toBeGreaterThanOrEqual(3);
+    // The DEFAULT pin is back-right of the green center (screen: +x, -y).
+    expect(hole.pin.x - hole.green.cx).toBeGreaterThanOrEqual(60);
+    expect(hole.pin.y - hole.green.cy).toBeLessThanOrEqual(-50);
+    const gH = hf.heightAt(hole.green.cx, hole.green.cy);
+    for (const p of pins) {
+      expect(pointInGreens(p.x, p.y, hole.green, hole.green2), `pin ${p.x},${p.y} on green`).toBe(true);
+      expect(Math.abs(hf.heightAt(p.x, p.y) - gH), `pin ${p.x},${p.y} puttable`).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('h2: every bunker overlaps realistic approach dispersion around the green', () => {
+    const hole = wildvalley.holes[1];
+    for (const hz of hole.hazards) {
+      if (hz.type !== 'bunker') continue;
+      const [cx, cy] = polyCentroid(hz.polygon as Array<[number, number]>);
+      const d = Math.hypot(cx - hole.green.cx, cy - hole.green.cy);
+      expect(d, `h2 bunker at ${Math.round(cx)},${Math.round(cy)}`).toBeLessThanOrEqual(200);
+    }
+  });
+
+  it('h1+h3: flank blowouts touch the fairway (no dead band of rough)', () => {
+    // The audited edge bunkers must press against the fairway edge:
+    // raw-polygon to compiled-fairway distance ≤ 18px (≈9yd, closed
+    // visually by edge wobble + packed grass lips).
+    const segDist = (px: number, py: number, ax: number, ay: number, bx: number, by: number) => {
+      const dx = bx - ax;
+      const dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+      return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
+    };
+    const checks: Array<[number, number]> = [
+      [0, 1], // h1 right flank blowout
+      [0, 2], // h1 left flank blowout
+      [0, 3], // h1 short blowout
+      [2, 0], // h3 LZ1 bailout blowout
+      [2, 2], // h3 hero blowout (front bowl)
+      [2, 3] // h3 hero blowout (lower bowl)
+    ];
+    for (const [hi, bi] of checks) {
+      const hole = wildvalley.holes[hi];
+      const raw = (wildvalleyJson as unknown as { holes: Array<{ hazards: Array<{ polygon: Array<[number, number]> }> }> })
+        .holes[hi].hazards[bi].polygon;
+      let best = Infinity;
+      for (const fw of hole.fairway as Array<Array<[number, number]>>) {
+        for (const [px, py] of raw) {
+          for (let i = 0, j = fw.length - 1; i < fw.length; j = i++) {
+            best = Math.min(best, segDist(px, py, fw[i][0], fw[i][1], fw[j][0], fw[j][1]));
+          }
+        }
+      }
+      expect(best, `h${hi + 1} bunker#${bi} gap to fairway`).toBeLessThanOrEqual(18);
     }
   });
 

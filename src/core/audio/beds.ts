@@ -37,7 +37,7 @@ export const BED_PARAMS = {
   // Red Hollow: hot dry wind (higher band than alpine, slower gusts) with
   // sparse insect clicks instead of birdsong.
   desert: { bandHz: 1100, bandQ: 0.6, gustHz: 0.035, gustDepth: 0.55, base: 0.26, clickGapS: [6, 14], clickGain: 0.06 },
-  // Wild Valley: soft prairie wind under sparse meadow chirps — between
+  // Wild Prairie: soft prairie wind under sparse meadow chirps — between
   // the alpine gusts and the forest's chatter.
   prairie: { bandHz: 850, bandQ: 0.65, gustHz: 0.06, gustDepth: 0.5, base: 0.24, chirpGapS: [7, 14], chirpGain: 0.08 }
 } as const;

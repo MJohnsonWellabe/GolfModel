@@ -62,7 +62,7 @@ const COURSE_NAMES: Record<string, string> = {
   // Expansion courses (newCourses flag): named here so previews/audit rows
   // render them properly if/when they join WEEKLY_ROTATION at release.
   redhollow: 'Red Hollow',
-  wildvalley: 'Wild Valley'
+  wildvalley: 'Wild Prairie'
 };
 
 export async function renderLiveOps(app: HTMLElement, onBack: () => void): Promise<void> {

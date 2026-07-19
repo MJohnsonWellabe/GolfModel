@@ -257,3 +257,60 @@ Per hole:
 Gates: 18 terrain tests (new: h1 OB region + drop-point behavior, h2
 erosion-bowl depth ≥3.5 + back drop-off, h3 raised-wall heights),
 114 sim, 696 fast — all green; loader lint clean; production build green.
+
+## 9. Pass 6 — Wild Prairie rename + strategy pass; Red Hollow corrections (2026-07-19)
+
+**Wild Valley is now WILD PRAIRIE** (course id stays `wildvalley` everywhere —
+files, flags, saves, art paths — only display names, labels, comments and
+test descriptions changed).
+
+Wild Prairie:
+- **Native rough**: `heather_fescue_c` (a woody twiggy shrub card that read
+  as an ORANGE BUSH) removed from the course; the two golden-grass cards
+  carry the rough alone. `prairieClusters: true` (this flag had never
+  actually landed in the generator theme — the clustering system existed
+  but was dormant), tallGrass density 24→30 / cap 8, tuftDensity 3.0.
+- **h1 Blowout**: the split bunker moved from y838 (146yd — mid-iron) into
+  the MEASURED driver landing zone (Monte Carlo, 60 seeded drives, 85-stat
+  golfer: rests y534–653, mean 269yd): a ~25yd-wide deep pot at (472,592)
+  fully inside a 75yd-wide fairway balloon — ~25yd of legitimate lane both
+  sides. Flank blowouts pressed to the zone's edges (0.6–12px gaps), a
+  short blowout right, cross-ridges + saddles restore the rolling valley,
+  and the line bends left–right through the split to the green.
+- **h2 The Kettle**: enclosing walls raised (12.5/14/12.5), authored pins
+  favor the BACK-RIGHT lobe (default pin (492,372)), both pots enlarged to
+  guard the direct line and the bailout, both blowouts pulled onto the
+  approach dispersion (≤200 of the green).
+- **h3 Sandbox**: every bunker re-audited against dispersion (drives
+  x521–560/y956–1057, second shots y450–606): bailout blowout, in-fairway
+  aggressive pot (566,1000), hero complex on the carry line, a decision
+  pot inside LZ2 (722,532), lay-up cross-pots, a front cross-pot and a
+  greenside pot; the S-curve deepened.
+
+Red Hollow:
+- **h1 Rimrock**: OB boundary moved UP from the cliff base to the SHELF
+  EDGE (sampled h<8 contour, ~4px into the fall) — crossing the fairway's
+  left edge now IS crossing into OB; the cliff face itself is out of
+  bounds and the drop point comes from the flight line's boundary
+  crossing. The left rims re-tracked so the shelf terminates at the edge
+  (3–14px). Routing bends harder left (x368 at y690). Right wall raised
+  to h9. Five more rock formations (terrace crests, dogleg, erosion
+  break, green complex).
+- **h2 Devil's Kitchen**: tee mesa raised 27→34 (tee now ~9 above the
+  green — a real downhill carry in the HUD). The two craters are deep
+  erosion pits (depthMul 3.2, enlarged: 5.9 and 10.5 below their rims).
+  TWO-TIER green: back tier +2.2 via a broad plateau ramp (~0.45 step per
+  8px — smooth, no lip). Six more rock formations (mesa base, canyon
+  floor, tee mesa, behind green); corridor kept clear.
+- **h3 Wolf Run**: the green complex REBUILT — green moved to (300,480)
+  inside a sunken crater (−10: a FULL step below the +4 islands, the same
+  vertical as the tee→island drop) and the last island re-axed so the
+  final shot turns ~40° LEFT off the island line. Cliff-like horseshoe:
+  crater rim + stacked wall spines left/back/right (+10 to +40 rel the
+  green), the front-right rim ramp the only way in. Rocks crown the rim.
+
+Gates: 27 terrain tests (new: WP name/vegetation, split-bunker zone +
+lane widths, centerline roll, back-right pins, approach-dispersion
+bunkers, blowout-touch, RH h2 tee delta + two tiers + crater depth,
+RH h3 45° turn + step-down + crater bowl), 114 sim, 17 scoring sims,
+705 fast — all green; loader lint clean; production build green.

@@ -127,7 +127,7 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
     // dozens of materials, which still trips every one of these gates.
     // PROPORTIONAL band (was a fixed 64): seeded pin/tee layouts shift the
     // planting keep-out radii between cycles, and that variance scales with
-    // total instance count — Wild Valley's terrain-pass prairie (~19k
+    // total instance count — Wild Prairie's terrain-pass prairie (~19k
     // instances) legitimately oscillates ~±90 without any retention. 1% of
     // the course's own count keeps the gate meaningful at every density: a
     // genuinely retained scene re-adds its full planting (thousands).

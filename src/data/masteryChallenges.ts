@@ -128,7 +128,7 @@ export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
     S('Wolf Eagle', 'Eagle the par 5', eagle)
   ]),
 
-  // ---- Wild Valley (sand hills; golden fescue; huge blowouts) ----
+  // ---- Wild Prairie (sand hills; golden fescue; huge blowouts) ----
   ladder('wildvalley', 1, [
     S('Thread the Blowout', 'Hit the fairway and make par', (h) => fir(h) && par(h)),
     S('Barrens Birdie', 'Birdie the hole', birdie),

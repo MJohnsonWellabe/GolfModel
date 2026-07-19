@@ -203,7 +203,7 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
     const cy = ys.reduce((a, b) => a + b, 0) / ys.length;
     const r = Math.max(...hz.polygon.map((p) => Math.hypot(p[0] - cx, p[1] - cy)));
     if (hz.waste && !hz.beach && wasteDepthScale > 0) {
-      // Waste blowout dish (theme.wasteDepthScale — Wild Valley): a rounded
+      // Waste blowout dish (theme.wasteDepthScale — Wild Prairie): a rounded
       // dome dish like an ordinary bunker's, deepest at the center. Only for
       // COMPACT polygons — the dish is a circle at the centroid, so a long
       // winding wash (max/mean radius ratio ≫ 1) would crater terrain far

@@ -87,12 +87,12 @@ describe('new course playability', () => {
     expect(mean, `Red Hollow mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 35000);
 
-  it('Wild Valley plays to a sane average and every hole finishes', () => {
+  it('Wild Prairie plays to a sane average and every hole finishes', () => {
     // Wide Sand Valley fairways, punishing blowouts: generous off the tee,
     // honest around the greens. The gate catches an unescapable blowout.
     const { mean, unfinished } = meanToPar(wildvalley as unknown as CourseAuthoring);
     expect(unfinished, `unfinished holes ${unfinished}`).toBeLessThanOrEqual(UNFINISHED_TOLERANCE);
-    expect(mean, `Wild Valley mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
-    expect(mean, `Wild Valley mean ${mean.toFixed(2)}`).toBeLessThan(8);
+    expect(mean, `Wild Prairie mean ${mean.toFixed(2)}`).toBeGreaterThan(-3);
+    expect(mean, `Wild Prairie mean ${mean.toFixed(2)}`).toBeLessThan(8);
   }, 35000);
 });

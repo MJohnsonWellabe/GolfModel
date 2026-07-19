@@ -1988,7 +1988,7 @@ export function buildCourse(
       // fall back to the theme grass cards mixed with 3D tussock clumps.
       const heatherSet = pick(theme.heatherKeys ?? []);
       const clump3d = pick(['fern_kenney', 'bush_kenney_b']);
-      // PRAIRIE CLUSTERING (theme.prairieClusters — Wild Valley pass 2):
+      // PRAIRIE CLUSTERING (theme.prairieClusters — Wild Prairie pass 2):
       // smooth value noise over ~170px cells modulates the field density —
       // big continuous dense patches, natural sparse transitions, no even
       // grid. Where the noise peaks, a second offset tuft doubles the core
@@ -2472,7 +2472,7 @@ export function buildCourse(
             place(pool, jx, jy, 2.8 + hash2(jx + j, jy - j) * 3.4); // 2.8-6.2: taller, bushier wall
           }
         }
-        // PACKED lip (theme.bunkerLipPacked — Wild Valley): beyond the
+        // PACKED lip (theme.bunkerLipPacked — Wild Prairie): beyond the
         // mounded clumps above, walk EVERY bunker's full perimeter and pack
         // fescue tightly along the sand line ("the edges of every bunker
         // should be absolutely lined with that bright gold grass — not

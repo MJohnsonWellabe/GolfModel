@@ -120,17 +120,17 @@ export interface CourseTheme {
    *  Multiplier on DISH_DEPTH, same physics/mesh sharing as
    *  bunkerDepthScale. Only reasonably COMPACT waste polygons dig — a long
    *  winding wash (a dry creek) stays flat, since the dish is a centroid
-   *  dome and would crater far outside an elongated shape. Wild Valley uses
+   *  dome and would crater far outside an elongated shape. Wild Prairie uses
    *  this so its blowouts are genuinely deep bowls, deepest at the center. */
   wasteDepthScale?: number;
-  /** Prairie clustering (Wild Valley pass 2): tall-grass field density is
+  /** Prairie clustering (Wild Prairie pass 2): tall-grass field density is
    *  modulated by smooth value noise — large continuous dense patches with
    *  natural sparse transitions instead of an even grid — and native grass
    *  FINGERS intrude into the fairway's cut line where the noise peaks. */
   prairieClusters?: boolean;
   /** Pack fescue tightly along EVERY bunker's full perimeter (in addition to
    *  the bunkerLipFescue clumps): ~72% of ~7-unit steps plant a tuft
-   *  straddling the sand line. Wild Valley's "edges absolutely lined with
+   *  straddling the sand line. Wild Prairie's "edges absolutely lined with
    *  bright gold grass" look. Requires heatherKeys; cosmetic only. */
   bunkerLipPacked?: boolean;
   /** Keep bunker-lip fescue OFF the fairway surface — it only lands on rough
