@@ -209,17 +209,21 @@ const redhollow = {
         { x: 106, y: 900, x2: 148, y2: 640, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
         { x: 148, y: 640, x2: 225, y2: 440, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
         { x: 225, y: 440, x2: 290, y2: 270, h: -24, r: 185, shape: 'plateau', skirt: 0.76 },
-        // RIGHT: THE SHEER WALL (pass 7) — h10, skirt 0.80: the face
-        // compresses to a ~38px band whose slope exceeds the rolling creep
-        // threshold everywhere, so nothing rests on it; a rock-textured
-        // cliff strip (hole.cliffWalls) is extruded along this toe for the
-        // near-vertical read the 8px grid can't express. The middle spine
-        // steps right through the drive zone to hold the widened split.
-        { x: 590, y: 1150, x2: 578, y2: 900, h: 10, r: 190, shape: 'plateau', skirt: 0.8 },
-        { x: 592, y: 900, x2: 622, y2: 640, h: 10, r: 190, shape: 'plateau', skirt: 0.8 },
+        // RIGHT: THE SHEER WALL (pass 8) — the LEFT cliff's scale, inverted:
+        // the left edge falls 24-38 units into the canyon, so the right
+        // edge now RISES 26 in the same ~38px band (skirt 0.80) — a wall of
+        // red rock mountainside directly beside the fairway, merging into
+        // the h28 great wall behind it. Nothing rests on the face (slope
+        // beats the creep threshold everywhere); the rock-textured cliff
+        // strip (hole.cliffWalls, inset 30) carries the near-vertical face
+        // the 8px grid can't express. The middle spine steps right through
+        // the drive zone to hold the widened split.
+        { x: 590, y: 1150, x2: 578, y2: 900, h: 26, r: 190, shape: 'plateau', skirt: 0.8 },
+        { x: 592, y: 900, x2: 622, y2: 640, h: 26, r: 190, shape: 'plateau', skirt: 0.8 },
         // Final wall segment tapers as it nears the green complex (r170,
-        // endpoint pulled NE) so the terrace skirt never crosses the putt.
-        { x: 630, y: 640, x2: 736, y2: 470, h: 10, r: 170, shape: 'plateau', skirt: 0.8 },
+        // endpoint pulled NE, height stepping down) so the terrace skirt
+        // never crosses the putt.
+        { x: 630, y: 640, x2: 736, y2: 470, h: 20, r: 170, shape: 'plateau', skirt: 0.8 },
         // The great wall rises from the terrace (pass-3 identity).
         { x: 855, y: 1240, x2: 855, y2: 140, h: 28, r: 200, shape: 'plateau', skirt: 0.86 },
         { x: 620, y: 60, x2: 950, y2: 80, h: 24, r: 170, shape: 'plateau', skirt: 0.85 },
@@ -247,8 +251,20 @@ const redhollow = {
         { key: 'rocks_red_dark', x: 344, y: 298, h: 7 },
         // Drive landing zone frames (tee camera).
         { key: 'rocks_red_mid', x: 448, y: 852, h: 7 },
-        { key: 'rocks_red_bright', x: 402, y: 858, h: 6 },
-        { key: 'rocks_red_cluster', x: 456, y: 700, h: 11 },
+        { key: 'rocks_red_bright', x: 470, y: 862, h: 6 },
+        { key: 'rocks_red_cluster', x: 474, y: 890, h: 11 },
+        // PASS 8: big formations flanking the fairway — L-band rocks
+        // looming on the new wall's crest right over the playing corridor,
+        // and mid/small masses in the left-rim pockets between the fairway
+        // edge and the OB brink where the ground can hold them.
+        { key: 'rocks_red_bright', x: 468, y: 1046, h: 16 },
+        { key: 'rocks_red_mid', x: 462, y: 942, h: 17 },
+        { key: 'rocks_red_cluster', x: 476, y: 806, h: 18 },
+        { key: 'rocks_red_bright', x: 502, y: 646, h: 16 },
+        { key: 'rocks_red_mid', x: 548, y: 540, h: 15 },
+        { key: 'rocks_red_dark', x: 405, y: 505, h: 10 },
+        { key: 'rocks_red_bright', x: 289, y: 1012, h: 7 },
+        { key: 'rocks_red_dark', x: 359, y: 612, h: 5 },
         // Dogleg + approach (approach camera).
         { key: 'rocks_red_cluster', x: 540, y: 640, h: 7 },
         { key: 'rocks_red_mid', x: 396, y: 560, h: 6 },
@@ -262,7 +278,7 @@ const redhollow = {
       // The sheer wall's visible face (see elevation): a rock-textured strip
       // extruded along the toe, tee to green taper.
       cliffWalls: [
-        { points: [[400, 1160], [390, 905], [404, 878], [434, 650], [452, 632], [482, 520], [514, 490]], inset: 10 }
+        { points: [[400, 1160], [390, 905], [395, 878], [434, 650], [442, 600], [482, 520], [514, 490]], inset: 30 }
       ],
     },
     {

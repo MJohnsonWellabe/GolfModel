@@ -398,3 +398,25 @@ RH h3 45° turn + step-down + crater bowl), 114 sim, 17 scoring sims,
 Gates: 87 unit (incl. rockPass physics: square-carom, 50-shot no-tunnel/
 no-trap, glancing, lane-clean, tier putts both directions), 114 sim,
 17 scoring, 720 fast total; loader lint clean; production build green.
+
+## 11. Pass 8 — Rimrock's right wall becomes a true cliff (2026-07-19)
+
+Playtest: "replicate the look of the left cliff on the right, inverse —
+it steps up instead of cliffing up, and it's not high enough."
+
+- The right wall now mirrors the LEFT drop's scale, inverted: h 26 (was
+  10) on the two main spines, h 20 on the green-side taper, same skirt
+  0.80 toe right at the fairway edge. Measured: the face rises 26-48
+  units within 40px of the fairway edge, crest +46 to +62 above the
+  shelf — a wall of red rock mountainside that merges into the h28 great
+  wall behind it (the left drop is 24-38 down; the two edges now match).
+- The rock-textured cliff strip's inset went 10 → 30px, so the visible
+  near-vertical face covers ~26 units of the rise instead of ~8; two toe
+  points re-sampled onto the new toe contour (all 7 at h 10-12.9).
+- Eight new flanking formations: five L-band rocks (h15-18) looming on
+  the wall crest directly over the playing corridor, an M and two S/M in
+  the left-rim pockets between fairway edge and OB brink. All pass the
+  grounding probe (three placements iterated off the steeper face/seam).
+- Gates unchanged and green: the kickback sample now reads 0.466 (was
+  0.176), terrace rise 46.5 (was 14); sims identical (h1 3.80, 0
+  unfinished); 87 unit / 114 sim / 17 scoring / 720 fast; build green.
