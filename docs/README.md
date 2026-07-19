@@ -30,6 +30,8 @@ When documents conflict, use this precedence order:
 - `technical/` — architecture, environments, performance, analytics, and release gates
 - `studio/` — internal authoring and administrative tools
 - `roadmap/` — phased execution plans intended for separate Claude prompts
+- `dev-environment-roadmap/` — the bounded-environment & course-identity
+  direction (owner principles 01–03 + the audit/implementation plan 04)
 - `archive/` — superseded or historical documents retained for reference
 
 ## Documentation status labels
@@ -103,6 +105,9 @@ Implementation records (evidence, not governing guidance):
 Proposals awaiting approval (not building yet):
 
 - `24_CONTENT_EXPANSION_PROPOSAL.md` (V2 Prompt 17 — Red Hollow + Wild Prairie + alternate layouts)
+- `dev-environment-roadmap/04_IMPLEMENTATION_PLAN.md` (bounded course
+  environments, shared course property, course identity pass, Hole Builder —
+  with `02_COURSE_DESIGN_BIBLE.md` expanded as a DRAFT identity register)
 
 Everything else from the old numbered set now lives under `archive/`
 (superseded-design, release-plans, implementation-history) with retirement
