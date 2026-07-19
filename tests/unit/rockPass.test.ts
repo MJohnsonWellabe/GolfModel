@@ -147,6 +147,15 @@ describe('h2 tier putts behave', () => {
   const theme2 = resolveTheme(redhollow);
   const hf2 = buildHeightField(h2, theme2.bunkerDepthScale ?? 1, theme2.wasteDepthScale ?? 0) as HeightField;
 
+  it('the tier reads as a real multi-foot elevation change (honest putt readout)', () => {
+    // The putt HUD now shows true net rise (groundAt delta × 1.5 ft/unit), same
+    // as full shots — a tier putt reads several FEET, not "11 inches".
+    const FT_PER_UNIT = 1.5;
+    const backFt = hf2.heightAt(450, 398) * FT_PER_UNIT;
+    const frontFt = hf2.heightAt(450, 466) * FT_PER_UNIT;
+    expect(backFt - frontFt, 'tier rise (ft)').toBeGreaterThanOrEqual(3.5);
+  });
+
   it('an uphill putt from the lower tier can reach the upper tier and stop there', () => {
     const engine = new PhysicsEngine(h2, hf2, mulberry32(11));
     // From the lower-front flat toward the back tier, pin at the back pin.
@@ -244,5 +253,55 @@ describe('Rimrock pass-9 rock frequency + fairway cluster', () => {
       }
       expect(cleanLane, `rock @${rk.cx},${rk.cy} has a clean lane`).toBe(true);
     }
+  });
+});
+
+// PASS 10 (playtest): the LARGE landform boulders deflect, and the steep right
+// cliff bounces a ball back instead of letting it tunnel into the void.
+describe('Rimrock pass-10 deflection', () => {
+  it('a large landform boulder caroms a struck ball', () => {
+    // (476,806,h18) is a big boulder on the right rough of the +10 shelf.
+    const lf = (hole.landforms ?? []).find((l) => l.x === 476 && l.y === 806)!;
+    expect(lf.h).toBeGreaterThanOrEqual(12); // in the colliding band
+    const origin = { x: lf.x, y: lf.y + 120 };
+    const out = engineWith(7).simulate({
+      origin,
+      aimAngle: Math.atan2(lf.y - origin.y, lf.x - origin.x),
+      swing: PERFECT,
+      club: putter,
+      golfer,
+      fireBoost: 0,
+      lie: 'rough',
+      wind: NO_WIND,
+      hole
+    });
+    expect(out.hitRock, 'landform caroms').toBe(true);
+  });
+
+  it('small decorative rocks stay pass-through (no minefield)', () => {
+    // A small (h < min) landform must NOT collide.
+    const small = (hole.landforms ?? []).find((l) => l.h < 12)!;
+    const priv = engineWith(1) as unknown as { rocks: Array<{ cx: number; cy: number }> };
+    expect(priv.rocks.some((r) => r.cx === small.x && r.cy === small.y)).toBe(false);
+  });
+
+  it('a ball driven into the right cliff bounces back and stays in bounds', () => {
+    // From the fairway shelf, aim straight into the right wall (rises +26 at
+    // x~590). Without the steep-face carom the ball climbs over into the void;
+    // with it, the ball caroms back and finishes LEFT of the wall toe, in play.
+    const origin = { x: 400, y: 680 };
+    const out = engineWith(9).simulate({
+      origin,
+      aimAngle: 0, // +x, straight at the wall
+      swing: { power: 0.5, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
+      club: putter,
+      golfer,
+      fireBoost: 0,
+      lie: 'fairway',
+      wind: NO_WIND,
+      hole
+    });
+    // Finishes short of the wall crest (bounced), not out on the +26 terrace/void.
+    expect(out.finalPos.x, 'stayed left of the wall').toBeLessThan(600);
   });
 });

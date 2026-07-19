@@ -153,6 +153,17 @@ export const PHYSICS = {
   rockPushOut: 0.5,
   /** Height (world units) when an authored rock entry omits it. */
   rockDefaultHeight: 10,
+  /** Minimum landform height (world units) that also deflects the ball. Large
+   *  authored boulders carom like 'rock' hazards; smaller decorative rocks stay
+   *  pass-through so the rough isn't a minefield (playtest pass 10). */
+  landformCollideMinH: 12,
+  /** A ball that would climb MORE than this many world units in a single rolling
+   *  step has hit a near-vertical face (cliff/mesa wall) rather than a rollable
+   *  hill — it caroms off the face instead of tunneling through into the void.
+   *  Normal fairway/green rolls climb far less, so only real walls trigger it. */
+  wallStepRise: 8,
+  /** Restitution for a ball bouncing off a steep terrain face (see wallStepRise). */
+  wallRestitution: 0.4,
   /** Height (world px) below which buildings block ball flight. */
   buildingHeight: 85,
   /** Cup radius, world px — HONEST: this is BOTH the drawn hole (course3d) and

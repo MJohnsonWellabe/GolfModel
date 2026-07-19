@@ -419,16 +419,23 @@ preloadGrassGrain('textures/turf_grain.jpg');
 preloadGrassGrain('textures/turf_grain_rough.jpg');
 preloadGrassGrain('textures/sand_ripple.jpg');
 
-/** Course roster for the picker (id → display + one-line character). */
-const COURSE_LIST: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
+/** Full course roster metadata (id → display + one-line character). */
+const COURSE_ROSTER: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
   { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
   { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'marketing/img/sablebay-island.png', difficulty: 'Daring' },
   { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
   { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
-  // V2 content expansion — filtered out below when the newCourses flag is off.
+  // V2 content expansion — loaded (and playable) only when the newCourses flag is
+  // on (dev). In production they are NOT in COURSES, so they drop out of
+  // COURSE_LIST and instead show as non-playable "Coming soon" teasers (below).
   { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
   { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
-].filter((c) => COURSES[c.id]);
+];
+/** The playable roster (loaded into COURSES). */
+const COURSE_LIST = COURSE_ROSTER.filter((c) => COURSES[c.id]);
+/** Roster entries present in the metadata but NOT loaded — shown as locked
+ *  "Coming soon" teaser cards (production, where newCourses is off). Empty in dev. */
+const COMING_SOON_COURSES = COURSE_ROSTER.filter((c) => !COURSES[c.id]);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
@@ -1745,23 +1752,16 @@ class HoleScene {
     const distLabel = this.aim.isPutting ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`;
     let elevFt: number;
     if (this.aim.isPutting) {
-      // Read up/downhill from the SAME slope field the ball actually rolls
-      // through (slopeAccelAlong — what breakAccel integrates and the AI paces
-      // off), not a loose geometric projection, so the read is CONSISTENT with
-      // what the putt does. Measured along ball→CUP at the cup distance — a
-      // stable terrain read that doesn't change as the player drags the aim
-      // marker (dragging used to inflate the shown rise, FB feedback "putting
-      // distance on hills seems off"). Sized so the player's rule of thumb —
-      // "aim ~1 ft longer for every 2 in uphill" — holes the putt for any
-      // length or slope: the shown rise is 2× the extra aim the pace model
-      // needs (extra fraction = -aPar/μ, μ = green friction), which is why
-      // 2 in → +1 ft, 4 in → +2 ft, 2 ft → +12 ft.
-      const pdx = this.hole.pin.x - bx;
-      const pdy = this.hole.pin.y - by;
-      const cupLen = Math.hypot(pdx, pdy) || 1;
-      const aPar = this.engine2d.slopeAccelAlong(this.state.ballPos, Math.atan2(pdy, pdx), cupLen);
-      const extraAimFt = cupLen * (-aPar / PHYSICS.friction.green) * 1.5; // +uphill ⇒ aim longer
-      elevFt = extraAimFt / 6; // rise(ft) = 2·extraAim(in) → shown as inches below
+      // TRUE net rise/fall from the ball to the CUP — the same height-delta the
+      // full-shot read uses, keyed on the pin so it's stable as the player drags
+      // the aim marker. The old read averaged the slope ALONG the aim line and
+      // scaled it to an aim-assist rule of thumb, which massively under-reported
+      // a concentrated STEP: a green with a 4-tier (≈5.7 ft) read "11 inches"
+      // because the flat parts of the putt diluted the average. Net delta reads
+      // the true tier and still matches gentle greens (a uniform slope's net
+      // rise ≈ what the old heuristic showed). 1 world unit = 1.5 ft.
+      elevFt =
+        (this.engine2d.groundAt(this.hole.pin.x, this.hole.pin.y) - this.engine2d.groundAt(bx, by)) * 1.5;
     } else {
       // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)
       elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;
@@ -5494,6 +5494,18 @@ function renderCourse(): void {
         `</div>`
       );
     }).join('') +
+    // Non-playable "Coming soon" teasers (production, where newCourses is off).
+    // Deliberately NOT `.modeCard` — the click handler below never binds them, so
+    // they can't be selected or entered; the course JSON is never even loaded.
+    COMING_SOON_COURSES.map(
+      (c) =>
+        `<div class="archCard courseCard locked" style="--course-art:url('${c.art}')" aria-disabled="true">` +
+        `<div class="lockBadge">Coming soon</div>` +
+        `<div class="ahead"><span class="an">${c.icon} ${c.name}</span></div>` +
+        `<div class="courseMeta"><span class="diff diff-${c.difficulty.toLowerCase()}">${c.difficulty}</span>` +
+        `<span>${c.tag}</span></div>` +
+        `</div>`
+    ).join('') +
     `</div>`;
   stepBodyEl.querySelectorAll('.modeCard').forEach((el) =>
     el.addEventListener('pointerdown', () => {

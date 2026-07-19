@@ -1827,6 +1827,17 @@
          so a long name wraps to a second line instead of forcing the card — and
          the track — past the screen edge. */
       .courseCard .ahead { display: block; margin-bottom: 0; min-width: 0; }
+      /* "Coming soon" teaser: a greyed, non-selectable course card shown in
+         production while the new courses are still in dev. */
+      .courseCard.locked { position: relative; filter: grayscale(0.55) brightness(0.72); opacity: 0.85; cursor: default; }
+      .courseCard.locked .an { color: #cdd6cf; }
+      .courseCard .lockBadge {
+        position: absolute; top: 8px; right: 8px; z-index: 2;
+        background: rgba(6, 20, 10, 0.82); color: #ffd54f;
+        font-size: 11px; font-weight: 800; line-height: 1;
+        padding: 4px 7px; border-radius: 8px; letter-spacing: 0.02em;
+        pointer-events: none;
+      }
       /* Wrapping itself is set on `.modeGrid--courses .archCard .an` above (it
          needs the extra specificity to beat `.archCard .an`'s nowrap). */
       .courseCard .an { line-height: 1.15; }

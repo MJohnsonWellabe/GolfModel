@@ -545,6 +545,15 @@ describe('Red Rock pass 7 — sheer cliff, strategic rock, grounding, horseshoe'
     for (const k of ['rocks_red_bright', 'rocks_red_mid', 'rocks_red_cluster', 'rocks_red_dark']) {
       expect(shades.has(k), k).toBe(true);
     }
+    // PASS 10 (playtest): the dry wash is LINED with little rocks — several small
+    // (h ≤ 4) landforms sit right along its centerline.
+    const alongWash = (hole.landforms ?? []).filter((l) => {
+      if (l.h > 4) return false;
+      let best = Infinity;
+      for (const [wx, wy] of wash) best = Math.min(best, Math.hypot(l.x - wx, l.y - wy));
+      return best <= 45;
+    });
+    expect(alongWash.length, 'small rocks lining the wash').toBeGreaterThanOrEqual(8);
   });
 
   it('h3: the horseshoe walls hug the green (narrow collar, immediate wall)', () => {
@@ -606,7 +615,9 @@ describe('Wild Prairie green contours + fairway preservation', () => {
   it('the approved fairways (h1, h3) are not reshaped by the green/vegetation work', () => {
     // Snapshot pinned when the fairways were approved — [x, y, height].
     const SNAP: Record<number, Array<[number, number, number]>> = {
-      0: [[470, 1100, 6.0], [467, 1052, 4.23], [463, 1004, 0.0], [460, 956, 0.46], [458, 908, 2.47], [456, 860, 3.23], [456, 812, 2.83], [459, 764, 1.98], [461, 716, 0.52], [465, 668, 1.57], [469, 621, 1.41], [471, 573, 0.63], [470, 525, 1.78], [468, 477, 1.06], [481, 431, 0.75], [496, 385, 1.69]],
+      // PASS 10: re-pinned after the "more visibly rolling" fairway pass raised
+      // the h1 cross-rolls.
+      0: [[470, 1100, 6.05], [467, 1052, 6.42], [463, 1004, 3.98], [460, 956, 2.74], [458, 908, 3.75], [456, 860, 4.9], [456, 812, 4.63], [459, 764, 5.03], [461, 716, 4.66], [465, 668, 3.32], [469, 621, 2.15], [471, 573, 2.22], [470, 525, 3.01], [468, 477, 1.19], [481, 431, 0.95], [496, 385, 1.69]],
       2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.46], [466, 1136, 9.56], [501, 1075, 12.83], [537, 1015, 16.9], [573, 954, 15.9], [609, 893, 10.15], [633, 827, 4.73], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.97], [709, 555, 9.38], [730, 487, 11.9], [752, 420, 10.31]]
     };
     for (const [hiStr, samples] of Object.entries(SNAP)) {

@@ -33,10 +33,15 @@ promises; almost every edit trips one, and the test message tells you which.
   r/width/polygon/centerline` value is **world px**. **yards = px / 2.** A 40 px
   margin = 20 yd. A 26-px-radius bunker ≈ 26 yd wide.
 - **Vertical is a DIFFERENT unit.** Elevation `h` is in "world units"
-  (1 unit ≈ 1 ball diameter). The tests fix the conversion at **≈1.25 ft per
-  unit** (e.g. `h:3.0 ≈ 3.75 ft`). So a "3–5 ft" green tier is **h ≈ 2.4–4.0
-  units**, NOT 6–10. Do not apply `PX_PER_YARD` to the vertical channel — that
-  mistake cost a full debugging loop this session.
+  (1 unit ≈ 1 ball diameter). **The game HUD and physics convert at 1 unit =
+  1.5 ft** (`main.ts` elevation readout, `config.ts:163`) — so `h:3.8 ≈ 5.7 ft`.
+  (An earlier version of this guide said 1.25 ft/unit from a stale test comment;
+  the shipping conversion is **1.5**.) A "4 ft" green tier is **h ≈ 2.7 units**;
+  a bold tier `h:3.8` reads ~5.7 ft. Do NOT apply `PX_PER_YARD` to the vertical
+  channel — that's the horizontal unit only.
+- **HeightField is ADDITIVE** (`grid[...] += p.h * t`, HeightField.ts): overlapping
+  plateaus/domes SUM, they don't take a max. A small tier plateau inside a big
+  mesa really does add its height (it is not swallowed).
 
 ---
 
@@ -351,3 +356,40 @@ and the terrain tests **concurrently**. Practices that kept it sane:
 - Dev tools: `grasspicker.html`, `palview.html`, the `?hole&cam&freeze` harness.
 - Specs: `docs/technical/BOUNDED_PLAYABLE_WORLD.md`,
   `docs/technical/WILD_VALLEY_RED_HOLLOW_TERRAIN_PASS.md` (per-pass history).
+
+## 17. Pass-10 engine & productization notes
+
+**Collision & terrain physics (PhysicsEngine.ts):**
+- **Large landforms deflect.** `this.rocks` now also ingests `hole.landforms`
+  with `h ≥ PHYSICS.landformCollideMinH` (12) as carom colliders (r = h), reusing
+  `rockContact`/`rockRebound`. Small decorative landforms stay pass-through. So a
+  hole gets deflecting boulders WITHOUT adding `type:'rock'` hazards (the
+  `rocks.length===3` hazard gate is unaffected). A cheap AABB reject guards the
+  now-longer collider loop.
+- **Steep faces bounce (no tunneling into void).** In the roll loop, if a ball
+  would climb more than `PHYSICS.wallStepRise` (8) in one step it caroms off the
+  face (`wallRestitution`) instead of riding over a cliff/mesa wall into the
+  void. Only near-vertical faces trigger; normal fairway/green rolls climb far
+  less. This is why authored cliffs no longer need collider rocks along them.
+- **Slope creep.** A ball that runs out of pace on a real slope no longer freezes
+  mid-face: at the roll-stop check, if the local downhill accel beats friction
+  (the same threshold that keeps a moving ball moving) it's re-seeded downhill.
+  Gentle greens (below the threshold) rest exactly as before.
+- **Putt elevation readout is now honest.** The putt HUD shows the true net rise
+  `(groundAt(pin) − groundAt(ball)) × 1.5 ft`, same as full shots — a tier reads
+  its real height, not a diluted slope-average. (The old heuristic under-reported
+  concentrated steps.)
+
+**Productization:**
+- **"Coming soon" courses.** The new courses stay OUT of `COURSES` in prod (the
+  `flag('newCourses')` spread) so they can never be entered. `COURSE_ROSTER` holds
+  all metadata; `COURSE_LIST` = loaded courses, `COMING_SOON_COURSES` = roster
+  entries not loaded. `renderCourse()` appends the coming-soon set as locked
+  `.courseCard.locked` cards with a `.lockBadge` — deliberately NOT `.modeCard`,
+  so the click handler never binds them (non-selectable). Dev (newCourses on)
+  shows them playable as before. **There is no per-environment course version** —
+  prod is insulated only because it never loads the evolving JSON.
+- **Promoted flags.** `delight, juice, atmosphere, audio, personality, layouts`
+  are now `prod:true` (shipped). `devTools`, `newCourses`, `boundedWorld` stay
+  dev-only. (Visual CI runs in dev where these were already on, so no baseline
+  churn; production now gets the polish.)

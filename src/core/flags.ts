@@ -54,8 +54,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'V2 Phase 2 screen-entrance animations (landing/wizard/results fade-ins). ' +
       'Toggles the html.ff-delight class the CSS is scoped under.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'juice',
@@ -63,8 +63,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'V2 Phase 6 shot juice: camera punch on strike, a made-putt cup burst, and ' +
       'bolder/longer on-fire ball trails. Does not affect the existing shot feel when off.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'layouts',
@@ -73,8 +73,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'replace the random-ellipse pin; alternate tees join the seeded draw. ' +
       'Off = the original random pins + fixed tees, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'newCourses',
@@ -92,8 +92,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'surface-shaped landing thumps, per-course procedural ambient beds, and the ' +
       'results-screen UI tick. Off = the original HTMLAudio pipeline, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'personality',
@@ -102,8 +102,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'celebration selection/amplitude, and dejection depth (data in ' +
       'characterPersonality.ts). Cosmetic only; off = the shared V1 behavior.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'atmosphere',
@@ -111,8 +111,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'V2 Phase 4 ambient course life (drifting birds/gulls, ship bob, per-course ' +
       'motion tuning). Procedural, parked-RTT-safe.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release, then remove the flag once it has soaked'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest pass 10) — remove the flag once it has soaked'
   },
   {
     key: 'boundedWorld',

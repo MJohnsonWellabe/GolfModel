@@ -207,14 +207,26 @@ export class PhysicsEngine {
     private readonly rng: Rng = Math.random
   ) {
     this.treeTrunks = collectTreeBlobs(hole);
-    this.rocks = hole.hazards
-      .filter((hz) => hz.type === 'rock')
-      .map((hz) => ({
-        cx: hz.cx ?? 0,
-        cy: hz.cy ?? 0,
-        r: hz.r ?? 10,
-        h: hz.height ?? PHYSICS.rockDefaultHeight
-      }));
+    this.rocks = [
+      // Explicit collidable boulders ('rock' hazards).
+      ...hole.hazards
+        .filter((hz) => hz.type === 'rock')
+        .map((hz) => ({
+          cx: hz.cx ?? 0,
+          cy: hz.cy ?? 0,
+          r: hz.r ?? 10,
+          h: hz.height ?? PHYSICS.rockDefaultHeight
+        })),
+      // LARGE authored landforms also deflect the ball (playtest: "add deflection
+      // to all the larger rock assets"). Landforms are {key,x,y,h}; the visual
+      // radius tracks height (rocks_red_* clusters are ~as wide as tall), so the
+      // collider is r = h like a rock(). Small decorative rocks (h < the min) stay
+      // pass-through so the rough doesn't become a minefield. The footprint gate
+      // already keeps every landform on flat ground.
+      ...(hole.landforms ?? [])
+        .filter((l) => l.h >= PHYSICS.landformCollideMinH)
+        .map((l) => ({ cx: l.x, cy: l.y, r: l.h, h: l.h }))
+    ];
     this.hzBox = hole.hazards.map((hz) => {
       let minX = Infinity;
       let minY = Infinity;
@@ -470,6 +482,9 @@ export class PhysicsEngine {
   ): { nx: number; ny: number; px: number; py: number } | null {
     for (const rk of this.rocks) {
       if (heightAbove >= rk.h) continue;
+      // Cheap AABB reject before the segment math (many landform colliders now).
+      if (rk.cx < Math.min(x0, x1) - rk.r || rk.cx > Math.max(x0, x1) + rk.r) continue;
+      if (rk.cy < Math.min(y0, y1) - rk.r || rk.cy > Math.max(y0, y1) + rk.r) continue;
       const dx = x1 - x0;
       const dy = y1 - y0;
       const len2 = dx * dx + dy * dy;
@@ -1006,7 +1021,23 @@ export class PhysicsEngine {
         y = hole.pin.y + (vy / outSpeed) * PHYSICS.cupRadius * 1.6;
         path.push({ x, y, z: 0 });
       }
-      if (speed <= PHYSICS.rollStopSpeed) break;
+      if (speed <= PHYSICS.rollStopSpeed) {
+        // STATIC-SLOPE CREEP: a ball that runs out of pace on a real slope keeps
+        // trickling downhill instead of freezing on the face (playtest: "a ball
+        // stopped on the hill instead of rolling down"). Only when the local
+        // downhill accel would beat friction — the SAME threshold that keeps a
+        // moving ball moving — so a ball on a gentle green rests exactly as
+        // before. Seed a minimal downhill velocity and let the integrator take
+        // over; maxSteps bounds it.
+        const bc = this.breakAccel(x, y);
+        const sm = Math.hypot(bc.ax, bc.ay);
+        const fric0 = firmRoll ? PHYSICS.firmSand.friction : PHYSICS.friction[surf] ?? 400;
+        if (sm <= fric0) break;
+        const seed = PHYSICS.rollStopSpeed * 1.4;
+        vx = (bc.ax / sm) * seed;
+        vy = (bc.ay / sm) * seed;
+        continue;
+      }
       const decel = firmRoll ? PHYSICS.firmSand.friction : PHYSICS.friction[surf] ?? 400;
       const newSpeed = Math.max(0, speed - decel * dt);
       vx = (vx / speed) * newSpeed;
@@ -1032,6 +1063,27 @@ export class PhysicsEngine {
           ({ vx, vy } = this.rockRebound(rc, vx, vy));
           nx = rc.px;
           ny = rc.py;
+        }
+      }
+      // STEEP-FACE CAROM: a ball that would climb a near-vertical wall in one
+      // step (cliff/mesa face) bounces back off the face instead of tunneling
+      // over it into the void (playtest: "the ball goes through the rock cliffs
+      // and disappears — it should bounce off"). Normal fairway/green rolls climb
+      // far less than wallStepRise, so only real walls trigger it.
+      if (this.hf) {
+        const climb = this.groundAt(nx, ny) - this.groundAt(x, y);
+        if (climb > PHYSICS.wallStepRise) {
+          const g = this.hf.gradientAt(x, y); // uphill (into-wall) vector
+          const gm = Math.hypot(g.x, g.y) || 1;
+          const ux = g.x / gm;
+          const uy = g.y / gm;
+          const vDot = vx * ux + vy * uy; // > 0 ⇒ moving into the wall
+          if (vDot > 0) {
+            vx -= (1 + PHYSICS.wallRestitution) * vDot * ux;
+            vy -= (1 + PHYSICS.wallRestitution) * vDot * uy;
+          }
+          nx = x; // don't advance into the wall this step
+          ny = y;
         }
       }
       const crossesCup = distToSegment(hole.pin.x, hole.pin.y, x, y, nx, ny) < PHYSICS.cupRadius;

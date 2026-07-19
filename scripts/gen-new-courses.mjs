@@ -529,7 +529,31 @@ const redhollow = {
         { key: 'rocks_red_cluster', x: 196, y: 596, h: 2 },
         { key: 'rocks_red_mid', x: 402, y: 302, h: 9 },
         { key: 'rocks_red_cluster', x: 528, y: 622, h: 0 },
-        { key: 'rocks_red_bright', x: 388, y: 660, h: 3 }
+        { key: 'rocks_red_bright', x: 388, y: 660, h: 3 },
+        // PASS 10 (playtest): more rock CLOSER to the island fairways — clusters
+        // on the flat canyon floor / rim shelves flanking each island ribbon.
+        { key: 'rocks_red_mid', x: 620, y: 1150, h: 6 },
+        { key: 'rocks_red_bright', x: 700, y: 1220, h: 6 },
+        { key: 'rocks_red_dark', x: 540, y: 930, h: 6 },
+        { key: 'rocks_red_cluster', x: 380, y: 910, h: 6 },
+        { key: 'rocks_red_mid', x: 500, y: 650, h: 6 },
+        { key: 'rocks_red_bright', x: 380, y: 600, h: 6 },
+        { key: 'rocks_red_dark', x: 300, y: 1160, h: 7 },
+        { key: 'rocks_red_cluster', x: 700, y: 1160, h: 7 },
+        { key: 'rocks_red_mid', x: 460, y: 1040, h: 6 },
+        { key: 'rocks_red_bright', x: 540, y: 800, h: 6 },
+        // PASS 10: LINE THE DRY WASH with little rocks along its centerline —
+        // small (h2-3), decorative, on the flat wash floor, following its wind.
+        { key: 'rocks_red_dark', x: 330, y: 1090, h: 3 },
+        { key: 'rocks_red_cluster', x: 390, y: 1088, h: 2 },
+        { key: 'rocks_red_mid', x: 455, y: 1086, h: 3 },
+        { key: 'rocks_red_bright', x: 528, y: 1059, h: 2 },
+        { key: 'rocks_red_dark', x: 600, y: 1032, h: 3 },
+        { key: 'rocks_red_cluster', x: 656, y: 1004, h: 2 },
+        { key: 'rocks_red_mid', x: 712, y: 976, h: 3 },
+        { key: 'rocks_red_bright', x: 575, y: 770, h: 3 },
+        { key: 'rocks_red_dark', x: 528, y: 648, h: 2 },
+        { key: 'rocks_red_cluster', x: 505, y: 560, h: 3 }
       ],
     }
   ]
@@ -639,12 +663,15 @@ const wildvalley = {
         // fairway itself (a carry ridge before the split, a saddle through
         // the drive zone, dune shoulders pinching the approach) without
         // flattening the broad landing area.
-        { x: 340, y: 890, x2: 620, y2: 856, h: 3.2, r: 105 },
-        { x: 350, y: 800, x2: 600, y2: 760, h: 2.2, r: 95 },
-        { x: 360, y: 660, x2: 400, y2: 640, h: 2.6, r: 80 },
-        { x: 560, y: 640, x2: 600, y2: 600, h: 2.8, r: 85 },
-        { x: 380, y: 545, x2: 640, y2: 590, h: 2.5, r: 100 },
-        { x: 400, y: 430, x2: 430, y2: 415, h: 2.2, r: 70 },
+        { x: 340, y: 890, x2: 620, y2: 856, h: 4.8, r: 105 },
+        { x: 350, y: 800, x2: 600, y2: 760, h: 3.8, r: 95 },
+        { x: 360, y: 660, x2: 400, y2: 640, h: 4.4, r: 80 },
+        { x: 560, y: 640, x2: 600, y2: 600, h: 4.6, r: 85 },
+        { x: 380, y: 545, x2: 640, y2: 590, h: 4.2, r: 100 },
+        { x: 400, y: 430, x2: 430, y2: 415, h: 3.6, r: 70 },
+        // PASS 10 (playtest: more visibly rolling): two more fairway waves.
+        { x: 430, y: 1010, x2: 560, y2: 992, h: 4.0, r: 100 },
+        { x: 440, y: 720, x2: 520, y2: 704, h: 3.8, r: 85 },
         // Edge dunes: the system continues beyond the playable frame.
         { x: 60, y: 700, x2: 100, y2: 200, h: 8, r: 160 },
         { x: 930, y: 820, x2: 960, y2: 300, h: 10, r: 180 },
@@ -703,8 +730,10 @@ const wildvalley = {
         // south falloff feeding toward the notch bunker.
         { x: 502, y: 352, x2: 522, y2: 392, h: 1.5, r: 46, shape: 'plateau', skirt: 0.55 },
         { x: 440, y: 780, h: 4.5, r: 135, shape: 'plateau' },
-        { x: 150, y: 680, x2: 360, y2: 640, h: 3, r: 105 },
-        { x: 520, y: 680, x2: 700, y2: 620, h: 3.4, r: 115 }
+        { x: 150, y: 680, x2: 360, y2: 640, h: 4.5, r: 105 },
+        { x: 520, y: 680, x2: 700, y2: 620, h: 4.8, r: 115 },
+        // PASS 10 (playtest: more visibly rolling): an extra approach wave.
+        { x: 320, y: 600, x2: 470, y2: 588, h: 4.0, r: 95 }
       ],
     },
     {
