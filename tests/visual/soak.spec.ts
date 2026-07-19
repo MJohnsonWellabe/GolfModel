@@ -112,10 +112,18 @@ test('repeat rounds do not accumulate scene resources (soak)', async ({ page }) 
     const label = (k: keyof SoakSnap): string =>
       `${courseId} ${String(k)}: cycle0=${String(first[k])} cycle1=${String(second[k])}`;
     // The probe must be measuring the course we started (guards against a
-    // silent course-switch failure making the whole soak vacuous).
-    expect(first.course.toLowerCase().replace(/\s+/g, '')).toContain(
-      courseId === 'portjohnson' ? 'portjohnson' : courseId === 'sablebay' ? 'sablebay' : courseId
-    );
+    // silent course-switch failure making the whole soak vacuous). The probe
+    // reports the DISPLAY name — map ids whose visible name differs
+    // (wildvalley kept its id when the course became Wild Prairie).
+    const displaySlug =
+      courseId === 'portjohnson'
+        ? 'portjohnson'
+        : courseId === 'sablebay'
+          ? 'sablebay'
+          : courseId === 'wildvalley'
+            ? 'wildprairie'
+            : courseId;
+    expect(first.course.toLowerCase().replace(/\s+/g, '')).toContain(displaySlug);
     // The engine must never hold more than the one live scene.
     expect(second.engineScenes, label('engineScenes')).toBe(1);
     // Scene-scoped resources return to the same level for the same course.
