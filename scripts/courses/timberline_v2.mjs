@@ -1,204 +1,200 @@
-// TIMBERLINE v2 — teardown/rebuild variant (dev-environment roadmap Phase 4/5,
-// owner directive 2026-07-20). Emitted to src/data/courses/v2/timberline.json
-// and loaded ONLY behind the `courseRebuilds` flag (dev). Production keeps the
-// shipped original.
+// TIMBERLINE v2 — full teardown/rebuild (dev-environment roadmap, owner
+// directive 2026-07-20: "everything new; keep the FEATURE, not the hole").
+// Emitted to src/data/courses/v2/timberline.json, loaded only behind
+// `courseRebuilds` (dev). Nothing is copied from the shipped course — these
+// are three all-new holes.
 //
-// KEEP (owner keep-list — referenced from the legacy JSON, not re-typed, so
-// the liked geometry is preserved exactly):
-//   - h1 "Pine Alley" + h3 "The Gauntlet": fairway routing (ribbons), ALL
-//     tree stands, and the water bodies that shape those routings.
-//   - h2 "The Hollow": the greenside SPECIMEN TREE (and the framing woods —
-//     this is a forest course; the trees are the strategy).
-// TEARDOWN/REBUILD (everything else):
-//   - Elevation: the legacy ~100-random-bumps noise field is replaced with a
-//     landform-first alpine design — the hole is cut into a mountainside,
-//     one hero feature per hole, benches that climb, a coherent fall line.
-//   - Bunkers: fewer, deeper, only at pinch points (Bible bunker language).
-//   - Green contours/slopes: readable, terrain-grown, puttable.
-//   - The h2 garden bed is retired (formal gardens are Wildwood's language;
-//     prohibited on Timberline per the approved Course Design Bible).
-import { readFileSync } from 'node:fs';
+// COURSE IDENTITY (the features that MUST recur, per the owner + Bible):
+//   - trees GUARD the greens (a stand or specimen at the green complex);
+//   - doglegs bend AROUND tree stands (the trees, not sand, set the line);
+//   - high-alpine: benched mountainside terrain, GRANITE outcrops (stone_d/
+//     e/f landforms + a collidable boulder), a cold tarn, conifer walls that
+//     ARE the horizon.
 import { blob } from '../courselib.mjs';
 
-const legacy = JSON.parse(readFileSync('src/data/courses/timberline.json', 'utf8'));
-const L = (n) => legacy.holes[n - 1];
-const keepTrees = (h) => h.hazards.filter((z) => z.type === 'trees');
-const keepWater = (h) => h.hazards.filter((z) => z.type === 'water');
-const centroidOf = (poly) => {
-  let sx = 0, sy = 0;
-  for (const [x, y] of poly) { sx += x; sy += y; }
-  return [sx / poly.length, sy / poly.length];
-};
-// Legacy fairway ribbons ({centerline,width}) pass straight into the emitter.
-const keepFairways = (h) => h.fairway.map((f) => ({ centerline: f.centerline, width: f.width }));
-
-// h1's pond (its only water body) anchors the east fall-away.
-const [pondX, pondY] = centroidOf(keepWater(L(1))[0].polygon);
-// h2's specimen tree (treeR guard by the green) anchors its front-right pot.
-const specimen = L(2).hazards.find((z) => z.type === 'trees' && z.treeR);
-const [specX, specY] = centroidOf(specimen.polygon);
+// Granite landform helper (render-only alpine outcrop).
+const granite = (x, y, h, key = 'stone_e') => ({ key, x, y, h });
 
 const timberlineV2 = {
   name: 'Timberline',
   version: 2,
   theme: {
-    ...legacy.theme,
-    // Granite accents: alpine stone joins the forest-floor scatter mix —
-    // the Bible's "granite outcrops as accents" without new systems.
-    scatterKeys: [...new Set([...(legacy.theme.scatterKeys ?? []), 'stone_d', 'stone_e'])]
+    skyTop: '#5f86a8', skyBottom: '#cfe0e6', sunX: 460, sunY: 150,
+    fairway: '#3f7f46', fairwayDark: '#356b3c',
+    rough: '#4a6b41', roughDark: '#3a5533',
+    fringe: '#54924e', green: '#438a47', greenLight: '#5aa25c',
+    sand: '#d8cba0', sandDark: '#b3a072',
+    water: '#3f7f9c', waterDeep: '#254f66', waterReflect: true,
+    treeCanopy: '#2f5738', treeCanopyLight: '#3d6a44', treeTrunk: '#5b4632',
+    haze: '#cfe0e6', hazeStrength: 0.5, horizonTint: '#bcd2da',
+    backdrop: 'peaks', peakKeys: [], blossomChance: 0,
+    // Asset change vs the original four-species mix: a true conifer wall
+    // (spruce + two pines) with birch accents and a GRANITE scatter (the
+    // alpine floor is stone, fern, and deadwood — not lush parkland turf).
+    treeKeys: ['tree_spruce', 'tree_pine_k1'],
+    accentTreeKeys: ['tree_birch', 'tree_birch_b'],
+    scatterKeys: ['stone_d', 'stone_e', 'fern_kenney', 'stump_a', 'log_a'],
+    backdropTreeStep: 46,
+    tuftDensity: 1.1, roughTuftHeight: 1.15,
+    lushGrass: true, grassKeys: ['grass_c', 'grass_d', 'grass_e'],
+    edgeWobble: 2.4, mowPattern: 'cross', mowWidth: 26,
+    greenColumns: true, greenMowPattern: 'cross',
+    cloudStyle: 'wispy', atmosphere: 'alpine'
   },
   holes: [
-    // ------------------------------------------------ h1 "Pine Alley" par 4
-    // The alley is CUT INTO A HILLSIDE: a long forested shoulder climbs the
-    // whole west flank (the hero landform), the fairway benches upward to a
-    // green terrace, and the east side falls away to the pond. Strategy:
-    // hug the high (left) side for the flat stance and the open look; bail
-    // right and the ball feeds toward the low pond side.
+    // ============================================ h1 "Granite Bend" par 4
+    // Dogleg LEFT that bends around a granite-and-spruce point sitting in the
+    // crook of the elbow. The trees — not sand — set the tee-shot question:
+    // fly the left shoulder of the point to cut the corner and open the
+    // green, or bail right up the safe fairway and face an approach blocked
+    // by the greenside spruce guardian. A collidable granite boulder anchors
+    // the point.
     {
       number: 1,
-      name: 'Pine Alley',
+      name: 'Granite Bend',
       par: 4,
-      world: L(1).world,
-      tee: [L(1).tee.x, L(1).tee.y],
-      teeBox: L(1).teeBox,
-      green: L(1).green,
-      slope: { angle: 1.9, strength: 0.3 },
-      centerline: L(1).fairway[0].centerline,
-      width: L(1).fairway[0].width,
-      fairways: keepFairways(L(1)),
+      world: { width: 1040, height: 1200 },
+      tee: [740, 1110],
+      teeBox: { w: 30, d: 22 },
+      green: { cx: 360, cy: 420, rx: 58, ry: 44, rot: 0.4 },
+      slope: { angle: 2.3, strength: 0.3 },
+      // A SHARP dogleg LEFT: the drive runs straight up the far-right edge to
+      // a corner landing (~730,650), then the hole bends hard left to the
+      // green. The direct tee→green diagonal runs far left of the drive
+      // fairway — a wide gap where the forcing tree point lives without ever
+      // touching the corridor.
+      centerline: [[740, 1080], [738, 940], [732, 800], [724, 672], [592, 566], [452, 470], [380, 438]],
+      width: [42, 58, 82, 82, 74, 58, 48],
       hazards: [
-        // Drive pinch, right edge of the landing zone: carry it or lay back —
-        // the ONLY sand between tee and green complex (fewer, deeper).
-        { type: 'bunker', depthMul: 1.3, polygon: blob(526, 748, 30, 21, 10, 0.35, 711) },
-        // Deep pot cut into the green terrace, short-left, guarding the
-        // high-side approach line the hole rewards.
-        { type: 'bunker', depthMul: 1.5, polygon: blob(242, 286, 17, 13, 9, 0.3, 712) },
-        ...keepTrees(L(1)),
-        ...keepWater(L(1))
+        // THE POINT — a spruce stand on a granite shoulder, in the gap
+        // between the drive fairway (far right) and the direct tee→green line
+        // (left). It blocks the greedy cut straight at the green; lay up to
+        // the corner right of it, or carry its crown to shortcut the dogleg.
+        { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[512, 700], [548, 606], [512, 522], [430, 540], [420, 636], [456, 706]] },
+        // Collidable granite boulder at the point's tip.
+        { type: 'rock', cx: 470, cy: 686, r: 15, height: 15, key: 'stone_e', polygon: blob(470, 686, 15, 15, 8, 0, 1) },
+        // Right treeline wall the whole length (the safe side is still walled).
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[832, 1080], [900, 900], [906, 640], [852, 520], [792, 640], [806, 900]] },
+        // Left treeline down the outside of the dogleg.
+        { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[250, 900], [340, 820], [360, 640], [300, 520], [206, 600], [198, 820]] },
+        // GREENSIDE GUARDIAN — a spruce cluster front-LEFT of the green
+        // (trees guard the green): it frames and defends the left pin and the
+        // pull, while the approach from the drive zone stays open down the
+        // right. Left-pin days you must flirt it; right-pin days it looms.
+        { type: 'trees', spacing: 36, visualSpacing: 22, polygon: [[248, 486], [320, 470], [336, 398], [276, 376], [236, 430]] },
+        // Greenside sand front-RIGHT — the pushed approach catches it; the
+        // green is thus pinched between trees (left) and sand (right).
+        { type: 'bunker', depthMul: 1.35, polygon: blob(438, 470, 19, 14, 9, 0.3, 111) }
       ],
-      aiTargets: [[452, 760], [372, 396]],
+      aiTargets: [[730, 700], [560, 560], [360, 470]],
+      landforms: [granite(576, 620, 8, 'stone_e'), granite(430, 660, 6, 'stone_d'), granite(316, 350, 8, 'stone_f'), granite(250, 560, 6, 'stone_d')],
       elevation: [
-        // Tee terrace.
-        { x: L(1).tee.x, y: L(1).tee.y, h: 1.8, r: 130, shape: 'plateau' },
-        // HERO: the west shoulder — one continuous forested hillside ridge
-        // running the length of the alley, two tiers.
-        { x: 150, y: 980, x2: 112, y2: 330, h: 7, r: 170 },
-        { x: 52, y: 720, x2: 30, y2: 210, h: 11, r: 150 },
-        // The fairway benches: a mid-alley rise, then the upper bench that
-        // carries into the green terrace.
-        { x: 452, y: 758, h: 2.2, r: 150 },
-        { x: 408, y: 520, h: 3.2, r: 160 },
-        // Green terrace + the rising forest backstop behind it.
-        { x: L(1).green.cx, y: L(1).green.cy, h: 2.6, r: 112, shape: 'plateau', skirt: 0.35 },
-        { x: 218, y: 208, x2: 336, y2: 168, h: 3.6, r: 112 },
-        // East fall-away: the land drains toward the pond.
-        { x: pondX, y: pondY, h: -2.4, r: 150 },
-        { x: 640, y: 560, x2: 700, y2: 300, h: -1.8, r: 140 }
+        { x: 740, y: 1110, h: 2.0, r: 130, shape: 'plateau' },
+        // High forested shoulder on the right, fairway benched below it.
+        { x: 900, y: 880, x2: 906, y2: 540, h: 10, r: 150 },
+        { x: 520, y: 600, h: 5, r: 110 }, // the granite point rises
+        { x: 720, y: 900, h: 3, r: 140 },
+        { x: 620, y: 600, h: 2.2, r: 120 }, // corner landing bench
+        // Green terrace benched into the slope, flat top over the whole green.
+        { x: 360, y: 420, h: 3.0, r: 150, shape: 'plateau', skirt: 0.55 },
+        { x: 250, y: 460, x2: 250, y2: 340, h: 7, r: 130 }, // left backdrop rise
+        { x: 400, y: 1060, h: 2.2, r: 120 }
       ]
     },
-    // ------------------------------------------------ h2 "The Hollow" par 3
-    // A true hollow now: elevated tee, sunken dell green ringed by rim
-    // ridges and conifers, the kept SPECIMEN TREE guarding the front-right
-    // door. Miss long and the bowl's back wall gives you a shot back — an
-    // authored recovery zone keeps that shelf detailed and in-bounds.
+    // ================================================= h2 "The Tarn" par 3
+    // Carry a cold alpine tarn to a shelf green PINCHED between two spruce
+    // stands — trees guard the green on both flanks, so the shot must be
+    // both long enough (water) and straight enough (trees). A granite bluff
+    // stands behind. Bail short-right to a chipping bench (recovery zone).
     {
       number: 2,
-      name: 'The Hollow',
+      name: 'The Tarn',
       par: 3,
-      world: L(2).world,
-      tee: [L(2).tee.x, L(2).tee.y],
-      teeBox: L(2).teeBox,
-      green: L(2).green,
-      slope: { angle: 0.8, strength: 0.28 },
-      centerline: L(2).fairway[0].centerline,
-      width: L(2).fairway[0].width,
-      fairways: keepFairways(L(2)),
+      world: { width: 940, height: 900 },
+      tee: [470, 780],
+      teeBox: { w: 30, d: 22 },
+      green: { cx: 470, cy: 430, rx: 54, ry: 40, rot: 0 },
+      slope: { angle: 1.8, strength: 0.3 },
+      centerline: [[470, 766], [470, 744]],
+      width: [40, 40],
       hazards: [
-        // Front-right pot under the specimen tree: the tree takes the air,
-        // the sand takes the ground — one guarded door.
-        {
-          type: 'bunker',
-          depthMul: 1.4,
-          polygon: blob((specX + L(2).green.cx) / 2, (specY + L(2).green.cy) / 2 + 26, 18, 13, 9, 0.3, 721)
-        },
-        // Long-left pot at the bowl's base, catching the draw that rides the
-        // left rim down.
-        { type: 'bunker', depthMul: 1.4, polygon: blob(392, 386, 16, 12, 8, 0.3, 722) },
-        ...keepTrees(L(2))
+        // The tarn — the whole front carry.
+        { type: 'water', polygon: [[300, 560], [470, 540], [640, 562], [676, 632], [640, 700], [470, 724], [300, 706], [268, 634]] },
+        // LEFT guardian spruce stand at the green.
+        { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[318, 500], [400, 470], [418, 370], [360, 320], [280, 380], [278, 460]] },
+        // RIGHT guardian spruce stand at the green.
+        { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[622, 500], [700, 470], [712, 360], [648, 322], [572, 380], [582, 468]] },
+        // A single deep pot short-left, between tarn and green, for the pull.
+        { type: 'bunker', depthMul: 1.4, polygon: blob(408, 500, 16, 12, 9, 0.3, 121) }
       ],
       aiTargets: [],
-      recoveryZones: [
-        // The back-wall shelf behind the green: playable, detailed, fair.
-        [[386, 322], [540, 322], [548, 402], [378, 402]]
-      ],
+      landforms: [granite(470, 300, 12, 'stone_f'), granite(408, 316, 8, 'stone_e'), granite(536, 312, 8, 'stone_d')],
       elevation: [
-        // Elevated tee terrace — the drop into the dell is the tee-shot view.
-        { x: L(2).tee.x, y: 762, h: 3.4, r: 122, shape: 'plateau' },
-        // The dell rim: left, right, and back walls (the hollow itself).
-        { x: 330, y: 430, x2: 358, y2: 302, h: 4.5, r: 110 },
-        { x: 582, y: 470, x2: 562, y2: 330, h: 4.2, r: 110 },
-        { x: 402, y: 296, x2: 522, y2: 282, h: 5, r: 118 },
-        // The green pad sits LOW — the rim does the reading, the putt stays
-        // gentle.
-        { x: L(2).green.cx, y: L(2).green.cy, h: 0.6, r: 72, shape: 'plateau' },
-        // Front door stays open: a soft approach ramp, no wall.
-        { x: 452, y: 560, h: 1.2, r: 110 }
+        { x: 470, y: 800, h: 2.6, r: 120, shape: 'plateau' },
+        // Green shelf: a flat pad just above the tarn, granite bluff behind.
+        { x: 470, y: 430, h: 2.0, r: 130, shape: 'plateau', skirt: 0.55 },
+        { x: 470, y: 300, x2: 470, y2: 240, h: 9, r: 140 }, // granite bluff wall
+        { x: 300, y: 420, h: 5, r: 120 },
+        { x: 640, y: 420, h: 5, r: 120 },
+        { x: 470, y: 640, h: -1.4, r: 150 } // the tarn basin
       ]
     },
-    // ---------------------------------------------- h3 "The Gauntlet" par 5
-    // The kept dogleg through the trees and water, rebuilt as a CLIMB: three
-    // benches step up the routing to an elevated green terrace. The hero is
-    // a granite knoll on the inside of the corner — cutting the dogleg means
-    // flirting with stone; the safe line is longer and lower.
+    // ============================================== h3 "Timberfall" par 5
+    // A forest S: dogleg RIGHT off the tee around a spruce nose, then dogleg
+    // LEFT down a falling avenue to a green set on a shelf and GUARDED by a
+    // lone giant spruce short-right. Two tree corners, one downhill finish —
+    // the trees set both bends. A granite scree field flanks the second turn.
     {
       number: 3,
-      name: 'The Gauntlet',
+      name: 'Timberfall',
       par: 5,
-      world: L(3).world,
-      tee: [L(3).tee.x, L(3).tee.y],
-      teeBox: L(3).teeBox,
-      green: L(3).green,
-      slope: { angle: 2.6, strength: 0.32 },
-      fairways: keepFairways(L(3)),
-      hazards: [
-        // Drive-zone left bunker: the safe side off the tee is not free.
-        { type: 'bunker', depthMul: 1.2, polygon: blob(300, 1082, 26, 18, 10, 0.35, 731) },
-        // Through bunker past the corner: the drive that refuses to turn
-        // right runs straight into sand. Sits OFF the recovery line from the
-        // corner woods (playtest trace: sand on that line caged the AI).
-        { type: 'bunker', depthMul: 1.2, polygon: blob(372, 772, 30, 20, 10, 0.4, 732) },
-        // Greenside-right pot below the terrace (kept climbable — the wall
-        // above it already extracts the penalty).
-        { type: 'bunker', depthMul: 1.2, polygon: blob(934, 602, 20, 15, 9, 0.3, 733) },
-        ...keepTrees(L(3)),
-        ...keepWater(L(3))
+      world: { width: 1260, height: 1680 },
+      tee: [360, 1560],
+      teeBox: { w: 32, d: 24 },
+      green: { cx: 880, cy: 360, rx: 62, ry: 46, rot: -0.35 },
+      slope: { angle: 2.7, strength: 0.32 },
+      fairways: [
+        { centerline: [[360, 1530], [372, 1400], [430, 1270], [560, 1180]], width: [46, 60, 84, 86] },
+        { centerline: [[560, 1180], [700, 1120], [790, 1000], [800, 860]], width: [86, 82, 74, 70] },
+        { centerline: [[800, 860], [770, 700], [800, 540], [872, 432]], width: [70, 66, 60, 52] }
       ],
-      aiTargets: [[372, 1090], [366, 906], [524, 806], [680, 680], [844, 590]],
+      hazards: [
+        // FIRST BEND: a spruce nose on the inside-left of the tee shot forces
+        // the drive right.
+        { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[300, 1400], [430, 1340], [470, 1200], [400, 1140], [280, 1220], [270, 1340]] },
+        // SECOND BEND: a big stand on the inside-right forces the second shot
+        // back left, down the avenue.
+        { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[860, 1080], [980, 1020], [1000, 860], [930, 760], [820, 840], [810, 1000]] },
+        // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
+        { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 30, polygon: [[928, 470], [986, 452], [1000, 388], [956, 360], [912, 418]] },
+        // Left avenue wall.
+        { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[560, 1080], [660, 1000], [700, 800], [660, 620], [560, 700], [540, 940]] },
+        // Granite scree flanking the second turn — a collidable boulder in
+        // the layup zone the greedy line flirts with.
+        { type: 'rock', cx: 792, cy: 900, r: 18, height: 18, key: 'stone_f', polygon: blob(792, 900, 18, 18, 8, 0, 1) },
+        // Sand: a cross bunker at the first landing's outside, and one deep
+        // greenside pot front-left (the guardian owns the right).
+        { type: 'bunker', polygon: blob(470, 1250, 26, 18, 10, 0.35, 131) },
+        { type: 'bunker', depthMul: 1.4, polygon: blob(816, 402, 18, 14, 9, 0.3, 132) }
+      ],
+      aiTargets: [[452, 1300], [640, 1150], [796, 940], [800, 560], [872, 440]],
+      landforms: [
+        granite(870, 880, 9, 'stone_f'), granite(740, 820, 7, 'stone_d'),
+        granite(940, 300, 8, 'stone_e'), granite(320, 1240, 7, 'stone_d')
+      ],
       elevation: [
-        // Tee terrace (kept concept).
-        { x: 360, y: 1400, h: 3.4, r: 180, shape: 'plateau' },
-        // Three climbing benches along the routing. The corner bench sits
-        // PAST the turn so the corner landing zone stays flat — a shoulder
-        // over the joint funneled rolls into the corner woods (sim trace).
-        { x: 378, y: 1055, h: 3.4, r: 190 },
-        { x: 552, y: 776, h: 4.2, r: 150 },
-        { x: 700, y: 662, h: 5.2, r: 160 },
-        // Elevated green terrace — the finish reads as the top of the climb.
-        // Flat top covers the WHOLE green + fringe (skirt 0.7 of r160 = 112
-        // flat > green rx 84), so the putting surface never sits on the
-        // skirt; the drop happens beyond the collar.
-        { x: L(3).green.cx, y: L(3).green.cy, h: 4.2, r: 160, shape: 'plateau', skirt: 0.7 },
-        // Front-left run-up apron: the ground-game door up the terrace.
-        { x: 796, y: 642, h: 2.1, r: 110 },
-        // HERO: the granite knoll inside the corner.
-        { x: 600, y: 520, h: 7, r: 110 },
-        // Framing ridges: west wall along the first leg (kept clear of the
-        // corner so its shoulder never tilts the landing zone), northeast
-        // wall behind the green — the valley the gauntlet runs through.
-        { x: 150, y: 1280, x2: 168, y2: 980, h: 6, r: 130 },
-        { x: 1030, y: 900, x2: 1120, y2: 460, h: 8, r: 160 },
-        // The low ground the water sits in (drains the corner).
-        { x: 250, y: 700, h: -1.6, r: 130 }
+        { x: 360, y: 1560, h: 2.6, r: 130, shape: 'plateau' },
+        // The land FALLS from tee to green (timber-fall): a high shoulder at
+        // the start, benches stepping down through the two turns.
+        { x: 420, y: 1360, h: 5, r: 170 },
+        { x: 620, y: 1160, h: 3.6, r: 170 },
+        { x: 800, y: 900, h: 2.2, r: 160 },
+        // Green shelf low at the finish, flat over the whole green.
+        { x: 880, y: 360, h: 1.6, r: 150, shape: 'plateau', skirt: 0.55 },
+        // Forested valley walls both sides.
+        { x: 230, y: 1300, x2: 300, y2: 760, h: 8, r: 150 },
+        { x: 1080, y: 1000, x2: 1060, y2: 520, h: 9, r: 160 },
+        { x: 700, y: 640, h: -1.4, r: 150 }
       ]
     }
   ]
