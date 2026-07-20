@@ -46,6 +46,7 @@ import portjohnson from '../data/courses/portjohnson.json';
 import redhollow from '../data/courses/redhollow.json';
 import wildvalley from '../data/courses/wildvalley.json';
 import timberlineV2 from '../data/courses/v2/timberline.json';
+import timberlineWestV2 from '../data/courses/v2/timberlinewest.json';
 import sablebayV2 from '../data/courses/v2/sablebay.json';
 import portjohnsonV2 from '../data/courses/v2/portjohnson.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
@@ -406,7 +407,8 @@ const loadNewCourses = flag('newCourses') || adminUnlocked();
 // variants replace the shipped originals course by course as each rebuild
 // lands (src/data/courses/v2/, emitted by gen-new-courses.mjs). With the flag
 // off (production) the original JSON loads and the roster is byte-identical.
-const REBUILDS: Record<string, unknown> = flag('courseRebuilds')
+const rebuildsOn = flag('courseRebuilds');
+const REBUILDS: Record<string, unknown> = rebuildsOn
   ? { timberline: timberlineV2, sablebay: sablebayV2, portjohnson: portjohnsonV2 }
   : {};
 const courseSrc = (id: string, original: unknown): CourseAuthoring =>
@@ -414,8 +416,13 @@ const courseSrc = (id: string, original: unknown): CourseAuthoring =>
 const COURSES: Record<string, CourseData> = {
   wildwood: loadCourse(courseSrc('wildwood', wildwood)),
   sablebay: loadCourse(courseSrc('sablebay', sablebay)),
+  // `timberline` (id preserved for dev-save/records compatibility) loads the v2
+  // rebuild — now branded "Timberline East" — when the rebuild flag is on.
   timberline: loadCourse(courseSrc('timberline', timberline)),
   portjohnson: loadCourse(courseSrc('portjohnson', portjohnson)),
+  // Timberline West: a NEW dev-only course (no production original). It appears
+  // in the roster only under the courseRebuilds flag, with its own id/records.
+  ...(rebuildsOn ? { timberlinewest: loadCourse(timberlineWestV2 as unknown as CourseAuthoring) } : {}),
   ...(loadNewCourses
     ? {
         redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
@@ -440,7 +447,13 @@ preloadGrassGrain('textures/sand_ripple.jpg');
 const COURSE_ROSTER: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
   { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
   { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'marketing/img/sablebay-island.png', difficulty: 'Daring' },
-  { id: 'timberline', name: 'Timberline', tag: 'Forest · tight spruce corridors, a fairway dogleg', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
+  // Under the courseRebuilds flag (dev) the v2 rebuild is branded "Timberline
+  // East" and a sibling "Timberline West" (production routing, East presentation)
+  // joins the roster; in production the id stays plain "Timberline".
+  { id: 'timberline', name: rebuildsOn ? 'Timberline East' : 'Timberline', tag: 'Forest · granite doglegs, a downhill tarn, a two-route par 5', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
+  ...(rebuildsOn
+    ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' }]
+    : []),
   { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
   // V2 content expansion — loaded (and playable) only when the newCourses flag is
   // on (dev). In production they are NOT in COURSES, so they drop out of

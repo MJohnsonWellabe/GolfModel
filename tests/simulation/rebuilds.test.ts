@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import timberlineV2 from '../../src/data/courses/v2/timberline.json';
+import timberlineWestV2 from '../../src/data/courses/v2/timberlinewest.json';
 import sablebayV2 from '../../src/data/courses/v2/sablebay.json';
 import portjohnsonV2 from '../../src/data/courses/v2/portjohnson.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
@@ -23,7 +24,8 @@ import { golferWith } from './simHelpers';
  * Add each new rebuild to REBUILDS as it lands — one uniform gate wall.
  */
 const REBUILDS: Record<string, CourseAuthoring> = {
-  Timberline: timberlineV2 as unknown as CourseAuthoring,
+  'Timberline East': timberlineV2 as unknown as CourseAuthoring,
+  'Timberline West': timberlineWestV2 as unknown as CourseAuthoring,
   'Sable Bay': sablebayV2 as unknown as CourseAuthoring,
   'Port Johnson': portjohnsonV2 as unknown as CourseAuthoring
 };

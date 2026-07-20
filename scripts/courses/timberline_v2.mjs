@@ -69,7 +69,7 @@ function h1RockField() {
 }
 
 const timberlineV2 = {
-  name: 'Timberline',
+  name: 'Timberline East',
   version: 2,
   theme: {
     skyTop: '#5f86a8', skyBottom: '#cfe0e6', sunX: 460, sunY: 150,

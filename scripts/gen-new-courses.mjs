@@ -22,6 +22,7 @@ import { emit } from './courselib.mjs';
 import { redhollow } from './courses/redhollow.mjs';
 import { wildvalley } from './courses/wildvalley.mjs';
 import { timberlineV2 } from './courses/timberline_v2.mjs';
+import { timberlineWestV2 } from './courses/timberline_west_v2.mjs';
 import { sablebayV2 } from './courses/sablebay_v2.mjs';
 import { portjohnsonV2 } from './courses/portjohnson_v2.mjs';
 
@@ -32,5 +33,6 @@ emit(wildvalley, 'wildvalley');
 // v2 teardown/rebuild variants (courseRebuilds flag) — added course by course
 // as each rebuild lands.
 emit(timberlineV2, 'timberline', 'src/data/courses/v2');
+emit(timberlineWestV2, 'timberlinewest', 'src/data/courses/v2');
 emit(sablebayV2, 'sablebay', 'src/data/courses/v2');
 emit(portjohnsonV2, 'portjohnson', 'src/data/courses/v2');
