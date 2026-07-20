@@ -411,14 +411,15 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           ? src?.albedoTexture
           : (src?.albedoTexture ?? src?.getActiveTextures?.()?.[0]);
         if (key === 'mountain_range_alpine' && src?.bumpTexture) {
-          // MONTANE reskin of the same high-detail range: a cool blue-grey
-          // rock base lit through the shared normal map (the relief is what
-          // makes it read detailed/realistic), with a pale hazy emissive floor
-          // so it recedes atmospherically like a real distant snow range —
-          // NOT the red desert terracotta below.
-          tm.diffuseColor = c3(0x8494a6);
+          // MONTANE reskin of the same high-detail range: a cool slate-blue
+          // rock base lit through the shared normal map. The emissive floor is
+          // kept LOW so shadowed faces stay dark — the range reads as a
+          // distinct darker/bluer silhouette against the pale sky instead of
+          // washing into it (owner: "the mountains need more contrast with the
+          // sky"), while sun-lit crests stay bright as snow.
+          tm.diffuseColor = c3(0x7a8ca4);
           tm.bumpTexture = src.bumpTexture;
-          tm.emissiveColor = c3(0x6b7a8c);
+          tm.emissiveColor = c3(0x323f50);
           tm.specularColor = c3(0x000000);
           tm.backFaceCulling = false;
           tm.forceDepthWrite = true;
