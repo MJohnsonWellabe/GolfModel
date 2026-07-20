@@ -196,12 +196,14 @@ const timberlineV2 = {
         // Fairway A — the RIGHT (safe, longer) route wrapping right of the
         // tree mass and climbing to the green.
         { centerline: [[620, 904], [742, 804], [798, 664], [812, 520], [838, 424]], width: [84, 72, 64, 58, 50] },
-        // Fairway B — the LEFT aggressive GO-FOR-IT line. Tighter and more
-        // direct than A: a bold drive down the left of the fall leaves a
-        // shorter, straighter shot at the green — but you must carry a pond
-        // guarding the left approach, and long from this angle bleeds into a
-        // back trap. Eagles/birdies OR bogeys/doubles; A is the safe wedge.
-        { centerline: [[620, 904], [544, 784], [540, 648], [598, 556]], width: [84, 54, 48, 42] }
+        // Fairway B — the LEFT aggressive GO-FOR-IT line. A bold drive down the
+        // fall carries FORWARD (not out left), leaving a real go-at-the-green
+        // shot over the pond that guards the front-left. Reach it and it's an
+        // eagle/birdie look; miss it and the pond or the back trap bite —
+        // eagles/birdies OR bogeys/doubles. A is the safe three-shot wedge.
+        // (Sim-tuned: the far diagonal green means the left is a genuine
+        // high-variance gamble, not a strictly-better line — see the 100×100.)
+        { centerline: [[620, 904], [636, 760], [690, 600]], width: [92, 84, 78] }
       ],
       // Fairway B (the last ribbon) is the alternate route — exclude it from
       // the hole's yardage measurement.
@@ -211,18 +213,21 @@ const timberlineV2 = {
         { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[262, 1180], [348, 1146], [366, 1024], [306, 958], [228, 1030], [228, 1148]] },
         // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 32, polygon: [[892, 456], [948, 440], [962, 380], [918, 352], [876, 408]] },
-        // THE FOREST DIVIDE — fills the WHOLE wedge between the two routes
-        // (owner): a continuous forested spine from the split up to the green
-        // approach. Fairway A wraps RIGHT of it (safe, longer), Fairway B runs
-        // down its LEFT (aggressive). Held ~15px clear of both corridors.
-        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[632, 820], [590, 784], [588, 700], [584, 648], [614, 584], [672, 566], [712, 596], [714, 660], [684, 712], [648, 772]] },
-        // Collidable granite boulder at the mouth of the split.
-        { type: 'rock', cx: 620, cy: 820, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(620, 820, 15, 15, 8, 0, 1) },
-        // THE POND — a small tarn set right off Fairway B's landing: the
-        // aggressive line must clear a tight forced carry to keep coming at the
-        // green. It sits well LEFT of Fairway A's approach, so the safe route
-        // never sees it — the risk belongs entirely to the shortcut.
-        { type: 'water', polygon: [[634, 510], [660, 490], [686, 500], [690, 522], [672, 534], [644, 532], [628, 522]] },
+        // LEFT TREELINE — the forest that lines the aggressive route. It sits
+        // LEFT of Fairway B, not between the two fairways: the split is only
+        // ~40px wide, so a forest packed between them blocked the left's shot
+        // at the green (sim: 90%+ blow-ups). Pulled left, it frames the gamble
+        // without walling it off; a pull off the aggressive line still finds it.
+        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[556, 860], [520, 806], [520, 708], [544, 646], [582, 636], [588, 700], [580, 782], [566, 834]] },
+        // Collidable granite boulder tucked into the left treeline.
+        { type: 'rock', cx: 548, cy: 884, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(548, 884, 15, 15, 8, 0, 1) },
+        // THE POND — a small tarn short-LEFT of the green: the aggressive line
+        // flies right past it to a good target, but a PULL or a shot that comes
+        // up short-left is wet. Placed OFF the stock line (not a full green-
+        // front forced carry, which death-spiralled the sim AI) and well left
+        // of Fairway A's front-right approach, so it's purely the shortcut's
+        // risk. Back trap (below) punishes the long miss from this angle.
+        { type: 'water', polygon: [[692, 470], [700, 456], [714, 453], [728, 456], [736, 470], [727, 484], [701, 484]] },
         // Sand: cross bunker at the common landing's right; front-left greenside
         // pot; and the BACK trap that catches a long approach from the left.
         { type: 'bunker', polygon: blob(692, 900, 26, 18, 10, 0.35, 131) },
