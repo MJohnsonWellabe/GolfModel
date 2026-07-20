@@ -359,6 +359,15 @@ export interface HoleData {
    *  coastlines, custom margins). Absent = the classic full-`world` behavior
    *  (production is byte-identical while the flag is off). */
   boundary?: Polygon[];
+  /** Authored RECOVERY ZONES (dev-environment roadmap Phase 2): polygons a
+   *  designer marks as intended recovery areas that the derived boundary's
+   *  own inputs (fairway corridor, green, tee, aiTargets, adjoining bunkers)
+   *  would not cover — a punchbowl behind a green, a designed bail-out
+   *  shelf, a canyon-floor escape route. Each is unioned into the derived
+   *  playable boundary (grown by the standard margin) so it keeps full
+   *  visual detail and stays in-bounds. Ignored when `boundary` is authored
+   *  outright; no effect when the bounded world is off. */
+  recoveryZones?: Polygon[];
   /** Decorative flower beds (no collision) — see GardenBed. */
   gardens?: GardenBed[];
   /** Number of decorative sailboats to scatter on the sea behind the green

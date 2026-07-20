@@ -153,6 +153,14 @@ export function computeBoundary(hole: HoleData, margin = DEFAULT_MARGIN): Polygo
   const landingR = 70 + margin; // ~55 yd radius of tolerated dispersion
   for (const t of hole.aiTargets ?? []) regions.push(circlePoly(t.x, t.y, landingR));
 
+  // 4b. Authored recovery zones — designed recovery areas the derived inputs
+  //     above don't cover (a punchbowl, a bail-out shelf, an escape route).
+  //     Grown by the margin like every other playable region; they join the
+  //     core BEFORE step 5 so bunkers beside a recovery zone stay playable too.
+  for (const rz of hole.recoveryZones ?? []) {
+    if (rz.length >= 3) regions.push(inflatePolygon(rz, margin));
+  }
+
   // 5. Playable bunkers & waste that touch the corridor: a hazard whose sand is
   //    reachable in normal play stays in bounds (grown by margin). Far-flung
   //    decorative waste that never comes near play is left as void.

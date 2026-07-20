@@ -218,3 +218,65 @@ describe('bounded playable world — production safety (rule off)', () => {
     expect(oob).toBe(false);
   });
 });
+
+describe('bounded playable world — authored recovery zones', () => {
+  // A designed recovery area none of the derived inputs cover must join the
+  // boundary union (grown by the margin) so it keeps detail and stays in play.
+  const course = COURSES['Sable Bay'];
+  const base = course.holes[0];
+
+  /** A far-corner point that the derived boundary leaves as void. */
+  function voidCorner(hole: HoleData): [number, number] {
+    const boundary = computeBoundary(hole);
+    const candidates: Array<[number, number]> = [
+      [30, 30],
+      [hole.world.width - 30, 30],
+      [30, hole.world.height - 30],
+      [hole.world.width - 30, hole.world.height - 30]
+    ];
+    const found = candidates.find(([x, y]) => !pointInBoundary(x, y, boundary));
+    expect(found).toBeDefined();
+    return found!;
+  }
+
+  it('unions an authored recoveryZones polygon into the derived boundary', () => {
+    const [cx, cy] = voidCorner(base);
+    const zone: Array<[number, number]> = [
+      [cx - 30, cy - 30],
+      [cx + 30, cy - 30],
+      [cx + 30, cy + 30],
+      [cx - 30, cy + 30]
+    ];
+    const hole: HoleData = { ...base, recoveryZones: [zone] };
+    const boundary = computeBoundary(hole);
+    // Zone interior is now in play…
+    expect(pointInBoundary(cx, cy, boundary)).toBe(true);
+    // …including the margin ring outside the authored polygon.
+    const nearRing = Math.min(30 + DEFAULT_MARGIN * 0.5, 30 + DEFAULT_MARGIN - 4);
+    expect(pointInBoundary(cx + nearRing, cy, boundary)).toBe(true);
+  });
+
+  it('a ball resting in a recovery zone is NOT out of bounds', () => {
+    const [cx, cy] = voidCorner(base);
+    const zone: Array<[number, number]> = [
+      [cx - 30, cy - 30],
+      [cx + 30, cy - 30],
+      [cx + 30, cy + 30],
+      [cx - 30, cy + 30]
+    ];
+    const withZone: HoleData = withPlayableBoundary({ ...base, recoveryZones: [zone] }, true);
+    const without: HoleData = withPlayableBoundary({ ...base }, true);
+    const theme = resolveTheme(course);
+    const hf = buildHeightField(withZone, theme.bunkerDepthScale ?? 1, theme.wasteDepthScale ?? 0);
+    type OobProbe = { inOutOfBounds(x: number, y: number): boolean };
+    const engineWith = new PhysicsEngine(withZone, hf, () => 0.5) as unknown as OobProbe;
+    const engineWithout = new PhysicsEngine(without, hf, () => 0.5) as unknown as OobProbe;
+    expect(engineWithout.inOutOfBounds(cx, cy)).toBe(true); // void without the zone
+    expect(engineWith.inOutOfBounds(cx, cy)).toBe(false); // in play with it
+  });
+
+  it('malformed (degenerate) recovery zones are ignored', () => {
+    const hole: HoleData = { ...base, recoveryZones: [[[5, 5], [9, 9]]] };
+    expect(computeBoundary(hole).length).toBe(computeBoundary(base).length);
+  });
+});
