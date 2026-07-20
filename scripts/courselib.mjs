@@ -141,7 +141,13 @@ export function emit(course, id, dir = 'src/data/courses') {
         aiTargets: h.aiTargets.map(([x, y]) => ({ x, y })),
         elevation: h.elevation,
         ...(h.landforms ? { landforms: h.landforms } : {}),
-        ...(h.cliffWalls ? { cliffWalls: h.cliffWalls } : {})
+        ...(h.cliffWalls ? { cliffWalls: h.cliffWalls } : {}),
+        // Optional decorative / boundary authoring (v2 rebuild variants):
+        // passed through verbatim when a course module authors them.
+        ...(h.gardens ? { gardens: h.gardens } : {}),
+        ...(h.props ? { props: h.props } : {}),
+        ...(h.sailboats ? { sailboats: h.sailboats } : {}),
+        ...(h.recoveryZones ? { recoveryZones: h.recoveryZones } : {})
       };
     })
   };

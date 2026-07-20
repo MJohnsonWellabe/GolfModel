@@ -45,6 +45,7 @@ import timberline from '../data/courses/timberline.json';
 import portjohnson from '../data/courses/portjohnson.json';
 import redhollow from '../data/courses/redhollow.json';
 import wildvalley from '../data/courses/wildvalley.json';
+import timberlineV2 from '../data/courses/v2/timberline.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -399,11 +400,20 @@ interface RoundState {
 // of COURSES (and every course-entry path, which all key on COURSES membership),
 // surfacing only as non-playable "Coming soon" teasers.
 const loadNewCourses = flag('newCourses') || adminUnlocked();
+// COURSE TEARDOWN/REBUILD (`courseRebuilds` flag, dev-only): rebuilt v2
+// variants replace the shipped originals course by course as each rebuild
+// lands (src/data/courses/v2/, emitted by gen-new-courses.mjs). With the flag
+// off (production) the original JSON loads and the roster is byte-identical.
+const REBUILDS: Record<string, unknown> = flag('courseRebuilds')
+  ? { timberline: timberlineV2 }
+  : {};
+const courseSrc = (id: string, original: unknown): CourseAuthoring =>
+  (REBUILDS[id] ?? original) as CourseAuthoring;
 const COURSES: Record<string, CourseData> = {
-  wildwood: loadCourse(wildwood as unknown as CourseAuthoring),
-  sablebay: loadCourse(sablebay as unknown as CourseAuthoring),
-  timberline: loadCourse(timberline as unknown as CourseAuthoring),
-  portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring),
+  wildwood: loadCourse(courseSrc('wildwood', wildwood)),
+  sablebay: loadCourse(courseSrc('sablebay', sablebay)),
+  timberline: loadCourse(courseSrc('timberline', timberline)),
+  portjohnson: loadCourse(courseSrc('portjohnson', portjohnson)),
   ...(loadNewCourses
     ? {
         redhollow: loadCourse(redhollow as unknown as CourseAuthoring),

@@ -21,12 +21,12 @@
 import { emit } from './courselib.mjs';
 import { redhollow } from './courses/redhollow.mjs';
 import { wildvalley } from './courses/wildvalley.mjs';
+import { timberlineV2 } from './courses/timberline_v2.mjs';
 
 // Expansion courses (newCourses flag).
 emit(redhollow, 'redhollow');
 emit(wildvalley, 'wildvalley');
 
 // v2 teardown/rebuild variants (courseRebuilds flag) — added course by course
-// as each rebuild lands. Example:
-//   import { timberlineV2 } from './courses/timberline_v2.mjs';
-//   emit(timberlineV2, 'timberline', 'src/data/courses/v2');
+// as each rebuild lands.
+emit(timberlineV2, 'timberline', 'src/data/courses/v2');
