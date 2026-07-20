@@ -59,6 +59,9 @@ const timberlineV2 = {
     // log) is gone — it read as broken litter and, as visual-only scatter,
     // carried no collision.
     scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c'],
+    // Broken granite rims the h2 waste tongue (only waste on the course) so the
+    // scree wash below the green reads as rock, not bare sand.
+    wasteRimKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c'],
     // Denser conifer backdrop wall (owner: "truly a mountain course in the
     // woods") — tighter than the old 46, but not so tight it buries the tee
     // camera in draw calls (step 32 timed out the h1 render).
@@ -101,20 +104,37 @@ const timberlineV2 = {
         // (right) and the direct line (left); blocks the greedy cut.
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[512, 700], [548, 606], [512, 522], [430, 540], [420, 636], [456, 706]] },
         { type: 'rock', cx: 470, cy: 686, r: 16, height: 16, key: 'rock_granite_a', polygon: blob(470, 686, 16, 16, 8, 0, 1) },
-        // RIGHT SIDE LINED WITH COLLIDABLE GRANITE (owner: "lined with the
-        // rocks we're using on hole 2 WITH collision physics") — a boulder run
-        // down the right mountainside; a drive leaked right caroms off real
-        // rock instead of vanishing into scenery. All clear of the drive.
-        { type: 'rock', cx: 748, cy: 1082, r: 25, height: 25, key: 'rock_granite_b', polygon: blob(748, 1082, 25, 25, 8, 0, 21) },
-        { type: 'rock', cx: 750, cy: 1024, r: 21, height: 21, key: 'rock_granite_c', polygon: blob(750, 1024, 21, 21, 8, 0, 26) },
-        { type: 'rock', cx: 758, cy: 968, r: 26, height: 26, key: 'rock_granite_a', polygon: blob(758, 968, 26, 26, 8, 0, 22) },
-        { type: 'rock', cx: 766, cy: 908, r: 22, height: 22, key: 'rock_granite_b', polygon: blob(766, 908, 22, 22, 8, 0, 27) },
-        { type: 'rock', cx: 770, cy: 848, r: 26, height: 26, key: 'rock_granite_c', polygon: blob(770, 848, 26, 26, 8, 0, 23) },
-        { type: 'rock', cx: 774, cy: 788, r: 22, height: 22, key: 'rock_granite_a', polygon: blob(774, 788, 22, 22, 8, 0, 28) },
-        { type: 'rock', cx: 774, cy: 728, r: 24, height: 24, key: 'rock_granite_b', polygon: blob(774, 728, 24, 24, 8, 0, 24) },
-        { type: 'rock', cx: 766, cy: 674, r: 20, height: 20, key: 'rock_granite_c', polygon: blob(766, 674, 20, 20, 8, 0, 29) },
-        { type: 'rock', cx: 750, cy: 620, r: 20, height: 20, key: 'rock_granite_a', polygon: blob(750, 620, 20, 20, 8, 0, 25) },
-        { type: 'rock', cx: 726, cy: 566, r: 17, height: 17, key: 'rock_granite_b', polygon: blob(726, 566, 17, 17, 8, 0, 30) },
+        // GRANITE MASSIF AT THE DOGLEG — a tall STACK of collidable boulders
+        // piled at the FAR END of the straightaway, dead ahead in the tee camera
+        // right where the fairway bends left (owner: "put about 10 of the rocks
+        // at the end of the fairway straight out where it bends left" — and
+        // twice flagged the old rocks as invisible from the tee). Built on the
+        // OUTSIDE of the corner (the fairway swings left off x700, opening room
+        // there) and stacked TALL — a ~44-unit peak at the back — so the outcrop
+        // reads as a landmark from 250 yd. A drive that turns the dogleg is
+        // clean; a ball flown straight past the bend caroms off real rock.
+        { type: 'rock', cx: 742, cy: 560, r: 34, height: 44, key: 'rock_granite_a', polygon: blob(742, 560, 34, 34, 8, 0, 21) },
+        { type: 'rock', cx: 734, cy: 582, r: 32, height: 42, key: 'rock_granite_b', polygon: blob(734, 582, 32, 32, 8, 0, 22) },
+        { type: 'rock', cx: 720, cy: 562, r: 30, height: 40, key: 'rock_granite_c', polygon: blob(720, 562, 30, 30, 8, 0, 23) },
+        { type: 'rock', cx: 746, cy: 602, r: 32, height: 40, key: 'rock_granite_a', polygon: blob(746, 602, 32, 32, 8, 0, 24) },
+        { type: 'rock', cx: 758, cy: 626, r: 30, height: 38, key: 'rock_granite_b', polygon: blob(758, 626, 30, 30, 8, 0, 25) },
+        { type: 'rock', cx: 700, cy: 566, r: 28, height: 36, key: 'rock_granite_c', polygon: blob(700, 566, 28, 28, 8, 0, 26) },
+        { type: 'rock', cx: 768, cy: 650, r: 27, height: 34, key: 'rock_granite_a', polygon: blob(768, 650, 27, 27, 8, 0, 27) },
+        { type: 'rock', cx: 716, cy: 586, r: 28, height: 34, key: 'rock_granite_b', polygon: blob(716, 586, 28, 28, 8, 0, 28) },
+        { type: 'rock', cx: 750, cy: 622, r: 26, height: 32, key: 'rock_granite_c', polygon: blob(750, 622, 26, 26, 8, 0, 29) },
+        { type: 'rock', cx: 730, cy: 606, r: 25, height: 32, key: 'rock_granite_a', polygon: blob(730, 606, 25, 25, 8, 0, 30) },
+        // THE RIDGE TAIL — the outcrop doesn't stop at the corner: it runs LEFT
+        // along the fairway's outer (north) edge toward the green, tracking the
+        // dogleg and THINNING to nothing (owner: "extend that rock line to the
+        // left ... follow the fairway line left there then thin out"). A granite
+        // spine down the mountainside shoulder; each rock held ~8px off the
+        // fairway edge and well clear of the green.
+        { type: 'rock', cx: 678, cy: 556, r: 24, height: 30, key: 'rock_granite_b', polygon: blob(678, 556, 24, 24, 8, 0, 31) },
+        { type: 'rock', cx: 606, cy: 503, r: 20, height: 26, key: 'rock_granite_c', polygon: blob(606, 503, 20, 20, 8, 0, 32) },
+        { type: 'rock', cx: 571, cy: 484, r: 16, height: 20, key: 'rock_granite_a', polygon: blob(571, 484, 16, 16, 8, 0, 33) },
+        { type: 'rock', cx: 536, cy: 465, r: 13, height: 16, key: 'rock_granite_b', polygon: blob(536, 465, 13, 13, 8, 0, 34) },
+        { type: 'rock', cx: 504, cy: 448, r: 10, height: 12, key: 'rock_granite_c', polygon: blob(504, 448, 10, 10, 8, 0, 35) },
+        { type: 'rock', cx: 480, cy: 435, r: 8, height: 10, key: 'rock_granite_a', polygon: blob(480, 435, 8, 8, 8, 0, 36) },
         // LEFT TREELINE — extends the corner cluster UP the left of the drive
         // all the way to the tee (owner: "trees on the left all the way down...
         // extend it all the way"). This + the corner cluster + the greenside
@@ -195,14 +215,31 @@ const timberlineV2 = {
         // left AND a greenside pot right, so a bail either way off the water
         // finds sand, not safety.
         { type: 'bunker', depthMul: 1.4, polygon: blob(406, 486, 16, 12, 9, 0.3, 121) },
-        { type: 'bunker', depthMul: 1.4, polygon: blob(546, 466, 15, 11, 9, 0.3, 122) }
+        { type: 'bunker', depthMul: 1.4, polygon: blob(546, 466, 15, 11, 9, 0.3, 122) },
+        // ROCKY WASTE TONGUE — a long thin waste bunker spilling straight off
+        // the front of the green DOWN to the tarn (owner). Flat sand (waste, not
+        // a dug pot), threaded between the two greenside pots so it doesn't
+        // crater them; theme.wasteRimKeys rims it in broken granite and granite/
+        // sapling landforms sit IN it, so it reads as a rocky scree wash — a
+        // short miss trickles down the rocks toward the water.
+        { type: 'bunker', waste: true, polygon: [[454, 466], [488, 466], [491, 498], [495, 522], [476, 538], [456, 536], [446, 516], [450, 490]] }
       ],
       aiTargets: [],
-      // Granite boulders sitting in the SADDLES between the three terrain
-      // mounds behind the green (owner request: rocks between the mounds).
+      // Granite boulders sitting in the SADDLES between the three terrain mounds
+      // behind the green (owner request: rocks between the mounds), plus the
+      // rocks + tiny fir saplings scattered IN the waste tongue (owner: "rocky
+      // waste ... little tiny saplings in the rocks"). The waste rocks/saplings
+      // are decorative landforms (no collision) — the wash plays as sand.
       landforms: [
         { key: 'rock_granite_a', x: 407, y: 268, h: 13 },
-        { key: 'rock_granite_c', x: 533, y: 268, h: 13 }
+        { key: 'rock_granite_c', x: 533, y: 268, h: 13 },
+        { key: 'rock_granite_b', x: 462, y: 482, h: 4 },
+        { key: 'rock_granite_c', x: 480, y: 500, h: 3.2 },
+        { key: 'rock_granite_a', x: 464, y: 516, h: 3.6 },
+        { key: 'rock_granite_b', x: 482, y: 528, h: 3 },
+        { key: 'tree_fir_a', x: 470, y: 490, h: 14 },
+        { key: 'tree_fir_c', x: 457, y: 506, h: 12 },
+        { key: 'tree_fir_b', x: 485, y: 520, h: 13 }
       ],
       elevation: [
         // ELEVATED TEE ledge ~24 ft up.
@@ -274,10 +311,13 @@ const timberlineV2 = {
         { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[900, 1290], [944, 1000], [952, 640], [904, 470], [1052, 500], [1086, 820], [1052, 1120], [956, 1300]] },
         // Behind-green woods (mountainside).
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[760, 258], [860, 214], [980, 236], [1000, 168], [840, 146], [740, 200]] },
-        // THE POND — sits right in front of the green. The LEFT approach must
-        // carry it; the RIGHT approach comes in from straight below and stays
-        // dry (owner).
-        { type: 'water', polygon: [[708, 452], [732, 426], [768, 434], [786, 458], [772, 484], [734, 490], [710, 472]] },
+        // THE POND — sits in front of the green in a flat low basin (owner: a
+        // lake can't sit on a slope — it used to ride the green's rising skirt).
+        // Pulled just clear of the green bench's skirt and dropped onto its own
+        // level shelf (see elevation) so the water surface is dead flat. The
+        // LEFT approach must carry it; the RIGHT approach comes straight up from
+        // below and stays dry.
+        { type: 'water', polygon: [[701, 482], [725, 456], [761, 464], [779, 488], [765, 514], [727, 520], [703, 502]] },
         // Sand: a lone fairway bunker guarding the right's landing (the only
         // teeth on the safe route), a greenside pot right, and a back trap.
         { type: 'bunker', polygon: blob(884, 802, 22, 15, 10, 0.35, 131) },
@@ -295,11 +335,19 @@ const timberlineV2 = {
         { x: 400, y: 1250, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
-        { x: 840, y: 356, h: 16, r: 160, shape: 'plateau', skirt: 0.55 }, // green climb
+        // GREEN BENCHED A FULL STEP above the pond (owner). A steep-skirted
+        // plateau (skirt 0.74 → a short ~34px bench face, not a long ramp) so the
+        // green rises as a distinct shelf, with its radius held so the skirt
+        // stops SHORT of the pond and never tilts the water.
+        { x: 840, y: 356, h: 16, r: 128, shape: 'plateau', skirt: 0.74 },
+        // POND BASIN — a flat shelf 2 units below grade that the pond sits IN, so
+        // the water reads as a level lake in a hollow instead of pasted on a
+        // slope. Its flat top spans the whole pond; the skirt is the basin lip.
+        { x: 737, y: 489, h: -2, r: 86, shape: 'plateau', skirt: 0.45 },
         // Steep forested valley walls both sides.
         { x: 200, y: 1120, x2: 220, y2: 640, h: 32, r: 110 },
         { x: 1000, y: 900, x2: 980, y2: 500, h: 34, r: 130 },
-        { x: 660, y: 600, h: 10, r: 140 } // rising ground behind the fall
+        { x: 620, y: 680, h: 10, r: 130 } // rising valley ground (clear of the pond)
       ]
     }
   ]
