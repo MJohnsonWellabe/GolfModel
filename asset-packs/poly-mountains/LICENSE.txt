@@ -1,0 +1,4 @@
+Alpine mountain background models (CC0 / Public Domain), fetched via Poly Pizza:
+  m_range.glb -> mountain_alps    (poly.pizza /m/w9VBrh7Nz0 "Mountains", CC0)
+  m_group.glb -> mountain_alps_b  (poly.pizza /m/a52gSEEq8X "Mountain Group", CC0)
+CC0 1.0 Universal — no attribution required. Provenance recorded for auditing.

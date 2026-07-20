@@ -27,16 +27,19 @@ const timberlineV2 = {
     water: '#3f7f9c', waterDeep: '#254f66', waterReflect: true,
     treeCanopy: '#2f5738', treeCanopyLight: '#3d6a44', treeTrunk: '#5b4632',
     haze: '#cfe0e6', hazeStrength: 0.5, horizonTint: '#bcd2da',
-    backdrop: 'peaks', peakKeys: [], blossomChance: 0,
+    backdrop: 'peaks', peakKeys: ['mountain_alps'], blossomChance: 0,
     // NEW CC0 assets (Quaternius, keepTexture): detailed firs dominate the
     // alpine conifer wall, golden aspen mixes in; the flat Kenney pines are
     // gone. Detailed leafy shrub replaces the block bushes. Grey granite
     // boulders scatter through the rough (and mound behind greens as authored
     // landforms).
-    treeKeys: ['tree_fir_a', 'tree_fir_b', 'tree_fir_c', 'tree_aspen'],
-    accentTreeKeys: ['tree_birch', 'tree_birch_b'],
-    bushKeys: [], // no scattered shrubs — alpine ground cover is fern, grass, granite (our bush assets all read poorly)
-    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'stump_a', 'log_a'],
+    // Owner tree choice: high-quality broadleafs (birch/aspen/poplar/oak) —
+    // a golden-montane forest — with standing dead spars + fallen logs mixed
+    // in for character. (The low-poly conifers are out.)
+    treeKeys: ['tree_birch', 'tree_aspen', 'tree_poplar', 'tree_oak'],
+    accentTreeKeys: ['tree_broken', 'tree_birch_b'],
+    bushKeys: [], // no scattered shrubs — our bush assets all read poorly
+    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'tree_fallen', 'stump_a', 'log_a'],
     backdropTreeStep: 46,
     tuftDensity: 1.1, roughTuftHeight: 1.15,
     lushGrass: true, grassKeys: ['grass_c', 'grass_d', 'grass_e'],
@@ -170,39 +173,34 @@ const timberlineV2 = {
       green: { cx: 840, cy: 356, rx: 62, ry: 46, rot: -0.35 },
       slope: { angle: 2.7, strength: 0.32 },
       fairways: [
-        // Fairway A — the main route: dogleg RIGHT, wrapping around the
-        // second-bend stand and climbing to the green.
-        { centerline: [[330, 1300], [392, 1182], [474, 1086], [576, 1016]], width: [46, 60, 82, 84] },
-        { centerline: [[576, 1016], [700, 952], [772, 828], [772, 700]], width: [84, 80, 72, 66] },
-        { centerline: [[772, 700], [764, 560], [800, 452], [836, 392]], width: [66, 60, 54, 50] },
-        // Fairway B — the LEFT branch (owner request): splits off Fairway A
-        // just past the first tree patch and runs up just LEFT of the second
-        // tree patch (the avenue wall), giving a reasonable second approach to
-        // the green from the left side.
-        { centerline: [[500, 1064], [462, 928], [492, 786], [590, 648], [668, 566]], width: [58, 66, 72, 74, 70] }
+        // COMMON fairway — everyone drives to a shared landing.
+        { centerline: [[330, 1300], [402, 1158], [506, 1030], [620, 904]], width: [46, 62, 82, 84] },
+        // Fairway A — the RIGHT (safe, longer) route wrapping right of the
+        // tree mass and climbing to the green.
+        { centerline: [[620, 904], [742, 804], [798, 664], [812, 520], [838, 424]], width: [84, 72, 64, 58, 50] },
+        // Fairway B — the LEFT (risky, tighter, SHORTER) branch hugging the
+        // left of the tree mass to a left approach at the green: less club in
+        // but pinched between the mass and the mountainside.
+        { centerline: [[620, 904], [528, 802], [522, 668], [594, 584], [664, 548]], width: [84, 54, 50, 48, 46] }
       ],
       // Fairway B (the last ribbon) is the alternate route — exclude it from
       // the hole's yardage measurement.
       altFairways: 1,
       hazards: [
-        // FIRST TREE PATCH — a stand LEFT of the drive fairway near the tee;
-        // Fairway B branches off just past it.
+        // FIRST TREE PATCH — a stand LEFT of the drive fairway near the tee.
         { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[262, 1180], [348, 1146], [366, 1024], [306, 958], [228, 1030], [228, 1148]] },
-        // SECOND BEND: a stand inside-right turns the layup back left.
-        { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[836, 900], [948, 848], [968, 704], [900, 616], [800, 700], [792, 852]] },
         // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 32, polygon: [[892, 456], [948, 440], [962, 380], [918, 352], [876, 408]] },
-        // SECOND TREE PATCH — the avenue wall dividing the two routes: Fairway
-        // A passes right of it, Fairway B just left of it.
-        { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[566, 900], [648, 820], [672, 660], [636, 520], [560, 600], [548, 800]] },
-        // A collidable granite boulder in the go-for-it layup, in the fall.
-        { type: 'rock', cx: 764, cy: 900, r: 18, height: 18, key: 'rock_granite_a', polygon: blob(764, 900, 18, 18, 8, 0, 1) },
-        // Sand: cross bunker at A's first landing (right side); deep greenside
-        // pot front-left (the guardian owns the right).
-        { type: 'bunker', polygon: blob(556, 1006, 26, 18, 10, 0.35, 131) },
+        // THE TREE MASS filling the whole area between the two routes (owner
+        // request): a big forested divide. A wraps right of it, B hugs left.
+        { type: 'trees', spacing: 38, visualSpacing: 24, polygon: [[598, 858], [638, 762], [684, 678], [712, 700], [684, 788], [646, 864]] },
+        // Collidable granite boulder at the mouth of the split.
+        { type: 'rock', cx: 620, cy: 820, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(620, 820, 15, 15, 8, 0, 1) },
+        // Sand: cross bunker at the common landing's right; deep greenside pot.
+        { type: 'bunker', polygon: blob(692, 900, 26, 18, 10, 0.35, 131) },
         { type: 'bunker', depthMul: 1.4, polygon: blob(786, 396, 18, 14, 9, 0.3, 132) }
       ],
-      aiTargets: [[430, 1120], [620, 980], [772, 820], [772, 560], [836, 420]],
+      aiTargets: [[470, 1120], [620, 904], [730, 760], [800, 540], [838, 430]],
       landforms: [
         granite(836, 860, 13, 'rock_granite_a'), granite(720, 800, 10, 'rock_granite_c'),
         granite(908, 296, 12, 'rock_granite_b'), granite(232, 1150, 10, 'rock_granite_c')

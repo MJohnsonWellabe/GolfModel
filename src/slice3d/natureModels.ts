@@ -112,6 +112,12 @@ export const GRANITE_KEYS = ['stone_d', 'stone_e', 'stone_f'] as const;
  *  CC-BY-4.0 with attribution in the pack README) — Red Hollow's horizon
  *  range. Opt-in via theme.peakKeys; keeps its imported rock textures. */
 export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red'] as const;
+/** ALPINE mountain-range backgrounds (CC0 Poly Pizza — see asset-packs/
+ *  poly-mountains/LICENSE.txt). Grey stone + white snow + dirt MATERIAL
+ *  colors (no textures), so they keep their imported glTF materials as-is
+ *  rather than being repainted flat — a snow-capped horizon for Timberline.
+ *  Keys start 'mountain' so the peaks backdrop treats them as massifs. */
+export const MOUNTAIN_ALPINE_KEYS = ['mountain_alps', 'mountain_alps_b'] as const;
 /** The rest of the CC-BY red desert set (asset-packs/red-desert-set-README.md):
  *  stylized rock clusters for waste rims, canyon slabs for the mid-ground.
  *  `rocks_red_bright` is the SAME cluster glb loaded under an alias key with
@@ -156,7 +162,8 @@ const ALL_KEYS = [
   ...MOUNTAIN_KEYS,
   ...DESERT_SET_KEYS,
   ...GRANITE_ROCK_KEYS,
-  ...LEAFY_BUSH_KEYS
+  ...LEAFY_BUSH_KEYS,
+  ...MOUNTAIN_ALPINE_KEYS
 ];
 
 export interface NaturePalette {
@@ -463,10 +470,16 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         tm.forceDepthWrite = true;
         return tm;
       };
+      const keepOriginalMat = (MOUNTAIN_ALPINE_KEYS as readonly string[]).includes(key);
       raw.forEach((mm) => {
         let mat: StandardMaterial;
         const slotName = (mm.material?.name ?? '').toLowerCase();
-        if (keepTexture && key.startsWith('tree') && (slotName === 'tree' || slotName.includes('trunk') || slotName.includes('bark'))) {
+        if (keepOriginalMat) {
+          // Alpine mountain ranges keep their imported glTF material (baked
+          // Stone/Snow/Dirt colors) — a snow-capped horizon, not a flat
+          // repaint. Nothing to reassign.
+          mat = mm.material as unknown as StandardMaterial;
+        } else if (keepTexture && key.startsWith('tree') && (slotName === 'tree' || slotName.includes('trunk') || slotName.includes('bark'))) {
           // An uploaded tree's TRUNK slot: the sakura's trunk photo is
           // near-black (it rendered as a solid silhouette at every camera —
           // visual audit), and a photo trunk never matches the palette bark

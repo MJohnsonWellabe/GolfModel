@@ -1,0 +1,108 @@
+<!doctype html>
+<!-- Dev-only tree/bush asset catalog (never linked from the game). Renders
+     EVERY tree and bush we own THROUGH THE GAME'S OWN nature pipeline
+     (loadNaturePrototypes) so each shows its true IN-GAME appearance, on a
+     labelled grid. NO course data is changed. Open (npm run dev):
+     /treecatalog.html?set=trees  or  ?set=bushes  — or capture it. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body { margin: 0; height: 100%; background: #cdd6db; font-family: system-ui, sans-serif; }
+      #c { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #title { position: absolute; left: 12px; top: 10px; color: #14202a; font-size: 18px; font-weight: 700; background: rgba(255,255,255,0.65); padding: 4px 10px; border-radius: 6px; }
+    </style>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+    <div id="title"></div>
+    <script type="module">
+      import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, Color3, Color4, MeshBuilder, DynamicTexture, StandardMaterial } from '@babylonjs/core';
+      import '@babylonjs/loaders/glTF';
+      import { loadNaturePrototypes } from '/src/slice3d/natureModels.ts';
+
+      const TREES = [
+        'tree_fir_a', 'tree_fir_b', 'tree_fir_c', 'tree_spruce', 'tree_pine_k1',
+        'tree_pine_k3', 'tree_oak', 'tree_maple', 'tree_birch', 'tree_birch_b',
+        'tree_aspen', 'tree_poplar', 'tree_sakura', 'tree_palm', 'tree_palm_b',
+        'tree_broken', 'tree_fallen', 'tree_a', 'tree_b', 'tree_c', 'tree_d'
+      ];
+      const BUSHES = [
+        'bush_leafy', 'bush_bloom', 'bush_juniper', 'bush_c', 'bush_berry',
+        'bush_currant', 'bush_raspberry', 'bush_a', 'bush_b',
+        'bush_kenney_a', 'bush_kenney_b', 'bush_kenney_c'
+      ];
+      const params = new URLSearchParams(location.search);
+      const set = params.get('set') === 'bushes' ? 'bushes' : 'trees';
+      const KEYS = set === 'bushes' ? BUSHES : TREES;
+      const TARGET_H = set === 'bushes' ? 3.0 : 6.0;
+      document.getElementById('title').textContent = (set === 'bushes' ? 'BUSH / SHRUB' : 'TREE') + ' catalog — in-game render';
+
+      const canvas = document.getElementById('c');
+      const engine = new Engine(canvas, true, { preserveDrawingBuffer: true });
+      const scene = new Scene(engine);
+      scene.clearColor = new Color4(0.80, 0.85, 0.88, 1);
+      new HemisphericLight('h', new Vector3(0, 1, 0), scene).intensity = 0.9;
+      const dir = new DirectionalLight('d', new Vector3(-0.45, -1, -0.55), scene);
+      dir.intensity = 0.7;
+
+      const COLS = set === 'bushes' ? 6 : 7;
+      const SP = TARGET_H * 1.5;
+      const rows = Math.ceil(KEYS.length / COLS);
+      const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.06, (COLS * SP) * 0.92, new Vector3(0, TARGET_H * 0.45, -(rows - 1) * SP / 2), scene);
+      cam.attachControl(canvas, true);
+
+      // The game's flat-material palette (representative montane greens).
+      const palette = { bark: 0x5b4632, foliage: 0x3f7f46, foliageLight: 0x5aa25c, grass: 0x4a6b41, stone: 0x7f8488, grassLit: false };
+
+      function label(text, x, y, z) {
+        const dt = new DynamicTexture('l' + text, { width: 360, height: 54 }, scene, false);
+        dt.hasAlpha = true;
+        const ctx = dt.getContext();
+        ctx.fillStyle = 'rgba(16,24,30,0.85)';
+        ctx.fillRect(0, 0, 360, 54);
+        ctx.font = 'bold 30px monospace';
+        ctx.fillStyle = '#ffe08a';
+        ctx.textAlign = 'center';
+        ctx.fillText(text, 180, 37);
+        dt.update();
+        const m = new StandardMaterial('lm' + text, scene);
+        m.diffuseTexture = dt; m.diffuseTexture.hasAlpha = true; m.emissiveColor = new Color3(1, 1, 1);
+        m.disableLighting = true; m.useAlphaFromDiffuseTexture = true;
+        const p = MeshBuilder.CreatePlane('lp' + text, { width: SP * 0.92, height: SP * 0.14 }, scene);
+        p.material = m; p.position.set(x, y, z); p.billboardMode = 2;
+      }
+
+      (async () => {
+        const protos = await loadNaturePrototypes(scene, palette, KEYS);
+        KEYS.forEach((key, i) => {
+          const col = i % COLS, row = Math.floor(i / COLS);
+          const x = (col - (COLS - 1) / 2) * SP;
+          const z = -row * SP;
+          const ped = MeshBuilder.CreateCylinder('ped' + key, { diameter: SP * 0.42, height: 0.25, tessellation: 20 }, scene);
+          ped.position.set(x, 0.12, z);
+          const pm = new StandardMaterial('pm' + key, scene); pm.diffuseColor = new Color3(0.62, 0.65, 0.68); ped.material = pm;
+          const proto = protos.get(key);
+          if (proto && proto.parts.length) {
+            const s = TARGET_H / Math.max(0.01, proto.height);
+            const insts = proto.parts.map((part, j) => {
+              const inst = part.createInstance(`cat-${key}-${j}`);
+              inst.scaling.setAll(s);
+              inst.position.set(x, 0, z);
+              inst.setEnabled(true);
+              return inst;
+            });
+            // Ground: shift up so the lowest point sits on the pedestal top.
+            let minY = Infinity;
+            insts.forEach((inst) => { inst.computeWorldMatrix(true); const bb = inst.getBoundingInfo().boundingBox; minY = Math.min(minY, bb.minimumWorld.y); });
+            insts.forEach((inst) => { inst.position.y += 0.25 - minY; });
+          }
+          label(key, x, TARGET_H + SP * 0.16, z);
+        });
+        let frames = 0;
+        scene.onAfterRenderObservable.add(() => { if (++frames === 40) window.__ready = true; });
+        engine.runRenderLoop(() => scene.render());
+      })();
+    </script>
+  </body>
+</html>
