@@ -835,30 +835,6 @@ function bakeGroundShadows(
     );
     ctx.fill();
   }
-  // Big granite masses (authored landforms + collidable 'rock' hazards) get the
-  // SAME baked ground-contact shadow the trees do — they are placed via
-  // placeProto with no dynamic shadow, so without this they read as floating
-  // (owner: "the big rocks need occlusion like the trees"). Footprint radius
-  // matches the physics collider (PhysicsEngine): landform r = h, rock r = hz.r.
-  // A boulder's dark contact patch hugs its base tighter than a tree canopy, so
-  // the ellipse is a touch narrower with a smaller sun offset.
-  const rockMasses: Array<{ x: number; y: number; r: number }> = [
-    ...(hole.landforms ?? []).map((l) => ({ x: l.x, y: l.y, r: l.h })),
-    ...hole.hazards
-      .filter((hz) => hz.type === 'rock')
-      .map((hz) => ({ x: hz.cx ?? 0, y: hz.cy ?? 0, r: hz.r ?? hz.height ?? 10 }))
-  ];
-  for (const m of rockMasses) {
-    ctx.beginPath();
-    ctx.ellipse(
-      (m.x + pad + lean * m.r * 0.55) * scale,
-      (m.y + pad + 2) * scale,
-      m.r * 0.95 * scale,
-      m.r * 0.5 * scale,
-      0, 0, Math.PI * 2
-    );
-    ctx.fill();
-  }
   ctx.fillStyle = 'rgba(10, 24, 12, 0.28)';
   for (const hz of hole.hazards) {
     if (hz.type !== 'building') continue;

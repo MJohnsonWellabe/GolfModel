@@ -119,10 +119,16 @@ function makeTurfNormalTexture(scene: Scene): DynamicTexture {
 /** Procedural tiling normal map for water wavelets (scrolled every frame). */
 function makeWaterNormalTexture(scene: Scene): DynamicTexture {
   const size = 128;
+  // Calm-pond wavelets: gentle, SEAM-LOCKED swells (integer cycles per tile so
+  // the map wraps cleanly — the old field used non-tiling frequencies + a huge
+  // ±2.6-rad phase whip on the vertical stripe, which read as a hard chevron/
+  // zigzag herringbone, especially once the softer 0.62 reflection stopped
+  // washing it out). Low amplitudes + a big flat-Z bias keep it glassy.
+  const T = (Math.PI * 2) / size; // one full cycle spans the tile edge
   const heightAtPx = (x: number, y: number): number =>
-    Math.sin(x * 0.35 + Math.sin(y * 0.3) * 2.6) * 0.6 +
-    Math.sin((x * 0.5 - y * 0.42) * 0.7) * 0.4 +
-    Math.sin((x + y * 1.7) * 0.21) * 0.3;
+    Math.sin(x * T * 2 + Math.sin(y * T * 2) * 0.6) * 0.6 +
+    Math.sin(x * T * 3 + y * T * 2) * 0.35 +
+    Math.sin((x - y) * T) * 0.25;
   const tex = new DynamicTexture('waterNormal', { width: size, height: size }, scene, true);
   const ctx = tex.getContext() as CanvasRenderingContext2D;
   const img = ctx.createImageData(size, size);
@@ -130,11 +136,11 @@ function makeWaterNormalTexture(scene: Scene): DynamicTexture {
     for (let x = 0; x < size; x++) {
       const nx = heightAtPx(x - 1, y) - heightAtPx(x + 1, y);
       const ny = heightAtPx(x, y - 1) - heightAtPx(x, y + 1);
-      const len = Math.hypot(nx, ny, 1.2);
+      const len = Math.hypot(nx, ny, 2.4); // larger Z bias = flatter, softer ripples
       const i = (y * size + x) * 4;
-      img.data[i] = 128 + (nx / len) * 120;
-      img.data[i + 1] = 128 + (ny / len) * 120;
-      img.data[i + 2] = 128 + (1.2 / len) * 120;
+      img.data[i] = 128 + (nx / len) * 60;
+      img.data[i + 1] = 128 + (ny / len) * 60;
+      img.data[i + 2] = 128 + (2.4 / len) * 60;
       img.data[i + 3] = 255;
     }
   }
@@ -142,8 +148,8 @@ function makeWaterNormalTexture(scene: Scene): DynamicTexture {
   tex.update(false);
   tex.wrapU = Texture.WRAP_ADDRESSMODE;
   tex.wrapV = Texture.WRAP_ADDRESSMODE;
-  tex.uScale = 3;
-  tex.vScale = 3;
+  tex.uScale = 1.5; // bigger, slower-repeating wavelets (was 3)
+  tex.vScale = 1.5;
   return tex;
 }
 
@@ -779,6 +785,10 @@ export function buildCourse(
     wm.specularPower = 110;
     wm.alpha = 0.95;
     wm.bumpTexture = waterNormalTex;
+    // Half-strength bump (like turfNormal 0.55 / greenNormal 0.45 — the water
+    // normal was previously left at full 1.0), so the wavelets read as a soft
+    // shimmer, not embossed ridges.
+    (wm.bumpTexture as Texture).level = 0.4;
     // The earcut winding direction follows the authored polygon's own winding
     // (not guaranteed same-handed as the old fan code assumed) — double-sided
     // so the surface is never accidentally backface-culled from above.
@@ -800,8 +810,8 @@ export function buildCourse(
     waterMesh.material = wm;
     scene.onBeforeRenderObservable.add(() => {
       const t = animTime();
-      waterNormalTex.uOffset = t * 0.018;
-      waterNormalTex.vOffset = t * 0.011 + Math.sin(t * 0.4) * 0.02;
+      waterNormalTex.uOffset = t * 0.009;
+      waterNormalTex.vOffset = t * 0.006 + Math.sin(t * 0.4) * 0.012;
       wm.emissiveColor = c3(shade(theme.waterDeep, 0.42 + Math.sin(t * 1.3) * 0.06));
     });
   }
@@ -1165,6 +1175,17 @@ export function buildCourse(
       const mastMat = mat(scene, 'boatMast', 0x8a6a45);
       const boats: TransformNode[] = [];
       const placeholders: Mesh[] = [];
+      // Sailboats must sit on WATER, not land (owner: "you put the ships on
+      // land"). The old code placed them at a fixed offset behind the pin, which
+      // on the coastal/island rebuilds lands over island terrain. Rejection-sample
+      // each boat inside a real water hazard (surfaceAt === 'water'); fall back to
+      // the old behind-the-green offset only if the hole has no water polygons.
+      const waterRings = hole.hazards.filter((h) => h.type === 'water').map((h) => h.polygon);
+      const waterBoxes = waterRings.map((r) => {
+        const xs = r.map((p) => p[0]);
+        const ys = r.map((p) => p[1]);
+        return { r, minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+      });
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
         // Sail height in world units. Scaled up again to 8× the original ~34-46
@@ -1176,8 +1197,20 @@ export function buildCourse(
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
-        const bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
-        const by = hole.pin.y - 250 - ((i * 71) % 170); // behind the green, on the sea (pushed out for the 4x hulls)
+        let bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
+        let by = hole.pin.y - 250 - ((i * 71) % 170); // fallback: behind the green
+        if (waterBoxes.length) {
+          for (let a = 0; a < 48; a++) {
+            const box = waterBoxes[(i + a) % waterBoxes.length];
+            const cx = box.minX + hash2(i * 7 + a * 3 + 1, a * 5 + 2) * (box.maxX - box.minX);
+            const cy = box.minY + hash2(a * 5 + 3, i * 7 + a * 3 + 4) * (box.maxY - box.minY);
+            if (pointInPolygon(cx, cy, box.r) && engine.surfaceAt(cx, cy) === 'water') {
+              bx = cx;
+              by = cy;
+              break;
+            }
+          }
+        }
         const yaw = (((i * 41) % 100) / 100) * Math.PI * 2;
         const boat = new TransformNode(`boat${i}`, scene);
         boat.position = w2b(bx, by, 0.35);

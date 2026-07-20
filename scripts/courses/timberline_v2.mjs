@@ -264,6 +264,14 @@ const timberlineV2 = {
         // lake"). Clear of the tee-shot line up the middle.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 30, polygon: [[292, 720], [250, 800], [232, 884], [156, 876], [150, 752], [214, 700]] },
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 30, polygon: [[688, 720], [730, 800], [748, 884], [824, 876], [830, 752], [766, 700]] },
+        // SOUTH-SHORE stands lining the near bank ALL the way across (owner:
+        // "trees lining hole 2 water need to go all down the visible coast") —
+        // REAL collidable stands (they carry hitboxes AND reflect, unlike the old
+        // decorative landform saplings). They close the gap between the near-shore
+        // corner stands and hug the waterline, leaving only the straight tee-shot
+        // lane (x428-512) open up the middle.
+        { type: 'trees', spacing: 28, visualSpacing: 18, treeR: 28, polygon: [[292, 704], [356, 708], [428, 720], [424, 754], [350, 756], [286, 742]] },
+        { type: 'trees', spacing: 28, visualSpacing: 18, treeR: 28, polygon: [[512, 720], [584, 708], [688, 704], [694, 742], [590, 756], [516, 754]] },
         // The green is PINCHED both sides by sand now (owner: "something to make
         // the hole harder ... bunkers that come into play"): a deep pot short-
         // left AND a greenside pot right, so a bail either way off the water
@@ -293,31 +301,9 @@ const timberlineV2 = {
         { key: 'rock_granite_b', x: 482, y: 528, h: 3 },
         { key: 'tree_fir_a', x: 470, y: 490, h: 14 },
         { key: 'tree_fir_c', x: 457, y: 506, h: 12 },
-        { key: 'tree_fir_b', x: 485, y: 520, h: 13 },
-        // LOW SAPLINGS LINING THE WHOLE TARN BOUNDARY (owner: "bring the saplings
-        // into view from the tee. Have them line the lake boundary"). A ring of
-        // reflectable landform firs (tree proto => mirror; no collision) sitting
-        // right on the bank all the way around the water. The NEAR-SHORE (south)
-        // ones stand a touch taller (h13-15) so they READ from the tee, flanking
-        // the straight shot line (x440-500 kept clear so the tee shot is open);
-        // the far/north-shore ones stay low (h9-11) and clear of the green front.
-        // Near (south) shore — the bank in view from the tee:
-        { key: 'tree_fir_a', x: 338, y: 702, h: 15 },
-        { key: 'tree_fir_c', x: 374, y: 720, h: 13 },
-        { key: 'tree_fir_b', x: 300, y: 706, h: 14 },
-        { key: 'tree_fir_a', x: 604, y: 702, h: 15 },
-        { key: 'tree_fir_c', x: 566, y: 720, h: 13 },
-        { key: 'tree_fir_b', x: 642, y: 706, h: 14 },
-        // West + east banks:
-        { key: 'tree_fir_c', x: 252, y: 634, h: 12 },
-        { key: 'tree_fir_a', x: 268, y: 592, h: 12 },
-        { key: 'tree_fir_b', x: 692, y: 632, h: 12 },
-        { key: 'tree_fir_c', x: 676, y: 592, h: 12 },
-        // North shore (far bank, low so it never blocks the green front):
-        { key: 'tree_fir_a', x: 286, y: 552, h: 11 },
-        { key: 'tree_fir_b', x: 372, y: 538, h: 9 },
-        { key: 'tree_fir_c', x: 568, y: 538, h: 9 },
-        { key: 'tree_fir_a', x: 654, y: 552, h: 11 }
+        { key: 'tree_fir_b', x: 485, y: 520, h: 13 }
+        // (The tarn-boundary trees are now REAL collidable stands in `hazards`,
+        //  not collision-less landform firs — see the SHORELINE stands there.)
       ],
       elevation: [
         // ELEVATED TEE ledge ~24 ft up.
