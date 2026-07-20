@@ -28,20 +28,22 @@
     "peakKeys": [],
     "blossomChance": 0,
     "treeKeys": [
-      "tree_pine_k3",
-      "tree_aspen",
-      "tree_birch"
+      "tree_fir_a",
+      "tree_fir_b",
+      "tree_fir_c",
+      "tree_aspen"
     ],
     "accentTreeKeys": [
+      "tree_birch",
       "tree_birch_b"
     ],
     "bushKeys": [
-      "bush_juniper"
+      "bush_leafy"
     ],
     "scatterKeys": [
-      "stone_d",
-      "stone_e",
-      "stone_f",
+      "rock_granite_a",
+      "rock_granite_b",
+      "rock_granite_c",
       "fern_a",
       "stump_a",
       "log_a"
@@ -197,7 +199,7 @@
           "cy": 686,
           "r": 16,
           "height": 16,
-          "key": "stone_f",
+          "key": "rock_granite_a",
           "polygon": [
             [
               486,
@@ -439,31 +441,31 @@
       ],
       "landforms": [
         {
-          "key": "stone_f",
+          "key": "rock_granite_a",
           "x": 600,
           "y": 640,
           "h": 12
         },
         {
-          "key": "stone_d",
+          "key": "rock_granite_c",
           "x": 660,
           "y": 600,
           "h": 9
         },
         {
-          "key": "stone_f",
+          "key": "rock_granite_a",
           "x": 316,
           "y": 350,
           "h": 11
         },
         {
-          "key": "stone_d",
+          "key": "rock_granite_c",
           "x": 250,
           "y": 560,
           "h": 8
         },
         {
-          "key": "stone_e",
+          "key": "rock_granite_b",
           "x": 900,
           "y": 760,
           "h": 14
@@ -738,22 +740,22 @@
       ],
       "landforms": [
         {
-          "key": "stone_f",
+          "key": "rock_granite_a",
+          "x": 406,
+          "y": 296,
+          "h": 19
+        },
+        {
+          "key": "rock_granite_b",
           "x": 470,
-          "y": 288,
-          "h": 18
+          "y": 286,
+          "h": 23
         },
         {
-          "key": "stone_e",
-          "x": 404,
-          "y": 306,
-          "h": 12
-        },
-        {
-          "key": "stone_d",
-          "x": 540,
-          "y": 300,
-          "h": 12
+          "key": "rock_granite_c",
+          "x": 534,
+          "y": 296,
+          "h": 19
         }
       ]
     },
@@ -761,7 +763,7 @@
       "number": 3,
       "name": "Timberfall",
       "par": 5,
-      "yardage": 600,
+      "yardage": 591,
       "world": {
         "width": 1160,
         "height": 1420
@@ -805,8 +807,8 @@
       ],
       "tees": [
         {
-          "x": 344.1,
-          "y": 1259.4
+          "x": 357.8,
+          "y": 1263.6
         }
       ],
       "fairway": [
@@ -817,12 +819,12 @@
               1300
             ],
             [
-              360,
-              1180
+              392,
+              1182
             ],
             [
-              452,
-              1080
+              474,
+              1086
             ],
             [
               576,
@@ -831,8 +833,8 @@
           ],
           "width": [
             46,
-            62,
-            84,
+            60,
+            82,
             84
           ]
         },
@@ -887,6 +889,42 @@
             54,
             50
           ]
+        },
+        {
+          "centerline": [
+            [
+              330,
+              1300
+            ],
+            [
+              292,
+              1150
+            ],
+            [
+              298,
+              1000
+            ],
+            [
+              376,
+              892
+            ],
+            [
+              502,
+              852
+            ],
+            [
+              606,
+              908
+            ]
+          ],
+          "width": [
+            46,
+            60,
+            68,
+            68,
+            74,
+            80
+          ]
         }
       ],
       "hazards": [
@@ -896,28 +934,28 @@
           "visualSpacing": 24,
           "polygon": [
             [
-              276,
-              1180
+              356,
+              1150
             ],
             [
-              400,
-              1128
+              442,
+              1108
             ],
             [
-              436,
-              1000
+              458,
+              1006
             ],
             [
-              372,
-              940
+              406,
+              952
             ],
             [
-              258,
-              1010
+              340,
+              1006
             ],
             [
-              250,
-              1130
+              334,
+              1094
             ]
           ]
         },
@@ -986,28 +1024,28 @@
           "visualSpacing": 26,
           "polygon": [
             [
-              540,
-              960
+              566,
+              900
             ],
             [
-              636,
-              884
+              648,
+              820
             ],
             [
               672,
-              700
+              660
             ],
             [
               636,
-              540
+              520
             ],
             [
-              540,
-              620
+              560,
+              600
             ],
             [
-              524,
-              840
+              548,
+              800
             ]
           ]
         },
@@ -1017,7 +1055,7 @@
           "cy": 900,
           "r": 18,
           "height": 18,
-          "key": "stone_f",
+          "key": "rock_granite_a",
           "polygon": [
             [
               782,
@@ -1199,12 +1237,12 @@
           "skirt": 0.55
         },
         {
-          "x": 210,
+          "x": 176,
           "y": 1200,
-          "x2": 250,
+          "x2": 206,
           "y2": 720,
           "h": 34,
-          "r": 130
+          "r": 118
         },
         {
           "x": 980,
@@ -1223,27 +1261,27 @@
       ],
       "landforms": [
         {
-          "key": "stone_f",
+          "key": "rock_granite_a",
           "x": 836,
           "y": 860,
           "h": 13
         },
         {
-          "key": "stone_d",
+          "key": "rock_granite_c",
           "x": 720,
           "y": 800,
           "h": 10
         },
         {
-          "key": "stone_e",
+          "key": "rock_granite_b",
           "x": 908,
           "y": 296,
           "h": 12
         },
         {
-          "key": "stone_d",
-          "x": 300,
-          "y": 1120,
+          "key": "rock_granite_c",
+          "x": 232,
+          "y": 1150,
           "h": 10
         }
       ]

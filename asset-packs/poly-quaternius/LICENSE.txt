@@ -1,0 +1,15 @@
+Quaternius "Stylized Nature MegaKit"
+Author: Quaternius (https://quaternius.com)
+License: CC0 1.0 Universal (Public Domain Dedication)
+         https://creativecommons.org/publicdomain/zero/1.0/
+Source models fetched via Poly Pizza (https://poly.pizza), bundle
+"Stylized-Nature-MegaKit-T34GZFA0fm".
+
+Assets used (raw/ -> assets/models/nature key):
+  q_pine_a/b/c.glb    -> tree_fir_a/b/c    (detailed conifers)
+  q_rock_a/b/c.glb    -> rock_granite_a/b/c (grey granite boulders)
+  q_bush_a.glb        -> bush_leafy
+  q_bush_flower.glb   -> bush_bloom
+
+CC0: free for personal, educational, and commercial use; no attribution
+required. This file records provenance as a courtesy and for auditing.

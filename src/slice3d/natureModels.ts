@@ -43,6 +43,16 @@ export const BROADLEAF_KEYS = [
   'tree_aspen',
   'tree_poplar'
 ] as const;
+/** DETAILED CC0 conifers (Quaternius "Stylized Nature MegaKit", CC0 — see
+ *  asset-packs/poly-quaternius/LICENSE.txt). Higher-geometry firs with a real
+ *  gradient-atlas canopy — the mountain-course answer to the flat low-poly
+ *  Kenney pines. keepTexture (below) preserves their atlas. */
+export const FIR_KEYS = ['tree_fir_a', 'tree_fir_b', 'tree_fir_c'] as const;
+/** Grey GRANITE boulders (Quaternius CC0) — the alpine "big rock" the desert
+ *  red-rock set couldn't provide. keepTexture keeps their stone atlas. */
+export const GRANITE_ROCK_KEYS = ['rock_granite_a', 'rock_granite_b', 'rock_granite_c'] as const;
+/** Detailed CC0 shrubs (Quaternius) replacing the flat bush_a/b blocks. */
+export const LEAFY_BUSH_KEYS = ['bush_leafy', 'bush_bloom'] as const;
 export const CONIFER_KEYS = [
   'tree_spruce',
   // Kenney low-poly pines, user-picked from an on-course catalog (Pass 10):
@@ -50,7 +60,9 @@ export const CONIFER_KEYS = [
   // "bare trunk to the top" pine. tree_pine and tree_spruce_tall are retired
   // (playtest: "exactly the one I don't like — remove those universally").
   'tree_pine_k1',
-  'tree_pine_k3'
+  'tree_pine_k3',
+  // Detailed Quaternius firs — get the conifer height boost like the pines.
+  ...FIR_KEYS
 ] as const;
 /** Forest-floor props for rough-only ground scatter (visual, never physics). */
 export const DEADWOOD_KEYS = ['stump_a', 'log_a'] as const;
@@ -142,7 +154,9 @@ const ALL_KEYS = [
   ...REED_KEYS,
   ...GRANITE_KEYS,
   ...MOUNTAIN_KEYS,
-  ...DESERT_SET_KEYS
+  ...DESERT_SET_KEYS,
+  ...GRANITE_ROCK_KEYS,
+  ...LEAFY_BUSH_KEYS
 ];
 
 export interface NaturePalette {
@@ -347,7 +361,11 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         (UPLOADED_KEYS as readonly string[]).includes(key) ||
         (GRANITE_KEYS as readonly string[]).includes(key) ||
         (MOUNTAIN_KEYS as readonly string[]).includes(key) ||
-        (DESERT_SET_KEYS as readonly string[]).includes(key);
+        (DESERT_SET_KEYS as readonly string[]).includes(key) ||
+        // Quaternius CC0 firs / granite / shrubs keep their gradient atlas.
+        (FIR_KEYS as readonly string[]).includes(key) ||
+        (GRANITE_ROCK_KEYS as readonly string[]).includes(key) ||
+        (LEAFY_BUSH_KEYS as readonly string[]).includes(key);
       const texturedMats = new Map<string, StandardMaterial>();
       const buildTexturedMat = (mm: Mesh, matName: string): StandardMaterial => {
         const tm = new StandardMaterial(`natTex-${key}-${matName}`, scene);

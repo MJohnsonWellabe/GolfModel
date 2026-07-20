@@ -109,6 +109,32 @@ export function pathYards(cl) {
   return Math.round(d / 2); // PX_PER_YARD = 2
 }
 
+/** The MAIN routing path through a hole's fairway ribbons, for yardage. A
+ *  hole may carry ALTERNATE fairways (split holes — a second route that
+ *  branches from the tee). Yardage must follow ONE route, so chain only the
+ *  ribbons that connect end→start from the tee; branches (a ribbon starting
+ *  back at the tee, or otherwise not continuing the chain) are ignored. */
+export function mainRoutePts(ribbons, tee) {
+  // Only chain proper centerline ribbons; anything else (raw polygons, empty)
+  // falls back to the caller's flatMap behavior via an empty return.
+  const rib = ribbons.filter((r) => Array.isArray(r?.centerline) && r.centerline.length);
+  if (!rib.length) return [];
+  const near = (a, b) => dist(a, b) < 30;
+  const used = new Set();
+  let cur = rib.findIndex((r) => near(r.centerline[0], tee));
+  if (cur < 0) cur = 0;
+  const pts = [...rib[cur].centerline];
+  used.add(cur);
+  for (let guard = 0; guard < rib.length; guard++) {
+    const end = pts[pts.length - 1];
+    const next = rib.findIndex((r, i) => !used.has(i) && near(r.centerline[0], end));
+    if (next < 0) break;
+    pts.push(...rib[next].centerline.slice(1));
+    used.add(next);
+  }
+  return pts;
+}
+
 // ---- serialize to schema shape ------------------------------------------
 export function emit(course, id, dir = 'src/data/courses') {
   const out = {
@@ -119,7 +145,12 @@ export function emit(course, id, dir = 'src/data/courses') {
       // A hole authors either one ribbon (centerline+width) or several
       // (fairways: [{centerline,width}] — e.g. Wolf Run's wash-split pair).
       const ribbons = h.fairways ?? [{ centerline: h.centerline, width: h.width }];
-      const pathPts = ribbons.flatMap((r) => r.centerline);
+      // Yardage sums the MAIN-route ribbons. A split hole marks its ALTERNATE
+      // fairways with `altFairways: N` (the last N ribbons) so the second
+      // route doesn't inflate the number; holes without it keep the exact
+      // flat-concatenation behavior (existing courses stay byte-identical).
+      const mainRibbons = h.altFairways ? ribbons.slice(0, ribbons.length - h.altFairways) : ribbons;
+      const pathPts = mainRibbons.flatMap((r) => r.centerline);
       return {
         number: h.number,
         name: h.name,
