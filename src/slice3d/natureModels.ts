@@ -39,6 +39,7 @@ export const BROADLEAF_KEYS = [
   'tree_oak',
   'tree_birch',
   'tree_birch_b',
+  'tree_birch_c',
   'tree_maple',
   'tree_aspen',
   'tree_poplar'
@@ -71,7 +72,17 @@ export const BERRY_KEYS = ['bush_berry'] as const;
 export const STONE_KEYS = ['stone_a', 'stone_b', 'stone_c'] as const;
 export const BUSH_KEYS = ['bush_a', 'bush_b'] as const;
 /** Forest-pack bushes courses can opt into via theme.bushKeys. */
-export const EXTRA_BUSH_KEYS = ['bush_juniper', 'bush_c', 'bush_currant', 'bush_raspberry'] as const;
+export const EXTRA_BUSH_KEYS = [
+  'bush_juniper',
+  'bush_c',
+  'bush_currant',
+  'bush_raspberry',
+  // Forest-pack shrubs (asset-packs/forest-nature-fbx via convert-poly): denser,
+  // rounder foliage masses than the flat bush_a/b blocks. Render flat foliageMat.
+  'bush_forest_a',
+  'bush_forest_b',
+  'bush_wolfberry'
+] as const;
 /** Stylized volumetric cloud meshes; courses opt in via theme.cloudKeys. */
 export const CLOUD_KEYS = [
   'cloud_a',

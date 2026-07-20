@@ -1410,10 +1410,34 @@ export function buildCourse(
                       { dx: 800, dy: 60, h: 210, mirror: false, wMul: 2.0 },
                       { dx: -300, dy: -1500, h: 200, mirror: true, wMul: 5.0 }
                     ]
-              : [
-                  { dx: -80 + ki * 500, dy: 0, h: 440, mirror: false, wMul: 1 },
-                  { dx: 880 + ki * 500, dy: -380, h: 300, mirror: true, wMul: 1 }
-                ];
+              : // Non-range massif (e.g. the alpine peaks): owner note "too tall,
+                // overlap a bunch" — a LOW range of many OVERLAPPING instances
+                // (short h, wide wMul, close dx spacing so silhouettes merge into
+                // a continuous ridgeline) instead of two tall isolated spikes.
+                // Per-hole recomposition keeps repeats from reading as copies.
+                holeMod === 0
+                ? [
+                    { dx: -1450, dy: 40, h: 210, mirror: true, wMul: 1.9 },
+                    { dx: -720, dy: -140, h: 250, mirror: false, wMul: 1.7 },
+                    { dx: 40, dy: -40, h: 230, mirror: true, wMul: 1.8 },
+                    { dx: 780, dy: -180, h: 270, mirror: false, wMul: 1.7 },
+                    { dx: 1520, dy: -60, h: 220, mirror: true, wMul: 2.0 }
+                  ]
+                : holeMod === 1
+                  ? [
+                      { dx: -1400, dy: -120, h: 220, mirror: false, wMul: 1.9 },
+                      { dx: -640, dy: -20, h: 250, mirror: true, wMul: 1.7 },
+                      { dx: 120, dy: 90, h: 300, mirror: false, wMul: 1.6 },
+                      { dx: 860, dy: -30, h: 245, mirror: true, wMul: 1.7 },
+                      { dx: 1580, dy: -150, h: 215, mirror: false, wMul: 1.9 }
+                    ]
+                  : [
+                      { dx: -1500, dy: -60, h: 200, mirror: true, wMul: 2.1 },
+                      { dx: -760, dy: -170, h: 235, mirror: false, wMul: 1.8 },
+                      { dx: 0, dy: -70, h: 215, mirror: true, wMul: 1.9 },
+                      { dx: 760, dy: -190, h: 240, mirror: false, wMul: 1.8 },
+                      { dx: 1520, dy: -50, h: 205, mirror: true, wMul: 2.1 }
+                    ];
             for (let si = 0; si < spots.length; si++) {
               const spot = spots[si];
               const sMul = spot.h / proto.height;

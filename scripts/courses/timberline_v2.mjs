@@ -38,7 +38,11 @@ const timberlineV2 = {
     // in for character. (The low-poly conifers are out.)
     treeKeys: ['tree_birch', 'tree_aspen', 'tree_poplar', 'tree_oak'],
     accentTreeKeys: ['tree_broken', 'tree_birch_b'],
-    bushKeys: [], // no scattered shrubs — our bush assets all read poorly
+    // Detailed forest-pack shrubs (asset-packs/forest-nature-fbx): dense
+    // leaf-card foliage masses that read as real undergrowth, NOT the smooth
+    // low-poly bush_a/b/leafy blocks. Chosen off the in-game asset catalog
+    // (treecatalog.html?set=bushes).
+    bushKeys: ['bush_forest_a', 'bush_forest_b', 'bush_wolfberry', 'bush_juniper'],
     scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'tree_fallen', 'stump_a', 'log_a'],
     backdropTreeStep: 46,
     tuftDensity: 1.1, roughTuftHeight: 1.15,

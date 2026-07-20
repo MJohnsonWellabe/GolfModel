@@ -42,6 +42,7 @@ const MANIFEST = {
   tree_oak: { src: 'Oak/SM_Oak_LOD.fbx', ratio: 0.32 },
   tree_birch: { src: 'Birch/Birch_01/SM_Birch_LOD.fbx', ratio: 0.42 },
   tree_birch_b: { src: 'Birch/Birch_02/SM_Birch_02_LOD.fbx', ratio: 0.35 },
+  tree_birch_c: { src: 'Birch/Birch_03/SM_Birch_03_LOD.fbx', ratio: 0.35 },
   tree_maple: 'Maple/SM_Maple_LOD.fbx',
   tree_aspen: 'Aspen/SM_Aspen_LOD.fbx',
   tree_poplar: { src: 'Poplar/SM_Poplar_LOD.fbx', ratio: 0.42 },
@@ -59,6 +60,9 @@ const MANIFEST = {
   bush_berry: 'Bushe/SM_Blackberry_LOD.fbx',
   bush_juniper: 'Bushe/SM_Junipper_LOD.fbx',
   bush_c: 'Bushe/SM_Bushe_01_LOD.fbx',
+  bush_forest_a: 'Bushe/SM_Bushe_02_LOD.fbx',
+  bush_forest_b: 'Bushe/SM_Bushe_03_LOD.fbx',
+  bush_wolfberry: 'Bushe/SM_Wolfberry_LOD.fbx',
   bush_currant: 'Bushe/SM_Currant_LOD.fbx',
   bush_raspberry: 'Bushe/SM_Raspberry_LOD.fbx',
   // Sky props (LOD-less)

@@ -39,7 +39,12 @@
       "tree_broken",
       "tree_birch_b"
     ],
-    "bushKeys": [],
+    "bushKeys": [
+      "bush_forest_a",
+      "bush_forest_b",
+      "bush_wolfberry",
+      "bush_juniper"
+    ],
     "scatterKeys": [
       "rock_granite_a",
       "rock_granite_b",

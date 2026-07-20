@@ -22,21 +22,38 @@
       import { loadNaturePrototypes } from '/src/slice3d/natureModels.ts';
 
       const TREES = [
+        'tree_oak', 'tree_maple', 'tree_birch', 'tree_birch_b', 'tree_birch_c',
+        'tree_aspen', 'tree_poplar', 'tree_broken', 'tree_fallen',
         'tree_fir_a', 'tree_fir_b', 'tree_fir_c', 'tree_spruce', 'tree_pine_k1',
-        'tree_pine_k3', 'tree_oak', 'tree_maple', 'tree_birch', 'tree_birch_b',
-        'tree_aspen', 'tree_poplar', 'tree_sakura', 'tree_palm', 'tree_palm_b',
-        'tree_broken', 'tree_fallen', 'tree_a', 'tree_b', 'tree_c', 'tree_d'
+        'tree_pine_k3', 'tree_sakura', 'tree_palm', 'tree_palm_b',
+        'tree_a', 'tree_b', 'tree_c', 'tree_d'
       ];
+      // Every shrub / groundcover we own, including heathers + ferns used on
+      // other courses (the "what else do we have" survey).
       const BUSHES = [
-        'bush_leafy', 'bush_bloom', 'bush_juniper', 'bush_c', 'bush_berry',
-        'bush_currant', 'bush_raspberry', 'bush_a', 'bush_b',
-        'bush_kenney_a', 'bush_kenney_b', 'bush_kenney_c'
+        'bush_forest_a', 'bush_forest_b', 'bush_wolfberry', 'bush_juniper',
+        'bush_leafy', 'bush_bloom', 'bush_c', 'bush_berry', 'bush_currant',
+        'bush_raspberry', 'bush_a', 'bush_b',
+        'bush_kenney_a', 'bush_kenney_b', 'bush_kenney_c',
+        'fern_a', 'fern_kenney',
+        'heather_fescue_a', 'heather_fescue_b', 'heather_fescue_c', 'heather_purple'
+      ];
+      // Every horizon massif we own (the "get better mountains" survey). These
+      // keep their imported textures (alps = grey/snow material; red = photo).
+      const MOUNTAINS = [
+        'mountain_alps', 'mountain_alps_b', 'mountain_red', 'mountain_range_red'
       ];
       const params = new URLSearchParams(location.search);
-      const set = params.get('set') === 'bushes' ? 'bushes' : 'trees';
-      const KEYS = set === 'bushes' ? BUSHES : TREES;
-      const TARGET_H = set === 'bushes' ? 3.0 : 6.0;
-      document.getElementById('title').textContent = (set === 'bushes' ? 'BUSH / SHRUB' : 'TREE') + ' catalog — in-game render';
+      const raw = params.get('set');
+      const set = raw === 'bushes' ? 'bushes' : raw === 'mountains' ? 'mountains' : 'trees';
+      // ?only=<key> renders a single asset centered (used for the wide mountain
+      // massifs, which overlap when tiled) — otherwise the full set grid.
+      const only = params.get('only');
+      const FULL = set === 'bushes' ? BUSHES : set === 'mountains' ? MOUNTAINS : TREES;
+      const KEYS = only ? [only] : FULL;
+      const TARGET_H = set === 'bushes' ? 3.0 : set === 'mountains' ? 7.0 : 6.0;
+      document.getElementById('title').textContent =
+        (set === 'bushes' ? 'BUSH / SHRUB' : set === 'mountains' ? 'MOUNTAIN / HORIZON' : 'TREE') + ' catalog — in-game render';
 
       const canvas = document.getElementById('c');
       const engine = new Engine(canvas, true, { preserveDrawingBuffer: true });
@@ -46,10 +63,15 @@
       const dir = new DirectionalLight('d', new Vector3(-0.45, -1, -0.55), scene);
       dir.intensity = 0.7;
 
-      const COLS = set === 'bushes' ? 6 : 7;
-      const SP = TARGET_H * 1.5;
+      const COLS = 6;
+      const SP = TARGET_H * 1.5;      // column pitch
+      const SPZ = TARGET_H * 2.4;     // row pitch
       const rows = Math.ceil(KEYS.length / COLS);
-      const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.06, (COLS * SP) * 0.92, new Vector3(0, TARGET_H * 0.45, -(rows - 1) * SP / 2), scene);
+      // Telephoto (narrow FOV, camera far back) flattens perspective so every
+      // tile reads at nearly the same scale — a clean orthographic-ish contact
+      // sheet instead of a huge front row and tiny back row.
+      const cam = new ArcRotateCamera('cam', -Math.PI / 2, 1.24, (COLS * SP) * 2.7, new Vector3(0, TARGET_H * 0.62, -(rows - 1) * SPZ / 2), scene);
+      cam.fov = 0.3;
       cam.attachControl(canvas, true);
 
       // The game's flat-material palette (representative montane greens).
@@ -78,7 +100,7 @@
         KEYS.forEach((key, i) => {
           const col = i % COLS, row = Math.floor(i / COLS);
           const x = (col - (COLS - 1) / 2) * SP;
-          const z = -row * SP;
+          const z = -row * SPZ;
           const ped = MeshBuilder.CreateCylinder('ped' + key, { diameter: SP * 0.42, height: 0.25, tessellation: 20 }, scene);
           ped.position.set(x, 0.12, z);
           const pm = new StandardMaterial('pm' + key, scene); pm.diffuseColor = new Color3(0.62, 0.65, 0.68); ped.material = pm;
@@ -97,7 +119,7 @@
             insts.forEach((inst) => { inst.computeWorldMatrix(true); const bb = inst.getBoundingInfo().boundingBox; minY = Math.min(minY, bb.minimumWorld.y); });
             insts.forEach((inst) => { inst.position.y += 0.25 - minY; });
           }
-          label(key, x, TARGET_H + SP * 0.16, z);
+          label(key, x, 0.55, z - SPZ * 0.42);
         });
         let frames = 0;
         scene.onAfterRenderObservable.add(() => { if (++frames === 40) window.__ready = true; });
