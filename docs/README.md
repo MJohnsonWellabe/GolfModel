@@ -65,6 +65,17 @@ Each major document should use one of these states:
 - `content/CONTENT_AND_LIVEOPS_STRATEGY.md`
 - `studio/BITE_SIZED_GOLF_STUDIO.md`
 - `roadmap/CLAUDE_PHASE_SEQUENCE.md`
+- `dev-environment-roadmap/01_ENVIRONMENT_ROADMAP.md` (environment principles)
+- `dev-environment-roadmap/02_COURSE_DESIGN_BIBLE.md` (course identity register)
+- `dev-environment-roadmap/03_GLOBAL_DESIGN_SKILL.md` (course review rules)
+- `dev-environment-roadmap/04_IMPLEMENTATION_PLAN.md` (active plan + owner decisions)
+
+For course/environment work the precedence within domain docs is: the three
+dev-environment-roadmap direction docs (01–03) govern environment and course
+identity; `10_COURSE_DESIGN_BIBLE.md` remains authoritative for hole-design
+craft; `technical/BOUNDED_PLAYABLE_WORLD.md` and
+`technical/COURSE_AND_BOUNDED_WORLD_FIELD_GUIDE.md` remain the implementation
+authority (owner decision, 2026-07-20).
 
 ## Retained domain and record documents (reconciled 2026-07-17)
 
@@ -105,9 +116,6 @@ Implementation records (evidence, not governing guidance):
 Proposals awaiting approval (not building yet):
 
 - `24_CONTENT_EXPANSION_PROPOSAL.md` (V2 Prompt 17 — Red Hollow + Wild Prairie + alternate layouts)
-- `dev-environment-roadmap/04_IMPLEMENTATION_PLAN.md` (bounded course
-  environments, shared course property, course identity pass, Hole Builder —
-  with `02_COURSE_DESIGN_BIBLE.md` expanded as a DRAFT identity register)
 
 Everything else from the old numbered set now lives under `archive/`
 (superseded-design, release-plans, implementation-history) with retirement

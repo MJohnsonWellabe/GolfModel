@@ -1,7 +1,8 @@
 # Course Design Bible
 
-**Status:** DRAFT expansion (2026-07-19) — per-course identities below are
-starting points for owner review, not final answers.
+**Status:** AUTHORITATIVE (living identity register) — approved 2026-07-20.
+Display names, restoration intent, and the Port Johnson direction reflect
+owner decisions recorded in `04_IMPLEMENTATION_PLAN.md` §6.
 **Scope:** WHO each course is. The craft of designing any individual hole
 (risk/reward, three strategies, fairness, green/bunker/tree rules and the
 authoring knobs) stays in `docs/10_COURSE_DESIGN_BIBLE.md`. Ambient-life and
@@ -58,9 +59,6 @@ another course, the course is not done.
 
 ## Wildwood Glen (`wildwood`) — production — "the flowering parkland"
 
-*(Not listed in the first bible draft — identity below carried over from the
-existing docs; owner to confirm it stays.)*
-
 - **Visual theme:** championship parkland in bloom — broadleaf woods, azalea/
   cherry blossom, garden beds, distant peaks.
 - **Playing theme:** tree-framed doglegs; position golf into manicured greens.
@@ -101,36 +99,37 @@ existing docs; owner to confirm it stays.)*
   water reflecting sky and conifers.
 - **Prohibited:** palms, ocean, red rock, formal gardens.
 
-## Port Johnson Links (`portjohnson`) — production — "the working-harbor links"
+## Port Johnson Links (`portjohnson`) — production — "the Scottish harbor links"
 
-*(First bible draft calls this "Port Links" with Scottish rain/heather. The
-draft below merges that with the shipped harbor identity — owner to choose
-how far toward raw Scottish weather this course moves.)*
+*(Owner decision 2026-07-20: full Scottish turn. The re-theme ships only
+after the course-variant mechanism exists — see plan §6, decisions 5–6.)*
 
-- **Visual theme:** open, treeless-feeling links against a working harbor —
-  moored boats, walls, harbor water; brown-gold firm turf.
-- **Playing theme:** wind (20–30 mph always), ground game, long putts,
-  difficult recoveries.
+- **Visual theme:** raw Scottish links weather over a working harbor —
+  overcast pewter sky, drizzle-washed light, heather and fescue over
+  brown-gold firm turf; moored boats and stone walls in the haze.
+- **Playing theme:** wind (20–30 mph always) and weather — ground game, long
+  putts, difficult recoveries.
 - **Terrain language:** rumpled low linksland; dunes and firm rolls; the
-  harbor and haze close the world.
+  harbor, mist and overcast close the world.
 - **Bunker language:** revetted pot bunkers and marram-edged sand — the
   classic "don't go in there" hazard.
 - **Green language:** big, rolling, firm greens that accept run-ups; long
   lag putts are a core skill here.
-- **Vegetation language:** tall marram/fescue rough, heather accents, almost
-  no trees (a couple of wind-bent broadleaf); character comes from turf, sky
-  and sand.
-- **Weather & atmosphere:** hazier, later-day warm light; gulls, rope-creak,
-  distant foghorn. (Owner call: add rain/overcast variants per the first
-  draft.)
+- **Vegetation language:** heather-dominant rough with tall marram/fescue,
+  almost no trees (a couple of wind-bent broadleaf); character comes from
+  turf, sky and sand.
+- **Weather & atmosphere:** cool overcast light, drizzle treatment, heavy
+  haze; gulls, rope-creak, distant foghorn — the one course where the
+  weather itself is scenery.
 - **Principal difficulty:** wind — the same hole plays three ways on three
   days.
-- **Signature visual moments:** a drive into the harbor skyline; a revetted
-  pot bunker swallowing a bold line.
+- **Signature visual moments:** a drive into the mist-grey harbor skyline; a
+  revetted pot bunker swallowing a bold line; heather glowing under pewter
+  sky.
 - **Prohibited:** lush parkland green tones, dense woods, mountains, desert
-  rock.
+  rock, bright postcard sunshine.
 
-## Red Desert (`redhollow`, display "Red Hollow") — development
+## Red Hollow (`redhollow`) — development — "the red desert canyon"
 
 - **Visual theme:** sandstone mesas and canyons — emerald fairway ribbons
   through bare red ground, layered red-rock ranges on the horizon.
@@ -145,7 +144,8 @@ how far toward raw Scottish weather this course moves.)*
   Devil's Kitchen); long is dead.
 - **Vegetation language:** bare red rough by design — rocks ARE the
   vegetation: fair-side boulder fields, wash-lining stones, crest formations.
-  No grass rough, no woods; sparse dead scrub acceptable near washes.
+  No grass rough, no woods. Restoration scope (owner decision): sparse dead
+  scrub / dry grasses along the washes and rock clusters only.
 - **Weather & atmosphere:** hard midday desert light, warm dust haze,
   vultures on thermals. No water anywhere.
 - **Principal difficulty:** rocks and elevation — caroms, forced carries over

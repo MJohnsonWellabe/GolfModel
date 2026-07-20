@@ -1,7 +1,9 @@
 # Development Environment Roadmap — Audit & Implementation Plan
 
-**Status:** DRAFT — awaiting owner approval before any code or course change.
-**Date:** 2026-07-19. **Scope:** version2 / dev only; production untouched.
+**Status:** ACTIVE PLAN — approved by the owner 2026-07-20; the nine open
+decisions are resolved in §6.
+**Date:** 2026-07-19 (plan), 2026-07-20 (decisions). **Scope:** version2 /
+dev only; production untouched.
 **Companion docs:** `01_ENVIRONMENT_ROADMAP.md` (owner direction),
 `02_COURSE_DESIGN_BIBLE.md` (course identities, expanded draft),
 `03_GLOBAL_DESIGN_SKILL.md` (review rules).
@@ -223,9 +225,13 @@ Small PRs, all behind `boundedWorld` (already dev-on):
 ### Phase 4 — Course identity pass (data/theme, per course)
 Apply the ten-field Bible per course: vegetation vocabulary, edge kit,
 bunker/green language conformance, atmosphere pairing. Dev courses get
-geometry freedom (within locked snapshots); base courses are theme/vegetation
-only until the owner clears geometry (production exposure — §6). Every course
-change lands as its own reviewable PR with before/after screenshots.
+geometry freedom (within locked snapshots). Base courses are **blocked on the
+per-environment course-variant mechanism (decision 5)** — that mechanism is
+this phase's first work item; no base-course change ships to production
+until variants make it dev-only. Port Johnson's full Scottish re-theme
+(decision 6) is the largest base-course item and goes last in this phase.
+Every course change lands as its own reviewable PR with before/after
+screenshots.
 
 ### Phase 5 — Course rebuild order
 1. **Red Desert (redhollow) = the template.** It already exercises every
@@ -305,32 +311,32 @@ Hand-authored geometry failing the gate wall — mitigated by the in-browser
 gate runner. (4) Scope creep — the module list above is deliberately
 sequenced; MVP ships without any geometry editing.
 
-## 6. Decisions requiring owner approval
+## 6. Owner decisions (resolved 2026-07-20)
 
-1. **Doc authority:** adopt the recommended precedence in Phase 1.3 and make
-   this folder's three docs governing? (Recommended: yes.)
-2. **Naming:** "Port Links" vs "Port Johnson Links"; "Red Desert" vs "Red
-   Hollow" as display names; confirm `wildvalley` id keeps display "Wild
-   Prairie".
-3. **Wildwood Glen identity** — absent from the new Bible: keep the
-   flowering-parkland identity (drafted) or replace?
-4. **Which removals were "incorrect":** confirm per-course — restore any
-   trees to Wild Prairie? (Draft says no — treeless IS the identity; restore
-   density/coverage instead.) Restore any grass/scrub to Red Desert's bare
-   rough? (Draft says sparse wash scrub only.)
-5. **Base-course exposure:** identity passes on the four production courses
-   ship to prod with the next deploy (courses are bundled). Approve
-   vegetation/theme-only passes shipping, or require a per-environment
-   course-variant mechanism first?
-6. **Port Johnson weather:** move toward Scottish rain/overcast (new Bible)
-   or keep warm harbor light?
-7. **`boundedWorld` promotion:** target flipping prod:true (after baselines +
-   device pass) this roadmap, or keep dev-only until courses are rebuilt?
-8. **Hole Builder as author of record** for redhollow/wildvalley (retiring
-   the generator per-course), and whether the builder page needs admin
-   gating on top of build exclusion.
-9. **Property plans:** approve drafting shared-property layouts for all six
-   courses in Phase 3, or pilot Wild Prairie only?
+1. **Doc authority: adopt the proposed precedence.** Vision docs → this
+   folder's three docs (environment principles, identity Bible, global
+   design skill) → `10_COURSE_DESIGN_BIBLE.md` (hole craft) → technical
+   implementation records.
+2. **Naming: keep current display names** — Port Johnson Links and Red
+   Hollow (ids unchanged; the Bible's "Port Links"/"Red Desert" are theme
+   descriptions, not display names). Wild Prairie confirmed.
+3. **Wildwood Glen: keeps the flowering-parkland identity** as drafted.
+4. **Restoration intent:** Wild Prairie **stays treeless** — restore fescue
+   density/coverage, not trees. Red Hollow keeps bare red rough — restore
+   **sparse wash scrub only** (dead scrub/dry grasses along washes and rock
+   clusters).
+5. **Base courses: build a per-environment course-variant mechanism first.**
+   No base-course JSON/theme changes ship until dev-only variants exist;
+   Phases 4–5 for the four base courses are blocked on that mechanism.
+6. **Port Johnson: full Scottish turn** (overcast palette, rain/drizzle
+   treatment, heather-dominant rough) — scoped as a real re-theme, executed
+   only after decision 5's variant mechanism exists.
+7. **`boundedWorld` promotion: after the course rework** (Phases 2–5
+   validated on device + owner screenshot approval).
+8. **Hole Builder becomes author of record** per course once it round-trips
+   the JSON; `gen-new-courses.mjs` retires per course at that point. Builder
+   page stays dev-only via build exclusion.
+9. **Property plans: pilot Wild Prairie only**, then roll out per course.
 
 ## 7. Assumptions
 
