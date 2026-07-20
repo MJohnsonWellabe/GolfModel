@@ -46,6 +46,7 @@ import portjohnson from '../data/courses/portjohnson.json';
 import redhollow from '../data/courses/redhollow.json';
 import wildvalley from '../data/courses/wildvalley.json';
 import timberlineV2 from '../data/courses/v2/timberline.json';
+import sablebayV2 from '../data/courses/v2/sablebay.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -405,7 +406,7 @@ const loadNewCourses = flag('newCourses') || adminUnlocked();
 // lands (src/data/courses/v2/, emitted by gen-new-courses.mjs). With the flag
 // off (production) the original JSON loads and the roster is byte-identical.
 const REBUILDS: Record<string, unknown> = flag('courseRebuilds')
-  ? { timberline: timberlineV2 }
+  ? { timberline: timberlineV2, sablebay: sablebayV2 }
   : {};
 const courseSrc = (id: string, original: unknown): CourseAuthoring =>
   (REBUILDS[id] ?? original) as CourseAuthoring;
