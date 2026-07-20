@@ -26,7 +26,7 @@
     "horizonTint": "#bcd2da",
     "backdrop": "peaks",
     "peakKeys": [
-      "mountain_alps"
+      "mountain_range_alpine"
     ],
     "blossomChance": 0,
     "treeKeys": [
@@ -963,32 +963,52 @@
         },
         {
           "type": "trees",
-          "spacing": 38,
-          "visualSpacing": 24,
+          "spacing": 40,
+          "visualSpacing": 26,
           "polygon": [
             [
-              598,
+              620,
               858
             ],
             [
-              638,
-              762
+              584,
+              804
             ],
             [
-              684,
-              678
+              566,
+              724
             ],
             [
-              712,
-              700
+              566,
+              668
             ],
             [
-              684,
-              788
+              606,
+              618
             ],
             [
               646,
-              864
+              592
+            ],
+            [
+              700,
+              600
+            ],
+            [
+              714,
+              660
+            ],
+            [
+              684,
+              712
+            ],
+            [
+              648,
+              772
+            ],
+            [
+              632,
+              820
             ]
           ]
         },

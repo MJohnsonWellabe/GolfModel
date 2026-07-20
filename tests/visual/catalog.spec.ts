@@ -13,7 +13,7 @@ for (const set of ['trees', 'bushes', 'mountains'] as const) {
 }
 
 // Each horizon massif solo — they're too wide to tell apart when tiled.
-for (const key of ['mountain_alps', 'mountain_alps_b', 'mountain_red', 'mountain_range_red'] as const) {
+for (const key of ['mountain_alps', 'mountain_alps_b', 'mountain_red', 'mountain_range_red', 'mountain_range_alpine'] as const) {
   test(`mountain solo — ${key}`, async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 1100 });
     await page.goto(`/treecatalog.html?set=mountains&only=${key}`);

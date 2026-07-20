@@ -121,8 +121,14 @@ export const REED_KEYS = ['reed_cattail'] as const;
 export const GRANITE_KEYS = ['stone_d', 'stone_e', 'stone_f'] as const;
 /** Uploaded PHOTO-textured mountain massif (asset-packs/red-mountain,
  *  CC-BY-4.0 with attribution in the pack README) — Red Hollow's horizon
- *  range. Opt-in via theme.peakKeys; keeps its imported rock textures. */
-export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red'] as const;
+ *  range. Opt-in via theme.peakKeys; keeps its imported rock textures.
+ *  `mountain_range_alpine` is the SAME high-detail range diorama with its
+ *  baked vertex colors remapped from red desert rock to a cool blue-grey +
+ *  snow montane palette (scripts/recolor-alpine-range.mjs) — Timberline's
+ *  realistic horizon. Keeps the normal-mapped relief that made it read
+ *  detailed; only the color changed. Starts 'mountain_range' so the peaks
+ *  code treats it as a full-width range composition. */
+export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red', 'mountain_range_alpine'] as const;
 /** ALPINE mountain-range backgrounds (CC0 Poly Pizza — see asset-packs/
  *  poly-mountains/LICENSE.txt). Grey stone + white snow + dirt MATERIAL
  *  colors (no textures), so they keep their imported glTF materials as-is
@@ -151,7 +157,11 @@ export const DESERT_SET_KEYS = [
 const KEY_FILE_ALIASES: Record<string, string> = {
   rocks_red_bright: 'rocks_red_cluster',
   rocks_red_mid: 'rocks_red_cluster',
-  rocks_red_dark: 'rocks_red_cluster'
+  rocks_red_dark: 'rocks_red_cluster',
+  // Same high-detail range diorama as the red desert massif — the montane
+  // look is a COOL-palette material (buildTexturedMat) lit through the shared
+  // normal map, not a separate asset.
+  mountain_range_alpine: 'mountain_range_red'
 };
 const ALL_KEYS = [
   ...TREE_KEYS,
@@ -400,6 +410,20 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         const tex = isDesertDiorama
           ? src?.albedoTexture
           : (src?.albedoTexture ?? src?.getActiveTextures?.()?.[0]);
+        if (key === 'mountain_range_alpine' && src?.bumpTexture) {
+          // MONTANE reskin of the same high-detail range: a cool blue-grey
+          // rock base lit through the shared normal map (the relief is what
+          // makes it read detailed/realistic), with a pale hazy emissive floor
+          // so it recedes atmospherically like a real distant snow range —
+          // NOT the red desert terracotta below.
+          tm.diffuseColor = c3(0x8494a6);
+          tm.bumpTexture = src.bumpTexture;
+          tm.emissiveColor = c3(0x6b7a8c);
+          tm.specularColor = c3(0x000000);
+          tm.backFaceCulling = false;
+          tm.forceDepthWrite = true;
+          return tm;
+        }
         if (isDesertDiorama && !tex && src?.bumpTexture) {
           // The red_desert_mountains range ships NO albedo — all its rock
           // detail lives in the normal map. Light a terracotta base through

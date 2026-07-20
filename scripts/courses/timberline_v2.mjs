@@ -27,7 +27,7 @@ const timberlineV2 = {
     water: '#3f7f9c', waterDeep: '#254f66', waterReflect: true,
     treeCanopy: '#2f5738', treeCanopyLight: '#3d6a44', treeTrunk: '#5b4632',
     haze: '#cfe0e6', hazeStrength: 0.5, horizonTint: '#bcd2da',
-    backdrop: 'peaks', peakKeys: ['mountain_alps'], blossomChance: 0,
+    backdrop: 'peaks', peakKeys: ['mountain_range_alpine'], blossomChance: 0,
     // NEW CC0 assets (Quaternius, keepTexture): detailed firs dominate the
     // alpine conifer wall, golden aspen mixes in; the flat Kenney pines are
     // gone. Detailed leafy shrub replaces the block bushes. Grey granite
@@ -195,9 +195,12 @@ const timberlineV2 = {
         { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[262, 1180], [348, 1146], [366, 1024], [306, 958], [228, 1030], [228, 1148]] },
         // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 32, polygon: [[892, 456], [948, 440], [962, 380], [918, 352], [876, 408]] },
-        // THE TREE MASS filling the whole area between the two routes (owner
-        // request): a big forested divide. A wraps right of it, B hugs left.
-        { type: 'trees', spacing: 38, visualSpacing: 24, polygon: [[598, 858], [638, 762], [684, 678], [712, 700], [684, 788], [646, 864]] },
+        // THE TREE MASS filling the WHOLE area between the two routes (owner
+        // request): a big forested divide from the split mouth up to the green
+        // approach. Fairway A wraps RIGHT of it (safe, longer), Fairway B hugs
+        // its LEFT (risky, tighter, shorter). The polygon is held ~15px clear
+        // of both corridors at every station so neither route is blocked.
+        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[620, 858], [584, 804], [566, 724], [566, 668], [606, 618], [646, 592], [700, 600], [714, 660], [684, 712], [648, 772], [632, 820]] },
         // Collidable granite boulder at the mouth of the split.
         { type: 'rock', cx: 620, cy: 820, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(620, 820, 15, 15, 8, 0, 1) },
         // Sand: cross bunker at the common landing's right; deep greenside pot.
