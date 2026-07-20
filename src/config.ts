@@ -87,6 +87,14 @@ export const PHYSICS = {
   /** Fraction of the heightfield-gradient roll applied OFF the green (fairway/
    *  rough), so a downhill drive gains yards without a runaway roll-out. */
   rollGradFairwayMult: 0.55,
+  /** Realistic driver DESCENT tangent used to cap the DOWNHILL carry bonus. The
+   *  flight is drag-free, so the parabola is symmetric and descends at ~11° (the
+   *  launch angle) — which would geometrically add ~18 yd of carry per 10 ft of
+   *  drop (1/tan(11°)). A real driver descends ~38°, so once the ball is BELOW
+   *  its launch elevation its extra horizontal run is capped to dropBelow/this.
+   *  tan(38°)=0.78 → a 10 ft drop adds ~4 yd, not ~18. Flat/uphill drives never
+   *  enter the cap, so level distance is unchanged (owner: no global nerf). */
+  downhillCarryDescentTan: 0.78,
   /** Max wind speed, mph (GDD: ~20mph should change club selection). */
   maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */

@@ -1796,16 +1796,21 @@ class HoleScene {
     const distLabel = this.aim.isPutting ? `${Math.round(yd * 3)} ft` : `${Math.round(yd)} yd`;
     let elevFt: number;
     if (this.aim.isPutting) {
-      // TRUE net rise/fall from the ball to the CUP — the same height-delta the
-      // full-shot read uses, keyed on the pin so it's stable as the player drags
-      // the aim marker. The old read averaged the slope ALONG the aim line and
-      // scaled it to an aim-assist rule of thumb, which massively under-reported
-      // a concentrated STEP: a green with a 4-tier (≈5.7 ft) read "11 inches"
-      // because the flat parts of the putt diluted the average. Net delta reads
-      // the true tier and still matches gentle greens (a uniform slope's net
-      // rise ≈ what the old heuristic showed). 1 world unit = 1.5 ft.
-      elevFt =
-        (this.engine2d.groundAt(this.hole.pin.x, this.hole.pin.y) - this.engine2d.groundAt(bx, by)) * 1.5;
+      // EFFECTIVE ball→cup rise the ROLL actually fights, expressed as a height
+      // the player reads by the 6:1 rule (owner: "uphill by 6 inches, you aim 3
+      // feet long; 12 inches = 6 feet"). Production greens are FLAT plateaus in
+      // the heightfield — their break lives in the authored hole.slope, invisible
+      // to a raw groundAt() delta — so the old height-delta read under-reported
+      // every sloped green. slopeAccelAlong sums the SAME authored slope + any
+      // heightfield contour the ball obeys; calibrating the shown rise to
+      // extra_aim/6 makes "aim 6× the marker" hole out by construction.
+      //   extra_aim_px ≈ dPx·aUp/EFFECTIVE_MU ; shown_rise_ft = extra_aim·1.5/6.
+      // EFFECTIVE_MU ≈ green friction + the integrator's v0 half-kick (measured).
+      const yaw = Math.atan2(this.hole.pin.y - by, this.hole.pin.x - bx);
+      const dPx = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
+      const aUp = -this.engine2d.slopeAccelAlong({ x: bx, y: by }, yaw, dPx); // +uphill / −downhill
+      const EFFECTIVE_MU = 180;
+      elevFt = (aUp * dPx * 1.5) / (EFFECTIVE_MU * 6);
     } else {
       // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)
       elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;

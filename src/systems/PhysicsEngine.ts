@@ -724,6 +724,12 @@ export class PhysicsEngine {
     // samples store height ABOVE the local ground so playback/land detection
     // stay terrain-agnostic.
     let z = this.groundAt(origin.x, origin.y);
+    // Launch ground elevation + downhill-cap trackers (see the cap in the
+    // airborne loop): once the ball drops below launchGroundH, its extra
+    // horizontal carry is limited to a realistic descent.
+    const launchGroundH = z;
+    let belowStartX: number | null = null;
+    let belowStartY = 0;
     let vx: number;
     let vy: number;
     let vz: number;
@@ -806,6 +812,31 @@ export class PhysicsEngine {
             x = rc.px;
             y = rc.py;
           }
+        }
+        // DOWNHILL CARRY CAP: the drag-free parabola descends at ~the launch
+        // angle (~11° for a driver), so landing on ground BELOW the tee would
+        // geometrically float the ball out ~18 yd per 10 ft of drop. Once the
+        // ball is below its launch elevation, cap the extra horizontal run to a
+        // realistic ~38° descent (dropBelow / descentTan) by snapping it down to
+        // the ground there. Flat/uphill landings (ground >= launchGroundH) never
+        // enter this branch, so level and uphill drives are byte-identical.
+        // Trigger on the BALL descending below its LAUNCH height (z < launchGroundH
+        // = past where it would have landed on flat ground) over lower terrain —
+        // not merely on the ground being lower (which is true the instant a
+        // clifftop drive leaves the tee). belowStart marks that flat-landing
+        // crossing; the ball may then float only maxBonus further before snapping
+        // down. Climb + early descent (z >= launchGroundH) keep belowStart null.
+        if (z > ground && z < launchGroundH && ground < launchGroundH) {
+          if (belowStartX === null) {
+            belowStartX = x;
+            belowStartY = y;
+          }
+          const maxBonus = (launchGroundH - ground) / PHYSICS.downhillCarryDescentTan;
+          if (Math.hypot(x - belowStartX, y - belowStartY) > maxBonus) {
+            z = ground; // land here rather than floating on the shallow arc
+          }
+        } else if (z >= launchGroundH) {
+          belowStartX = null;
         }
         // Tree collision: any ball inside the trunk band (below treeHeight) that
         // reaches an actual tree canopy is stopped — whether it is rising or
