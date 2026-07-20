@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import timberlineV2 from '../../src/data/courses/v2/timberline.json';
 import sablebayV2 from '../../src/data/courses/v2/sablebay.json';
+import portjohnsonV2 from '../../src/data/courses/v2/portjohnson.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { buildHeightField } from '../../src/systems/HeightField';
@@ -23,7 +24,8 @@ import { golferWith } from './simHelpers';
  */
 const REBUILDS: Record<string, CourseAuthoring> = {
   Timberline: timberlineV2 as unknown as CourseAuthoring,
-  'Sable Bay': sablebayV2 as unknown as CourseAuthoring
+  'Sable Bay': sablebayV2 as unknown as CourseAuthoring,
+  'Port Johnson': portjohnsonV2 as unknown as CourseAuthoring
 };
 
 const UNFINISHED_TOLERANCE = 4; // ~2% of 180 hole-plays, same as newCourses

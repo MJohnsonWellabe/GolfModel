@@ -47,6 +47,7 @@ import redhollow from '../data/courses/redhollow.json';
 import wildvalley from '../data/courses/wildvalley.json';
 import timberlineV2 from '../data/courses/v2/timberline.json';
 import sablebayV2 from '../data/courses/v2/sablebay.json';
+import portjohnsonV2 from '../data/courses/v2/portjohnson.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -406,7 +407,7 @@ const loadNewCourses = flag('newCourses') || adminUnlocked();
 // lands (src/data/courses/v2/, emitted by gen-new-courses.mjs). With the flag
 // off (production) the original JSON loads and the roster is byte-identical.
 const REBUILDS: Record<string, unknown> = flag('courseRebuilds')
-  ? { timberline: timberlineV2, sablebay: sablebayV2 }
+  ? { timberline: timberlineV2, sablebay: sablebayV2, portjohnson: portjohnsonV2 }
   : {};
 const courseSrc = (id: string, original: unknown): CourseAuthoring =>
   (REBUILDS[id] ?? original) as CourseAuthoring;
@@ -684,6 +685,9 @@ class HoleScene {
   /** World point the aim-distance/elevation readout floats over (FB2/FB4). */
   private aimReadoutWorld: { x: number; y: number } | null = null;
   private aerial = false;
+  /** Course's own fog density, captured on first aerial toggle (see
+   *  applyAerialFog). */
+  private baseFogDensity: number | null = null;
   /** Pre-shot shot SHAPE (strike dot), per turn. */
   private strike = new StrikeControl();
   private strikeDragging = false;
@@ -1154,7 +1158,18 @@ class HoleScene {
 
   // ------------------------------------------------------------- cameras
 
+  /** AERIAL READABILITY: EXP2 haze at overhead altitude can wash out the
+   *  planning view on large or deliberately hazy holes (the Scottish-turn
+   *  links). Thin the fog while the overhead is up; every ground-level
+   *  camera gets the course's own atmosphere back. Constitution: atmosphere
+   *  may never obstruct aim readability. */
+  private applyAerialFog(on: boolean): void {
+    if (this.baseFogDensity === null) this.baseFogDensity = this.scene.fogDensity;
+    this.scene.fogDensity = on ? this.baseFogDensity * 0.3 : this.baseFogDensity;
+  }
+
   private setCamSetup(): void {
+    this.applyAerialFog(this.aerial);
     const f = this.fwd3(this.aim.yaw);
     const base = w2b(this.state.ballPos.x, this.state.ballPos.y, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     const putt = this.aim.isPutting;
@@ -2112,6 +2127,7 @@ class HoleScene {
     this.aimRoot.setEnabled(false);
     this.hideTrueVision(); // "stays up until the shot is struck" ends here
     this.aerial = false;
+    this.applyAerialFog(false); // flight cameras get the course's real haze
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';
     aerialBtn.style.display = 'none';
