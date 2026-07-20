@@ -10,10 +10,63 @@
 //
 // Vertical unit ≈ 1.5 ft, so h:20 ≈ 30 ft. Framing mountainsides run h:24-38
 // (steep, they READ as hills); playing elevation (tee vs green) runs 10-20 ft.
-import { blob } from '../courselib.mjs';
+import { blob, rng, stream } from '../courselib.mjs';
 
 // Granite landform helper (render-only alpine outcrop).
 const granite = (x, y, h, key = 'rock_granite_b') => ({ key, x, y, h });
+
+// H1 OBSIDIAN/GRANITE TALUS FIELD — a decorative rock apron spreading from the
+// dogleg massif up the fairway's outer (north) shoulder toward the green: DENSE
+// against the formation, thinning to nothing, big rocks with medium stones and
+// small fragments filling the gaps (owner Phase-1 H1). Authored as LANDFORMS so
+// every rock is render-only (no collision — "outside normal play"), grounded by
+// placeProto at heightAt, and GPU-instanced (three shared granite source meshes).
+// Deterministic (seeded) so regen is stable. Held off the fairway, green and the
+// left "Point" tree stand.
+function h1RockField() {
+  const CL = [[700, 1080], [700, 940], [702, 800], [700, 672], [584, 566], [452, 470], [380, 438]];
+  const W = [42, 58, 82, 82, 74, 58, 48];
+  function nearest(px, py) {
+    let best = { d: 1e9, qy: 0, hw: 0 };
+    for (let i = 0; i < CL.length - 1; i++) {
+      const ax = CL[i][0], ay = CL[i][1], bx = CL[i + 1][0], by = CL[i + 1][1];
+      const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+      let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+      const qx = ax + dx * t, qy = ay + dy * t, d = Math.hypot(px - qx, py - qy);
+      if (d < best.d) best = { d, qy, hw: (W[i] + (W[i + 1] - W[i]) * t) / 2 };
+    }
+    return best;
+  }
+  const green = { cx: 360, cy: 420, r: 62 };
+  const point = [[512, 700], [548, 606], [512, 522], [430, 540], [420, 636], [456, 706]];
+  const pip = (px, py, poly) => { let ins = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1]; if (((yi > py) !== (yj > py)) && (px < (xj - xi) * (py - yi) / (yj - yi) + xi)) ins = !ins; } return ins; };
+  const anchor = [726, 596];
+  const keys = ['rock_granite_a', 'rock_granite_b', 'rock_granite_c'];
+  const r = rng(7781);
+  const out = [];
+  for (let y = 398; y <= 666; y += 12) {
+    for (let x = 430; x <= 786; x += 12) {
+      const jx = x + (r() - 0.5) * 13, jy = y + (r() - 0.5) * 13;
+      const n = nearest(jx, jy);
+      const edge = n.d - n.hw;                       // distance OUTSIDE the fairway edge
+      if (edge < 9 || edge > 96) continue;           // a band hugging the outer shoulder
+      if (jy > n.qy + 6) continue;                   // outer (north/massif) side only
+      if (Math.hypot(jx - green.cx, jy - green.cy) < green.r + 14) continue;
+      if (pip(jx, jy, point)) continue;
+      const dA = Math.hypot(jx - anchor[0], jy - anchor[1]);
+      const dens = Math.max(0.05, 0.8 - dA / 300);   // dense near the massif -> thins out
+      if (r() > dens) continue;
+      // Mostly medium stones and small fragments; a few larger stones near the
+      // massif (the massif itself owns the big-boulder note). ~45% fragments.
+      const near = 1 - Math.min(1, dA / 260);
+      const frag = r() < 0.45;
+      const big = !frag && r() < 0.22 + near * 0.18;  // occasional larger stone, likelier near the massif
+      const h = frag ? 1.6 + r() * 2.2 : big ? 6 + near * 4 + r() * 2 : 3.2 + near * 2.6 + r() * 1.6;
+      out.push({ key: keys[Math.floor(r() * keys.length)], x: Math.round(jx), y: Math.round(jy), h: Math.round(h * 10) / 10 });
+    }
+  }
+  return out;
+}
 
 const timberlineV2 = {
   name: 'Timberline',
@@ -151,7 +204,7 @@ const timberlineV2 = {
         { type: 'bunker', depthMul: 1.35, polygon: blob(438, 470, 19, 14, 9, 0.3, 111) }
       ],
       aiTargets: [[700, 700], [560, 560], [360, 470]],
-      landforms: [granite(600, 640, 12, 'rock_granite_a'), granite(660, 600, 9, 'rock_granite_c'), granite(316, 350, 11, 'rock_granite_a'), granite(250, 560, 8, 'rock_granite_c'), granite(900, 760, 14, 'rock_granite_b')],
+      landforms: [granite(600, 640, 12, 'rock_granite_a'), granite(660, 600, 9, 'rock_granite_c'), granite(316, 350, 11, 'rock_granite_a'), granite(250, 560, 8, 'rock_granite_c'), granite(900, 760, 14, 'rock_granite_b'), ...h1RockField()],
       elevation: [
         // ELEVATED TEE — a granite shoulder ~21 ft up (kept modest enough
         // that the tee camera sits cleanly above it, not buried in the skirt).
@@ -239,7 +292,31 @@ const timberlineV2 = {
         { key: 'rock_granite_b', x: 482, y: 528, h: 3 },
         { key: 'tree_fir_a', x: 470, y: 490, h: 14 },
         { key: 'tree_fir_c', x: 457, y: 506, h: 12 },
-        { key: 'tree_fir_b', x: 485, y: 520, h: 13 }
+        { key: 'tree_fir_b', x: 485, y: 520, h: 13 },
+        // LOW SAPLINGS IN FRONT OF THE TEE, right at the near shore (owner P1 H2:
+        // "add low saplings near the water ... below the shot and camera lines ...
+        // close enough to reflect"). Landform firs => reflectable (tree proto),
+        // no collision, and SHORT (h9-12) so they sit under the tee-shot arc and
+        // the tee camera. Split into two banks flanking the straight shot line
+        // (x440-500 kept clear); hugging the waterline so they mirror in the tarn.
+        { key: 'tree_fir_a', x: 352, y: 712, h: 12 },
+        { key: 'tree_fir_c', x: 386, y: 726, h: 10 },
+        { key: 'tree_fir_b', x: 338, y: 700, h: 11 },
+        { key: 'tree_fir_a', x: 414, y: 720, h: 9 },
+        { key: 'tree_fir_c', x: 600, y: 710, h: 12 },
+        { key: 'tree_fir_b', x: 566, y: 726, h: 10 },
+        { key: 'tree_fir_a', x: 624, y: 700, h: 11 },
+        { key: 'tree_fir_c', x: 528, y: 722, h: 9 },
+        // NATURALLY GROUPED SAPLINGS LEFT OF THE GREEN, along the tarn's NW shore
+        // (owner P1 H2). A loose clump at the waterline, left of and below the
+        // putting surface (green is x414-526 / y378-462) so it stays out of the
+        // putting and left-recovery areas; reflects toward the approach/green.
+        { key: 'tree_fir_b', x: 330, y: 546, h: 12 },
+        { key: 'tree_fir_a', x: 354, y: 556, h: 10 },
+        { key: 'tree_fir_c', x: 304, y: 524, h: 11 },
+        { key: 'tree_fir_b', x: 300, y: 582, h: 12 },
+        { key: 'tree_fir_a', x: 336, y: 532, h: 9 },
+        { key: 'tree_fir_c', x: 372, y: 552, h: 10 }
       ],
       elevation: [
         // ELEVATED TEE ledge ~24 ft up.
@@ -293,13 +370,19 @@ const timberlineV2 = {
         // THE DENSE DIVIDER — a heavy block of trees BETWEEN the two fairways
         // (owner). Held clear of both corridors; a drive that leaks toward the
         // middle from either side finds the woods.
-        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[648, 860], [634, 762], [678, 652], [748, 656], [770, 762], [738, 862]] },
+        // East edge pulled ~16px west of the right-approach corridor so the
+        // RIGHT route's second shot is clean (owner P1 H3) while the block stays
+        // dense between the fairways for the left route.
+        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[648, 860], [634, 762], [678, 652], [734, 656], [752, 762], [724, 862]] },
         // THE TREE IN THE WAY — a lone giant spruce standing in the LEFT
         // approach line: a straight go-for-the-green hits it, so the aggressor
         // must work the ball around it (owner).
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 30, polygon: [[696, 586], [710, 538], [732, 552], [726, 582], [704, 594]] },
-        // GREENSIDE GUARDIAN — short-right of the green.
-        { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 30, polygon: [[900, 452], [956, 436], [968, 378], [922, 350], [882, 404]] },
+        // GREENSIDE GUARDIAN — short-right of the green. Nudged east + canopy
+        // trimmed (treeR 30->20) so it FRAMES the right of the green without its
+        // branches hanging into the right approach (owner P1 H3: clean right
+        // approach; preserve framing that doesn't obstruct).
+        { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 20, polygon: [[924, 452], [980, 436], [992, 378], [946, 350], [906, 404]] },
         // LEFT-OF-LEFT WOODS — a dense band lining the left of the left fairway
         // for most of its length, but pulled back off the tee end so the drive
         // INTO the left fairway is clearly open, not walled off (owner: "you
@@ -311,13 +394,18 @@ const timberlineV2 = {
         { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[900, 1290], [944, 1000], [952, 640], [904, 470], [1052, 500], [1086, 820], [1052, 1120], [956, 1300]] },
         // Behind-green woods (mountainside).
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[760, 258], [860, 214], [980, 236], [1000, 168], [840, 146], [740, 200]] },
-        // THE POND — sits in front of the green in a flat low basin (owner: a
-        // lake can't sit on a slope — it used to ride the green's rising skirt).
-        // Pulled just clear of the green bench's skirt and dropped onto its own
-        // level shelf (see elevation) so the water surface is dead flat. The
-        // LEFT approach must carry it; the RIGHT approach comes straight up from
-        // below and stays dry.
-        { type: 'water', polygon: [[701, 482], [725, 456], [761, 464], [779, 488], [765, 514], [727, 520], [703, 502]] },
+        // THE LEFT POND — enlarged and wrapped farther around the LEFT approach
+        // (owner P1 H3): a bigger body straddling the left approach line in front
+        // of the green so the aggressive left route carries more water. Sits in a
+        // flat low basin (see elevation) so the surface is dead level; east edge
+        // held < x805 so the RIGHT approach (x820-876) stays completely dry.
+        { type: 'water', polygon: [[636, 520], [652, 472], [692, 448], [734, 450], [770, 470], [802, 486], [794, 522], [762, 548], [716, 560], [672, 556], [646, 544]] },
+        // THE CREEK — the pond narrows into a creek that winds up the LEFT side
+        // of the green, behind it, and continues off screen (owner P1 H3). Shares
+        // the pond's water level; its own flat channel (see elevation) keeps it
+        // level. Varied natural width from the stream jitter. Held west of the
+        // green bench so it never undercuts the putting shelf.
+        { type: 'water', polygon: stream([[700, 486], [664, 452], [648, 404], [666, 350], [700, 300], [690, 240], [644, 180], [588, 132], [512, 74]], 30, 415) },
         // Sand: a lone fairway bunker guarding the right's landing (the only
         // teeth on the safe route), a greenside pot right, and a back trap.
         { type: 'bunker', polygon: blob(884, 802, 22, 15, 10, 0.35, 131) },
@@ -340,10 +428,21 @@ const timberlineV2 = {
         // green rises as a distinct shelf, with its radius held so the skirt
         // stops SHORT of the pond and never tilts the water.
         { x: 840, y: 356, h: 16, r: 128, shape: 'plateau', skirt: 0.74 },
-        // POND BASIN — a flat shelf 2 units below grade that the pond sits IN, so
-        // the water reads as a level lake in a hollow instead of pasted on a
-        // slope. Its flat top spans the whole pond; the skirt is the basin lip.
-        { x: 737, y: 489, h: -2, r: 86, shape: 'plateau', skirt: 0.45 },
+        // POND BASIN — a flat shelf 2 units below grade that the enlarged pond
+        // sits IN, so the water reads as a level lake in a hollow instead of
+        // pasted on a slope. Flat top spans the whole (bigger) pond; skirt = lip.
+        { x: 718, y: 500, h: -2, r: 122, shape: 'plateau', skirt: 0.72 },
+        // CREEK CHANNEL — a narrow flat trough (same -2 level as the pond) cut
+        // along the creek so the water stays level up the left of the green and
+        // off screen. Held west of the green bench (clear of the putting shelf).
+        { x: 700, y: 486, x2: 664, y2: 452, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 664, y: 452, x2: 648, y2: 404, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 648, y: 404, x2: 666, y2: 350, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 666, y: 350, x2: 700, y2: 300, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 700, y: 300, x2: 690, y2: 240, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 690, y: 240, x2: 644, y2: 180, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 644, y: 180, x2: 588, y2: 132, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
+        { x: 588, y: 132, x2: 512, y2: 74, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
         // Steep forested valley walls both sides.
         { x: 200, y: 1120, x2: 220, y2: 640, h: 32, r: 110 },
         { x: 1000, y: 900, x2: 980, y2: 500, h: 34, r: 130 },
