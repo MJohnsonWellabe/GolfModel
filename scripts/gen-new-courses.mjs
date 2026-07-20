@@ -142,7 +142,12 @@ const redhollow = {
     bareRough: true,
     bushKeys: [],
     scatterKeys: ['rocks_red_cluster', 'rocks_red_mid', 'rocks_red_dark', 'rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d'],
-    sandPlantKeys: ['rocks_red_cluster', 'bush_b'],
+    // Corridor restoration (dev-environment roadmap, owner decision 2026-07-20:
+    // "sparse wash scrub only"): the washes/waste keep their dead-brown
+    // tumbleweed scrub + rock clusters and gain sparse DRY BUNCHGRASS
+    // (heather_fescue_a — the gold photo card, reads as sun-cured desert
+    // grass). Rough stays bare red by design (bareRough).
+    sandPlantKeys: ['rocks_red_cluster', 'bush_b', 'heather_fescue_a'],
     sandPlantStep: 70, sandPlantKeep: 0.45,
     sandSculpt: 0.25, bunkerDepthScale: 1.35, wasteDepthScale: 1.4,
     greenShadeGain: 13,

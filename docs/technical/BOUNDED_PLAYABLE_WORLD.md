@@ -55,6 +55,30 @@ green, a required camera sightline, or a recovery area designed into the hole.
 None were needed for the first pass; the derived corridor covered all six
 courses (see validation).
 
+**Authored recovery zones (dev-environment roadmap Phase 2):** a hole may
+author `recoveryZones: Polygon[]` — designed recovery areas the derived
+inputs don't cover (a punchbowl behind a green, a bail-out shelf, an escape
+route). Each is unioned into the derived boundary grown by the margin, and
+joins the core before the bunker-adjacency step so sand beside a recovery
+zone stays playable too. Ignored when `hole.boundary` is authored outright;
+inert when the rule is off.
+
+### Corridor detail restoration & the frame band (Phase 2, 2026-07-20)
+
+With the rule ON (`hole.boundary` present; production untouched):
+
+- **Green surrounds keep their scatter.** The historical bare radius around
+  the pin (110 px ≈ 55 yd) scalped the rough around every green. Bounded
+  holes now exclude scatter only from the green complex + fringe + a 16 px
+  readability collar (`nearPinClassic`, course3d.ts); classic behavior is
+  byte-identical when the rule is off.
+- **Identity fields stop at the frame band.** Tall fescue/heather fields,
+  waste-bunker fescue, and sand plants — previously un-clipped — now render
+  through the corridor plus an 80 px (~40 yd) frame band
+  (`computeBoundary(hole, margin + 80)`), then stop; the void/haze owns
+  everything beyond. This is both the visual rule ("the detailed world simply
+  stops existing") and a real instance cut on fescue-heavy courses.
+
 ## Relief & penalty logic
 
 Reuses the existing out-of-bounds pipeline (`PhysicsEngine`,

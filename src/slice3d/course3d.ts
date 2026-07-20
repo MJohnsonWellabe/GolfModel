@@ -40,7 +40,7 @@ import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern'
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
-import { pointInBoundary } from '../systems/PlayableBoundary';
+import { computeBoundary, DEFAULT_MARGIN, pointInBoundary } from '../systems/PlayableBoundary';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
 import { AtmosphereKind, buildAtmosphere } from './atmosphere';
@@ -1912,6 +1912,31 @@ export function buildCourse(
         const ly = (-dx * sr + dy * cr) / g.ry;
         return lx * lx + ly * ly <= 1;
       });
+    // CORRIDOR DETAIL RESTORATION (dev-environment roadmap Phase 2; bounded
+    // world only — production keeps the classic exclusions byte-identical):
+    //
+    // 1. Green surrounds. The historical bare radius around the PIN (110 px
+    //    ≈ 55 yd) scalped the rough around every green — the single biggest
+    //    "meaningful assets missing near play" offender from the audit. With
+    //    the bounded world on, scatter now stays out of the green complex +
+    //    fringe + a short readability collar only; the rough beyond keeps its
+    //    grass/bushes/rocks.
+    const GREEN_SURROUND_PAD = FRINGE_MARGIN + 16; // collar past the fringe kept clean
+    const nearPinClassic = (px: number, py: number, classicR: number): boolean =>
+      hole.boundary
+        ? pointInGreens(px, py, hole.green, hole.green2, GREEN_SURROUND_PAD)
+        : Math.hypot(px - hole.pin.x, py - hole.pin.y) < classicR;
+    // 2. The FRAME BAND. The big identity fields (tall fescue, waste fescue,
+    //    sand plants) previously ignored the boundary entirely — the one
+    //    scatter family still paying for the outskirts. They now keep full
+    //    presence through the corridor plus a wider frame band, then stop:
+    //    past the frame, the void/haze treatment owns the view. (For a hole
+    //    with an AUTHORED boundary the derived frame is a heuristic superset
+    //    — acceptable: the frame is scenery, not gameplay.)
+    const FRAME_BAND = 80; // ≈ 40 yd of framing field beyond the corridor margin
+    const frameBoundary = hole.boundary ? computeBoundary(hole, DEFAULT_MARGIN + FRAME_BAND) : null;
+    const inFrame = (px: number, py: number): boolean =>
+      !frameBoundary || pointInBoundary(px, py, frameBoundary);
     // A tree hazard's authored polygon marks where TRUNKS may land, but the
     // rendered CANOPY overhangs up to ~27 world units past a trunk near the
     // boundary — so ground scatter (grass/flowers/bushes) planted right up to
@@ -1943,7 +1968,7 @@ export function buildCourse(
         if (hole.boundary && !pointInBoundary(xx, yRow, hole.boundary)) continue;
         const surf = engine.surfaceAt(xx, yRow);
         if (surf !== 'rough' && surf !== 'fairway') continue;
-        if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;
+        if (nearPinClassic(xx, yRow, 110)) continue;
         if (inGarden(xx, yRow)) continue;
         // Keep tall grass off the mown tee pad (it reads as short, clean turf)
         // and out of the tee approach — a tuft right in front of the camera
@@ -2062,6 +2087,9 @@ export function buildCourse(
         const yRow = yy;
         popQueue.push(() => {
         for (let xx = 0; xx < w; xx += tgStep) {
+          // Bounded world: the fescue/heather field stops at the frame band
+          // (corridor + FRAME_BAND) — cheapest reject first.
+          if (!inFrame(xx, yRow)) continue;
           const surfHere = engine.surfaceAt(xx, yRow);
           if (surfHere !== 'rough') {
             // Fairway-edge fingers: where the cluster noise peaks right at
@@ -2077,7 +2105,7 @@ export function buildCourse(
                 engine.surfaceAt(xx, yRow - 14) === 'rough') &&
               !inTeePad(hole, xx, yRow) &&
               Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) >= 70 &&
-              Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) >= 110
+              !nearPinClassic(xx, yRow, 110)
             ) {
               place(heatherSet, xx, yRow, cap * (0.5 + hash2(xx + 5, yRow - 5) * 0.3));
             }
@@ -2085,7 +2113,7 @@ export function buildCourse(
           }
           if (inTeePad(hole, xx, yRow)) continue;
           if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 70) continue;
-          if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 90) continue;
+          if (nearPinClassic(xx, yRow, 90)) continue;
           // Cluster mask: plant probability scales 0.25..~1.6 with the patch
           // noise (non-clustered courses keep the historical always-plant).
           const patch = clustered ? 0.25 + vnoise(xx, yRow) * 1.45 : 1;
@@ -2128,6 +2156,7 @@ export function buildCourse(
               for (let xx = Math.min(...xs); xx < Math.max(...xs); xx += step) {
                 const jx = xx + (hash2(xx + 5, yy) - 0.5) * step;
                 const jy = yy + (hash2(yy + 5, xx) - 0.5) * step;
+                if (!inFrame(jx, jy)) continue; // waste fescue stops at the frame band
                 if (!pointInPolygon(jx, jy, hz.polygon)) continue;
                 // A fairway ribbon or treeline can now be drawn over part of a
                 // waste polygon (fairway "islands" in the sand) — surfaceAt
@@ -2176,8 +2205,9 @@ export function buildCourse(
         const yRow = yy;
         popQueue.push(() => {
           for (let xx = 0; xx < w; xx += sandStep) {
+            if (!inFrame(xx, yRow)) continue; // sand plants stop at the frame band
             if (engine.surfaceAt(xx, yRow) !== 'sand') continue;
-            if (Math.hypot(xx - hole.pin.x, yRow - hole.pin.y) < 110) continue;
+            if (nearPinClassic(xx, yRow, 110)) continue;
             if (Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) < 60) continue;
             if (hash2(xx + 41, yRow + 19) > keep) continue; // thin to clumps
             const jx = xx + (hash2(xx, yRow) - 0.5) * sandStep * 0.7;

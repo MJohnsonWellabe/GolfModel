@@ -51,7 +51,8 @@
     ],
     "sandPlantKeys": [
       "rocks_red_cluster",
-      "bush_b"
+      "bush_b",
+      "heather_fescue_a"
     ],
     "sandPlantStep": 70,
     "sandPlantKeep": 0.45,
