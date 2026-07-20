@@ -36,8 +36,8 @@
       "tree_oak"
     ],
     "accentTreeKeys": [
-      "tree_broken",
-      "tree_birch_b"
+      "tree_birch_b",
+      "tree_maple"
     ],
     "bushKeys": [],
     "heatherKeys": [
@@ -54,12 +54,10 @@
     "scatterKeys": [
       "rock_granite_a",
       "rock_granite_b",
-      "rock_granite_c",
-      "tree_fallen",
-      "stump_a",
-      "log_a"
+      "rock_granite_c"
     ],
-    "backdropTreeStep": 46,
+    "backdropTreeStep": 40,
+    "waterReflectStrength": 0.92,
     "tuftDensity": 1.1,
     "roughTuftHeight": 1.15,
     "lushGrass": true,
@@ -331,6 +329,37 @@
             [
               236,
               430
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 40,
+          "visualSpacing": 24,
+          "polygon": [
+            [
+              120,
+              360
+            ],
+            [
+              250,
+              300
+            ],
+            [
+              430,
+              300
+            ],
+            [
+              470,
+              214
+            ],
+            [
+              280,
+              184
+            ],
+            [
+              128,
+              248
             ]
           ]
         },
@@ -649,6 +678,68 @@
             [
               584,
               456
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 30,
+          "visualSpacing": 20,
+          "polygon": [
+            [
+              262,
+              706
+            ],
+            [
+              240,
+              604
+            ],
+            [
+              224,
+              502
+            ],
+            [
+              168,
+              496
+            ],
+            [
+              150,
+              612
+            ],
+            [
+              196,
+              712
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 30,
+          "visualSpacing": 20,
+          "polygon": [
+            [
+              720,
+              712
+            ],
+            [
+              738,
+              604
+            ],
+            [
+              752,
+              502
+            ],
+            [
+              808,
+              496
+            ],
+            [
+              826,
+              612
+            ],
+            [
+              780,
+              706
             ]
           ]
         },
@@ -1034,6 +1125,99 @@
             [
               558.6,
               873.4
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 40,
+          "visualSpacing": 26,
+          "polygon": [
+            [
+              1000,
+              1120
+            ],
+            [
+              1082,
+              940
+            ],
+            [
+              1092,
+              600
+            ],
+            [
+              1030,
+              470
+            ],
+            [
+              970,
+              640
+            ],
+            [
+              978,
+              1020
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 40,
+          "visualSpacing": 26,
+          "polygon": [
+            [
+              360,
+              900
+            ],
+            [
+              446,
+              760
+            ],
+            [
+              456,
+              560
+            ],
+            [
+              396,
+              440
+            ],
+            [
+              300,
+              600
+            ],
+            [
+              312,
+              860
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 42,
+          "visualSpacing": 26,
+          "polygon": [
+            [
+              760,
+              258
+            ],
+            [
+              860,
+              214
+            ],
+            [
+              980,
+              236
+            ],
+            [
+              1000,
+              168
+            ],
+            [
+              840,
+              146
+            ],
+            [
+              740,
+              200
             ]
           ]
         },

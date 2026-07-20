@@ -33,11 +33,13 @@ const timberlineV2 = {
     // gone. Detailed leafy shrub replaces the block bushes. Grey granite
     // boulders scatter through the rough (and mound behind greens as authored
     // landforms).
-    // Owner tree choice: high-quality broadleafs (birch/aspen/poplar/oak) —
-    // a golden-montane forest — with standing dead spars + fallen logs mixed
-    // in for character. (The low-poly conifers are out.)
+    // Owner tree choice: high-quality broadleafs (birch/aspen/poplar/oak) — a
+    // golden-montane forest. The broken/dead-spar + fallen-log assets are OUT
+    // (owner: they read as broken and lacked collision); every tree now is a
+    // real canopy planted IN a stand, so it carries collision from
+    // collectTreeBlobs. (The low-poly conifers stay out too.)
     treeKeys: ['tree_birch', 'tree_aspen', 'tree_poplar', 'tree_oak'],
-    accentTreeKeys: ['tree_broken', 'tree_birch_b'],
+    accentTreeKeys: ['tree_birch_b', 'tree_maple'],
     // UNDERSTORY — the forest-pack "bush" meshes ship WITHOUT their leaf-cutout
     // texture (the fbx references a missing C:\ leaf png), so they render as
     // solid boxes. The foliage that reads as REAL 3D growth is the photo-
@@ -53,8 +55,16 @@ const timberlineV2 = {
     heatherKeys: ['heather_purple', 'heather_purple', 'heather_fescue_a', 'heather_purple'],
     tallGrass: { cap: 5, density: 5 },
     prairieClusters: true,
-    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'tree_fallen', 'stump_a', 'log_a'],
-    backdropTreeStep: 46,
+    // Rough scatter: granite boulders only. The deadwood (tree_fallen / stump /
+    // log) is gone — it read as broken litter and, as visual-only scatter,
+    // carried no collision.
+    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c'],
+    // Denser conifer backdrop wall (owner: "truly a mountain course in the
+    // woods") — tighter than the old 46, but not so tight it buries the tee
+    // camera in draw calls (step 32 timed out the h1 render).
+    backdropTreeStep: 40,
+    // Stronger planar reflection so the treeline reads clearly in the tarn.
+    waterReflectStrength: 0.92,
     tuftDensity: 1.1, roughTuftHeight: 1.15,
     // grass_c/d/e/f/i render as SOLID low-poly BLOBS (the "green boxes" in the
     // rough — the game's own comment warns grass cards "read as 2D blocks the
@@ -98,6 +108,10 @@ const timberlineV2 = {
         // GREENSIDE GUARDIAN — spruce cluster front-left (guards the left pin;
         // approach from the drive zone stays open down the right).
         { type: 'trees', spacing: 36, visualSpacing: 22, polygon: [[248, 486], [320, 470], [336, 398], [276, 376], [236, 430]] },
+        // BACKDROP WOODS behind the green — a dense stand rising up the
+        // mountainside so the green sits IN the forest, not in front of bare
+        // hillside (owner: "more woods... a mountain course in the woods").
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[120, 360], [250, 300], [430, 300], [470, 214], [280, 184], [128, 248]] },
         // Greenside sand front-right — green pinched between trees and sand.
         { type: 'bunker', depthMul: 1.35, polygon: blob(438, 470, 19, 14, 9, 0.3, 111) }
       ],
@@ -146,6 +160,12 @@ const timberlineV2 = {
         // LEFT + RIGHT guardian spruce stands pinching the green.
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[316, 486], [396, 456], [412, 360], [356, 312], [278, 372], [276, 448]] },
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[624, 486], [702, 456], [714, 350], [650, 312], [574, 372], [584, 456]] },
+        // WOODED SHORELINE — dense treelines flanking the tarn, down to the
+        // waterline on both sides. They frame the carry AND throw the course's
+        // first real reflections across the water (owner: "I should see trees
+        // reflecting"). Clear of the straight tee-shot line up the middle.
+        { type: 'trees', spacing: 30, visualSpacing: 20, polygon: [[262, 706], [240, 604], [224, 502], [168, 496], [150, 612], [196, 712]] },
+        { type: 'trees', spacing: 30, visualSpacing: 20, polygon: [[720, 712], [738, 604], [752, 502], [808, 496], [826, 612], [780, 706]] },
         // Deep pot short-left, between tarn and green.
         { type: 'bunker', depthMul: 1.4, polygon: blob(406, 486, 16, 12, 9, 0.3, 121) }
       ],
@@ -221,6 +241,13 @@ const timberlineV2 = {
         { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[556, 860], [520, 806], [520, 708], [544, 646], [582, 636], [588, 700], [580, 782], [566, 834]] },
         // Collidable granite boulder tucked into the left treeline.
         { type: 'rock', cx: 548, cy: 884, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(548, 884, 15, 15, 8, 0, 1) },
+        // ENCLOSING WOODS (owner: "more woods... a mountain course in the
+        // woods") — dense stands lining the far RIGHT mountainside, the mid-
+        // LEFT slope, and the hillside behind the green, all clear of both
+        // fairway corridors so the hole plays through a forest, not a clearing.
+        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[1000, 1120], [1082, 940], [1092, 600], [1030, 470], [970, 640], [978, 1020]] },
+        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[360, 900], [446, 760], [456, 560], [396, 440], [300, 600], [312, 860]] },
+        { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[760, 258], [860, 214], [980, 236], [1000, 168], [840, 146], [740, 200]] },
         // THE POND — a small tarn short-LEFT of the green: the aggressive line
         // flies right past it to a good target, but a PULL or a shot that comes
         // up short-left is wet. Placed OFF the stock line (not a full green-

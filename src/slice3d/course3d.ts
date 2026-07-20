@@ -1391,12 +1391,15 @@ export function buildCourse(
             const holeMod = (hole.number - 1) % 3;
             const spots = key.startsWith('mountain_range')
               ? holeMod === 0
-                ? [
-                    { dx: 900, dy: 150, h: 300, mirror: false, wMul: 1.3 },
-                    { dx: -1500, dy: -650, h: 240, mirror: true, wMul: 1.8 },
-                    { dx: 2400, dy: -800, h: 260, mirror: false, wMul: 1.3 },
-                    { dx: -1400, dy: -1500, h: 230, mirror: true, wMul: 2.5 },
-                    { dx: 800, dy: -1520, h: 220, mirror: false, wMul: 2.5 }
+                ? // h1 — a DOMINANT right-weighted massif looms close behind
+                  // the green (owner: "make the mountains more noticeable on
+                  // one"), supporting ridges falling away left, a full-width
+                  // curtain behind so the range reads deep.
+                  [
+                    { dx: 520, dy: 300, h: 430, mirror: false, wMul: 1.2 },
+                    { dx: -1250, dy: -150, h: 320, mirror: true, wMul: 1.5 },
+                    { dx: 1650, dy: -250, h: 340, mirror: false, wMul: 1.4 },
+                    { dx: -300, dy: -1400, h: 260, mirror: true, wMul: 4.2 }
                   ]
                 : holeMod === 1
                   ? [
@@ -1405,10 +1408,14 @@ export function buildCourse(
                       { dx: 1950, dy: -800, h: 300, mirror: false, wMul: 1.3 },
                       { dx: 250, dy: -1500, h: 245, mirror: false, wMul: 4.5 }
                     ]
-                  : [
-                      { dx: -1100, dy: 120, h: 190, mirror: true, wMul: 2.2 },
-                      { dx: 800, dy: 60, h: 210, mirror: false, wMul: 2.0 },
-                      { dx: -300, dy: -1500, h: 200, mirror: true, wMul: 5.0 }
+                  : // h3 — a tall LEFT-weighted signature peak close behind the
+                    // green (owner: "...and 3"), a second mass to the right, a
+                    // deep curtain. Distinct silhouette from h1/h2.
+                    [
+                      { dx: -320, dy: 300, h: 440, mirror: true, wMul: 1.2 },
+                      { dx: 1350, dy: -100, h: 320, mirror: false, wMul: 1.5 },
+                      { dx: -1650, dy: -250, h: 300, mirror: true, wMul: 1.6 },
+                      { dx: 220, dy: -1400, h: 255, mirror: false, wMul: 4.2 }
                     ]
               : // Non-range massif (e.g. the alpine peaks): owner note "too tall,
                 // overlap a bunch" — a LOW range of many OVERLAPPING instances
