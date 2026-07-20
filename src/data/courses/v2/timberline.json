@@ -15,8 +15,8 @@
     "greenLight": "#5aa25c",
     "sand": "#d8cba0",
     "sandDark": "#b3a072",
-    "water": "#3f7f9c",
-    "waterDeep": "#254f66",
+    "water": "#2f83c0",
+    "waterDeep": "#1d5488",
     "waterReflect": true,
     "treeCanopy": "#2f5738",
     "treeCanopyLight": "#3d6a44",
@@ -62,7 +62,6 @@
       "rock_granite_c"
     ],
     "backdropTreeStep": 40,
-    "waterReflectStrength": 0.92,
     "tuftDensity": 1.1,
     "roughTuftHeight": 1.15,
     "lushGrass": true,
@@ -2227,87 +2226,87 @@
         },
         {
           "key": "tree_fir_a",
-          "x": 352,
-          "y": 712,
-          "h": 12
-        },
-        {
-          "key": "tree_fir_c",
-          "x": 386,
-          "y": 726,
-          "h": 10
-        },
-        {
-          "key": "tree_fir_b",
           "x": 338,
-          "y": 700,
-          "h": 11
+          "y": 702,
+          "h": 15
         },
         {
-          "key": "tree_fir_a",
-          "x": 414,
+          "key": "tree_fir_c",
+          "x": 374,
           "y": 720,
-          "h": 9
-        },
-        {
-          "key": "tree_fir_c",
-          "x": 600,
-          "y": 710,
-          "h": 12
-        },
-        {
-          "key": "tree_fir_b",
-          "x": 566,
-          "y": 726,
-          "h": 10
-        },
-        {
-          "key": "tree_fir_a",
-          "x": 624,
-          "y": 700,
-          "h": 11
-        },
-        {
-          "key": "tree_fir_c",
-          "x": 528,
-          "y": 722,
-          "h": 9
-        },
-        {
-          "key": "tree_fir_b",
-          "x": 330,
-          "y": 546,
-          "h": 12
-        },
-        {
-          "key": "tree_fir_a",
-          "x": 354,
-          "y": 556,
-          "h": 10
-        },
-        {
-          "key": "tree_fir_c",
-          "x": 304,
-          "y": 524,
-          "h": 11
+          "h": 13
         },
         {
           "key": "tree_fir_b",
           "x": 300,
-          "y": 582,
+          "y": 706,
+          "h": 14
+        },
+        {
+          "key": "tree_fir_a",
+          "x": 604,
+          "y": 702,
+          "h": 15
+        },
+        {
+          "key": "tree_fir_c",
+          "x": 566,
+          "y": 720,
+          "h": 13
+        },
+        {
+          "key": "tree_fir_b",
+          "x": 642,
+          "y": 706,
+          "h": 14
+        },
+        {
+          "key": "tree_fir_c",
+          "x": 252,
+          "y": 634,
           "h": 12
         },
         {
           "key": "tree_fir_a",
-          "x": 336,
-          "y": 532,
+          "x": 268,
+          "y": 592,
+          "h": 12
+        },
+        {
+          "key": "tree_fir_b",
+          "x": 692,
+          "y": 632,
+          "h": 12
+        },
+        {
+          "key": "tree_fir_c",
+          "x": 676,
+          "y": 592,
+          "h": 12
+        },
+        {
+          "key": "tree_fir_a",
+          "x": 286,
+          "y": 552,
+          "h": 11
+        },
+        {
+          "key": "tree_fir_b",
+          "x": 372,
+          "y": 538,
           "h": 9
         },
         {
           "key": "tree_fir_c",
-          "x": 372,
+          "x": 568,
+          "y": 538,
+          "h": 9
+        },
+        {
+          "key": "tree_fir_a",
+          "x": 654,
           "y": 552,
-          "h": 10
+          "h": 11
         }
       ]
     },
@@ -2436,15 +2435,15 @@
               652
             ],
             [
-              734,
+              706,
               656
             ],
             [
-              752,
+              724,
               762
             ],
             [
-              724,
+              696,
               862
             ]
           ]
@@ -2916,10 +2915,10 @@
         {
           "x": 840,
           "y": 356,
-          "h": 16,
+          "h": 12,
           "r": 128,
           "shape": "plateau",
-          "skirt": 0.74
+          "skirt": 0.6
         },
         {
           "x": 718,

@@ -18,7 +18,6 @@
     "water": "#3aa4f2",
     "waterDeep": "#2482c8",
     "waterReflect": true,
-    "waterReflectStrength": 0.7,
     "treeCanopy": "#35673a",
     "treeCanopyLight": "#4a8a4f",
     "treeTrunk": "#7a6049",

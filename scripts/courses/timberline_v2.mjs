@@ -77,7 +77,10 @@ const timberlineV2 = {
     rough: '#4a6b41', roughDark: '#3a5533',
     fringe: '#54924e', green: '#438a47', greenLight: '#5aa25c',
     sand: '#d8cba0', sandDark: '#b3a072',
-    water: '#3f7f9c', waterDeep: '#254f66', waterReflect: true,
+    // Production Timberline's water look (owner: prod H3 water read better) —
+    // brighter cerulean/navy body + the softer 0.62 fresnel default (no strength
+    // override below), so the reflection doesn't blow out to a white mirror.
+    water: '#2f83c0', waterDeep: '#1d5488', waterReflect: true,
     treeCanopy: '#2f5738', treeCanopyLight: '#3d6a44', treeTrunk: '#5b4632',
     haze: '#cfe0e6', hazeStrength: 0.5, horizonTint: '#bcd2da',
     backdrop: 'peaks', peakKeys: ['mountain_range_alpine'], blossomChance: 0,
@@ -119,8 +122,6 @@ const timberlineV2 = {
     // woods") — tighter than the old 46, but not so tight it buries the tee
     // camera in draw calls (step 32 timed out the h1 render).
     backdropTreeStep: 40,
-    // Stronger planar reflection so the treeline reads clearly in the tarn.
-    waterReflectStrength: 0.92,
     tuftDensity: 1.1, roughTuftHeight: 1.15,
     // grass_c/d/e/f/i render as SOLID low-poly BLOBS (the "green boxes" in the
     // rough — the game's own comment warns grass cards "read as 2D blocks the
@@ -293,30 +294,30 @@ const timberlineV2 = {
         { key: 'tree_fir_a', x: 470, y: 490, h: 14 },
         { key: 'tree_fir_c', x: 457, y: 506, h: 12 },
         { key: 'tree_fir_b', x: 485, y: 520, h: 13 },
-        // LOW SAPLINGS IN FRONT OF THE TEE, right at the near shore (owner P1 H2:
-        // "add low saplings near the water ... below the shot and camera lines ...
-        // close enough to reflect"). Landform firs => reflectable (tree proto),
-        // no collision, and SHORT (h9-12) so they sit under the tee-shot arc and
-        // the tee camera. Split into two banks flanking the straight shot line
-        // (x440-500 kept clear); hugging the waterline so they mirror in the tarn.
-        { key: 'tree_fir_a', x: 352, y: 712, h: 12 },
-        { key: 'tree_fir_c', x: 386, y: 726, h: 10 },
-        { key: 'tree_fir_b', x: 338, y: 700, h: 11 },
-        { key: 'tree_fir_a', x: 414, y: 720, h: 9 },
-        { key: 'tree_fir_c', x: 600, y: 710, h: 12 },
-        { key: 'tree_fir_b', x: 566, y: 726, h: 10 },
-        { key: 'tree_fir_a', x: 624, y: 700, h: 11 },
-        { key: 'tree_fir_c', x: 528, y: 722, h: 9 },
-        // NATURALLY GROUPED SAPLINGS LEFT OF THE GREEN, along the tarn's NW shore
-        // (owner P1 H2). A loose clump at the waterline, left of and below the
-        // putting surface (green is x414-526 / y378-462) so it stays out of the
-        // putting and left-recovery areas; reflects toward the approach/green.
-        { key: 'tree_fir_b', x: 330, y: 546, h: 12 },
-        { key: 'tree_fir_a', x: 354, y: 556, h: 10 },
-        { key: 'tree_fir_c', x: 304, y: 524, h: 11 },
-        { key: 'tree_fir_b', x: 300, y: 582, h: 12 },
-        { key: 'tree_fir_a', x: 336, y: 532, h: 9 },
-        { key: 'tree_fir_c', x: 372, y: 552, h: 10 }
+        // LOW SAPLINGS LINING THE WHOLE TARN BOUNDARY (owner: "bring the saplings
+        // into view from the tee. Have them line the lake boundary"). A ring of
+        // reflectable landform firs (tree proto => mirror; no collision) sitting
+        // right on the bank all the way around the water. The NEAR-SHORE (south)
+        // ones stand a touch taller (h13-15) so they READ from the tee, flanking
+        // the straight shot line (x440-500 kept clear so the tee shot is open);
+        // the far/north-shore ones stay low (h9-11) and clear of the green front.
+        // Near (south) shore — the bank in view from the tee:
+        { key: 'tree_fir_a', x: 338, y: 702, h: 15 },
+        { key: 'tree_fir_c', x: 374, y: 720, h: 13 },
+        { key: 'tree_fir_b', x: 300, y: 706, h: 14 },
+        { key: 'tree_fir_a', x: 604, y: 702, h: 15 },
+        { key: 'tree_fir_c', x: 566, y: 720, h: 13 },
+        { key: 'tree_fir_b', x: 642, y: 706, h: 14 },
+        // West + east banks:
+        { key: 'tree_fir_c', x: 252, y: 634, h: 12 },
+        { key: 'tree_fir_a', x: 268, y: 592, h: 12 },
+        { key: 'tree_fir_b', x: 692, y: 632, h: 12 },
+        { key: 'tree_fir_c', x: 676, y: 592, h: 12 },
+        // North shore (far bank, low so it never blocks the green front):
+        { key: 'tree_fir_a', x: 286, y: 552, h: 11 },
+        { key: 'tree_fir_b', x: 372, y: 538, h: 9 },
+        { key: 'tree_fir_c', x: 568, y: 538, h: 9 },
+        { key: 'tree_fir_a', x: 654, y: 552, h: 11 }
       ],
       elevation: [
         // ELEVATED TEE ledge ~24 ft up.
@@ -370,10 +371,12 @@ const timberlineV2 = {
         // THE DENSE DIVIDER — a heavy block of trees BETWEEN the two fairways
         // (owner). Held clear of both corridors; a drive that leaks toward the
         // middle from either side finds the woods.
-        // East edge pulled ~16px west of the right-approach corridor so the
-        // RIGHT route's second shot is clean (owner P1 H3) while the block stays
-        // dense between the fairways for the left route.
-        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[648, 860], [634, 762], [678, 652], [734, 656], [752, 762], [724, 862]] },
+        // East edge pulled well west of the right-approach corridor so the RIGHT
+        // route's second shot is CLEAN from a 300-yd drive (owner, twice: "there
+        // are still multiple trees between the ball and the green") — the divider
+        // now clears the landing->green line by ~55px while still walling the
+        // middle off from the left route.
+        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[648, 860], [634, 762], [678, 652], [706, 656], [724, 762], [696, 862]] },
         // THE TREE IN THE WAY — a lone giant spruce standing in the LEFT
         // approach line: a straight go-for-the-green hits it, so the aggressor
         // must work the ball around it (owner).
@@ -423,11 +426,13 @@ const timberlineV2 = {
         { x: 400, y: 1250, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
-        // GREEN BENCHED A FULL STEP above the pond (owner). A steep-skirted
-        // plateau (skirt 0.74 → a short ~34px bench face, not a long ramp) so the
-        // green rises as a distinct shelf, with its radius held so the skirt
-        // stops SHORT of the pond and never tilts the water.
-        { x: 840, y: 356, h: 16, r: 128, shape: 'plateau', skirt: 0.74 },
+        // GREEN BENCHED a full step above the pond (owner). Skirt EASED to 0.6
+        // (a ~51px face instead of the old 34px) and height trimmed 16->12 so the
+        // front-left face is CHIPPABLE (owner: "left of the green ... too steep to
+        // chip up ... you get stuck") — max grade ~0.35 vs the old 0.76 — while
+        // the radius still holds the skirt short of the pond so the water stays
+        // level. Green-to-pond step is still ~14 units (a clear bench).
+        { x: 840, y: 356, h: 12, r: 128, shape: 'plateau', skirt: 0.6 },
         // POND BASIN — a flat shelf 2 units below grade that the enlarged pond
         // sits IN, so the water reads as a level lake in a hollow instead of
         // pasted on a slope. Flat top spans the whole (bigger) pond; skirt = lip.
