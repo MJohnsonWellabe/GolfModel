@@ -35,8 +35,8 @@ const timberlineV2 = {
     // landforms).
     treeKeys: ['tree_fir_a', 'tree_fir_b', 'tree_fir_c', 'tree_aspen'],
     accentTreeKeys: ['tree_birch', 'tree_birch_b'],
-    bushKeys: ['bush_leafy'],
-    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'fern_a', 'stump_a', 'log_a'],
+    bushKeys: [], // no scattered shrubs — alpine ground cover is fern, grass, granite (our bush assets all read poorly)
+    scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'stump_a', 'log_a'],
     backdropTreeStep: 46,
     tuftDensity: 1.1, roughTuftHeight: 1.15,
     lushGrass: true, grassKeys: ['grass_c', 'grass_d', 'grass_e'],
@@ -104,10 +104,10 @@ const timberlineV2 = {
     },
     // ================================================= h2 "The Tarn" par 3
     // A dramatic DOWNHILL par 3: an elevated tee on a granite ledge drops ~20
-    // ft across a cold tarn to a TWO-TIER shelf green pinched between spruce
-    // stands, a granite bluff behind. Challenge: the downhill carry over
-    // water to a tiered green — long tier is a hard two-putt, and the trees
-    // punish the safe bail. Trees guard, water carries, the green bites.
+    // ft across a cold tarn to a gently tiered shelf green pinched between
+    // spruce stands, with THREE separate granite mounds rising behind it
+    // (boulders in the saddles between them). Trees guard, water carries, the
+    // green's tilt bites.
     {
       number: 2,
       name: 'The Tarn',
@@ -129,12 +129,11 @@ const timberlineV2 = {
         { type: 'bunker', depthMul: 1.4, polygon: blob(406, 486, 16, 12, 9, 0.3, 121) }
       ],
       aiTargets: [],
-      // THREE granite mounds in a row behind the green, side by side with a
-      // little overlap (owner request) — the new detailed granite boulders.
+      // Granite boulders sitting in the SADDLES between the three terrain
+      // mounds behind the green (owner request: rocks between the mounds).
       landforms: [
-        { key: 'rock_granite_a', x: 406, y: 296, h: 19 },
-        { key: 'rock_granite_b', x: 470, y: 286, h: 23 },
-        { key: 'rock_granite_c', x: 534, y: 296, h: 19 }
+        { key: 'rock_granite_a', x: 407, y: 268, h: 13 },
+        { key: 'rock_granite_c', x: 533, y: 268, h: 13 }
       ],
       elevation: [
         // ELEVATED TEE ledge ~24 ft up.
@@ -145,11 +144,12 @@ const timberlineV2 = {
         // (slope 2.6/0.34) breaking across it above the tarn.
         { x: 470, y: 440, h: 4, r: 168, shape: 'plateau', skirt: 0.6 }, // green pad (wide flat top)
         { x: 470, y: 406, h: 2.0, r: 92, shape: 'plateau', skirt: 0.35 }, // back shelf (+~3 ft, wide)
-        // Granite bluff wall behind + shoulders — all pushed BEYOND the
-        // green's reach so their skirts don't bleed onto the putting surface.
-        { x: 470, y: 240, x2: 470, y2: 200, h: 30, r: 105 },
-        { x: 268, y: 400, h: 22, r: 98 }, // left shoulder
-        { x: 672, y: 400, h: 22, r: 98 }, // right shoulder
+        // THREE SEPARATE terrain mounds behind the green (owner request):
+        // rounded domes with saddles between them (granite boulders fill the
+        // saddles). Spaced/sized so their skirts stay clear of the green.
+        { x: 344, y: 260, h: 24, r: 74, shape: 'dome' },
+        { x: 470, y: 246, h: 30, r: 82, shape: 'dome' },
+        { x: 596, y: 260, h: 24, r: 74, shape: 'dome' },
         { x: 470, y: 632, h: -1.4, r: 150 } // the tarn basin
       ]
     },
@@ -170,34 +170,36 @@ const timberlineV2 = {
       green: { cx: 840, cy: 356, rx: 62, ry: 46, rot: -0.35 },
       slope: { angle: 2.7, strength: 0.32 },
       fairways: [
-        // Fairway A — the RIGHT route (the dogleg-right S to the green).
+        // Fairway A — the main route: dogleg RIGHT, wrapping around the
+        // second-bend stand and climbing to the green.
         { centerline: [[330, 1300], [392, 1182], [474, 1086], [576, 1016]], width: [46, 60, 82, 84] },
         { centerline: [[576, 1016], [700, 952], [772, 828], [772, 700]], width: [84, 80, 72, 66] },
         { centerline: [[772, 700], [764, 560], [800, 452], [836, 392]], width: [66, 60, 54, 50] },
-        // Fairway B — the SECOND fairway (owner request): a tighter LEFT route
-        // running up the left side through the old tree patch, rejoining at
-        // the second-shot zone. Shorter line to the fall but pinched between
-        // the divider trees and the left mountainside.
-        { centerline: [[330, 1300], [292, 1150], [298, 1000], [376, 892], [502, 852], [606, 908]], width: [46, 60, 68, 68, 74, 80] }
+        // Fairway B — the LEFT branch (owner request): splits off Fairway A
+        // just past the first tree patch and runs up just LEFT of the second
+        // tree patch (the avenue wall), giving a reasonable second approach to
+        // the green from the left side.
+        { centerline: [[500, 1064], [462, 928], [492, 786], [590, 648], [668, 566]], width: [58, 66, 72, 74, 70] }
       ],
       // Fairway B (the last ribbon) is the alternate route — exclude it from
       // the hole's yardage measurement.
       altFairways: 1,
       hazards: [
-        // THE DIVIDER: a spruce nose BETWEEN the two fairways (trimmed off the
-        // tee so both routes have room) — the split bends around it.
-        { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[356, 1150], [442, 1108], [458, 1006], [406, 952], [340, 1006], [334, 1094]] },
+        // FIRST TREE PATCH — a stand LEFT of the drive fairway near the tee;
+        // Fairway B branches off just past it.
+        { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[262, 1180], [348, 1146], [366, 1024], [306, 958], [228, 1030], [228, 1148]] },
         // SECOND BEND: a stand inside-right turns the layup back left.
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[836, 900], [948, 848], [968, 704], [900, 616], [800, 700], [792, 852]] },
         // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 32, polygon: [[892, 456], [948, 440], [962, 380], [918, 352], [876, 408]] },
-        // Left avenue wall (raised off the bottom so the left fairway rejoins).
+        // SECOND TREE PATCH — the avenue wall dividing the two routes: Fairway
+        // A passes right of it, Fairway B just left of it.
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[566, 900], [648, 820], [672, 660], [636, 520], [560, 600], [548, 800]] },
         // A collidable granite boulder in the go-for-it layup, in the fall.
         { type: 'rock', cx: 764, cy: 900, r: 18, height: 18, key: 'rock_granite_a', polygon: blob(764, 900, 18, 18, 8, 0, 1) },
-        // Sand: cross bunker at the first landing's outside; deep greenside
+        // Sand: cross bunker at A's first landing (right side); deep greenside
         // pot front-left (the guardian owns the right).
-        { type: 'bunker', polygon: blob(452, 1064, 26, 18, 10, 0.35, 131) },
+        { type: 'bunker', polygon: blob(556, 1006, 26, 18, 10, 0.35, 131) },
         { type: 'bunker', depthMul: 1.4, polygon: blob(786, 396, 18, 14, 9, 0.3, 132) }
       ],
       aiTargets: [[430, 1120], [620, 980], [772, 820], [772, 560], [836, 420]],

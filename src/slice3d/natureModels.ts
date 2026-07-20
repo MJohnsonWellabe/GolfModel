@@ -362,10 +362,12 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         (GRANITE_KEYS as readonly string[]).includes(key) ||
         (MOUNTAIN_KEYS as readonly string[]).includes(key) ||
         (DESERT_SET_KEYS as readonly string[]).includes(key) ||
-        // Quaternius CC0 firs / granite / shrubs keep their gradient atlas.
-        (FIR_KEYS as readonly string[]).includes(key) ||
-        (GRANITE_ROCK_KEYS as readonly string[]).includes(key) ||
-        (LEAFY_BUSH_KEYS as readonly string[]).includes(key);
+        // Quaternius CC0 GRANITE keeps its stone texture (reads right as dark
+        // rock). The firs and shrubs do NOT: their glbs bake dark vertex-AO
+        // and a dim lit leaf texture (rendered near-black in a shaded forest),
+        // so they route through the game's BRIGHT flat foliage/bark palette
+        // via pickMat instead (like the broadleafs), with vertex colors off.
+        (GRANITE_ROCK_KEYS as readonly string[]).includes(key);
       const texturedMats = new Map<string, StandardMaterial>();
       const buildTexturedMat = (mm: Mesh, matName: string): StandardMaterial => {
         const tm = new StandardMaterial(`natTex-${key}-${matName}`, scene);
