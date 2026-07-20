@@ -51,7 +51,12 @@ describe('wood backspin does not stop the ball dead', () => {
     const drv = shot('driver');
     const land = landingOf(drv);
     const releaseFwd = land.y - drv.finalPos.y; // +ve = rolled on toward the pin
-    expect(releaseFwd).toBeGreaterThan(15);
+    // A wood does not check up dead: even with heavy backspin it releases
+    // forward. The real-aero flight lands the driver steeper and slower than the
+    // old drag-free missile, so the release onto a GREEN is a realistic few yards
+    // (~7), not the double-digit run the hot old landing gave — but it is still
+    // clearly forward, and far more than the same-spin iron (guarded below).
+    expect(releaseFwd).toBeGreaterThan(4);
   });
 
   it('the same backspin bites (checks up) far harder on an iron', () => {

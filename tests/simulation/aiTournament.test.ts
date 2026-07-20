@@ -104,24 +104,28 @@ describe('AI tournament', () => {
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
     const jd = mean(perOpp.sunny); // JD's persisted id
     const tiger = mean(perOpp.tiger);
-    // JD (the field's weakest) now averages ~-1.6; floor at -2.1 with headroom up
+    // JD (the field's weakest) averages ~-1.9; floor at -2.4 with headroom up
     // to the old +0.3 ceiling so a scoring regression in either direction trips.
-    expect(jd).toBeGreaterThan(-2.1);
+    expect(jd).toBeGreaterThan(-2.4);
     expect(jd).toBeLessThan(0.3);
-    // Tiger (the best) now averages ~-2.9; floor -3.2 (its individual rounds
-    // still spread through the -3 band, guarded below), ceiling -1.4.
-    expect(tiger).toBeGreaterThan(-3.2);
+    // Tiger (the best) averages ~-3.5; floor -3.9, ceiling -1.4. Re-calibrated
+    // down ~0.5 stroke with the real-aero flight: the old drag-free wind constant
+    // over-punished the (much taller) realistic apex, so easing wind to a fair
+    // level (windAccelPerMph 9 -> 5, a 15 mph crosswind now pushes ~18 yd, not
+    // ~50) removed scoring that was inflated by that unrealistic penalty. The
+    // field still lands mostly in the +1..-3 band (guarded below) and skill
+    // ordering holds.
+    expect(tiger).toBeGreaterThan(-3.9);
     expect(tiger).toBeLessThan(-1.4);
     expect(tiger).toBeLessThan(jd); // skill ordering holds on average
     const all = Object.values(perOpp).flat();
     const inBand = all.filter((v) => v <= 1 && v >= -3).length / all.length;
     // Still the real guard that scoring stays "mostly +1..-3". Re-calibrated
-    // (0.75 -> 0.73) with the Red Rock pass-7 AI upgrades: opponents now
-    // compensate for elevation (plays-like distance) and escape walled lies
-    // — the same class of intended fairness fix as the pine note above; the
-    // per-opponent mean floors/ceilings still hold unchanged (measured
-    // in-band 0.746 after the change, from 0.769).
-    expect(inBand).toBeGreaterThan(0.73);
+    // (0.73 -> 0.65) with the real-aero flight + fair wind: the field scores
+    // ~0.5 stroke lower, so a few more rounds spill just past -3 on the gettable
+    // holes. The per-opponent mean floors/ceilings above are the tighter guard;
+    // this stays as the coarse "mostly in-band" backstop (measured ~0.68).
+    expect(inBand).toBeGreaterThan(0.65);
   });
 
   it('ties on to-par break toward the player, and the purse pays the podium', () => {

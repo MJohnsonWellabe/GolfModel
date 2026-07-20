@@ -88,9 +88,16 @@ describe('the strategic rock caroms', () => {
       });
       const d = Math.hypot(out.finalPos.x - rock.cx!, out.finalPos.y - rock.cy!);
       expect(d, `seed ${s} final position clear of the rock`).toBeGreaterThanOrEqual(rock.r!);
-      // Every path sample stays out of the cylinder interior too (no
-      // tunneling frames, no trapped frames).
+      // Every path sample WITHIN the rock's vertical extent stays out of the
+      // cylinder interior too (no tunneling frames, no trapped frames). Samples
+      // ABOVE the rock's height clear it in the air — the real-aero drive apexes
+      // ~110 ft and sails directly over the boulder, so a horizontal-only check
+      // that ignored height would flag a clean fly-over as a hit. The engine's
+      // own collider is a finite cylinder (rockContact only bites below the
+      // rock's height), so the test mirrors exactly that band.
+      const rockH = rock.height ?? 10;
       for (const p of out.path) {
+        if (p.z > rockH) continue; // flying over the top — cleared in the air
         const pd = Math.hypot(p.x - rock.cx!, p.y - rock.cy!);
         expect(pd, `seed ${s} path sample inside rock`).toBeGreaterThanOrEqual(rock.r! - 1.5);
       }

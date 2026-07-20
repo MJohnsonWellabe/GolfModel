@@ -710,6 +710,52 @@ export class PhysicsEngine {
    * the aerial side-spin curve only from that step on, so re-integrating with
    * new spin mid-flight reproduces the already-flown prefix exactly.
    */
+  /** Flat-ground horizontal range for a launch speed + angle under gravity,
+   *  DRAG and LIFT (no wind/terrain) — matches the airborne integrator's aero. */
+  private flatAeroRange(v0: number, theta: number): number {
+    const dt = PHYSICS.dt;
+    const g = PHYSICS.gravity;
+    let x = 0;
+    let z = 0;
+    let vx = v0 * Math.cos(theta);
+    let vz = v0 * Math.sin(theta);
+    for (let s = 0; s < 3000; s++) {
+      const spd = Math.hypot(vx, vz);
+      if (spd > 1) {
+        const kd = PHYSICS.airDrag * spd;
+        const kl = PHYSICS.airLift * spd;
+        const vh = Math.abs(vx) || 1e-6;
+        vx += (-kd * vx - kl * vz * (vx / vh)) * dt;
+        vz += (-kd * vz + kl * vh) * dt;
+      }
+      vz -= g * dt;
+      x += vx * dt;
+      z += vz * dt;
+      if (z <= 0 && s > 1) return x;
+    }
+    return x;
+  }
+
+  /** Solve launch speed so the flat DRAG+LIFT range equals the target carry
+   *  (club rating). hi stays below the range-vs-v0 peak (lift turns the curve
+   *  over past ~v0 2000 / ~450yd; every real carry sits well below). Memoized. */
+  private solveLaunchSpeed(rangePx: number, theta: number): number {
+    const key = `${Math.round(rangePx)}:${theta.toFixed(3)}`;
+    const cached = this.v0Cache.get(key);
+    if (cached !== undefined) return cached;
+    let lo = 1;
+    let hi = 2000;
+    for (let it = 0; it < 24; it++) {
+      const mid = (lo + hi) / 2;
+      if (this.flatAeroRange(mid, theta) < rangePx) lo = mid;
+      else hi = mid;
+    }
+    const v0 = (lo + hi) / 2;
+    if (this.v0Cache.size < 4096) this.v0Cache.set(key, v0);
+    return v0;
+  }
+  private v0Cache = new Map<string, number>();
+
   integrateLaunch(launch: ResolvedLaunch, spin: SpinState, spinFromStep = 0): ShotOutcome {
     const { origin, carryPx, dir, club, hole, wind, launchMult, spinEff, shapeSide, preview } = launch;
     const path: TrajectoryPoint[] = [{ x: origin.x, y: origin.y, z: 0 }];
@@ -753,7 +799,9 @@ export class PhysicsEngine {
       // Ballistic launch sized so ideal range equals carryPx. Trajectory
       // shaping (Low/High presets, strike height) tilts the launch angle.
       const theta = (clamp(club.launchAngle * launchMult, 6, 55) * Math.PI) / 180;
-      const v0 = Math.sqrt((carryPx * g) / Math.sin(2 * theta));
+      // Solve the launch speed so the flat DRAG+LIFT range equals carryPx (the
+      // club's rating) — the closed-form drag-free sqrt would undershoot now.
+      const v0 = this.solveLaunchSpeed(carryPx, theta);
       const vh = v0 * Math.cos(theta);
       vx = Math.cos(dir) * vh;
       vy = Math.sin(dir) * vh;
@@ -786,6 +834,19 @@ export class PhysicsEngine {
           vx += -Math.sin(dir) * sa * dt;
           vy += Math.cos(dir) * sa * dt;
         }
+        // Real aerodynamics: quadratic DRAG opposes velocity; backspin LIFT acts
+        // perpendicular to velocity, upward. Together they give a realistic
+        // asymmetric arc (launch ~11°, descend ~40°) so elevation is honest both
+        // ways — no more +50yd on a downhill drop. See config.airDrag/airLift.
+        const spd = Math.hypot(vx, vy, vz);
+        if (spd > 1) {
+          const vhor = Math.hypot(vx, vy) || 1e-6;
+          const kd = PHYSICS.airDrag * spd;
+          const kl = PHYSICS.airLift * spd;
+          vx += (-kd * vx - kl * vz * (vx / vhor)) * dt;
+          vy += (-kd * vy - kl * vz * (vy / vhor)) * dt;
+          vz += (-kd * vz + kl * vhor) * dt;
+        }
         vz -= g * dt;
         const ax0 = x;
         const ay0 = y;
@@ -807,13 +868,11 @@ export class PhysicsEngine {
             y = rc.py;
           }
         }
-        // DOWNHILL CARRY CAP: the drag-free parabola descends at ~the launch
-        // angle (~11° for a driver), so landing on ground BELOW the tee would
-        // geometrically float the ball out ~18 yd per 10 ft of drop. Once the
-        // ball is below its launch elevation, cap the extra horizontal run to a
-        // realistic ~38° descent (dropBelow / descentTan) by snapping it down to
-        // the ground there. Flat/uphill landings (ground >= launchGroundH) never
-        // enter this branch, so level and uphill drives are byte-identical.
+        // DOWNHILL is now honest with no special-case cap: the real-aero flight
+        // (airDrag/airLift) descends ~40°, so a ball meeting ground below the tee
+        // meets it quickly — a 20-ft drop adds a realistic ~8 yd, not the ~50 yd
+        // the old drag-free parabola floated out (owner: "just physics"). Uphill
+        // is symmetric: the steep descent meets rising ground even sooner.
         // Tree collision: any ball inside the trunk band (below treeHeight) that
         // reaches an actual tree canopy is stopped — whether it is rising or
         // descending (a low liner into a tree stops just like a drop into one,

@@ -69,13 +69,23 @@ export const PHYSICS = {
   gravity: 420,
   /** Simulation timestep, seconds. */
   dt: 1 / 60,
-  /** Carry multiplier applied to the woods (driver/3W/5W) — the clubs you
-   *  drive with, which were running long. Kept off the irons/wedges/putter so
-   *  approach play and the GDD scoring balance stay intact; it's the drives
-   *  specifically that come down. */
-  driveDistanceScale: 0.9,
-  /** Wind acceleration (px/s²) per mph of wind speed, applied while airborne. */
-  windAccelPerMph: 9.0,
+  /** Carry multiplier applied to the woods (driver/3W/5W). Trimmed so the woods'
+   *  TOTAL distance stays at the long-standing baseline (a stat-90 drive ~278 yd)
+   *  — the real-aero flight changes only HOW that total is made, not how far it
+   *  goes. The old drag-free missile reached its number as almost-pure carry;
+   *  now a slightly shorter carry runs out a realistic ~10-14 yd on the firm
+   *  tee/fairway (bounce.tee/fairway + friction) to the same place. Holding the
+   *  total keeps every authored course balanced around the distances it was
+   *  built for. Kept off irons/wedges/putter so approach play + scoring hold. */
+  driveDistanceScale: 0.905,
+  /** Wind acceleration (px/s²) per mph of wind speed, applied while airborne.
+   *  Eased 9 -> 4 for the REAL-aero apex (~110 ft): a drag+lift drive flies far
+   *  higher and longer than the old flat missile, so the old constant
+   *  over-accumulated (a 15 mph crosswind blew a drive ~50 yd offline). At 4 a
+   *  15 mph crosswind pushes a realistic ~14 yd and a 20 mph head/tail swings
+   *  carry ~∓20 yd — enough to change club selection (GDD §Wind) without the
+   *  ball sailing sideways. Works with windRefHeight (low shots bore through). */
+  windAccelPerMph: 4.0,
   /** Green break/downhill acceleration (px/s²) at slope strength 1.0 while
    *  rolling on the green. Sized so authored per-hole slopes produce a readable,
    *  skill-relevant break (a mid-length putt curves ~a cup-width+) and downhill
@@ -87,6 +97,16 @@ export const PHYSICS = {
   /** Fraction of the heightfield-gradient roll applied OFF the green (fairway/
    *  rough), so a downhill drive gains yards without a runaway roll-out. */
   rollGradFairwayMult: 0.55,
+  /** REAL ball-flight aerodynamics (owner: "just physics ... a 20-ft downhill
+   *  drive should NOT go 50 yd further"). A drag-free parabola is symmetric so it
+   *  descends at the LAUNCH angle (~11°) and a small drop stretches carry
+   *  absurdly. Real balls carry on backspin LIFT and bleed horizontal speed to
+   *  DRAG, so they descend ~40° and meet lower ground quickly. Both quadratic in
+   *  speed; launch v0 is re-solved (solveLaunchSpeed) so flat carry still matches
+   *  each club's rating. Tuned so a driver descends ~40°, apex ~110 ft, and a
+   *  20-ft downhill drop adds a realistic ~5 yd (not the old ~50). */
+  airDrag: 0.0022,
+  airLift: 0.001,
   /** Max wind speed, mph (GDD: ~20mph should change club selection). */
   maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */
@@ -102,8 +122,11 @@ export const PHYSICS = {
     putter: 0.45
   } as Record<string, number>,
   /** Airborne wind scaling: full effect at/above this height (world px),
-   *  fading toward the ground — low flight cuts through wind (GDD §Wind). */
-  windRefHeight: 45,
+   *  fading toward the ground — low flight cuts through wind (GDD §Wind). Raised
+   *  45 -> 82 for the real-aero apex (~110 ft ≈ 73 u): a normal drive now sits
+   *  just under full wind while a punched/low shot (much lower apex) genuinely
+   *  bores through it, so trajectory choice matters in wind. */
+  windRefHeight: 82,
   /** Height (world px) below which tree canopies block ball flight. */
   treeHeight: 55,
   /** A ball must travel at least this far (world px) from its origin before a
@@ -215,10 +238,16 @@ export const PHYSICS = {
    *  difficulty comes from reading the break, not random pace. */
   puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
-  /** Ground roll friction (px/s²) per surface. */
+  /** Ground roll friction (px/s²) per surface. The firm tee/fairway were
+   *  softened 500 -> 400 alongside the real-aero flight: a realistic drive lands
+   *  steep and comparatively slow, so the old high friction killed its rollout
+   *  dead (~2 yd). At 400 a driver runs out a realistic ~11 yd (landing the
+   *  woods' total on the same baseline), while the modest change keeps a low
+   *  putt/chip's break honest. Rough/sand/green/fringe are unchanged, so
+   *  approach spin, greenside checks and putting are untouched. */
   friction: {
-    tee: 500,
-    fairway: 500,
+    tee: 400,
+    fairway: 400,
     rough: 900,
     sand: 1800,
     fringe: 300,
@@ -226,10 +255,16 @@ export const PHYSICS = {
     water: 99999,
     trees: 1100
   } as Record<string, number>,
-  /** Fraction of horizontal speed kept when the ball first lands, per surface. */
+  /** Fraction of horizontal speed kept when the ball first lands, per surface.
+   *  The firm tee/fairway were raised 0.32 -> 0.70 with the real-aero flight: a
+   *  driver descending ~40° at a realistic (lower) landing speed needs to keep
+   *  most of its horizontal pace through the bounce to run out like a real ball
+   *  on firm turf (~10-14 yd). club.spin still scales this per club (woods keep
+   *  it, wedges bleed it), so a driver runs while a wedge checks. Green/fringe
+   *  unchanged. */
   bounce: {
-    tee: 0.32,
-    fairway: 0.32,
+    tee: 0.65,
+    fairway: 0.65,
     rough: 0.2,
     // Sand plugs: a ball that lands in a bunker keeps zero horizontal speed, so
     // it never skips/bounces out — it stays put until the next shot (FB9).
@@ -287,8 +322,10 @@ export const PHYSICS = {
    *  per-club spinEffectiveness scaling — the deterministic draw/fade curve.
    *  Flights in this px-scaled world last well under a second, so this reads
    *  large; sized so a full-shape mid-iron bends ~10-14yd across its flight
-   *  (driver ~8, wedge ~15 — locked by tests/spin.test.ts). */
-  shapeCurveAccel: 120,
+   *  (driver ~8, wedge ~15 — locked by tests/spin.test.ts). Trimmed 120 -> 95
+   *  when the real-aero flight lengthened each shot's hang time: the same accel
+   *  now has longer to act, so a smaller value preserves the designed bend. */
+  shapeCurveAccel: 95,
   /** Backspin bite: retro roll speed (px/s) at full backspin on the green. */
   backspinBite: 34,
   /** Extra direction error (degrees) added when hitting FROM a surface. */
