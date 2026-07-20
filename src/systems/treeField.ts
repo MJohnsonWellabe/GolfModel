@@ -117,11 +117,17 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
     const maxX = Math.max(...xs);
     const minY = Math.min(...ys);
     const maxY = Math.max(...ys);
-    // Authored density knob: hazard.spacing (default 52). Jitter scales with
-    // the step so dense woods stay organic without trunks overlapping.
-    // Rendering can opt into a denser step via visualSpacing (collision and
-    // the baked shadow always use the real `spacing`, never this one).
-    const step = (forRender ? hz.visualSpacing : undefined) ?? hz.spacing ?? 52;
+    // Authored density knob. Render draws on the dense visualSpacing grid; the
+    // collision grid used to be the much coarser `spacing`, leaving wide gaps
+    // where a rendered trunk had no hitbox (owner: "a lot of trees don't have
+    // hitboxes"). Collision now TIGHTENS toward the visual grid — enough to close
+    // most of those gaps — but stops short of the full render density, because a
+    // 1:1 collision-per-visible-trunk wall makes a corridor physically
+    // inescapable (a ball that leaks into the woods can never advance out). The
+    // 1.5x factor is the tuned middle: the tree you see almost always collides,
+    // yet recovery through the stand stays possible.
+    const vs = hz.visualSpacing ?? hz.spacing ?? 52;
+    const step = forRender ? vs : (hz.spacing ?? 52);
     const jitter = step * (36 / 52);
     // Render/shadow apply the VISUAL renderOffset; collision applies the
     // inverse collisionOffset. forRender=false is the collision path only (the

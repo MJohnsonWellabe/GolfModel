@@ -186,26 +186,26 @@ const timberlineWestV2 = {
         // CORNER POND — inside/left of the dogleg where the fairway bends right;
         // a pulled drive or a greedy corner-cut finds water. Reflective, level
         // basin (see elevation).
-        { type: 'water', polygon: [[250, 866], [292, 838], [344, 846], [372, 884], [366, 930], [326, 958], [276, 950], [244, 912]] },
+        { type: 'water', polygon: [[250, 808], [292, 780], [344, 788], [372, 826], [366, 872], [326, 900], [276, 892], [244, 854]] },
         // LEFT WOODS lining the fairway (owner: "woods down the left ... hugging
         // the fairway except for a break on the left where the pond cuts in").
         // Lower band hugs leg 1's left edge from the tee UP TO the corner pond,
         // then BREAKS (the pond is the gap)...
-        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[352, 958], [346, 1080], [338, 1392], [300, 1400], [298, 1080], [308, 958]] },
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[334, 958], [328, 1080], [320, 1392], [282, 1400], [280, 1080], [290, 958]] },
         // ...and resumes ABOVE the pond, hugging the top of leg 1 and the upper
         // (left) edge of leg 2 all the way to the green.
         { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[358, 838], [368, 760], [430, 712], [540, 690], [650, 632], [700, 604], [700, 566], [620, 600], [510, 650], [410, 684], [336, 730], [330, 834]] },
         // RIGHT WOODS — a continuous band hugging leg 1's right edge, then wrapping
         // the lower (right) side of leg 2 and the outside of the bend to the green.
-        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[396, 1400], [420, 1080], [452, 884], [544, 818], [672, 748], [770, 694], [814, 662], [884, 706], [1030, 760], [1060, 1000], [980, 1120], [820, 900], [620, 864], [470, 920], [452, 1120], [440, 1400]] },
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[416, 1400], [440, 1080], [474, 884], [566, 820], [694, 752], [788, 700], [828, 668], [896, 712], [1040, 764], [1070, 1000], [990, 1120], [830, 900], [630, 864], [480, 920], [462, 1120], [458, 1400]] },
         // LONE TREE in the second-shot lane — must be worked around on the lay-up.
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 28, polygon: [[688, 726], [702, 706], [720, 722], [712, 748], [692, 744]] },
         // FRONT-OF-GREEN POND + CREEK (owner: "replace the original front of green
         // bunker with another pond and creek") — a pond ~70 yd short of the green
         // that the approach must carry (in a level basin), narrowing into a creek
         // that runs off the lower-right of the world.
-        { type: 'water', polygon: [[782, 718], [820, 696], [864, 702], [890, 728], [880, 762], [840, 776], [798, 766], [776, 742]] },
-        { type: 'water', polygon: stream([[864, 758], [876, 868], [884, 976], [878, 1084]], 24, 823) },
+        { type: 'water', polygon: [[746, 720], [780, 702], [812, 708], [830, 730], [820, 758], [788, 770], [754, 762], [738, 742]] },
+        { type: 'water', polygon: stream([[818, 748], [846, 858], [858, 966], [852, 1074]], 24, 823) },
         // Behind/above-green woods on the mountainside.
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[770, 452], [864, 414], [980, 440], [1000, 372], [852, 348], [744, 402]] }
       ],
@@ -236,13 +236,13 @@ const timberlineWestV2 = {
         { x: 884, y: 536, h: 1.5, r: 90, shape: 'plateau', skirt: 0.5 },
         // CORNER POND basin (level water) — wide flat top so the whole pond sits
         // level (its west edge used to ride the left valley wall).
-        { x: 308, y: 898, h: -2, r: 92, shape: 'plateau', skirt: 0.72 },
+        { x: 308, y: 840, h: -2, r: 90, shape: 'plateau', skirt: 0.72 },
         // FRONT-OF-GREEN POND basin (level water) + the creek channel, which runs
         // SOUTH (west of the right valley wall) off the bottom of the world.
-        { x: 831, y: 732, h: -2, r: 86, shape: 'plateau', skirt: 0.68 },
-        { x: 864, y: 758, x2: 876, y2: 868, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
-        { x: 876, y: 868, x2: 884, y2: 976, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
-        { x: 884, y: 976, x2: 878, y2: 1084, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
+        { x: 783, y: 732, h: -2, r: 82, shape: 'plateau', skirt: 0.66 },
+        { x: 818, y: 748, x2: 846, y2: 858, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
+        { x: 846, y: 858, x2: 858, y2: 966, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
+        { x: 858, y: 966, x2: 852, y2: 1074, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
         // Steep forested valley walls both sides + backdrop behind the green.
         // Left wall radius trimmed so its skirt clears the corner pond.
         { x: 150, y: 1120, x2: 170, y2: 640, h: 32, r: 90 },
