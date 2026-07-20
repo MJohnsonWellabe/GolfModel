@@ -126,6 +126,20 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     owner: 'matt',
     defaults: { prod: false, dev: true },
     removeWhen: 'flip prod:true once the bounded-world pass is validated & approved, then remove'
+  },
+  {
+    key: 'courseRebuilds',
+    description:
+      'Dev-environment roadmap: the course TEARDOWN/REBUILD program. When on, ' +
+      'rebuilt v2 variants of the base courses (src/data/courses/v2/) replace ' +
+      'the shipped originals in the roster, course by course as each rebuild ' +
+      'lands. Off = the shipped originals, byte-identical — production never ' +
+      'loads a rebuilt course until the rework is approved and promoted.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'flip prod:true when the rebuilt courses are approved for release, then ' +
+      'fold the v2 JSONs over the originals and remove the flag'
   }
 ];
 
