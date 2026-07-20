@@ -38,6 +38,14 @@
         'fern_a', 'fern_kenney',
         'heather_fescue_a', 'heather_fescue_b', 'heather_fescue_c', 'heather_purple'
       ];
+      // Ground scatter. grass_c/d/e/f/i render as SOLID low-poly BLOBS (the
+      // "green boxes"); grass_g/h render as real thin BLADES. heather_purple +
+      // the fescues are the photo-textured, alpha-cut foliage that actually
+      // reads as 3D growth.
+      const GROUND = [
+        'grass_g', 'grass_h', 'grass_c', 'grass_i',
+        'flower_a', 'heather_purple', 'heather_fescue_a', 'rock_granite_a'
+      ];
       // Every horizon massif we own (the "get better mountains" survey). These
       // keep their imported textures (alps = grey/snow material; red = photo).
       const MOUNTAINS = [
@@ -45,13 +53,13 @@
       ];
       const params = new URLSearchParams(location.search);
       const raw = params.get('set');
-      const set = raw === 'bushes' ? 'bushes' : raw === 'mountains' ? 'mountains' : 'trees';
+      const set = raw === 'bushes' ? 'bushes' : raw === 'mountains' ? 'mountains' : raw === 'ground' ? 'ground' : 'trees';
       // ?only=<key> renders a single asset centered (used for the wide mountain
       // massifs, which overlap when tiled) — otherwise the full set grid.
       const only = params.get('only');
-      const FULL = set === 'bushes' ? BUSHES : set === 'mountains' ? MOUNTAINS : TREES;
+      const FULL = set === 'bushes' ? BUSHES : set === 'mountains' ? MOUNTAINS : set === 'ground' ? GROUND : TREES;
       const KEYS = only ? [only] : FULL;
-      const TARGET_H = set === 'bushes' ? 3.0 : set === 'mountains' ? 7.0 : 6.0;
+      const TARGET_H = set === 'bushes' ? 3.0 : set === 'mountains' ? 7.0 : set === 'ground' ? 2.4 : 6.0;
       document.getElementById('title').textContent =
         (set === 'bushes' ? 'BUSH / SHRUB' : set === 'mountains' ? 'MOUNTAIN / HORIZON' : 'TREE') + ' catalog — in-game render';
 

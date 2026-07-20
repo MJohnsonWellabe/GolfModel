@@ -21,3 +21,10 @@ for (const key of ['mountain_alps', 'mountain_alps_b', 'mountain_red', 'mountain
     await page.screenshot({ path: `tests/visual/__shots__/mtn-${key}.png` });
   });
 }
+
+test('asset catalog — ground', async ({ page }) => {
+  await page.setViewportSize({ width: 1600, height: 1100 });
+  await page.goto('/treecatalog.html?set=ground');
+  await page.waitForFunction(() => (window as any).__ready === true, undefined, { timeout: 60_000 });
+  await page.screenshot({ path: `tests/visual/__shots__/catalog-ground.png` });
+});

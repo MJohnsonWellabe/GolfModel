@@ -38,15 +38,29 @@ const timberlineV2 = {
     // in for character. (The low-poly conifers are out.)
     treeKeys: ['tree_birch', 'tree_aspen', 'tree_poplar', 'tree_oak'],
     accentTreeKeys: ['tree_broken', 'tree_birch_b'],
-    // Detailed forest-pack shrubs (asset-packs/forest-nature-fbx): dense
-    // leaf-card foliage masses that read as real undergrowth, NOT the smooth
-    // low-poly bush_a/b/leafy blocks. Chosen off the in-game asset catalog
-    // (treecatalog.html?set=bushes).
-    bushKeys: ['bush_forest_a', 'bush_forest_b', 'bush_wolfberry', 'bush_juniper'],
+    // UNDERSTORY — the forest-pack "bush" meshes ship WITHOUT their leaf-cutout
+    // texture (the fbx references a missing C:\ leaf png), so they render as
+    // solid boxes. The foliage that reads as REAL 3D growth is the photo-
+    // textured, alpha-cut kind: alpine HEATHER (purple bloom) + golden fescue
+    // in clumps through the rough (theme.heatherKeys + a light, CLUSTERED
+    // tallGrass — an alpine meadow understory, not a links wall), and 3D FERNS
+    // as the near-tree forest floor (bushKeys).
+    // No card-scatter bushes at all — every card-foliage mesh we own (forest
+    // bushes, ferns) ships without its alpha leaf texture and renders as a
+    // solid box. The heather field (below) is the ONLY foliage that reads as
+    // real 3D growth (photo-textured, alpha-cut).
+    bushKeys: [],
+    heatherKeys: ['heather_purple', 'heather_purple', 'heather_fescue_a', 'heather_purple'],
+    tallGrass: { cap: 5, density: 5 },
+    prairieClusters: true,
     scatterKeys: ['rock_granite_a', 'rock_granite_b', 'rock_granite_c', 'tree_fallen', 'stump_a', 'log_a'],
     backdropTreeStep: 46,
     tuftDensity: 1.1, roughTuftHeight: 1.15,
-    lushGrass: true, grassKeys: ['grass_c', 'grass_d', 'grass_e'],
+    // grass_c/d/e/f/i render as SOLID low-poly BLOBS (the "green boxes" in the
+    // rough — the game's own comment warns grass cards "read as 2D blocks the
+    // taller they get"). grass_g/h are the ones that render as real thin
+    // BLADES, so the rough reads as soft grass, not boxes.
+    lushGrass: true, grassKeys: ['grass_g', 'grass_h'],
     edgeWobble: 2.4, mowPattern: 'cross', mowWidth: 26,
     greenColumns: true, greenMowPattern: 'cross',
     cloudStyle: 'wispy', atmosphere: 'alpine'
@@ -182,10 +196,12 @@ const timberlineV2 = {
         // Fairway A — the RIGHT (safe, longer) route wrapping right of the
         // tree mass and climbing to the green.
         { centerline: [[620, 904], [742, 804], [798, 664], [812, 520], [838, 424]], width: [84, 72, 64, 58, 50] },
-        // Fairway B — the LEFT (risky, tighter, SHORTER) branch hugging the
-        // left of the tree mass to a left approach at the green: less club in
-        // but pinched between the mass and the mountainside.
-        { centerline: [[620, 904], [528, 802], [522, 668], [594, 584], [664, 548]], width: [84, 54, 50, 48, 46] }
+        // Fairway B — the LEFT aggressive GO-FOR-IT line. Tighter and more
+        // direct than A: a bold drive down the left of the fall leaves a
+        // shorter, straighter shot at the green — but you must carry a pond
+        // guarding the left approach, and long from this angle bleeds into a
+        // back trap. Eagles/birdies OR bogeys/doubles; A is the safe wedge.
+        { centerline: [[620, 904], [544, 784], [540, 648], [598, 556]], width: [84, 54, 48, 42] }
       ],
       // Fairway B (the last ribbon) is the alternate route — exclude it from
       // the hole's yardage measurement.
@@ -195,17 +211,23 @@ const timberlineV2 = {
         { type: 'trees', spacing: 36, visualSpacing: 24, polygon: [[262, 1180], [348, 1146], [366, 1024], [306, 958], [228, 1030], [228, 1148]] },
         // GREENSIDE GUARDIAN — the lone giant spruce short-right of the green.
         { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 32, polygon: [[892, 456], [948, 440], [962, 380], [918, 352], [876, 408]] },
-        // THE TREE MASS filling the WHOLE area between the two routes (owner
-        // request): a big forested divide from the split mouth up to the green
-        // approach. Fairway A wraps RIGHT of it (safe, longer), Fairway B hugs
-        // its LEFT (risky, tighter, shorter). The polygon is held ~15px clear
-        // of both corridors at every station so neither route is blocked.
-        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[620, 858], [584, 804], [566, 724], [566, 668], [606, 618], [646, 592], [700, 600], [714, 660], [684, 712], [648, 772], [632, 820]] },
+        // THE FOREST DIVIDE — fills the WHOLE wedge between the two routes
+        // (owner): a continuous forested spine from the split up to the green
+        // approach. Fairway A wraps RIGHT of it (safe, longer), Fairway B runs
+        // down its LEFT (aggressive). Held ~15px clear of both corridors.
+        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[632, 820], [590, 784], [588, 700], [584, 648], [614, 584], [672, 566], [712, 596], [714, 660], [684, 712], [648, 772]] },
         // Collidable granite boulder at the mouth of the split.
         { type: 'rock', cx: 620, cy: 820, r: 15, height: 15, key: 'rock_granite_a', polygon: blob(620, 820, 15, 15, 8, 0, 1) },
-        // Sand: cross bunker at the common landing's right; deep greenside pot.
+        // THE POND — a small tarn set right off Fairway B's landing: the
+        // aggressive line must clear a tight forced carry to keep coming at the
+        // green. It sits well LEFT of Fairway A's approach, so the safe route
+        // never sees it — the risk belongs entirely to the shortcut.
+        { type: 'water', polygon: [[634, 510], [660, 490], [686, 500], [690, 522], [672, 534], [644, 532], [628, 522]] },
+        // Sand: cross bunker at the common landing's right; front-left greenside
+        // pot; and the BACK trap that catches a long approach from the left.
         { type: 'bunker', polygon: blob(692, 900, 26, 18, 10, 0.35, 131) },
-        { type: 'bunker', depthMul: 1.4, polygon: blob(786, 396, 18, 14, 9, 0.3, 132) }
+        { type: 'bunker', depthMul: 1.4, polygon: blob(786, 402, 17, 13, 9, 0.3, 132) },
+        { type: 'bunker', depthMul: 1.5, polygon: blob(890, 276, 19, 13, 9, 0.3, 133) }
       ],
       aiTargets: [[470, 1120], [620, 904], [730, 760], [800, 540], [838, 430]],
       landforms: [
