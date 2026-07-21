@@ -1824,8 +1824,15 @@ class HoleScene {
       const yaw = Math.atan2(this.hole.pin.y - by, this.hole.pin.x - bx);
       const dPx = Math.hypot(this.hole.pin.x - bx, this.hole.pin.y - by);
       const aUp = -this.engine2d.slopeAccelAlong({ x: bx, y: by }, yaw, dPx); // +uphill / −downhill
-      const EFFECTIVE_MU = 180;
-      elevFt = (aUp * dPx * 1.5) / (EFFECTIVE_MU * 6);
+      // TRUE rise the roll fights, in feet. slopeAccelAlong is the along-line
+      // slope acceleration; dividing by slopeGradAccel (the accel-per-unit-
+      // heightfield-gradient) recovers the gradient, ×dPx = the rise in world
+      // units, ×1.5 = feet. On a uniform slope this equals the real terrain rise
+      // (groundAt delta); on a flat-plateau authored-slope green it is the
+      // pace-equivalent rise. The player then applies the owner's rule — aim
+      // +6 ft of pace per 1 ft of shown rise (2 in = 1 ft) — and the calibrated
+      // putt climb-cost (PHYSICS.puttSlopePaceBoost) makes that hole out.
+      elevFt = (aUp * dPx * 1.5) / PHYSICS.slopeGradAccel;
     } else {
       // Full shots: real terrain (world units → feet: 1 unit = 1.5 ft)
       elevFt = (this.engine2d.groundAt(target.x, target.y) - this.engine2d.groundAt(bx, by)) * 1.5;

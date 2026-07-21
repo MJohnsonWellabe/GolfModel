@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PX_PER_YARD } from '../../src/config';
+import { PX_PER_YARD, PHYSICS } from '../../src/config';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
@@ -95,76 +95,84 @@ describe('putting — a perfect read + stroke is reliable', () => {
 });
 
 /**
- * Uphill pace rule (visual pass 7): the ▲uphill readout is sized so "aim +6 ft
- * per 1 ft of shown rise" holes the putt (2 ft → +12 ft, 4 in → +2 ft). These
- * sims putt straight uphill with the authored green slope, aim exactly the
- * rule's extra distance, and assert the ball finishes at the hole — and that
- * WITHOUT the extra aim it comes up clearly short. Rise here is what the
- * readout shows: cupLenPx · (slopeAccel·strength/μ) · 1.5 / 6.
+ * Uphill pace rule (owner law, 2026-07-21): "2 inches of uphill = 1 foot long"
+ * — i.e. aim +6 ft of pace per 1 ft of TRUE rise, independent of the putt's
+ * base length — and a PERFECT stroke that follows the rule must NOT go long
+ * ("shouldn't go long on perfect perfect"). Two things make this hold:
+ *   1. The aim readout shows the TRUE rise: slopeAccelAlong · dPx · 1.5 /
+ *      slopeGradAccel (main.ts updateAimReadout), so the player reads the real
+ *      climb and applies 6:1 to it.
+ *   2. PHYSICS.puttSlopePaceBoost adds extra deceleration WHILE CLIMBING so the
+ *      raw ~3:1 slope cost reaches the ~6:1 the rule expects. Break and downhill
+ *      roll are untouched.
+ * These sims putt straight uphill on the authored-slope green, size the slope so
+ * the readout shows `riseFt`, aim the rule's +6·rise, and assert the ball holes
+ * / dies AT the cup and errs SHORT — never long. Without the extra aim the dumb
+ * flat pace comes up clearly short (the read is the player's job).
  */
-describe('putting — uphill rule: +6 ft aim per 1 ft shown rise', () => {
-  // Solve authored slope strength so the readout shows `riseFt` for a putt of
-  // `cupFt`: rise = cupPx·(85·strength/150)·1.5/6 ⇒ strength = rise·900/(cup·85).
-  const strengthFor = (cupFt: number, riseFt: number): number => (riseFt * 900) / (cupFt * 85);
+describe('putting — uphill rule: 2in = 1ft, perfect stroke never long', () => {
+  // Solve authored slope strength so the READOUT shows `riseFt` for a `cupFt`
+  // putt. Readout = aUp·dPx·1.5/slopeGradAccel; straight uphill on a null-hf
+  // green aUp = slopeAccel·strength, dPx = cupFt·PX_PER_YARD/3 ⇒
+  // rise = slopeAccel·strength·cupFt/slopeGradAccel.
+  const strengthFor = (cupFt: number, riseFt: number): number =>
+    (riseFt * PHYSICS.slopeGradAccel) / (PHYSICS.slopeAccel * cupFt);
 
-  function uphillPutt(
-    cupFt: number,
-    riseFt: number,
-    extraAimFt: number,
-    rng: () => number
-  ): { holed: boolean; finishFt: number } {
-    // Downhill accel points +y (back at the golfer): putting toward -y is uphill.
+  // Signed finish: + = LONG (past the cup), - = short.
+  function uphillPutt(cupFt: number, riseFt: number, extraAimFt: number, rng: () => number): { holed: boolean; signedFt: number } {
     const upHole = openHole({ slope: { angle: Math.PI / 2, strength: strengthFor(cupFt, riseFt) } });
     const origin = { x: upHole.pin.x, y: upHole.pin.y + ftToPx(cupFt) };
     const distPx = ftToPx(cupFt + extraAimFt);
     const out = new PhysicsEngine(upHole, null, rng).simulate({
-      origin,
-      aimAngle: -Math.PI / 2,
-      swing: PERFECT_SWING(distPx / CARRY_PX),
-      club: putter,
-      golfer,
-      fireBoost: 0,
-      lie: 'green',
-      wind: NO_WIND,
-      hole: upHole
+      origin, aimAngle: -Math.PI / 2, swing: PERFECT_SWING(distPx / CARRY_PX),
+      club: putter, golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: upHole
     });
-    return { holed: out.holed, finishFt: Math.abs((out.finalPos.y - upHole.pin.y) / 2) * 3 };
+    return { holed: out.holed, signedFt: ((upHole.pin.y - out.finalPos.y) / 2) * 3 };
   }
 
-  function medianFinish(cupFt: number, riseFt: number, extraAimFt: number, n = 400): number {
+  function stats(cupFt: number, riseFt: number, extraAimFt: number, n = 400) {
     const rng = mulberry32(777 + cupFt * 13 + Math.round(riseFt * 12));
-    const errs: number[] = [];
-    for (let i = 0; i < n; i++) errs.push(uphillPutt(cupFt, riseFt, extraAimFt, rng).finishFt);
-    errs.sort((a, b) => a - b);
-    return errs[Math.floor(n / 2)];
-  }
-
-  function uphillMakeRate(cupFt: number, riseFt: number, extraAimFt: number, n = 400): number {
-    const rng = mulberry32(4242 + cupFt * 13 + Math.round(riseFt * 12));
+    const s: number[] = [];
     let holed = 0;
-    for (let i = 0; i < n; i++) if (uphillPutt(cupFt, riseFt, extraAimFt, rng).holed) holed++;
-    return (100 * holed) / n;
+    for (let i = 0; i < n; i++) { const r = uphillPutt(cupFt, riseFt, extraAimFt, rng); if (r.holed) holed++; s.push(r.signedFt); }
+    s.sort((a, b) => a - b);
+    return { median: s[Math.floor(n / 2)], p90: s[Math.floor(n * 0.9)], makePct: (100 * holed) / n };
   }
 
-  it('2 ft of rise holes with +12 ft of aim (30-ft putt)', () => {
-    expect(medianFinish(30, 2, 12)).toBeLessThanOrEqual(2.5);
-    expect(uphillMakeRate(30, 2, 12)).toBeGreaterThanOrEqual(40);
+  // Aiming the rule's +6·rise: holes out / dies at the cup, and even the long
+  // tail does not run well past — the whole point is "never long on perfect".
+  it('2 ft of rise, +12 ft aim (30-ft putt): holes and does not run long', () => {
+    const r = stats(30, 2, 12);
+    expect(r.makePct).toBeGreaterThanOrEqual(25);
+    expect(r.median).toBeLessThanOrEqual(1.5); // not long
+    expect(r.p90, `p90 ${r.p90.toFixed(1)}ft`).toBeLessThanOrEqual(3.5);
   });
 
-  it('4 in of rise holes with +2 ft of aim (20-ft putt)', () => {
-    expect(medianFinish(20, 1 / 3, 2)).toBeLessThanOrEqual(2);
-    expect(uphillMakeRate(20, 1 / 3, 2)).toBeGreaterThanOrEqual(50);
+  it('4 in of rise, +2 ft aim (20-ft putt): holes, not long', () => {
+    const r = stats(20, 1 / 3, 2);
+    expect(r.makePct).toBeGreaterThanOrEqual(45);
+    expect(r.median).toBeLessThanOrEqual(1.5);
+    expect(r.p90).toBeLessThanOrEqual(3);
   });
 
-  it('1 ft of rise holes with +6 ft of aim (15-ft putt)', () => {
-    expect(medianFinish(15, 1, 6)).toBeLessThanOrEqual(2);
-    expect(uphillMakeRate(15, 1, 6)).toBeGreaterThanOrEqual(50);
+  it('1 ft of rise, +6 ft aim (15-ft putt): holes, not long', () => {
+    const r = stats(15, 1, 6);
+    expect(r.makePct).toBeGreaterThanOrEqual(45);
+    expect(r.median).toBeLessThanOrEqual(1.5);
+    expect(r.p90).toBeLessThanOrEqual(3);
+  });
+
+  it('the perfect stroke ERRS SHORT, not long, across rises (owner: never long on perfect)', () => {
+    for (const [cup, rise] of [[12, 0.75], [18, 1.5], [24, 2], [30, 3]] as const) {
+      const r = stats(cup, rise, 6 * rise);
+      expect(r.median, `${cup}ft/${rise}ft median ${r.median.toFixed(1)}`).toBeLessThanOrEqual(1.5);
+    }
   });
 
   it('without the extra aim, the same uphill putts come up clearly short', () => {
-    // Flat-pace aim on a 2-ft rise finishes well short of the rule-aimed putt.
-    expect(medianFinish(30, 2, 0)).toBeGreaterThanOrEqual(8);
-    expect(uphillMakeRate(30, 2, 0)).toBeLessThanOrEqual(5);
+    const r = stats(30, 2, 0);
+    expect(r.median).toBeLessThanOrEqual(-6); // finishes well short of the cup
+    expect(r.makePct).toBeLessThanOrEqual(5);
   });
 });
 

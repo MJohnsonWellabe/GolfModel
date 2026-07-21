@@ -97,6 +97,16 @@ export const PHYSICS = {
   /** Fraction of the heightfield-gradient roll applied OFF the green (fairway/
    *  rough), so a downhill drive gains yards without a runaway roll-out. */
   rollGradFairwayMult: 0.55,
+  /** PUTT PACE — climb cost (owner law: "2 inches of uphill = 1 foot long",
+   *  i.e. aim +6 ft of pace per 1 ft of TRUE rise, independent of putt length).
+   *  The raw slope accel only makes a climb cost ~3 ft/ft, so a player reading
+   *  the real rise and aiming by the 6:1 rule blows it long. This factor adds
+   *  EXTRA acceleration ALONG the ball's line of travel (green/fringe only) —
+   *  proportional to the along-motion slope component — so the uphill/downhill
+   *  pace cost reaches the 6:1 law WITHOUT touching the perpendicular BREAK
+   *  (which stays exactly as authored). Calibrated in tests/simulation/
+   *  putting.test.ts against the true-rise hole-out ratio. */
+  puttSlopePaceBoost: 0.7,
   /** REAL ball-flight aerodynamics (owner: "just physics ... a 20-ft downhill
    *  drive should NOT go 50 yd further"). A drag-free parabola is symmetric so it
    *  descends at the LAUNCH angle (~11°) and a small drop stretches carry

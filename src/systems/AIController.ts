@@ -327,10 +327,16 @@ export class AIController {
     if (club.id === 'putter') {
       // Slope-aware pace, same math as the player's meter target: uphill
       // needs more, downhill less (rolling decel along the line = μ ∓ a).
+      // UPHILL also pays the climb-cost boost (PHYSICS.puttSlopePaceBoost) the
+      // roll adds while climbing, so the AI rates the stroke up to match the
+      // real uphill cost and doesn't chronically leave putts short (which read
+      // as extra 3-putts / unfinished holes on hilly greens). Downhill is
+      // untouched, mirroring the roll (the boost is climb-only).
       if (this.terrain?.slopeAccelAlong) {
         const yaw = angleTo(ballPos, aimPoint);
         const aPar = this.terrain.slopeAccelAlong(ballPos, yaw, dist(ballPos, aimPoint));
-        targetPower = clamp((targetPower * (PHYSICS.friction.green - aPar)) / PHYSICS.friction.green, minPower, 1.0);
+        const aParEff = aPar < 0 ? aPar * (1 + PHYSICS.puttSlopePaceBoost) : aPar;
+        targetPower = clamp((targetPower * (PHYSICS.friction.green - aParEff)) / PHYSICS.friction.green, minPower, 1.0);
       }
       // Fringe putts fight ~3x green friction until they reach the surface —
       // rate the stroke up or they die well short.
