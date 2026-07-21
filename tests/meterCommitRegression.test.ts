@@ -64,7 +64,10 @@ describe('DomMeter committed swing cancellation regression', () => {
 
     expect(cancel).not.toHaveBeenCalled();
     expect(complete).toHaveBeenCalledTimes(1);
-    expect(complete.mock.calls[0][0]).toMatchObject({ accuracy: -1, accuracyQuality: 'miss' });
+    // cursor=0 is the far-LEFT end of the accuracy bar. Under the owner's meter
+    // inversion (cursor-left → ball-right), that far-left expiry now maps to a
+    // +1 (slice/right) terrible miss (was -1 before the flip).
+    expect(complete.mock.calls[0][0]).toMatchObject({ accuracy: 1, accuracyQuality: 'miss' });
   });
 
   it('has no post-power-lock path back to idle aiming without a shot result', () => {

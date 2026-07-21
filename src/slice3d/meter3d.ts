@@ -295,11 +295,12 @@ export class DomMeter {
     // sits at powerTarget * fullPowerMark.
     if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
     if (c <= t) {
-      // Short of the target — proportionally weaker
+      // Short of the target — proportionally weaker (owner: short = less).
       return clamp(c / SWING.fullPowerMark, 0.1, 1.08);
     }
-    // Past the target — overswing bleeds distance back off
-    return clamp(this.ctx.powerTarget - SWING.overswingPenalty * (c - t), 0.1, 1.08);
+    // Past the target — overswing ADDS distance (owner: long = more), capped so
+    // it can't run away. The risk is the smaller zone + wider miss bands.
+    return clamp(this.ctx.powerTarget + SWING.overswingBonus * (c - t), 0.1, 1.2);
   }
 
   private lockAccuracy(cursor: number, forceMiss = false): void {
@@ -310,7 +311,14 @@ export class DomMeter {
     // miss was immediately promoted into a large hook/slice. This keeps the
     // signed miss continuous from perfect -> good -> miss while still allowing
     // truly terrible clicks at the far ends of the bar to reach ±1.
-    let offset = normalizedAccuracyOffset(cursor);
+    // Owner rule: stopping the accuracy cursor RIGHT of the mark sends the ball
+    // LEFT (and left→right) — the clubface over-corrects. The raw offset is
+    // positive when the cursor is right of target and the physics start-line
+    // error is +right, so NEGATE here at the player's meter so cursor-right maps
+    // to a left start line. Magnitude still grows with the size of the miss.
+    // (Only the player's meter is flipped — the AI sets its own accuracy and its
+    // physics dispersion is unchanged.)
+    let offset = -normalizedAccuracyOffset(cursor);
     if (band === 'perfect') offset = 0;
     this.onBand?.('accuracy', band);
 

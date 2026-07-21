@@ -51,8 +51,14 @@ export const SWING = {
   /** Bar position a full-carry shot's target sits at, leaving room above it
    * for an overswing zone (so max-power shots can be missed on both sides). */
   fullPowerMark: 0.85,
-  /** Physics power lost per bar-unit the cursor stops past the target (overswing). */
-  overswingPenalty: 1.0,
+  /** Extra physics power GAINED per bar-unit the cursor stops PAST the target
+   *  (overswing) — owner rule: "a hit long of the power meter gives extra
+   *  distance." Short of the target already delivers proportionally less. At
+   *  0.85, a full overswing to the top of the bar (~0.15 past a 0.85 target)
+   *  adds ~+13% power; the delivered power is capped at 1.2 so it can't run
+   *  away, and the wider power/accuracy miss bands are the risk that balances
+   *  reaching for it. */
+  overswingBonus: 0.85,
   /** Cap on a "good" (not perfect) PUTT's delivered-power error, as a FRACTION
    *  of the target itself rather than an absolute bar-width. Putts have no
    *  fullPowerMark headroom (the bar position for a putt IS its intended power
