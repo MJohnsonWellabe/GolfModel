@@ -224,11 +224,11 @@ const wildvalley = {
       hazards: [
         // LZ1 blowout pulled RIGHT AGAINST the fairway's left edge + deepened
         // (owner: "move the bunkers right against the fairway, make them deeper").
-        { type: 'bunker', waste: true, depthMul: 1.5, polygon: blob(448, 1028, 86, 96, 15, 0.5, 61) },
+        { type: 'bunker', waste: true, depthMul: 1.35, polygon: blob(388, 1030, 80, 92, 15, 0.44, 61) },
         // THE WILD HORSE BUNKER (owner: "make the one on the right look like Wild
         // Horse's famous bunker") — a huge SPRAWLING native blowout with ragged
         // fingered edges, hard against the drive zone's right, dug deep.
-        { type: 'bunker', waste: true, depthMul: 1.8, polygon: blob(672, 985, 92, 116, 18, 0.66, 71) },
+        { type: 'bunker', waste: true, depthMul: 1.6, polygon: blob(728, 972, 80, 106, 17, 0.5, 71) },
         // The HERO blowout complex torn from the second ridge's face —
         // shifted onto the aggressive carry line over the ridge.
         { type: 'bunker', waste: true, polygon: blob(806, 914, 100, 110, 14, 0.52, 62) },

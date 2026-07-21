@@ -309,7 +309,10 @@ describe('Wild Prairie terrain identity', () => {
     expect(theme.bushKeys).toEqual([]);
     expect(theme.treeKeys).toEqual([]);
     expect(theme.prairieClusters).toBe(true); // dense clustered native rough
-    expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(28);
+    // Owner playtest: "reduce the total fescue, render in randomized clumps
+    // rather than everywhere" — density lowered 33→22, so the floor tracks the
+    // new reduced target (still a substantial, course-carrying stand).
+    expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(20);
     expect(theme.bunkerLipPacked).toBe(true); // grass-lined blowout lips
     expect(theme.greenShadeGain).toBeGreaterThanOrEqual(12); // contours read
   });
@@ -618,7 +621,7 @@ describe('Wild Prairie green contours + fairway preservation', () => {
       // PASS 10: re-pinned after the "more visibly rolling" fairway pass raised
       // the h1 cross-rolls.
       0: [[470, 1100, 6.05], [467, 1052, 6.42], [463, 1004, 3.98], [460, 956, 2.74], [458, 908, 3.75], [456, 860, 4.9], [456, 812, 4.63], [459, 764, 5.03], [461, 716, 4.66], [465, 668, 3.32], [469, 621, 2.15], [471, 573, 2.22], [470, 525, 3.01], [468, 477, 1.19], [481, 431, 0.95], [496, 385, 1.69]],
-      2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.46], [466, 1136, 9.56], [501, 1075, 12.83], [537, 1015, 16.9], [573, 954, 15.9], [609, 893, 10.15], [633, 827, 4.73], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.97], [709, 555, 9.38], [730, 487, 11.9], [752, 420, 10.31]]
+      2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.46], [466, 1136, 9.56], [501, 1075, 12.83], [537, 1015, 16.29], [573, 954, 15.9], [609, 893, 10.15], [633, 827, 4.73], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.97], [709, 555, 9.38], [730, 487, 11.9], [752, 420, 10.31]]
     };
     for (const [hiStr, samples] of Object.entries(SNAP)) {
       const { hf } = field(wildvalley, Number(hiStr));
