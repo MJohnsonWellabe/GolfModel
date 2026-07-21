@@ -211,30 +211,27 @@ const portjohnsonV2 = {
           type: 'water', cliff: true,
           polygon: [[60, 880], [236, 900], [280, 1000], [268, 1130], [220, 1250], [80, 1280]]
         },
-        // CROSS-HAZARD STRIPS (round 2): the former left row + mirrored right
-        // row are now JOINED by a central bridging bunker at each band, so each
-        // L/mid/R triple reads as ONE continuous sand STRIP spanning the fairway
-        // width — a true cross-hazard the player carries or lays up to, not two
-        // flanking rows with a lane down the middle. They stay WASTE (advanceable
-        // sand, no drop) so four cross-strips up the second leg keep the hole
-        // playable. Each strip is centred on the fairway centerline at its band.
-        // Strip 1 (band y616, fairway centre ~488):
-        { type: 'bunker', waste: true, polygon: blob(433, 616, 34, 26, 10, 0.35, 941) },
-        { type: 'bunker', waste: true, polygon: blob(488, 616, 40, 26, 11, 0.32, 961) },
-        { type: 'bunker', waste: true, polygon: blob(543, 616, 34, 26, 10, 0.35, 955) },
-        // Strip 2 (band y704, fairway centre ~517):
-        { type: 'bunker', waste: true, polygon: blob(459, 704, 36, 28, 10, 0.35, 942) },
-        { type: 'bunker', waste: true, polygon: blob(517, 704, 42, 28, 11, 0.32, 962) },
-        { type: 'bunker', waste: true, polygon: blob(575, 704, 36, 28, 10, 0.35, 956) },
-        // Strip 3 (band y794, fairway centre ~581):
-        { type: 'bunker', waste: true, polygon: blob(519, 794, 38, 30, 10, 0.35, 943) },
-        { type: 'bunker', waste: true, polygon: blob(581, 794, 44, 30, 11, 0.32, 963) },
-        { type: 'bunker', waste: true, polygon: blob(643, 794, 38, 30, 10, 0.35, 957) },
-        // Strip 4 (band y900, fairway centre ~652):
-        { type: 'bunker', waste: true, polygon: blob(588, 900, 36, 28, 10, 0.35, 944) },
-        { type: 'bunker', waste: true, polygon: blob(652, 900, 42, 28, 11, 0.32, 964) },
-        { type: 'bunker', waste: true, polygon: blob(716, 900, 36, 28, 10, 0.35, 958) },
-        // Inside-corner waste at the first turn + outside catcher.
+        // CROSS-HAZARD STRIPS (round 2 owner ask "connect L+R bunkers into strips
+        // ACROSS the fairway"; REBUILT in the polish pass). The round-2 version
+        // authored each strip as three WIDE *waste* blobs spanning ~center±90 px
+        // — but the links fairway here is only ~66–84 px wide, so the sand that
+        // crossed the fairway was WASTE-over-fairway, which the loader silently
+        // makes UNPLAYABLE: the "cross-hazard" didn't exist on the fairway at all
+        // (12 dead bunkers). Each band is now ONE regular (plugging) bunker sized
+        // to sit FULLY INSIDE the fairway width at that band — a genuine sand
+        // carry the player flies or lays up to, wide-and-thin so it reads as a
+        // cross STRIP, not a pot. Widths track the fairway half-width per band
+        // (leg-2 [90,84,78,66], leg-3 [66,62,56,50]) with a ~4px sliver each side.
+        // Strip 1 (band y616, fairway centre ~488, half ~32):
+        { type: 'bunker', polygon: blob(488, 616, 23, 12, 12, 0.18, 941) },
+        // Strip 2 (band y704, fairway centre ~517, half ~36):
+        { type: 'bunker', polygon: blob(517, 704, 31, 14, 12, 0.22, 942) },
+        // Strip 3 (band y794, fairway centre ~581, half ~40):
+        { type: 'bunker', polygon: blob(581, 794, 35, 15, 12, 0.22, 943) },
+        // Strip 4 (band y900, fairway centre ~652, half ~42):
+        { type: 'bunker', polygon: blob(652, 900, 37, 15, 12, 0.22, 944) },
+        // Inside-corner waste at the first turn + outside catcher (flanking the
+        // fairway in the rough, clear of the ribbon — these stay waste sand).
         { type: 'bunker', waste: true, polygon: blob(548, 1030, 42, 30, 10, 0.35, 945) },
         { type: 'bunker', waste: true, polygon: blob(784, 1060, 38, 28, 10, 0.35, 946) },
         // THE OLD WALL (kept pattern): revetted pots marching diagonally
