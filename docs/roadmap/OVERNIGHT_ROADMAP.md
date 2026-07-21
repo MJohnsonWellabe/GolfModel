@@ -176,6 +176,90 @@ ceiling; instance counts logged).
 
 ---
 
-## Morning summary (filled in as work completes)
+## Morning summary
 
-_(pending)_
+Everything below shipped to `claude/bsg-dev-environment-roadmap-y4vzk8` **and**
+`version2`; full unit suite **864/864** green throughout; every course change was
+render-verified through the actual game. A critical "Matt agent" review ran at
+the end (its must-fixes and my responses are appended once it lands).
+
+### Phase 1.1 — Putting (owner law: "2 in uphill = 1 ft long", never long on perfect) ✅
+Root-caused on real heightfield hills: the aim readout **understated true rise
+~2×**, and the raw slope made a climb cost only ~3 ft of pace per 1 ft of rise —
+so reading the true rise and aiming 6:1 (your rule) blew putts ~14 ft long.
+Fixed: (1) the readout now shows **true rise** (`slopeAccelAlong·dPx·1.5 /
+slopeGradAccel`); (2) `PHYSICS.puttSlopePaceBoost` (0.7) adds extra deceleration
+**only while climbing**, so aiming 6:1 holes out and **errs short, never long**
+(sim: 10–30 ft × 0.3–3 ft rises). Break, downhill roll, and the AI's putt pace
+all kept consistent. `putting.test.ts` rewritten to the new law. *Known: a
+pre-existing long-lag downhill roll-off on Sable Bay h2 (32-ft putt) is separate
+and unaffected — that green is in the rebuild below.*
+
+### Phase 1.2 / 2 — Timberline E & W ✅
+- **E-H2**: continuous far-shore sapling stands lining the tarn (green stays
+  open). **E-H3**: divider trees moved to the fairway fork so the right corridor
+  has a clear second shot. **W-H2**: front-green specimen tree gets
+  `collisionOffset [-15,9]` — hitbox slides off the approach line, rendered tree
+  unchanged.
+- **Par 5s** (the "reachable by a short hitter" birdie machine): lengthened
+  (E 535→578 yd, W 580→599 yd), greens trimmed, **front-water carries** added on
+  the aggressive line. Birdie-or-better on the par 5s dropped ~9–16 pts
+  (Tiger E −1.07→−0.85, W −0.99→−0.71; JD −0.79→−0.46, −0.56→−0.28) — no test
+  bands widened, every hole still finishes.
+- **Honest difficulty flag for you:** the AI *sim* already scores Tiger
+  **−1.2/−1.5** on the v2 Timberlines (harder than your −2/−2.5 target) while you
+  observed **3–4 under in-game**. The sim and live AI diverge, so I fixed the
+  concrete, verifiable cause (the par-5 birdie-fest + hot-round variance) rather
+  than chase an exact average blind. **Please eyeball the live scoring** — if
+  it's still too easy, the levers are pin tucks + tighter par-4 landing zones.
+
+### Phase 3 — Sable Bay overhaul ✅
+H1 & H3 are now a **sea of waste sand** with the fairway ribbon + green as turf
+islands (pines stand in the sand). H2's island green shows **only water + boats
+behind it** (flanking pines deleted). **Warmer coastal palette** (sand, turf,
+sea, sky all re-toned). **Dunes + rolling elevation** added (H1 9 pts, H3 12).
+A **lighthouse** crowns the seawall point and a **rowboat** sits on the sand.
+
+### Phase 4 — Wildwood + Port Johnson ✅
+- **Wildwood**: rolling hills on all three; **H2 green reshaped to a wide,
+  shallow two-tier shelf** (large rx / small ry + `green2` lobe, pin on the upper
+  tier); **H3 tee elevated** for a downhill opening view. Props: **park bench** by
+  H1 green, **stone footbridge** over the H2 fairway creek, **rail fence + bench**
+  by the H3 tee.
+- **Port Johnson**: pronounced links **rolling hills**; **dense flanking
+  heather/fescue** (tallGrass density 8.5→22); **H2 green** made contoured
+  (slope 0.36→0.52 + knob/hollow tier); **H3** left bunker row pulled in to hug
+  the fairway with a **mirrored right row** added; a **lighthouse** on the
+  headland above the sea cliff.
+
+### Phase 5 — Tee boxes ✅
+Replaced the flat bright "mini-golf mat" with a **mowed-stripe fairway-turf tee**
+(alternating mow bands, low turf bank sides) + **real low tee-marker blocks**
+instead of golf-ball spheres. Renders cleanly on every course.
+
+### Phase 6 — New CC0 assets ✅
+Acquired + license-verified (CC0 Kenney): **lighthouse, rowboat, park bench, rail
+fence, stone footbridge** (`assets/models/props/`, attribution in
+`docs/technical/ASSET_ATTRIBUTION.md`). The prop loader was **generalized** with
+an `upright` flag so vertical objects (lighthouse/bench/fence/boat) stand upright,
+scale to `len`, and rest on the ground — previously the loader only handled
+horizontal bridge spans (would have tipped a lighthouse on its side).
+
+### Known nits (flagged for review / your call)
+1. **Sable Bay sand** reads a little muddy/olive under the lighting rather than
+   warm beach — the palette was warmed but could go further.
+2. **Sable Bay H2 pirate galleon** is large/dominant behind the green — it *is* a
+   boat (your ask) but a plain sailboat set may suit the coastal look better.
+3. **Port Johnson side fescue** reads as scattered tufts, not yet a thick 10-yd
+   wall; and the H3 lighthouse sits off the tee sightline (verify it reads in
+   play).
+4. **Wildwood H3 fence/bench** may be small/off-frame — verify they read.
+5. One **Sable Bay elevation splat** uses non-standard `x2,y2` fields the
+   HeightField ignores (intended a ridge, got a dome) — harmless, worth cleaning.
+
+### Not done (out of scope / needs your input)
+- "Different trees / different mountains" (Phase 6 wish-list) beyond the 5 props
+  above — the montane/parkland tree sets are already curated (see
+  `docs/technical/ASSET_AUDIT.md`); swapping them is a bigger identity call I left
+  for you.
+- The exact Timberline scoring target (see the difficulty flag above).
