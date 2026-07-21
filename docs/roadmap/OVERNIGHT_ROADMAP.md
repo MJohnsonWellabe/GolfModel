@@ -263,3 +263,32 @@ horizontal bridge spans (would have tipped a lighthouse on its side).
   `docs/technical/ASSET_AUDIT.md`); swapping them is a bigger identity call I left
   for you.
 - The exact Timberline scoring target (see the difficulty flag above).
+
+### Critical "Matt agent" review + resolutions
+An independent review pass graded each area and rendered 24 shots. Verdicts:
+**Putting — approve** ("it physically cannot go long; ship it"). **Wildwood —
+approve** ("best-looking work of the night; the two-tier green is exactly
+right"). **Timberline / Port Johnson / tee boxes — approve-with-nits.**
+**Sable Bay — needs-work** (two must-fixes). It also **refuted** the `x2,y2`
+elevation worry — `HeightField.ts` does read those fields, so the Sable Bay dune
+spines are genuine ridges.
+
+Top must-fixes raised → **all resolved** (commit `b17ff93`, re-rendered to
+confirm):
+1. **Sable Bay galleon hid the green** — the review caught that the ship's REAL
+   model scale (`avgSc`) was a *separate* 8× I'd missed; both the placeholder and
+   the model are now 1.5× and pushed back — the island green + flag read clearly.
+2. **Sable Bay muddy/olive sand** — root cause was the hemi ground-ambient tinted
+   with the olive rough; a `hemiGround` theme override now warms it to beach sand.
+3. **Wildwood H3 fence/bench off-frame** — relocated into the tee sightline by
+   the creek and enlarged; they read now.
+4. **Port Johnson fescue too thin** — density 22 → 40.
+5. **Port Johnson H3 lighthouse invisible** — enlarged + moved to higher terrace;
+   it now renders but stays a LEFT sea-cliff landmark (the green-facing tee cam
+   doesn't frame it — realistic, but flagging in case you want it relocated).
+
+Remaining nice-to-haves the review noted, left for your call: the "lighthouse"
+model is a Kenney *pirate tower*, not a striped lighthouse (a nicer model could
+swap in); `scoring.test.ts` still loads the legacy `timberline.json`, not the v2
+rebuild, so the headline scoring gate isn't testing the course you actually play
+(worth repointing when you reconcile the difficulty target).
