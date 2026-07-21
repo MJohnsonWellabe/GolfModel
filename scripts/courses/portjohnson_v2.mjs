@@ -140,9 +140,13 @@ const portjohnsonV2 = {
       tee: [460, 790],
       teeBox: { w: 30, d: 22 },
       green: { cx: 470, cy: 300, rx: 98, ry: 62, rot: -0.5 },
-      // Hillier Redan green: a stronger authored break plus the front-swale /
-      // back-knob contour below make the surface read distinctly tiered.
-      slope: { angle: 3.8, strength: 0.52 },
+      // Tiered Redan green. The break was the game's strongest (strength 0.52);
+      // beyond the calibrated range of the 6:1 aim-readout rule, so a putt that
+      // read near-level still ran well past (owner: "missed what read as a flat
+      // putt by 20 feet ... a glitch in how it read"). Pulled back into the
+      // calibrated band (0.40) and the tier contour softened below, so it still
+      // reads as a Redan but the readout now matches the roll.
+      slope: { angle: 3.8, strength: 0.4 },
       centerline: [[460, 770], [464, 620], [470, 500]],
       width: [40, 56, 64],
       hazards: [
@@ -172,11 +176,12 @@ const portjohnsonV2 = {
         // handled by slope); behind-left falls away.
         { x: 470, y: 300, h: 1.2, r: 130, shape: 'plateau', skirt: 0.55 },
         { x: 380, y: 210, h: -1.4, r: 90 },
-        // HILLIER GREEN SURFACE: a raised back-right knob and a front hollow
-        // give the putting surface a real upper/lower tier (kept gentle so the
-        // spoke-step + relief puttability gates still pass).
-        { x: 500, y: 262, h: 1.35, r: 52 },
-        { x: 440, y: 340, h: -0.85, r: 50 },
+        // TIERED GREEN SURFACE: a raised back-right knob and a front hollow give
+        // the putting surface a real upper/lower tier — softened (owner glitch:
+        // the deep front hollow the default front pin sat in helped putts crest
+        // and run past) so the tier still reads without the blow-by trap.
+        { x: 500, y: 262, h: 1.05, r: 52 },
+        { x: 440, y: 340, h: -0.55, r: 52 },
         // ROLLING HILLS short of the green so the whole approach heaves; a
         // long-iron runner bounces alive over them (bumped ~2x to read from
         // the tee, kept clear of the putting surface).
