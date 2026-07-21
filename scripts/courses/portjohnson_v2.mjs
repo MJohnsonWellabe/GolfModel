@@ -38,12 +38,15 @@ const portjohnsonV2 = {
     roughDark: '#6d683f',
     // Heather-dominant rough: purple leads the mix.
     heatherKeys: ['heather_purple', 'heather_fescue_a', 'heather_purple', 'heather_fescue_c'],
-    // Dense links fescue: the rough that flanks every fairway now packs a thick
-    // wall of heather/fescue (was sparse density 8.5) so a thick band hugs both
-    // sides of the short grass — the "thick stuff" that used to live only around
-    // the bunker lips now carpets the whole rough. bunkerLipPacked lines every
-    // trap edge to match.
-    tallGrass: { cap: 8, density: 40, waste: true },
+    // Dense links fescue: the rough that flanks every fairway packs a THICK
+    // CONTINUOUS WALL of heather/fescue (round 1 density 8.5 → 40 read as
+    // scattered tufts; now 60 for a solid band and cap 9 so it stands as a wall,
+    // not a stubble). The scatter only plants on `rough`, and the bounded-world
+    // frame band (course3d FRAME_BAND, active in the courseRebuilds/dev render)
+    // culls everything past the corridor+frame — so this thick stand hugs the
+    // fairway edge and out ~one band, then stops (no far-field tuft haze).
+    // bunkerLipPacked lines every trap edge to match.
+    tallGrass: { cap: 9, density: 60, waste: true },
     bunkerLipPacked: true
   },
   holes: [
@@ -90,23 +93,30 @@ const portjohnsonV2 = {
       ],
       aiTargets: [[470, 812], [500, 540], [496, 392]],
       elevation: [
-        // Rumpled linksland — long low dune rolls, no walls anywhere.
-        { x: 500, y: 1170, h: 1.6, r: 120, shape: 'plateau' },
-        { x: 340, y: 1010, x2: 296, y2: 620, h: 3.2, r: 120 },
-        { x: 690, y: 1120, x2: 740, y2: 840, h: 3.4, r: 130 },
-        { x: 430, y: 860, h: 1.4, r: 90 },
-        { x: 580, y: 560, h: 1.2, r: 80 },
-        // PRONOUNCED ROLLING HILLS through the driving/approach corridor —
-        // alternating crests and hollows so the ground heaves the whole way to
-        // the green (no walls: broad r, gentle faces).
-        { x: 612, y: 1040, h: 3.6, r: 130 },
-        { x: 388, y: 950, h: 3.2, r: 120 },
-        { x: 500, y: 900, h: -1.6, r: 110 },
-        { x: 606, y: 792, h: 2.8, r: 110 },
-        { x: 402, y: 700, h: 3.4, r: 120 },
-        { x: 520, y: 636, h: -1.3, r: 95 },
-        { x: 596, y: 540, h: 2.8, r: 110 },
-        { x: 404, y: 486, h: 2.4, r: 100 },
+        // Tee shelf.
+        { x: 500, y: 1170, h: 1.8, r: 120, shape: 'plateau' },
+        // BIG DUNE WALLS framing leg 1 RIGHT IN THE TEE VIEW — long swept
+        // ridges that heave the whole foreground/mid the way Prairie h3's do
+        // (broad r, gentle faces — no walls). Round 1's h≈3 rolls read flat;
+        // these are TL-East magnitude (h 8–16) so the tee sees a rumpled dune
+        // world, not a table.
+        { x: 300, y: 1120, x2: 250, y2: 760, h: 15, r: 175 }, // left dune wall
+        { x: 726, y: 1090, x2: 772, y2: 880, h: 13, r: 160 }, // right dune before the harbour
+        { x: 372, y: 980, x2: 340, y2: 880, h: 8, r: 120 },   // inner left shoulder
+        // PRONOUNCED FAIRWAY ROLLS — alternating crests and hollows heaving the
+        // whole corridor tee-to-green (bumped ~2x so they read from the tee).
+        { x: 612, y: 1040, h: 7, r: 130 },
+        { x: 392, y: 950, h: 6.5, r: 122 },
+        { x: 500, y: 900, h: -3, r: 112 },
+        { x: 606, y: 792, h: 6, r: 118 },
+        { x: 402, y: 700, h: 6.5, r: 122 },
+        { x: 520, y: 636, h: -2.6, r: 100 },
+        { x: 596, y: 540, h: 5, r: 110 },
+        { x: 404, y: 486, h: 4.5, r: 100 },
+        // Far framing dunes flanking the green (horizon mass, clear of the
+        // putting surface so green relief stays legal).
+        { x: 232, y: 300, x2: 190, y2: 520, h: 10, r: 150 },
+        { x: 812, y: 300, h: 9, r: 140 },
         // The green shelf: barely raised, front OPEN for the runner, with a
         // gentle rolling swale inside the putting surface.
         { x: 500, y: 300, h: 1.4, r: 150, shape: 'plateau', skirt: 0.55 },
@@ -149,6 +159,12 @@ const portjohnsonV2 = {
       aiTargets: [[470, 540]],
       elevation: [
         { x: 460, y: 810, h: 1.8, r: 110, shape: 'plateau' },
+        // BIG DUNES framing the one-shotter RIGHT IN THE TEE VIEW — a tall
+        // right range (carrying the kicker) and a left dune over the waste,
+        // both heaving at TL-East magnitude so the tee reads a real dunescape
+        // (clear of the putting surface — green relief stays legal).
+        { x: 700, y: 640, x2: 660, y2: 430, h: 13, r: 165 }, // right framing dune
+        { x: 244, y: 690, x2: 210, y2: 470, h: 11, r: 150 }, // left framing dune over the waste
         // The kicker bank right of the green — the Redan's feeding slope.
         { x: 618, y: 424, x2: 548, y2: 330, h: 2.8, r: 95 },
         // The green shelf tilts with the hole (right-to-left, front-to-back
@@ -161,14 +177,13 @@ const portjohnsonV2 = {
         { x: 500, y: 262, h: 1.35, r: 52 },
         { x: 440, y: 340, h: -0.85, r: 50 },
         // ROLLING HILLS short of the green so the whole approach heaves; a
-        // long-iron runner bounces alive over them.
-        { x: 470, y: 560, h: 1.1, r: 85 },
-        { x: 420, y: 470, h: -0.8, r: 70 },
-        { x: 560, y: 680, h: 3.0, r: 120 },
-        { x: 362, y: 620, h: 2.6, r: 110 },
-        { x: 470, y: 650, h: -1.2, r: 90 },
-        { x: 566, y: 520, h: 2.2, r: 95 },
-        { x: 372, y: 470, h: 2.2, r: 92 }
+        // long-iron runner bounces alive over them (bumped ~2x to read from
+        // the tee, kept clear of the putting surface).
+        { x: 560, y: 680, h: 6.5, r: 122 },
+        { x: 362, y: 620, h: 6, r: 115 },
+        { x: 470, y: 650, h: -2.4, r: 92 },
+        { x: 566, y: 520, h: 4.5, r: 98 },
+        { x: 372, y: 470, h: 4.2, r: 92 }
       ]
     },
     // ------------------------------------------------ h3 "The Old Wall" par 5
@@ -196,18 +211,28 @@ const portjohnsonV2 = {
           type: 'water', cliff: true,
           polygon: [[60, 880], [236, 900], [280, 1000], [268, 1130], [220, 1250], [80, 1280]]
         },
-        // LEFT bunker row — MOVED IN to hug the fairway's left edge (was set
-        // well left of the short grass) so it truly pinches the inside line.
+        // CROSS-HAZARD STRIPS (round 2): the former left row + mirrored right
+        // row are now JOINED by a central bridging bunker at each band, so each
+        // L/mid/R triple reads as ONE continuous sand STRIP spanning the fairway
+        // width — a true cross-hazard the player carries or lays up to, not two
+        // flanking rows with a lane down the middle. They stay WASTE (advanceable
+        // sand, no drop) so four cross-strips up the second leg keep the hole
+        // playable. Each strip is centred on the fairway centerline at its band.
+        // Strip 1 (band y616, fairway centre ~488):
         { type: 'bunker', waste: true, polygon: blob(433, 616, 34, 26, 10, 0.35, 941) },
-        { type: 'bunker', waste: true, polygon: blob(459, 704, 36, 28, 10, 0.35, 942) },
-        { type: 'bunker', waste: true, polygon: blob(519, 794, 38, 30, 10, 0.35, 943) },
-        { type: 'bunker', waste: true, polygon: blob(588, 900, 36, 28, 10, 0.35, 944) },
-        // RIGHT bunker row — a MIRRORED chain hugging the fairway's right edge,
-        // symmetric to the left row about the fairway centerline (a matching
-        // gauntlet up the second leg).
+        { type: 'bunker', waste: true, polygon: blob(488, 616, 40, 26, 11, 0.32, 961) },
         { type: 'bunker', waste: true, polygon: blob(543, 616, 34, 26, 10, 0.35, 955) },
+        // Strip 2 (band y704, fairway centre ~517):
+        { type: 'bunker', waste: true, polygon: blob(459, 704, 36, 28, 10, 0.35, 942) },
+        { type: 'bunker', waste: true, polygon: blob(517, 704, 42, 28, 11, 0.32, 962) },
         { type: 'bunker', waste: true, polygon: blob(575, 704, 36, 28, 10, 0.35, 956) },
+        // Strip 3 (band y794, fairway centre ~581):
+        { type: 'bunker', waste: true, polygon: blob(519, 794, 38, 30, 10, 0.35, 943) },
+        { type: 'bunker', waste: true, polygon: blob(581, 794, 44, 30, 11, 0.32, 963) },
         { type: 'bunker', waste: true, polygon: blob(643, 794, 38, 30, 10, 0.35, 957) },
+        // Strip 4 (band y900, fairway centre ~652):
+        { type: 'bunker', waste: true, polygon: blob(588, 900, 36, 28, 10, 0.35, 944) },
+        { type: 'bunker', waste: true, polygon: blob(652, 900, 42, 28, 11, 0.32, 964) },
         { type: 'bunker', waste: true, polygon: blob(716, 900, 36, 28, 10, 0.35, 958) },
         // Inside-corner waste at the first turn + outside catcher.
         { type: 'bunker', waste: true, polygon: blob(548, 1030, 42, 30, 10, 0.35, 945) },
@@ -228,30 +253,42 @@ const portjohnsonV2 = {
       // solid high ground and enlarged so it actually reads from the tee/drive
       // (the earlier [300,1030] len 52 sat low/off the sightline, invisible).
       props: [{ key: 'lighthouse', x: 336, y: 1000, rot: 0.5, len: 74, upright: true }],
-      aiTargets: [[420, 1300], [600, 1120], [640, 920], [500, 660], [604, 468]],
+      // Second-leg lay-up target pulled to y958 — just SHORT of the first
+      // cross-strip (band y900) so the AI lays up to the sand wall instead of
+      // aiming into it; [500,660] then sits in the gap above strip 2.
+      aiTargets: [[420, 1300], [600, 1120], [658, 958], [500, 660], [604, 468]],
       elevation: [
-        { x: 360, y: 1540, h: 2.6, r: 130, shape: 'plateau' },
+        { x: 360, y: 1540, h: 2.8, r: 130, shape: 'plateau' },
         // Leg 1 rides a dune terrace above the sea cliff.
-        { x: 480, y: 1240, h: 2.4, r: 180, shape: 'plateau', skirt: 0.4 },
-        // ROLLING HILLS filling the flat-looking opening — alternating crests
-        // and hollows right in the tee view so leg 1 heaves instead of lying
-        // flat (broad r, gentle faces — no walls).
-        { x: 560, y: 1430, h: 3.4, r: 150 },
-        { x: 300, y: 1360, h: 3.0, r: 140 },
-        { x: 452, y: 1380, h: -1.6, r: 120 },
-        { x: 600, y: 1210, h: 3.2, r: 150 },
-        { x: 296, y: 1150, h: 3.0, r: 140 },
-        { x: 470, y: 1120, h: -1.4, r: 120 },
-        // Leg 2 drops through a valley — the low ground before the wall.
-        { x: 580, y: 810, h: -1.5, r: 160 },
-        // The wall's rise: the diagonal ridge the pots march along.
+        { x: 480, y: 1240, h: 3.0, r: 180, shape: 'plateau', skirt: 0.4 },
+        // BIG DUNE WALLS heaving leg 1 RIGHT IN THE TEE VIEW — a tall right
+        // range and a left tee-side dune above the sea-cliff terrace, both at
+        // Prairie-h3 / TL-East magnitude (round 1's h≈3 opening read dead flat).
+        { x: 700, y: 1430, x2: 760, y2: 1120, h: 16, r: 185 }, // right dune range
+        { x: 236, y: 1430, x2: 300, y2: 1250, h: 12, r: 155 }, // left tee-side dune
+        // ROLLING FAIRWAY CRESTS AND HOLLOWS filling the opening — alternating
+        // so leg 1 clearly heaves from the tee (broad r, gentle faces — no walls).
+        { x: 520, y: 1430, h: 8, r: 150 },
+        { x: 330, y: 1360, h: 7, r: 138 },
+        { x: 452, y: 1370, h: -3, r: 120 },
+        { x: 600, y: 1210, h: 7.5, r: 148 },
+        { x: 320, y: 1150, h: 6.5, r: 135 },
+        { x: 480, y: 1120, h: -2.8, r: 118 },
+        // Leg 2 drops through a valley — the low ground before the wall, then
+        // rolls up toward it.
+        { x: 580, y: 810, h: -2.2, r: 160 },
+        { x: 640, y: 940, h: 5, r: 120 },
+        { x: 500, y: 720, h: 4.5, r: 115 },
+        // The wall's rise: the diagonal ridge the pots march along (kept as
+        // authored — it feeds the greenside surface, so it stays gate-gentle).
         { x: 470, y: 640, x2: 700, y2: 420, h: 2.6, r: 105 },
         // Green shelf at the top of the rise, front-right door open.
         { x: 720, y: 360, h: 3.0, r: 150, shape: 'plateau', skirt: 0.55 },
-        // Framing dunes: right of leg 1, behind the green.
-        { x: 900, y: 1300, x2: 1020, y2: 900, h: 4.0, r: 150 },
-        { x: 900, y: 260, x2: 1080, y2: 420, h: 3.2, r: 120 },
-        // The sea side falls off left.
+        // Framing dunes: a grand range right of leg 1, dunes behind the green,
+        // the sea side dropping off left.
+        { x: 940, y: 1280, x2: 1060, y2: 880, h: 14, r: 175 },
+        { x: 940, y: 250, x2: 1120, y2: 420, h: 10, r: 140 },
+        { x: 180, y: 720, h: 8, r: 150 },
         { x: 200, y: 1080, h: -1.6, r: 140 }
       ]
     }

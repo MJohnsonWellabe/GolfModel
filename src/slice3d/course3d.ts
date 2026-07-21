@@ -758,6 +758,17 @@ export function buildCourse(
         lastCount = list.length;
         stable = 0;
         waterMirror.renderList = list;
+        // Shoreline trees plant asynchronously (~1-2 s of time-sliced drain +
+        // glb load) — often AFTER the camera parks at address and freezes the
+        // mirror to a single RENDER_ONCE capture. Without this, that frozen
+        // reflection holds the frame it grabbed before the trees existed, so a
+        // tarn reflects the sky/peaks but never the lakeside trees (owner: "the
+        // trees are close enough to reflect — why don't they?"). Re-arm a fresh
+        // one-shot capture whenever the reflectable set grows while parked, so
+        // the newly-planted trees drop into the still reflection.
+        if (renderPacing.cameraParked) {
+          waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+        }
       });
     }
     // Triangulate the ACTUAL hazard outline (earcut) rather than fanning from

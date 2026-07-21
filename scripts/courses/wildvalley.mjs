@@ -44,9 +44,13 @@ const wildvalley = {
     prairieClusters: true,
     lushGrass: true,
     stripeStrength: 1.3,
-    tallGrass: { cap: 8, density: 30, waste: true },
+    // ROUND 2 (owner, "like the Port Johnson ask"): thicken the native
+    // fescue/heather banding lining the fairways — denser tall grass and
+    // ground tufts (still the ONE approved card, heather_fescue_b; the
+    // bounded world culls it beyond the corridor so the band reads tight).
+    tallGrass: { cap: 8, density: 33, waste: true },
     roughTuftHeight: 1.9,
-    tuftDensity: 3.0,
+    tuftDensity: 3.3,
     sandPlantKeys: ['heather_fescue_b'],
     sandPlantStep: 80, sandPlantKeep: 0.5,
     sandSculpt: 0.85, bunkerDepthScale: 2.3, wasteDepthScale: 2.8,
@@ -91,9 +95,16 @@ const wildvalley = {
       // system past every side. Blowouts are cut into the great ridge's
       // flank; the green is tucked where the valley pinches shut.
       elevation: [
-        { x: 780, y: 1080, x2: 700, y2: 430, h: 15, r: 235 },
-        { x: 190, y: 1000, x2: 290, y2: 480, h: 8, r: 175 },
-        { x: 260, y: 105, x2: 790, y2: 140, h: 9, r: 160 },
+        // ROUND 2 (owner): "elevation strong and clearly visible from the tee
+        // on ALL holes — bring h1 up to Prairie h3's standard." The fairway
+        // itself is snapshot-locked (approved), so the HILLS are strengthened
+        // in the framing dunes that fill the tee's field of view: the great
+        // ridge dominates the right skyline, the counter-ridge walls the left,
+        // the back ridge stacks a dune wall behind the green, and the edge
+        // dunes rise into big flanking sandhills.
+        { x: 780, y: 1080, x2: 700, y2: 430, h: 18, r: 235 },
+        { x: 190, y: 1000, x2: 290, y2: 480, h: 12, r: 185 },
+        { x: 260, y: 105, x2: 790, y2: 140, h: 12, r: 160 },
         { x: 470, y: 1155, h: 6, r: 145, shape: 'plateau' },
         { x: 510, y: 292, h: 4, r: 112, shape: 'plateau' },
         // GREEN CONTOUR (correction pass): a diagonal spine ridge aligned
@@ -114,10 +125,11 @@ const wildvalley = {
         // PASS 10 (playtest: more visibly rolling): two more fairway waves.
         { x: 430, y: 1010, x2: 560, y2: 992, h: 4.0, r: 100 },
         { x: 440, y: 720, x2: 520, y2: 704, h: 3.8, r: 85 },
-        // Edge dunes: the system continues beyond the playable frame.
-        { x: 60, y: 700, x2: 100, y2: 200, h: 8, r: 160 },
-        { x: 930, y: 820, x2: 960, y2: 300, h: 10, r: 180 },
-        { x: 150, y: 1210, x2: 60, y2: 1000, h: 6, r: 140 }
+        // Edge dunes: the system continues beyond the playable frame — raised
+        // into big flanking sandhills that read as strong relief from the tee.
+        { x: 60, y: 700, x2: 100, y2: 200, h: 14, r: 165 },
+        { x: 930, y: 820, x2: 960, y2: 300, h: 13, r: 185 },
+        { x: 150, y: 1210, x2: 60, y2: 1000, h: 10, r: 145 }
       ],
     },
     {
@@ -161,9 +173,10 @@ const wildvalley = {
         { x: 245, y: 565, x2: 235, y2: 360, h: 12.5, r: 140 },
         { x: 362, y: 250, x2: 488, y2: 228, h: 14, r: 155 },
         { x: 600, y: 330, x2: 615, y2: 470, h: 12.5, r: 130 },
-        // Rim shoulders continuing the bowl beyond the frame.
-        { x: 150, y: 250, x2: 60, y2: 600, h: 8, r: 160 },
-        { x: 700, y: 250, x2: 800, y2: 550, h: 8, r: 160 },
+        // Rim shoulders continuing the bowl beyond the frame — raised so the
+        // dune walls read from the tee (owner: bring h2 to Prairie h3 standard).
+        { x: 150, y: 250, x2: 60, y2: 600, h: 10, r: 160 },
+        { x: 700, y: 250, x2: 800, y2: 550, h: 10, r: 160 },
         { x: 430, y: 420, h: 2, r: 150, shape: 'plateau' },
         { x: 352, y: 372, h: 1.6, r: 120 },
         // GREEN CONTOUR (correction pass): an interior shoulder wrapping the
@@ -172,10 +185,15 @@ const wildvalley = {
         // south falloff feeding toward the notch bunker.
         { x: 502, y: 352, x2: 522, y2: 392, h: 1.5, r: 46, shape: 'plateau', skirt: 0.55 },
         { x: 440, y: 780, h: 4.5, r: 135, shape: 'plateau' },
-        { x: 150, y: 680, x2: 360, y2: 640, h: 4.5, r: 105 },
-        { x: 520, y: 680, x2: 700, y2: 620, h: 4.8, r: 115 },
+        { x: 150, y: 680, x2: 360, y2: 640, h: 6, r: 105 },
+        { x: 520, y: 680, x2: 700, y2: 620, h: 6, r: 115 },
         // PASS 10 (playtest: more visibly rolling): an extra approach wave.
-        { x: 320, y: 600, x2: 470, y2: 588, h: 4.0, r: 95 }
+        { x: 320, y: 600, x2: 470, y2: 588, h: 4.0, r: 95 },
+        // ROUND 2 (owner): foreground dunes flanking the tee so the near field
+        // rolls immediately (not a flat run-up to a distant bowl) — visible
+        // relief the moment you stand on the tee.
+        { x: 300, y: 660, x2: 240, y2: 720, h: 8, r: 140 },
+        { x: 580, y: 660, x2: 640, y2: 720, h: 8, r: 140 }
       ],
     },
     {

@@ -201,8 +201,14 @@ const timberlineV2 = {
         // own width (not trailing 100+ px off to the dead left) so the green
         // sits IN the forest on the mountainside.
         { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[292, 348], [362, 300], [452, 300], [492, 214], [340, 186], [292, 250]] },
-        // Greenside sand front-right — green pinched between trees and sand.
-        { type: 'bunker', depthMul: 1.35, polygon: blob(438, 470, 19, 14, 9, 0.3, 111) }
+        // Greenside sand FRONT of the green — a DEEP, cleanly-defined pot the
+        // uphill approach must carry (owner Round 2 H1: deeper, more defined
+        // edges, prettier). depthMul 1.35->1.95 sinks the floor to a real ~5.3 ft
+        // scoop; the polygon is re-cut with more vertices (9->16) and far less
+        // jitter (0.30->0.13) so the rim reads as a crisp, sculpted oval instead
+        // of a ragged blob, canted (rot 0.34) to sit square across the front-right
+        // approach line into the benched green.
+        { type: 'bunker', depthMul: 1.95, polygon: blob(438, 470, 19, 14, 16, 0.12, 111) }
       ],
       aiTargets: [[700, 700], [560, 560], [360, 470]],
       landforms: [granite(600, 640, 12, 'rock_granite_a'), granite(660, 600, 9, 'rock_granite_c'), granite(316, 350, 11, 'rock_granite_a'), granite(250, 560, 8, 'rock_granite_c'), granite(900, 760, 14, 'rock_granite_b'), ...h1RockField()],
@@ -307,7 +313,21 @@ const timberlineV2 = {
         // crater them; theme.wasteRimKeys rims it in broken granite and granite/
         // sapling landforms sit IN it, so it reads as a rocky scree wash — a
         // short miss trickles down the rocks toward the water.
-        { type: 'bunker', waste: true, polygon: [[454, 466], [488, 466], [491, 498], [495, 522], [476, 538], [456, 536], [446, 516], [450, 490]] }
+        { type: 'bunker', waste: true, polygon: [[454, 466], [488, 466], [491, 498], [495, 522], [476, 538], [456, 536], [446, 516], [450, 490]] },
+        // BACK-OF-GREEN GRANITE ROW — a line of BIG COLLIDABLE boulders standing
+        // directly behind the green, in the gap between the two guardian spruce
+        // stands and in FRONT of the three terrain mounds (owner Round 2 H2:
+        // "line the back of the green with collidable big stones like H1's").
+        // Authored as `type:'rock'` carom hazards exactly like H1's granite massif
+        // — real swept-cylinder collision, so a shot flown long off the tarn
+        // caroms off the rock wall instead of trickling away. Kept ~65 px behind
+        // the green's back edge (clear of the putting surface) and threaded
+        // between the guardian stands (x412–574 gap) so they don't bury a stand.
+        { type: 'rock', cx: 416, cy: 314, r: 18, height: 22, key: 'rock_granite_a', polygon: blob(416, 314, 18, 18, 8, 0, 41) },
+        { type: 'rock', cx: 452, cy: 305, r: 20, height: 26, key: 'rock_granite_b', polygon: blob(452, 305, 20, 20, 8, 0, 42) },
+        { type: 'rock', cx: 490, cy: 301, r: 21, height: 27, key: 'rock_granite_c', polygon: blob(490, 301, 21, 21, 8, 0, 43) },
+        { type: 'rock', cx: 528, cy: 305, r: 20, height: 26, key: 'rock_granite_a', polygon: blob(528, 305, 20, 20, 8, 0, 44) },
+        { type: 'rock', cx: 564, cy: 314, r: 18, height: 22, key: 'rock_granite_b', polygon: blob(564, 314, 18, 18, 8, 0, 45) }
       ],
       aiTargets: [],
       // Granite boulders sitting in the SADDLES between the three terrain mounds
@@ -362,11 +382,15 @@ const timberlineV2 = {
       name: 'Timberfall',
       par: 5,
       world: { width: 1160, height: 1420 },
-      // Tee pushed ~35 yd back (make it a genuine 3-shot hole — owner): from
-      // 535 the route now runs ~575 yd, so a strong hitter's typical drive leaves
-      // MORE than a driver-carry back (reach threshold ~290 yd) — going for the
-      // green in two now needs a bomb AND a perfect long shot, not a stock drive.
-      tee: [392, 1360],
+      // Tee set so the DIRECT (left) line to the green is ~500 yd and the safe
+      // right arc is ~550 yd (owner Round 2 H3: right=550, left=500). The
+      // straight tee->green chord is ~498 yd, so the left route (near-direct, a
+      // ~300 drive + ~190 forced water carry) measures ~500 yd while the right
+      // fairway's rightward bow measures ~551 yd. Pulled UP from the old y1360:
+      // the old chord was already 550 yd, which made a sub-550 left route
+      // geometrically impossible — the tee had to come forward to open the
+      // 50-yard split between the two routes.
+      tee: [444, 1270],
       teeBox: { w: 32, d: 24 },
       // Green trimmed (62->52 / 46->39): a smaller target the long go-for-it
       // second holds far less often, so more reach attempts spill into the front
@@ -374,35 +398,38 @@ const timberlineV2 = {
       green: { cx: 840, cy: 356, rx: 52, ry: 39, rot: -0.35 },
       slope: { angle: 2.7, strength: 0.32 },
       fairways: [
-        // RIGHT fairway (MAIN, safe + longer): a wide arc up the right; ~300
-        // off the tee leaves ~250 in with a clean, dry look at the green.
-        { centerline: [[492, 1236], [660, 1030], [790, 850], [856, 700]], width: [54, 74, 82, 70] },
-        // LEFT fairway (ALT, hard + direct): tighter line straight up the
-        // middle-left; ~300 leaves ~200 — but over the pond and past the tree.
-        { centerline: [[440, 1236], [512, 1008], [594, 796], [642, 664]], width: [46, 54, 58, 50] }
+        // RIGHT fairway (MAIN, safe + longer = ~551 yd): a wide arc bowed out to
+        // the right; ~300 off the tee leaves ~250 in with a clean, dry look at
+        // the green. The rightward bow is what buys the extra 50 yards over the
+        // direct left line.
+        { centerline: [[554, 1206], [744, 1024], [876, 840], [890, 694]], width: [54, 74, 82, 70] },
+        // LEFT fairway (ALT, hard + direct = ~500 yd): near-straight line up the
+        // middle-left; a ~310 drive leaves a ~190 forced carry over the pond and
+        // past the lone tree.
+        { centerline: [[500, 1200], [560, 1010], [628, 820], [664, 690]], width: [46, 54, 58, 50] }
       ],
       // The LEFT fairway is the alternate route — exclude it from yardage.
       altFairways: 1,
       hazards: [
-        // THE DENSE DIVIDER — a heavy block of trees separating the two fairways
-        // AT THE FORK only (owner: "move the divider trees back toward the start
-        // of the fairway split — they should separate the two paths at the fork,
-        // not stand down the right corridor blocking the approach"). Pulled all
-        // the way DOWN into the widening gap right where the two fairways diverge
-        // (y1040-1200), so the RIGHT route's SECOND SHOT to the green (from the
-        // ~x808/y800 landing, up the right corridor) is completely clean — there
-        // is no divider tree anywhere on the right approach line now. Held inside
-        // the gap between the two corridors so it walls neither drive.
-        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[544, 1042], [576, 1056], [552, 1120], [514, 1184], [490, 1198], [470, 1186], [500, 1116], [520, 1048]] },
+        // THE DENSE DIVIDER — a heavy stand of trees separating the two fairways,
+        // now EXTENDED ~50 yd UP the gap toward the green (owner Round 2 H3:
+        // "extend the divider trees up another ~50 yards"). Runs from the fork
+        // (y1190) up to y944 (~123 yd, up from the old y1042 top), tracking the
+        // gap CENTERLINE the whole way — computed to stay inside the shrinking
+        // corridor between the left- and right-fairway edges (gap center runs
+        // x535@y1190 -> x684@y950), tapering to a spindle at the fork so it walls
+        // neither drive while still forcing the two-route decision.
+        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[712, 944], [683, 1000], [651, 1050], [611, 1100], [571, 1150], [541, 1190], [529, 1190], [551, 1150], [577, 1100], [603, 1050], [631, 1000], [660, 944]] },
         // THE TREE IN THE WAY — a lone giant spruce standing in the LEFT
         // approach line: a straight go-for-the-green hits it, so the aggressor
         // must work the ball around it (owner).
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 30, polygon: [[696, 586], [710, 538], [732, 552], [726, 582], [704, 594]] },
-        // GREENSIDE GUARDIAN — short-right of the green. Nudged east + canopy
-        // trimmed (treeR 30->20) so it FRAMES the right of the green without its
-        // branches hanging into the right approach (owner P1 H3: clean right
-        // approach; preserve framing that doesn't obstruct).
-        { type: 'trees', spacing: 30, visualSpacing: 20, treeR: 20, polygon: [[924, 452], [980, 436], [992, 378], [946, 350], [906, 404]] },
+        // (GREENSIDE GUARDIAN REMOVED — owner Round 2 H3: "remove all the trees
+        //  around the pond, between the end of the right fairway and the green,
+        //  so the right path has a clean approach." The short-right stand is gone;
+        //  the right approach corridor up x840-890 to the green is now clear of
+        //  every tree. The lone LEFT carry tree below stays — it's the hazard the
+        //  aggressive left route must shape around.)
         // LEFT-OF-LEFT WOODS — a dense band lining the left of the left fairway
         // for most of its length, but pulled back off the tee end so the drive
         // INTO the left fairway is clearly open, not walled off (owner: "you
@@ -428,9 +455,12 @@ const timberlineV2 = {
         // level. Varied natural width from the stream jitter. Held west of the
         // green bench so it never undercuts the putting shelf.
         { type: 'water', polygon: stream([[700, 486], [664, 452], [648, 404], [666, 350], [700, 300], [690, 240], [644, 180], [588, 132], [512, 74]], 30, 415) },
-        // Sand: a lone fairway bunker guarding the right's landing (the only
-        // teeth on the safe route), a greenside pot right, and a back trap.
-        { type: 'bunker', polygon: blob(884, 802, 22, 15, 10, 0.35, 131) },
+        // Sand: a links POT set fully INSIDE the widened right-fairway landing
+        // (the only teeth on the safe route — the safe drive must avoid it), a
+        // greenside pot right, and a back trap. Kept clear of the ribbon edges so
+        // it reads as authored mid-fairway sand, not a scallop bitten out of the
+        // fairway boundary.
+        { type: 'bunker', polygon: blob(880, 800, 18, 13, 10, 0.24, 131) },
         { type: 'bunker', depthMul: 1.4, polygon: blob(906, 420, 15, 12, 9, 0.3, 132) },
         { type: 'bunker', depthMul: 1.5, polygon: blob(884, 278, 19, 13, 9, 0.3, 133) },
         // FRONT-OF-GREEN DEFENSE (make it a real 3-shot hole — owner: going for
@@ -441,7 +471,7 @@ const timberlineV2 = {
         // even the safe right approach must flirt a hazard to a small green.
         { type: 'bunker', depthMul: 1.5, polygon: blob(872, 446, 16, 11, 9, 0.3, 135) }
       ],
-      aiTargets: [[560, 1080], [720, 940], [808, 802], [846, 556], [842, 428]],
+      aiTargets: [[604, 1086], [778, 926], [890, 776], [898, 556], [862, 428]],
       landforms: [
         granite(908, 296, 12, 'rock_granite_b'), granite(300, 700, 10, 'rock_granite_c'),
         granite(772, 900, 11, 'rock_granite_a')
@@ -449,7 +479,7 @@ const timberlineV2 = {
       elevation: [
         // ELEVATED TEE, then the land FALLS into a valley, then CLIMBS to the
         // green benched on the mountainside.
-        { x: 392, y: 1360, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
+        { x: 444, y: 1270, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
         // GREEN BENCHED a full step above the pond (owner). Skirt EASED to 0.6

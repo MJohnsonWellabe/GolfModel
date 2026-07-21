@@ -245,7 +245,23 @@ const redhollow = {
         { type: 'bunker', depthMul: 3.2, polygon: blob(548, 452, 34, 28, 10, 0.34, 23) },
         { type: 'bunker', waste: true, polygon: blob(230, 550, 120, 210, 12, 0.4, 24) },
         { type: 'bunker', waste: true, polygon: blob(680, 535, 120, 220, 12, 0.4, 25) },
-        { type: 'bunker', waste: true, polygon: blob(450, 205, 260, 70, 14, 0.3, 26) }
+        { type: 'bunker', waste: true, polygon: blob(450, 205, 260, 70, 14, 0.3, 26) },
+        // ROUND 2 (owner): "H2 needs MORE big COLLIDABLE rock assets." Big
+        // caroming boulders (rock() — swept-cylinder physics) in the black/
+        // red/brown-sandy family, placed as GREENSIDE GUARDIANS on the green
+        // mesa flat and as CANYON WALLS pinching the tee-to-mesa carry.
+        // Every one is footprint-grounded on the mesa top (rockPass probe)
+        // and sits well off the putting surface + the carry line so it frames
+        // and punishes a miss without walling the hole (playability sim).
+        // Greenside guardians — flanking the green on the mesa flat.
+        rock(358, 414, 20, 'rocks_red_cluster'), // left of the green
+        rock(524, 466, 20, 'rock_desert_a'),      // right-front of the green
+        rock(392, 356, 18, 'rock_desert_b'),      // back-left (long is dead)
+        // Canyon walls — big masses on the mesa rims framing the carry.
+        rock(200, 400, 24, 'rocks_red_cluster'), // left canyon wall (upper)
+        rock(200, 600, 24, 'rock_desert_e'),      // left canyon wall (lower)
+        rock(720, 440, 24, 'rock_desert_c'),      // right canyon wall (upper)
+        rock(720, 640, 24, 'rock_desert_g')       // right canyon wall (lower)
       ],
       aiTargets: [[450, 470]],
       // PASS 4: mesas sculpted like NATURAL sandstone — irregular rims via
@@ -355,7 +371,21 @@ const redhollow = {
         { type: 'bunker', waste: true, polygon: blob(620, 480, 88, 95, 12, 0.4, 33) },
         // Bowl-rim pots flanking the sunken green's entrance.
         { type: 'bunker', polygon: blob(374, 436, 26, 22, 9, 0.3, 34) },
-        { type: 'bunker', polygon: blob(240, 548, 26, 22, 9, 0.28, 35) }
+        { type: 'bunker', polygon: blob(240, 548, 26, 22, 9, 0.28, 35) },
+        // ROUND 2 (owner): "H3 needs MORE big COLLIDABLE rock assets." Big
+        // caroming boulders (rock() physics) framing the island route: a
+        // back-left CRATER-RIM GUARDIAN over the sunken green, two boulders
+        // PINCHING the island landing corridors (offset off the island edges
+        // so they frame the drive without blocking it), and canyon-wall masses
+        // on the valley rim shelves. All footprint-grounded (rockPass probe),
+        // offset from the island surfaces + green so the playability sim still
+        // finishes every hole.
+        rock(200, 400, 20, 'rocks_red_cluster'), // back-left crater-rim guardian
+        rock(592, 1122, 20, 'rock_desert_c'),     // island 1 west pinch
+        rock(560, 952, 20, 'rock_desert_e'),      // island 2 east pinch
+        rock(320, 1080, 22, 'rocks_red_cluster'), // west canyon-wall mass
+        rock(960, 1240, 22, 'rock_desert_g'),     // east canyon-wall mass
+        rock(240, 1040, 22, 'rock_desert_h')      // west rim shelf mass
       ],
       aiTargets: [[700, 1155], [485, 935], [445, 640]],
       // Elevated tee (+18) → islands all at +4 → green INSIDE a bowl one
