@@ -140,17 +140,18 @@ const sablebayV2 = {
         seawall(368, 448, 14, 'stone_d', 218), seawall(392, 414, 12, 'stone_e', 219),
         seawall(326, 566, 12, 'stone_c', 220),
         // A stone point in the back sea, right behind the green, that the
-        // lighthouse stands on (owner: the lighthouse must be viewable from the
-        // tee and the middle of the fairway — it now rises against the sea
-        // backdrop directly behind the green instead of hiding low-left).
-        seawall(360, 296, 16, 'stone_a', 221), seawall(388, 300, 14, 'stone_c', 222),
-        seawall(340, 308, 12, 'stone_b', 223)
+        // lighthouse stands on. Placed on the TEE->GREEN sightline extended
+        // (x~402, not 362) so it rises through the green's opening framed by the
+        // corridor pines — off to the left it hid behind the left treeline
+        // (owner: must be viewable from the tee and the middle of the fairway).
+        seawall(402, 292, 16, 'stone_a', 221), seawall(428, 298, 14, 'stone_c', 222),
+        seawall(380, 304, 12, 'stone_b', 223)
       ],
       // Coastal landmarks (CC0 Kenney props, upright): a tall LIGHTHOUSE on the
       // stone point behind the green (a clear skyline landmark from the tee and
       // mid-fairway), and a ROWBOAT pulled up on the sand by the bay.
       props: [
-        { key: 'lighthouse', x: 362, y: 296, rot: 0.35, len: 86, upright: true },
+        { key: 'lighthouse', x: 402, y: 292, rot: 0.35, len: 86, upright: true },
         { key: 'rowboat', x: 318, y: 862, rot: 2.2, len: 16, upright: true }
       ],
       aiTargets: [[600, 840], [504, 610], [424, 410]],
