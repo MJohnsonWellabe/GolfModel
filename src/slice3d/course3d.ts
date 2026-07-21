@@ -624,29 +624,50 @@ export function buildCourse(
   }
 
   // ----------------------------------------------------------- tee platform
+  // A tee that reads like a MOWED TEE, not a mini-golf mat: the top carries the
+  // fairway colour with alternating mowing STRIPES (its own design, but of the
+  // same turf family as the fairways), the sides fall away as a low turf bank
+  // instead of a bright proud box, and real low tee-marker blocks flank the
+  // front (not big golf-ball spheres).
   {
     const p = teePlatform(hole);
     const baseH = engine.groundAt(hole.tee.x, hole.tee.y);
-    // Babylon Y-rotation for a world-space axis direction (w2b flips world y)
     const rotY = Math.atan2(p.ay, p.ax);
+    // Turf bank (sides): darker fairway shade so the pad grows out of the ground.
     const base = MeshBuilder.CreateBox('teeBase', { width: p.w, depth: p.d, height: TEE_TOP - 0.22 }, scene);
-    base.material = mat(scene, 'teeBaseMat', shade(theme.fairway, 0.5));
+    base.material = mat(scene, 'teeBaseMat', shade(theme.fairway, 0.62));
     base.position = w2b(p.cx, p.cy, baseH + (TEE_TOP - 0.22) / 2);
     base.rotation.y = rotY;
-    const top = MeshBuilder.CreateBox('teeTop', { width: p.w + 1.2, depth: p.d + 1.2, height: 0.24 }, scene);
-    top.material = mat(scene, 'teeTopMat', shade(theme.fairway, 1.12));
-    top.position = w2b(p.cx, p.cy, baseH + TEE_TOP - 0.12);
+    // Mowing-stripe top: a DynamicTexture of alternating fairway shades banded
+    // across the pad, so the tee reads as professionally mown turf.
+    const stripeTex = new DynamicTexture('teeStripeTex', { width: 96, height: 96 }, scene, true);
+    {
+      const g = stripeTex.getContext();
+      const toCss = (n: number): string => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
+      const bands = 6;
+      for (let i = 0; i < bands; i++) {
+        g.fillStyle = toCss(shade(theme.fairway, i % 2 ? 1.06 : 0.92));
+        g.fillRect(0, (i * 96) / bands, 96, 96 / bands + 1);
+      }
+      stripeTex.update();
+    }
+    const topMat = mat(scene, 'teeTopMat', theme.fairway, { spec: 0.02 });
+    topMat.diffuseTexture = stripeTex;
+    const top = MeshBuilder.CreateBox('teeTop', { width: p.w + 0.8, depth: p.d + 0.8, height: 0.22 }, scene);
+    top.material = topMat;
+    top.position = w2b(p.cx, p.cy, baseH + TEE_TOP - 0.13);
     top.rotation.y = rotY;
     top.receiveShadows = true;
     shadows.addShadowCaster(base);
-    // Tee markers at the front corners of the pad
-    const markerMat = mat(scene, 'teeMarkerMat', 0xf2efe4, { emissive: 0x4a4638, spec: 0.2 });
+    // Real tee markers: low, flat turf-side blocks at the front corners.
+    const markerMat = mat(scene, 'teeMarkerMat', 0xe8ddc4, { emissive: 0x3a362c, spec: 0.15 });
     for (const side of [-1, 1]) {
-      const mx = hole.tee.x - p.ay * side * (p.w / 2 - 2.4);
-      const my = hole.tee.y + p.ax * side * (p.w / 2 - 2.4);
-      const marker = MeshBuilder.CreateSphere(`teeMarker${side}`, { diameter: 1.5, segments: 10 }, scene);
+      const mx = hole.tee.x - p.ay * side * (p.w / 2 - 2.0);
+      const my = hole.tee.y + p.ax * side * (p.w / 2 - 2.0);
+      const marker = MeshBuilder.CreateBox(`teeMarker${side}`, { width: 1.1, depth: 1.1, height: 0.7 }, scene);
       marker.material = markerMat;
-      marker.position = w2b(mx, my, baseH + TEE_TOP + 0.5);
+      marker.position = w2b(mx, my, baseH + TEE_TOP + 0.15);
+      marker.rotation.y = rotY;
       shadows.addShadowCaster(marker);
     }
   }
