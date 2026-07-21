@@ -11,6 +11,11 @@ on:
     # stale legacy branch — deploying it would clobber the live site with an
     # old build, so it is deliberately excluded.
     branches: [version2]
+    # A docs-only commit produces a byte-identical game build — skip the
+    # build+deploy so the live site isn't rebuilt for a README change.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:

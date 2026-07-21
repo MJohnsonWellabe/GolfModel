@@ -16,7 +16,18 @@ name: Visual & behavioral checks
 on:
   push:
     branches: [version2]
+    # Docs-only commits can't change what renders — don't spend a ~20 min
+    # headless render pass on them.
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   workflow_dispatch:
+
+# A newer push supersedes an in-flight render pass on the same ref, so a burst
+# of commits collapses to ONE run instead of stacking up 20 min jobs each.
+concurrency:
+  group: visual-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   playwright:

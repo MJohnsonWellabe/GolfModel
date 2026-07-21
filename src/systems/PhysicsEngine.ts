@@ -1169,19 +1169,16 @@ export class PhysicsEngine {
       const b = this.breakAccel(x, y);
       vx += b.ax * dt;
       vy += b.ay * dt;
-      // PUTT CLIMB-COST (owner law "2in uphill = 1ft long", green/fringe only):
-      // the raw slope accel makes a climb cost too little pace, so a player who
-      // reads the true rise and aims by the 6:1 rule blows the putt long. Add
-      // extra deceleration ALONG the line of travel — but ONLY while CLIMBING
-      // (the along-slope component opposes motion) — so uphill costs the pace
-      // the rule expects. DOWNHILL roll is left exactly as authored (its run was
-      // tuned separately), and the PERPENDICULAR break is never touched.
+      // PUTT SLOPE PACE-COST (owner law "2 in of slope = 1 ft of pace", applied
+      // to EVERY putt, not just uphill — the rule is symmetric): the raw slope
+      // accel is too weak, so add extra acceleration ALONG the line of travel,
+      // proportional to the along-slope component of `b`. Uphill (along<0) costs
+      // extra pace → aim long; downhill (along>0) runs extra → aim short; both by
+      // the same ratio. The PERPENDICULAR break is never touched.
       if (surf === 'green' || surf === 'fringe') {
-        const along = (b.ax * vx + b.ay * vy) / (speed * speed); // <0 ⇒ climbing
-        if (along < 0) {
-          vx += PHYSICS.puttSlopePaceBoost * along * vx * dt;
-          vy += PHYSICS.puttSlopePaceBoost * along * vy * dt;
-        }
+        const along = (b.ax * vx + b.ay * vy) / (speed * speed);
+        vx += PHYSICS.puttSlopePaceBoost * along * vx * dt;
+        vy += PHYSICS.puttSlopePaceBoost * along * vy * dt;
       }
       // Swept cup capture: a firm putt can cross the cup between two samples
       // with neither endpoint inside cupRadius. Test the whole step segment so

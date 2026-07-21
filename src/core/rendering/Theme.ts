@@ -397,6 +397,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bunkerStones'
     | 'bunkerLipFescue'
     | 'horizonTint'
+    | 'hemiGround'
     | 'hillTint'
     | 'peakKeys'
     | 'wasteRimKeys'
