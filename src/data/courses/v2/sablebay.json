@@ -2,28 +2,28 @@
   "name": "Sable Bay",
   "version": 2,
   "theme": {
-    "skyTop": "#4f9fd8",
-    "skyBottom": "#dceff3",
+    "skyTop": "#58a6dc",
+    "skyBottom": "#e3eef0",
     "sunX": 520,
     "sunY": 120,
-    "fairway": "#3f9150",
-    "fairwayDark": "#357c44",
-    "rough": "#5a8a4a",
-    "roughDark": "#487038",
-    "fringe": "#5aa257",
-    "green": "#46974e",
-    "greenLight": "#5fb063",
-    "sand": "#ead5a0",
-    "sandDark": "#d8bc80",
-    "water": "#2f86b8",
-    "waterDeep": "#1c5a84",
+    "fairway": "#57a251",
+    "fairwayDark": "#47893f",
+    "rough": "#7a9a55",
+    "roughDark": "#5f7d3f",
+    "fringe": "#64b25b",
+    "green": "#56a84f",
+    "greenLight": "#70c266",
+    "sand": "#ecd39a",
+    "sandDark": "#d7b877",
+    "water": "#2a90b2",
+    "waterDeep": "#175f88",
     "waterReflect": true,
     "treeCanopy": "#2f6a44",
     "treeCanopyLight": "#3f7e52",
     "treeTrunk": "#6b5238",
-    "haze": "#dceff3",
+    "haze": "#e6ecec",
     "hazeStrength": 0.42,
-    "horizonTint": "#bfe0ea",
+    "horizonTint": "#ecdcc0",
     "backdrop": "sea",
     "seaDunes": false,
     "blossomChance": 0,
@@ -37,7 +37,9 @@
     "scatterKeys": [
       "stone_a",
       "stone_b",
-      "stone_d"
+      "stone_c",
+      "stone_d",
+      "stone_e"
     ],
     "tuftDensity": 0.9,
     "roughTuftHeight": 1,
@@ -59,7 +61,8 @@
     "shorelineKeys": [
       "stone_a",
       "stone_b",
-      "stone_d"
+      "stone_d",
+      "stone_e"
     ],
     "edgeWobble": 3,
     "mowPattern": "straight",
@@ -244,6 +247,28 @@
         },
         {
           "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              8,
+              8
+            ],
+            [
+              1012,
+              8
+            ],
+            [
+              1012,
+              1252
+            ],
+            [
+              8,
+              1252
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
           "polygon": [
             [
               597.3,
@@ -375,70 +400,6 @@
           ]
         },
         {
-          "type": "bunker",
-          "waste": true,
-          "polygon": [
-            [
-              648,
-              320
-            ],
-            [
-              1008,
-              300
-            ],
-            [
-              1010,
-              1220
-            ],
-            [
-              612,
-              1240
-            ],
-            [
-              604,
-              1060
-            ],
-            [
-              652,
-              872
-            ],
-            [
-              704,
-              632
-            ],
-            [
-              668,
-              470
-            ],
-            [
-              646,
-              360
-            ]
-          ]
-        },
-        {
-          "type": "bunker",
-          "waste": true,
-          "polygon": [
-            [
-              40,
-              1092
-            ],
-            [
-              300,
-              1150
-            ],
-            [
-              452,
-              1256
-            ],
-            [
-              40,
-              1258
-            ]
-          ]
-        },
-        {
           "type": "trees",
           "spacing": 58,
           "visualSpacing": 30,
@@ -474,49 +435,23 @@
           "type": "trees",
           "accent": true,
           "keepGround": true,
-          "treeR": 20,
-          "palm": true,
-          "polygon": [
-            [
-              503.3,
-              348
-            ],
-            [
-              486,
-              366.1
-            ],
-            [
-              466.3,
-              348
-            ],
-            [
-              486,
-              328.3
-            ]
-          ]
-        },
-        {
-          "type": "trees",
-          "accent": true,
-          "keepGround": true,
           "treeR": 18,
-          "palm": true,
           "polygon": [
             [
               371.3,
-              430
+              470
             ],
             [
               356,
-              446.9
+              486.9
             ],
             [
               339.6,
-              430
+              470
             ],
             [
               356,
-              412.6
+              452.6
             ]
           ]
         }
@@ -544,18 +479,42 @@
           "shape": "plateau"
         },
         {
-          "x": 706,
-          "y": 860,
-          "x2": 760,
+          "x": 800,
+          "y": 820,
+          "x2": 858,
           "y2": 520,
-          "h": 4.2,
+          "h": 5.4,
           "r": 150
+        },
+        {
+          "x": 838,
+          "y": 980,
+          "h": 4,
+          "r": 130
+        },
+        {
+          "x": 790,
+          "y": 1150,
+          "h": 3.4,
+          "r": 120
         },
         {
           "x": 560,
           "y": 640,
-          "h": 1.6,
+          "h": 1.8,
           "r": 150
+        },
+        {
+          "x": 520,
+          "y": 900,
+          "h": 2.4,
+          "r": 150
+        },
+        {
+          "x": 250,
+          "y": 250,
+          "h": 3,
+          "r": 110
         },
         {
           "x": 420,
@@ -567,7 +526,7 @@
         },
         {
           "x": 300,
-          "y": 640,
+          "y": 660,
           "h": -1.2,
           "r": 150
         }
@@ -705,7 +664,7 @@
           "cy": 414,
           "r": 12,
           "height": 12,
-          "key": "stone_a",
+          "key": "stone_e",
           "polygon": [
             [
               404,
@@ -747,7 +706,7 @@
           "cy": 566,
           "r": 12,
           "height": 12,
-          "key": "stone_b",
+          "key": "stone_c",
           "polygon": [
             [
               338,
@@ -1148,56 +1107,6 @@
               384.8
             ]
           ]
-        },
-        {
-          "type": "trees",
-          "accent": true,
-          "keepGround": true,
-          "treeR": 18,
-          "palm": true,
-          "polygon": [
-            [
-              427.8,
-              392
-            ],
-            [
-              414,
-              407
-            ],
-            [
-              399.7,
-              392
-            ],
-            [
-              414,
-              375.9
-            ]
-          ]
-        },
-        {
-          "type": "trees",
-          "accent": true,
-          "keepGround": true,
-          "treeR": 16,
-          "palm": true,
-          "polygon": [
-            [
-              545.7,
-              460
-            ],
-            [
-              534,
-              472.8
-            ],
-            [
-              521,
-              460
-            ],
-            [
-              534,
-              446.4
-            ]
-          ]
         }
       ],
       "aiTargets": [],
@@ -1208,6 +1117,18 @@
           "h": 2.6,
           "r": 130,
           "shape": "plateau"
+        },
+        {
+          "x": 250,
+          "y": 900,
+          "h": 3,
+          "r": 120
+        },
+        {
+          "x": 706,
+          "y": 900,
+          "h": 2.6,
+          "r": 110
         },
         {
           "x": 474,
@@ -1230,7 +1151,7 @@
           "density": 1
         }
       ],
-      "sailboats": 2,
+      "sailboats": 3,
       "recoveryZones": [
         [
           [
@@ -1296,12 +1217,6 @@
         {
           "x": 813.1,
           "y": 394.2
-        }
-      ],
-      "tees": [
-        {
-          "x": 336,
-          "y": 1515
         }
       ],
       "fairway": [
@@ -1515,66 +1430,20 @@
           "waste": true,
           "polygon": [
             [
-              884,
-              300
+              8,
+              8
             ],
             [
               1232,
-              300
+              8
             ],
             [
-              1234,
-              1556
+              1232,
+              1552
             ],
             [
-              612,
-              1556
-            ],
-            [
-              676,
-              1260
-            ],
-            [
-              792,
-              940
-            ],
-            [
-              770,
-              720
-            ],
-            [
-              828,
-              520
-            ],
-            [
-              872,
-              396
-            ]
-          ]
-        },
-        {
-          "type": "bunker",
-          "waste": true,
-          "polygon": [
-            [
-              40,
-              1236
-            ],
-            [
-              214,
-              1214
-            ],
-            [
-              300,
-              1330
-            ],
-            [
-              286,
-              1470
-            ],
-            [
-              40,
-              1500
+              8,
+              1552
             ]
           ]
         },
@@ -1787,8 +1656,7 @@
           "type": "trees",
           "accent": true,
           "keepGround": true,
-          "treeR": 20,
-          "palm": true,
+          "treeR": 18,
           "polygon": [
             [
               715.7,
@@ -1805,31 +1673,6 @@
             [
               700,
               923.8
-            ]
-          ]
-        },
-        {
-          "type": "trees",
-          "accent": true,
-          "keepGround": true,
-          "treeR": 18,
-          "palm": true,
-          "polygon": [
-            [
-              918.9,
-              336
-            ],
-            [
-              904,
-              351.7
-            ],
-            [
-              887.3,
-              336
-            ],
-            [
-              904,
-              320.5
             ]
           ]
         }
@@ -1863,7 +1706,7 @@
         {
           "x": 470,
           "y": 1250,
-          "h": 2.2,
+          "h": 2.4,
           "r": 180,
           "shape": "plateau",
           "skirt": 0.4
@@ -1871,7 +1714,7 @@
         {
           "x": 760,
           "y": 800,
-          "h": 1.8,
+          "h": 2.2,
           "r": 176,
           "shape": "plateau",
           "skirt": 0.4
@@ -1885,12 +1728,42 @@
           "skirt": 0.5
         },
         {
-          "x": 1030,
+          "x": 1050,
           "y": 1160,
-          "x2": 1010,
-          "y2": 540,
-          "h": 4.6,
-          "r": 168
+          "x2": 1030,
+          "y2": 560,
+          "h": 5.6,
+          "r": 170
+        },
+        {
+          "x": 640,
+          "y": 1360,
+          "h": 3.6,
+          "r": 140
+        },
+        {
+          "x": 1050,
+          "y": 900,
+          "h": 4.2,
+          "r": 150
+        },
+        {
+          "x": 980,
+          "y": 640,
+          "h": 3,
+          "r": 120
+        },
+        {
+          "x": 200,
+          "y": 1350,
+          "h": 3,
+          "r": 130
+        },
+        {
+          "x": 640,
+          "y": 1050,
+          "h": 2.6,
+          "r": 140
         },
         {
           "x": 240,
@@ -1954,7 +1827,7 @@
           "cy": 560,
           "r": 13,
           "height": 13,
-          "key": "stone_b",
+          "key": "stone_e",
           "polygon": [
             [
               909,
@@ -1996,7 +1869,7 @@
           "cy": 600,
           "r": 12,
           "height": 12,
-          "key": "stone_d",
+          "key": "stone_c",
           "polygon": [
             [
               842,

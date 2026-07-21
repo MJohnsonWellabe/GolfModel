@@ -38,7 +38,13 @@ const portjohnsonV2 = {
     roughDark: '#6d683f',
     // Heather-dominant rough: purple leads the mix.
     heatherKeys: ['heather_purple', 'heather_fescue_a', 'heather_purple', 'heather_fescue_c'],
-    tallGrass: { cap: 6, density: 8.5, waste: true }
+    // Dense links fescue: the rough that flanks every fairway now packs a thick
+    // wall of heather/fescue (was sparse density 8.5) so a thick band hugs both
+    // sides of the short grass — the "thick stuff" that used to live only around
+    // the bunker lips now carpets the whole rough. bunkerLipPacked lines every
+    // trap edge to match.
+    tallGrass: { cap: 7, density: 22, waste: true },
+    bunkerLipPacked: true
   },
   holes: [
     // ---------------------------------------------- h1 "Harbour Mouth" par 4
@@ -90,6 +96,17 @@ const portjohnsonV2 = {
         { x: 690, y: 1120, x2: 740, y2: 840, h: 3.4, r: 130 },
         { x: 430, y: 860, h: 1.4, r: 90 },
         { x: 580, y: 560, h: 1.2, r: 80 },
+        // PRONOUNCED ROLLING HILLS through the driving/approach corridor —
+        // alternating crests and hollows so the ground heaves the whole way to
+        // the green (no walls: broad r, gentle faces).
+        { x: 612, y: 1040, h: 3.6, r: 130 },
+        { x: 388, y: 950, h: 3.2, r: 120 },
+        { x: 500, y: 900, h: -1.6, r: 110 },
+        { x: 606, y: 792, h: 2.8, r: 110 },
+        { x: 402, y: 700, h: 3.4, r: 120 },
+        { x: 520, y: 636, h: -1.3, r: 95 },
+        { x: 596, y: 540, h: 2.8, r: 110 },
+        { x: 404, y: 486, h: 2.4, r: 100 },
         // The green shelf: barely raised, front OPEN for the runner, with a
         // gentle rolling swale inside the putting surface.
         { x: 500, y: 300, h: 1.4, r: 150, shape: 'plateau', skirt: 0.55 },
@@ -112,7 +129,9 @@ const portjohnsonV2 = {
       tee: [460, 790],
       teeBox: { w: 30, d: 22 },
       green: { cx: 470, cy: 300, rx: 98, ry: 62, rot: -0.5 },
-      slope: { angle: 3.8, strength: 0.36 },
+      // Hillier Redan green: a stronger authored break plus the front-swale /
+      // back-knob contour below make the surface read distinctly tiered.
+      slope: { angle: 3.8, strength: 0.52 },
       centerline: [[460, 770], [464, 620], [470, 500]],
       width: [40, 56, 64],
       hazards: [
@@ -136,9 +155,20 @@ const portjohnsonV2 = {
         // handled by slope); behind-left falls away.
         { x: 470, y: 300, h: 1.2, r: 130, shape: 'plateau', skirt: 0.55 },
         { x: 380, y: 210, h: -1.4, r: 90 },
-        // Rumples short of the green so a long-iron runner bounces alive.
+        // HILLIER GREEN SURFACE: a raised back-right knob and a front hollow
+        // give the putting surface a real upper/lower tier (kept gentle so the
+        // spoke-step + relief puttability gates still pass).
+        { x: 500, y: 262, h: 1.35, r: 52 },
+        { x: 440, y: 340, h: -0.85, r: 50 },
+        // ROLLING HILLS short of the green so the whole approach heaves; a
+        // long-iron runner bounces alive over them.
         { x: 470, y: 560, h: 1.1, r: 85 },
-        { x: 420, y: 470, h: -0.8, r: 70 }
+        { x: 420, y: 470, h: -0.8, r: 70 },
+        { x: 560, y: 680, h: 3.0, r: 120 },
+        { x: 362, y: 620, h: 2.6, r: 110 },
+        { x: 470, y: 650, h: -1.2, r: 90 },
+        { x: 566, y: 520, h: 2.2, r: 95 },
+        { x: 372, y: 470, h: 2.2, r: 92 }
       ]
     },
     // ------------------------------------------------ h3 "The Old Wall" par 5
@@ -166,11 +196,19 @@ const portjohnsonV2 = {
           type: 'water', cliff: true,
           polygon: [[60, 880], [236, 900], [280, 1000], [268, 1130], [220, 1250], [80, 1280]]
         },
-        // The waste chain guarding the inside shortcut (kept pattern).
-        { type: 'bunker', waste: true, polygon: blob(396, 616, 34, 26, 10, 0.35, 941) },
-        { type: 'bunker', waste: true, polygon: blob(406, 704, 36, 28, 10, 0.35, 942) },
-        { type: 'bunker', waste: true, polygon: blob(434, 794, 38, 30, 10, 0.35, 943) },
-        { type: 'bunker', waste: true, polygon: blob(472, 900, 36, 28, 10, 0.35, 944) },
+        // LEFT bunker row — MOVED IN to hug the fairway's left edge (was set
+        // well left of the short grass) so it truly pinches the inside line.
+        { type: 'bunker', waste: true, polygon: blob(433, 616, 34, 26, 10, 0.35, 941) },
+        { type: 'bunker', waste: true, polygon: blob(459, 704, 36, 28, 10, 0.35, 942) },
+        { type: 'bunker', waste: true, polygon: blob(519, 794, 38, 30, 10, 0.35, 943) },
+        { type: 'bunker', waste: true, polygon: blob(588, 900, 36, 28, 10, 0.35, 944) },
+        // RIGHT bunker row — a MIRRORED chain hugging the fairway's right edge,
+        // symmetric to the left row about the fairway centerline (a matching
+        // gauntlet up the second leg).
+        { type: 'bunker', waste: true, polygon: blob(543, 616, 34, 26, 10, 0.35, 955) },
+        { type: 'bunker', waste: true, polygon: blob(575, 704, 36, 28, 10, 0.35, 956) },
+        { type: 'bunker', waste: true, polygon: blob(643, 794, 38, 30, 10, 0.35, 957) },
+        { type: 'bunker', waste: true, polygon: blob(716, 900, 36, 28, 10, 0.35, 958) },
         // Inside-corner waste at the first turn + outside catcher.
         { type: 'bunker', waste: true, polygon: blob(548, 1030, 42, 30, 10, 0.35, 945) },
         { type: 'bunker', waste: true, polygon: blob(784, 1060, 38, 28, 10, 0.35, 946) },
@@ -189,6 +227,15 @@ const portjohnsonV2 = {
         { x: 360, y: 1540, h: 2.6, r: 130, shape: 'plateau' },
         // Leg 1 rides a dune terrace above the sea cliff.
         { x: 480, y: 1240, h: 2.4, r: 180, shape: 'plateau', skirt: 0.4 },
+        // ROLLING HILLS filling the flat-looking opening — alternating crests
+        // and hollows right in the tee view so leg 1 heaves instead of lying
+        // flat (broad r, gentle faces — no walls).
+        { x: 560, y: 1430, h: 3.4, r: 150 },
+        { x: 300, y: 1360, h: 3.0, r: 140 },
+        { x: 452, y: 1380, h: -1.6, r: 120 },
+        { x: 600, y: 1210, h: 3.2, r: 150 },
+        { x: 296, y: 1150, h: 3.0, r: 140 },
+        { x: 470, y: 1120, h: -1.4, r: 120 },
         // Leg 2 drops through a valley — the low ground before the wall.
         { x: 580, y: 810, h: -1.5, r: 160 },
         // The wall's rise: the diagonal ridge the pots march along.

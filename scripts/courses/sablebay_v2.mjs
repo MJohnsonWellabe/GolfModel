@@ -1,19 +1,22 @@
-// SABLE BAY v2 — GENUINE TEARDOWN #2 (owner directive: start from first
-// principles, new routing + strategy on every hole; the ONLY mandatory feature
-// is at least one TRUE island green as a memorable signature). Emitted to
-// src/data/courses/v2/sablebay.json, dev-only behind `courseRebuilds`. No
-// legacy geometry copied — new holes, new concepts:
-//   h1 "Breakwater"  par 4 — a rugged-shore two-angle par 4; carry the beach
-//                            cove corner for the short line, bench green on a
-//                            boulder seawall above the bay.
-//   h2 "The Anchorage" par 3 — the SIGNATURE: a TRUE island green (water all
-//                            around + beach collar + boardwalk), reimagined as
-//                            an ANGLED island with a south sand APRON bail-out,
-//                            approached across the wind.
-//   h3 "Tide's Turn" par 5 — a DOUBLE-CARRY reachable par 5: drive over a tidal
-//                            inlet, then a cape second across open water to a
-//                            green perched on a sandy point.
-import { blob, stream } from '../courselib.mjs';
+// SABLE BAY v2 — COASTAL DUNESCAPE PASS (owner directive, 2026-07-21). The
+// teardown routing is kept (Breakwater / The Anchorage island green / Tide's
+// Turn) but the ART is rebuilt to the owner's brief:
+//   1. H1 & H3: "anything that's not fairway should be waste bunkers" — the
+//      whole in-play land is one WASTE-sand sea; only the fairway ribbon and
+//      the green are turf islands (waste ranks below fairway/trees/water/green
+//      in surfaceAt, so those punch through untouched).
+//   2. H2: behind the island green there is ONLY water + the decorative
+//      sailboats — every tree/prop that used to flank/back the green is gone.
+//   3. Colour: a cohesive WARM coastal links — clean warm sand, healthy (not
+//      neon, not olive) turf, a believable warm-teal sea.
+//   4. Elevation: authored rolling relief PLUS dune / sand-hill mounds raised
+//      through the waste, so the course no longer reads dead flat.
+//   5. Assets: the vetted coastal set — wiregrass (grass_g/h, real blades),
+//      broken shore stone (stone_a/b/c/d/e granite/stone packs) as seawall +
+//      shoreline rock, bare-trunk pines standing in the sand, ships on the sea.
+//      Placement HOOKS for future coastal props (lighthouse / pier) are marked.
+// Emitted to src/data/courses/v2/sablebay.json, dev-only behind `courseRebuilds`.
+import { blob } from '../courselib.mjs';
 
 // Collidable coastal boulder helper (seawall stone) — a 'rock' hazard.
 const seawall = (cx, cy, h, key, seed) => ({ type: 'rock', cx, cy, r: h, height: h, key, polygon: blob(cx, cy, h, h, 8, 0, seed) });
@@ -22,45 +25,55 @@ const sablebayV2 = {
   name: 'Sable Bay',
   version: 2,
   theme: {
-    skyTop: '#4f9fd8', skyBottom: '#dceff3', sunX: 520, sunY: 120,
-    fairway: '#3f9150', fairwayDark: '#357c44',
-    rough: '#5a8a4a', roughDark: '#487038',
-    fringe: '#5aa257', green: '#46974e', greenLight: '#5fb063',
-    // Warm, firm PINEHURST sand — a crisp tan blowout, not an olive rough
-    // (Matt review: "warm up the waste; less olive, more firm tan").
-    sand: '#ead5a0', sandDark: '#d8bc80',
-    water: '#2f86b8', waterDeep: '#1c5a84', waterReflect: true,
+    // --- WARM COASTAL LINKS palette (owner: "the colours are off; warm,
+    //     cohesive coastal"). Before→after recorded in the handoff report.
+    skyTop: '#58a6dc', skyBottom: '#e3eef0', sunX: 520, sunY: 120,
+    // Healthy links turf — pulled back from the old neon/blue green toward a
+    // warmer, sun-touched fairway so it reads as real grass against the sand.
+    fairway: '#57a251', fairwayDark: '#47893f',
+    // Rough is now only thin slivers (H2 near-bank) — a warm dune-green.
+    rough: '#7a9a55', roughDark: '#5f7d3f',
+    fringe: '#64b25b', green: '#56a84f', greenLight: '#70c266',
+    // Clean warm PINEHURST/links sand — less olive, a touch lighter and warmer
+    // so the giant waste reads as bright firm tan sand, not tired rough.
+    sand: '#ecd39a', sandDark: '#d7b877',
+    // Believable warm coastal sea (a hint more teal than the old flat blue).
+    water: '#2a90b2', waterDeep: '#175f88', waterReflect: true,
     treeCanopy: '#2f6a44', treeCanopyLight: '#3f7e52', treeTrunk: '#6b5238',
-    haze: '#dceff3', hazeStrength: 0.42, horizonTint: '#bfe0ea',
+    // Warm sunlit horizon glow ties the whole coast together (was a cool blue).
+    haze: '#e6ecec', hazeStrength: 0.42, horizonTint: '#ecdcc0',
     backdrop: 'sea', seaDunes: false, blossomChance: 0,
     // PINEHURST No. 2 identity (owner): longleaf PINES over sandy WASTE, with
     // WIREGRASS clumps and pine straw — NOT a green parkland. Bare-trunk pines
     // dominate; palms retired from the tree mix (they read tropical, not
     // sandhills) but kept as rare coastal accents at the very shore only.
     treeKeys: ['tree_pine_k3', 'tree_pine_k1'], accentTreeKeys: ['tree_pine_k3'],
-    scatterKeys: ['stone_a', 'stone_b', 'stone_d'],
+    // Shore/dune stone: the stone pack (a/b/c) + photo-textured granite (d/e)
+    // both render as clean boulders (ASSET_AUDIT: stone_c/e unused, render
+    // clean) — mixed for shape variety along the coast.
+    scatterKeys: ['stone_a', 'stone_b', 'stone_c', 'stone_d', 'stone_e'],
     tuftDensity: 0.9, roughTuftHeight: 1.0,
-    // GOOD grass only (owner: "the grass assets are horrible — the same ones we
-    // said not to use on Timberline"): grass_g/h render as real thin blades, not
-    // the solid low-poly blocks grass_c/d/e read as.
+    // GOOD grass only (owner: "the grass assets are horrible"): grass_g/h render
+    // as real thin blades, not the solid low-poly blocks grass_a-f/i read as.
     lushGrass: true, grassKeys: ['grass_g', 'grass_h'],
     tallGrass: { cap: 4.0, density: 4.0 },
-    // WIREGRASS in the waste (owner: "a lot of ... wiregrass"): tall wispy grass
-    // clumps scattered dense through the sand, the Pinehurst signature. Denser
-    // step + higher keep than the old sparse juniper/grass mix.
+    // WIREGRASS through the waste (owner: "a lot of wiregrass"): tall wispy
+    // clumps dense across the sand — the Pinehurst signature, now covering a
+    // much larger sand area (still boundary-clipped to the corridor for perf).
     sandPlantKeys: ['grass_g', 'grass_h'], sandPlantStep: 58, sandPlantKeep: 0.55,
-    // Broken shore rock rims the beach waste/seawall so the coast reads as stone.
-    shorelineKeys: ['stone_a', 'stone_b', 'stone_d'],
+    // Broken shore rock rims the beach/seawall so the coast reads as stone.
+    shorelineKeys: ['stone_a', 'stone_b', 'stone_d', 'stone_e'],
     edgeWobble: 3.0, mowPattern: 'straight', mowWidth: 28,
     greenColumns: true, greenMowPattern: 'straight',
     cloudStyle: 'wispy', atmosphere: 'coastal'
   },
   holes: [
     // ============================================= h1 "Breakwater" par 4
-    // A rugged headland par 4 down the bay. A beach cove bites into the fairway
-    // at the drive zone: the aggressive line carries the cove corner for a short,
-    // open approach; the safe line hangs right (blocked by a fairway bunker) and
-    // leaves more in. The green is benched on a granite SEAWALL above the water.
+    // A rugged headland par 4 down the bay. The ENTIRE in-play land is now a
+    // waste-sand sea (owner: "anything not fairway = waste"): the fairway ribbon
+    // and the green are the only turf islands. The bay bites in on the left; the
+    // aggressive line carries the cove corner for a short, open approach. Rolling
+    // dune relief + raised sand-hills give the sand real form and shadow.
     {
       number: 1,
       name: 'Breakwater',
@@ -78,52 +91,57 @@ const sablebayV2 = {
         { type: 'water', polygon: [[40, 240], [280, 250], [344, 376], [382, 520], [452, 690], [470, 760], [436, 812], [352, 828], [304, 720], [268, 884], [188, 1046], [40, 1070]] },
         // A thin BEACH collar along the cove/shore (coastal sand, recoverable).
         { type: 'bunker', beach: true, polygon: [[452, 690], [486, 752], [452, 828], [356, 846], [316, 748], [352, 700], [408, 688]] },
-        // FAIRWAY BUNKERS in the drive zone (kept feature), staggered: near/right
-        // catches the safe drive short; far/left guards the aggressive landing.
+        // GIANT WASTE — the whole hole is sand (owner directive). One polygon
+        // covering the entire world; the bay (water), the fairway ribbon and the
+        // green all punch through it (surfaceAt precedence). Plays FIRM (the ball
+        // runs, never plugs) so a wide miss stays recoverable, not dead.
+        { type: 'bunker', waste: true, polygon: [[8, 8], [1012, 8], [1012, 1252], [8, 1252]] },
+        // FAIRWAY BUNKERS in the drive zone (kept feature): staggered scoring
+        // pots that dish into the sand — near/right catches the safe drive short,
+        // far/left guards the aggressive landing.
         { type: 'bunker', polygon: blob(574, 812, 26, 18, 10, 0.35, 211) },
         { type: 'bunker', polygon: blob(506, 700, 24, 17, 10, 0.35, 212) },
         // Greenside sand front-right (safe miss); water/seawall short-left.
         { type: 'bunker', depthMul: 1.3, polygon: blob(492, 410, 20, 15, 9, 0.3, 213) },
-        // GIANT WASTE — the Pinehurst hallmark (owner: "waste bunkers are a
-        // hallmark of this course; giant bunkers spanning entire holes"). A
-        // sprawling sandy blowout covering the whole inland-right of the hole,
-        // wiregrass-scattered, with the pine stand standing IN the sand. Waste
-        // ranks below fairway/trees/water/green, so only the rough becomes sand;
-        // the fairway ribbon, the bay and the green punch through untouched. It
-        // plays FIRM (runs, doesn't plug), so a wide miss is recoverable, not dead.
-        { type: 'bunker', waste: true, polygon: [[648, 320], [1008, 300], [1010, 1220], [612, 1240], [604, 1060], [652, 872], [704, 632], [668, 470], [646, 360]] },
-        // Waste sandhills wrapping the shore below the bay (left of the tee).
-        { type: 'bunker', waste: true, polygon: [[40, 1092], [300, 1150], [452, 1256], [40, 1258]] },
-        // Wind-shaped pine stand inland-right, standing IN the waste; palms mark
-        // the shore green.
+        // Wind-shaped pine stand standing IN the waste (keepGround → sand lie).
         { type: 'trees', spacing: 58, visualSpacing: 30, keepGround: true, polygon: [[726, 980], [820, 880], [842, 660], [782, 520], [704, 640], [704, 880]] },
-        { type: 'trees', accent: true, keepGround: true, treeR: 20, palm: true, polygon: blob(486, 348, 18, 18, 4, 0.2, 214) },
-        { type: 'trees', accent: true, keepGround: true, treeR: 18, palm: true, polygon: blob(356, 430, 16, 16, 4, 0.2, 215) }
+        // A rare coastal accent pine at the very shore green (keepGround → sand).
+        { type: 'trees', accent: true, keepGround: true, treeR: 18, polygon: blob(356, 470, 16, 16, 4, 0.2, 215) }
+        // HOOK: a future LIGHTHOUSE could stand on the seawall point near
+        //       [340,430]; a PIER could run into the bay near [300,900].
       ],
-      // THE SEAWALL — granite boulders stacked along the shore below the benched
-      // green (collidable). Reads as the breakwater the hole is named for.
+      // THE SEAWALL — granite/stone boulders stacked along the shore below the
+      // benched green (collidable). Reads as the breakwater the hole is named for.
       landforms: [
         seawall(352, 486, 15, 'stone_a', 216), seawall(336, 528, 13, 'stone_b', 217),
-        seawall(368, 448, 14, 'stone_d', 218), seawall(392, 414, 12, 'stone_a', 219),
-        seawall(326, 566, 12, 'stone_b', 220)
+        seawall(368, 448, 14, 'stone_d', 218), seawall(392, 414, 12, 'stone_e', 219),
+        seawall(326, 566, 12, 'stone_c', 220)
       ],
       aiTargets: [[600, 840], [504, 610], [424, 410]],
       elevation: [
-        { x: 624, y: 1124, h: 2.4, r: 130, shape: 'plateau' },
-        // Coastal terraces stepping DOWN to the bay on the left.
-        { x: 706, y: 860, x2: 760, y2: 520, h: 4.2, r: 150 }, // inland dune ridge (right)
-        { x: 560, y: 640, h: 1.6, r: 150 },
-        // GREEN benched on the seawall — a low seaside shelf above the water.
+        { x: 624, y: 1124, h: 2.4, r: 130, shape: 'plateau' }, // tee shelf
+        // INLAND DUNE SPINE up the right — the big sand-hill mass framing the
+        // sea of sand, with its own shadowed face.
+        { x: 800, y: 820, x2: 858, y2: 520, h: 5.4, r: 150 },
+        { x: 838, y: 980, h: 4.0, r: 130 },   // right dune hill
+        { x: 790, y: 1150, h: 3.4, r: 120 },  // foreground dune right of tee
+        // Rolling relief along the playing corridor (gentle — the fairway rolls).
+        { x: 560, y: 640, h: 1.8, r: 150 },
+        { x: 520, y: 900, h: 2.4, r: 150 },
+        // A back-left dune behind the green (kept well clear of the putting
+        // surface so it never breaks green puttability).
+        { x: 250, y: 250, h: 3.0, r: 110 },
+        // GREEN benched on the seawall — a low, gentle seaside shelf.
         { x: 420, y: 362, h: 2.6, r: 150, shape: 'plateau', skirt: 0.5 },
-        { x: 300, y: 640, h: -1.2, r: 150 } // land sheds into the bay
+        { x: 300, y: 660, h: -1.2, r: 150 }   // land sheds into the bay
       ]
     },
     // =========================================== h2 "The Anchorage" par 3
-    // THE SIGNATURE — a TRUE island green (owner: the one mandatory feature).
-    // Reimagined from a concentric moat into an ANGLED island: an oblong green
-    // set on a diagonal with a south sand APRON that gives a bail-out short of
-    // the pin (still on the island, in sand not water), reached by a boardwalk.
-    // The wind across the diagonal is the hole.
+    // THE SIGNATURE — a TRUE island green. Behind the green there is now ONLY
+    // water and the decorative sailboats (owner): the two pines that used to
+    // flank/back the green are removed, so the backdrop from the tee is a clean
+    // sea + ships. An angled oblong green with a south sand apron bail-out,
+    // reached by a slim mulch land bridge.
     {
       number: 2,
       name: 'The Anchorage',
@@ -136,55 +154,52 @@ const sablebayV2 = {
       centerline: [[468, 746], [470, 724]],
       width: [40, 40],
       hazards: [
-        // THE MOAT — four overlapping RECTANGULAR bands forming a solid water
-        // frame around a central dry island rectangle (x402..546, y368..486).
-        // Full-rectangle bands overlap at the corners, so — unlike arced bands —
-        // there is NO diagonal land bridge: the green is water-surrounded on all
-        // sides. (surfaceAt ranks water above beach, so the collar edge tucked
-        // under a band reads as the waterline.)
-        { type: 'water', polygon: [[120, 250], [808, 250], [808, 368], [120, 368]] }, // top
-        // BOTTOM band SPLIT to leave a dry strip (x452..496) down the middle —
-        // the LAND BRIDGE to the island (owner: "the boardwalk is horrible; just
-        // build a land bridge — one strip of brown mulch walkway out to the
-        // island"). The strip is mulch-painted by the garden below.
+        // THE MOAT — four overlapping RECTANGULAR water bands framing a central
+        // dry island rectangle (x402..546, y368..486). No diagonal land bridge:
+        // the green is water-surrounded on all sides.
+        { type: 'water', polygon: [[120, 250], [808, 250], [808, 368], [120, 368]] }, // top (behind green — open sea)
         { type: 'water', polygon: [[120, 486], [460, 486], [460, 706], [120, 706]] }, // bottom-left
         { type: 'water', polygon: [[488, 486], [808, 486], [808, 706], [488, 706]] }, // bottom-right
         { type: 'water', polygon: [[120, 250], [402, 250], [402, 706], [120, 706]] }, // left
         { type: 'water', polygon: [[546, 250], [808, 250], [808, 706], [546, 706]] }, // right
         // The island BEACH collar (angled oblong) filling the dry rectangle; its
-        // edges tuck just under the bands for an organic waterline. The green sits
-        // on it with a sand ring; a shot short-center finds this sand, not water.
+        // edges tuck just under the bands for an organic waterline. A shot
+        // short-center finds this sand, not water.
         { type: 'bunker', beach: true, polygon: blob(474, 427, 98, 92, 20, 0.08, 221) },
-        // TEE-SURROUND WASTE — sandy sandhills around the tee and the near bank,
-        // wiregrass through it, so the whole hole reads as Pinehurst sand rather
-        // than green rough (waste only replaces rough; the water/island win).
+        // TEE-SURROUND WASTE — sandy sand-hills around the tee and the near bank
+        // (in FRONT of the green, toward the player), wiregrass through it, so
+        // the whole approach reads as Pinehurst sand rather than green rough.
         { type: 'bunker', waste: true, polygon: [[120, 712], [820, 712], [860, 900], [780, 1010], [468, 1030], [150, 1000], [96, 860]] },
         // Two pots cut into the collar (front-left, back-right) — only the middle
         // is stress-free.
         { type: 'bunker', polygon: blob(430, 458, 13, 10, 8, 0.3, 222) },
-        { type: 'bunker', polygon: blob(520, 392, 13, 10, 8, 0.3, 223) },
-        { type: 'trees', accent: true, keepGround: true, treeR: 18, palm: true, polygon: blob(414, 392, 15, 15, 4, 0.2, 224) },
-        { type: 'trees', accent: true, keepGround: true, treeR: 16, palm: true, polygon: blob(534, 460, 13, 13, 4, 0.2, 225) }
+        { type: 'bunker', polygon: blob(520, 392, 13, 10, 8, 0.3, 223) }
+        // NOTE: the accent pines that used to sit at [414,392] & [534,460]
+        // (behind/beside the green) are DELETED — nothing but water + boats sits
+        // behind the island now.
+        // HOOK: a future coastal LIGHTHOUSE could sit far off on the sea behind
+        //       the green near [474,180] without touching the island.
       ],
       aiTargets: [],
       recoveryZones: [[[402, 724], [546, 724], [546, 792], [402, 792]]],
-      sailboats: 2,
-      // THE LAND BRIDGE — a single SLIM strip of brown MULCH walkway out to the
-      // island (owner), painted on the narrow dry strip carved through the water
-      // bands above. A thin long garden bed with NO blooms/bushes = bare
-      // bark-mulch dirt. Slimmed from the first pass (Matt review: "too wide,
-      // reads as a service road; slim it"). The wooden-boardwalk prop is gone.
+      sailboats: 3,
+      // THE LAND BRIDGE — a single slim strip of brown MULCH walkway out to the
+      // island (owner), a thin garden bed with no blooms = bare bark-mulch dirt.
       gardens: [{ cx: 474, cy: 604, rx: 13, ry: 96, rot: 0, bloomChance: 0, bushChance: 0, density: 1 }],
       elevation: [
-        { x: 468, y: 776, h: 2.6, r: 130, shape: 'plateau' },
-        { x: 474, y: 424, h: 1.0, r: 150, shape: 'plateau', skirt: 0.72 }
+        { x: 468, y: 776, h: 2.6, r: 130, shape: 'plateau' }, // tee shelf
+        // Gentle dune relief in the near-bank waste (foreground), kept clear of
+        // the island so the approach rolls instead of reading flat.
+        { x: 250, y: 900, h: 3.0, r: 120 },
+        { x: 706, y: 900, h: 2.6, r: 110 },
+        { x: 474, y: 424, h: 1.0, r: 150, shape: 'plateau', skirt: 0.72 } // island green shelf
       ]
     },
     // ============================================= h3 "Tide's Turn" par 5
-    // A DOUBLE-CARRY reachable par 5 turning up the coast. The drive carries a
-    // TIDAL INLET that cuts across the start; the fairway then climbs the shore;
-    // the reach-in-two second (or a bold third) carries an open-water CHANNEL to
-    // a green perched on a sandy POINT jutting into the bay.
+    // A DOUBLE-CARRY reachable par 5 turning up the coast. As on h1 the ENTIRE
+    // in-play land is now waste sand (owner): three fairway ribbons + the point
+    // green are the only turf, the tidal inlet / bay / channel the only water.
+    // Rolling relief + raised dune hills give the sand sea real form.
     {
       number: 3,
       name: "Tide's Turn",
@@ -208,14 +223,10 @@ const sablebayV2 = {
         { type: 'water', polygon: [[592, 520], [740, 512], [812, 560], [806, 648], [712, 690], [604, 664], [560, 588]] },
         // Beach under the sandy point green (the shore the green sits on).
         { type: 'bunker', beach: true, polygon: [[792, 452], [900, 470], [928, 560], [852, 604], [760, 560], [764, 484]] },
-        // GIANT WASTE spanning the inland-right of the hole (Pinehurst hallmark)
-        // — a continuous sandy blowout up the whole right and across the bottom,
-        // wiregrass through it, pines standing in it. Waste only replaces rough,
-        // so the three fairway ribbons, the bay/inlet/channel and the point green
-        // all punch through; it plays FIRM so a miss into the sand still runs.
-        { type: 'bunker', waste: true, polygon: [[884, 300], [1232, 300], [1234, 1556], [612, 1556], [676, 1260], [792, 940], [770, 720], [828, 520], [872, 396]] },
-        // Left-of-tee waste sandhills between the tidal inlet and the bay.
-        { type: 'bunker', waste: true, polygon: [[40, 1236], [214, 1214], [300, 1330], [286, 1470], [40, 1500]] },
+        // GIANT WASTE — the whole hole is sand (owner directive). One polygon
+        // covering the entire world; the three fairway ribbons, the inlet/bay/
+        // channel and the point green all punch through. Plays FIRM.
+        { type: 'bunker', waste: true, polygon: [[8, 8], [1232, 8], [1232, 1552], [8, 1552]] },
         // FAIRWAY BUNKER cluster pinching the drive landing (kept feature).
         { type: 'bunker', polygon: blob(566, 1188, 26, 18, 10, 0.35, 231) },
         { type: 'bunker', polygon: blob(624, 1126, 24, 17, 10, 0.35, 232) },
@@ -223,28 +234,36 @@ const sablebayV2 = {
         { type: 'bunker', polygon: blob(792, 640, 22, 16, 9, 0.3, 233) },
         // Back-right greenside bunker; front-left open for a runner off the point.
         { type: 'bunker', depthMul: 1.3, polygon: blob(916, 372, 24, 17, 9, 0.3, 234) },
-        // Wind-shaped pines inland; palms pacing the cape + the point.
+        // Wind-shaped pines standing IN the sand (keepGround → sand lie).
         { type: 'trees', spacing: 58, visualSpacing: 30, keepGround: true, polygon: [[430, 1200], [530, 1100], [552, 960], [482, 880], [392, 980], [382, 1120]] },
-        { type: 'trees', accent: true, keepGround: true, treeR: 20, palm: true, polygon: blob(700, 940, 16, 16, 4, 0.2, 235) },
-        { type: 'trees', accent: true, keepGround: true, treeR: 18, palm: true, polygon: blob(904, 336, 16, 16, 4, 0.2, 236) }
+        // A rare coastal accent pine on the point (keepGround → sand).
+        { type: 'trees', accent: true, keepGround: true, treeR: 18, polygon: blob(700, 940, 16, 16, 4, 0.2, 235) }
+        // HOOK: a future PIER could run off the point green near [980,560];
+        //       a LIGHTHOUSE could crown the inland dune spine near [1080,760].
       ],
       // Granite point boulders below the green (collidable seawall on the point).
       landforms: [
-        seawall(772, 540, 14, 'stone_a', 237), seawall(896, 560, 13, 'stone_b', 238),
-        seawall(830, 600, 12, 'stone_d', 239)
+        seawall(772, 540, 14, 'stone_a', 237), seawall(896, 560, 13, 'stone_e', 238),
+        seawall(830, 600, 12, 'stone_c', 239)
       ],
       aiTargets: [[512, 1264], [712, 1044], [782, 782], [838, 452]],
       sailboats: 2,
       elevation: [
-        { x: 360, y: 1460, h: 3.0, r: 150, shape: 'plateau' },
+        { x: 360, y: 1460, h: 3.0, r: 150, shape: 'plateau' }, // tee shelf
         // Clifftop terraces stepping up the shore to the point green.
-        { x: 470, y: 1250, h: 2.2, r: 180, shape: 'plateau', skirt: 0.4 },
-        { x: 760, y: 800, h: 1.8, r: 176, shape: 'plateau', skirt: 0.4 },
+        { x: 470, y: 1250, h: 2.4, r: 180, shape: 'plateau', skirt: 0.4 },
+        { x: 760, y: 800, h: 2.2, r: 176, shape: 'plateau', skirt: 0.4 },
         { x: 848, y: 404, h: 2.2, r: 150, shape: 'plateau', skirt: 0.5 }, // point green bench
-        // Inland dune spine framing the right of the whole route.
-        { x: 1030, y: 1160, x2: 1010, y2: 540, h: 4.6, r: 168 },
+        // INLAND DUNE SPINE framing the right of the whole route.
+        { x: 1050, y: 1160, x2: 1030, y2: 560, h: 5.6, r: 170 },
+        // Raised dune HILLS through the sand sea (well clear of the green).
+        { x: 640, y: 1360, h: 3.6, r: 140 },
+        { x: 1050, y: 900, h: 4.2, r: 150 },
+        { x: 980, y: 640, h: 3.0, r: 120 },
+        { x: 200, y: 1350, h: 3.0, r: 130 }, // dune left of the tidal inlet
+        { x: 640, y: 1050, h: 2.6, r: 140 }, // rolling relief mid-route
         { x: 240, y: 1120, h: -1.2, r: 150 }, // sheds to the ocean
-        { x: 686, y: 596, h: -1.0, r: 118 } // the channel hollow
+        { x: 686, y: 596, h: -1.0, r: 118 }   // the channel hollow
       ]
     }
   ]
