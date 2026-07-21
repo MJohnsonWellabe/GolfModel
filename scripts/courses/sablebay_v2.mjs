@@ -44,7 +44,7 @@ const sablebayV2 = {
     // as beach, not the olive wash the default (rough-tinted) bounce gave them.
     hemiGround: '#dcc48c',
     // Believable warm coastal sea (a hint more teal than the old flat blue).
-    water: '#2a90b2', waterDeep: '#175f88', waterReflect: true,
+    water: '#218aa8', waterDeep: '#124f70', waterReflect: true,
     treeCanopy: '#2f6a44', treeCanopyLight: '#3f7e52', treeTrunk: '#6b5238',
     // Warm sunlit horizon glow ties the whole coast together (was a cool blue).
     haze: '#e6ecec', hazeStrength: 0.42, horizonTint: '#ecdcc0',
@@ -69,7 +69,7 @@ const sablebayV2 = {
     sandPlantKeys: ['grass_g', 'grass_h'], sandPlantStep: 58, sandPlantKeep: 0.55,
     // Broken shore rock rims the beach/seawall so the coast reads as stone.
     shorelineKeys: ['stone_a', 'stone_b', 'stone_d', 'stone_e'],
-    edgeWobble: 3.0, mowPattern: 'straight', mowWidth: 28,
+    edgeWobble: 1.8, mowPattern: 'straight', mowWidth: 28,
     greenColumns: true, greenMowPattern: 'straight',
     cloudStyle: 'wispy', atmosphere: 'coastal'
   },

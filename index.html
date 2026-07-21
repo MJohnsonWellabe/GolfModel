@@ -458,13 +458,15 @@
         letter-spacing: 0.5px;
         z-index: 5;
       }
-      /* Save-my-last-shot clip button — sits ABOVE where True Vision (168px)
-         appears in the right stack. Hidden by default; the round shows it only
-         where the browser can record the canvas. */
+      /* Save-my-last-shot clip button — RELOCATED to the top-right, tucked
+         under the score badge and well clear of the bottom thumb cluster
+         (meter, shot-shape, True Vision) where it was being pressed by accident
+         during aiming (owner). Hidden by default; the round shows it only where
+         the browser can record the canvas. */
       #captureBtn {
         position: fixed;
         right: 10px;
-        bottom: 214px;
+        top: 58px;
         display: none;
         padding: 9px 14px;
         border-radius: 12px;

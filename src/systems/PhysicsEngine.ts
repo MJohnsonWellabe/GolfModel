@@ -209,7 +209,14 @@ export class PhysicsEngine {
      *  Supplied by the live game + the headless round sim so each trunk's hitbox
      *  is shaped like the exact asset the renderer drew. Omitted by unit tests
      *  that probe a specific mechanic — those get a generic broadleaf lollipop. */
-    species?: TreeSpecies
+    species?: TreeSpecies,
+    /** The course theme's edgeWobble amplitude. The ground bake displaces the
+     *  visible water paint outward by up to ~9.5×edgeWobble px, so the physics
+     *  "near water" band must widen to match — otherwise the outer ring of
+     *  painted-blue-over-rough plays as dry land (owner: "water everywhere
+     *  that's blue isn't giving a splash penalty"). Defaults to 1 (the bake's
+     *  own default), i.e. the historical 12px floor. */
+    private readonly edgeWobbleAmp: number = 1
   ) {
     const landforms = hole.landforms ?? [];
     // A landform whose asset key is a TREE (e.g. a fir sapling placed via
@@ -446,7 +453,10 @@ export class PhysicsEngine {
    *  rough lie sitting in the wobble-painted blue band (see surfaceAt). */
   private nearWater(x: number, y: number): boolean {
     const hz = this.hole.hazards;
-    const m = WATER_EDGE_MARGIN;
+    // Cover the FULL visible blue: the bake pushes water paint out ~9.5×the
+    // theme edgeWobble, well past the flat 12px floor on high-wobble coasts
+    // (Sable/Wild Prairie edgeWobble 3 → ~28px of painted shore).
+    const m = Math.max(WATER_EDGE_MARGIN, this.edgeWobbleAmp * 9.5);
     for (let i = 0; i < hz.length; i++) {
       if (hz[i].type !== 'water') continue;
       const b = this.hzBox[i];

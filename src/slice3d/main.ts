@@ -772,7 +772,8 @@ class HoleScene {
       this.hole,
       buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1, this.theme.wasteDepthScale ?? 0),
       undefined,
-      treeSpecies
+      treeSpecies,
+      this.theme.edgeWobble ?? 1
     );
     markPerf(round.course.name, this.hole.number, `heightfield-ready:${Math.round(performance.now() - heightT0)}ms`);
     // Aim/preview run on a flat, no-slope engine so the aim line never

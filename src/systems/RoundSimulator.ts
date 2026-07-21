@@ -47,6 +47,10 @@ export interface SimulateHoleOpts {
   bunkerDepthScale?: number;
   /** Waste blowout dish multiplier (theme.wasteDepthScale); defaults 0 (flat). */
   wasteDepthScale?: number;
+  /** Theme edgeWobble amplitude — widens the physics near-water band to match
+   *  the visible painted shore so the sim pays the same splash penalties the
+   *  live round does. Defaults 1 (historical 12px floor). */
+  edgeWobble?: number;
   /** Tree-species mix (theme.treeKeys/accentTreeKeys, defaulted) so the headless
    *  physics shapes each trunk's hitbox like the live-drawn asset. */
   treeSpecies?: TreeSpecies;
@@ -77,7 +81,8 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     hole,
     buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0),
     rng,
-    opts.treeSpecies
+    opts.treeSpecies,
+    opts.edgeWobble ?? 1
   );
   // ONE shared FireSystem drives both the AI's club/quality reads and the shot's
   // stat boost — exactly as the live round shares the competitor's fire instance
@@ -156,6 +161,7 @@ export function simulateRound(
   const theme = resolveTheme(course);
   const bunkerDepthScale = theme.bunkerDepthScale ?? 1;
   const wasteDepthScale = theme.wasteDepthScale ?? 0;
+  const edgeWobble = theme.edgeWobble ?? 1;
   const treeSpecies: TreeSpecies = {
     trees: theme.treeKeys ?? DEFAULT_TREE_MIX,
     accents: theme.accentTreeKeys ?? []
@@ -167,6 +173,7 @@ export function simulateRound(
       windMax: course.maxWind,
       bunkerDepthScale,
       wasteDepthScale,
+      edgeWobble,
       treeSpecies,
       bounded
     })

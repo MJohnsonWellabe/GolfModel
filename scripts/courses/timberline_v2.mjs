@@ -420,10 +420,24 @@ const timberlineV2 = {
         // x535@y1190 -> x684@y950), tapering to a spindle at the fork so it walls
         // neither drive while still forcing the two-route decision.
         { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[712, 944], [683, 1000], [651, 1050], [611, 1100], [571, 1150], [541, 1190], [529, 1190], [551, 1150], [577, 1100], [603, 1050], [631, 1000], [660, 944]] },
+        // DIVIDER REINFORCEMENT (owner Round 3 H3: "add more trees in the divider
+        // that'll catch bad tee shots to the left fairway that go right of the
+        // left fairway"). A second dense clump filling the gap on the LEFT side
+        // of the divider, right in the left-fairway drive-landing band (y~1000–
+        // 1120), so a drive aimed at the left fairway that leaks right no longer
+        // finds open gap — it's in the trees. Sits inside the corridor between
+        // the two fairway edges, clear of both ribbons.
+        { type: 'trees', spacing: 26, visualSpacing: 16, polygon: [[598, 1010], [662, 1000], [672, 1064], [648, 1116], [606, 1126], [586, 1064]] },
         // THE TREE IN THE WAY — a lone giant spruce standing in the LEFT
         // approach line: a straight go-for-the-green hits it, so the aggressor
         // must work the ball around it (owner).
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 30, polygon: [[696, 586], [710, 538], [732, 552], [726, 582], [704, 594]] },
+        // END-OF-LEFT-FAIRWAY TREE (owner Round 3 H3: "a tree at the very end of
+        // that left fairway to force a shaped shot around it"). A lone spruce
+        // pinching the exit of the left fairway (~y700, just right of its
+        // centerline end) so the aggressive left drive must be worked around it
+        // to hold the direct line to the green.
+        { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 26, polygon: [[664, 710], [684, 698], [696, 716], [682, 736], [662, 728]] },
         // (GREENSIDE GUARDIAN REMOVED — owner Round 2 H3: "remove all the trees
         //  around the pond, between the end of the right fairway and the green,
         //  so the right path has a clean approach." The short-right stand is gone;

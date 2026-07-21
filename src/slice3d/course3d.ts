@@ -786,16 +786,43 @@ export function buildCourse(
     const colors: number[] = [];
     const uvs: number[] = [];
     const deep = c3(theme.waterDeep);
-    // Shore edge: a subtly DARKER, more opaque band (like the bank shadow real
-    // water carries at its edge), not the old lightened translucent ring that
-    // read as a weird light-blue halo on narrow creeks (Wildwood h1).
-    const shore = c3(shade(theme.water, 0.9));
+    // Per-vertex SHALLOW→DEEP gradient by true distance to the shoreline
+    // (playtest: flat single-tint water "looked like blue paint"). The banks
+    // read as bright translucent shallows that let a little of the bank/bottom
+    // through; the interior deepens to the opaque tinted body — a real sense of
+    // depth, the way the reference ponds carry it, instead of one painted sheet.
+    const shallow = c3(shade(theme.water, 1.14));
+    const boundary = ring;
+    const distToShore = (px: number, py: number): number => {
+      let m = Infinity;
+      for (let k = 0; k < boundary.length; k++) {
+        const [ax, ay] = boundary[k];
+        const [bx, by] = boundary[(k + 1) % boundary.length];
+        const dx = bx - ax;
+        const dy = by - ay;
+        const L2 = dx * dx + dy * dy || 1;
+        let t = ((px - ax) * dx + (py - ay) * dy) / L2;
+        t = Math.max(0, Math.min(1, t));
+        m = Math.min(m, Math.hypot(px - (ax + dx * t), py - (ay + dy * t)));
+      }
+      return m;
+    };
+    let maxD = 1;
+    const vdepth = points.map(([x, y], i) => {
+      const d = i === deepIndex ? distToShore(x, y) * 1.15 : distToShore(x, y);
+      if (d > maxD) maxD = d;
+      return d;
+    });
     points.forEach(([x, y], i) => {
       positions.push(x, level, -y);
-      uvs.push(x / 90, y / 90);
-      const col = i === deepIndex ? deep : shore;
-      const a = i === deepIndex ? 0.94 : 0.78;
-      colors.push(col.r, col.g, col.b, a);
+      uvs.push(x / 70, y / 70);
+      const t = Math.min(1, Math.pow(vdepth[i] / maxD, 0.7)); // 0 shore .. 1 deep
+      colors.push(
+        shallow.r + (deep.r - shallow.r) * t,
+        shallow.g + (deep.g - shallow.g) * t,
+        shallow.b + (deep.b - shallow.b) * t,
+        0.6 + 0.34 * t // translucent shallows, near-opaque depths
+      );
     });
     const indices: number[] = triangles;
     const waterMesh = new Mesh(`water${wi++}`, scene);
@@ -813,15 +840,19 @@ export function buildCourse(
     wm.diffuseColor = new Color3(1, 1, 1); // vertex colors carry the tint
     // With a live mirror the reflection carries most of the brightness, so the
     // baseline emissive drops to keep the depth tint readable underneath it.
-    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.3 : 0.45));
-    wm.specularColor = new Color3(0.75, 0.85, 0.95);
-    wm.specularPower = 110;
-    wm.alpha = 0.95;
+    // Base glow kept LOW so the surface reads by its depth tint + sky reflection
+    // + moving sun sparkle, not a flat self-lit sheet (the old 0.45 emissive was
+    // most of why it looked painted-on).
+    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.22 : 0.34));
+    // Bright, fairly tight sun sparkle so the scrolling wavelets throw moving
+    // glints across the surface (kills the dead-flat paint read).
+    wm.specularColor = new Color3(0.9, 0.96, 1);
+    wm.specularPower = 64;
+    wm.alpha = 1; // per-vertex alpha carries the shallow→deep translucency
     wm.bumpTexture = waterNormalTex;
-    // Half-strength bump (like turfNormal 0.55 / greenNormal 0.45 — the water
-    // normal was previously left at full 1.0), so the wavelets read as a soft
-    // shimmer, not embossed ridges.
-    (wm.bumpTexture as Texture).level = 0.4;
+    // A touch stronger than the old 0.4 so the wavelets actually catch the sun
+    // (still soft — not embossed ridges).
+    (wm.bumpTexture as Texture).level = 0.6;
     // The earcut winding direction follows the authored polygon's own winding
     // (not guaranteed same-handed as the old fan code assumed) — double-sided
     // so the surface is never accidentally backface-culled from above.
@@ -845,7 +876,7 @@ export function buildCourse(
       const t = animTime();
       waterNormalTex.uOffset = t * 0.009;
       waterNormalTex.vOffset = t * 0.006 + Math.sin(t * 0.4) * 0.012;
-      wm.emissiveColor = c3(shade(theme.waterDeep, 0.42 + Math.sin(t * 1.3) * 0.06));
+      wm.emissiveColor = c3(shade(theme.waterDeep, (waterMirror ? 0.22 : 0.34) + Math.sin(t * 1.3) * 0.05));
     });
   }
 
@@ -1380,13 +1411,17 @@ export function buildCourse(
           Math.round(ab + (bb - ab) * t)
         );
       };
+      // Tinted-silhouette rows (the Wild Prairie sand dunes are the only user).
+      // The haze-mix and emissive are kept LOW so the dunes stay a darker
+      // yellow/brown/green blend (owner: they read too bright/washed) rather
+      // than glowing pale cream under the warm haze.
       const rowMat = (t: number): StandardMaterial => {
         const c = mix(hillBase, theme.haze, t);
-        const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.72) });
+        const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.46) });
         return m2;
       };
-      const nearMat = rowMat(0.18);
-      const farMat = rowMat(0.42);
+      const nearMat = rowMat(0.12);
+      const farMat = rowMat(0.3);
       // PHOTO-textured massifs (theme peakKeys starting 'mountain', e.g. the
       // CC-BY red mountain) form the NEAR range with their real rock
       // textures; the tinted Kenney mesa silhouettes recede behind them.
@@ -1548,9 +1583,9 @@ export function buildCourse(
         // reads as far dune haze, not blue sky. Kept low + narrow-tall like the
         // range backstop so its flat top never slabs above the dune crests.
         if (tintedKeys.length && !texturedKeys.length) {
-          const bsC = mix(hillBase, theme.haze, 0.32);
+          const bsC = mix(hillBase, theme.haze, 0.22);
           const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 460 }, scene);
-          const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.8) });
+          const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.52) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
           bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -150, 0));
@@ -3238,9 +3273,10 @@ export function buildCourse(
   // "ghost" clone of its source mesh (hide the instance, show the ghost) —
   // bounded to the handful of trees ever near the camera at once, created and
   // disposed on entry/exit rather than kept live for the whole course.
-  // Was 0.28 — still nearly a third opaque, so a ghosted tree read as barely
-  // faded at all (bug report: "ghost trees are too hard to see through").
-  const FADE_ALPHA = 0.12;
+  // Was 0.28, then 0.12 — owner still wanted the occluding trees to melt
+  // further out of the way ("tree transparency needs to be ramped up to be
+  // even more transparent"), so a ghosted canopy is now a faint 0.06 wash.
+  const FADE_ALPHA = 0.06;
   const OCCLUSION_RECOMPUTE_EVERY = 4; // ~15Hz at 60fps — snappier as the camera orbits on aim
   // Worst case (camera embedded deep in a dense forest wall) can otherwise
   // pull in dozens of candidates — measured ~0.9ms per ghost clone+material
