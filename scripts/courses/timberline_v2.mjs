@@ -249,6 +249,14 @@ const timberlineV2 = {
         // LEFT + RIGHT guardian spruce stands pinching the green.
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[316, 486], [396, 456], [412, 360], [356, 312], [278, 372], [276, 448]] },
         { type: 'trees', spacing: 34, visualSpacing: 22, polygon: [[624, 486], [702, 456], [714, 350], [650, 312], [574, 372], [584, 456]] },
+        // FAR-SHORE banks — trees right ON the far waterline, left and right of
+        // the green, closing the gap between the guardian spruces (set back at
+        // y312-486) and the water's edge (y540-562) so the FAR coast reads as
+        // treed all the way across, not bare grass (owner: "trees lining the
+        // water need to go all down the visible coast — it's not even close").
+        // Stop short of the green's front line (x412-574 stays open).
+        { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[300, 558], [410, 548], [412, 494], [352, 470], [296, 496]] },
+        { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[576, 548], [640, 560], [644, 496], [588, 470], [578, 494]] },
         // WOODED SHORELINE — dense stands right ON the tarn's banks (their
         // inner edge hugs the waterline the whole height of the pond), so the
         // treeline actually MIRRORS in the water instead of sitting back on dry
@@ -257,8 +265,8 @@ const timberlineV2 = {
         // treeR bumped so these bankside trees stand TALL — a taller tree
         // streaks its reflection further across the water, so the mirrored
         // treeline actually reads instead of a hairline at the shore.
-        { type: 'trees', spacing: 28, visualSpacing: 18, treeR: 32, polygon: [[292, 545], [262, 636], [290, 706], [214, 712], [150, 660], [150, 520], [210, 478], [264, 500]] },
-        { type: 'trees', spacing: 28, visualSpacing: 18, treeR: 32, polygon: [[688, 545], [712, 636], [686, 706], [762, 712], [826, 660], [826, 520], [766, 478], [712, 500]] },
+        { type: 'trees', spacing: 24, visualSpacing: 16, treeR: 32, polygon: [[292, 545], [262, 636], [290, 706], [214, 712], [150, 660], [150, 520], [210, 478], [264, 500]] },
+        { type: 'trees', spacing: 24, visualSpacing: 16, treeR: 32, polygon: [[688, 545], [712, 636], [686, 706], [762, 712], [826, 660], [826, 520], [766, 478], [712, 500]] },
         // NEAR-SHORE stands flanking the tee, closing the ring of forest around
         // the whole tarn (owner: "surrounded by trees ... all the way up to the
         // lake"). Clear of the tee-shot line up the middle.

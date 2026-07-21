@@ -1850,8 +1850,64 @@
         },
         {
           "type": "trees",
-          "spacing": 28,
-          "visualSpacing": 18,
+          "spacing": 26,
+          "visualSpacing": 17,
+          "treeR": 30,
+          "polygon": [
+            [
+              300,
+              558
+            ],
+            [
+              410,
+              548
+            ],
+            [
+              412,
+              494
+            ],
+            [
+              352,
+              470
+            ],
+            [
+              296,
+              496
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 26,
+          "visualSpacing": 17,
+          "treeR": 30,
+          "polygon": [
+            [
+              576,
+              548
+            ],
+            [
+              640,
+              560
+            ],
+            [
+              644,
+              496
+            ],
+            [
+              588,
+              470
+            ],
+            [
+              578,
+              494
+            ]
+          ]
+        },
+        {
+          "type": "trees",
+          "spacing": 24,
+          "visualSpacing": 16,
           "treeR": 32,
           "polygon": [
             [
@@ -1890,8 +1946,8 @@
         },
         {
           "type": "trees",
-          "spacing": 28,
-          "visualSpacing": 18,
+          "spacing": 24,
+          "visualSpacing": 16,
           "treeR": 32,
           "polygon": [
             [
