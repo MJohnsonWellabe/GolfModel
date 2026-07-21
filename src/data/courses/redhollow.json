@@ -2535,7 +2535,7 @@
           "cy": 1122,
           "r": 20,
           "height": 20,
-          "key": "rock_desert_c",
+          "key": "rocks_red_bright",
           "polygon": [
             [
               612,
@@ -2577,7 +2577,7 @@
           "cy": 952,
           "r": 20,
           "height": 20,
-          "key": "rock_desert_e",
+          "key": "rocks_red_mid",
           "polygon": [
             [
               580,
@@ -2661,7 +2661,7 @@
           "cy": 1240,
           "r": 22,
           "height": 22,
-          "key": "rock_desert_g",
+          "key": "rocks_red_cluster",
           "polygon": [
             [
               982,
@@ -2703,7 +2703,7 @@
           "cy": 1040,
           "r": 22,
           "height": 22,
-          "key": "rock_desert_h",
+          "key": "rocks_red_dark",
           "polygon": [
             [
               262,

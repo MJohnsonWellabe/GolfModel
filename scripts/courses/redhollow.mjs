@@ -380,12 +380,16 @@ const redhollow = {
         // on the valley rim shelves. All footprint-grounded (rockPass probe),
         // offset from the island surfaces + green so the playability sim still
         // finishes every hole.
+        // Owner playtest: the geometric rock_desert_* boulders on H3 read as
+        // low-poly blocks next to the detailed rocks_red_* formations — "just
+        // use the good quality detail asset". All six framing boulders now draw
+        // from the detailed CC-BY red-rock set, shade-varied for depth.
         rock(200, 400, 20, 'rocks_red_cluster'), // back-left crater-rim guardian
-        rock(592, 1122, 20, 'rock_desert_c'),     // island 1 west pinch
-        rock(560, 952, 20, 'rock_desert_e'),      // island 2 east pinch
+        rock(592, 1122, 20, 'rocks_red_bright'),  // island 1 west pinch
+        rock(560, 952, 20, 'rocks_red_mid'),      // island 2 east pinch
         rock(320, 1080, 22, 'rocks_red_cluster'), // west canyon-wall mass
-        rock(960, 1240, 22, 'rock_desert_g'),     // east canyon-wall mass
-        rock(240, 1040, 22, 'rock_desert_h')      // west rim shelf mass
+        rock(960, 1240, 22, 'rocks_red_cluster'), // east canyon-wall mass
+        rock(240, 1040, 22, 'rocks_red_dark')     // west rim shelf mass
       ],
       aiTargets: [[700, 1155], [485, 935], [445, 640]],
       // Elevated tee (+18) → islands all at +4 → green INSIDE a bowl one

@@ -2606,10 +2606,394 @@
       "props": [
         {
           "key": "fence",
-          "x": 558,
-          "y": 1330,
-          "rot": 0.35,
-          "len": 48,
+          "x": 516.5,
+          "y": 1462.6,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 517.6,
+          "y": 1438.8,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 518.7,
+          "y": 1415.0,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 519.8,
+          "y": 1391.1,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 520.9,
+          "y": 1367.3,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 522.0,
+          "y": 1343.5,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 523.1,
+          "y": 1319.7,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 524.2,
+          "y": 1295.9,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 525.3,
+          "y": 1272.0,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 526.4,
+          "y": 1248.2,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 527.4,
+          "y": 1224.4,
+          "rot": -1.525,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 526.1,
+          "y": 1199.1,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 522.6,
+          "y": 1176.6,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 519.1,
+          "y": 1154.1,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 515.6,
+          "y": 1131.6,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 512.1,
+          "y": 1109.1,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 508.6,
+          "y": 1086.6,
+          "rot": -1.725,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 503.0,
+          "y": 1062.2,
+          "rot": -1.864,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 496.0,
+          "y": 1039.0,
+          "rot": -1.864,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 489.0,
+          "y": 1015.8,
+          "rot": -1.864,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 482.0,
+          "y": 992.6,
+          "rot": -1.864,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 475.0,
+          "y": 969.4,
+          "rot": -1.864,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 467.1,
+          "y": 945.5,
+          "rot": -1.918,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 458.6,
+          "y": 922.0,
+          "rot": -1.918,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 450.1,
+          "y": 898.5,
+          "rot": -1.918,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 441.6,
+          "y": 875.0,
+          "rot": -1.918,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 434.9,
+          "y": 853.6,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 429.4,
+          "y": 832.3,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 423.9,
+          "y": 810.9,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 418.4,
+          "y": 789.6,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 412.9,
+          "y": 768.3,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 407.4,
+          "y": 746.9,
+          "rot": -1.823,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 398.4,
+          "y": 723.8,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 387.7,
+          "y": 703.6,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 377.1,
+          "y": 683.4,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 366.4,
+          "y": 663.3,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 355.7,
+          "y": 643.1,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 345.1,
+          "y": 622.9,
+          "rot": -2.057,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 335.1,
+          "y": 601.9,
+          "rot": -1.972,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 325.1,
+          "y": 578.3,
+          "rot": -1.972,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 315.1,
+          "y": 554.7,
+          "rot": -1.972,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 305.1,
+          "y": 531.1,
+          "rot": -1.972,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 295.1,
+          "y": 507.5,
+          "rot": -1.972,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 286.5,
+          "y": 483.8,
+          "rot": -1.869,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 278.5,
+          "y": 457.8,
+          "rot": -1.869,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 270.5,
+          "y": 431.8,
+          "rot": -1.869,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 259.4,
+          "y": 407.5,
+          "rot": -2.168,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 248.1,
+          "y": 390.8,
+          "rot": -2.168,
+          "len": 26.0,
+          "upright": true
+        },
+        {
+          "key": "fence",
+          "x": 236.8,
+          "y": 374.1,
+          "rot": -2.168,
+          "len": 26.0,
           "upright": true
         },
         {
