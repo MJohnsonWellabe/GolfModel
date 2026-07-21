@@ -206,7 +206,22 @@ export class PhysicsEngine {
     /** Uniform random source — inject a seeded rng for deterministic sims. */
     private readonly rng: Rng = Math.random
   ) {
-    this.treeTrunks = collectTreeBlobs(hole);
+    const landforms = hole.landforms ?? [];
+    // A landform whose asset key is a TREE (e.g. a fir sapling placed via
+    // hole.landforms rather than a `trees` hazard) is a real tree, not a rock.
+    const isTreeLandform = (k: unknown): boolean => typeof k === 'string' && k.startsWith('tree_');
+    this.treeTrunks = [
+      ...collectTreeBlobs(hole),
+      // Trees authored as LANDFORMS collide as real TREES — a ball STOPS at them
+      // like any trunk, at ALL heights. They used to fall through the rock path
+      // below and only deflect when authored h >= landformCollideMinH, so a short
+      // sapling was fully pass-through (owner: "the fir saplings ... didn't seem
+      // to have hitboxes"). Render (course3d authoredMasses) and collision share
+      // the exact (x,y), so the drawn tree and its hitbox can never drift.
+      ...landforms
+        .filter((l) => isTreeLandform((l as { key?: unknown }).key))
+        .map((l) => ({ x: l.x, y: l.y, r: Math.max(l.h, 8), kind: 1, tint: 1 }))
+    ];
     this.rocks = [
       // Explicit collidable boulders ('rock' hazards).
       ...hole.hazards
@@ -217,14 +232,14 @@ export class PhysicsEngine {
           r: hz.r ?? 10,
           h: hz.height ?? PHYSICS.rockDefaultHeight
         })),
-      // LARGE authored landforms also deflect the ball (playtest: "add deflection
-      // to all the larger rock assets"). Landforms are {key,x,y,h}; the visual
-      // radius tracks height (rocks_red_* clusters are ~as wide as tall), so the
-      // collider is r = h like a rock(). Small decorative rocks (h < the min) stay
-      // pass-through so the rough doesn't become a minefield. The footprint gate
-      // already keeps every landform on flat ground.
-      ...(hole.landforms ?? [])
-        .filter((l) => l.h >= PHYSICS.landformCollideMinH)
+      // LARGE authored ROCK landforms also deflect the ball (playtest: "add
+      // deflection to all the larger rock assets"). Landforms are {key,x,y,h};
+      // the visual radius tracks height (rocks_red_* clusters are ~as wide as
+      // tall), so the collider is r = h like a rock(). Small decorative rocks
+      // (h < the min) stay pass-through so the rough isn't a minefield. TREE
+      // landforms are excluded here — they collide as trees (above), not rocks.
+      ...landforms
+        .filter((l) => !isTreeLandform((l as { key?: unknown }).key) && l.h >= PHYSICS.landformCollideMinH)
         .map((l) => ({ cx: l.x, cy: l.y, r: l.h, h: l.h }))
     ];
     this.hzBox = hole.hazards.map((hz) => {
