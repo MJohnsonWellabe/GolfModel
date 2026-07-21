@@ -31,11 +31,16 @@ const redhollow = {
     // PASS 7: four rock shades on the rims + the small dark rock_desert
     // fragments (stoneTint-darkened) as talus under cliffs and canyon-floor
     // debris — hundreds of instances via the rough scatter.
-    wasteRimKeys: ['rocks_red_cluster', 'rocks_red_bright', 'rocks_red_mid', 'rock_desert_a', 'rock_desert_c'],
+    // ASSET AUDIT: the debris drew from only rock_desert_a-d, so the same four
+    // low-poly boulders repeated across hundreds of instances. Added the
+    // remaining same-family shapes (e-h — identical stylized rock geometry,
+    // verified) to the scatter (and two to the rim set) purely to break that
+    // repetition; still stoneTint-darkened talus, no new asset style.
+    wasteRimKeys: ['rocks_red_cluster', 'rocks_red_bright', 'rocks_red_mid', 'rock_desert_a', 'rock_desert_c', 'rock_desert_e', 'rock_desert_g'],
     stoneTint: '#6a3a26',
     bareRough: true,
     bushKeys: [],
-    scatterKeys: ['rocks_red_cluster', 'rocks_red_mid', 'rocks_red_dark', 'rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d'],
+    scatterKeys: ['rocks_red_cluster', 'rocks_red_mid', 'rocks_red_dark', 'rock_desert_a', 'rock_desert_b', 'rock_desert_c', 'rock_desert_d', 'rock_desert_e', 'rock_desert_f', 'rock_desert_g', 'rock_desert_h'],
     // Corridor restoration (dev-environment roadmap, owner decision 2026-07-20:
     // "sparse wash scrub only"): the washes/waste keep their dead-brown
     // tumbleweed scrub + rock clusters and gain sparse DRY BUNCHGRASS
