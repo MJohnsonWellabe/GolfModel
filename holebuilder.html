@@ -115,6 +115,11 @@
         pointer-events: none;
       }
       #toast.show { opacity: 1; transform: none; }
+      #snapBadge {
+        position: absolute; left: 12px; top: 12px; display: none; padding: 4px 9px;
+        background: rgba(42,63,20,.9); border: 1px solid #46631f; border-radius: 999px;
+        color: #dff5c2; font-size: 11px; font-variant-numeric: tabular-nums;
+      }
       #sel {
         background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
         padding: 9px; margin-top: 6px;
@@ -184,13 +189,19 @@
       <div class="hint">
         <kbd>drag</kbd> a handle to move it · <kbd>drag</kbd> empty space to pan ·
         <kbd>wheel</kbd> zoom · <kbd>del</kbd> remove selected aiTarget / elevation ·
-        <kbd>F</kbd> fit · <kbd>G</kbd> grid snap
+        <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>F</kbd> fit · <kbd>G</kbd> grid snap
+      </div>
+      <div class="hint">
+        Editable handles: tee, pin, aiTargets, elevation points. Fairway/hazard
+        polygons, rocks, gardens and landforms are drawn for reference only —
+        author those in <code>scripts/courses/*.mjs</code>.
       </div>
     </aside>
 
     <div id="stage">
       <canvas id="c"></canvas>
       <div id="hud"></div>
+      <div id="snapBadge">grid snap · 5</div>
       <div id="toast"></div>
     </div>
 
@@ -205,14 +216,18 @@
 
       const LAYERS = [
         ['bounds',    'World / boundary', '#3a5060', true],
+        ['recovery',  'Recovery zones',   '#7fbf9f', true],
         ['fairway',   'Fairway',          '#3f7a44', true],
         ['green',     'Green',            '#67c25a', true],
         ['water',     'Water',            '#3f7fbf', true],
         ['bunker',    'Sand / waste',     '#e6cf92', true],
         ['trees',     'Trees',            '#274d2c', true],
         ['rock',      'Rock',             '#8a8f94', true],
+        ['building',  'Buildings',        '#b08968', true],
         ['ob',        'Out of bounds',    '#c8543f', true],
+        ['cliffwall', 'Cliff walls',      '#7c6f5a', true],
         ['gardens',   'Gardens',          '#c874b8', true],
+        ['props',     'Props',            '#c8b88a', true],
         ['landforms', 'Landforms',        '#6f7a55', false],
         ['elevation', 'Elevation pts',    '#d9a441', true],
         ['aiTargets', 'aiTargets',        '#57c7ff', true],
@@ -234,6 +249,20 @@
       let sel = null;         // { kind, ref, i } selected handle
       let drag = null;        // active drag state
       let pointer = { wx: 0, wy: 0, inside: false };
+      let undoStack = [];     // [{ hi, snap }] — per-mutation hole snapshots
+
+      // Snapshot the current hole BEFORE a mutation so Ctrl+Z can restore it.
+      function pushUndo() {
+        const h = hole(); if (!h) return;
+        undoStack.push({ hi, snap: structuredClone(h) });
+        if (undoStack.length > 60) undoStack.shift();
+      }
+      function undo() {
+        const last = undoStack.pop(); if (!last) { toast('nothing to undo'); return; }
+        course.holes[last.hi] = last.snap;
+        if (last.hi !== hi) { selectHole(last.hi); return; }
+        sel = null; renderSel(); draw(); toast('undo');
+      }
 
       const hole = () => course?.holes?.[hi] || null;
       const round1 = (n) => Math.round(n * 10) / 10;
@@ -251,12 +280,34 @@
         courseId = id;
         setCourse(data);
       }
+      // A hole this tool can render/edit must carry the core geometry the plan
+      // view reads unconditionally. Missing fields are backfilled with safe
+      // defaults (and flagged) so one malformed hole can't kill the canvas.
+      function normalizeHole(h, i) {
+        const issues = [];
+        if (!h || typeof h !== 'object') return { hole: null, issues: [`hole ${i + 1}: not an object`] };
+        if (!h.world || !(h.world.width > 0) || !(h.world.height > 0)) { h.world = { width: 1000, height: 1200 }; issues.push(`hole ${i + 1}: missing world → defaulted 1000×1200`); }
+        if (!h.tee || typeof h.tee.x !== 'number') { h.tee = { x: h.world.width / 2, y: h.world.height - 60 }; issues.push(`hole ${i + 1}: missing tee → centered`); }
+        if (!h.pin || typeof h.pin.x !== 'number') { h.pin = { x: h.world.width / 2, y: 120 }; issues.push(`hole ${i + 1}: missing pin → centered`); }
+        if (!h.green || typeof h.green.cx !== 'number') { h.green = { cx: h.pin.x, cy: h.pin.y, rx: 40, ry: 34 }; issues.push(`hole ${i + 1}: missing green → placed at pin`); }
+        if (!Array.isArray(h.fairway)) h.fairway = [];
+        if (!Array.isArray(h.hazards)) h.hazards = [];
+        if (!Array.isArray(h.aiTargets)) h.aiTargets = [];
+        return { hole: h, issues };
+      }
       function setCourse(data) {
-        course = structuredClone(data);
-        course.__pristine = structuredClone(data);   // for per-hole revert
+        const c = structuredClone(data);
+        if (!Array.isArray(c.holes) || !c.holes.length) { toast('no holes in file'); return; }
+        const problems = [];
+        c.holes = c.holes.map((h, i) => { const { hole, issues } = normalizeHole(h, i); problems.push(...issues); return hole; }).filter(Boolean);
+        if (!c.holes.length) { toast('no usable holes in file'); return; }
+        course = c;
+        course.__pristine = structuredClone(c);   // for per-hole revert
+        undoStack = [];
         hi = 0;
         buildHoleSelect();
         selectHole(0);
+        if (problems.length) { toast(`${problems.length} field(s) backfilled — see console`); console.warn('Hole Builder normalized:\n  ' + problems.join('\n  ')); }
       }
 
       function buildCourseSelect() {
@@ -283,7 +334,7 @@
         hi = i; sel = null; drag = null;
         const h = hole();
         document.getElementById('meta').textContent = h
-          ? `Par ${h.par} · ${h.yardage} yd · world ${h.world.width}×${h.world.height}`
+          ? `Par ${h.par ?? '—'}${h.yardage ? ` · ${h.yardage} yd` : ''} · world ${h.world.width}×${h.world.height}`
           : '';
         renderSel();
         fit();
@@ -344,6 +395,10 @@
       }
 
       function draw() {
+        try { drawInner(); }
+        catch (err) { console.error('draw failed:', err); toast('render error — see console'); }
+      }
+      function drawInner() {
         const h = hole();
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -373,6 +428,14 @@
         }
         if (on.bounds) { ctx.strokeStyle = COLOR.bounds; ctx.lineWidth = 2; ctx.strokeRect(ox, oy, ww, wh); }
 
+        // authored recovery zones (unioned into the derived boundary)
+        if (on.recovery && h.recoveryZones) {
+          ctx.fillStyle = 'rgba(127,191,159,.14)'; ctx.strokeStyle = COLOR.recovery;
+          ctx.lineWidth = 1.5; ctx.setLineDash([3, 4]);
+          for (const z of h.recoveryZones) { poly(z); ctx.fill(); ctx.stroke(); }
+          ctx.setLineDash([]);
+        }
+
         // fairway ribbons
         if (on.fairway && h.fairway) {
           ctx.fillStyle = 'rgba(63,122,68,.55)';
@@ -397,10 +460,26 @@
             ctx.beginPath(); ctx.arc(sx, sy, Math.max(2, (z.r || 6) * view.scale), 0, Math.PI * 2);
             ctx.fillStyle = 'rgba(138,143,148,.8)'; ctx.fill();
           }
+          else if (z.type === 'building' && on.building) {
+            ctx.fillStyle = 'rgba(176,137,104,.7)'; ctx.strokeStyle = '#7a5a3a'; ctx.lineWidth = 1.5;
+            poly(z.polygon); ctx.fill(); ctx.stroke();
+          }
+        }
+
+        // decorative props (positional models — bridge, etc.)
+        if (on.props && h.props) {
+          for (const pr of h.props) {
+            const [sx, sy] = toScreen(pr.x, pr.y);
+            ctx.save(); ctx.translate(sx, sy); ctx.rotate(pr.rot || 0);
+            const len = Math.max(6, (pr.len || 20) * view.scale);
+            ctx.fillStyle = 'rgba(200,184,138,.75)'; ctx.strokeStyle = '#8a7a4a'; ctx.lineWidth = 1;
+            ctx.fillRect(-len / 2, -4, len, 8); ctx.strokeRect(-len / 2, -4, len, 8);
+            ctx.restore();
+          }
         }
 
         // cliff walls
-        if (h.cliffWalls) {
+        if (on.cliffwall && h.cliffWalls) {
           ctx.strokeStyle = '#7c6f5a'; ctx.lineWidth = 2.5;
           for (const w of h.cliffWalls) { poly(w.points.map(p => [p[0], p[1]]), false); ctx.stroke(); }
         }
@@ -498,7 +577,7 @@
         const out = [];
         out.push({ kind: 'pin', ref: h.pin, r: 9 });
         out.push({ kind: 'tee', ref: h.tee, r: 9 });
-        (h.aiTargets || []).forEach((t, i) => out.push({ kind: 'aiTarget', ref: t, i, r: 8 }));
+        if (on.aiTargets) (h.aiTargets || []).forEach((t, i) => out.push({ kind: 'aiTarget', ref: t, i, r: 8 }));
         if (on.elevation) (h.elevation || []).forEach((e, i) => out.push({ kind: 'elevation', ref: e, i, r: 7 }));
         return out;
       }
@@ -530,17 +609,35 @@
           html += `<div class="btnrow" style="margin-top:6px"><button class="danger" id="delsel">Remove point</button></div>`;
         el.innerHTML = html;
 
-        const bind = (id, set) => { const n = document.getElementById(id); if (n) n.addEventListener('input', () => { set(parseFloat(n.value) || 0); draw(); }); };
+        // Only commit a finite parse; clearing a field or typing a lone '-'
+        // must not fling the point to origin.
+        const bind = (id, set) => {
+          const n = document.getElementById(id); if (!n) return;
+          n.addEventListener('focus', pushUndo);
+          n.addEventListener('input', () => { const v = parseFloat(n.value); if (Number.isFinite(v)) { set(v); draw(); } });
+        };
         bind('sx', v => { selRef().x = v; }); bind('sy', v => { selRef().y = v; });
         bind('sh', v => { selRef().h = v; }); bind('sr', v => { selRef().r = Math.max(1, v); });
         const sh = document.getElementById('sshape');
-        if (sh) sh.addEventListener('change', () => { const r2 = selRef(); if (sh.value) r2.shape = sh.value; else delete r2.shape; draw(); });
+        if (sh) sh.addEventListener('change', () => { pushUndo(); const r2 = selRef(); if (sh.value) r2.shape = sh.value; else delete r2.shape; draw(); });
         const del = document.getElementById('delsel');
         if (del) del.addEventListener('click', removeSelected);
       }
 
+      // Cheap update of just the selection panel's x/y fields (used ~60×/s
+      // during a handle drag) so we don't rebuild the whole panel DOM.
+      function syncSelInputs() {
+        const r = selRef(); if (!r) return;
+        const nx = document.getElementById('sx'), ny = document.getElementById('sy');
+        if (nx && document.activeElement !== nx) nx.value = round1(r.x);
+        if (ny && document.activeElement !== ny) ny.value = round1(r.y);
+        drawHud();
+      }
+
       function removeSelected() {
         const h = hole(); if (!h || !sel) return;
+        if (sel.kind !== 'aiTarget' && sel.kind !== 'elevation') return;
+        pushUndo();
         if (sel.kind === 'aiTarget' && h.aiTargets) h.aiTargets.splice(sel.i, 1);
         else if (sel.kind === 'elevation' && h.elevation) h.elevation.splice(sel.i, 1);
         else return;
@@ -558,7 +655,8 @@
         const hit = hitTest(sx, sy);
         if (hit) {
           sel = { kind: hit.kind, ref: hit.ref, i: hit.i };
-          drag = { kind: 'handle', ref: hit.ref };
+          pushUndo();
+          drag = { kind: 'handle', ref: hit.ref, moved: false };
           canvas.classList.add('dragging'); renderSel(); draw();
         } else {
           drag = { kind: 'pan', sx, sy, vx: view.x, vy: view.y };
@@ -573,7 +671,8 @@
           let nx = wx, ny = wy;
           if (snap) { nx = Math.round(nx / 5) * 5; ny = Math.round(ny / 5) * 5; }
           drag.ref.x = round1(nx); drag.ref.y = round1(ny);
-          renderSel(); draw();
+          drag.moved = true;
+          syncSelInputs(); draw();
         } else if (drag?.kind === 'pan') {
           view.x = drag.vx - (sx - drag.sx) / view.scale;
           view.y = drag.vy - (sy - drag.sy) / view.scale;
@@ -583,7 +682,11 @@
           drawHud();
         }
       });
-      canvas.addEventListener('pointerup', () => { drag = null; canvas.classList.remove('dragging'); });
+      canvas.addEventListener('pointerup', () => {
+        // A click that selected but never moved shouldn't leave an undo entry.
+        if (drag?.kind === 'handle' && !drag.moved) undoStack.pop();
+        drag = null; canvas.classList.remove('dragging');
+      });
       canvas.addEventListener('pointerleave', () => { pointer.inside = false; drawHud(); });
       canvas.addEventListener('wheel', (ev) => {
         ev.preventDefault();
@@ -598,11 +701,15 @@
       }, { passive: false });
 
       window.addEventListener('keydown', (ev) => {
+        if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); undo(); return; }
         if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
         if (ev.key === 'f' || ev.key === 'F') fit();
-        else if (ev.key === 'g' || ev.key === 'G') { snap = !snap; toast('grid snap ' + (snap ? 'on (5)' : 'off')); }
+        else if (ev.key === 'g' || ev.key === 'G') { snap = !snap; updateSnapBadge(); }
         else if (ev.key === 'Delete' || ev.key === 'Backspace') removeSelected();
       });
+      function updateSnapBadge() {
+        document.getElementById('snapBadge').style.display = snap ? 'inline-block' : 'none';
+      }
 
       // ---- point-list add -----------------------------------------------------
       function viewCenterWorld() {
@@ -610,13 +717,13 @@
       }
       document.getElementById('addTarget').addEventListener('click', () => {
         const h = hole(); if (!h) return;
-        (h.aiTargets ||= []); const [x, y] = viewCenterWorld();
+        pushUndo(); (h.aiTargets ||= []); const [x, y] = viewCenterWorld();
         h.aiTargets.push({ x: round1(x), y: round1(y) });
         sel = { kind: 'aiTarget', i: h.aiTargets.length - 1 }; renderSel(); draw(); toast('aiTarget added');
       });
       document.getElementById('addElev').addEventListener('click', () => {
         const h = hole(); if (!h) return;
-        (h.elevation ||= []); const [x, y] = viewCenterWorld();
+        pushUndo(); (h.elevation ||= []); const [x, y] = viewCenterWorld();
         h.elevation.push({ x: round1(x), y: round1(y), h: 10, r: 120 });
         sel = { kind: 'elevation', i: h.elevation.length - 1 }; renderSel(); draw(); toast('elevation point added');
       });
@@ -628,7 +735,15 @@
       }
       document.getElementById('copySel').addEventListener('click', () => {
         const r = selRef(); if (!r) return toast('nothing selected');
-        copy(JSON.stringify(r), 'point');
+        // Emit generator-friendly source, not quoted JSON: a tee/pin/aiTarget
+        // pastes as `{ x: .., y: .. }`; an elevation splat keeps its h/r/shape.
+        let text;
+        if (sel.kind === 'elevation') {
+          text = `{ x: ${round1(r.x)}, y: ${round1(r.y)}, h: ${r.h}, r: ${r.r}${r.shape ? `, shape: '${r.shape}'` : ''} }`;
+        } else {
+          text = `{ x: ${round1(r.x)}, y: ${round1(r.y)} }`;
+        }
+        copy(text, 'point');
       });
       document.getElementById('copyHole').addEventListener('click', () => {
         const h = hole(); if (!h) return; copy(JSON.stringify(h, null, 2), 'hole');
@@ -638,7 +753,10 @@
         const out = structuredClone(course); delete out.__pristine;
         const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
         const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-        a.download = `${courseId || out.name || 'course'}.json`; a.click();
+        // Suffix `.draft.` so a download can never overwrite / masquerade as the
+        // generated `<id>.json` the sidebar warns must not be hand-edited.
+        const base = (courseId || out.name || 'course').replace(/\s+/g, '_');
+        a.download = `${base}.draft.json`; a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 500); toast('downloaded');
       });
       document.getElementById('reset').addEventListener('click', () => {

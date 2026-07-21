@@ -25,13 +25,16 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 | I | Wildwood rebuild (flowering parkland) | ✅ verified (v2 already parkland-in-bloom) |
 | K | Ground-mesh clamp + edge audit + camera edge | 🟡 edge audit done (all courses void-safe); mesh-clamp deferred (optional) |
 | J | Wild Prairie shared-property pilot | 🟡 course renders clean; shared-property impostor system deferred |
-| L | Hole Builder MVP | ⏳ deferred — large new dev tool |
+| L | Hole Builder MVP | ✅ plan-view MVP shipped (load·render·drag·edit·export); 3D-pipeline render + asset browser deferred |
 
 ## Items K / J / L — status & recommendation
 
 These three are large, deliberately-phased INFRASTRUCTURE items from
 `docs/dev-environment-roadmap/04_IMPLEMENTATION_PLAN.md` (Phases 3–6), not owner
-pain-points like A–G. Autonomous status:
+pain-points like A–G. **L now ships as a plan-view MVP** (see the Item L section
+below); K's functional goal is verified with the footprint clamp deferred; J's
+course renders and the shared-property engine remains greenfield. Autonomous
+status:
 
 - **K — Ground-mesh clamp + edge audit.** The functional goal (the camera never
   sees raw void / a mesh edge) is **verified**: an edge audit rendered all six
@@ -48,9 +51,13 @@ pain-points like A–G. Autonomous status:
   new engine feature — per-course property plans + neighbor **impostor tiles** —
   which the plan scopes as its own phase. A large greenfield build; deferred for
   an owner-involved session.
-- **L — Hole Builder MVP.** A new internal authoring tool (dev-only HTML +
-  a shared serializer). Phase 6; a substantial greenfield build best shaped with
-  the owner. Deferred.
+- **L — Hole Builder MVP.** ✅ Shipped as a dev-only **plan-view** authoring
+  tool (`holebuilder.html`): load any V2 course, faithful top-down render of
+  every authored element, drag tee/pin/aiTargets/elevation, edit + add/remove
+  point lists, undo, export/copy. The heavier §5 half (a standalone 3D pipeline
+  render + manifest-driven asset browser + live overlays) is deferred as
+  greenfield best shaped with the owner. Matt-reviewed (3 must-fixes resolved);
+  see the Item L section below.
 
 **Delivered this run (A–I, all Matt-reviewed, all gates green on both branches):**
 real ball-flight physics; per-asset measured tree hitboxes + landform-tree
@@ -200,3 +207,64 @@ Nits raised → resolved: **waste-rim cliffs** (Red Hollow's canyon walls) now
 register too (was the one shot-blocker still not fading); **masses are scanned
 before foliage** so a blocking boulder is never starved out of the ghost budget
 by trees fading in front of it. (commit `326d954`.)
+
+---
+
+## Item L — Hole Builder MVP ✅
+
+**Scope decision:** the implementation plan's §5 MVP lists a full-fidelity 3D
+render via the game pipeline *plus* an asset browser. That heavier half (a
+standalone `buildCourse` render + manifest-driven asset gallery + live
+overlays) is genuinely greenfield and best shaped with the owner. Delivered
+instead the **plan-view authoring half** — the part a hole is actually *routed*
+on — as a complete, polished, isolated tool. The 3D preview of any hole remains
+the game itself (`npm run dev` → `/?course=<id>&hole=<n>&freeze=1`), so the tool
+is deliberately a *blueprint*, not a 3D WYSIWYG editor.
+
+**What shipped (`holebuilder.html`, dev-only — NOT in the vite rollup inputs, so
+it is served by the dev server but can never enter the production bundle; same
+pattern as treecatalog / grasspicker / palview):**
+- Load any bundled V2 course or drop in any course JSON.
+- Faithful top-down render to true world scale (y-down matches world coords) of
+  every authored element: world bounds, authored boundary, **recovery zones**,
+  fairway ribbons, green + `green2` lobe (with rotation), water (+cliff hue),
+  bunker vs **waste** vs **beach**, trees vs `visualOnly`, rock, **buildings**,
+  `ob`, **cliff walls**, gardens, **props**, landforms, tee box, tee, pin (with
+  flag), numbered aiTargets with aim rings, elevation rings (sized by `r`, hued
+  by sign of `h`, dashed for plateau), and faint alternate tees/pins.
+- Drag the high-value points — tee, pin, each aiTarget, each elevation control
+  point — with pan, zoom-to-cursor, fit, grid snap (persistent badge), a live
+  world-coordinate readout, and **Ctrl+Z undo**.
+- A selection editor (x / y, and for elevation h / r / shape) with add & remove
+  for the two point lists.
+- Export the edited course JSON (suffixed `.draft.json` so it can never
+  masquerade as the protected generated `<id>.json`), or **copy** a point as
+  generator-ready source (`{ x: .., y: .. }`) / the whole hole as JSON.
+- Robust import: malformed / partial holes are backfilled (world/tee/pin/green)
+  and flagged rather than crashing the canvas, and the render is guarded.
+
+**Ownership note (in-tool):** the four bundled courses are GENERATED from
+`scripts/courses/*.mjs`; for those the tool's job is to *find* coordinates to
+copy back into the generator, not to hand-edit their JSON. Fairway/hazard
+polygons, rocks, gardens and landforms are drawn for reference only — authored
+in the generator, not here.
+
+**Gates:** JS syntax clean; production `vite build` verified to **exclude**
+`holebuilder.html` from `dist/` (zero prod-bundle risk); headless render checks
+across Timberline E/W, Sable Bay and Port Johnson (course/hole switching, drag,
+add/remove, undo, snap, malformed-import backfill) all pass with no console
+errors (bar the dev favicon 404).
+
+**Matt-agent review (Item L):** *approve-with-nits → approve.* Confirmed a
+faithful, legible plan render, correct/pleasant interactions, and byte-honest
+export (strips `__pristine`, 0.1 rounding, drops default `shape`), correctly
+scoped as a blueprint not a 3D editor. Three must-fixes raised → **all
+resolved**: (1) `recoveryZones` was silently dropped on a *bundled* course
+(Sable Bay h2) → now a first-class layer; (2) the download name collided with
+the protected generated `<id>.json` → suffixed `.draft.json`; (3) a malformed
+dropped file could crash the canvas → per-hole normalization + guarded render.
+Nice-to-haves also taken: buildings/props/cliff-wall layers, aiTarget handles
+gated on their layer, Ctrl+Z undo, NaN-safe field edits, in-place selection
+updates during drag (no per-frame DOM rebuild), generator-friendly copy, a
+persistent grid-snap badge, and a "reference-only" note for non-editable
+geometry.
