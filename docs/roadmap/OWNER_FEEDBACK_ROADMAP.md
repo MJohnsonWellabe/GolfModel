@@ -56,12 +56,36 @@ total distance need not exceed the long-standing baseline.
 
 ---
 
-## Item B — Tree hitboxes 🔧
+## Item B — Tree hitboxes 🔧 (code done, review pending)
 
 **Owner ask:** "leave woods hit boxes less dense than visuals but any tree
 that's not in a cluster has to have a hitbox." + "the fir saplings were not the
 only trees that didn't seem to have hitboxes — check other assets." + a lone
 tree *should* catch balls and be punishing (a double/triple is fine); it just
-must not catch the same ball a second/third/fourth time (no stuck-loop / DNF).
+must not catch the same ball a second/third/fourth time (no stuck-loop / DNF). +
+"if it's a small trunk with a large canopy, the hitbox needs to reflect that,
+not just be uniform shape all the way up."
 
-*(In progress — mapping every tree render path vs. its collision first.)*
+**What was found (subagent map of every tree render path vs. collision):** lone
+`trees`-hazard specimens already collide (centroid/grid trunk); dense woods are
+intentionally less dense in collision than visuals (escapability); the only real
+gap was **trees authored as `hole.landforms`** (fir saplings) — rendered as
+trees but colliding only via a fragile height-gated *rock* cylinder, pass-through
+below h=12. Remaining non-colliding paths are prod-Wildwood `visualOnly` backdrop
+(rebuilt in Item I) and deliberate out-of-play margin woods.
+
+**What shipped:**
+- **Landform trees collide as trees** (commit `2d07847`): any `tree_*` landform
+  joins the tree-trunk collider set (ball stops, at all heights), non-tree
+  landforms keep the rock path.
+- **Lollipop hitbox** (commit `a526df7`): every tree's collision now matches its
+  shape — thin trunk low, full canopy in the canopy band, and a ball *above the
+  tree's own height clears it*. Fixes both the owner's shape note and the
+  side effect that a short sapling used to stop balls flying well over it.
+
+**Gates:** full suite 858 passing. aiTournament in-band band re-tuned once for
+the more-penetrable (realistic) woods, then the lollipop was tightened
+(treeHeightPerR 2.5 / canopyBottom 0.28) so woods stay a fair hazard without
+loosening the gate.
+
+*(Matt-agent review pending — will be appended.)*
