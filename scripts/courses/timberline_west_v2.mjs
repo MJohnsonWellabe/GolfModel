@@ -142,7 +142,13 @@ const timberlineWestV2 = {
         // Backdrop stand behind the green closing the ring.
         { type: 'trees', spacing: 36, visualSpacing: 22, polygon: [[300, 306], [382, 270], [448, 288], [426, 198], [318, 208], [276, 268]] },
         // LONE SPECIMEN TREE short-left — the direct-line obstacle (production).
-        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 26, polygon: [[414, 514], [428, 498], [442, 512], [436, 532], [418, 530]] }
+        // Its RENDER stays put (polygon + treeR unchanged), but its collision
+        // hitbox was too fat and caught approaches that visually skirted the
+        // canopy (owner: front-of-green tree hitbox too big). collisionOffset
+        // slides ONLY the hitbox left and slightly back off the up-the-middle
+        // approach line, so a ball that clears the drawn canopy is no longer
+        // stopped while the tree still visibly guards the green front-left.
+        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 26, collisionOffset: [-15, 9], polygon: [[414, 514], [428, 498], [442, 512], [436, 532], [418, 530]] }
       ],
       aiTargets: [],
       // Granite boulders on the hollow's rim (the alpine rock note).
@@ -205,10 +211,16 @@ const timberlineWestV2 = {
         // LONE TREE in the second-shot lane — must be worked around on the lay-up.
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 28, polygon: [[688, 726], [702, 706], [720, 722], [712, 748], [692, 744]] },
         // FRONT-OF-GREEN POND + CREEK (owner: "replace the original front of green
-        // bunker with another pond and creek") — a pond ~70 yd short of the green
-        // that the approach must carry (in a level basin), narrowing into a creek
-        // that runs off the lower-right of the world.
-        { type: 'water', polygon: [[746, 720], [780, 702], [812, 708], [830, 730], [820, 758], [788, 770], [754, 762], [738, 742]] },
+        // bunker with another pond and creek") — a pond the approach must carry
+        // (in a level basin), narrowing into a creek that runs off the lower-right
+        // of the world. ENLARGED and pushed NORTH toward the green front (make it
+        // a genuine 3-shot hole — owner: going for the green in two must be a
+        // low-percentage play): the water now reaches to ~y646, straddling the
+        // whole go-for-it approach line, so a long second must carry water right
+        // to the green and hold a shallow bench (a low-percentage play), while a
+        // layup leaves a short wedge that flies the water easily. North edge held
+        // south of the green face so the putting shelf stays dry and level.
+        { type: 'water', polygon: [[738, 748], [742, 700], [758, 664], [786, 648], [818, 648], [842, 668], [850, 706], [846, 748], [820, 770], [786, 776], [754, 766]] },
         { type: 'water', polygon: stream([[818, 748], [846, 858], [858, 966], [852, 1074]], 24, 823) },
         // Behind/above-green woods on the mountainside.
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[770, 452], [864, 414], [980, 440], [1000, 372], [852, 348], [744, 402]] }
@@ -243,7 +255,9 @@ const timberlineWestV2 = {
         { x: 308, y: 840, h: -2, r: 90, shape: 'plateau', skirt: 0.72 },
         // FRONT-OF-GREEN POND basin (level water) + the creek channel, which runs
         // SOUTH (west of the right valley wall) off the bottom of the world.
-        { x: 783, y: 732, h: -2, r: 82, shape: 'plateau', skirt: 0.66 },
+        // Enlarged/pushed north with the bigger front pond; radius holds the flat
+        // top under the whole pond while the skirt stays clear of the green shelf.
+        { x: 792, y: 706, h: -2, r: 104, shape: 'plateau', skirt: 0.7 },
         { x: 818, y: 748, x2: 846, y2: 858, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
         { x: 846, y: 858, x2: 858, y2: 966, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
         { x: 858, y: 966, x2: 852, y2: 1074, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },

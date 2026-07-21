@@ -260,6 +260,18 @@ const timberlineV2 = {
         // so the coast right of the green is continuous, not gappy (Matt review:
         // "finish the right side of the coastline").
         { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[576, 548], [650, 562], [692, 566], [694, 500], [624, 470], [580, 494]] },
+        // FAR-SHORE SAPLING INFILL — the far (north) waterline used to read bare
+        // in the two banks flanking the central waste tongue: x412->446 (between
+        // the left far-shore band and the wash) and x495->576 (between the wash
+        // and the right far-shore band). Owner: the far shore must be lined
+        // CONTINUOUSLY with saplings across its whole visible width. These are
+        // SHORT saplings (small treeR) hugging the bank BELOW the green shelf, so
+        // the far coast reads treed all the way across from the tee AND aerial
+        // while the descending par-3 approach still clears them (the existing
+        // wash firs prove short trees here don't stop the shot). Kept south of
+        // the green front (y>=500) and off the straight tee-shot lane.
+        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 15, polygon: [[406, 548], [446, 542], [447, 508], [410, 502]] },
+        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 15, polygon: [[498, 508], [576, 502], [578, 546], [500, 548]] },
         // WOODED SHORELINE — dense stands right ON the tarn's banks (their
         // inner edge hugs the waterline the whole height of the pond), so the
         // treeline actually MIRRORS in the water instead of sitting back on dry
@@ -350,9 +362,16 @@ const timberlineV2 = {
       name: 'Timberfall',
       par: 5,
       world: { width: 1160, height: 1420 },
-      tee: [400, 1250],
+      // Tee pushed ~35 yd back (make it a genuine 3-shot hole — owner): from
+      // 535 the route now runs ~575 yd, so a strong hitter's typical drive leaves
+      // MORE than a driver-carry back (reach threshold ~290 yd) — going for the
+      // green in two now needs a bomb AND a perfect long shot, not a stock drive.
+      tee: [396, 1322],
       teeBox: { w: 32, d: 24 },
-      green: { cx: 840, cy: 356, rx: 62, ry: 46, rot: -0.35 },
+      // Green trimmed a touch (62->56 / 46->42): a smaller target the long
+      // go-for-it second holds far less often, so more reach attempts spill into
+      // the new front sand (below) for a hard up-and-down instead of a tap-in.
+      green: { cx: 840, cy: 356, rx: 56, ry: 42, rot: -0.35 },
       slope: { angle: 2.7, strength: 0.32 },
       fairways: [
         // RIGHT fairway (MAIN, safe + longer): a wide arc up the right; ~300
@@ -365,15 +384,16 @@ const timberlineV2 = {
       // The LEFT fairway is the alternate route — exclude it from yardage.
       altFairways: 1,
       hazards: [
-        // THE DENSE DIVIDER — a heavy block of trees BETWEEN the two fairways
-        // (owner). Held clear of both corridors; a drive that leaks toward the
-        // middle from either side finds the woods.
-        // East edge pulled well west of the right-approach corridor so the RIGHT
-        // route's second shot is CLEAN from a 300-yd drive (owner, twice: "there
-        // are still multiple trees between the ball and the green") — the divider
-        // now clears the landing->green line by ~55px while still walling the
-        // middle off from the left route.
-        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[648, 860], [634, 762], [678, 652], [706, 656], [724, 762], [696, 862]] },
+        // THE DENSE DIVIDER — a heavy block of trees separating the two fairways
+        // AT THE FORK only (owner: "move the divider trees back toward the start
+        // of the fairway split — they should separate the two paths at the fork,
+        // not stand down the right corridor blocking the approach"). Pulled all
+        // the way DOWN into the widening gap right where the two fairways diverge
+        // (y1040-1200), so the RIGHT route's SECOND SHOT to the green (from the
+        // ~x808/y800 landing, up the right corridor) is completely clean — there
+        // is no divider tree anywhere on the right approach line now. Held inside
+        // the gap between the two corridors so it walls neither drive.
+        { type: 'trees', spacing: 28, visualSpacing: 18, polygon: [[544, 1042], [576, 1056], [552, 1120], [514, 1184], [490, 1198], [470, 1186], [500, 1116], [520, 1048]] },
         // THE TREE IN THE WAY — a lone giant spruce standing in the LEFT
         // approach line: a straight go-for-the-green hits it, so the aggressor
         // must work the ball around it (owner).
@@ -410,7 +430,18 @@ const timberlineV2 = {
         // teeth on the safe route), a greenside pot right, and a back trap.
         { type: 'bunker', polygon: blob(884, 802, 22, 15, 10, 0.35, 131) },
         { type: 'bunker', depthMul: 1.4, polygon: blob(906, 420, 15, 12, 9, 0.3, 132) },
-        { type: 'bunker', depthMul: 1.5, polygon: blob(884, 278, 19, 13, 9, 0.3, 133) }
+        { type: 'bunker', depthMul: 1.5, polygon: blob(884, 278, 19, 13, 9, 0.3, 133) },
+        // FRONT-OF-GREEN DEFENSE (make it a real 3-shot hole — owner: going for
+        // the green in two must be a LOW-percentage play, a layup the smart line).
+        // The RIGHT (safe) route used to leave a completely DRY look at the green,
+        // so a strong hitter reached in two almost every time (birdie machine).
+        // A deep front-center bunker plus a front-right pot now guard the exact
+        // line a long second comes in on: a 250-yd approach that leaks short or
+        // right finds sand and a hard up-and-down, while a layup leaves a wedge
+        // that flies both traps and holds. Kept short of the green face so the
+        // putting surface is untouched.
+        { type: 'bunker', depthMul: 1.6, polygon: blob(824, 452, 24, 14, 10, 0.3, 134) },
+        { type: 'bunker', depthMul: 1.5, polygon: blob(872, 446, 16, 11, 9, 0.3, 135) }
       ],
       aiTargets: [[560, 1080], [720, 940], [808, 802], [846, 556], [842, 428]],
       landforms: [
@@ -420,7 +451,7 @@ const timberlineV2 = {
       elevation: [
         // ELEVATED TEE, then the land FALLS into a valley, then CLIMBS to the
         // green benched on the mountainside.
-        { x: 400, y: 1250, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
+        { x: 396, y: 1322, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
         // GREEN BENCHED a full step above the pond (owner). Skirt EASED to 0.6
