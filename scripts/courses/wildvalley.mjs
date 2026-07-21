@@ -208,6 +208,11 @@ const wildvalley = {
         { x: 300, y: 660, x2: 240, y2: 720, h: 8, r: 140 },
         { x: 580, y: 660, x2: 640, y2: 720, h: 8, r: 140 }
       ],
+      // THE CLUBHOUSE (owner: "behind the green put a clubhouse asset. Find a
+      // good one."). A prairie cedar lodge sitting on the amphitheater rim
+      // directly behind the green, on the tee->green sightline so it reads as
+      // the backdrop landmark. rot ~PI turns its porch/door to face the green.
+      props: [{ key: 'clubhouse', x: 440, y: 176, rot: 3.14, len: 104, upright: true }]
     },
     {
       number: 3, name: 'Sandbox', par: 5,
