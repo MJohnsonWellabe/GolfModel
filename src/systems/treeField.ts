@@ -13,6 +13,12 @@ export interface TreeBlob {
   x: number;
   y: number;
   r: number;
+  /** Total tree HEIGHT (world px) for the lollipop hitbox. Optional: normal
+   *  woods trunks omit it and PhysicsEngine derives height from the canopy
+   *  radius (PHYSICS.treeHeightPerR), matching how course3d sizes the mesh. A
+   *  landform-placed tree (e.g. a fir sapling authored with an explicit render
+   *  height) sets it so its short canopy clears high balls correctly. */
+  h?: number;
   /** 0 = round oak, 1 = tall poplar, 2 = wide double-crown, 3 = blossom. */
   kind: number;
   /** Per-tree canopy tint multiplier. */

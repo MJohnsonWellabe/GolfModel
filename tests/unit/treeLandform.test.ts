@@ -32,23 +32,31 @@ describe('tree landforms have a real tree hitbox', () => {
     const cx = firs.reduce((a, l) => a + l.x, 0) / firs.length;
     const cy = firs.reduce((a, l) => a + l.y, 0) / firs.length;
 
-    const origin = { x: cx, y: cy + 220 };
-    const aim = Math.atan2(cy - origin.y, cx - origin.x);
-    const out = new PhysicsEngine(hole, buildHeightField(hole), mulberry32(3)).simulate({
-      origin,
-      aimAngle: aim,
-      swing: PERFECT_SWING(1.0),
-      club: clubById('driver'),
-      golfer: golferWith(85),
-      fireBoost: 0,
-      lie: 'tee',
-      wind: { angle: 0, speed: 0 },
-      hole,
-      launchMult: 0.35, // low liner that crosses the cluster below canopy height
-      spin: { side: 0, top: 0 }
-    });
-    expect(out.hitTrees, 'the fir cluster stops the ball').toBe(true);
-    // It stops AT the cluster, not caroming away like a rock would.
-    expect(Math.hypot(out.finalPos.x - cx, out.finalPos.y - cy)).toBeLessThan(40);
+    const shoot = (dist: number, launchMult: number) => {
+      const origin = { x: cx, y: cy + dist };
+      const aim = Math.atan2(cy - origin.y, cx - origin.x);
+      return new PhysicsEngine(hole, buildHeightField(hole), mulberry32(3)).simulate({
+        origin,
+        aimAngle: aim,
+        swing: PERFECT_SWING(1.0),
+        club: clubById('7i'),
+        golfer: golferWith(85),
+        fireBoost: 0,
+        lie: 'tee',
+        wind: { angle: 0, speed: 0 },
+        hole,
+        launchMult,
+        spin: { side: 0, top: 0 }
+      });
+    };
+    // A LOW shot that crosses the cluster below the sapling's canopy height is
+    // stopped, and settles at the cluster (not caroming away like a rock).
+    const low = shoot(150, 0.35);
+    expect(low.hitTrees, 'a low shot into the fir cluster stops').toBe(true);
+    expect(Math.hypot(low.finalPos.x - cx, low.finalPos.y - cy)).toBeLessThan(45);
+    // A HIGH shot flies OVER the short saplings and clears them — the lollipop
+    // hitbox matches the tree's real height (owner: reflect the tree's shape).
+    const high = shoot(150, 1.0);
+    expect(high.hitTrees, 'a high shot clears the short saplings').toBe(false);
   });
 });

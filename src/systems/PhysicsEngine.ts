@@ -218,9 +218,17 @@ export class PhysicsEngine {
       // sapling was fully pass-through (owner: "the fir saplings ... didn't seem
       // to have hitboxes"). Render (course3d authoredMasses) and collision share
       // the exact (x,y), so the drawn tree and its hitbox can never drift.
-      ...landforms
-        .filter((l) => isTreeLandform((l as { key?: unknown }).key))
-        .map((l) => ({ x: l.x, y: l.y, r: Math.max(l.h, 8), kind: 1, tint: 1 }))
+      ...landforms.filter((l) => isTreeLandform((l as { key?: unknown }).key)).map((l) => ({
+        x: l.x,
+        y: l.y,
+        // A fir/conifer is narrow: canopy radius ~40% of its height. `h` is the
+        // tree's true rendered height (course3d plants it at targetH = l.h), so
+        // the lollipop clears a ball flying over this short sapling.
+        r: Math.max(6, l.h * 0.4),
+        h: l.h,
+        kind: 1,
+        tint: 1
+      }))
     ];
     this.rocks = [
       // Explicit collidable boulders ('rock' hazards).
@@ -460,7 +468,16 @@ export class PhysicsEngine {
       const dx = x - t.x;
       const dy = y - t.y;
       if (!t.isPalm) {
-        const rr = t.r * this.shotTreeMult;
+        // LOLLIPOP hitbox (owner: match the tree's shape). A ball above the
+        // tree's own height clears it; below the canopy it meets only the thin
+        // trunk; in the canopy band it meets the full radius. Tree height is
+        // derived from its canopy radius the same way course3d sizes the mesh
+        // (t.h when a landform carries an explicit rendered height, e.g. a fir).
+        const th = t.h ?? t.r * PHYSICS.treeHeightPerR;
+        if (height >= th) continue; // ball is over the top of this tree
+        const rad =
+          height <= th * PHYSICS.treeCanopyBottomFrac ? Math.max(2, t.r * PHYSICS.treeTrunkRadiusFrac) : t.r;
+        const rr = rad * this.shotTreeMult;
         if (dx * dx + dy * dy < rr * rr) return true;
         continue;
       }

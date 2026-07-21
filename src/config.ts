@@ -127,8 +127,21 @@ export const PHYSICS = {
    *  just under full wind while a punched/low shot (much lower apex) genuinely
    *  bores through it, so trajectory choice matters in wind. */
   windRefHeight: 82,
-  /** Height (world px) below which tree canopies block ball flight. */
+  /** Height (world px) below which tree canopies block ball flight. A cheap
+   *  early-out: the tallest tree's canopy top. Per-tree height (below) then
+   *  decides whether a given ball actually clears a given tree. */
   treeHeight: 55,
+  /** A tree's hitbox is a LOLLIPOP, not a uniform cylinder (owner: "if it's a
+   *  small trunk with a large canopy, the hitbox needs to reflect that, not
+   *  just be uniform all the way up"). A ball BELOW canopyBottom only meets the
+   *  thin TRUNK (treeTrunkRadiusFrac × canopy radius) — a low screamer bores
+   *  under the leaves between trunks; a ball in the CANOPY band meets the full
+   *  radius; a ball ABOVE the tree's own height clears it entirely. A tree's
+   *  total height is derived from its canopy radius the SAME way course3d sizes
+   *  the mesh (height ≈ radius × treeHeightPerR), so hitbox and model match. */
+  treeHeightPerR: 2.5,
+  treeCanopyBottomFrac: 0.28,
+  treeTrunkRadiusFrac: 0.22,
   /** A ball must travel at least this far (world px) from its origin before a
    *  tree can stop it, so a shot can escape a tree it started next to (FB9). */
   treeLaunchGrace: 16,
