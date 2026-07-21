@@ -15,8 +15,8 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 | # | Item | Status |
 |---|------|--------|
 | A | Real ball-flight physics (drag+lift; honest downhill; real rollout) | ✅ done, owner-approved |
-| B | Tree hitboxes — every standalone/non-cluster tree collides; woods stay less dense in collision than visuals | 🔧 in progress |
-| C | Asset transparency/culling — fade/hide assets between camera·tee and the player so they don't block the shot view | ✅ done |
+| B | Tree hitboxes — landform trees collide; per-asset measured lollipop/cone shapes (slim, skewed) | ✅ done |
+| C | Asset transparency/culling — fade rocks/masses (incl. rim cliffs) between camera·tee and the player | ✅ done |
 | D | East H3 — find & remove the real render trees blocking the approach view | ⏳ |
 | E | West H3 — lengthen leg 1 so only a strong driver reaches the corner pond | ⏳ |
 | F | East H2 — trees line the whole visible coast | ⏳ |
@@ -56,7 +56,7 @@ total distance need not exceed the long-standing baseline.
 
 ---
 
-## Item B — Tree hitboxes 🔧 (code done, review pending)
+## Item B — Tree hitboxes ✅
 
 **Owner ask:** "leave woods hit boxes less dense than visuals but any tree
 that's not in a cluster has to have a hitbox." + "the fir saplings were not the
@@ -88,11 +88,30 @@ the more-penetrable (realistic) woods, then the lollipop was tightened
 (treeHeightPerR 2.5 / canopyBottom 0.28) so woods stay a fair hazard without
 loosening the gate.
 
-*(Matt-agent review pending — will be appended.)*
+**Follow-up (owner):** "every tree asset needs its own hitbox style and size …
+match the height and width at the trunk and canopy separately for each asset …
+keep them slim and defined; skew so things that look like they hit don't
+physically hit." → Shipped **per-asset measured hitboxes**: a headless load of
+each model's GLB measured its aspect (height ÷ canopy radius) and where its
+foliage starts, so every species carries its own silhouette — a squat wide oak
+(~0.95r canopy), a slender poplar (~0.3r), a narrow conifer cone (~0.5r). The
+collision reproduces the renderer's per-trunk species pick, applies that shape
+(thin trunk → canopy band → clear above the tree top; conifers taper to a
+point), and radii are skewed 0.9 under the drawn canopy so a graze slips through
+rather than phantom-stopping. Threaded through the live engines + the headless
+sim so gates use the real shapes. (`src/systems/treeHitbox.ts`, commit `0984bf0`.)
+
+**Matt-agent review (Item B):** *approve-with-nits.* Confirmed the landform fix
+covers every `tree_*` asset (not just firs) and the shape matches the model.
+Nits raised → resolved: firs now genuinely slimmer than broadleaf (per-asset
+measured); the `treeHeight=55` gate that lopped tall conifers was raised to 85
+(per-tree height decides clearance); added real per-asset + lone-tree tests.
+Remaining softness (a rolling ball threading a lone trunk) is *intended* under
+the owner's "skew slim / favour false-negatives" directive.
 
 ---
 
-## Item C — Asset transparency/culling 🔧
+## Item C — Asset transparency/culling ✅
 
 **Owner ask:** "make the rocks transparent if they're in the way when you're
 hitting and they're behind the player… any asset that's between the tee and the
@@ -122,3 +141,10 @@ drain-timing flake on a sparse hole in this headless container. Flagged for the
 Sable Bay rebuild (Item G) where that hole is reworked anyway.
 
 **Verdict:** rock/mass transparency delivered and validated. ✅
+
+**Matt-agent review (Item C):** *approve-with-nits, bordering needs-work for Red
+Hollow.* The rock/boulder case is done right (geometry-gated, whole-mass fade).
+Nits raised → resolved: **waste-rim cliffs** (Red Hollow's canyon walls) now
+register too (was the one shot-blocker still not fading); **masses are scanned
+before foliage** so a blocking boulder is never starved out of the ghost budget
+by trees fading in front of it. (commit `326d954`.)
