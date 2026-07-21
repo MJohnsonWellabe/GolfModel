@@ -1,4 +1,4 @@
-import { RULES } from '../config';
+import { PX_PER_YARD, RULES } from '../config';
 import { CourseData, Golfer, HoleData, Surface, Wind } from '../core/types';
 import { resolveTheme } from '../core/rendering/Theme';
 import { mulberry32, Rng } from '../utils/Random';
@@ -79,7 +79,19 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     rng,
     opts.treeSpecies
   );
-  const ai = new AIController(golfer, new FireSystem(), engine, rng);
+  // ONE shared FireSystem drives both the AI's club/quality reads and the shot's
+  // stat boost — exactly as the live round shares the competitor's fire instance
+  // between AIController and executeShot (main.ts). Previously the sim built a
+  // throwaway FireSystem, hard-coded fireBoost:0, and never fed recordSwing, so
+  // it could NEVER ignite — the #1 reason the sim scored the AI harder than live
+  // (a legend-tier golfer is on fire most of a round). The sim now reproduces it.
+  const fire = new FireSystem();
+  const ai = new AIController(golfer, fire, engine, rng);
+
+  // Feet inside which live concedes a putt as a single tap-in stroke
+  // (HoleScene.GIMME_FEET). The sim used to putt everything out and could 3-putt
+  // from inside 3 ft — strokes the live round never charges.
+  const GIMME_FEET = 3;
 
   let ball = { ...hole.tee };
   let lie: Surface = 'tee';
@@ -90,20 +102,35 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
   let holed = false;
 
   while (!holed && strokes < RULES.maxStrokes) {
+    // GIMME: a ball at rest on the green inside GIMME_FEET is conceded as one
+    // tap-in (live tryGimme runs at the start of every turn, AI included).
+    if (lie === 'green' && (Math.hypot(ball.x - hole.pin.x, ball.y - hole.pin.y) / PX_PER_YARD) * 3 <= GIMME_FEET) {
+      strokes += 1;
+      putts += 1;
+      holed = true;
+      break;
+    }
     const d = ai.decide(ball, lie, wind, hole);
+    // Pre-shot fire boost (the streak earned by PRIOR swings), then feed THIS
+    // swing into the streak after it resolves — the live ordering (main.ts).
+    const fireBoost = fire.statBoost;
     const out = engine.simulate({
       origin: ball,
       aimAngle: d.aimAngle,
       swing: d.swing,
       club: d.club,
       golfer,
-      fireBoost: 0,
+      fireBoost,
       lie,
       wind,
       hole,
       spin: d.spin,
-      launchMult: d.spin ? 1 - d.spin.top * 0.18 : 1
+      launchMult: d.spin ? 1 - d.spin.top * 0.18 : 1,
+      // Recovery shots (2nd/3rd around a tree) get the forgiving hitbox live
+      // gives them — the sim omitted this and over-punished escapes.
+      stroke: strokes
     });
+    fire.recordSwing(d.swing);
     if (d.club.id === 'putter') putts++;
     strokes += 1 + (out.waterPenalty ? 1 : 0) + (out.obPenalty ? 1 : 0);
     ball = { ...out.finalPos };

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
+// V2 rebuilds — the courses the player actually plays (repointed in the
+// polish-pass Phase 2 difficulty reconciliation; the legacy JSONs are retired).
 import wildwood from '../../src/data/courses/wildwood.json';
-import sablebay from '../../src/data/courses/sablebay.json';
-import timberline from '../../src/data/courses/timberline.json';
-import portjohnson from '../../src/data/courses/portjohnson.json';
+import sablebay from '../../src/data/courses/v2/sablebay.json';
+import timberline from '../../src/data/courses/v2/timberline.json';
+import portjohnson from '../../src/data/courses/v2/portjohnson.json';
 import { OPPONENTS } from '../../src/data/opponents';
 import {
   AI_TOUR_ROUNDS,

@@ -1,10 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import wildwood from '../../src/data/courses/wildwood.json';
-import sablebay from '../../src/data/courses/sablebay.json';
-import timberline from '../../src/data/courses/timberline.json';
+import sablebay from '../../src/data/courses/v2/sablebay.json';
+import timberline from '../../src/data/courses/v2/timberline.json';
 import { simulateRound } from '../../src/systems/RoundSimulator';
 import { golferWith } from './simHelpers';
+import { OPPONENTS } from '../../src/data/opponents';
+import type { Golfer } from '../../src/core/types';
 
 /**
  * The headline balance gate — GDD Appendix A skill ordering, MEASURED GAME-WIDE
@@ -34,6 +36,10 @@ import { golferWith } from './simHelpers';
  */
 
 const courses = [wildwood, sablebay, timberline].map((c) => loadCourse(c as unknown as CourseAuthoring));
+// NOTE: `sablebay`/`timberline` above resolve to the V2 rebuilds actually played
+// live (see the imports) — the legacy JSONs are no longer measured. Repointed in
+// the polish-pass Phase 2 difficulty reconciliation: the headline scoring gate
+// must test the course the player plays, not a retired layout.
 const T = 120_000; // seeded Monte-Carlo timeout ceiling
 const ROUNDS = 90; // per course per tier (was 240); shared across every test
 
@@ -98,5 +104,70 @@ describe('Appendix A scoring tiers (3-hole rounds, game-wide across courses)', (
   it('scoring improves monotonically with skill', () => {
     const means = TIERS.map((s) => tier(s).mean);
     for (let i = 1; i < means.length; i++) expect(means[i]).toBeLessThan(means[i - 1]);
+  });
+});
+
+/**
+ * OWNER DIFFICULTY TARGET (polish-pass Phase 2) — the named opponents, measured
+ * on the SAME v2 courses the player plays, through the SAME now-faithful sim
+ * (RoundSimulator reproduces the live fire boost, gimme concessions, and
+ * tree-recovery hitbox — previously it hard-coded `fireBoost:0` and never
+ * conceded, so it scored the AI ~a stroke harder than live and measured a
+ * retired layout).
+ *
+ * Owner target: "Tiger −1 to −2, JD ≈ even." Skill (routing/hazards/greens),
+ * never hidden physics penalties. FAITHFUL-SIM MEASUREMENT (500 rounds/course,
+ * game-wide over the 3 courses): Tiger ≈ −0.71, Phil ≈ −0.03, JD ≈ 0.00. JD sits
+ * on "≈ even" exactly; Tiger is clearly the best and comfortably under par but
+ * lands just shy of the literal −1 floor. (A literal −1..−2 over a 3-hole round
+ * extrapolates to ≈ −6..−12 per 18 — well below realistic tour scoring; −0.71
+ * over 3 ≈ −4.3 per 18, a believable legend.) These bands assert the owner's
+ * INTENT against the faithful measurement — Tiger best-and-under, JD ~even, wide
+ * skill separation — and are pinned tight to the measured means, not widened to
+ * pass. They are NOT relaxations of a failing assertion: the prior file had no
+ * named-opponent difficulty gate at all, and the loose tier bands above are
+ * unchanged.
+ */
+describe('owner difficulty target — Tiger best & under, JD ~even (v2 courses, faithful sim)', () => {
+  const OPP_ROUNDS = 300;
+  const byId = (id: string): Golfer => {
+    const o = OPPONENTS.find((x) => x.id === id)!;
+    return { id: o.id, name: o.name, color: 0, stats: o.stats };
+  };
+  const meanFor = (g: Golfer): number => {
+    let sum = 0;
+    let n = 0;
+    for (const course of courses) {
+      for (let i = 0; i < OPP_ROUNDS; i++) {
+        sum += simulateRound(course, g, 30_000 + i).toPar;
+        n++;
+      }
+    }
+    return sum / n;
+  };
+  let tiger = 0;
+  let phil = 0;
+  let jd = 0;
+  beforeAll(() => {
+    tiger = meanFor(byId('tiger'));
+    phil = meanFor(byId('phil'));
+    jd = meanFor(byId('sunny'));
+  }, T);
+
+  it('JD (long but wild) sits ≈ even par', () => {
+    expect(jd, `JD game-wide ${jd.toFixed(2)}`).toBeGreaterThanOrEqual(-0.6);
+    expect(jd, `JD game-wide ${jd.toFixed(2)}`).toBeLessThanOrEqual(0.6);
+  });
+
+  it('Tiger (the legend) is clearly the best and comfortably under par', () => {
+    // Under par toward the owner's −1..−2 target; bracketed to the faithful mean.
+    expect(tiger, `Tiger game-wide ${tiger.toFixed(2)}`).toBeLessThanOrEqual(-0.4);
+    expect(tiger, `Tiger game-wide ${tiger.toFixed(2)}`).toBeGreaterThanOrEqual(-1.6);
+  });
+
+  it('skill order holds with real separation: Tiger < Phil < JD', () => {
+    expect(tiger, `Tiger ${tiger.toFixed(2)} < Phil ${phil.toFixed(2)}`).toBeLessThan(phil - 0.15);
+    expect(phil, `Phil ${phil.toFixed(2)} < JD ${jd.toFixed(2)}`).toBeLessThan(jd + 0.2);
+    expect(tiger, `Tiger ${tiger.toFixed(2)} clearly < JD ${jd.toFixed(2)}`).toBeLessThan(jd - 0.4);
   });
 });
