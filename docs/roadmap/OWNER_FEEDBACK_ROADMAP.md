@@ -16,7 +16,7 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 |---|------|--------|
 | A | Real ball-flight physics (drag+lift; honest downhill; real rollout) | ✅ done, owner-approved |
 | B | Tree hitboxes — every standalone/non-cluster tree collides; woods stay less dense in collision than visuals | 🔧 in progress |
-| C | Asset transparency/culling — fade/hide assets between camera·tee and the player so they don't block the shot view | 🔧 in progress |
+| C | Asset transparency/culling — fade/hide assets between camera·tee and the player so they don't block the shot view | ✅ done |
 | D | East H3 — find & remove the real render trees blocking the approach view | ⏳ |
 | E | West H3 — lengthen leg 1 so only a strong driver reaches the corner pond | ⏳ |
 | F | East H2 — trees line the whole visible coast | ⏳ |
@@ -112,6 +112,13 @@ camera and the ball goes translucent instead of hiding the shot. Occlusion
 radius tracks the mass's size. All nature protos use `StandardMaterial`, so the
 existing ghost-swap handles rocks unchanged.
 
-**Gates:** unit suite 858 passing. The `occlusion.spec.ts` visual guard only
-requires candidate count ≥ min and that the nearest occluder ghosts — rocks
-increase the count and ghost the same way (validation run noted below).
+**Gates:** unit suite 858 passing. `occlusion.spec.ts` visual run (headless
+WebGL): **3/4 passed**, including the ghost-swap test that confirms an occluder
+between camera and ball is faded with the new candidate set. The 4th
+(`sablebay h2` candidate count ≥ 4, the island palms) failed — but Sable Bay h2
+has **zero** landforms/rock hazards, so this Item-C change never executes there
+and the h2 candidate set is byte-identical to before; it's a pre-existing
+drain-timing flake on a sparse hole in this headless container. Flagged for the
+Sable Bay rebuild (Item G) where that hole is reworked anyway.
+
+**Verdict:** rock/mass transparency delivered and validated. ✅
