@@ -26,7 +26,9 @@ const sablebayV2 = {
     fairway: '#3f9150', fairwayDark: '#357c44',
     rough: '#5a8a4a', roughDark: '#487038',
     fringe: '#5aa257', green: '#46974e', greenLight: '#5fb063',
-    sand: '#ecdcac', sandDark: '#cdb884',
+    // Warm, firm PINEHURST sand — a crisp tan blowout, not an olive rough
+    // (Matt review: "warm up the waste; less olive, more firm tan").
+    sand: '#ead5a0', sandDark: '#d8bc80',
     water: '#2f86b8', waterDeep: '#1c5a84', waterReflect: true,
     treeCanopy: '#2f6a44', treeCanopyLight: '#3f7e52', treeTrunk: '#6b5238',
     haze: '#dceff3', hazeStrength: 0.42, horizonTint: '#bfe0ea',
@@ -145,8 +147,8 @@ const sablebayV2 = {
         // the LAND BRIDGE to the island (owner: "the boardwalk is horrible; just
         // build a land bridge — one strip of brown mulch walkway out to the
         // island"). The strip is mulch-painted by the garden below.
-        { type: 'water', polygon: [[120, 486], [452, 486], [452, 706], [120, 706]] }, // bottom-left
-        { type: 'water', polygon: [[496, 486], [808, 486], [808, 706], [496, 706]] }, // bottom-right
+        { type: 'water', polygon: [[120, 486], [460, 486], [460, 706], [120, 706]] }, // bottom-left
+        { type: 'water', polygon: [[488, 486], [808, 486], [808, 706], [488, 706]] }, // bottom-right
         { type: 'water', polygon: [[120, 250], [402, 250], [402, 706], [120, 706]] }, // left
         { type: 'water', polygon: [[546, 250], [808, 250], [808, 706], [546, 706]] }, // right
         // The island BEACH collar (angled oblong) filling the dry rectangle; its
@@ -166,12 +168,13 @@ const sablebayV2 = {
       ],
       aiTargets: [],
       recoveryZones: [[[402, 724], [546, 724], [546, 792], [402, 792]]],
-      sailboats: 3,
-      // THE LAND BRIDGE — a single strip of brown MULCH walkway out to the island
-      // (owner), painted on the dry strip carved through the water bands above.
-      // A thin long garden bed with NO blooms/bushes = bare bark-mulch dirt. The
-      // old wooden-boardwalk prop is gone.
-      gardens: [{ cx: 474, cy: 604, rx: 21, ry: 96, rot: 0, bloomChance: 0, bushChance: 0, density: 1 }],
+      sailboats: 2,
+      // THE LAND BRIDGE — a single SLIM strip of brown MULCH walkway out to the
+      // island (owner), painted on the narrow dry strip carved through the water
+      // bands above. A thin long garden bed with NO blooms/bushes = bare
+      // bark-mulch dirt. Slimmed from the first pass (Matt review: "too wide,
+      // reads as a service road; slim it"). The wooden-boardwalk prop is gone.
+      gardens: [{ cx: 474, cy: 604, rx: 13, ry: 96, rot: 0, bloomChance: 0, bushChance: 0, density: 1 }],
       elevation: [
         { x: 468, y: 776, h: 2.6, r: 130, shape: 'plateau' },
         { x: 474, y: 424, h: 1.0, r: 150, shape: 'plateau', skirt: 0.72 }

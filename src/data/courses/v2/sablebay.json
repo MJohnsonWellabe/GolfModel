@@ -13,8 +13,8 @@
     "fringe": "#5aa257",
     "green": "#46974e",
     "greenLight": "#5fb063",
-    "sand": "#ecdcac",
-    "sandDark": "#cdb884",
+    "sand": "#ead5a0",
+    "sandDark": "#d8bc80",
     "water": "#2f86b8",
     "waterDeep": "#1c5a84",
     "waterReflect": true,
@@ -831,12 +831,6 @@
           "y": 421.1
         }
       ],
-      "tees": [
-        {
-          "x": 472,
-          "y": 688.1
-        }
-      ],
       "fairway": [
         {
           "centerline": [
@@ -885,11 +879,11 @@
               486
             ],
             [
-              452,
+              460,
               486
             ],
             [
-              452,
+              460,
               706
             ],
             [
@@ -902,7 +896,7 @@
           "type": "water",
           "polygon": [
             [
-              496,
+              488,
               486
             ],
             [
@@ -914,7 +908,7 @@
               706
             ],
             [
-              496,
+              488,
               706
             ]
           ]
@@ -1228,7 +1222,7 @@
         {
           "cx": 474,
           "cy": 604,
-          "rx": 21,
+          "rx": 13,
           "ry": 96,
           "rot": 0,
           "bloomChance": 0,
@@ -1236,7 +1230,7 @@
           "density": 1
         }
       ],
-      "sailboats": 3,
+      "sailboats": 2,
       "recoveryZones": [
         [
           [
