@@ -31,12 +31,22 @@ const sablebayV2 = {
     treeCanopy: '#2f6a44', treeCanopyLight: '#3f7e52', treeTrunk: '#6b5238',
     haze: '#dceff3', hazeStrength: 0.42, horizonTint: '#bfe0ea',
     backdrop: 'sea', seaDunes: false, blossomChance: 0,
-    treeKeys: ['tree_pine_k3'], accentTreeKeys: ['tree_palm', 'tree_palm_b'],
+    // PINEHURST No. 2 identity (owner): longleaf PINES over sandy WASTE, with
+    // WIREGRASS clumps and pine straw — NOT a green parkland. Bare-trunk pines
+    // dominate; palms retired from the tree mix (they read tropical, not
+    // sandhills) but kept as rare coastal accents at the very shore only.
+    treeKeys: ['tree_pine_k3', 'tree_pine_k1'], accentTreeKeys: ['tree_pine_k3'],
     scatterKeys: ['stone_a', 'stone_b', 'stone_d'],
     tuftDensity: 0.9, roughTuftHeight: 1.0,
-    lushGrass: true, grassKeys: ['grass_c', 'grass_d', 'grass_e'],
+    // GOOD grass only (owner: "the grass assets are horrible — the same ones we
+    // said not to use on Timberline"): grass_g/h render as real thin blades, not
+    // the solid low-poly blocks grass_c/d/e read as.
+    lushGrass: true, grassKeys: ['grass_g', 'grass_h'],
     tallGrass: { cap: 4.0, density: 4.0 },
-    sandPlantKeys: ['bush_juniper', 'grass_d'], sandPlantStep: 80, sandPlantKeep: 0.4,
+    // WIREGRASS in the waste (owner: "a lot of ... wiregrass"): tall wispy grass
+    // clumps scattered dense through the sand, the Pinehurst signature. Denser
+    // step + higher keep than the old sparse juniper/grass mix.
+    sandPlantKeys: ['grass_g', 'grass_h'], sandPlantStep: 58, sandPlantKeep: 0.55,
     // Broken shore rock rims the beach waste/seawall so the coast reads as stone.
     shorelineKeys: ['stone_a', 'stone_b', 'stone_d'],
     edgeWobble: 3.0, mowPattern: 'straight', mowWidth: 28,
@@ -72,7 +82,18 @@ const sablebayV2 = {
         { type: 'bunker', polygon: blob(506, 700, 24, 17, 10, 0.35, 212) },
         // Greenside sand front-right (safe miss); water/seawall short-left.
         { type: 'bunker', depthMul: 1.3, polygon: blob(492, 410, 20, 15, 9, 0.3, 213) },
-        // Wind-shaped pine stand inland-right; palms mark the shore green.
+        // GIANT WASTE — the Pinehurst hallmark (owner: "waste bunkers are a
+        // hallmark of this course; giant bunkers spanning entire holes"). A
+        // sprawling sandy blowout covering the whole inland-right of the hole,
+        // wiregrass-scattered, with the pine stand standing IN the sand. Waste
+        // ranks below fairway/trees/water/green, so only the rough becomes sand;
+        // the fairway ribbon, the bay and the green punch through untouched. It
+        // plays FIRM (runs, doesn't plug), so a wide miss is recoverable, not dead.
+        { type: 'bunker', waste: true, polygon: [[648, 320], [1008, 300], [1010, 1220], [612, 1240], [604, 1060], [652, 872], [704, 632], [668, 470], [646, 360]] },
+        // Waste sandhills wrapping the shore below the bay (left of the tee).
+        { type: 'bunker', waste: true, polygon: [[40, 1092], [300, 1150], [452, 1256], [40, 1258]] },
+        // Wind-shaped pine stand inland-right, standing IN the waste; palms mark
+        // the shore green.
         { type: 'trees', spacing: 58, visualSpacing: 30, keepGround: true, polygon: [[726, 980], [820, 880], [842, 660], [782, 520], [704, 640], [704, 880]] },
         { type: 'trees', accent: true, keepGround: true, treeR: 20, palm: true, polygon: blob(486, 348, 18, 18, 4, 0.2, 214) },
         { type: 'trees', accent: true, keepGround: true, treeR: 18, palm: true, polygon: blob(356, 430, 16, 16, 4, 0.2, 215) }
@@ -120,13 +141,22 @@ const sablebayV2 = {
         // sides. (surfaceAt ranks water above beach, so the collar edge tucked
         // under a band reads as the waterline.)
         { type: 'water', polygon: [[120, 250], [808, 250], [808, 368], [120, 368]] }, // top
-        { type: 'water', polygon: [[120, 486], [808, 486], [808, 706], [120, 706]] }, // bottom
+        // BOTTOM band SPLIT to leave a dry strip (x452..496) down the middle —
+        // the LAND BRIDGE to the island (owner: "the boardwalk is horrible; just
+        // build a land bridge — one strip of brown mulch walkway out to the
+        // island"). The strip is mulch-painted by the garden below.
+        { type: 'water', polygon: [[120, 486], [452, 486], [452, 706], [120, 706]] }, // bottom-left
+        { type: 'water', polygon: [[496, 486], [808, 486], [808, 706], [496, 706]] }, // bottom-right
         { type: 'water', polygon: [[120, 250], [402, 250], [402, 706], [120, 706]] }, // left
         { type: 'water', polygon: [[546, 250], [808, 250], [808, 706], [546, 706]] }, // right
         // The island BEACH collar (angled oblong) filling the dry rectangle; its
         // edges tuck just under the bands for an organic waterline. The green sits
         // on it with a sand ring; a shot short-center finds this sand, not water.
         { type: 'bunker', beach: true, polygon: blob(474, 427, 98, 92, 20, 0.08, 221) },
+        // TEE-SURROUND WASTE — sandy sandhills around the tee and the near bank,
+        // wiregrass through it, so the whole hole reads as Pinehurst sand rather
+        // than green rough (waste only replaces rough; the water/island win).
+        { type: 'bunker', waste: true, polygon: [[120, 712], [820, 712], [860, 900], [780, 1010], [468, 1030], [150, 1000], [96, 860]] },
         // Two pots cut into the collar (front-left, back-right) — only the middle
         // is stress-free.
         { type: 'bunker', polygon: blob(430, 458, 13, 10, 8, 0.3, 222) },
@@ -137,7 +167,11 @@ const sablebayV2 = {
       aiTargets: [],
       recoveryZones: [[[402, 724], [546, 724], [546, 792], [402, 792]]],
       sailboats: 3,
-      props: [{ key: 'bridge', x: 474, y: 600, rot: 1.5708, len: 130 }],
+      // THE LAND BRIDGE — a single strip of brown MULCH walkway out to the island
+      // (owner), painted on the dry strip carved through the water bands above.
+      // A thin long garden bed with NO blooms/bushes = bare bark-mulch dirt. The
+      // old wooden-boardwalk prop is gone.
+      gardens: [{ cx: 474, cy: 604, rx: 21, ry: 96, rot: 0, bloomChance: 0, bushChance: 0, density: 1 }],
       elevation: [
         { x: 468, y: 776, h: 2.6, r: 130, shape: 'plateau' },
         { x: 474, y: 424, h: 1.0, r: 150, shape: 'plateau', skirt: 0.72 }
@@ -171,6 +205,14 @@ const sablebayV2 = {
         { type: 'water', polygon: [[592, 520], [740, 512], [812, 560], [806, 648], [712, 690], [604, 664], [560, 588]] },
         // Beach under the sandy point green (the shore the green sits on).
         { type: 'bunker', beach: true, polygon: [[792, 452], [900, 470], [928, 560], [852, 604], [760, 560], [764, 484]] },
+        // GIANT WASTE spanning the inland-right of the hole (Pinehurst hallmark)
+        // — a continuous sandy blowout up the whole right and across the bottom,
+        // wiregrass through it, pines standing in it. Waste only replaces rough,
+        // so the three fairway ribbons, the bay/inlet/channel and the point green
+        // all punch through; it plays FIRM so a miss into the sand still runs.
+        { type: 'bunker', waste: true, polygon: [[884, 300], [1232, 300], [1234, 1556], [612, 1556], [676, 1260], [792, 940], [770, 720], [828, 520], [872, 396]] },
+        // Left-of-tee waste sandhills between the tidal inlet and the bay.
+        { type: 'bunker', waste: true, polygon: [[40, 1236], [214, 1214], [300, 1330], [286, 1470], [40, 1500]] },
         // FAIRWAY BUNKER cluster pinching the drive landing (kept feature).
         { type: 'bunker', polygon: blob(566, 1188, 26, 18, 10, 0.35, 231) },
         { type: 'bunker', polygon: blob(624, 1126, 24, 17, 10, 0.35, 232) },

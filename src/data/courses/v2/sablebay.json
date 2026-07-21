@@ -28,11 +28,11 @@
     "seaDunes": false,
     "blossomChance": 0,
     "treeKeys": [
-      "tree_pine_k3"
+      "tree_pine_k3",
+      "tree_pine_k1"
     ],
     "accentTreeKeys": [
-      "tree_palm",
-      "tree_palm_b"
+      "tree_pine_k3"
     ],
     "scatterKeys": [
       "stone_a",
@@ -43,20 +43,19 @@
     "roughTuftHeight": 1,
     "lushGrass": true,
     "grassKeys": [
-      "grass_c",
-      "grass_d",
-      "grass_e"
+      "grass_g",
+      "grass_h"
     ],
     "tallGrass": {
       "cap": 4,
       "density": 4
     },
     "sandPlantKeys": [
-      "bush_juniper",
-      "grass_d"
+      "grass_g",
+      "grass_h"
     ],
-    "sandPlantStep": 80,
-    "sandPlantKeep": 0.4,
+    "sandPlantStep": 58,
+    "sandPlantKeep": 0.55,
     "shorelineKeys": [
       "stone_a",
       "stone_b",
@@ -115,12 +114,6 @@
         {
           "x": 391.6,
           "y": 366.7
-        }
-      ],
-      "tees": [
-        {
-          "x": 617,
-          "y": 1052.3
         }
       ],
       "fairway": [
@@ -378,6 +371,70 @@
             [
               507.2,
               400.4
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              648,
+              320
+            ],
+            [
+              1008,
+              300
+            ],
+            [
+              1010,
+              1220
+            ],
+            [
+              612,
+              1240
+            ],
+            [
+              604,
+              1060
+            ],
+            [
+              652,
+              872
+            ],
+            [
+              704,
+              632
+            ],
+            [
+              668,
+              470
+            ],
+            [
+              646,
+              360
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              40,
+              1092
+            ],
+            [
+              300,
+              1150
+            ],
+            [
+              452,
+              1256
+            ],
+            [
+              40,
+              1258
             ]
           ]
         },
@@ -776,8 +833,8 @@
       ],
       "tees": [
         {
-          "x": 464.7,
-          "y": 819.9
+          "x": 472,
+          "y": 688.1
         }
       ],
       "fairway": [
@@ -828,6 +885,27 @@
               486
             ],
             [
+              452,
+              486
+            ],
+            [
+              452,
+              706
+            ],
+            [
+              120,
+              706
+            ]
+          ]
+        },
+        {
+          "type": "water",
+          "polygon": [
+            [
+              496,
+              486
+            ],
+            [
               808,
               486
             ],
@@ -836,7 +914,7 @@
               706
             ],
             [
-              120,
+              496,
               706
             ]
           ]
@@ -966,6 +1044,40 @@
             [
               569.1,
               398
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              120,
+              712
+            ],
+            [
+              820,
+              712
+            ],
+            [
+              860,
+              900
+            ],
+            [
+              780,
+              1010
+            ],
+            [
+              468,
+              1030
+            ],
+            [
+              150,
+              1000
+            ],
+            [
+              96,
+              860
             ]
           ]
         },
@@ -1112,13 +1224,16 @@
           "skirt": 0.72
         }
       ],
-      "props": [
+      "gardens": [
         {
-          "key": "bridge",
-          "x": 474,
-          "y": 600,
-          "rot": 1.5708,
-          "len": 130
+          "cx": 474,
+          "cy": 604,
+          "rx": 21,
+          "ry": 96,
+          "rot": 0,
+          "bloomChance": 0,
+          "bushChance": 0,
+          "density": 1
         }
       ],
       "sailboats": 3,
@@ -1398,6 +1513,74 @@
             [
               764,
               484
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              884,
+              300
+            ],
+            [
+              1232,
+              300
+            ],
+            [
+              1234,
+              1556
+            ],
+            [
+              612,
+              1556
+            ],
+            [
+              676,
+              1260
+            ],
+            [
+              792,
+              940
+            ],
+            [
+              770,
+              720
+            ],
+            [
+              828,
+              520
+            ],
+            [
+              872,
+              396
+            ]
+          ]
+        },
+        {
+          "type": "bunker",
+          "waste": true,
+          "polygon": [
+            [
+              40,
+              1236
+            ],
+            [
+              214,
+              1214
+            ],
+            [
+              300,
+              1330
+            ],
+            [
+              286,
+              1470
+            ],
+            [
+              40,
+              1500
             ]
           ]
         },
