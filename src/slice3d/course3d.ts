@@ -1612,7 +1612,7 @@ export function buildCourse(
   // synchronously — the array is populated gradually as nature props load and
   // plant in, which the occlusion scan tolerates fine (it just sees more
   // candidates over time).
-  const canopyOcclusion: Array<{ insts: InstancedMesh[]; x: number; y: number; r: number }> = [];
+  const canopyOcclusion: Array<{ insts: InstancedMesh[]; x: number; y: number; r: number; mass?: boolean }> = [];
   // Resolves once every tree/bush/flower/grass instance has actually been
   // planted (the chunked plant/pop queue below has fully drained) — the
   // flyover waits on this so the sweep never outruns the scatter and shows
@@ -2456,7 +2456,7 @@ export function buildCourse(
           // like its collider), floored so a small one still reads.
           if (proto)
             placeProto(proto, l.x, l.y, l.h, undefined, (insts) => {
-              canopyOcclusion.push({ insts, x: l.x, y: l.y, r: Math.max(8, l.h) });
+              canopyOcclusion.push({ insts, x: l.x, y: l.y, r: Math.max(8, l.h), mass: true });
             });
         }
       });
@@ -2513,7 +2513,13 @@ export function buildCourse(
                 : e.key.startsWith('mesa')
                   ? 5 + big * 9
                   : 2.2 + big * 3.4;
-              placeProto(e.proto, ox, oy, rh);
+              // Register the rim cliff with the camera-occlusion system too — a
+              // canyon-wall slab standing mid-corridor on the cam→ball line must
+              // ghost like any other shot-blocker (Matt review nit: Red Hollow's
+              // rims are the case most likely to hide a shot).
+              placeProto(e.proto, ox, oy, rh, undefined, (insts) => {
+                canopyOcclusion.push({ insts, x: ox, y: oy, r: Math.max(10, rh), mass: true });
+              });
             }
           }
         }
@@ -3180,7 +3186,15 @@ export function buildCourse(
     if (segLen > 0.5) {
       const ux = dx / segLen;
       const uz = dz / segLen;
-      for (const c of canopyOcclusion) {
+      // MASSES (rocks, rim cliffs) first so a blocking boulder is never starved
+      // out of the per-pass ghost budget by faded foliage in front of it (Matt
+      // review nit): a rock hiding the shot matters more than a tree already
+      // going translucent beside it.
+      const ordered =
+        canopyOcclusion.length && canopyOcclusion.some((c) => c.mass)
+          ? [...canopyOcclusion].sort((a, b) => (b.mass ? 1 : 0) - (a.mass ? 1 : 0))
+          : canopyOcclusion;
+      for (const c of ordered) {
         if (nowOccluding.size >= MAX_GHOSTS_PER_PASS) break;
         const tx = c.x - camPos.x;
         const tz = -c.y - camPos.z; // w2b maps world y -> Babylon -z
