@@ -26,7 +26,7 @@ const wildvalley = {
     // Rolling sandhill horizon: DEEP ochre-gold tint (the peak material is
     // emissive-brightened, so a mid tan washed to snow-white — a saturated deep
     // gold lands as warm grassy sandhills instead).
-    backdrop: 'peaks', peakKeys: ['dunes_sandhill'], hillTint: '#8f6f2c',
+    backdrop: 'peaks', peakKeys: ['dunes_sandhill'], hillTint: '#5f5626',
     cloudStyle: 'wispy', blossomChance: 0,
     // Playtest round 3: NO trees ("I don't think Wild Horse has trees
     // really") — open sand-hills horizon, golden fescue carries the look.

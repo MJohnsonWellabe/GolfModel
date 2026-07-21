@@ -1540,9 +1540,30 @@ export function buildCourse(
         }
         // Tinted silhouette rows behind the textured range (or standalone
         // when a course lists only mesa keys).
+        // Backstop for a TINTED-ONLY horizon (Wild Prairie's sand dunes): the
+        // dunes are a tinted key so they never earned the textured range's
+        // rangeBackstop, and sky-blue bled through the saddle gaps between the
+        // low dune silhouettes (playtest: "get rid of the blue that bleeds
+        // through"). A warm haze-mixed wall seals the gaps so any through-gap
+        // reads as far dune haze, not blue sky. Kept low + narrow-tall like the
+        // range backstop so its flat top never slabs above the dune crests.
+        if (tintedKeys.length && !texturedKeys.length) {
+          const bsC = mix(hillBase, theme.haze, 0.32);
+          const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 460 }, scene);
+          const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.8) });
+          bsMat.backFaceCulling = false;
+          bs.material = bsMat;
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -150, 0));
+          bs.applyFog = false;
+          bs.freezeWorldMatrix();
+        }
+        // Tinted silhouette rows. For the sand-dune horizon these are SHRUNK
+        // (playtest: "shrink the sandhills in the horizon") — lower crests,
+        // tighter spacing — so they read as distant rolling dunes, not a
+        // looming range.
         const rows: Array<{ dy: number; matr: StandardMaterial; hMul: number; count: number; spread: number }> = [
-          { dy: 0, matr: nearMat, hMul: 1, count: 9, spread: 520 },
-          { dy: 620, matr: farMat, hMul: 1.5, count: 7, spread: 700 }
+          { dy: 0, matr: nearMat, hMul: 1, count: 11, spread: 440 },
+          { dy: 560, matr: farMat, hMul: 1.25, count: 9, spread: 560 }
         ];
         if (tintedKeys.length) rows.forEach((row, ri) => {
           const half = Math.floor(row.count / 2);
@@ -1550,7 +1571,7 @@ export function buildCourse(
             const proto = protos.get(tintedKeys[(((i + 12) * 5) + ri * 3) % tintedKeys.length]);
             if (!proto) continue;
             const j = hash2(i * 3.7 + 11 + ri * 7, i * 8.9);
-            const targetH = (170 + Math.abs(i) * 26 + j * 120) * row.hMul;
+            const targetH = (105 + Math.abs(i) * 15 + j * 70) * row.hMul;
             const pos = w2b(
               hole.pin.x + i * row.spread + (j - 0.5) * 300 + 120,
               hole.pin.y - peakDist - 260 - row.dy - j * 160,
