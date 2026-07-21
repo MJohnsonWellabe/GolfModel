@@ -115,6 +115,8 @@ import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
+import { TreeSpecies } from '../systems/treeField';
+import { DEFAULT_TREE_MIX } from '../systems/treeHitbox';
 import { boundaryBBox, withPlayableBoundary } from '../systems/PlayableBoundary';
 import { computeTrueVisionOutcome } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
@@ -760,15 +762,28 @@ class HoleScene {
     // the default per-pointer-move mesh pick serves nothing. Skip it.
     this.scene.skipPointerMovePicking = true;
     const heightT0 = performance.now();
+    // The tree-species mix so each trunk's collision is shaped like the drawn
+    // asset (per-asset hitboxes) — same source the renderer picks species from.
+    const treeSpecies: TreeSpecies = {
+      trees: this.theme.treeKeys ?? DEFAULT_TREE_MIX,
+      accents: this.theme.accentTreeKeys ?? []
+    };
     this.engine2d = new PhysicsEngine(
       this.hole,
-      buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1, this.theme.wasteDepthScale ?? 0)
+      buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1, this.theme.wasteDepthScale ?? 0),
+      undefined,
+      treeSpecies
     );
     markPerf(round.course.name, this.hole.number, `heightfield-ready:${Math.round(performance.now() - heightT0)}ms`);
     // Aim/preview run on a flat, no-slope engine so the aim line never
     // reveals wind or slope — the player estimates hold-off (FB1/FB2). The
     // real shot uses engine2d (terrain + wind).
-    this.previewEngine = new PhysicsEngine({ ...this.hole, slope: { angle: 0, strength: 0 } }, null);
+    this.previewEngine = new PhysicsEngine(
+      { ...this.hole, slope: { angle: 0, strength: 0 } },
+      null,
+      undefined,
+      treeSpecies
+    );
     // Aim LINE/preview AND the putt PACE both run on the flat previewEngine: the
     // normal aim is a dumb, flat model that never reveals or compensates for the
     // break (slope/elevation/fringe/green speed). Reading the green — or using

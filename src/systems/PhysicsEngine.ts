@@ -1,6 +1,6 @@
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
 import { HeightField } from './HeightField';
-import { collectTreeBlobs, TreeBlob } from './treeField';
+import { collectTreeBlobs, TreeBlob, TreeSpecies } from './treeField';
 import { gaussianOf, Rng } from '../utils/Random';
 import { clamp, dist, distToPolygon, pointInGreens, pointInPolygon } from '../utils/Geometry';
 import { pointInBoundary } from './PlayableBoundary';
@@ -204,31 +204,40 @@ export class PhysicsEngine {
     private readonly hole: HoleData,
     private readonly hf: HeightField | null = null,
     /** Uniform random source — inject a seeded rng for deterministic sims. */
-    private readonly rng: Rng = Math.random
+    private readonly rng: Rng = Math.random,
+    /** The course's tree-species mix (theme.treeKeys/accentTreeKeys, defaulted).
+     *  Supplied by the live game + the headless round sim so each trunk's hitbox
+     *  is shaped like the exact asset the renderer drew. Omitted by unit tests
+     *  that probe a specific mechanic — those get a generic broadleaf lollipop. */
+    species?: TreeSpecies
   ) {
     const landforms = hole.landforms ?? [];
     // A landform whose asset key is a TREE (e.g. a fir sapling placed via
     // hole.landforms rather than a `trees` hazard) is a real tree, not a rock.
     const isTreeLandform = (k: unknown): boolean => typeof k === 'string' && k.startsWith('tree_');
     this.treeTrunks = [
-      ...collectTreeBlobs(hole),
+      ...collectTreeBlobs(hole, 0, false, species),
       // Trees authored as LANDFORMS collide as real TREES — a ball STOPS at them
       // like any trunk, at ALL heights. They used to fall through the rock path
       // below and only deflect when authored h >= landformCollideMinH, so a short
       // sapling was fully pass-through (owner: "the fir saplings ... didn't seem
       // to have hitboxes"). Render (course3d authoredMasses) and collision share
       // the exact (x,y), so the drawn tree and its hitbox can never drift.
-      ...landforms.filter((l) => isTreeLandform((l as { key?: unknown }).key)).map((l) => ({
-        x: l.x,
-        y: l.y,
-        // A fir/conifer is narrow: canopy radius ~40% of its height. `h` is the
-        // tree's true rendered height (course3d plants it at targetH = l.h), so
-        // the lollipop clears a ball flying over this short sapling.
-        r: Math.max(6, l.h * 0.4),
-        h: l.h,
-        kind: 1,
-        tint: 1
-      }))
+      ...landforms.filter((l) => isTreeLandform((l as { key?: unknown }).key)).map((l) => {
+        // A fir/conifer is a narrow CONE on a thin trunk: canopy radius ~40% of
+        // its height. `h`/top is the tree's true rendered height (course3d plants
+        // it at targetH = l.h), so a ball flying over the short sapling clears it.
+        const r = Math.max(6, l.h * 0.4);
+        return {
+          x: l.x,
+          y: l.y,
+          r,
+          h: l.h,
+          kind: 1,
+          tint: 1,
+          hb: { canopyR: r, trunkR: Math.max(2, r * 0.3), canopyBottom: l.h * 0.16, top: l.h, cone: true }
+        };
+      })
     ];
     this.rocks = [
       // Explicit collidable boulders ('rock' hazards).
@@ -468,11 +477,25 @@ export class PhysicsEngine {
       const dx = x - t.x;
       const dy = y - t.y;
       if (!t.isPalm) {
-        // LOLLIPOP hitbox (owner: match the tree's shape). A ball above the
-        // tree's own height clears it; below the canopy it meets only the thin
-        // trunk; in the canopy band it meets the full radius. Tree height is
-        // derived from its canopy radius the same way course3d sizes the mesh
-        // (t.h when a landform carries an explicit rendered height, e.g. a fir).
+        // Per-ASSET lollipop (owner: "match the height and width at the trunk
+        // and canopy separately for each asset"). A ball above the tree's own
+        // top clears it; below the canopy it meets only the thin trunk; in the
+        // canopy band it meets the canopy radius — TAPERING to a point for a
+        // conifer cone, ~uniform for a broadleaf ball. `t.hb` carries the
+        // species-shaped bands (treeField); absent it, a generic lollipop.
+        if (t.hb) {
+          const { canopyR, trunkR, canopyBottom, top, cone } = t.hb;
+          if (height >= top) continue;
+          let rad: number;
+          if (height <= canopyBottom) rad = trunkR;
+          else if (cone) {
+            const f = (height - canopyBottom) / Math.max(1, top - canopyBottom); // 0 at base → 1 at tip
+            rad = canopyR * (1 - 0.72 * f);
+          } else rad = canopyR;
+          const rr = rad * this.shotTreeMult;
+          if (dx * dx + dy * dy < rr * rr) return true;
+          continue;
+        }
         const th = t.h ?? t.r * PHYSICS.treeHeightPerR;
         if (height >= th) continue; // ball is over the top of this tree
         const rad =

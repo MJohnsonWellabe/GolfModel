@@ -40,6 +40,7 @@ import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern'
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
 import { FRINGE_MARGIN, FRINGE_VISUAL, PhysicsEngine } from '../systems/PhysicsEngine';
+import { DEFAULT_TREE_MIX } from '../systems/treeHitbox';
 import { computeBoundary, DEFAULT_MARGIN, pointInBoundary } from '../systems/PlayableBoundary';
 import { WALL_DEPTH } from '../systems/HeightField';
 import { HoleData } from '../core/types';
@@ -58,10 +59,10 @@ import {
   STONE_KEYS
 } from './natureModels';
 
-/** Default species mix for themes without an explicit treeKeys: the quality
- *  forest-pack broadleafs. The old generic tree_a-d "blob" trees are retired
- *  everywhere (playtest: "our lowest quality assets") — nothing places them. */
-const DEFAULT_TREE_MIX = ['tree_oak', 'tree_maple', 'tree_birch', 'tree_aspen'] as const;
+// DEFAULT_TREE_MIX (the quality forest-pack broadleafs used when a theme sets no
+// treeKeys) is imported from systems/treeHitbox so the renderer and the collision
+// species pick resolve the exact same default. Imported near the other systems
+// imports at the top of the file.
 
 /** 2D world (x, y) + height h → Babylon (y-up, world y becomes -z). */
 export function w2b(x: number, y: number, h = 0): Vector3 {

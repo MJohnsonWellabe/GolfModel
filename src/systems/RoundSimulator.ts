@@ -7,6 +7,8 @@ import { FireSystem } from './FireSystem';
 import { buildHeightField } from './HeightField';
 import { PhysicsEngine } from './PhysicsEngine';
 import { withPlayableBoundary } from './PlayableBoundary';
+import { TreeSpecies } from './treeField';
+import { DEFAULT_TREE_MIX } from './treeHitbox';
 
 /**
  * Headless round player: the AIController + PhysicsEngine drive a golfer
@@ -45,6 +47,9 @@ export interface SimulateHoleOpts {
   bunkerDepthScale?: number;
   /** Waste blowout dish multiplier (theme.wasteDepthScale); defaults 0 (flat). */
   wasteDepthScale?: number;
+  /** Tree-species mix (theme.treeKeys/accentTreeKeys, defaulted) so the headless
+   *  physics shapes each trunk's hitbox like the live-drawn asset. */
+  treeSpecies?: TreeSpecies;
   /** BOUNDED WORLD (`boundedWorld` flag): when true, derive a playable boundary
    *  for the hole so the balancing AI pays the same off-course penalties the
    *  live round does. Defaults false (classic full-world behavior). */
@@ -71,7 +76,8 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
   const engine = new PhysicsEngine(
     hole,
     buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0),
-    rng
+    rng,
+    opts.treeSpecies
   );
   const ai = new AIController(golfer, new FireSystem(), engine, rng);
 
@@ -123,6 +129,10 @@ export function simulateRound(
   const theme = resolveTheme(course);
   const bunkerDepthScale = theme.bunkerDepthScale ?? 1;
   const wasteDepthScale = theme.wasteDepthScale ?? 0;
+  const treeSpecies: TreeSpecies = {
+    trees: theme.treeKeys ?? DEFAULT_TREE_MIX,
+    accents: theme.accentTreeKeys ?? []
+  };
   const results = holes.map((h) =>
     simulateHole(h, golfer, {
       rng,
@@ -130,6 +140,7 @@ export function simulateRound(
       windMax: course.maxWind,
       bunkerDepthScale,
       wasteDepthScale,
+      treeSpecies,
       bounded
     })
   );

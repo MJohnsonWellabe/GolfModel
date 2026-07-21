@@ -1,5 +1,25 @@
 import { pointInPolygon } from '../utils/Geometry';
 import { Hazard, HoleData, Polygon } from '../core/types';
+import { pickSpeciesKey, resolveTreeHitbox } from './treeHitbox';
+
+/** Per-asset collision shape stamped on a collision trunk: a thin trunk band, a
+ *  canopy band (a broadleaf ball or a tapering conifer cone), and the tree's own
+ *  top above which a ball clears it. Absolute world-px, sized from the species. */
+export interface TreeHitboxShape {
+  canopyR: number;
+  trunkR: number;
+  canopyBottom: number;
+  top: number;
+  cone: boolean;
+}
+
+/** The species key sets a course plants from (theme.treeKeys/accentTreeKeys,
+ *  already defaulted). Passed to the COLLISION pass so each trunk's hitbox is
+ *  shaped like the exact asset the renderer drew there. */
+export interface TreeSpecies {
+  trees: readonly string[];
+  accents: readonly string[];
+}
 
 /**
  * Per-tree canopy blobs for a hole — the single source of truth for where the
@@ -38,6 +58,9 @@ export interface TreeBlob {
    *  renderer uses to pick the accent species — so a trunk only gets
    *  palm-shaped collision when it actually renders as a palm frond. */
   isPalm?: boolean;
+  /** Per-ASSET collision shape (set on the COLLISION pass when species keys are
+   *  known). Absent → PhysicsEngine falls back to a generic lollipop. */
+  hb?: TreeHitboxShape;
 }
 
 /** Deterministic 0..1 jitter shared by the texture bake and the tree billboards. */
@@ -105,7 +128,12 @@ function distToFairway(x: number, y: number, fairway: readonly Polygon[]): numbe
  * the playability sim) — `visualSpacing`/`visualOnly` add render-only trunks
  * instead of tightening the real hazard.
  */
-export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = false): TreeBlob[] {
+export function collectTreeBlobs(
+  hole: HoleData,
+  blossomChance = 0,
+  forRender = false,
+  species?: TreeSpecies
+): TreeBlob[] {
   const blobs: TreeBlob[] = [];
   // Trees never grow in water: any trunk whose FINAL position lands inside a
   // water hazard is skipped — render, bake shadow and collision together, so
@@ -232,6 +260,25 @@ export function collectTreeBlobs(hole: HoleData, blossomChance = 0, forRender = 
         accentChance: hz.accentChance,
         isPalm: resolveIsPalm(hz, cx + offX, cy + offY)
       });
+    }
+  }
+  // COLLISION pass with a known species mix: shape each non-palm trunk's hitbox
+  // like the exact asset the renderer drew there (same per-trunk species pick),
+  // so the collision matches the tree's silhouette. Palms keep their dedicated
+  // isPalm geometry in PhysicsEngine and are left un-stamped.
+  if (!forRender && species) {
+    for (const b of blobs) {
+      if (b.isPalm) continue;
+      const key = pickSpeciesKey(b.x, b.y, species.trees, species.accents, b.accentChance, b.accent);
+      const prof = resolveTreeHitbox(key);
+      const top = Math.max(24, b.r * prof.heightMul);
+      b.hb = {
+        canopyR: b.r * prof.canopyRadMul,
+        trunkR: Math.max(2, b.r * prof.trunkRadMul),
+        canopyBottom: top * prof.canopyBottomFrac,
+        top,
+        cone: prof.cone
+      };
     }
   }
   return blobs;

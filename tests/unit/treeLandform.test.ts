@@ -49,12 +49,12 @@ describe('tree landforms have a real tree hitbox', () => {
         spin: { side: 0, top: 0 }
       });
     };
-    // A LOW shot that crosses the cluster below the sapling's canopy height is
-    // stopped, and settles at the cluster (not caroming away like a rock).
-    const low = shoot(150, 0.35);
+    // A LOW shot that crosses the cluster through the fat base of the fir cones
+    // is stopped, and settles at the cluster (not caroming away like a rock).
+    const low = shoot(110, 0.3);
     expect(low.hitTrees, 'a low shot into the fir cluster stops').toBe(true);
     expect(Math.hypot(low.finalPos.x - cx, low.finalPos.y - cy)).toBeLessThan(45);
-    // A HIGH shot flies OVER the short saplings and clears them — the lollipop
+    // A HIGH shot flies OVER the short saplings and clears them — the cone
     // hitbox matches the tree's real height (owner: reflect the tree's shape).
     const high = shoot(150, 1.0);
     expect(high.hitTrees, 'a high shot clears the short saplings').toBe(false);

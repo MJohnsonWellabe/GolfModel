@@ -127,10 +127,13 @@ export const PHYSICS = {
    *  just under full wind while a punched/low shot (much lower apex) genuinely
    *  bores through it, so trajectory choice matters in wind. */
   windRefHeight: 82,
-  /** Height (world px) below which tree canopies block ball flight. A cheap
-   *  early-out: the tallest tree's canopy top. Per-tree height (below) then
-   *  decides whether a given ball actually clears a given tree. */
-  treeHeight: 55,
+  /** Height (world px) below which the airborne tree check even runs — a cheap
+   *  early-out set above the TALLEST tree (a big conifer at r≈28 stands ~73 px),
+   *  so no tree is silently lopped by this gate. Whether a given ball actually
+   *  clears a given tree is then decided per-tree by its own height in nearTree
+   *  (was 55, which cut the tops off the tallest woods trees — a ball at 55-73 px
+   *  wrongly cleared a tree drawn taller than that). */
+  treeHeight: 85,
   /** A tree's hitbox is a LOLLIPOP, not a uniform cylinder (owner: "if it's a
    *  small trunk with a large canopy, the hitbox needs to reflect that, not
    *  just be uniform all the way up"). A ball BELOW canopyBottom only meets the
