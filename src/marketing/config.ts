@@ -435,7 +435,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
   courses: [
     {
       art: 'marketing/img/wildwood-cherry.png',
-      alt: 'Wildwood Glen — cherry-blossom groves lining a tight parkland fairway.',
+      alt: 'Wildwood Glen — a flowering parkland hole bending along a fenced creek to the green.',
       title: 'Wildwood Glen',
       desc:
         'A lush parkland course — cherry-blossom groves, still ponds and tight, tree-lined fairways that reward shaping the ball into the pin.',
@@ -444,7 +444,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/sablebay-island.png',
-      alt: 'Sable Bay — coastal bluffs and dune fescue winding down to the sea.',
+      alt: 'Sable Bay — the island green ringed by open sea, sailboats standing off the point.',
       title: 'Sable Bay',
       desc:
         'A Pebble Beach and Torrey Pines mashup — coastal bluffs, wind-carved sand and dune fescue winding through the pines down to the sea.',
@@ -453,7 +453,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/timberline-pond.png',
-      alt: 'Timberline — a mountain green tucked among towering timber and a pond.',
+      alt: 'Timberline — twin fairways splitting through towering timber under snow-capped peaks.',
       title: 'Timberline',
       desc:
         'Mountain golf in the pines — a checkerboard green tucked among towering timber, thin mountain air and true, honest bounces.',
@@ -462,7 +462,7 @@ export const DEFAULT_MARKETING_CONFIG: MarketingConfig = {
     },
     {
       art: 'marketing/img/portjohnson-bunker.png',
-      alt: 'Port Johnson Links — deep pot bunkers on firm, fast-running links turf.',
+      alt: 'Port Johnson Links — a links par 5 running out to a lighthouse standing in the firth.',
       title: 'Port Johnson Links',
       desc:
         'Scottish links through and through — deep pot bunkers, firm, fast-running turf and a tide that has the final say on the day.',
