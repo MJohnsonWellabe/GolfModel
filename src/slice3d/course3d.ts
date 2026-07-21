@@ -2446,7 +2446,17 @@ export function buildCourse(
         const byKey = new Map(keyed.map((e) => [e.key, e.proto]));
         for (const l of authoredMasses) {
           const proto = byKey.get(l.key);
-          if (proto) placeProto(proto, l.x, l.y, l.h);
+          // Register every authored MASS (boulders, rock landforms, fir-sapling
+          // landforms) with the same camera-occlusion system the trees use, so a
+          // rock standing between the camera and the player's ball goes
+          // translucent instead of hiding the shot (owner: "make the rocks
+          // transparent if they're in the way when you're hitting and they're
+          // behind the player"). Occlusion radius tracks the mass's size (r ≈ h,
+          // like its collider), floored so a small one still reads.
+          if (proto)
+            placeProto(proto, l.x, l.y, l.h, undefined, (insts) => {
+              canopyOcclusion.push({ insts, x: l.x, y: l.y, r: Math.max(8, l.h) });
+            });
         }
       });
     }
@@ -3122,7 +3132,12 @@ export function buildCourse(
   };
   placeCupRing(puttAids.rot);
 
-  // ---------------------------------------------------- tree camera occlusion
+  // ------------------------------------------------ camera occlusion (fade)
+  // Trees AND authored rock/landform masses register in `canopyOcclusion`; any
+  // that stand between the camera and the player's ball go translucent so they
+  // never hide the shot (owner: fade "any asset that's between the tee and the
+  // player after the tee shot"). Kept the `updateTreeOcclusion` name so callers
+  // (main.ts) are undisturbed.
   // Regular (non-thin) InstancedMesh.visibility is a documented no-op in this
   // Babylon build (it just proxies the SHARED source mesh's value, logging a
   // warning on write) — there is no per-instance alpha in the instanced draw

@@ -16,7 +16,7 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 |---|------|--------|
 | A | Real ball-flight physics (drag+lift; honest downhill; real rollout) | ✅ done, owner-approved |
 | B | Tree hitboxes — every standalone/non-cluster tree collides; woods stay less dense in collision than visuals | 🔧 in progress |
-| C | Asset transparency/culling — fade/hide assets between camera·tee and the player so they don't block the shot view | ⏳ |
+| C | Asset transparency/culling — fade/hide assets between camera·tee and the player so they don't block the shot view | 🔧 in progress |
 | D | East H3 — find & remove the real render trees blocking the approach view | ⏳ |
 | E | West H3 — lengthen leg 1 so only a strong driver reaches the corner pond | ⏳ |
 | F | East H2 — trees line the whole visible coast | ⏳ |
@@ -89,3 +89,29 @@ the more-penetrable (realistic) woods, then the lollipop was tightened
 loosening the gate.
 
 *(Matt-agent review pending — will be appended.)*
+
+---
+
+## Item C — Asset transparency/culling 🔧
+
+**Owner ask:** "make the rocks transparent if they're in the way when you're
+hitting and they're behind the player… any asset that's between the tee and the
+player after the tee shot doesn't need to render." (Also clarified an earlier
+attempt only *reverted* a mis-read rock-shadow change and never delivered the
+real transparency fix.)
+
+**What was found:** a camera-occlusion system already exists
+(`course3d.updateTreeOcclusion`) — it ghosts (alpha 0.12) any registered asset
+standing between the camera and the player's ball, recomputed ~15 Hz. But only
+**trees** ever registered (`canopyOcclusion`), so rocks and other authored
+masses never faded — the exact gap.
+
+**What shipped:** every authored MASS (boulders, rock landforms, fir-sapling
+landforms) now registers with the same occlusion system, so a rock between the
+camera and the ball goes translucent instead of hiding the shot. Occlusion
+radius tracks the mass's size. All nature protos use `StandardMaterial`, so the
+existing ghost-swap handles rocks unchanged.
+
+**Gates:** unit suite 858 passing. The `occlusion.spec.ts` visual guard only
+requires candidate count ≥ min and that the nearest occluder ghosts — rocks
+increase the count and ghost the same way (validation run noted below).
