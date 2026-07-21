@@ -188,7 +188,11 @@ const timberlineWestV2 = {
       // so only a strong drive brings it into play; everyone else lays up short.
       tee: [360, 1478],
       teeBox: { w: 32, d: 24 },
-      green: { cx: 858, cy: 560, rx: 80, ry: 56, rot: 0.5 },
+      // Green trimmed (80->70 / 56->50): the old green was large enough that an
+      // elite player hit and held it in two almost every time (birdie machine).
+      // A smaller target plus the enlarged front pond makes the go-for-it second
+      // a low-percentage play — miss short and it's water, not a two-putt.
+      green: { cx: 858, cy: 560, rx: 70, ry: 50, rot: 0.5 },
       slope: { angle: 2.6, strength: 0.34 },
       centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]],
       width: [46, 72, 86, 80, 66, 56],
@@ -220,7 +224,7 @@ const timberlineWestV2 = {
         // to the green and hold a shallow bench (a low-percentage play), while a
         // layup leaves a short wedge that flies the water easily. North edge held
         // south of the green face so the putting shelf stays dry and level.
-        { type: 'water', polygon: [[738, 748], [742, 700], [758, 664], [786, 648], [818, 648], [842, 668], [850, 706], [846, 748], [820, 770], [786, 776], [754, 766]] },
+        { type: 'water', polygon: [[720, 742], [724, 690], [742, 650], [772, 628], [806, 626], [834, 646], [848, 686], [846, 730], [820, 758], [782, 764], [746, 754]] },
         { type: 'water', polygon: stream([[818, 748], [846, 858], [858, 966], [852, 1074]], 24, 823) },
         // Behind/above-green woods on the mountainside.
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[770, 452], [864, 414], [980, 440], [1000, 372], [852, 348], [744, 402]] }
@@ -246,9 +250,10 @@ const timberlineWestV2 = {
         { x: 452, y: 850, h: 3, r: 150 },        // corner valley floor
         { x: 640, y: 700, h: 6, r: 150 },        // rising ground on the reach
         // BENCHED, CONTOURED green — wide flat pad (puttable) + a gentle summed
-        // tier. Radius held to 138 so the skirt stays clear of the front pond
-        // (level water) and the face stays chippable (~0.37 grade).
-        { x: 858, y: 560, h: 13, r: 138, shape: 'plateau', skirt: 0.62 },
+        // tier. Radius trimmed 138->122 so the mesa flat top ends further north
+        // (clear of the enlarged front pond pushed up onto the approach line, so
+        // the water stays level and doesn't ride up the bench).
+        { x: 858, y: 560, h: 13, r: 122, shape: 'plateau', skirt: 0.62 },
         { x: 884, y: 536, h: 1.5, r: 90, shape: 'plateau', skirt: 0.5 },
         // CORNER POND basin (level water) — wide flat top so the whole pond sits
         // level (its west edge used to ride the left valley wall).
@@ -257,7 +262,7 @@ const timberlineWestV2 = {
         // SOUTH (west of the right valley wall) off the bottom of the world.
         // Enlarged/pushed north with the bigger front pond; radius holds the flat
         // top under the whole pond while the skirt stays clear of the green shelf.
-        { x: 792, y: 706, h: -2, r: 104, shape: 'plateau', skirt: 0.7 },
+        { x: 784, y: 690, h: -2, r: 112, shape: 'plateau', skirt: 0.72 },
         { x: 818, y: 748, x2: 846, y2: 858, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
         { x: 846, y: 858, x2: 858, y2: 966, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
         { x: 858, y: 966, x2: 852, y2: 1074, h: -2, r: 24, shape: 'plateau', skirt: 0.5 },
