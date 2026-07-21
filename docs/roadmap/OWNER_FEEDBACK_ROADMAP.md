@@ -17,15 +17,37 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 | A | Real ball-flight physics (drag+lift; honest downhill; real rollout) | ✅ done, owner-approved |
 | B | Tree hitboxes — landform trees collide; per-asset measured lollipop/cone shapes (slim, skewed) | ✅ done |
 | C | Asset transparency/culling — fade rocks/masses (incl. rim cliffs) between camera·tee and the player | ✅ done |
-| D | East H3 — find & remove the real render trees blocking the approach view | ⏳ |
-| E | West H3 — lengthen leg 1 so only a strong driver reaches the corner pond | ⏳ |
-| F | East H2 — trees line the whole visible coast | ⏳ |
-| G | Sable Bay → Pinehurst rebuild (waste sand, pine straw/mulch, wiregrass, good grass, land-bridge causeway, boats in water) | ⏳ |
-| H | Port Johnson rebuild | ⏳ |
-| I | Wildwood rebuild | ⏳ |
-| J | Wild Prairie shared-property pilot | ⏳ |
+| D | East H3 — find & remove the real render trees blocking the approach view | ✅ verified clean (all trees deliberate) |
+| E | West H3 — lengthen leg 1 so only a strong driver reaches the corner pond | ✅ done |
+| F | East H2 — trees line the whole visible coast | ✅ done |
+| G | Sable Bay → Pinehurst rebuild (waste sand, mulch, wiregrass, good grass, land-bridge, boats in water) | ✅ done |
+| H | Port Johnson rebuild (Scottish links) | ✅ verified (v2 already a genuine links) |
+| I | Wildwood rebuild (flowering parkland) | ✅ verified (v2 already parkland-in-bloom) |
+| J | Wild Prairie shared-property pilot | 🔧 next |
 | K | Ground-mesh clamp + camera edge | ⏳ |
 | L | Hole Builder MVP | ⏳ |
+
+## Items D–I (course work) — summary
+
+- **D** East H3 approach: rendered the approach; every tree is deliberate design
+  (divider, a strategic spruce, the greenside guardian, boundary/backdrop) and
+  the green is clearly visible — no stray render trees to pull. Matt: *approve.*
+- **E** West H3: tee pulled back ~58px; measured stat-100 reaches the corner
+  (304yd, a corner-cut finds the pond), stat-90 barely (285), stat-75 lays up
+  (253). Matt: *approve.*
+- **F** East H2: added far-shore bank stands on the waterline (both sides of the
+  green) + densified banks so the coast is treed all the way across, green still
+  open. Matt: *approve* (after closing the right side).
+- **G** Sable Bay → Pinehurst: good grass (g/h), giant `waste` sand spanning each
+  hole with pines + wiregrass, a slim brown-mulch land bridge to the island,
+  boats in the water. Matt: *approve* (after warming the sand, slimming the
+  bridge, thinning the boats).
+- **H** Port Johnson: v2 is already a genuine Scottish links — rumpled fescue
+  linksland, revetted pot bunkers, heather, Redan, always-breezy wind. Renders
+  true to identity with the new physics. Verified.
+- **I** Wildwood: v2 is already championship parkland-in-bloom — broadleaf woods,
+  azalea/cherry blossom, garden beds, a creek. Renders true to identity.
+  Verified.
 
 ---
 
