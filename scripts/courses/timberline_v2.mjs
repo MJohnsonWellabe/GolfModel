@@ -256,7 +256,10 @@ const timberlineV2 = {
         // water need to go all down the visible coast — it's not even close").
         // Stop short of the green's front line (x412-574 stays open).
         { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[300, 558], [410, 548], [412, 494], [352, 470], [296, 496]] },
-        { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[576, 548], [640, 560], [644, 496], [588, 470], [578, 494]] },
+        // Right far-shore band — widened to CONNECT to the right bank stand (x688)
+        // so the coast right of the green is continuous, not gappy (Matt review:
+        // "finish the right side of the coastline").
+        { type: 'trees', spacing: 26, visualSpacing: 17, treeR: 30, polygon: [[576, 548], [650, 562], [692, 566], [694, 500], [624, 470], [580, 494]] },
         // WOODED SHORELINE — dense stands right ON the tarn's banks (their
         // inner edge hugs the waterline the whole height of the pond), so the
         // treeline actually MIRRORS in the water instead of sitting back on dry
