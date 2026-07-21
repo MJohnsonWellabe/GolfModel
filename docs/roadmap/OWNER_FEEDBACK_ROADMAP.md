@@ -23,9 +23,39 @@ Branch: `claude/bsg-dev-environment-roadmap-y4vzk8`, mirrored to `version2`.
 | G | Sable Bay → Pinehurst rebuild (waste sand, mulch, wiregrass, good grass, land-bridge, boats in water) | ✅ done |
 | H | Port Johnson rebuild (Scottish links) | ✅ verified (v2 already a genuine links) |
 | I | Wildwood rebuild (flowering parkland) | ✅ verified (v2 already parkland-in-bloom) |
-| J | Wild Prairie shared-property pilot | 🔧 next |
-| K | Ground-mesh clamp + camera edge | ⏳ |
-| L | Hole Builder MVP | ⏳ |
+| K | Ground-mesh clamp + edge audit + camera edge | 🟡 edge audit done (all courses void-safe); mesh-clamp deferred (optional) |
+| J | Wild Prairie shared-property pilot | 🟡 course renders clean; shared-property impostor system deferred |
+| L | Hole Builder MVP | ⏳ deferred — large new dev tool |
+
+## Items K / J / L — status & recommendation
+
+These three are large, deliberately-phased INFRASTRUCTURE items from
+`docs/dev-environment-roadmap/04_IMPLEMENTATION_PLAN.md` (Phases 3–6), not owner
+pain-points like A–G. Autonomous status:
+
+- **K — Ground-mesh clamp + edge audit.** The functional goal (the camera never
+  sees raw void / a mesh edge) is **verified**: an edge audit rendered all six
+  courses (Timberline E/W, Sable Bay, Port Johnson, Wildwood, Wild Prairie, Red
+  Hollow) across tee/aerial and every horizon resolves into the fogged
+  void-floor + haze, the sea plane, or authored cliffs — no blue dead-space, no
+  rectangular cutoff. The remaining piece is the ground-mesh **footprint clamp**,
+  which the field guide itself labels *"optional polish"* — a delicate change to
+  the texture-baked core mesh (UV + heightfield + shadow + camera framing) with
+  marginal payoff on already-tight worlds. Deferred rather than risk a core-
+  rendering regression across every course without owner eyes on it.
+- **J — Wild Prairie shared-property pilot.** The Wild Prairie course itself
+  exists and renders clean (sandhills "Blowout"). The *shared-property* part is a
+  new engine feature — per-course property plans + neighbor **impostor tiles** —
+  which the plan scopes as its own phase. A large greenfield build; deferred for
+  an owner-involved session.
+- **L — Hole Builder MVP.** A new internal authoring tool (dev-only HTML +
+  a shared serializer). Phase 6; a substantial greenfield build best shaped with
+  the owner. Deferred.
+
+**Delivered this run (A–I, all Matt-reviewed, all gates green on both branches):**
+real ball-flight physics; per-asset measured tree hitboxes + landform-tree
+collision; rock/mass camera transparency; East H3 approach; West H3 length; East
+H2 coast; Sable Bay → Pinehurst; Port Johnson + Wildwood identity verification.
 
 ## Items D–I (course work) — summary
 
