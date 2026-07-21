@@ -4,6 +4,32 @@ Directive: do NOT add features; *finish everything claimed complete but not
 actually complete*. Verify every acceptance criterion independently; only mark
 complete with objective evidence; never weaken tests to fit the implementation.
 
+## Sprint 2 addendum (render harness restored) — asset swaps + Prairie identity
+
+The dev server stayed down, but a **single-node-process static-serve + Playwright
+capture** against the production `dist/` restored render verification. With it:
+
+- **Nebraska Sand Hills ≠ Scottish links (owner ask).** Wild Prairie was retoned
+  to a WARM, sun-drenched palette (golden-honey haze, honey fescue rough) and
+  given a real **rolling sand-dune horizon** — a self-authored CC0 dune-mound GLB
+  (`scripts/gen-sandhill-range.mjs` → `dunes_sandhill`, wired through the peaks
+  backdrop as a low overlapping ridgeline, tinted deep ochre-gold). It now reads
+  unmistakably different from Port Johnson's cold pewter overcast links.
+  Render-verified tee shots of both, side by side.
+- **Pirate assets replaced with real golf assets (render-verified).** `ship.glb`
+  (node literally "pirate ship") → a clean white-sailed **sailboat**
+  (`scripts/gen-sailboat.mjs`); `lighthouse.glb` (Kenney castle turret
+  "tower-complete-large") → a real **striped red-and-white lighthouse with a
+  glowing lantern** (`scripts/gen-lighthouse.mjs`). Sable H2's island green is now
+  backed by yachts, and PJ H3 carries a genuine lighthouse.
+- **Sourcing note:** no rounded-dune / sailboat / lighthouse CC0 GLB was
+  fetchable in this container (poly.pizza is API-key-gated; OpenGameArt/Quaternius
+  ship FBX/OBJ needing Blender, which isn't installed). All three were therefore
+  **authored with the repo's own `@gltf-transform` toolchain** — genuine 3D
+  assets with the correct silhouette, CC0-clean, each swappable for a downloaded
+  model later by replacing the one GLB. `tsc` clean, suite 901/901, build exit 0.
+
+
 This report gives, per the deliverables asked for: files changed, each criterion
 with objective evidence, test/build numbers, remaining known issues, a future
 roadmap, and a **confidence level** for every item. Where a requirement cannot

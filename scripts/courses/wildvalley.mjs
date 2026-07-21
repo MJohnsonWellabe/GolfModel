@@ -9,15 +9,25 @@ const wildvalley = {
   name: 'Wild Prairie',
   version: 2,
   theme: {
-    skyTop: '#57a9e8', skyBottom: '#eef4e2', sunX: 420, sunY: 120,
-    fairway: '#7cb551', fairwayDark: '#6ca344',
-    rough: '#d6b060', roughDark: '#b6913f',
-    fringe: '#8fbb58', green: '#6fae4a', greenLight: '#8cc95f',
-    sand: '#f3e6bb', sandDark: '#dcc78e',
-    water: '#3a7fae', waterDeep: '#235a84',
-    treeCanopy: '#44603a', treeCanopyLight: '#587547', treeTrunk: '#6d5642',
-    haze: '#eaf0e2', hazeStrength: 0.5,
-    backdrop: 'none', cloudStyle: 'wispy', blossomChance: 0,
+    // NEBRASKA SAND HILLS identity — a WARM, sun-drenched, wide-open feel,
+    // deliberately the opposite of Port Johnson's cold pewter Scottish links
+    // (the two treeless grassland courses must NOT read the same). Warm golden
+    // haze low on the sky, honey-gold fescue rough, pale warm sand, and a real
+    // rolling SAND-DUNE horizon (peakKeys 'dunes_sandhill', tinted warm via
+    // hillTint) instead of the old bare-sky 'none'.
+    skyTop: '#5aa6e0', skyBottom: '#f4e6bd', sunX: 430, sunY: 110,
+    fairway: '#83b84e', fairwayDark: '#6fa53f',
+    rough: '#d8a94e', roughDark: '#bd8c34',
+    fringe: '#9cbe54', green: '#71ae46', greenLight: '#8fca5b',
+    sand: '#f4e7bb', sandDark: '#ddc789',
+    water: '#3f86b0', waterDeep: '#276089',
+    treeCanopy: '#5a6a34', treeCanopyLight: '#71833f', treeTrunk: '#7a6244',
+    haze: '#f0e2b6', hazeStrength: 0.52,
+    // Rolling sandhill horizon: DEEP ochre-gold tint (the peak material is
+    // emissive-brightened, so a mid tan washed to snow-white — a saturated deep
+    // gold lands as warm grassy sandhills instead).
+    backdrop: 'peaks', peakKeys: ['dunes_sandhill'], hillTint: '#8f6f2c',
+    cloudStyle: 'wispy', blossomChance: 0,
     // Playtest round 3: NO trees ("I don't think Wild Horse has trees
     // really") — open sand-hills horizon, golden fescue carries the look.
     treeKeys: [],
@@ -56,7 +66,7 @@ const wildvalley = {
     sandSculpt: 0.85, bunkerDepthScale: 2.3, wasteDepthScale: 2.8,
     edgeWobble: 3.0, mowPattern: 'classic', mowWidth: 28,
     greenMowPattern: 'checker',
-    atmosphere: 'forest'
+    atmosphere: 'none'
   },
   holes: [
     {

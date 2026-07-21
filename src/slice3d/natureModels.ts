@@ -135,6 +135,14 @@ export const MOUNTAIN_KEYS = ['mountain_red', 'mountain_range_red', 'mountain_ra
  *  rather than being repainted flat — a snow-capped horizon for Timberline.
  *  Keys start 'mountain' so the peaks backdrop treats them as massifs. */
 export const MOUNTAIN_ALPINE_KEYS = ['mountain_alps', 'mountain_alps_b'] as const;
+/** Rolling SAND-DUNE mound for the Nebraska Sand Hills horizon (Wild Prairie),
+ *  authored by scripts/gen-sandhill-range.mjs (CC0, self-authored — no rounded
+ *  dune model was fetchable in the build env). The key deliberately does NOT
+ *  start 'mountain'/'canyon', so the peaks backdrop treats it as a LOW massif:
+ *  many overlapping, mirrored, width-stretched instances merge into a continuous
+ *  low ridgeline, tinted to the theme's warm hill colour — rolling sandhills,
+ *  not jagged peaks. */
+export const DUNE_KEYS = ['dunes_sandhill'] as const;
 /** The rest of the CC-BY red desert set (asset-packs/red-desert-set-README.md):
  *  stylized rock clusters for waste rims, canyon slabs for the mid-ground.
  *  `rocks_red_bright` is the SAME cluster glb loaded under an alias key with
@@ -184,7 +192,8 @@ const ALL_KEYS = [
   ...DESERT_SET_KEYS,
   ...GRANITE_ROCK_KEYS,
   ...LEAFY_BUSH_KEYS,
-  ...MOUNTAIN_ALPINE_KEYS
+  ...MOUNTAIN_ALPINE_KEYS,
+  ...DUNE_KEYS
 ];
 
 export interface NaturePalette {
