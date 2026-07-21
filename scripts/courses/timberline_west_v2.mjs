@@ -175,12 +175,16 @@ const timberlineWestV2 = {
       number: 3,
       name: 'The Gauntlet',
       par: 5,
-      world: { width: 1200, height: 1500 },
-      tee: [360, 1420],
+      world: { width: 1200, height: 1560 },
+      // Tee pulled ~50px back (owner: "leg 1 plays way shorter than before ...
+      // lengthen it so a strong driver can BARELY reach the corner pond"). The
+      // pond's near edge now sits ~285 yd off the tee — a bomber's full carry —
+      // so only a strong drive brings it into play; everyone else lays up short.
+      tee: [360, 1478],
       teeBox: { w: 32, d: 24 },
       green: { cx: 858, cy: 560, rx: 80, ry: 56, rot: 0.5 },
       slope: { angle: 2.6, strength: 0.34 },
-      centerline: [[360, 1390], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]],
+      centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]],
       width: [46, 72, 86, 80, 66, 56],
       hazards: [
         // CORNER POND — inside/left of the dogleg where the fairway bends right;
@@ -191,13 +195,13 @@ const timberlineWestV2 = {
         // the fairway except for a break on the left where the pond cuts in").
         // Lower band hugs leg 1's left edge from the tee UP TO the corner pond,
         // then BREAKS (the pond is the gap)...
-        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[334, 958], [328, 1080], [320, 1392], [282, 1400], [280, 1080], [290, 958]] },
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[334, 958], [328, 1080], [320, 1452], [282, 1460], [280, 1080], [290, 958]] },
         // ...and resumes ABOVE the pond, hugging the top of leg 1 and the upper
         // (left) edge of leg 2 all the way to the green.
         { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[358, 838], [368, 760], [430, 712], [540, 690], [650, 632], [700, 604], [700, 566], [620, 600], [510, 650], [410, 684], [336, 730], [330, 834]] },
         // RIGHT WOODS — a continuous band hugging leg 1's right edge, then wrapping
         // the lower (right) side of leg 2 and the outside of the bend to the green.
-        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[416, 1400], [440, 1080], [474, 884], [566, 820], [694, 752], [788, 700], [828, 668], [896, 712], [1040, 764], [1070, 1000], [990, 1120], [830, 900], [630, 864], [480, 920], [462, 1120], [458, 1400]] },
+        { type: 'trees', spacing: 40, visualSpacing: 24, polygon: [[416, 1460], [440, 1080], [474, 884], [566, 820], [694, 752], [788, 700], [828, 668], [896, 712], [1040, 764], [1070, 1000], [990, 1120], [830, 900], [630, 864], [480, 920], [462, 1120], [458, 1460]] },
         // LONE TREE in the second-shot lane — must be worked around on the lay-up.
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 28, polygon: [[688, 726], [702, 706], [720, 722], [712, 748], [692, 744]] },
         // FRONT-OF-GREEN POND + CREEK (owner: "replace the original front of green
