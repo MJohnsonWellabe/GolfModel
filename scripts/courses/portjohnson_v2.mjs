@@ -16,6 +16,7 @@ import { blob } from '../courselib.mjs';
 
 const legacyTheme = JSON.parse(readFileSync('src/data/courses/portjohnson.json', 'utf8')).theme;
 const pot = (cx, cy, r, seed) => ({ type: 'bunker', wall: true, polygon: blob(cx, cy, r, r * 0.82, 9, 0.25, seed) });
+const shoreRock = (cx, cy, h, key, seed) => ({ type: 'rock', cx, cy, r: h, height: h, key, polygon: blob(cx, cy, h, h, 8, 0, seed) });
 
 const portjohnsonV2 = {
   name: 'Port Johnson Links',
@@ -211,6 +212,19 @@ const portjohnsonV2 = {
           type: 'water', cliff: true,
           polygon: [[60, 880], [236, 900], [280, 1000], [268, 1130], [220, 1250], [80, 1280]]
         },
+        // THE FIRTH BEHIND THE GREEN (owner playtest: "the lighthouse on 3 is
+        // way out of view from the tee and not in the water. It should be in
+        // view and in the water. Maybe move the water."). The sea now fills the
+        // whole back of the world behind the green and the lighthouse stands on
+        // a skerry IN it — so from the tee you look up the hole to the green
+        // with the lighthouse rising out of the firth behind it. The shoreline
+        // dips in to hug the green's back/sides (green + SE approach punch
+        // through via surfaceAt precedence); the NE dune stays a headland east
+        // of the water.
+        {
+          type: 'water',
+          polygon: [[8, 8], [820, 8], [864, 132], [900, 262], [858, 320], [800, 300], [742, 292], [682, 300], [600, 328], [420, 332], [8, 322]]
+        },
         // CROSS-HAZARD STRIPS (round 2 owner ask "connect L+R bunkers into strips
         // ACROSS the fairway"; REBUILT in the polish pass). The round-2 version
         // authored each strip as three WIDE *waste* blobs spanning ~center±90 px
@@ -244,12 +258,16 @@ const portjohnsonV2 = {
         pot(822, 470, 13, 951),
         pot(636, 330, 12, 952)
       ],
-      // A LIGHTHOUSE on the headland terrace just inland of the sea cliff (CC0
-      // Kenney prop, upright) — the coastal landmark that crowns the drive view.
-      // Lighthouse on the raised dune terrace above the sea cliff — pulled onto
-      // solid high ground and enlarged so it actually reads from the tee/drive
-      // (the earlier [300,1030] len 52 sat low/off the sightline, invisible).
-      props: [{ key: 'lighthouse', x: 336, y: 1000, rot: 0.5, len: 74, upright: true }],
+      // THE LIGHTHOUSE on its skerry in the firth behind the green (owner: "in
+      // view and in the water"). Sits just north of the green on the tee
+      // sightline-beyond-the-green, tall enough (len 88) to read as the aiming
+      // landmark from the tee and every approach. A ring of granite skerry
+      // rocks grounds it in the sea.
+      props: [{ key: 'lighthouse', x: 760, y: 232, rot: 0.5, len: 88, upright: true }],
+      landforms: [
+        shoreRock(760, 232, 15, 'stone_e', 971), shoreRock(736, 250, 12, 'stone_d', 972),
+        shoreRock(786, 248, 12, 'stone_f', 973), shoreRock(760, 262, 11, 'stone_a', 974)
+      ],
       // Second-leg lay-up target pulled to y958 — just SHORT of the first
       // cross-strip (band y900) so the AI lays up to the sand wall instead of
       // aiming into it; [500,660] then sits in the gap above strip 2.

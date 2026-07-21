@@ -96,6 +96,14 @@ const sablebayV2 = {
         // (owner: "bring some water into play" on h1): safe line right-center,
         // aggressive line carries the cove, a pull-left finds the bay.
         { type: 'water', polygon: [[40, 240], [280, 250], [344, 376], [388, 520], [482, 686], [500, 760], [464, 816], [360, 828], [304, 720], [268, 884], [188, 1046], [40, 1070]] },
+        // BACK SEA (owner playtest h1: "put water behind the green so it sits
+        // in the water or stone area there"). The open ocean fills the whole
+        // back of the world and its shoreline dips in to hug the north/east of
+        // the green, so the green reads as a seawall peninsula jutting from the
+        // sand with sea behind it — the same island-green backdrop as h2. The
+        // green surface (and the fairway approach from the SE) punch through
+        // via surfaceAt precedence, so only the back/sides are water.
+        { type: 'water', polygon: [[8, 8], [1012, 8], [1012, 300], [720, 318], [560, 346], [500, 372], [452, 360], [430, 320], [380, 306], [320, 316], [180, 286], [8, 300]] },
         { type: 'bunker', beach: true, polygon: [[482, 686], [516, 750], [480, 830], [372, 848], [326, 748], [364, 698], [436, 684]] },
         // GIANT WASTE — the whole hole is sand (owner directive). One polygon
         // covering the entire world; the bay (water), the fairway ribbon and the
@@ -130,12 +138,19 @@ const sablebayV2 = {
       landforms: [
         seawall(352, 486, 15, 'stone_a', 216), seawall(336, 528, 13, 'stone_b', 217),
         seawall(368, 448, 14, 'stone_d', 218), seawall(392, 414, 12, 'stone_e', 219),
-        seawall(326, 566, 12, 'stone_c', 220)
+        seawall(326, 566, 12, 'stone_c', 220),
+        // A stone point in the back sea, right behind the green, that the
+        // lighthouse stands on (owner: the lighthouse must be viewable from the
+        // tee and the middle of the fairway — it now rises against the sea
+        // backdrop directly behind the green instead of hiding low-left).
+        seawall(360, 296, 16, 'stone_a', 221), seawall(388, 300, 14, 'stone_c', 222),
+        seawall(340, 308, 12, 'stone_b', 223)
       ],
-      // Coastal landmarks (CC0 Kenney props, upright): a LIGHTHOUSE crowning the
-      // seawall point, and a ROWBOAT pulled up on the sand by the bay.
+      // Coastal landmarks (CC0 Kenney props, upright): a tall LIGHTHOUSE on the
+      // stone point behind the green (a clear skyline landmark from the tee and
+      // mid-fairway), and a ROWBOAT pulled up on the sand by the bay.
       props: [
-        { key: 'lighthouse', x: 338, y: 430, rot: 0.35, len: 46, upright: true },
+        { key: 'lighthouse', x: 362, y: 296, rot: 0.35, len: 64, upright: true },
         { key: 'rowboat', x: 318, y: 862, rot: 2.2, len: 16, upright: true }
       ],
       aiTargets: [[600, 840], [504, 610], [424, 410]],
@@ -149,9 +164,8 @@ const sablebayV2 = {
         // Rolling relief along the playing corridor — the fairway visibly rolls.
         { x: 560, y: 640, h: 8, r: 150 },
         { x: 520, y: 900, h: 9, r: 150 },
-        // A big back-left dune behind the green (kept clear of the putting surface
-        // so it never breaks green puttability).
-        { x: 210, y: 220, h: 24, r: 120 },
+        // (The old back-left dune is gone — that ground is now open sea behind
+        // the green.)
         // GREEN benched on the seawall — a raised seaside shelf.
         { x: 420, y: 362, h: 12, r: 160, shape: 'plateau', skirt: 0.55 },
         { x: 300, y: 660, h: -2, r: 150 }   // land sheds into the bay
