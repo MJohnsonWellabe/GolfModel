@@ -366,12 +366,12 @@ const timberlineV2 = {
       // 535 the route now runs ~575 yd, so a strong hitter's typical drive leaves
       // MORE than a driver-carry back (reach threshold ~290 yd) — going for the
       // green in two now needs a bomb AND a perfect long shot, not a stock drive.
-      tee: [396, 1322],
+      tee: [392, 1360],
       teeBox: { w: 32, d: 24 },
-      // Green trimmed a touch (62->56 / 46->42): a smaller target the long
-      // go-for-it second holds far less often, so more reach attempts spill into
-      // the new front sand (below) for a hard up-and-down instead of a tap-in.
-      green: { cx: 840, cy: 356, rx: 56, ry: 42, rot: -0.35 },
+      // Green trimmed (62->52 / 46->39): a smaller target the long go-for-it
+      // second holds far less often, so more reach attempts spill into the front
+      // sand (below) for a hard up-and-down instead of a tap-in.
+      green: { cx: 840, cy: 356, rx: 52, ry: 39, rot: -0.35 },
       slope: { angle: 2.7, strength: 0.32 },
       fairways: [
         // RIGHT fairway (MAIN, safe + longer): a wide arc up the right; ~300
@@ -414,12 +414,14 @@ const timberlineV2 = {
         { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[900, 1290], [944, 1000], [952, 640], [904, 470], [1052, 500], [1086, 820], [1052, 1120], [956, 1300]] },
         // Behind-green woods (mountainside).
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[760, 258], [860, 214], [980, 236], [1000, 168], [840, 146], [740, 200]] },
-        // THE LEFT POND — enlarged and wrapped farther around the LEFT approach
-        // (owner P1 H3): a bigger body straddling the left approach line in front
-        // of the green so the aggressive left route carries more water. Sits in a
-        // flat low basin (see elevation) so the surface is dead level; east edge
-        // held < x805 so the RIGHT approach (x820-876) stays completely dry.
-        { type: 'water', polygon: [[636, 520], [652, 472], [692, 448], [734, 450], [770, 470], [802, 486], [794, 522], [762, 548], [716, 560], [672, 556], [646, 544]] },
+        // THE FRONT POND — wraps the LEFT and FRONT-CENTER of the green so the
+        // aggressive go-for-it second is a WATER carry, not a dry look (make it a
+        // real 3-shot hole — owner). A long second that leaks short or a touch
+        // left finds water (a penalty, the thing elite chippers can't save), so
+        // going for the green in two is genuinely low-percentage. The east arm is
+        // held to x826 so the SAFE right layup-and-wedge line (up x843) stays dry
+        // — the smart play still finishes cleanly. Level in the enlarged basin.
+        { type: 'water', polygon: [[636, 520], [652, 472], [692, 448], [734, 450], [780, 456], [814, 468], [826, 494], [806, 520], [762, 542], [716, 560], [672, 556], [646, 544]] },
         // THE CREEK — the pond narrows into a creek that winds up the LEFT side
         // of the green, behind it, and continues off screen (owner P1 H3). Shares
         // the pond's water level; its own flat channel (see elevation) keeps it
@@ -435,12 +437,8 @@ const timberlineV2 = {
         // the green in two must be a LOW-percentage play, a layup the smart line).
         // The RIGHT (safe) route used to leave a completely DRY look at the green,
         // so a strong hitter reached in two almost every time (birdie machine).
-        // A deep front-center bunker plus a front-right pot now guard the exact
-        // line a long second comes in on: a 250-yd approach that leaks short or
-        // right finds sand and a hard up-and-down, while a layup leaves a wedge
-        // that flies both traps and holds. Kept short of the green face so the
-        // putting surface is untouched.
-        { type: 'bunker', depthMul: 1.6, polygon: blob(824, 452, 24, 14, 10, 0.3, 134) },
+        // FRONT-RIGHT POT — guards the one dry sliver right of the front pond, so
+        // even the safe right approach must flirt a hazard to a small green.
         { type: 'bunker', depthMul: 1.5, polygon: blob(872, 446, 16, 11, 9, 0.3, 135) }
       ],
       aiTargets: [[560, 1080], [720, 940], [808, 802], [846, 556], [842, 428]],
@@ -451,7 +449,7 @@ const timberlineV2 = {
       elevation: [
         // ELEVATED TEE, then the land FALLS into a valley, then CLIMBS to the
         // green benched on the mountainside.
-        { x: 396, y: 1322, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
+        { x: 392, y: 1360, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
         // GREEN BENCHED a full step above the pond (owner). Skirt EASED to 0.6
@@ -460,11 +458,15 @@ const timberlineV2 = {
         // chip up ... you get stuck") — max grade ~0.35 vs the old 0.76 — while
         // the radius still holds the skirt short of the pond so the water stays
         // level. Green-to-pond step is still ~14 units (a clear bench).
-        { x: 840, y: 356, h: 12, r: 128, shape: 'plateau', skirt: 0.6 },
-        // POND BASIN — a flat shelf 2 units below grade that the enlarged pond
-        // sits IN, so the water reads as a level lake in a hollow instead of
-        // pasted on a slope. Flat top spans the whole (bigger) pond; skirt = lip.
-        { x: 718, y: 500, h: -2, r: 122, shape: 'plateau', skirt: 0.72 },
+        // Radius trimmed 128->110 so the mesa flat top ends further north, clear
+        // of the front pond now pushed up onto the approach line (keeps the water
+        // level instead of riding up the bench).
+        { x: 840, y: 356, h: 12, r: 110, shape: 'plateau', skirt: 0.6 },
+        // POND BASIN — a flat shelf 2 units below grade that the front pond sits
+        // IN, so the water reads as a level lake in a hollow instead of pasted on
+        // a slope. Enlarged/recentred to span the whole wrapped pond (its east
+        // front-center arm included); skirt = the lip.
+        { x: 736, y: 498, h: -2, r: 140, shape: 'plateau', skirt: 0.7 },
         // CREEK CHANNEL — a narrow flat trough (same -2 level as the pond) cut
         // along the creek so the water stays level up the left of the green and
         // off screen. Held west of the green bench (clear of the putting shelf).

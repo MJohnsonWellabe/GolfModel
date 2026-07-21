@@ -186,13 +186,13 @@ const timberlineWestV2 = {
       // lengthen it so a strong driver can BARELY reach the corner pond"). The
       // pond's near edge now sits ~285 yd off the tee — a bomber's full carry —
       // so only a strong drive brings it into play; everyone else lays up short.
-      tee: [360, 1478],
+      tee: [356, 1516],
       teeBox: { w: 32, d: 24 },
-      // Green trimmed (80->70 / 56->50): the old green was large enough that an
+      // Green trimmed (80->64 / 56->46): the old green was large enough that an
       // elite player hit and held it in two almost every time (birdie machine).
       // A smaller target plus the enlarged front pond makes the go-for-it second
       // a low-percentage play — miss short and it's water, not a two-putt.
-      green: { cx: 858, cy: 560, rx: 70, ry: 50, rot: 0.5 },
+      green: { cx: 858, cy: 560, rx: 64, ry: 46, rot: 0.5 },
       slope: { angle: 2.6, strength: 0.34 },
       centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]],
       width: [46, 72, 86, 80, 66, 56],
@@ -224,8 +224,15 @@ const timberlineWestV2 = {
         // to the green and hold a shallow bench (a low-percentage play), while a
         // layup leaves a short wedge that flies the water easily. North edge held
         // south of the green face so the putting shelf stays dry and level.
-        { type: 'water', polygon: [[720, 742], [724, 690], [742, 650], [772, 628], [806, 626], [834, 646], [848, 686], [846, 730], [820, 758], [782, 764], [746, 754]] },
+        { type: 'water', polygon: [[716, 770], [722, 706], [742, 650], [772, 628], [806, 626], [834, 646], [850, 700], [850, 748], [822, 776], [782, 784], [742, 782], [722, 762]] },
         { type: 'water', polygon: stream([[818, 748], [846, 858], [858, 966], [852, 1074]], 24, 823) },
+        // GREENSIDE FRONT-RIGHT BUNKER — an elite player can't reach in two here,
+        // so the birdies came from a greedy lay-up that runs up to the front-right
+        // fringe leaving a tap-in chip. This deep pot sits exactly in that lay-up
+        // landing pocket (short-right of the green, north of the pond) so the safe
+        // route now has real teeth: a lay-up that leaks finds sand and a hard
+        // up-and-down instead of a stock birdie chip.
+        { type: 'bunker', depthMul: 1.5, polygon: blob(820, 606, 18, 13, 9, 0.3, 154) },
         // Behind/above-green woods on the mountainside.
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[770, 452], [864, 414], [980, 440], [1000, 372], [852, 348], [744, 402]] }
       ],
@@ -245,7 +252,7 @@ const timberlineWestV2 = {
       elevation: [
         // ELEVATED TEE, then a FALL into the valley corner, then a CLIMB to the
         // green benched high on the mountainside.
-        { x: 360, y: 1410, h: 16, r: 140, shape: 'plateau', skirt: 0.5 },
+        { x: 356, y: 1448, h: 16, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 400, y: 1060, h: 7, r: 160 },       // first fall
         { x: 452, y: 850, h: 3, r: 150 },        // corner valley floor
         { x: 640, y: 700, h: 6, r: 150 },        // rising ground on the reach
