@@ -100,9 +100,9 @@ const portjohnsonV2 = {
         // (broad r, gentle faces — no walls). Round 1's h≈3 rolls read flat;
         // these are TL-East magnitude (h 8–16) so the tee sees a rumpled dune
         // world, not a table.
-        { x: 300, y: 1120, x2: 250, y2: 760, h: 15, r: 175 }, // left dune wall
-        { x: 726, y: 1090, x2: 772, y2: 880, h: 13, r: 160 }, // right dune before the harbour
-        { x: 372, y: 980, x2: 340, y2: 880, h: 8, r: 120 },   // inner left shoulder
+        { x: 300, y: 1120, x2: 250, y2: 760, h: 22, r: 178 }, // left dune wall
+        { x: 726, y: 1090, x2: 772, y2: 880, h: 19, r: 165 }, // right dune before the harbour
+        { x: 372, y: 980, x2: 340, y2: 880, h: 12, r: 124 },   // inner left shoulder
         // PRONOUNCED FAIRWAY ROLLS — alternating crests and hollows heaving the
         // whole corridor tee-to-green (bumped ~2x so they read from the tee).
         { x: 612, y: 1040, h: 7, r: 130 },
@@ -115,7 +115,7 @@ const portjohnsonV2 = {
         { x: 404, y: 486, h: 4.5, r: 100 },
         // Far framing dunes flanking the green (horizon mass, clear of the
         // putting surface so green relief stays legal).
-        { x: 232, y: 300, x2: 190, y2: 520, h: 10, r: 150 },
+        { x: 232, y: 300, x2: 190, y2: 520, h: 15, r: 155 },
         { x: 812, y: 300, h: 9, r: 140 },
         // The green shelf: barely raised, front OPEN for the runner, with a
         // gentle rolling swale inside the putting surface.
@@ -163,8 +163,8 @@ const portjohnsonV2 = {
         // right range (carrying the kicker) and a left dune over the waste,
         // both heaving at TL-East magnitude so the tee reads a real dunescape
         // (clear of the putting surface — green relief stays legal).
-        { x: 700, y: 640, x2: 660, y2: 430, h: 13, r: 165 }, // right framing dune
-        { x: 244, y: 690, x2: 210, y2: 470, h: 11, r: 150 }, // left framing dune over the waste
+        { x: 700, y: 640, x2: 660, y2: 430, h: 20, r: 170 }, // right framing dune
+        { x: 244, y: 690, x2: 210, y2: 470, h: 17, r: 155 }, // left framing dune over the waste
         // The kicker bank right of the green — the Redan's feeding slope.
         { x: 618, y: 424, x2: 548, y2: 330, h: 2.8, r: 95 },
         // The green shelf tilts with the hole (right-to-left, front-to-back
@@ -261,8 +261,8 @@ const portjohnsonV2 = {
         // BIG DUNE WALLS heaving leg 1 RIGHT IN THE TEE VIEW — a tall right
         // range and a left tee-side dune above the sea-cliff terrace, both at
         // Prairie-h3 / TL-East magnitude (round 1's h≈3 opening read dead flat).
-        { x: 700, y: 1430, x2: 760, y2: 1120, h: 16, r: 185 }, // right dune range
-        { x: 236, y: 1430, x2: 300, y2: 1250, h: 12, r: 155 }, // left tee-side dune
+        { x: 700, y: 1430, x2: 760, y2: 1120, h: 23, r: 190 }, // right dune range
+        { x: 236, y: 1430, x2: 300, y2: 1250, h: 18, r: 160 }, // left tee-side dune
         // ROLLING FAIRWAY CRESTS AND HOLLOWS filling the opening — alternating
         // so leg 1 clearly heaves from the tee (broad r, gentle faces — no walls).
         { x: 520, y: 1430, h: 8, r: 150 },
@@ -278,13 +278,13 @@ const portjohnsonV2 = {
         { x: 500, y: 720, h: 4.5, r: 115 },
         // The wall's rise: the diagonal ridge the pots march along (kept as
         // authored — it feeds the greenside surface, so it stays gate-gentle).
-        { x: 470, y: 640, x2: 700, y2: 420, h: 2.6, r: 105 },
+        { x: 470, y: 640, x2: 700, y2: 420, h: 4.6, r: 108 },
         // Green shelf at the top of the rise, front-right door open.
         { x: 720, y: 360, h: 3.0, r: 150, shape: 'plateau', skirt: 0.55 },
         // Framing dunes: a grand range right of leg 1, dunes behind the green,
         // the sea side dropping off left.
-        { x: 940, y: 1280, x2: 1060, y2: 880, h: 14, r: 175 },
-        { x: 940, y: 250, x2: 1120, y2: 420, h: 10, r: 140 },
+        { x: 940, y: 1280, x2: 1060, y2: 880, h: 20, r: 180 },
+        { x: 940, y: 250, x2: 1120, y2: 420, h: 16, r: 145 },
         { x: 180, y: 720, h: 8, r: 150 },
         { x: 200, y: 1080, h: -1.6, r: 140 }
       ]
