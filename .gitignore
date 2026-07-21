@@ -41,3 +41,8 @@ asset-packs/red_sand_desert_canyon/scene.*
 asset-packs/red_sand_desert_canyon/textures/
 asset-packs/stylized_red_rocks/scene.*
 asset-packs/stylized_red_rocks/textures/
+
+# Agent/dev scratch (throwaway probe + capture scripts)
+_*_tmp.*
+**/_*_tmp.test.ts
+*.scratch.mjs
