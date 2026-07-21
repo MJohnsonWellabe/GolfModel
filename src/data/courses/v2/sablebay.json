@@ -15,6 +15,7 @@
     "greenLight": "#70c266",
     "sand": "#ecd39a",
     "sandDark": "#d7b877",
+    "hemiGround": "#dcc48c",
     "water": "#2a90b2",
     "waterDeep": "#175f88",
     "waterReflect": true,

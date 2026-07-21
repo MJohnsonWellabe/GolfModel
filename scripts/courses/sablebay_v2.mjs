@@ -37,6 +37,9 @@ const sablebayV2 = {
     // Clean warm PINEHURST/links sand — less olive, a touch lighter and warmer
     // so the giant waste reads as bright firm tan sand, not tired rough.
     sand: '#ecd39a', sandDark: '#d7b877',
+    // Waste-dominant course: warm SAND ground-ambient so the all-sand holes read
+    // as beach, not the olive wash the default (rough-tinted) bounce gave them.
+    hemiGround: '#dcc48c',
     // Believable warm coastal sea (a hint more teal than the old flat blue).
     water: '#2a90b2', waterDeep: '#175f88', waterReflect: true,
     treeCanopy: '#2f6a44', treeCanopyLight: '#3f7e52', treeTrunk: '#6b5238',

@@ -292,7 +292,7 @@ export function buildCourse(
   // ----------------------------------------------------------- lights & fog
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
   hemi.intensity = 0.62;
-  hemi.groundColor = c3(shade(theme.rough, 0.9));
+  hemi.groundColor = c3(theme.hemiGround ?? shade(theme.rough, 0.9));
   const sunFromRight = theme.sunX > 360;
   const sun = new DirectionalLight(
     'sun',
@@ -646,7 +646,7 @@ export function buildCourse(
       const toCss = (n: number): string => '#' + (n & 0xffffff).toString(16).padStart(6, '0');
       const bands = 6;
       for (let i = 0; i < bands; i++) {
-        g.fillStyle = toCss(shade(theme.fairway, i % 2 ? 1.06 : 0.92));
+        g.fillStyle = toCss(shade(theme.fairway, i % 2 ? 1.14 : 0.82));
         g.fillRect(0, (i * 96) / bands, 96, 96 / bands + 1);
       }
       stripeTex.update();
@@ -1210,17 +1210,18 @@ export function buildCourse(
       });
       for (let i = 0; i < hole.sailboats; i++) {
         const t = hole.sailboats > 1 ? i / (hole.sailboats - 1) : 0.5;
-        // Sail height in world units. Scaled up again to 8× the original ~34-46
-        // spread (playtest: "make the pirate ships 2x bigger" — the earlier 4×).
-        // Feeds both the instant placeholder hull/mast/sail AND (via avgSc below,
-        // the same formula) the real ship model's normalizing scale, so nothing
-        // pops in size when the uploaded model swaps in.
-        const sc = 8 * (34 + ((i * 37) % 12));
+        // Sail height in world units. Toned back from the old 8× (owner: the
+        // galleon behind the island green was so big it HID the green + flag).
+        // At ~3.2× the boats sit on the open sea a short way back, reading as
+        // coastal boats without dominating the tee backdrop. Feeds both the
+        // instant placeholder hull/mast/sail AND (via avgSc below, same formula)
+        // the real ship model's normalizing scale, so nothing pops on swap-in.
+        const sc = 1.5 * (34 + ((i * 37) % 12));
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
         let bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
-        let by = hole.pin.y - 250 - ((i * 71) % 170); // fallback: behind the green
+        let by = hole.pin.y - 360 - ((i * 71) % 170); // fallback: well behind the green
         if (waterBoxes.length) {
           for (let a = 0; a < 48; a++) {
             const box = waterBoxes[(i + a) % waterBoxes.length];
@@ -1315,7 +1316,7 @@ export function buildCourse(
             p.isPickable = false;
           }
           const length = Math.max(0.001, maxX - minX);
-          const avgSc = 8 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the (now 8x) placeholder sc spread
+          const avgSc = 1.5 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the placeholder sc spread (toned back from 8x — the galleon hid the green)
           const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
           // Instances don't inherit the source mesh's own transform — the
           // normalizing scale/centering has to go on each INSTANCE, same as

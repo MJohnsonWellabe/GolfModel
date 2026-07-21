@@ -226,6 +226,11 @@ export interface CourseTheme {
   /** Warm band low on the sky dome (sunlit horizon glow). Unset = the
    *  historical 4-stop gradient, byte-identical. */
   horizonTint?: number;
+  /** Hemispheric-light GROUND ambient tint. Default is the olive rough shade,
+   *  which washes a WASTE-dominant course (all-sand Sable Bay) muddy — such a
+   *  course sets a warm sand tint here so the ambient bounce reads as beach,
+   *  not dead field. Unset = shade(rough, 0.9) as before. */
+  hemiGround?: number;
   /** Tint for the far-horizon backdrop hills ('peaks' backdrop). Unset keeps
    *  the classic sky-hazed domes; a desert course sets terracotta so the
    *  horizon reads as red-rock mesas (Red Hollow). */
@@ -510,6 +515,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   // fixed cream that only suits the parkland default.
   t.horizonTint =
     spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
+  if (spec.hemiGround !== undefined) t.hemiGround = parseColor(spec.hemiGround, t.sand);
   if (spec.hillTint !== undefined) t.hillTint = parseColor(spec.hillTint, shade(t.skyTop, 1.06));
   if (spec.stoneTint !== undefined) t.stoneTint = parseColor(spec.stoneTint, 0x7e7c72);
   if (spec.bareRough === true) t.bareRough = true;

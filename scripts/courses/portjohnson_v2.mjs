@@ -43,7 +43,7 @@ const portjohnsonV2 = {
     // sides of the short grass — the "thick stuff" that used to live only around
     // the bunker lips now carpets the whole rough. bunkerLipPacked lines every
     // trap edge to match.
-    tallGrass: { cap: 7, density: 22, waste: true },
+    tallGrass: { cap: 8, density: 40, waste: true },
     bunkerLipPacked: true
   },
   holes: [
@@ -224,7 +224,10 @@ const portjohnsonV2 = {
       ],
       // A LIGHTHOUSE on the headland terrace just inland of the sea cliff (CC0
       // Kenney prop, upright) — the coastal landmark that crowns the drive view.
-      props: [{ key: 'lighthouse', x: 300, y: 1030, rot: 0.5, len: 52, upright: true }],
+      // Lighthouse on the raised dune terrace above the sea cliff — pulled onto
+      // solid high ground and enlarged so it actually reads from the tee/drive
+      // (the earlier [300,1030] len 52 sat low/off the sightline, invisible).
+      props: [{ key: 'lighthouse', x: 336, y: 1000, rot: 0.5, len: 74, upright: true }],
       aiTargets: [[420, 1300], [600, 1120], [640, 920], [500, 660], [604, 468]],
       elevation: [
         { x: 360, y: 1540, h: 2.6, r: 130, shape: 'plateau' },

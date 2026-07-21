@@ -29,8 +29,8 @@
     "sandSculpt": 0.4,
     "edgeWobble": 2.2,
     "tallGrass": {
-      "cap": 7,
-      "density": 22,
+      "cap": 8,
+      "density": 40,
       "waste": true
     },
     "scatterKeys": [
@@ -2141,10 +2141,10 @@
       "props": [
         {
           "key": "lighthouse",
-          "x": 300,
-          "y": 1030,
+          "x": 336,
+          "y": 1000,
           "rot": 0.5,
-          "len": 52,
+          "len": 74,
           "upright": true
         }
       ]
