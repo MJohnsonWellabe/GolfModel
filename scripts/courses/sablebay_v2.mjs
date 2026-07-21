@@ -150,7 +150,7 @@ const sablebayV2 = {
       // stone point behind the green (a clear skyline landmark from the tee and
       // mid-fairway), and a ROWBOAT pulled up on the sand by the bay.
       props: [
-        { key: 'lighthouse', x: 362, y: 296, rot: 0.35, len: 64, upright: true },
+        { key: 'lighthouse', x: 362, y: 296, rot: 0.35, len: 86, upright: true },
         { key: 'rowboat', x: 318, y: 862, rot: 2.2, len: 16, upright: true }
       ],
       aiTargets: [[600, 840], [504, 610], [424, 410]],

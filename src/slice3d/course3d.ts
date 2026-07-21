@@ -1417,7 +1417,7 @@ export function buildCourse(
       // than glowing pale cream under the warm haze.
       const rowMat = (t: number): StandardMaterial => {
         const c = mix(hillBase, theme.haze, t);
-        const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.46) });
+        const m2 = mat(scene, `mesaRow${Math.round(t * 100)}`, c, { emissive: shade(c, 0.34) });
         return m2;
       };
       const nearMat = rowMat(0.12);
