@@ -14,23 +14,23 @@ const COURSES: Record<string, CourseData> = {
   portjohnson: loadCourse(portjohnson as unknown as CourseAuthoring)
 };
 
-describe('default course is Sable Bay', () => {
-  it('the default id resolves to a real course named Sable Bay', () => {
-    expect(DEFAULT_COURSE_ID).toBe('sablebay');
+describe('default course is Wildwood', () => {
+  it('the default id resolves to a real course named Wildwood Glen', () => {
+    expect(DEFAULT_COURSE_ID).toBe('wildwood');
     expect(COURSES[DEFAULT_COURSE_ID]).toBeTruthy();
-    expect(COURSES[DEFAULT_COURSE_ID].name).toBe('Sable Bay');
+    expect(COURSES[DEFAULT_COURSE_ID].name).toBe('Wildwood Glen');
   });
 
-  it('falls back to Sable Bay when no course is selected (first launch)', () => {
-    expect(courseOrDefault(undefined, COURSES)).toBe(COURSES.sablebay);
-    expect(courseOrDefault(null, COURSES)).toBe(COURSES.sablebay);
-    expect(courseIdOrDefault(undefined, COURSES)).toBe('sablebay');
+  it('falls back to Wildwood when no course is selected (first launch)', () => {
+    expect(courseOrDefault(undefined, COURSES)).toBe(COURSES.wildwood);
+    expect(courseOrDefault(null, COURSES)).toBe(COURSES.wildwood);
+    expect(courseIdOrDefault(undefined, COURSES)).toBe('wildwood');
   });
 
-  it('falls back to Sable Bay for an invalid/renamed saved course', () => {
-    expect(courseOrDefault('not-a-course', COURSES)).toBe(COURSES.sablebay);
-    expect(courseOrDefault('', COURSES)).toBe(COURSES.sablebay);
-    expect(courseIdOrDefault('gone', COURSES)).toBe('sablebay');
+  it('falls back to Wildwood for an invalid/renamed saved course', () => {
+    expect(courseOrDefault('not-a-course', COURSES)).toBe(COURSES.wildwood);
+    expect(courseOrDefault('', COURSES)).toBe(COURSES.wildwood);
+    expect(courseIdOrDefault('gone', COURSES)).toBe('wildwood');
   });
 
   it('PRESERVES a valid explicitly-chosen course rather than overriding it', () => {
