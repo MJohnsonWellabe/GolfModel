@@ -742,6 +742,24 @@
             ]
           ]
         }
+      ],
+      "props": [
+        {
+          "key": "lighthouse",
+          "x": 338,
+          "y": 430,
+          "rot": 0.35,
+          "len": 46,
+          "upright": true
+        },
+        {
+          "key": "rowboat",
+          "x": 318,
+          "y": 862,
+          "rot": 2.2,
+          "len": 16,
+          "upright": true
+        }
       ]
     },
     {

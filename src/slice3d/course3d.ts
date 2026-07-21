@@ -1582,35 +1582,52 @@ export function buildCourse(
         const merged = parts.length ? Mesh.MergeMeshes(parts, true, true, undefined, false, true) : null;
         if (!merged) return;
         merged.refreshBoundingInfo();
-        // Source packs arrive in arbitrary up-conventions (this one stood its
-        // bridges on end), so orient by MEASURED extents: lay the longest
-        // axis flat along local X (the span) before anything else.
-        const bb0 = merged.getBoundingInfo().boundingBox;
-        const ex = bb0.maximum.x - bb0.minimum.x;
-        const ey = bb0.maximum.y - bb0.minimum.y;
-        const ez = bb0.maximum.z - bb0.minimum.z;
-        if (ey >= ex && ey >= ez) merged.rotation = new Vector3(0, 0, Math.PI / 2);
-        else if (ez >= ex && ez >= ey) merged.rotation = new Vector3(0, Math.PI / 2, 0);
-        merged.bakeCurrentTransformIntoVertices();
-        merged.refreshBoundingInfo();
-        const bb = merged.getBoundingInfo().boundingBox;
-        const long = bb.maximum.x - bb.minimum.x || 1;
-        const s = (pr.len ?? 60) / long;
-        // Span scales to the authored length; HEIGHT and deck WIDTH cap in
-        // absolute world units — stretching a small footbridge across 65yd
-        // of water at uniform scale turned its railings into golfer-dwarfing
-        // walls. Local Y is height, local Z the deck width (the yaw below
-        // only reorients the span).
-        const hExt = bb.maximum.y - bb.minimum.y || 1;
-        const wExt = bb.maximum.z - bb.minimum.z || 1;
-        const ys = Math.min(s, 8 / hExt);
-        const zs = Math.min(s, 14 / wExt);
-        merged.scaling = new Vector3(s, ys, zs);
-        merged.rotation = new Vector3(0, pr.rot ?? 0, 0);
-        // Deck at bank height: drop the underside just below the local
-        // ground so the legs stand in the water on a crossing.
         const gh = heightAt(pr.x, pr.y);
-        merged.position = w2b(pr.x, pr.y, gh - bb.minimum.y * ys - 1.2);
+        if (pr.upright) {
+          // UPRIGHT props (lighthouse, bench, fence, boat): keep the model's
+          // native Y-up orientation, scale UNIFORMLY so its LARGEST extent =
+          // pr.len (height for a lighthouse, length for a boat, width for a
+          // bench/fence — all read naturally), and rest the base ON the ground.
+          const bb = merged.getBoundingInfo().boundingBox;
+          const maxExt = Math.max(
+            bb.maximum.x - bb.minimum.x,
+            bb.maximum.y - bb.minimum.y,
+            bb.maximum.z - bb.minimum.z
+          ) || 1;
+          const s = (pr.len ?? 20) / maxExt;
+          merged.scaling = new Vector3(s, s, s);
+          merged.rotation = new Vector3(0, pr.rot ?? 0, 0);
+          merged.position = w2b(pr.x, pr.y, gh - bb.minimum.y * s);
+        } else {
+          // BRIDGE path: source packs arrive in arbitrary up-conventions (this
+          // one stood its bridges on end), so orient by MEASURED extents: lay
+          // the longest axis flat along local X (the span) before anything else.
+          const bb0 = merged.getBoundingInfo().boundingBox;
+          const ex = bb0.maximum.x - bb0.minimum.x;
+          const ey = bb0.maximum.y - bb0.minimum.y;
+          const ez = bb0.maximum.z - bb0.minimum.z;
+          if (ey >= ex && ey >= ez) merged.rotation = new Vector3(0, 0, Math.PI / 2);
+          else if (ez >= ex && ez >= ey) merged.rotation = new Vector3(0, Math.PI / 2, 0);
+          merged.bakeCurrentTransformIntoVertices();
+          merged.refreshBoundingInfo();
+          const bb = merged.getBoundingInfo().boundingBox;
+          const long = bb.maximum.x - bb.minimum.x || 1;
+          const s = (pr.len ?? 60) / long;
+          // Span scales to the authored length; HEIGHT and deck WIDTH cap in
+          // absolute world units — stretching a small footbridge across 65yd
+          // of water at uniform scale turned its railings into golfer-dwarfing
+          // walls. Local Y is height, local Z the deck width (the yaw below
+          // only reorients the span).
+          const hExt = bb.maximum.y - bb.minimum.y || 1;
+          const wExt = bb.maximum.z - bb.minimum.z || 1;
+          const ys = Math.min(s, 8 / hExt);
+          const zs = Math.min(s, 14 / wExt);
+          merged.scaling = new Vector3(s, ys, zs);
+          merged.rotation = new Vector3(0, pr.rot ?? 0, 0);
+          // Deck at bank height: drop the underside just below the local
+          // ground so the legs stand in the water on a crossing.
+          merged.position = w2b(pr.x, pr.y, gh - bb.minimum.y * ys - 1.2);
+        }
         merged.isPickable = false;
         merged.receiveShadows = false;
         shadows.addShadowCaster(merged);

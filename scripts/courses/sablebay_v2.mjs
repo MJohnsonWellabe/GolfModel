@@ -117,6 +117,12 @@ const sablebayV2 = {
         seawall(368, 448, 14, 'stone_d', 218), seawall(392, 414, 12, 'stone_e', 219),
         seawall(326, 566, 12, 'stone_c', 220)
       ],
+      // Coastal landmarks (CC0 Kenney props, upright): a LIGHTHOUSE crowning the
+      // seawall point, and a ROWBOAT pulled up on the sand by the bay.
+      props: [
+        { key: 'lighthouse', x: 338, y: 430, rot: 0.35, len: 46, upright: true },
+        { key: 'rowboat', x: 318, y: 862, rot: 2.2, len: 16, upright: true }
+      ],
       aiTargets: [[600, 840], [504, 610], [424, 410]],
       elevation: [
         { x: 624, y: 1124, h: 2.4, r: 130, shape: 'plateau' }, // tee shelf

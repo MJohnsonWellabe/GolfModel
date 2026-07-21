@@ -222,6 +222,9 @@ const portjohnsonV2 = {
         pot(822, 470, 13, 951),
         pot(636, 330, 12, 952)
       ],
+      // A LIGHTHOUSE on the headland terrace just inland of the sea cliff (CC0
+      // Kenney prop, upright) — the coastal landmark that crowns the drive view.
+      props: [{ key: 'lighthouse', x: 300, y: 1030, rot: 0.5, len: 52, upright: true }],
       aiTargets: [[420, 1300], [600, 1120], [640, 920], [500, 660], [604, 468]],
       elevation: [
         { x: 360, y: 1540, h: 2.6, r: 130, shape: 'plateau' },

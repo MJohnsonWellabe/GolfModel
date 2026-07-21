@@ -377,7 +377,7 @@ export interface HoleData {
    *  position, yaw, and the world-unit LENGTH the model's long axis scales
    *  to (e.g. Sable Bay h2's wooden footbridge out to the island green).
    *  Render-only — no physics footprint. */
-  props?: Array<{ key: string; x: number; y: number; rot?: number; len?: number }>;
+  props?: Array<{ key: string; x: number; y: number; rot?: number; len?: number; upright?: boolean }>;
   /** Authored MAJOR rock landforms (terrain identity pass): a nature
    *  prototype key + world position + height. Deliberate framing masses —
    *  canyon walls, mesa stacks, wash banks — distinct from the random rough
