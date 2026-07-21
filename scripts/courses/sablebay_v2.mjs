@@ -32,7 +32,10 @@ const sablebayV2 = {
     // warmer, sun-touched fairway so it reads as real grass against the sand.
     fairway: '#57a251', fairwayDark: '#47893f',
     // Rough is now only thin slivers (H2 near-bank) — a warm dune-green.
-    rough: '#7a9a55', roughDark: '#5f7d3f',
+    // Warm SAND-tan rough (was olive green): on an all-waste coastal course the
+    // green rough tinted the far terrain, so a GREEN band read on the horizon
+    // behind the h2 island green (owner). Tan keeps the whole coast sandy.
+    rough: '#b6a06a', roughDark: '#9a8450',
     fringe: '#64b25b', green: '#56a84f', greenLight: '#70c266',
     // Clean warm PINEHURST/links sand — less olive, a touch lighter and warmer
     // so the giant waste reads as bright firm tan sand, not tired rough.
@@ -89,11 +92,11 @@ const sablebayV2 = {
       centerline: [[624, 1096], [610, 980], [578, 850], [508, 694], [452, 536], [426, 416]],
       width: [42, 60, 82, 80, 66, 50],
       hazards: [
-        // THE BAY down the left, with a beach COVE jutting into the drive zone —
-        // the aggressive line carries the cove corner ([452,690]..[436,812]).
-        { type: 'water', polygon: [[40, 240], [280, 250], [344, 376], [382, 520], [452, 690], [470, 760], [436, 812], [352, 828], [304, 720], [268, 884], [188, 1046], [40, 1070]] },
-        // A thin BEACH collar along the cove/shore (coastal sand, recoverable).
-        { type: 'bunker', beach: true, polygon: [[452, 690], [486, 752], [452, 828], [356, 846], [316, 748], [352, 700], [408, 688]] },
+        // THE BAY down the left, cove pushed ~28px EAST to bite the drive zone
+        // (owner: "bring some water into play" on h1): safe line right-center,
+        // aggressive line carries the cove, a pull-left finds the bay.
+        { type: 'water', polygon: [[40, 240], [280, 250], [344, 376], [388, 520], [482, 686], [500, 760], [464, 816], [360, 828], [304, 720], [268, 884], [188, 1046], [40, 1070]] },
+        { type: 'bunker', beach: true, polygon: [[482, 686], [516, 750], [480, 830], [372, 848], [326, 748], [364, 698], [436, 684]] },
         // GIANT WASTE — the whole hole is sand (owner directive). One polygon
         // covering the entire world; the bay (water), the fairway ribbon and the
         // green all punch through it (surfaceAt precedence). Plays FIRM (the ball
@@ -193,14 +196,12 @@ const sablebayV2 = {
         { type: 'water', polygon: [[546, 385], [980, 385], [980, 706], [546, 706]] },   // right
         { type: 'water', polygon: [[402, 486], [461, 486], [461, 706], [402, 706]] }, // front-left
         { type: 'water', polygon: [[487, 486], [546, 486], [546, 706], [487, 706]] }, // front-right
-        // The island BEACH collar (angled oblong) filling the dry rectangle; its
-        // edges tuck just under the bands for an organic waterline. A shot
-        // short-center finds this sand, not water.
-        { type: 'bunker', beach: true, polygon: blob(474, 427, 92, 86, 20, 0.08, 221) },
-        // THE STONE CAUSEWAY base — a thin firm WASTE-sand strip under the walkway
-        // so the path reads as bright sand (with the stones laid on top below),
-        // never the flat green/brown mulch strip the owner disliked.
-        { type: 'bunker', waste: true, polygon: [[458, 486], [490, 486], [490, 714], [458, 714]] },
+        // The island BEACH collar pulled SOUTH (owner: "just water behind the
+        // green"): its north edge tucks at the green's BACK edge so water laps
+        // directly behind the green, apron stays a front/side bail-out.
+        { type: 'bunker', beach: true, polygon: blob(474, 452, 90, 66, 20, 0.08, 221) },
+        // Causeway base — firm waste-sand strip, widened so edge stones sit on sand.
+        { type: 'bunker', waste: true, polygon: [[452, 486], [496, 486], [496, 714], [452, 714]] },
         // TEE-SURROUND WASTE — sandy sand-hills around the tee and the near bank
         // (in FRONT of the green, toward the player), wiregrass through it, so
         // the whole approach reads as Pinehurst sand rather than green rough.
@@ -222,13 +223,14 @@ const sablebayV2 = {
       // stone path, not the flat brown mulch strip). Small collidable boulders on
       // the firm-sand base above read as a cobbled coastal causeway. (The mulch
       // GardenBed that used to render the walkway is deleted.)
+      // Dense border of LITTLE FLINT STONES down BOTH full edges of the walkway
+      // (owner: "a line of stones on both sides, little flint stones, border the
+      // entire walkway"). Small grey cobbles every ~13px, tee bank to green.
       landforms: [
-        seawall(467, 500, 8, 'stone_a', 251), seawall(482, 517, 8, 'stone_b', 252),
-        seawall(466, 534, 8, 'stone_d', 253), seawall(483, 551, 8, 'stone_c', 254),
-        seawall(467, 568, 8, 'stone_e', 255), seawall(482, 585, 8, 'stone_a', 256),
-        seawall(466, 602, 8, 'stone_b', 257), seawall(483, 619, 8, 'stone_d', 258),
-        seawall(467, 636, 8, 'stone_c', 259), seawall(482, 653, 8, 'stone_e', 260),
-        seawall(466, 670, 8, 'stone_a', 261), seawall(483, 687, 8, 'stone_b', 262)
+        ...Array.from({ length: 18 }, (_, i) =>
+          seawall(453, 490 + i * 13, 3.4, ['stone_a', 'stone_d', 'stone_b', 'stone_e', 'stone_c'][i % 5], 300 + i)),
+        ...Array.from({ length: 18 }, (_, i) =>
+          seawall(495, 490 + i * 13, 3.4, ['stone_b', 'stone_e', 'stone_c', 'stone_a', 'stone_d'][i % 5], 350 + i))
       ],
       elevation: [
         { x: 468, y: 776, h: 12, r: 130, shape: 'plateau' }, // tee shelf

@@ -1227,7 +1227,7 @@ export function buildCourse(
         // coastal boats without dominating the tee backdrop. Feeds both the
         // instant placeholder hull/mast/sail AND (via avgSc below, same formula)
         // the real ship model's normalizing scale, so nothing pops on swap-in.
-        const sc = 1.5 * (34 + ((i * 37) % 12));
+        const sc = 3.6 * (34 + ((i * 37) % 12)); // owner: make the boats WAY larger
         // Keep the pair near the green's line (the tee/approach view is portrait,
         // so its horizontal field is narrow) but just off the island so they read
         // as boats sitting on the open sea a short way behind the green.
@@ -1327,7 +1327,7 @@ export function buildCourse(
             p.isPickable = false;
           }
           const length = Math.max(0.001, maxX - minX);
-          const avgSc = 1.5 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // matches the placeholder sc spread (toned back from 8x — the galleon hid the green)
+          const avgSc = 3.6 * (34 + (((hole.sailboats! - 1) * 37 * 0.5) % 12)); // owner: make the boats WAY larger (matches placeholder sc)
           const s = (0.95 * avgSc * 1.4) / length; // ship reads a touch longer than the old box hull
           // Instances don't inherit the source mesh's own transform — the
           // normalizing scale/centering has to go on each INSTANCE, same as
@@ -3062,7 +3062,21 @@ export function buildCourse(
   // texture rebuild) and never exposes a corner. The mutable `puttAids.rot` is
   // shared with the break dots so lines and dots always agree.
   const g = hole.green;
-  const maxR = Math.max(g.rx, g.ry);
+  // Cover BOTH lobes on a two-part green (owner: "putting grid isn't rendering on
+  // the second green" — Wild Prairie h2, whose default pin sits on the green2
+  // lobe, outside a grid sized to the main green only). Center on the midpoint of
+  // the two lobes and grow the radius to reach the far edge of each.
+  const g2 = hole.green2;
+  let gcx = g.cx;
+  let gcy = g.cy;
+  let maxR = Math.max(g.rx, g.ry);
+  if (g2) {
+    gcx = (g.cx + g2.cx) / 2;
+    gcy = (g.cy + g2.cy) / 2;
+    const r1 = Math.hypot(gcx - g.cx, gcy - g.cy) + Math.max(g.rx, g.ry);
+    const r2 = Math.hypot(gcx - g2.cx, gcy - g2.cy) + Math.max(g2.rx, g2.ry);
+    maxR = Math.max(r1, r2);
+  }
   const side = maxR * 2 + 12;
   const puttAids = { rot: g.rot ?? 0 };
   const texW = 1024;
@@ -3104,7 +3118,7 @@ export function buildCourse(
   gridTex.update(false);
   gridTex.hasAlpha = true;
   const puttGrid = MeshBuilder.CreateGround('puttGrid', { width: side, height: side, subdivisions: 24, updatable: true }, scene);
-  puttGrid.position = new Vector3(g.cx, 0, -g.cy);
+  puttGrid.position = new Vector3(gcx, 0, -gcy);
   // Conform the grid to the contoured green surface (each vertex floats a
   // constant skin above groundHeight at its WORLD spot) — re-run whenever the
   // grid re-orients so the skin still tracks the green under the rotated lattice.
@@ -3115,9 +3129,9 @@ export function buildCourse(
       for (let i = 0; i < pos.length; i += 3) {
         const lx = pos[i];
         const lz = pos[i + 2];
-        const wx = g.cx + rotC * lx + rotS * lz;
+        const wx = gcx + rotC * lx + rotS * lz;
         const wzOff = -rotS * lx + rotC * lz;
-        const wy = g.cy - wzOff;
+        const wy = gcy - wzOff;
         pos[i + 1] = engine.groundAt(wx, wy) + greenLift(wx, wy, hole) + 0.14;
       }
     }, true);

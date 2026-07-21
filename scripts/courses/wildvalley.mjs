@@ -58,7 +58,10 @@ const wildvalley = {
     // fescue/heather banding lining the fairways — denser tall grass and
     // ground tufts (still the ONE approved card, heather_fescue_b; the
     // bounded world culls it beyond the corridor so the band reads tight).
-    tallGrass: { cap: 8, density: 33, waste: true },
+    // Fewer fescue clumps overall (owner: "reduce the total fescue, render in
+    // randomized clumps rather than everywhere") — density 33→22 so the value-
+    // noise clustering reads as scattered strategic clumps, not a carpet.
+    tallGrass: { cap: 8, density: 22, waste: true },
     roughTuftHeight: 1.9,
     tuftDensity: 3.3,
     sandPlantKeys: ['heather_fescue_b'],
@@ -219,10 +222,13 @@ const wildvalley = {
       centerline: [[400, 1410], [420, 1270], [468, 1130], [540, 1010], [618, 878], [655, 750], [688, 620], [726, 500], [752, 420]],
       width: [54, 80, 96, 98, 118, 84, 70, 58, 48],
       hazards: [
-        // LZ1 bailout blowout pressed to the drive zone's left edge.
-        { type: 'bunker', waste: true, polygon: blob(344, 1030, 84, 92, 13, 0.38, 61) },
-        // Aggressive-line pot INSIDE the fairway at the drive zone's right.
-        { type: 'bunker', polygon: blob(566, 1000, 24, 26, 10, 0.34, 71) },
+        // LZ1 blowout pulled RIGHT AGAINST the fairway's left edge + deepened
+        // (owner: "move the bunkers right against the fairway, make them deeper").
+        { type: 'bunker', waste: true, depthMul: 1.5, polygon: blob(448, 1028, 86, 96, 15, 0.5, 61) },
+        // THE WILD HORSE BUNKER (owner: "make the one on the right look like Wild
+        // Horse's famous bunker") — a huge SPRAWLING native blowout with ragged
+        // fingered edges, hard against the drive zone's right, dug deep.
+        { type: 'bunker', waste: true, depthMul: 1.8, polygon: blob(672, 985, 92, 116, 18, 0.66, 71) },
         // The HERO blowout complex torn from the second ridge's face —
         // shifted onto the aggressive carry line over the ridge.
         { type: 'bunker', waste: true, polygon: blob(806, 914, 100, 110, 14, 0.52, 62) },
