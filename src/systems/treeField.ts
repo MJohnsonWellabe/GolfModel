@@ -168,6 +168,33 @@ export function collectTreeBlobs(
     // baked shadow and 3D mesh both pass forRender=true), so a collisionOffset
     // slides a trunk's hitbox without touching where the tree is drawn.
     const [offX, offY] = forRender ? hz.renderOffset ?? [0, 0] : hz.collisionOffset ?? [0, 0];
+    // SPECIMEN ALIGNMENT: a hazard small enough to be a single authored tree
+    // plants exactly ONE trunk at its centroid — identically for the render and
+    // the collision pass — so the drawn tree and its hitbox can never drift
+    // apart. The render grid (visualSpacing) and collision grid (spacing) jitter
+    // to DIFFERENT spots, which for a lone tree left the hitbox offset from the
+    // mesh (playtest: a center-fairway tree "didn't seem to have a hitbox" — the
+    // ball passed through the trunk you could see because its collision trunk had
+    // landed a dozen px away). Bigger stands keep the statistical grid.
+    if (maxX - minX <= 48 && maxY - minY <= 48) {
+      const sx = xs.reduce((a, b) => a + b, 0) / xs.length;
+      const sy = ys.reduce((a, b) => a + b, 0) / ys.length;
+      if (hz.accent || !inWater(sx + offX, sy + offY)) {
+        const k = blobHash(sx + 31, sy + 17);
+        blobs.push({
+          x: sx + offX,
+          y: sy + offY,
+          r: hz.treeR ?? 15 + blobHash(sx + 7, sy + 3) * 12,
+          kind: k < blossomChance ? 3 : Math.floor(((k - blossomChance) / (1 - blossomChance)) * 3),
+          tint: 0.82 + blobHash(sx + 3, sy + 11) * 0.32,
+          blossom: hz.blossom,
+          accent: hz.accent,
+          accentChance: hz.accentChance,
+          isPalm: resolveIsPalm(hz, sx + offX, sy + offY)
+        });
+      }
+      continue;
+    }
     // Natural edge thinning: woods should peter out toward their boundary
     // instead of stopping on a ruler line (visual pass 7). Estimate how deep a
     // trunk sits with four offset point-in-polygon probes and keep edge trunks

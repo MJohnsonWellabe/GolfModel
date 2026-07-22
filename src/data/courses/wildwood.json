@@ -724,7 +724,7 @@
           "type": "trees",
           "spacing": 20,
           "visualSpacing": 13,
-          "treeR": 16,
+          "treeR": 20,
           "polygon": [
             [
               540,
@@ -748,7 +748,7 @@
           "type": "trees",
           "spacing": 20,
           "visualSpacing": 13,
-          "treeR": 14,
+          "treeR": 20,
           "polygon": [
             [
               459,

@@ -1513,50 +1513,27 @@ class HoleScene {
     }
   }
 
-  /** RED HATCHED OUT-OF-BOUNDS BORDER for the aerial planning view (owner:
-   *  "universally, make it clear in the aerial view where out of bounds is").
-   *  Marks the OB line — the playable boundary when the bounded world is on,
-   *  otherwise the course's world edge — plus any authored `ob` regions (Red
-   *  Hollow's canyon floors), as a red outline with 45° hazard-tape hatch ticks.
-   *  Only ever present while the aerial view is up; rebuilt each entry so it
-   *  tracks the current hole's ground, disposed on the way out. */
+  /** OUT-OF-BOUNDS MARKER for the aerial planning view (owner: "make it clear
+   *  in the aerial view where out of bounds is" — but the first hatch-tape
+   *  version "looked terrible, all over the place"). Now a single CLEAN red
+   *  line traced only around GENUINE OB: the playable boundary when the bounded
+   *  world is on, plus any authored `ob` regions (Red Hollow's canyon floors).
+   *  No hatch fuzz, and no line at all on a course whose only edge is the world
+   *  frame (nothing there actually plays as OB). Present only while the aerial
+   *  view is up; rebuilt each entry so it tracks the hole's ground. */
   private syncObBorder(): void {
     for (const m of this.obBorder) m.dispose();
     this.obBorder = [];
     if (!this.aerial) return;
     const h = this.hole;
-    const w = h.world.width;
-    const hgt = h.world.height;
     const rings: number[][][] = [];
     if (h.boundary && h.boundary.length) rings.push(...h.boundary);
-    else rings.push([[14, 14], [w - 14, 14], [w - 14, hgt - 14], [14, hgt - 14]]);
     for (const hz of h.hazards) if (hz.type === 'ob' && hz.polygon.length >= 3) rings.push(hz.polygon);
-    const RED = new Color3(0.95, 0.13, 0.1);
+    if (!rings.length) return;
+    const RED = new Color3(0.92, 0.14, 0.11);
     const LIFT = 5;
-    const HATCH = 9; // hatch tick length, world px
-    const STEP = 13; // spacing along the border, world px
-    const hatchSegs: Vector3[][] = [];
     for (const ring of rings) {
-      if (ring.length < 2) continue;
-      for (let i = 0; i < ring.length; i++) {
-        const [ax, ay] = ring[i];
-        const [bx, by] = ring[(i + 1) % ring.length];
-        const segLen = Math.hypot(bx - ax, by - ay) || 1;
-        const ux = (bx - ax) / segLen;
-        const uy = (by - ay) / segLen;
-        // 45°-rotated tangent → hazard-tape hatch direction.
-        const hx = (ux - uy) * Math.SQRT1_2;
-        const hy = (ux + uy) * Math.SQRT1_2;
-        const n = Math.max(1, Math.round(segLen / STEP));
-        for (let k = 0; k < n; k++) {
-          const t = k / n;
-          const px = ax + (bx - ax) * t;
-          const py = ay + (by - ay) * t;
-          const qx = px + hx * HATCH;
-          const qy = py + hy * HATCH;
-          hatchSegs.push([w2b(px, py, this.gh(px, py) + LIFT), w2b(qx, qy, this.gh(qx, qy) + LIFT)]);
-        }
-      }
+      if (ring.length < 3) continue;
       const outline = ring.map(([x, y]) => w2b(x, y, this.gh(x, y) + LIFT));
       outline.push(outline[0].clone());
       const line = MeshBuilder.CreateLines(`obOutline${this.obBorder.length}`, { points: outline }, this.scene);
@@ -1564,13 +1541,6 @@ class HoleScene {
       line.isPickable = false;
       line.applyFog = false;
       this.obBorder.push(line);
-    }
-    if (hatchSegs.length) {
-      const sys = MeshBuilder.CreateLineSystem('obHatch', { lines: hatchSegs }, this.scene);
-      sys.color = RED;
-      sys.isPickable = false;
-      sys.applyFog = false;
-      this.obBorder.push(sys);
     }
   }
 
