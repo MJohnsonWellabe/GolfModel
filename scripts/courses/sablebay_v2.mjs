@@ -284,11 +284,11 @@ const sablebayV2 = {
         // tee, cutting across the corridor at the F1→F2 turn. Now a real decision
         // — a big drive carries it, else lay up short in F1 and cross next. The
         // right flank (x>810) stays dry sand, so the hole is always completable.
-        { type: 'water', polygon: [[420, 1160], [560, 1150], [700, 1120], [800, 1080], [810, 1030], [720, 1040], [600, 1085], [480, 1120], [400, 1140]] },
+        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[420, 1160], [560, 1150], [700, 1120], [800, 1080], [810, 1030], [720, 1040], [600, 1085], [480, 1120], [400, 1140]] },
         // THE OPEN BAY down the west, and the CHANNEL the reach carries to the
         // point green (a cove biting in front of the green).
-        { type: 'water', polygon: [[40, 720], [244, 736], [312, 872], [292, 1060], [212, 1200], [40, 1220]] },
-        { type: 'water', polygon: [[592, 520], [740, 512], [812, 560], [806, 648], [712, 690], [604, 664], [560, 588]] },
+        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[40, 720], [244, 736], [312, 872], [292, 1060], [212, 1200], [40, 1220]] },
+        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[592, 520], [740, 512], [812, 560], [806, 648], [712, 690], [604, 664], [560, 588]] },
         // Beach under the sandy point green (the shore the green sits on).
         { type: 'bunker', beach: true, polygon: [[792, 452], [900, 470], [928, 560], [852, 604], [760, 560], [764, 484]] },
         // GIANT WASTE — the whole hole is sand (owner directive). One polygon

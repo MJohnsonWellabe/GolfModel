@@ -37,17 +37,20 @@ const portjohnsonV2 = {
     waterDeep: '#293e47',
     rough: '#8a8557',
     roughDark: '#6d683f',
-    // Heather-dominant rough: purple leads the mix.
-    heatherKeys: ['heather_purple', 'heather_fescue_a', 'heather_purple', 'heather_fescue_c'],
-    // Dense links fescue: the rough that flanks every fairway packs a THICK
-    // CONTINUOUS WALL of heather/fescue (round 1 density 8.5 → 40 read as
-    // scattered tufts; now 60 for a solid band and cap 9 so it stands as a wall,
-    // not a stubble). The scatter only plants on `rough`, and the bounded-world
-    // frame band (course3d FRAME_BAND, active in the courseRebuilds/dev render)
-    // culls everything past the corridor+frame — so this thick stand hugs the
-    // fairway edge and out ~one band, then stops (no far-field tuft haze).
-    // bunkerLipPacked lines every trap edge to match.
-    tallGrass: { cap: 9, density: 60, waste: true },
+    // WISPY LINKS FESCUE, not shrubs (owner: the rough "doesn't read as
+    // Scottish links ... it's the shrubs and assets in the rough. Get rid of all
+    // that, replace it with actual grass ... then sparsely put the purple
+    // heather back"). The field is now the real thin-bladed grass cards
+    // (grass_g/h — the same blades Sable uses for wiregrass) with purple heather
+    // dropped in only ~1 clump in 7, so it reads as blowing fescue with the odd
+    // heather patch, the way a links rough actually looks.
+    heatherKeys: ['grass_g', 'grass_h', 'grass_g', 'grass_h', 'grass_g', 'grass_h', 'heather_purple'],
+    grassKeys: ['grass_g', 'grass_h'],
+    lushGrass: true,
+    // Density dropped from a solid 60 WALL to a breezier stand — reads as a real
+    // grass field rather than a hedge, and it roughly halves the per-frame card
+    // count (owner: PJ H1 "plays laggy because there's so many assets").
+    tallGrass: { cap: 8, density: 30, waste: true },
     bunkerLipPacked: true
   },
   holes: [
@@ -77,20 +80,23 @@ const portjohnsonV2 = {
           ]
         },
         // Drive-band flank bunkers (plain sand, escapable at full length).
-        { type: 'bunker', polygon: blob(408, 900, 26, 19, 9, 0.35, 911) },
-        { type: 'bunker', polygon: blob(598, 762, 24, 18, 9, 0.35, 912) },
+        // Enlarged — the round-1 traps were so small under their packed lips they
+        // read as "bush pits" rather than sand (owner).
+        { type: 'bunker', polygon: blob(408, 900, 36, 27, 10, 0.3, 911) },
+        { type: 'bunker', polygon: blob(598, 762, 34, 25, 10, 0.3, 912) },
         // THE MINEFIELD (kept pattern): a marching field of revetted pots
-        // through the lay-up and approach bands.
-        pot(502, 726, 13, 913),
-        pot(540, 706, 11, 914),
-        pot(470, 688, 11, 915),
-        pot(446, 610, 12, 916),
-        pot(590, 648, 12, 917),
-        pot(520, 586, 11, 918),
-        pot(452, 452, 12, 919),
-        pot(570, 438, 12, 920),
+        // through the lay-up and approach bands — grown so each reads as a real
+        // sand crater, not a tuft-ringed dimple.
+        pot(502, 726, 18, 913),
+        pot(540, 706, 16, 914),
+        pot(470, 688, 16, 915),
+        pot(446, 610, 17, 916),
+        pot(590, 648, 17, 917),
+        pot(520, 586, 16, 918),
+        pot(452, 452, 17, 919),
+        pot(570, 438, 17, 920),
         // Greenside: one deep pot left, cut into the shelf.
-        pot(392, 328, 14, 921)
+        pot(392, 328, 19, 921)
       ],
       aiTargets: [[470, 812], [500, 540], [496, 392]],
       elevation: [

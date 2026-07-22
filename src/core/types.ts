@@ -129,6 +129,13 @@ export interface Hazard {
   polygon: Polygon;
   /** Water only: surface height (world units) the pond renders at. */
   level?: number;
+  /** Water only: per-hazard colour override (hex) for the shallow/deep tint,
+   *  used when ONE water body on a course should read differently from the
+   *  theme default — e.g. a freshwater creek on a coastal course keeping the
+   *  theme's sea teal for the ocean but a Timberline-lake blue for the creek.
+   *  Falls back to theme.water / theme.waterDeep when absent. */
+  water?: string;
+  waterDeep?: string;
   /** Ordinary bunkers only: extra multiplier on this ONE bunker's dish depth
    *  (on top of theme.bunkerDepthScale) — Devil's Kitchen's erosion bowls. */
   depthMul?: number;

@@ -3209,6 +3209,8 @@
       "hazards": [
         {
           "type": "water",
+          "water": "#2f83c0",
+          "waterDeep": "#1d5488",
           "polygon": [
             [
               420,
@@ -3250,6 +3252,8 @@
         },
         {
           "type": "water",
+          "water": "#2f83c0",
+          "waterDeep": "#1d5488",
           "polygon": [
             [
               40,
@@ -3279,6 +3283,8 @@
         },
         {
           "type": "water",
+          "water": "#2f83c0",
+          "waterDeep": "#1d5488",
           "polygon": [
             [
               592,

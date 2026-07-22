@@ -781,17 +781,23 @@ export function buildCourse(
     // (farthest from every edge) so the pond can still shade darker toward
     // its center and lighter toward the shore, same visual intent as before.
     const ring = hz.polygon;
+    // Per-hazard colour override (a coastal course's freshwater creek reading
+    // like a Timberline lake while the ocean keeps the theme's sea teal). Theme
+    // colours are pre-parsed to ints; the raw hazard hex string is parsed here.
+    const toNum = (s: string): number => parseInt(s.replace('#', ''), 16);
+    const wHex = hz.water != null ? toNum(hz.water) : theme.water;
+    const wDeepHex = hz.waterDeep != null ? toNum(hz.waterDeep) : theme.waterDeep;
     const { points, triangles, deepIndex } = triangulatePolygonWithDepth(ring);
     const positions: number[] = [];
     const colors: number[] = [];
     const uvs: number[] = [];
-    const deep = c3(theme.waterDeep);
+    const deep = c3(wDeepHex);
     // Per-vertex SHALLOW→DEEP gradient by true distance to the shoreline
     // (playtest: flat single-tint water "looked like blue paint"). The banks
     // read as bright translucent shallows that let a little of the bank/bottom
     // through; the interior deepens to the opaque tinted body — a real sense of
     // depth, the way the reference ponds carry it, instead of one painted sheet.
-    const shallow = c3(shade(theme.water, 1.14));
+    const shallow = c3(shade(wHex, 1.14));
     const boundary = ring;
     const distToShore = (px: number, py: number): number => {
       let m = Infinity;
@@ -843,7 +849,7 @@ export function buildCourse(
     // Base glow kept LOW so the surface reads by its depth tint + sky reflection
     // + moving sun sparkle, not a flat self-lit sheet (the old 0.45 emissive was
     // most of why it looked painted-on).
-    wm.emissiveColor = c3(shade(theme.waterDeep, waterMirror ? 0.22 : 0.34));
+    wm.emissiveColor = c3(shade(wDeepHex, waterMirror ? 0.22 : 0.34));
     // Bright, fairly tight sun sparkle so the scrolling wavelets throw moving
     // glints across the surface (kills the dead-flat paint read).
     wm.specularColor = new Color3(0.9, 0.96, 1);
@@ -876,7 +882,7 @@ export function buildCourse(
       const t = animTime();
       waterNormalTex.uOffset = t * 0.009;
       waterNormalTex.vOffset = t * 0.006 + Math.sin(t * 0.4) * 0.012;
-      wm.emissiveColor = c3(shade(theme.waterDeep, (waterMirror ? 0.22 : 0.34) + Math.sin(t * 1.3) * 0.05));
+      wm.emissiveColor = c3(shade(wDeepHex, (waterMirror ? 0.22 : 0.34) + Math.sin(t * 1.3) * 0.05));
     });
   }
 
@@ -1235,7 +1241,12 @@ export function buildCourse(
     // rotations, so nothing shifts when it arrives.
     if (hole.sailboats && hole.sailboats > 0) {
       const hullMat = mat(scene, 'boatHull', 0x3a4756, { emissive: 0x1c2530 });
-      const sailMat = mat(scene, 'boatSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
+      // Sails forced UNAMBIGUOUSLY white (owner kept seeing them "solid brown"):
+      // strongly self-lit so no sun angle darkens them, and double-sided so the
+      // canvas reads white from behind too (a single-sided backface was reading
+      // dark/absent when the boats sat with their sterns to the camera).
+      const sailMat = mat(scene, 'boatSail', 0xffffff, { emissive: 0xe8e6de });
+      sailMat.backFaceCulling = false;
       const mastMat = mat(scene, 'boatMast', 0x8a6a45);
       const boats: TransformNode[] = [];
       const placeholders: Mesh[] = [];
@@ -1326,7 +1337,8 @@ export function buildCourse(
           // calls from skipping the merge are irrelevant.
           const shipHull = mat(scene, 'shipHull', 0x3a2a1c, { emissive: 0x1a120b });
           const shipTrim = mat(scene, 'shipTrim', 0xc9a876, { emissive: 0x6b5636 });
-          const shipSail = mat(scene, 'shipSail', 0xf3f1e8, { emissive: 0xb9c0c8 });
+          const shipSail = mat(scene, 'shipSail', 0xffffff, { emissive: 0xe8e6de });
+          shipSail.backFaceCulling = false;
           let minX = Infinity;
           let maxX = -Infinity;
           let minY = Infinity;
