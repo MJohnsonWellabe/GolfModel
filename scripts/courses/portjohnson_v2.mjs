@@ -99,6 +99,12 @@ const portjohnsonV2 = {
         pot(392, 328, 19, 921)
       ],
       aiTargets: [[470, 812], [500, 540], [496, 392]],
+      // THE CASTLE behind the green (owner: "get a castle to use at pj links") —
+      // a crenellated stone keep crowning the headland above the harbour, the
+      // aiming landmark straight up the hole. rot ~PI turns the gatehouse to face
+      // the green/tee. Kept OFF a raised motte and short of the green's back edge
+      // so its footprint never bends the green's putting gradient (gate-checked).
+      props: [{ key: 'castle', x: 500, y: 118, rot: 3.14, len: 230, upright: true }],
       elevation: [
         // Tee shelf.
         { x: 500, y: 1170, h: 1.8, r: 120, shape: 'plateau' },

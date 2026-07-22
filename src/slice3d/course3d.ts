@@ -1199,6 +1199,22 @@ export function buildCourse(
   // natureReady so the intro flyover can't sweep past placeholder hulls that
   // pop into real ships mid-shot (Sable Bay h1 cold-load regression).
   let shipReady: Promise<void> = Promise.resolve();
+  if (theme.backdrop === 'peaks') {
+    // GROUND APRON for a peaks/dunes course. The 'sea' backdrop lays a huge
+    // water plane so the world never ends in sky; a peaks course had none, so
+    // past the small bounded world the pale sky dome showed BETWEEN the ground
+    // and the distant dune line (owner: "what is the white space before the sand
+    // hills. Get rid of that."). A large fogged ground plane at grade fills that
+    // gap so the foreground reads as continuous sandy ground out to the dunes.
+    const apronC = theme.hemiGround ?? shade(theme.rough, 0.9);
+    const apron = MeshBuilder.CreateGround('peakApron', { width: 16000, height: 9000, subdivisions: 1 }, scene);
+    apron.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, -4);
+    const apronMat = mat(scene, 'peakApronM', apronC, { emissive: shade(apronC, 0.5) });
+    apron.material = apronMat;
+    apron.applyFog = true;
+    apron.isPickable = false;
+    apron.freezeWorldMatrix();
+  }
   if (theme.backdrop === 'sea') {
     // Links course: a broad sea plane meeting the sky at a low horizon,
     // with animated sparkle instead of a mountain range
@@ -3306,8 +3322,13 @@ export function buildCourse(
   const placeCupRing = (rot: number): void => {
     const rotC = Math.cos(rot);
     const rotS = Math.sin(rot);
-    const dx = hole.pin.x - g.cx;
-    const dzW = -(hole.pin.y - g.cy);
+    // Offset from the GRID CENTRE (gcx/gcy — the two-lobe midpoint), not the
+    // main lobe (g.cx/g.cy): the ring/beacon are parented to the grid, which
+    // sits at gcx/gcy, so on a two-part green the old g.cx offset placed them a
+    // half-lobe off the cup (owner: "the hole marker doesn't always render on
+    // the hole when putting" — the two-lobe greens).
+    const dx = hole.pin.x - gcx;
+    const dzW = -(hole.pin.y - gcy);
     cupRing.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.1, rotS * dx + rotC * dzW);
     cupBeacon.position = new Vector3(rotC * dx - rotS * dzW, pinBaseH + 0.12, rotS * dx + rotC * dzW);
   };

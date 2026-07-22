@@ -117,7 +117,7 @@ import { dist, randomPinForGreen } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { TreeSpecies } from '../systems/treeField';
 import { DEFAULT_TREE_MIX } from '../systems/treeHitbox';
-import { boundaryBBox, withPlayableBoundary } from '../systems/PlayableBoundary';
+import { boundaryBBox, pointInBoundary, withPlayableBoundary } from '../systems/PlayableBoundary';
 import { computeTrueVisionOutcome } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
@@ -1524,22 +1524,51 @@ class HoleScene {
     this.obBorder = [];
     if (!this.aerial) return;
     const h = this.hole;
-    const rings: number[][][] = [];
-    if (h.boundary && h.boundary.length) rings.push(...h.boundary);
-    for (const hz of h.hazards) if (hz.type === 'ob' && hz.polygon.length >= 3) rings.push(hz.polygon);
-    if (!rings.length) return;
     const RED = new Color3(0.92, 0.14, 0.11);
     const LIFT = 5;
-    for (const ring of rings) {
-      if (ring.length < 3) continue;
-      const outline = ring.map(([x, y]) => w2b(x, y, this.gh(x, y) + LIFT));
-      outline.push(outline[0].clone());
-      const line = MeshBuilder.CreateLines(`obOutline${this.obBorder.length}`, { points: outline }, this.scene);
-      line.color = RED;
-      line.isPickable = false;
-      line.applyFog = false;
-      this.obBorder.push(line);
+    const segs: Vector3[][] = [];
+    // THE OB LINE = the OUTER edge of the UNION of playable regions. Drawing
+    // each region (green ellipse, tee circle, landing circles, inflated
+    // hazards) as its own outline drew a red RING around every feature — the
+    // "red circles" the owner kept flagging. Instead march a grid and emit a
+    // segment only where an in-play cell borders an OFF-COURSE cell, so only the
+    // single perimeter (the true in/out-of-bounds line) is stroked — no interior
+    // rings around the green, tee, fairway or bunkers.
+    if (h.boundary && h.boundary.length) {
+      const step = 12;
+      const w = h.world.width;
+      const hgt = h.world.height;
+      const inb = (x: number, y: number): boolean => pointInBoundary(x, y, h.boundary!);
+      for (let x = 0; x <= w; x += step) {
+        for (let y = 0; y <= hgt; y += step) {
+          const here = inb(x, y);
+          if (here !== inb(x + step, y)) {
+            const ex = x + step / 2;
+            segs.push([w2b(ex, y - step / 2, this.gh(ex, y) + LIFT), w2b(ex, y + step / 2, this.gh(ex, y) + LIFT)]);
+          }
+          if (here !== inb(x, y + step)) {
+            const ey = y + step / 2;
+            segs.push([w2b(x - step / 2, ey, this.gh(x, ey) + LIFT), w2b(x + step / 2, ey, this.gh(x, ey) + LIFT)]);
+          }
+        }
+      }
     }
+    // Authored true-OB regions (Red Hollow's canyon floors) keep an explicit
+    // outline — those ARE discrete out-of-bounds zones, not the fairway corridor.
+    for (const hz of h.hazards) {
+      if (hz.type !== 'ob' || hz.polygon.length < 3) continue;
+      for (let i = 0; i < hz.polygon.length; i++) {
+        const [ax, ay] = hz.polygon[i];
+        const [bx, by] = hz.polygon[(i + 1) % hz.polygon.length];
+        segs.push([w2b(ax, ay, this.gh(ax, ay) + LIFT), w2b(bx, by, this.gh(bx, by) + LIFT)]);
+      }
+    }
+    if (!segs.length) return;
+    const sys = MeshBuilder.CreateLineSystem('obLine', { lines: segs }, this.scene);
+    sys.color = RED;
+    sys.isPickable = false;
+    sys.applyFog = false;
+    this.obBorder.push(sys);
   }
 
   /** BOUNDED WORLD debug overlay (capture `?boundary=1`, or __slice3d.showBoundary()).

@@ -119,8 +119,15 @@ describe('surfaceAt priority', () => {
     expect(engine.surfaceAt(1000, 300)).toBe('green');
   });
 
-  it('fringe ring sits just outside the green even over water', () => {
-    expect(engine.surfaceAt(1000, 410)).toBe('fringe');
+  it('genuine water within the fringe margin reads as WATER, not a dry collar', () => {
+    // (1000,410) is 10px past the green edge (y=400, inside the ~32px fringe
+    // margin) BUT inside HOLE's crisp water rectangle. It used to read 'fringe'
+    // — a dry collar over the water — so a ball long into a pond/firth right
+    // behind the green "played off it rather than acting as water" (owner, PJ
+    // links h3). The fringe margin still protects against the PAINTED edge-bleed
+    // (handled separately by nearWater), but a point genuinely inside a water
+    // polygon is in the hazard.
+    expect(engine.surfaceAt(1000, 410)).toBe('water');
   });
 
   it('fairway wins over the fringe margin — a ball on the fairway near the green is never "just off the green"', () => {

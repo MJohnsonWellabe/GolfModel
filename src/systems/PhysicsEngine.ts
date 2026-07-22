@@ -431,7 +431,13 @@ export class PhysicsEngine {
       // is never "just off the green" even within the margin (bug: the game
       // auto-armed the putter for a ball plainly sitting in the fairway, or in
       // a bunker, near the green).
-      if (!h.fairway.some((poly) => pointInPolygon(x, y, poly)) && !beach && !waste) return 'fringe';
+      // ...and a ball genuinely inside a WATER polygon behind/beside the green
+      // is in the hazard, not on a dry collar — the fringe margin must not
+      // swallow real water either, or a ball long into the pond/firth behind the
+      // green "plays off it rather than acting as water" (owner, PJ links h3).
+      // `water` is the crisp-polygon test, so the edge-bleed protection the
+      // margin exists for (painted blue past the polygon) is unaffected.
+      if (!h.fairway.some((poly) => pointInPolygon(x, y, poly)) && !beach && !waste && !water) return 'fringe';
     }
     if (water) return 'water';
     if (trees) return 'trees';

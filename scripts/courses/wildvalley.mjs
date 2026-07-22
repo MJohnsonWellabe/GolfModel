@@ -212,7 +212,7 @@ const wildvalley = {
       // good one."). A prairie cedar lodge sitting on the amphitheater rim
       // directly behind the green, on the tee->green sightline so it reads as
       // the backdrop landmark. rot ~PI turns its porch/door to face the green.
-      props: [{ key: 'clubhouse', x: 440, y: 232, rot: 3.14, len: 96, upright: true }]
+      props: [{ key: 'clubhouse', x: 440, y: 232, rot: 3.14, len: 66, upright: true }]
     },
     {
       number: 3, name: 'Sandbox', par: 5,

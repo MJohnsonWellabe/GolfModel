@@ -16,6 +16,12 @@ CC0 requires no attribution; credited here as good practice. Downloaded
 | `bench.glb` | Furniture Kit | `bench` | Park bench (Wildwood parkland) |
 | `fence.glb` | Nature Kit | `fence_simple` | Wooden rail fence (parkland / links margins) |
 | `bridge_stone.glb` | Nature Kit | `bridge_stone` | Stone footbridge (creek crossings) |
+| `castle.glb` | Kenney (via poly.pizza, CC0) | castle complex | Stone castle backdrop landmark (Port Johnson links) |
+| `clubhouse.glb` | Kenney (via poly.pizza, CC0) | multi-storey house | Grand clubhouse behind Wild Prairie h2 green |
+
+The `castle.glb` and `clubhouse.glb` were downloaded 2026-07-22 as real CC0
+models (owner: "go get assets to use") from poly.pizza, replacing the earlier
+hand-authored placeholder GLBs.
 
 Pre-existing Kenney/Quaternius assets (trees, rocks, grasses, the original
 `bridge.glb`, mountains) predate this file; see the in-code comments in
