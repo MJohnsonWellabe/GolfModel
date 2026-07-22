@@ -1700,7 +1700,13 @@ export function buildCourse(
   // Sable Bay h2's island green). Render-only: no physics footprint. The
   // model keeps its own textured materials (the wood IS the look); its long
   // axis is measured and scaled to the authored `len`, then yawed by `rot`.
+  const propWaterPolys = (hole.hazards ?? []).filter((hz) => hz.type === 'water').map((hz) => hz.polygon);
   for (const pr of hole.props ?? []) {
+    // A fence must never march through water (Wildwood #3 ran its rail along the
+    // creek and straight across it). Skip any fence post whose base sits inside a
+    // water hazard, so the rail stops at the bank on each side and leaves the
+    // crossing open instead of standing in the stream.
+    if (pr.key === 'fence' && propWaterPolys.some((poly) => pointInPolygon(pr.x, pr.y, poly))) continue;
     void LoadAssetContainerAsync(`models/props/${pr.key}.glb`, scene)
       .then((container) => {
         container.addAllToScene();
@@ -2167,13 +2173,13 @@ export function buildCourse(
         ? pointInGreens(px, py, hole.green, hole.green2, GREEN_SURROUND_PAD)
         : Math.hypot(px - hole.pin.x, py - hole.pin.y) < classicR;
     // 2. The FRAME BAND. The big identity fields (tall fescue, waste fescue,
-    //    sand plants) previously ignored the boundary entirely — the one
-    //    scatter family still paying for the outskirts. They now keep full
-    //    presence through the corridor plus a wider frame band, then stop:
-    //    past the frame, the void/haze treatment owns the view. (For a hole
-    //    with an AUTHORED boundary the derived frame is a heuristic superset
-    //    — acceptable: the frame is scenery, not gameplay.)
-    const FRAME_BAND = 80; // ≈ 40 yd of framing field beyond the corridor margin
+    //    sand plants) now stop at the SAME playable boundary as every other
+    //    scatter family (owner: "don't put grass or bush assets outside the
+    //    playable area"). No vegetation spills into the off-course void — the
+    //    void/haze treatment owns the view past the boundary. (Previously these
+    //    fields kept an ~40 yd framing band beyond the corridor; that band is
+    //    what leaked grass into the dunes/void, so it's removed.)
+    const FRAME_BAND = 0; // vegetation stops at the playable boundary, no framing spill
     const frameBoundary = hole.boundary ? computeBoundary(hole, DEFAULT_MARGIN + FRAME_BAND) : null;
     const inFrame = (px: number, py: number): boolean =>
       !frameBoundary || pointInBoundary(px, py, frameBoundary);
