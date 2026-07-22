@@ -1291,12 +1291,20 @@ export function buildCourse(
         // as boats sitting on the open sea a short way behind the green.
         let bx = hole.pin.x + (t - 0.5) * 170 + ((i * 53) % 60) - 30;
         let by = hole.pin.y - 360 - ((i * 71) % 170); // fallback: well behind the green
+        // Keep decorative ships clear of the green. The behind-green water can lap
+        // right up to the green's back edge (Sable Bay #2), so a large ship sampled
+        // there anchors on water but visually sits ON the putting surface. Reject
+        // any sample within a ship-sized margin of the green centre(s).
+        const greenKeepout = Math.max(hole.green.rx, hole.green.ry) + 120;
+        const clearOfGreen = (px: number, py: number): boolean =>
+          Math.hypot(px - hole.green.cx, py - hole.green.cy) >= greenKeepout &&
+          (!hole.green2 || Math.hypot(px - hole.green2.cx, py - hole.green2.cy) >= greenKeepout);
         if (waterBoxes.length) {
           for (let a = 0; a < 48; a++) {
             const box = waterBoxes[(i + a) % waterBoxes.length];
             const cx = box.minX + hash2(i * 7 + a * 3 + 1, a * 5 + 2) * (box.maxX - box.minX);
             const cy = box.minY + hash2(a * 5 + 3, i * 7 + a * 3 + 4) * (box.maxY - box.minY);
-            if (pointInPolygon(cx, cy, box.r) && engine.surfaceAt(cx, cy) === 'water') {
+            if (pointInPolygon(cx, cy, box.r) && engine.surfaceAt(cx, cy) === 'water' && clearOfGreen(cx, cy)) {
               bx = cx;
               by = cy;
               break;
