@@ -1513,14 +1513,12 @@ class HoleScene {
     }
   }
 
-  /** OUT-OF-BOUNDS MARKER for the aerial planning view (owner: "make it clear
-   *  in the aerial view where out of bounds is" — but the first hatch-tape
-   *  version "looked terrible, all over the place"). Now a single CLEAN red
-   *  line traced only around GENUINE OB: the playable boundary when the bounded
-   *  world is on, plus any authored `ob` regions (Red Hollow's canyon floors).
-   *  No hatch fuzz, and no line at all on a course whose only edge is the world
-   *  frame (nothing there actually plays as OB). Present only while the aerial
-   *  view is up; rebuilt each entry so it tracks the hole's ground. */
+  /** OUT-OF-BOUNDS MARKERS for the aerial planning view (owner WANTS these — the
+   *  "red circle aiming system" they wanted gone was the aim dots/ring + True
+   *  Vision reveal, now hidden up here, NOT this). A single clean red line traces
+   *  genuine OB only: the playable-world boundary plus any authored `ob` regions
+   *  (Red Hollow's canyon floors). Present only while the aerial view is up;
+   *  rebuilt each entry so it tracks the hole's ground. */
   private syncObBorder(): void {
     for (const m of this.obBorder) m.dispose();
     this.obBorder = [];
@@ -1811,8 +1809,16 @@ class HoleScene {
     } else {
       target = path![landIdx];
     }
+    // Overhead planning view shows a CLEAN map — the aim dots + target ring are
+    // hidden up here (owner: "get rid of all the red circle aiming system in the
+    // aerial view"). The floating distance/elevation readout stays. The dots and
+    // ring come back the moment the play camera returns.
+    const hideCircles = this.aerial;
+    this.aimRing.setEnabled(!hideCircles);
     const curved = !this.aim.isPutting && landIdx > 4;
     this.aimDots.forEach((dot, i) => {
+      dot.setEnabled(!hideCircles);
+      if (hideCircles) return;
       const f = (i + 1) / (this.aimDots.length + 1);
       let dx: number;
       let dy: number;
@@ -1829,8 +1835,10 @@ class HoleScene {
       dot.position = w2b(dx, dy, 0.12 + this.gh(dx, dy));
       dot.scaling.setAll(dotScale);
     });
-    this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
-    this.aimRing.scaling.setAll(dotScale);
+    if (!hideCircles) {
+      this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
+      this.aimRing.scaling.setAll(dotScale);
+    }
     this.updateAimReadout(target);
   }
 
@@ -1958,6 +1966,9 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai) return;
     this.aerial = !this.aerial;
     aerialBtn.classList.toggle('on', this.aerial);
+    // No red aiming overlays in the overhead planning view (owner) — pull any
+    // live True Vision reveal off the map on the way up.
+    if (this.aerial) this.trueVisionRoot.setEnabled(false);
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
     // The overhead swap is a big camera move; re-capture the frozen reflection +
@@ -2023,7 +2034,9 @@ class HoleScene {
     const end = path[path.length - 1] ?? pts[pts.length - 1];
     this.trueVisionEnd.position = w2b(end.x, end.y, 0.18 + this.gh(end.x, end.y));
     this.trueVisionEnd.scaling.setAll(scale * 2.6);
-    this.trueVisionRoot.setEnabled(true);
+    // The red reveal line is a play-camera aid, never drawn in the clean
+    // overhead planning view (owner: no red aiming overlay in aerial).
+    this.trueVisionRoot.setEnabled(!this.aerial);
   }
 
   /** The last reveal's promise (see revealTrueVision). Cleared whenever the

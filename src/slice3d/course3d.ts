@@ -1345,10 +1345,25 @@ export function buildCourse(
           let minZ = Infinity;
           let maxZ = -Infinity;
           for (const p of parts) {
-            const src = p.material as StandardMaterial | null;
-            const c = src?.diffuseColor;
+            // Classify each part by MATERIAL NAME first (ship.glb ships named
+            // hull / mast / mainsail / jib). The old luminance test read
+            // `diffuseColor`, which is UNDEFINED on the PBRMaterial the glTF
+            // loader actually creates — so every part scored luma 0 and fell
+            // through to the brown hull, turning the whole boat brown IN THE
+            // REAL GAME (software-GL renders only ever showed the white-sailed
+            // placeholder, hiding it). Name match is GPU-independent; the
+            // luminance path is kept as a fallback and now reads albedoColor
+            // (PBR) as well as diffuseColor (Standard) for any future ship asset.
+            const src = p.material as (StandardMaterial & { albedoColor?: Color3 }) | null;
+            const nm = (src?.name ?? '').toLowerCase();
+            const c = src?.diffuseColor ?? src?.albedoColor;
             const luma = c ? c.r * 0.3 + c.g * 0.59 + c.b * 0.11 : 0;
-            p.material = luma > 0.5 ? shipSail : luma > 0.2 ? shipTrim : shipHull;
+            p.material =
+              /sail|jib|cloth|canvas/.test(nm) || luma > 0.5
+                ? shipSail
+                : /mast|trim|rope|rig/.test(nm) || luma > 0.2
+                  ? shipTrim
+                  : shipHull;
             // An InstancedMesh shares only the source's LOCAL vertex data —
             // the source's own parent-node transform (the glTF's "pirate
             // ship" root, here just an identity node, but not guaranteed by
@@ -1808,6 +1823,10 @@ export function buildCourse(
     // above): only trees/blossoms register here (via the onPlanted callback
     // plantTree passes below) — grass, flowers and bushes never grow tall
     // enough to hide the golfer, so they're left out of the scan entirely.
+    // Shared white so an untinted tintable part shows its material colour instead
+    // of a black (uninitialised) instance-colour buffer. One instance, never
+    // mutated — reused across every placement.
+    const WHITE_TINT = new Color4(1, 1, 1, 1);
     const placeProto = (
       proto: NatureProto,
       x: number,
@@ -1832,7 +1851,13 @@ export function buildCourse(
           // tintable prototype parts in natureModels when grassLit) breaks the flat
           // one-color read. For split flowers only the petal part is tintable, so a
           // hue colors the bloom while the stem part stays green.
-          if (tint && (part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint;
+          // CRITICAL: a tintable part uses useVertexColors, so its color buffer
+          // MULTIPLIES the material. If it's registered but left UNSET (a tintable
+          // grass placed with no tint — e.g. the links-fescue field), the buffer
+          // reads as black and the blade renders pure black (owner: "PJ grass ...
+          // black most of the time, some render green"). Always initialise the
+          // buffer — the passed tint, or white so the material's own colour shows.
+          if ((part as Mesh & { tintable?: boolean }).tintable) inst.instancedBuffers.color = tint ?? WHITE_TINT;
           // Scenery never moves: freeze the world matrix (thousands of static
           // instances otherwise recompute matrices EVERY frame — the real
           // steady-state cost behind "the meter doesn't move smoothly"), skip
@@ -2304,7 +2329,7 @@ export function buildCourse(
               // jittered point back onto fairway-adjacent ground before planting.
               const fjx = xx + (hash2(xx + 5, yRow) - 0.5) * tgStep * 0.8;
               const fjy = yRow + (hash2(yRow + 5, xx) - 0.5) * tgStep * 0.8;
-              place(heatherSet, fjx, fjy, cap * (0.5 + hash2(fjx + 5, fjy - 5) * 0.3));
+              place(heatherSet, fjx, fjy, cap * (0.5 + hash2(fjx + 5, fjy - 5) * 0.3), 0, theme.lushGrass ? grassTint(fjx, fjy) : undefined);
             }
             continue;
           }
@@ -2320,13 +2345,16 @@ export function buildCourse(
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           const tall = cap * (0.6 + hash2(jx + 2, jy - 2) * 0.4);
           if (heatherSet.length) {
-            place(heatherSet, jx, jy, tall);
+            // lushGrass tint greens the tintable grass blades in the mix; the
+            // (non-tintable) heather cards ignore it and keep their purple photo.
+            const tgTint = theme.lushGrass ? grassTint(jx, jy) : undefined;
+            place(heatherSet, jx, jy, tall, 0, tgTint);
             // Dense patch cores: a second offset tuft doubles the stand.
             if (clustered && patch > 1.25) {
               const ox = jx + (hash2(jx + 31, jy) - 0.5) * tgStep * 1.4;
               const oy = jy + (hash2(jy + 31, jx) - 0.5) * tgStep * 1.4;
               if (engine.surfaceAt(ox, oy) === 'rough') {
-                place(heatherSet, ox, oy, cap * (0.55 + hash2(ox, oy) * 0.4));
+                place(heatherSet, ox, oy, cap * (0.55 + hash2(ox, oy) * 0.4), 0, theme.lushGrass ? grassTint(ox, oy) : undefined);
               }
             }
           } else if (clump3d.length && hash2(jx + 9, jy + 4) < 0.3) {
