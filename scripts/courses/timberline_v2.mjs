@@ -89,13 +89,14 @@ const timberlineV2 = {
     // gone. Detailed leafy shrub replaces the block bushes. Grey granite
     // boulders scatter through the rough (and mound behind greens as authored
     // landforms).
-    // Owner tree choice: high-quality broadleafs (birch/aspen/poplar/oak) — a
-    // golden-montane forest. The broken/dead-spar + fallen-log assets are OUT
-    // (owner: they read as broken and lacked collision); every tree now is a
-    // real canopy planted IN a stand, so it carries collision from
-    // collectTreeBlobs. (The low-poly conifers stay out too.)
-    treeKeys: ['tree_birch', 'tree_aspen', 'tree_poplar', 'tree_oak'],
-    accentTreeKeys: ['tree_birch_b', 'tree_maple'],
+    // Owner tree choice (revised): detailed Quaternius ALPINE PINES dominate the
+    // forest so "Timberline" reads as an evergreen mountain course, not an autumn
+    // broadleaf wood (and a cleaner, layered conifer silhouette than the blobby
+    // firs — owner: "find a better conifer"). Golden aspen mixes in for seasonal
+    // colour. Every tree is a full canopy planted IN a stand, so it carries
+    // collision from collectTreeBlobs; the broken/dead-spar + fallen-log stay OUT.
+    treeKeys: ['tree_pine_q1', 'tree_pine_q2', 'tree_aspen'],
+    accentTreeKeys: ['tree_pine_q1', 'tree_maple'],
     // UNDERSTORY — the forest-pack "bush" meshes ship WITHOUT their leaf-cutout
     // texture (the fbx references a missing C:\ leaf png), so they render as
     // solid boxes. The foliage that reads as REAL 3D growth is the photo-

@@ -30,13 +30,12 @@
     ],
     "blossomChance": 0,
     "treeKeys": [
-      "tree_birch",
-      "tree_aspen",
-      "tree_poplar",
-      "tree_oak"
+      "tree_pine_q1",
+      "tree_pine_q2",
+      "tree_aspen"
     ],
     "accentTreeKeys": [
-      "tree_birch_b",
+      "tree_pine_q1",
       "tree_maple"
     ],
     "bushKeys": [],

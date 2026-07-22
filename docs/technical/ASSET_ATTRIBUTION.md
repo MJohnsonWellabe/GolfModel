@@ -17,11 +17,22 @@ CC0 requires no attribution; credited here as good practice. Downloaded
 | `fence.glb` | Nature Kit | `fence_simple` | Wooden rail fence (parkland / links margins) |
 | `bridge_stone.glb` | Nature Kit | `bridge_stone` | Stone footbridge (creek crossings) |
 | `castle.glb` | Quaternius (via poly.pizza, CC0) | `Wonder_SecondAge_Level3` | Assembled stone fortress backdrop landmark (Port Johnson links) |
-| `clubhouse.glb` | Kenney (via poly.pizza, CC0) | multi-storey house | Grand clubhouse behind Wild Prairie h2 green |
+| `clubhouse.glb` | Poly by Google (via poly.pizza, CC-BY) | `Palace` | Grand estate landmark behind Wild Prairie h2 green |
 
 The `clubhouse.glb` was downloaded 2026-07-22 as a real CC0 model (owner: "go
 get assets to use") from poly.pizza, replacing the earlier hand-authored
-placeholder GLB. The `castle.glb` was first a Kenney castle KIT sampler (all
+placeholder GLB.
+
+## Quaternius alpine pines (via poly.pizza) — CC0
+
+Downloaded 2026-07-22 (owner: "find a better conifer tree asset"). Detailed
+layered conifers with clean Bark_NormalTree / Leaves_Pine slots, used for the
+Timberline East/West forest in place of the blobby firs.
+
+| File (assets/models/nature/) | Source | Use |
+|---|---|---|
+| `tree_pine_q1.glb` | Quaternius pine (poly.pizza, CC0) | Alpine pine — lighter silhouette (~1.6k tris) |
+| `tree_pine_q2.glb` | Quaternius pine (poly.pizza, CC0) | Alpine pine — fuller silhouette (~3.4k tris) | The `castle.glb` was first a Kenney castle KIT sampler (all
 159 pieces incl. knights/siege engines — it rendered as scattered parts, not a
 castle); it was replaced 2026-07-22 with Quaternius's single assembled
 `Wonder_SecondAge_Level3` fortress (CC0, via poly.pizza).

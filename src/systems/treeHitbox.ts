@@ -77,6 +77,12 @@ export const TREE_HITBOX: Record<string, TreeHitbox> = {
   tree_pine_k1: prof(2.6, 4.57, 0.33, true),
   // bare-trunk pine ("bare trunk to the top") — canopy only near the crown
   tree_pine_k3: prof(2.6, 4.91, 0.46, true),
+  // Detailed Quaternius alpine pines — layered tapering cones. Slim conifer
+  // profiles (near the firs they replaced) so the forest corridors stay
+  // playable, a touch fuller so a stand still carries a real hitbox. q1 lighter
+  // silhouette, q2 fuller/taller.
+  tree_pine_q1: prof(2.6, 4.2, 0.2, true),
+  tree_pine_q2: prof(2.6, 4.5, 0.26, true),
   // palms (isPalm path owns their real trunk+frond geometry)
   tree_palm: prof(2.0, 4.41, 0.58, false),
   tree_palm_b: prof(2.0, 4.26, 0.6, false)

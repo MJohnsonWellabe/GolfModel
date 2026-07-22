@@ -62,6 +62,13 @@ export const CONIFER_KEYS = [
   // (playtest: "exactly the one I don't like — remove those universally").
   'tree_pine_k1',
   'tree_pine_k3',
+  // Detailed Quaternius pines (CC0, poly.pizza) — layered conical conifers with
+  // clean Bark_NormalTree / Leaves_Pine slots (so pickMat routes bark→brown,
+  // needles→foliage). q1 is the lighter silhouette (~1.6k tris), q2 fuller
+  // (~3.4k). The Timberline forest uses these instead of the blobby firs
+  // (owner: "find a better conifer tree asset").
+  'tree_pine_q1',
+  'tree_pine_q2',
   // Detailed Quaternius firs — get the conifer height boost like the pines.
   ...FIR_KEYS
 ] as const;
