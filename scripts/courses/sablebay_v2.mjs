@@ -214,7 +214,7 @@ const sablebayV2 = {
         // The island BEACH collar pulled SOUTH (owner: "just water behind the
         // green"): its north edge tucks at the green's BACK edge so water laps
         // directly behind the green, apron stays a front/side bail-out.
-        { type: 'bunker', beach: true, polygon: blob(474, 452, 90, 66, 20, 0.08, 221) },
+        { type: 'bunker', beach: true, polygon: blob(474, 452, 90, 66, 30, 0.04, 221) },
         // Causeway base — firm waste-sand strip, widened so edge stones sit on sand.
         { type: 'bunker', waste: true, polygon: [[452, 486], [496, 486], [496, 714], [452, 714]] },
         // TEE-SURROUND WASTE — sandy sand-hills around the tee and the near bank
@@ -223,8 +223,8 @@ const sablebayV2 = {
         { type: 'bunker', waste: true, polygon: [[120, 712], [820, 712], [860, 900], [780, 1010], [468, 1030], [150, 1000], [96, 860]] },
         // Two pots cut into the collar (front-left, back-right) — only the middle
         // is stress-free.
-        { type: 'bunker', polygon: blob(430, 458, 13, 10, 8, 0.3, 222) },
-        { type: 'bunker', polygon: blob(520, 400, 13, 10, 8, 0.3, 223) }
+        { type: 'bunker', polygon: blob(430, 458, 13, 10, 11, 0.16, 222) },
+        { type: 'bunker', polygon: blob(520, 400, 13, 10, 11, 0.16, 223) }
         // NOTE: the accent pines that used to sit behind/beside the green are
         // DELETED — nothing but water + boats sits behind the island now.
       ],

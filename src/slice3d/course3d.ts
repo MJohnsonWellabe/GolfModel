@@ -1596,11 +1596,17 @@ export function buildCourse(
         // range backstop so its flat top never slabs above the dune crests.
         if (tintedKeys.length && !texturedKeys.length) {
           const bsC = mix(hillBase, theme.haze, 0.22);
-          const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 460 }, scene);
+          // Taller + raised so the wall's TOP now reaches the dune-crest line
+          // (the old 460/-150 plane topped out BELOW the shrunk crests, so blue
+          // still bled through the upper saddle gaps) and its bottom drops well
+          // under the horizon so no pale sky/void strip shows in FRONT of the
+          // dune bases either (owner: "blue that bleeds through and another
+          // colour in front of the hills").
+          const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 620 }, scene);
           const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.52) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -150, 0));
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -40, 0));
           bs.applyFog = false;
           bs.freezeWorldMatrix();
         }
@@ -2290,7 +2296,13 @@ export function buildCourse(
               Math.hypot(xx - hole.tee.x, yRow - hole.tee.y) >= 70 &&
               !nearPinClassic(xx, yRow, 110)
             ) {
-              place(heatherSet, xx, yRow, cap * (0.5 + hash2(xx + 5, yRow - 5) * 0.3));
+              // Jitter off the sampling grid — the raw (xx,yRow) placement made
+              // these fairway-edge tufts line up in PERFECT ROWS (owner: "bushes
+              // in one fairway on the left ... in perfect rows"). Clamp the
+              // jittered point back onto fairway-adjacent ground before planting.
+              const fjx = xx + (hash2(xx + 5, yRow) - 0.5) * tgStep * 0.8;
+              const fjy = yRow + (hash2(yRow + 5, xx) - 0.5) * tgStep * 0.8;
+              place(heatherSet, fjx, fjy, cap * (0.5 + hash2(fjx + 5, fjy - 5) * 0.3));
             }
             continue;
           }

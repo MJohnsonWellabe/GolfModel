@@ -390,7 +390,11 @@ const timberlineV2 = {
       // the old chord was already 550 yd, which made a sub-550 left route
       // geometrically impossible — the tee had to come forward to open the
       // 50-yard split between the two routes.
-      tee: [444, 1270],
+      // Tee pulled back ~25yd (owner: H3 "too easy") — the whole par 5 now plays
+      // 25yd longer, so the go-for-it second is a genuinely longer carry over the
+      // front pond. Moved the tee (not the green) so the pond/creek/pot guarding
+      // and the pin-flatness/playability gates all stay exactly as tuned.
+      tee: [444, 1322],
       teeBox: { w: 32, d: 24 },
       // Green trimmed (62->52 / 46->39): a smaller target the long go-for-it
       // second holds far less often, so more reach attempts spill into the front
@@ -492,8 +496,8 @@ const timberlineV2 = {
       ],
       elevation: [
         // ELEVATED TEE, then the land FALLS into a valley, then CLIMBS to the
-        // green benched on the mountainside.
-        { x: 444, y: 1270, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
+        // green benched on the mountainside. (Tee shelf follows the tee back 25yd.)
+        { x: 444, y: 1322, h: 18, r: 140, shape: 'plateau', skirt: 0.5 },
         { x: 520, y: 1020, h: 8, r: 160 }, // first fall
         { x: 700, y: 820, h: 3, r: 160 }, // valley floor (go-for-it zone)
         // GREEN BENCHED a full step above the pond (owner). Skirt EASED to 0.6

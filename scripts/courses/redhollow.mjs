@@ -357,7 +357,7 @@ const redhollow = {
       // into the canyon (all at +4), reached by chosen carries. Island 1→3
       // is exactly driver range, so a big hitter can skip island 2.
       fairways: [
-        { centerline: [[740, 1210], [660, 1100]], width: [96, 96] },
+        { centerline: [[769, 1250], [740, 1210], [660, 1100]], width: [96, 96, 96] },
         { centerline: [[508, 962], [450, 885]], width: [86, 86] },
         { centerline: [[460, 700], [430, 575]], width: [86, 86] }
       ],
@@ -398,7 +398,7 @@ const redhollow = {
       elevation: [
         { x: 820, y: 1462, h: 18, r: 150, shape: 'plateau', skirt: 0.78 },
         // The three islands (equal height, own plateaus, canyon between).
-        { x: 740, y: 1210, x2: 660, y2: 1100, h: 4, r: 96, shape: 'plateau', skirt: 0.7 },
+        { x: 769, y: 1250, x2: 660, y2: 1100, h: 4, r: 96, shape: 'plateau', skirt: 0.7 },
         { x: 525, y: 985, x2: 450, y2: 885, h: 4, r: 88, shape: 'plateau', skirt: 0.7 },
         { x: 460, y: 700, x2: 430, y2: 575, h: 4, r: 88, shape: 'plateau', skirt: 0.7 },
         // The wash bed carved below the floor, rocky bumps inside.
