@@ -25,4 +25,12 @@
  * actually sweeps); `cameraParked` (OR meterActive) gates the mirror/shadow
  * freeze. See course3d.ts's parked-camera perf pacing observer.
  */
-export const renderPacing = { meterActive: false, cameraParked: false };
+/**
+ * `overhead` is the aerial/top-down planning view. Like `cameraParked` it is a
+ * static vantage, so the mirror + shadow map must FREEZE to one capture — left
+ * live, the shadow map's every-other-frame regen made the greens visibly
+ * shimmer/"dance" from above (owner: the overhead should "just be a picture").
+ * It's separate from `cameraParked` so toggling aerial never clobbers the
+ * armed-at-address freeze state.
+ */
+export const renderPacing = { meterActive: false, cameraParked: false, overhead: false };

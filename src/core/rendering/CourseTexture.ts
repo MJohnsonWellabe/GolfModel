@@ -188,8 +188,12 @@ function rasterizeClassGrid(
       }
     };
   // Drawn in order; the LAST layer to paint a texel wins. The resulting
-  // precedence must match PhysicsEngine.surfaceAt exactly:
-  //   green > scoring-bunker > fringe > water > trees > fairway > WASTE/BEACH > rough.
+  // precedence tracks PhysicsEngine.surfaceAt:
+  //   green > scoring-bunker > water > fringe > trees > fairway > WASTE/BEACH > rough.
+  // NOTE water beats the fringe COLLAR here (water painted after fringe): genuine
+  // water lapping the green wins the albedo bed so the translucent shallows don't
+  // reveal a grass-green collar beneath (Timberline #3). surfaceAt matches — its
+  // fringe margin already yields to a genuine water polygon (PJ-links h3 fix).
   // Beach/waste sand line the shore or sprawl through rough only, so they're
   // painted FIRST (everything else overwrites them); only unpainted rough
   // shows through, giving sand that never eats a fairway/treeline/green — a
@@ -213,6 +217,14 @@ function rasterizeClassGrid(
           else if (hz.type === 'building') poly(hz.polygon);
         })
     ],
+    // Fringe collar BEFORE water: genuine water that laps the green's collar wins
+    // the albedo bed (Timberline #3 "weird green on the water"). The shallow water
+    // mesh is translucent, so a grass-green collar painted UNDER it bled up through
+    // the shallows as a green tint. surfaceAt already yields the collar to genuine
+    // water (the PJ-links h3 fix), so painting water over the collar realigns the
+    // bed with the played surface — the pond reads blue to its true edge, and the
+    // green plateau (painted last, below) still wins the putting surface itself.
+    [3, (): void => ell(FRINGE_VISUAL), hole.green2 ? filletFill(3, FRINGE_VISUAL) : undefined],
     [
       5,
       (): void =>
@@ -220,7 +232,6 @@ function rasterizeClassGrid(
           if (hz.type === 'water') poly(hz.polygon);
         })
     ],
-    [3, (): void => ell(FRINGE_VISUAL), hole.green2 ? filletFill(3, FRINGE_VISUAL) : undefined],
     [
       4,
       (): void =>

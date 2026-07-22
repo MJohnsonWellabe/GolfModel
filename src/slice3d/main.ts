@@ -1992,6 +1992,10 @@ class HoleScene {
     if (this.state.phase !== 'aiming' || this.ai) return;
     this.aerial = !this.aerial;
     aerialBtn.classList.toggle('on', this.aerial);
+    // The overhead view is a STATIC vantage: freeze the mirror + shadow map so
+    // the greens don't shimmer under the every-other-frame shadow regen (owner:
+    // the aerial should "just be a picture from above", not refresh/dance).
+    renderPacing.overhead = this.aerial;
     // No red aiming overlays in the overhead planning view (owner) — pull any
     // live True Vision reveal off the map on the way up.
     if (this.aerial) this.trueVisionRoot.setEnabled(false);
@@ -2243,6 +2247,7 @@ class HoleScene {
     this.aimRoot.setEnabled(false);
     this.hideTrueVision(); // "stays up until the shot is struck" ends here
     this.aerial = false;
+    renderPacing.overhead = false; // leaving the overhead view restores live RTT cadence
     this.applyAerialFog(false); // flight cameras get the course's real haze
     aerialBtn.classList.remove('on');
     clubBar.style.display = 'none';

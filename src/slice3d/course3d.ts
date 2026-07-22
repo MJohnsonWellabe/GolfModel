@@ -1962,7 +1962,7 @@ export function buildCourse(
     if (shadowMap) shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
     let pacingFrozen = false;
     scene.onBeforeRenderObservable.add(() => {
-      const shouldFreeze = renderPacing.meterActive || renderPacing.cameraParked;
+      const shouldFreeze = renderPacing.meterActive || renderPacing.cameraParked || renderPacing.overhead;
       if (shouldFreeze === pacingFrozen) return;
       pacingFrozen = shouldFreeze;
       if (waterMirror) {
@@ -3484,7 +3484,7 @@ export function buildCourse(
     updateTreeOcclusion,
     refreshParkedRTTs: (): void => {
       // Only while parked/frozen — otherwise the freeze observer owns the cadence.
-      if (!renderPacing.cameraParked && !renderPacing.meterActive) return;
+      if (!renderPacing.cameraParked && !renderPacing.meterActive && !renderPacing.overhead) return;
       if (waterMirror) waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
       const sm = shadows.getShadowMap();
       if (sm) sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
@@ -3495,7 +3495,7 @@ export function buildCourse(
     // the drag lasts, run the mirror + shadow map at the normal live cadence;
     // when it ends, take one fresh capture and hold it frozen (parked).
     aimDragRTTs: (dragging: boolean): void => {
-      if (!renderPacing.cameraParked && !renderPacing.meterActive) return;
+      if (!renderPacing.cameraParked && !renderPacing.meterActive && !renderPacing.overhead) return;
       const rate = dragging
         ? RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES
         : RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
