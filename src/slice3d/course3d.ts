@@ -1596,17 +1596,15 @@ export function buildCourse(
         // range backstop so its flat top never slabs above the dune crests.
         if (tintedKeys.length && !texturedKeys.length) {
           const bsC = mix(hillBase, theme.haze, 0.22);
-          // Taller + raised so the wall's TOP now reaches the dune-crest line
-          // (the old 460/-150 plane topped out BELOW the shrunk crests, so blue
-          // still bled through the upper saddle gaps) and its bottom drops well
-          // under the horizon so no pale sky/void strip shows in FRONT of the
-          // dune bases either (owner: "blue that bleeds through and another
-          // colour in front of the hills").
-          const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 620 }, scene);
+          // Kept LOW (top just under the dune crests) so it never slabs above
+          // them — the sky gaps are sealed by DENSER, overlapping dune rows
+          // (below) instead of a taller wall. Bottom still drops under the
+          // horizon so no pale strip shows in front of the dune bases.
+          const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 520 }, scene);
           const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.52) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -40, 0));
+          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -170, 0));
           bs.applyFog = false;
           bs.freezeWorldMatrix();
         }
@@ -1614,9 +1612,13 @@ export function buildCourse(
         // (playtest: "shrink the sandhills in the horizon") — lower crests,
         // tighter spacing — so they read as distant rolling dunes, not a
         // looming range.
+        // DENSER, overlapping silhouettes (tighter spread + more instances) so
+        // the dune crests interlock and leave no sky gap to bleed through, while
+        // staying the same shrunk crest height (owner liked the size).
         const rows: Array<{ dy: number; matr: StandardMaterial; hMul: number; count: number; spread: number }> = [
-          { dy: 0, matr: nearMat, hMul: 1, count: 11, spread: 440 },
-          { dy: 560, matr: farMat, hMul: 1.25, count: 9, spread: 560 }
+          { dy: 0, matr: nearMat, hMul: 1, count: 17, spread: 300 },
+          { dy: 300, matr: nearMat, hMul: 1.1, count: 15, spread: 360 },
+          { dy: 620, matr: farMat, hMul: 1.25, count: 13, spread: 430 }
         ];
         if (tintedKeys.length) rows.forEach((row, ri) => {
           const half = Math.floor(row.count / 2);
