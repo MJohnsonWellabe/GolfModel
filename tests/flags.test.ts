@@ -38,11 +38,14 @@ describe('feature flags', () => {
     }
   });
 
-  it('newCourses and boundedWorld stay dev-only (new courses ship as "coming soon")', () => {
-    for (const key of ['newCourses', 'boundedWorld']) {
+  it('the course-content flags are RELEASED to production (no more dev gating)', () => {
+    // newCourses (Red Hollow + Wild Prairie), courseRebuilds (the v2 rebuilds +
+    // Timberline West), and boundedWorld all default on in prod now — the public
+    // site shows the full rebuilt roster, not "coming soon" teasers.
+    for (const key of ['newCourses', 'courseRebuilds', 'boundedWorld']) {
       const def = FLAG_DEFS.find((d) => d.key === key);
       expect(def!.defaults.dev, `${key} dev`).toBe(true);
-      expect(def!.defaults.prod, `${key} prod`).toBe(false);
+      expect(def!.defaults.prod, `${key} prod`).toBe(true);
     }
   });
 

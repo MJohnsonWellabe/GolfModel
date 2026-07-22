@@ -82,8 +82,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'V2 content expansion: Red Hollow + Wild Prairie in the course roster, ' +
       'Play Next rotation, and wizard. Off = the original four-course roster.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true to release (incl. WEEKLY_ROTATION growth), then remove'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'RELEASED to prod (playtest-approved) — fold the two courses into the base roster & remove the flag'
   },
   {
     key: 'audio',
@@ -124,8 +124,8 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'dropped back in the rough. Populates HoleData.boundary (derived per hole, ' +
       'or authored). Off = the classic full-world behavior, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
-    removeWhen: 'flip prod:true once the bounded-world pass is validated & approved, then remove'
+    defaults: { prod: true, dev: true },
+    removeWhen: 'RELEASED to prod (playtest-approved) — make bounded-world the sole path & remove the flag'
   },
   {
     key: 'courseRebuilds',
@@ -136,10 +136,10 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'lands. Off = the shipped originals, byte-identical — production never ' +
       'loads a rebuilt course until the rework is approved and promoted.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
-      'flip prod:true when the rebuilt courses are approved for release, then ' +
-      'fold the v2 JSONs over the originals and remove the flag'
+      'RELEASED to prod (playtest-approved) — fold the v2 JSONs over the ' +
+      'originals and remove the flag'
   }
 ];
 

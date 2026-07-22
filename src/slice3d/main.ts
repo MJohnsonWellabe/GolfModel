@@ -398,17 +398,15 @@ interface RoundState {
   challenge?: AsyncChallengeDef | null;
 }
 
-// V2 content expansion (redhollow/wildvalley) loads when the newCourses flag is
-// on (dev) OR when a signed-in admin has unlocked them on this device — the
-// latter is how the two courses become playable in PRODUCTION for the admin
-// account only. Everyone else in prod gets `false` here, so the courses stay out
-// of COURSES (and every course-entry path, which all key on COURSES membership),
-// surfacing only as non-playable "Coming soon" teasers.
+// V2 content expansion (redhollow/wildvalley). The newCourses flag now defaults
+// ON in production (playtest-approved release), so the two courses load for
+// everyone; adminUnlocked() remains as a legacy override path. The flag stays as
+// a kill switch until the courses are folded into the base roster.
 const loadNewCourses = flag('newCourses') || adminUnlocked();
-// COURSE TEARDOWN/REBUILD (`courseRebuilds` flag, dev-only): rebuilt v2
-// variants replace the shipped originals course by course as each rebuild
-// lands (src/data/courses/v2/, emitted by gen-new-courses.mjs). With the flag
-// off (production) the original JSON loads and the roster is byte-identical.
+// COURSE TEARDOWN/REBUILD (`courseRebuilds` flag): rebuilt v2 variants
+// (src/data/courses/v2/, emitted by gen-new-courses.mjs) replace the shipped
+// originals. The flag now defaults ON in production (playtest-approved release);
+// it remains as a kill switch until the v2 JSONs are folded over the originals.
 const rebuildsOn = flag('courseRebuilds');
 const REBUILDS: Record<string, unknown> = rebuildsOn
   ? { timberline: timberlineV2, sablebay: sablebayV2, portjohnson: portjohnsonV2 }
@@ -457,16 +455,15 @@ const COURSE_ROSTER: Array<{ id: string; name: string; tag: string; icon: string
     ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' }]
     : []),
   { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
-  // V2 content expansion — loaded (and playable) only when the newCourses flag is
-  // on (dev). In production they are NOT in COURSES, so they drop out of
-  // COURSE_LIST and instead show as non-playable "Coming soon" teasers (below).
+  // V2 content expansion — now released (newCourses defaults on in prod), so they
+  // load into COURSES and appear as playable entries in COURSE_LIST.
   { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
   { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
 ];
 /** The playable roster (loaded into COURSES). */
 const COURSE_LIST = COURSE_ROSTER.filter((c) => COURSES[c.id]);
 /** Roster entries present in the metadata but NOT loaded — shown as locked
- *  "Coming soon" teaser cards (production, where newCourses is off). Empty in dev. */
+ *  "Coming soon" teaser cards. Empty now that every course is released. */
 const COMING_SOON_COURSES = COURSE_ROSTER.filter((c) => !COURSES[c.id]);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
