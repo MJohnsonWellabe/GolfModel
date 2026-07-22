@@ -23,14 +23,29 @@ import { buildLabelLong } from '../core/buildInfo';
 import { mountEnvBadge } from '../core/envBadge';
 import { enableFlagOverrides } from '../core/flags';
 import { ARCHETYPES } from '../data/archetypes';
+// The LIVE roster the game now loads (courseRebuilds + newCourses released): the
+// v2 rebuilds (Sable Bay, Timberline East, Port Johnson) + Timberline West + the
+// two new courses, plus hand-authored Wildwood. Rounds record under these names,
+// so the dashboard MUST use them — after the release the old base names
+// ("Timberline") no longer match, which silently hid every round on the renamed
+// and new courses from the stats (owner: "rounds aren't getting recorded").
 import wildwood from '../data/courses/wildwood.json';
-import sablebay from '../data/courses/sablebay.json';
-import timberline from '../data/courses/timberline.json';
-import portjohnson from '../data/courses/portjohnson.json';
+import sablebay from '../data/courses/v2/sablebay.json';
+import timberlineEast from '../data/courses/v2/timberline.json';
+import timberlineWest from '../data/courses/v2/timberlinewest.json';
+import portjohnson from '../data/courses/v2/portjohnson.json';
+import redhollow from '../data/courses/redhollow.json';
+import wildvalley from '../data/courses/wildvalley.json';
+// Base "Timberline" kept too so any pre-rename straggler still counts.
+import timberlineBase from '../data/courses/timberline.json';
 
 // Only CURRENT content — the public rounds node still holds rounds from prior
 // game versions (retired courses/characters). Drop anything not in the live roster.
-const ACTIVE_COURSES = new Set<string>([wildwood, sablebay, timberline, portjohnson].map((c) => (c as { name: string }).name));
+const ACTIVE_COURSES = new Set<string>(
+  [wildwood, sablebay, timberlineEast, timberlineWest, portjohnson, redhollow, wildvalley, timberlineBase].map(
+    (c) => (c as { name: string }).name
+  )
+);
 const ACTIVE_ARCHETYPES = new Set<string>(ARCHETYPES.map((a) => a.id));
 
 // COURSE-STATS RESET (owner, 2026-07-22): the rebuilt courses shipped, so every
