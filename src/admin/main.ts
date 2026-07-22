@@ -33,6 +33,14 @@ import portjohnson from '../data/courses/portjohnson.json';
 const ACTIVE_COURSES = new Set<string>([wildwood, sablebay, timberline, portjohnson].map((c) => (c as { name: string }).name));
 const ACTIVE_ARCHETYPES = new Set<string>(ARCHETYPES.map((a) => a.id));
 
+// COURSE-STATS RESET (owner, 2026-07-22): the rebuilt courses shipped, so every
+// pre-release round describes holes that no longer exist. The dashboard counts
+// only rounds recorded at/after this epoch (ms), giving a clean slate on the new
+// layouts. Non-destructive — the raw rounds stay in /rounds; they're just
+// excluded from every average, per-hole table, and count. Bump this to reset
+// again after a future course change.
+const STATS_EPOCH = 1784754000000; // 2026-07-22T21:00:00Z
+
 const $ = (id: string): HTMLElement => document.getElementById(id)!;
 
 function esc(s: string): string {
@@ -185,9 +193,10 @@ function retentionSectionHtml(r: RetentionStats | null): string {
 }
 
 function render(allRounds: RoundRecord[], xpBackfill: Map<string, number> = new Map(), onBack: () => void = () => void showLanding(), retention: RetentionStats | null = null): void {
-  // Keep only rounds on courses that still exist; type tables filter to the
+  // Keep only rounds on courses that still exist AND recorded at/after the stats
+  // epoch (the course-rebuild reset — see STATS_EPOCH); type tables filter to the
   // live archetype roster below.
-  const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course));
+  const rounds = allRounds.filter((r) => ACTIVE_COURSES.has(r.course) && r.d >= STATS_EPOCH);
   const courses = avgByCourse(rounds);
   const holes = avgByHole(rounds);
   const puttHoles = avgPuttsByHole(rounds);
