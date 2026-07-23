@@ -1230,7 +1230,18 @@ export function buildCourse(
     // gap so the foreground reads as continuous sandy ground out to the dunes.
     const apronC = theme.hemiGround ?? shade(theme.rough, 0.9);
     const apron = MeshBuilder.CreateGround('peakApron', { width: 16000, height: 9000, subdivisions: 1 }, scene);
-    apron.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, -4);
+    // The apron is a flat backdrop plane; it must sit BELOW all in-play terrain
+    // or it OCCLUDES anything that dips beneath it. Red Hollow h3's green is a
+    // metaball plateau sunk in a −10 depression (green top ≈ −9.45): a fixed
+    // apron at −4 drew straight over the sunken green, so from the approach/putt
+    // cameras the whole putting surface read as flat sand-tan apron, not green
+    // ("last green is still broken and brown"). Same lesson as the void floor
+    // (§4a): a masking plane never overrides authored terrain. Anchor it just
+    // under the lowest terrain vertex (minMeshY), keeping −4 as the ceiling so a
+    // course that never dips is visually unchanged; it stays distant + fogged so
+    // dropping a few units is invisible on the horizon.
+    const apronY = Math.min(-4, minMeshY - 2);
+    apron.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, apronY);
     const apronMat = mat(scene, 'peakApronM', apronC, { emissive: shade(apronC, 0.5) });
     apron.material = apronMat;
     apron.applyFog = true;
