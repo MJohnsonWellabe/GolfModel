@@ -443,6 +443,19 @@ const timberlineV2 = {
         // centerline end) so the aggressive left drive must be worked around it
         // to hold the direct line to the green.
         { type: 'trees', spacing: 22, visualSpacing: 14, treeR: 26, polygon: [[664, 710], [684, 698], [696, 716], [682, 736], [662, 728]] },
+        // LEFT-APPROACH GUARD (owner: the left-side trees "aren't doing anything
+        // — I hit right through them" going for the green from the left rough).
+        // The imperfect-drive->green line passes NORTH of the lone spruces and
+        // OVER the front pond (where trunks can't plant), so nothing collidable
+        // ever sat on it. A dense stand in the DRY rough south of the pond walls
+        // that diagonal — an imperfect left drive must now lay up to the alt zone
+        // instead of firing at the green. Sits north of the left-fairway exit and
+        // west of the lone spruce, so a drive that FINDS the fairway still shapes
+        // around the spruce untouched, and the safe right route is unaffected;
+        // kept south of y=560 so no trunk lands in the pond (sim-verified: 17
+        // trunks, 0 in water/fairway; rough-left lines 0/60 reach green, and the
+        // AI's right route is unmoved so playability gates hold).
+        { type: 'trees', spacing: 16, visualSpacing: 12, treeR: 26, polygon: [[606, 596], [636, 566], [678, 566], [714, 572], [718, 594], [684, 616], [636, 624]] },
         // (GREENSIDE GUARDIAN REMOVED — owner Round 2 H3: "remove all the trees
         //  around the pond, between the end of the right fairway and the green,
         //  so the right path has a clean approach." The short-right stand is gone;
