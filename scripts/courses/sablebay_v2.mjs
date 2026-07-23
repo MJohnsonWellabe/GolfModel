@@ -18,8 +18,14 @@
 // Emitted to src/data/courses/v2/sablebay.json, dev-only behind `courseRebuilds`.
 import { blob } from '../courselib.mjs';
 
-// Collidable coastal boulder helper (seawall stone) — a 'rock' hazard.
-const seawall = (cx, cy, h, key, seed) => ({ type: 'rock', cx, cy, r: h, height: h, key, polygon: blob(cx, cy, h, h, 8, 0, seed) });
+// Collidable coastal boulder helper (seawall stone). Emitted as a decorative
+// `{key,x,y,h}` landform: the landform renderer reads x/y/h, and PhysicsEngine
+// caroms any non-tree landform with h >= landformCollideMinH (12) as a boulder
+// (r = h). Every seawall here is authored h >= 12, so it both RENDERS and
+// DEFLECTS. (The old form wrote a rock-hazard shape — cx/cy/r/height — into the
+// landforms array, which the landform renderer drew at an undefined position and
+// the collider never ingested, so the seawalls were invisible AND pass-through.)
+const seawall = (cx, cy, h, key) => ({ key, x: cx, y: cy, h });
 
 const sablebayV2 = {
   name: 'Sable Bay',
