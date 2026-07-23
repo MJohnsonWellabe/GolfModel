@@ -369,9 +369,13 @@ const redhollow = {
         { type: 'bunker', waste: true, polygon: blob(590, 1235, 82, 78, 12, 0.38, 36) },
         { type: 'bunker', waste: true, polygon: blob(320, 985, 88, 85, 12, 0.4, 37) },
         { type: 'bunker', waste: true, polygon: blob(620, 480, 88, 95, 12, 0.4, 33) },
-        // Bowl-rim pots flanking the sunken green's entrance.
-        { type: 'bunker', polygon: blob(374, 436, 26, 22, 9, 0.3, 34) },
-        { type: 'bunker', polygon: blob(240, 548, 26, 22, 9, 0.28, 35) },
+        // Bowl-rim pots flanking the sunken green's entrance. Pulled OFF the
+        // green collar (owner-approved: loosen the crater for a real apron) —
+        // each nudged ~15px radially outward from the green centre so a fringe/
+        // rough apron opens between the putting surface and the sand instead of
+        // the trap sand smothering the collar (the "brown-rimmed green" read).
+        { type: 'bunker', polygon: blob(387, 428, 26, 22, 9, 0.3, 34) },
+        { type: 'bunker', polygon: blob(230, 559, 26, 22, 9, 0.28, 35) },
         // ROUND 2 (owner): "H3 needs MORE big COLLIDABLE rock assets." Big
         // caroming boulders (rock() physics) framing the island route: a
         // back-left CRATER-RIM GUARDIAN over the sunken green, two boulders
@@ -414,7 +418,10 @@ const redhollow = {
         // barely past the putting surfaces: green edge → wall toe shrinks
         // to a narrow collar) and the three wall spines stepped toward the
         // green so the walls visibly frame it on left/back/right.
-        { x: 300, y: 480, h: -10, r: 118, shape: 'plateau', skirt: 0.58 },
+        // Flat bottom widened (skirt 0.58 -> 0.64: flat radius ~68 -> ~76 px)
+        // so the sunken green wears a real apron/collar out to the wall toes
+        // instead of the putting surface running straight into the rim ramp.
+        { x: 300, y: 480, h: -10, r: 118, shape: 'plateau', skirt: 0.64 },
         { x: 186, y: 562, x2: 170, y2: 432, h: 9, r: 95 },
         { x: 202, y: 358, x2: 326, y2: 330, h: 10, r: 100 },
         { x: 410, y: 360, x2: 444, y2: 442, h: 9, r: 90 },
