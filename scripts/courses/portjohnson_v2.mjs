@@ -149,7 +149,11 @@ const portjohnsonV2 = {
       name: 'The Redan',
       par: 3,
       world: { width: 940, height: 940 },
-      tee: [460, 790],
+      // Primary tee moved to the FORWARD pad (owner-approved §8 h2): 245yd -> 210yd
+      // (tee y790 -> y720, 420px to the green centre) so the Redan ground game — a
+      // running long-iron fed off the right kicker — is actually reachable instead
+      // of a forced aerial carry.
+      tee: [460, 720],
       teeBox: { w: 30, d: 22 },
       green: { cx: 470, cy: 300, rx: 98, ry: 62, rot: -0.5 },
       // Tiered Redan green. The break was the game's strongest (strength 0.52);
@@ -175,7 +179,7 @@ const portjohnsonV2 = {
       ],
       aiTargets: [[470, 540]],
       elevation: [
-        { x: 460, y: 810, h: 1.8, r: 110, shape: 'plateau' },
+        { x: 460, y: 740, h: 1.8, r: 110, shape: 'plateau' }, // tee shelf (moved up with the forward tee)
         // BIG DUNES framing the one-shotter RIGHT IN THE TEE VIEW — a tall
         // right range (carrying the kicker) and a left dune over the waste,
         // both heaving at TL-East magnitude so the tee reads a real dunescape
