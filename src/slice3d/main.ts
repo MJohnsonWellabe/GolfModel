@@ -97,7 +97,7 @@ import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFo
 import { applyHoleMastery, emptyMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
-import { addSeasonXp, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
+import { addSeasonXp, buyPassWithCoins, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
@@ -4729,16 +4729,21 @@ function renderSeasonPass(): void {
       : `🔒 Lv ${level}`;
     return `<div class="storeCard${hero} ${cls}" data-level="${level}" data-claim="${state === 'claimable' ? '1' : ''}">${rewardIcon(reward)}<div class="sName">${name}</div><div class="sPrice">${line}</div></div>`;
   }).join('');
+  // Coin unlock is a LOCAL spend (no Stripe), so it's offered whenever sales are
+  // open — even if the cash purchase isn't configured, and for guests. The cash
+  // button is shown additionally when the Stripe product is configured.
+  const canAffordCoins = p.coins >= def.priceCoins;
   const footer = ownsPass(p, def)
     ? `<div class="spOwned">🎫 Season Pass owned — rewards unlock as you play</div>`
     : !salesOpen(def, Date.now())
       ? `<div class="spNote">🔒 Season Pass purchases coming soon — every round already counts toward the track.</div>`
-      : purchaseConfigured('seasonpass_s1')
-        ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>` +
-          (!signedIn && authConfigured()
-            ? `<div class="spNote">Sign in with Google first so the pass sticks to your account.</div>`
-            : '')
-        : `<div class="spNote">Pass purchases open soon — every round already counts toward the track.</div>`;
+      : (purchaseConfigured('seasonpass_s1')
+          ? `<button id="spBuy" class="spBuy">Get the Season Pass · $${def.priceUsd}</button>`
+          : '') +
+        `<button id="spCoinBuy" class="spBuy spCoinBuy${canAffordCoins ? '' : ' locked'}">Unlock with ${def.priceCoins} 🪙</button>` +
+        (purchaseConfigured('seasonpass_s1') && !signedIn && authConfigured()
+          ? `<div class="spNote">Buy with coins now, or sign in with Google to pay with $ and keep it on your account.</div>`
+          : '');
   seasonEl.style.display = 'flex';
   seasonEl.innerHTML =
     `<div class="recInner"><h2>🎫 ${def.name}</h2>` +
@@ -4796,6 +4801,26 @@ function renderSeasonPass(): void {
         if (uid) startPurchase('seasonpass_s1', uid);
         else showMsg('Sign in first — the pass attaches to your account', 1800);
       });
+    });
+  // Coin unlock: spend def.priceCoins to own the pass (local — works for guests
+  // and signed-in players; ownership syncs to the account on sign-in).
+  const coinBuyBtn = document.getElementById('spCoinBuy');
+  if (coinBuyBtn)
+    onTap(coinBuyBtn, () => {
+      const res = buyPassWithCoins(profile, def);
+      if (!res.ok) {
+        showMsg(res.reason ?? 'Purchase failed', 1800);
+        return;
+      }
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(profile).then((r) => {
+          applyCloudMerge(profile, r.profile);
+          showCloudStatus(r.status, true);
+        });
+      showMsg(`🎫 Season Pass unlocked for ${def.priceCoins} 🪙!`, 2000);
+      updateSeasonLink();
+      renderSeasonPass();
     });
   // Claim All: sweep every currently-claimable level in one tap, one persist,
   // one cloud sync. claimReward itself stays the single grant path (idempotent

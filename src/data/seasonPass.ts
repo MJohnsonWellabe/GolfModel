@@ -8,14 +8,15 @@
  *   ball 5 · trail 5 · club colors (clubskin) 5 · skin colors (outfit) 5 ·
  *   character 4 · pal 5 · perk 5 · XP 6 · J-Coins 6 · True Vision 4 (packs of 3,
  *   levels 13/21/33/41 — the putting-aid consumable, season-pass exclusive).
- * - J-Coins total ≤ 1000 across the coin levels.
+ * - J-Coins total ~500 across the six coin levels (owner: the pass pays back
+ *   roughly its own 500-coin unlock price in coins, on top of the cosmetics).
  * - The pass's marquee companion pals land on levels 30/35/40/45/50, each with
  *   a full render in the pass: Triceratops · Mango · Deadpool · Toothless ·
  *   Thanos (the level-50 finale). Everything else lives in the remaining
  *   1–45/46–49 levels.
  * - Everyone accrues pass XP while the season runs; claiming rewards requires
- *   owning the pass ($5). Claims are retroactive. Pass purchases OPEN on
- *   2026-07-14 (see salesOpen); until then the game says "coming soon".
+ *   owning the pass ($5, or 500 J-Coins). Claims are retroactive. Pass purchases
+ *   OPEN on 2026-07-14 (see salesOpen); until then the game says "coming soon".
  */
 
 export type SeasonReward =
@@ -42,6 +43,10 @@ export interface SeasonDef {
   /** rewards[i] = the single reward for level i+1; length === levels. */
   rewards: SeasonReward[];
   priceUsd: number;
+  /** Alternative price in J-Coins — the pass can be unlocked with coins instead
+   *  of cash (owner). A local spend (no Stripe/entitlement), so guests can buy it
+   *  too; ownership then syncs to the account on sign-in. */
+  priceCoins: number;
 }
 
 /**
@@ -108,7 +113,7 @@ const FIXED: Record<number, SeasonReward> = {
   15: { perk: 'perk_wedge_t1_r3' },
   // Page 4
   16: { item: OUTFITS[1] },
-  17: { coins: 100 },
+  17: { coins: 75 },
   18: { item: BALLS[2] },
   19: { item: CHARACTERS[1] },
   20: { item: TRAILS[2] },
@@ -128,7 +133,7 @@ const FIXED: Record<number, SeasonReward> = {
   31: { xp: 300 },
   32: { item: OUTFITS[3] },
   33: { trueVision: 3 },
-  34: { coins: 125 },
+  34: { coins: 100 },
   35: { item: PALS[1] }, // Mango
   // Page 8 — closes with Deadpool
   36: { item: BALLS[4] },
@@ -138,7 +143,7 @@ const FIXED: Record<number, SeasonReward> = {
   40: { item: PALS[2] }, // Deadpool
   // Page 9 — closes with Toothless
   41: { trueVision: 3 },
-  42: { coins: 125 },
+  42: { coins: 100 },
   43: { perk: 'perk_drive_t2_r5' },
   44: { xp: 400 },
   45: { item: PALS[3] }, // Toothless
@@ -167,7 +172,8 @@ export const SEASON_1: SeasonDef = {
   xpPerLevel: progressiveXpCosts(50, 1200),
   levels: 50,
   rewards: REWARDS,
-  priceUsd: 5
+  priceUsd: 5,
+  priceCoins: 500
 };
 
 /** Have real-money pass/coin purchases opened yet? */

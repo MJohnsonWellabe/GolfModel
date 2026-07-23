@@ -2799,6 +2799,14 @@
         cursor: pointer;
         margin: 2px 0 6px;
       }
+      /* Coin-unlock button: a green 'J-Coin' variant so it reads distinct from
+         the gold cash button; dimmed (but still tappable, for the message) when
+         the wallet is short. */
+      .spCoinBuy {
+        background: linear-gradient(180deg, #7fd39a, #4faf74);
+        color: #06251a;
+      }
+      .spCoinBuy.locked { opacity: 0.6; }
       .spOwned {
         font-size: 14px;
         font-weight: 700;

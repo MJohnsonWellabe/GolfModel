@@ -73,6 +73,21 @@ export function ownsPass(profile: PlayerProfile, def: SeasonDef): boolean {
   return profile.season.id === def.id && profile.season.owned;
 }
 
+/** Unlock the pass by spending J-Coins instead of cash (owner). Pure: deducts
+ *  `def.priceCoins` and flips ownership; the caller persists + cloud-syncs. Safe
+ *  — refuses if the season isn't the active one, it's already owned, or the
+ *  wallet is short (coins are only spent on success). */
+export function buyPassWithCoins(profile: PlayerProfile, def: SeasonDef): { ok: boolean; reason?: string } {
+  if (profile.season.id !== def.id) return { ok: false, reason: 'This season isn’t active yet' };
+  if (profile.season.owned) return { ok: false, reason: "You already own this season's pass" };
+  if (profile.coins < def.priceCoins) {
+    return { ok: false, reason: `Need ${def.priceCoins} 🪙 — you have ${profile.coins}` };
+  }
+  profile.coins -= def.priceCoins;
+  profile.season.owned = true;
+  return { ok: true };
+}
+
 /** When a NEW season goes live (the active def's id differs from the one the
  *  profile is tracking), reset the season sub-object to the new season: fresh
  *  XP/claims and — critically — owned:false, so a player who bought LAST

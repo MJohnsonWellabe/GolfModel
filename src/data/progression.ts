@@ -18,9 +18,11 @@ export const XP = {
 } as const;
 
 export const COINS = {
-  round: 20,
-  perUnderPar: 10,
-  tournamentWin: 50,
+  // Per-round earnings halved (owner) to slow the coin economy so the coin
+  // Season-Pass price (500) and store prices carry more weight.
+  round: 10,
+  perUnderPar: 5,
+  tournamentWin: 25,
   daily: 25,
   weekly: 100
 } as const;
