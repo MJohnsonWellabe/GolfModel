@@ -486,13 +486,17 @@ const timberlineV2 = {
         // going for the green in two is genuinely low-percentage. The east arm is
         // held to x826 so the SAFE right layup-and-wedge line (up x843) stays dry
         // — the smart play still finishes cleanly. Level in the enlarged basin.
-        { type: 'water', polygon: [[636, 520], [652, 472], [692, 448], [734, 450], [780, 456], [814, 468], [826, 494], [806, 520], [762, 542], [716, 560], [672, 556], [646, 544]] },
+        // reflectStrength dropped (owner: "green tint in the water"): this pond
+        // fronts a conifer-backed green, so the shared mirror casts the reflected
+        // forest as a green sheen. A calmer reflection lets the blue depth-tint
+        // read; h2's tarn keeps the theme default so its lakeside trees still mirror.
+        { type: 'water', reflectStrength: 0.28, polygon: [[636, 520], [652, 472], [692, 448], [734, 450], [780, 456], [814, 468], [826, 494], [806, 520], [762, 542], [716, 560], [672, 556], [646, 544]] },
         // THE CREEK — the pond narrows into a creek that winds up the LEFT side
         // of the green, behind it, and continues off screen (owner P1 H3). Shares
         // the pond's water level; its own flat channel (see elevation) keeps it
         // level. Varied natural width from the stream jitter. Held west of the
         // green bench so it never undercuts the putting shelf.
-        { type: 'water', polygon: stream([[700, 486], [664, 452], [648, 404], [666, 350], [700, 300], [690, 240], [644, 180], [588, 132], [512, 74]], 30, 415) },
+        { type: 'water', reflectStrength: 0.28, polygon: stream([[700, 486], [664, 452], [648, 404], [666, 350], [700, 300], [690, 240], [644, 180], [588, 132], [512, 74]], 30, 415) },
         // Sand: a links POT set fully INSIDE the widened right-fairway landing
         // (the only teeth on the safe route — the safe drive must avoid it), a
         // greenside pot right, and a back trap. Kept clear of the ribbon edges so

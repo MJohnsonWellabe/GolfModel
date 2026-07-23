@@ -881,11 +881,17 @@ export function buildCourse(
       // how the reference ponds behave. The scrolling bump map ripples the mirror
       // so highlights shimmer instead of reading as a flat mirror sheet.
       wm.reflectionTexture = waterMirror;
+      // Per-hazard reflectivity override: a pond fronting a conifer-backed green
+      // mirrors the forest as a GREEN cast (Timberline East #3). Dropping THIS
+      // body's reflect strength lets its blue depth-tint read instead, while the
+      // theme default keeps other water (e.g. h2's tarn, where lakeside trees are
+      // meant to reflect) fully mirrored.
+      const hzReflect = (hz as { reflectStrength?: number }).reflectStrength ?? reflectStrength;
       const fr = new FresnelParameters();
       fr.bias = 0.18;
       fr.power = 2;
-      fr.leftColor = new Color3(reflectStrength, reflectStrength, reflectStrength);
-      const dim = reflectStrength * 0.22;
+      fr.leftColor = new Color3(hzReflect, hzReflect, hzReflect);
+      const dim = hzReflect * 0.22;
       fr.rightColor = new Color3(dim, dim, dim);
       wm.reflectionFresnelParameters = fr;
     }

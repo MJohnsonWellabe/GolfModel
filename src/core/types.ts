@@ -146,6 +146,13 @@ export interface Hazard {
    *  Falls back to theme.water / theme.waterDeep when absent. */
   water?: string;
   waterDeep?: string;
+  /** Water only: per-hazard reflection strength (0..1) for the planar mirror,
+   *  overriding theme.waterReflectStrength on this ONE body. Lower it where the
+   *  surroundings mirror an unwanted colour — e.g. a pond sitting in front of a
+   *  conifer-backed green casts a green tint from the reflected forest; dropping
+   *  its reflectivity lets the blue depth-tint read instead. Falls back to the
+   *  theme default when absent. */
+  reflectStrength?: number;
   /** Ordinary bunkers only: extra multiplier on this ONE bunker's dish depth
    *  (on top of theme.bunkerDepthScale) — Devil's Kitchen's erosion bowls. */
   depthMul?: number;

@@ -3031,6 +3031,7 @@
         },
         {
           "type": "water",
+          "reflectStrength": 0.28,
           "polygon": [
             [
               636,
@@ -3084,6 +3085,7 @@
         },
         {
           "type": "water",
+          "reflectStrength": 0.28,
           "polygon": [
             [
               711.7,
