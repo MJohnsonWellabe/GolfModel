@@ -295,16 +295,17 @@ describe('Wild Prairie terrain identity', () => {
     expect((wildvalleyJson as { name: string }).name).toBe('Wild Prairie');
   });
 
-  it('ONE approved grass asset carries the whole course (vegetation pass)', () => {
-    // The golden card established around h1's big waste bunkers
-    // (heather_fescue_b) is the ONLY grass card: field planting, fingers,
-    // bunker lips, sand plants AND the short ground tufts all draw from it.
+  it('ONE approved grass family carries the whole course (vegetation pass)', () => {
+    // Owner: use Port Johnson's thin-bladed links fescue (grass_g/h) — which
+    // takes the theme's warm rough color, rendering sand-hills gold here — as
+    // the ONLY grass family: field planting, fingers, bunker lips, sand plants
+    // AND the short ground tufts all draw from it.
     const theme = (wildvalleyJson as { theme: Record<string, unknown> }).theme;
-    const approved = 'heather_fescue_b';
+    const approved = ['grass_g', 'grass_h'];
     for (const key of ['heatherKeys', 'grassKeys', 'sandPlantKeys'] as const) {
       const arr = theme[key] as string[];
       expect(arr.length, key).toBeGreaterThanOrEqual(1);
-      for (const k of arr) expect(k, `${key} entry`).toBe(approved);
+      for (const k of arr) expect(approved, `${key} entry`).toContain(k);
     }
     expect(theme.bushKeys).toEqual([]);
     expect(theme.treeKeys).toEqual([]);

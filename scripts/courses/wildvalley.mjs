@@ -32,16 +32,17 @@ const wildvalley = {
     // really") — open sand-hills horizon, golden fescue carries the look.
     treeKeys: [],
     bushKeys: [],
-    // ONE APPROVED GRASS ASSET (vegetation correction pass): the golden
-    // long-grass card already established around h1's big waste bunkers
-    // (heather_fescue_b) is the ONLY grass card on this course — field
-    // planting, fingers, bunker lips, sand plants AND the short ground
-    // tufts (grassKeys override) all draw from it. Variation comes from the
-    // existing per-instance jitter/scale/cluster noise, not other species.
-    // (heather_fescue_c was the woody orange shrub, removed earlier;
-    // heather_fescue_a goes with this pass.)
-    heatherKeys: ['heather_fescue_b'],
-    grassKeys: ['heather_fescue_b'],
+    // GRASS (owner: "redo the grass to use what PJ Links is using but in a more
+    // sand-hills color"). Port Johnson's thin-bladed links fescue cards
+    // (grass_g/h) are NOT keepTexture, so they route through the game's flat
+    // foliage palette and take their color from the theme — palette.grass =
+    // shade(theme.rough, 1.1). Wild Prairie's rough is warm honey-gold
+    // (#d8a94e), so the SAME blades PJ renders cold-olive come out sand-hills
+    // gold here. One grass family everywhere (field, fingers, bunker lips, sand
+    // plants, short tufts); per-instance jitter/scale/cluster noise gives the
+    // variation. (Replaces the single gold photo card heather_fescue_b.)
+    heatherKeys: ['grass_g', 'grass_h'],
+    grassKeys: ['grass_g', 'grass_h'],
     // Greens bake stronger contour shading (see CourseTexture.slopeShadeAt)
     // so their new crowns/ridges/feeding slopes read from approach cameras.
     greenShadeGain: 13,
@@ -64,7 +65,7 @@ const wildvalley = {
     tallGrass: { cap: 8, density: 22, waste: true },
     roughTuftHeight: 1.9,
     tuftDensity: 3.3,
-    sandPlantKeys: ['heather_fescue_b'],
+    sandPlantKeys: ['grass_g', 'grass_h'],
     sandPlantStep: 80, sandPlantKeep: 0.5,
     sandSculpt: 0.85, bunkerDepthScale: 2.3, wasteDepthScale: 2.8,
     edgeWobble: 3.0, mowPattern: 'classic', mowWidth: 28,

@@ -32,10 +32,12 @@
     "treeKeys": [],
     "bushKeys": [],
     "heatherKeys": [
-      "heather_fescue_b"
+      "grass_g",
+      "grass_h"
     ],
     "grassKeys": [
-      "heather_fescue_b"
+      "grass_g",
+      "grass_h"
     ],
     "greenShadeGain": 13,
     "bunkerLipFescue": true,
@@ -51,7 +53,8 @@
     "roughTuftHeight": 1.9,
     "tuftDensity": 3.3,
     "sandPlantKeys": [
-      "heather_fescue_b"
+      "grass_g",
+      "grass_h"
     ],
     "sandPlantStep": 80,
     "sandPlantKeep": 0.5,
