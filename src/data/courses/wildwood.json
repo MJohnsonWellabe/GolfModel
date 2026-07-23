@@ -2562,7 +2562,7 @@
           "rx": 120,
           "ry": 40,
           "rot": -1.599,
-          "density": 12,
+          "density": 16,
           "bloomChance": 0.95,
           "bushChance": 0.05
         },
@@ -2572,7 +2572,7 @@
           "rx": 120,
           "ry": 40,
           "rot": -1.884,
-          "density": 12,
+          "density": 16,
           "bloomChance": 0.95,
           "bushChance": 0.05
         },
@@ -2582,7 +2582,7 @@
           "rx": 120,
           "ry": 40,
           "rot": -1.941,
-          "density": 12,
+          "density": 16,
           "bloomChance": 0.95,
           "bushChance": 0.05
         },
@@ -2592,7 +2592,7 @@
           "rx": 96,
           "ry": 38,
           "rot": -1.93,
-          "density": 12,
+          "density": 16,
           "bloomChance": 0.95,
           "bushChance": 0.05
         },

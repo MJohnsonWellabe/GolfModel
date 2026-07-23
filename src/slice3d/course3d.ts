@@ -2542,6 +2542,9 @@ export function buildCourse(
       // without addressing that root cost. Restore the fuller 16-density visual
       // tier while still avoiding the 19–26 outliers from dominating placement.
       const GARDEN_DENSITY_CAP = 16;
+      // Rough margin (world px ≈ 4 yd) kept between a bed's blooms and any mown
+      // surface so no petal head overhangs the fairway/green edge.
+      const GARDEN_MOWN_COLLAR = 8;
       const step = tuftStep / Math.sqrt(Math.min(g.density ?? 1, GARDEN_DENSITY_CAP));
       const bloom = g.bloomChance ?? 0.85;
       const bushCh = g.bushChance ?? 0.1;
@@ -2564,6 +2567,21 @@ export function buildCourse(
           if (engine.surfaceAt(jx, jy) !== 'rough') continue;
           // Keep a clean turf collar between the putting surface and the bed.
           if (Math.hypot(jx - hole.pin.x, jy - hole.pin.y) < 82) continue;
+          // ...and a collar off any MOWN playing surface: a bloom plants on rough,
+          // but a wide petal head in the last rough row still overhangs the
+          // fairway edge (owner: "flowers spill onto the fairway — they
+          // shouldn't"). Skip a bloom whose ring samples a fairway/green/fringe
+          // texel, so a clean rough margin frames every bed against the short grass.
+          let overhangsMown = false;
+          for (let a = 0; a < 4; a++) {
+            const ang = (a / 4) * Math.PI * 2;
+            const s = engine.surfaceAt(jx + Math.cos(ang) * GARDEN_MOWN_COLLAR, jy + Math.sin(ang) * GARDEN_MOWN_COLLAR);
+            if (s === 'fairway' || s === 'green' || s === 'fringe') {
+              overhangsMown = true;
+              break;
+            }
+          }
+          if (overhangsMown) continue;
           const roll = hash2(jx + 51, jy + 23);
           if (roll < bushCh) {
             // A scatter of low bushes gives the bed structure/edging.
