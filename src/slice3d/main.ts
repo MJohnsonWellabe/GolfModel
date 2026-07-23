@@ -687,6 +687,10 @@ class HoleScene {
   private puttGrid;
   private wind: Wind;
   private puff: ParticleSystem;
+  /** Skyward burst system for the biggest hole-outs (hole-in-one / eagle / long
+   *  hole-out). Idle at emitRate 0 like the puff; driven by staggered manual
+   *  emits from launchFireworks(). Additive blend so the sparks glow. */
+  private fireworks: ParticleSystem;
   private shakeT = 0;
   // Camera "punch" on a full-swing strike (Phase 6 juice): a brief recoil along
   // the camera's view axis that the normal camera lerp then recovers from.
@@ -872,6 +876,7 @@ class HoleScene {
     this.ballShadow.material = this.bsMat;
 
     this.puff = this.makePuff();
+    this.fireworks = this.makeFireworks();
 
     // Aim guide: a row of ground dots from the ball toward the aim point,
     // capped by a target ring — the shot line you're setting up
@@ -1037,6 +1042,74 @@ class HoleScene {
     this.puff.color1 = new Color4(1, 1, 0.9, 0.9);
     this.puff.color2 = new Color4(1, 0.85, 0.4, 0.5);
     this.puff.manualEmitCount = 10;
+  }
+
+  /** Fireworks for the biggest hole-outs. A single ParticleSystem sitting idle
+   *  (emitRate 0) like the puff; each burst is a radial manual emit — direction1
+   *  and direction2 span opposite corners so the sparks fly outward in every
+   *  direction, gravity arcs them down, and BLENDMODE_ADD makes them glow. */
+  private makeFireworks(): ParticleSystem {
+    const tex = new DynamicTexture('fwTex', { width: 32, height: 32 }, this.scene, true);
+    const c = tex.getContext() as CanvasRenderingContext2D;
+    const g = c.createRadialGradient(16, 16, 0, 16, 16, 15);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.4, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = g;
+    c.fillRect(0, 0, 32, 32);
+    tex.update(false);
+    tex.hasAlpha = true;
+    const fw = new ParticleSystem('fireworks', 900, this.scene);
+    fw.particleTexture = tex;
+    fw.emitter = new Vector3(0, -100, 0);
+    fw.minSize = 0.35;
+    fw.maxSize = 0.9;
+    fw.minLifeTime = 0.7;
+    fw.maxLifeTime = 1.3;
+    fw.emitRate = 0;
+    // A sphere of outward velocity: opposite corners → every direction.
+    fw.direction1 = new Vector3(-26, -26, -26);
+    fw.direction2 = new Vector3(26, 26, 26);
+    fw.minEmitPower = 0.4;
+    fw.maxEmitPower = 1;
+    fw.gravity = new Vector3(0, -14, 0);
+    fw.blendMode = ParticleSystem.BLENDMODE_ADD;
+    fw.start();
+    return fw;
+  }
+
+  /** Launch a short salvo of fireworks in the sky above the green. Staggered
+   *  bursts at varied sky positions and colours read as a real display. `epic`
+   *  (hole-in-one / eagle) gets a bigger, longer show than a great hole-out.
+   *  Reduced-motion players get a single modest burst. */
+  private launchFireworks(epic: boolean): void {
+    const pin = this.hole.pin;
+    const ground = this.gh(pin.x, pin.y);
+    const palette: Array<[number, number, number]> = [
+      [1, 0.3, 0.3], // red
+      [1, 0.85, 0.25], // gold
+      [0.35, 0.6, 1], // blue
+      [0.55, 1, 0.5], // green
+      [1, 0.55, 0.9] // pink
+    ];
+    const reduced = profile.settings.reducedMotion;
+    const bursts = reduced ? 1 : epic ? 7 : 4;
+    const perBurst = reduced ? 90 : 150;
+    for (let i = 0; i < bursts; i++) {
+      const delayMs = i * (reduced ? 0 : 320);
+      const col = palette[i % palette.length];
+      // Scatter the shells across the sky over the green — never right on the pin.
+      const jx = i === 0 ? 0 : (((i * 37) % 11) - 5) * 6;
+      const jy = i === 0 ? 0 : (((i * 53) % 11) - 5) * 6;
+      const sky = 60 + ((i * 17) % 30);
+      setTimeout(() => {
+        if (this.disposed) return;
+        (this.fireworks.emitter as Vector3).copyFrom(w2b(pin.x + jx, pin.y + jy, ground + sky));
+        this.fireworks.color1 = new Color4(col[0], col[1], col[2], 1);
+        this.fireworks.color2 = new Color4(col[0] * 0.6, col[1] * 0.6, col[2] * 0.6, 0.4);
+        this.fireworks.manualEmitCount = perBurst;
+      }, delayMs);
+    }
   }
 
   /** One short haptic tick where supported (Android Chrome; iOS Safari has no
@@ -2567,6 +2640,9 @@ class HoleScene {
       line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
     }
     if (!cine) return false;
+    // Fireworks over the green for every special hole-out (owner) — a bigger
+    // show for the epic tier (hole-in-one / eagle) than a great one.
+    this.launchFireworks(cine.tier === 'epic');
     // Golden burst at the cup — three staggered emits read as a shower.
     const pin = this.hole.pin;
     (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 1 + this.gh(pin.x, pin.y)));

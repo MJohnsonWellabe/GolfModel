@@ -1,10 +1,13 @@
 import '@babylonjs/loaders/glTF';
 import {
   AssetContainer,
+  Color3,
   LoadAssetContainerAsync,
+  MeshBuilder,
   Quaternion,
   Scene,
   ShadowGenerator,
+  StandardMaterial,
   TransformNode,
   Vector3
 } from '@babylonjs/core';
@@ -98,6 +101,10 @@ export class Pal3D {
         model.parent = this.bobPivot;
         model.rotationQuaternion = Quaternion.RotationAxis(Vector3.Up(), MODEL_FACING);
         model.getChildMeshes().forEach((cm) => shadows.addShadowCaster(cm));
+        // Rexy ships as a static scan with no distinct eyes (owner: "give rexy
+        // eyes?"). Add procedural googly eyes on the skull. Parented to the
+        // normalized model root, so raw-GLB local coords ride its scale/facing.
+        if (def.key === 'trex') this.addRexyEyes(scene, model);
         this.loaded = true;
         if (this.placed) this.root.setEnabled(true);
       })
@@ -161,6 +168,35 @@ export class Pal3D {
     root.position.z -= (bounds.min.z + bounds.max.z) / 2;
     root.computeWorldMatrix(true);
     return root;
+  }
+
+  /** Procedural eyes for Rexy (the GLB is a static scan with none). Positions
+   *  are in the model's raw-GLB local frame: the head/snout sits at +Z (snout
+   *  tip ≈ z 1.0) up near the top (y max ≈ 0.47), so the eyes go on the upper
+   *  sides of the skull, set back from the snout, with a dark pupil in front of
+   *  a white sclera. Parented to the normalized root so they inherit its scale
+   *  and facing; disposed with the scene like the rest of the pal. */
+  private addRexyEyes(scene: Scene, model: TransformNode): void {
+    const white = new StandardMaterial('rexyEyeWhite', scene);
+    white.diffuseColor = new Color3(0.98, 0.98, 0.95);
+    white.emissiveColor = new Color3(0.5, 0.5, 0.48); // a little self-lit so they read in shadow
+    white.specularColor = new Color3(0.4, 0.4, 0.4);
+    const dark = new StandardMaterial('rexyPupil', scene);
+    dark.diffuseColor = new Color3(0.02, 0.02, 0.02);
+    dark.emissiveColor = new Color3(0.02, 0.02, 0.02);
+    dark.specularColor = new Color3(0.9, 0.9, 0.9); // glossy catch-light
+    for (const side of [-1, 1]) {
+      const eye = MeshBuilder.CreateSphere('rexyEye', { diameter: 0.15, segments: 10 }, scene);
+      eye.parent = model;
+      eye.position = new Vector3(side * 0.135, 0.33, 0.64);
+      eye.material = white;
+      eye.isPickable = false;
+      const pupil = MeshBuilder.CreateSphere('rexyPupil', { diameter: 0.08, segments: 8 }, scene);
+      pupil.parent = model;
+      pupil.position = new Vector3(side * 0.165, 0.335, 0.7);
+      pupil.material = dark;
+      pupil.isPickable = false;
+    }
   }
 
   /** Send the pal to its perch beside the ball: off the golfer's far side AND
