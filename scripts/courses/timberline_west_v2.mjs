@@ -82,9 +82,11 @@ const timberlineWestV2 = {
         // elevation). Runs off both sides into the treelines.
         { type: 'water', polygon: stream([[306, 632], [382, 600], [452, 566], [524, 534], [592, 508]], 28, 811) },
         // THE FAIRWAY TREE — a lone spruce standing in the corridor (production
-        // staple: "the fairway tree you had to avoid"). Right-center of the
-        // fairway just past the creek, so the drive/approach must work around it.
-        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 27, polygon: [[452, 672], [468, 654], [486, 670], [478, 692], [456, 690]] },
+        // staple: "the fairway tree you had to avoid"). Moved onto the DOGLEG CUT
+        // LINE (owner-approved §8 h1: ~415,610) — left-of-centre on the inside of
+        // the left bend, so the aggressive short line that hugs the cut has to
+        // deal with it while the safe wide line stays clear.
+        { type: 'trees', spacing: 20, visualSpacing: 13, treeR: 27, polygon: [[399, 606], [415, 588], [433, 604], [425, 626], [403, 624]] },
         // GREENSIDE SAND — front-right of the benched green (the safe miss short).
         { type: 'bunker', depthMul: 1.3, polygon: blob(356, 398, 18, 13, 9, 0.3, 141) },
         // BACKDROP WOODS on the mountainside behind the green.
