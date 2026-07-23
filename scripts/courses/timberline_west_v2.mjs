@@ -203,8 +203,17 @@ const timberlineWestV2 = {
       // a low-percentage play — miss short and it's water, not a two-putt.
       green: { cx: 858, cy: 560, rx: 64, ry: 46, rot: 0.5 },
       slope: { angle: 2.6, strength: 0.34 },
-      centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]],
-      width: [46, 72, 86, 80, 66, 56],
+      fairways: [
+        { centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]], width: [46, 72, 86, 80, 66, 56] },
+        // SHORT-GRASS BAILOUT SHELF long-left of the walled green (owner-approved
+        // §8 h3). A fairway bench on the green mesa's level upper-left, clear of
+        // the green ellipse, so an approach that bails away from the front pond
+        // and the wraparound wall holds short grass and leaves a simple chip up
+        // — instead of trickling into the water or off the mesa. Rides the
+        // existing mesa flat top (no new terrain, so the green stays puttable).
+        { centerline: [[822, 500], [790, 518]], width: [44, 40] }
+      ],
+      altFairways: 1,
       hazards: [
         // CORNER POND — inside/left of the dogleg where the fairway bends right;
         // a pulled drive or a greedy corner-cut finds water. Reflective, level
