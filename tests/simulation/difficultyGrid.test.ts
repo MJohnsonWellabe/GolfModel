@@ -28,6 +28,16 @@ const COURSES: CourseData[] = [
 const SCRATCH = '/tmp/claude-0/-home-user/dfe4e2d5-ec7d-58bc-86bb-a04745c2265b/scratchpad';
 const ROUNDS = Number(process.env.GRID_ROUNDS ?? 40); // per course per cell
 
+// CALIBRATION WIND (Step 1): the sim models a realistic light "typical round"
+// instead of the course fallback of a constant 2..20mph breeze on every hole.
+// That fallback overstated wind by ~1 stroke and fattened the tails, running the
+// sim harder & wider than the owner's real play; a light band reproduces the
+// owner's ground truth (Expert+good ≈ −2/−3, bad round ≈ even = unpunishing).
+const CAL_WIND = {
+  windMin: Number(process.env.CAL_WMIN ?? 1),
+  windMax: Number(process.env.CAL_WMAX ?? 8)
+};
+
 /** Config knob set the simulator can force (baseline vs tuned) at runtime. */
 interface KnobSet {
   [k: string]: number;
@@ -44,10 +54,18 @@ interface KnobSet {
   puttPaceNoise: number;
   puttPaceGrowPx: number;
   putterErrorDiv: number;
+  // Ball-striking dispersion levers (Step 2 — spread lives tee-to-green).
+  dispGood: number; // dispersionQualityMult.good  (lateral residual, good click)
+  dispMiss: number; // dispersionQualityMult.miss  (lateral residual, miss click)
+  carryGood: number; // carryNoiseQualityMult.good  (depth 1σ, good power click)
+  carryMiss: number; // carryNoiseQualityMult.miss  (depth 1σ, miss power click)
+  golferErrBase: number; // errFactor base
+  golferErrGain: number; // errFactor per-(100−accuracy) gain
 }
 
-// BASELINE = the original shipped constants (linear accuracy, current putt
-// forgiveness) — the reference the tuned curve is compared against.
+// BASELINE = the shipped constants (linear accuracy, current dispersion + putt
+// forgiveness) — the reference the tuned curve is compared against. Now run at
+// the calibrated wind so it reproduces the owner's real −2/−3 expert round.
 const BASELINE: KnobSet = {
   perfectBandMin: 0.008,
   perfectBandMax: 0.026,
@@ -61,26 +79,38 @@ const BASELINE: KnobSet = {
   puttPaceMiss: 6,
   puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
-  putterErrorDiv: 2.4
+  putterErrorDiv: 2.4,
+  dispGood: 2.4,
+  dispMiss: 6,
+  carryGood: 2,
+  carryMiss: 3.2,
+  golferErrBase: 0.4,
+  golferErrGain: 1.2
 };
 
-// TUNED = the LANDED curve (mirrors src/config.ts). Env vars override for
-// re-tuning; the defaults below are the shipped values so the dashboard shows
-// the real tuned grid with no env set.
+// TUNED = the Step-2 re-tune (mirrors src/config.ts once landed). Env vars
+// override for iteration; the defaults below are the LANDED values so the
+// dashboard shows the real tuned grid with no env set.
 const TUNED: KnobSet = {
-  perfectBandMin: Number(process.env.K_pbmin ?? 0.012),
-  perfectBandMax: Number(process.env.K_pbmax ?? 0.04),
-  goodBandMin: Number(process.env.K_gbmin ?? 0.09),
-  goodBand: Number(process.env.K_gb ?? 0.135),
-  accuracyCurveExp: Number(process.env.K_aexp ?? 1.7),
-  accuracyCurveGain: Number(process.env.K_again ?? 0.42),
-  powerShortExp: Number(process.env.K_pse ?? 1.6),
+  perfectBandMin: Number(process.env.K_pbmin ?? 0.005),
+  perfectBandMax: Number(process.env.K_pbmax ?? 0.018),
+  goodBandMin: Number(process.env.K_gbmin ?? 0.055),
+  goodBand: Number(process.env.K_gb ?? 0.09),
+  accuracyCurveExp: Number(process.env.K_aexp ?? 1.6),
+  accuracyCurveGain: Number(process.env.K_again ?? 1.3),
+  powerShortExp: Number(process.env.K_pse ?? 1.5),
   puttPacePerfect: Number(process.env.K_ppp ?? 1),
-  puttPaceGood: Number(process.env.K_ppg ?? 2.8),
-  puttPaceMiss: Number(process.env.K_ppm ?? 3.5),
-  puttPaceNoise: Number(process.env.K_ppn ?? 0.04),
+  puttPaceGood: Number(process.env.K_ppg ?? 3),
+  puttPaceMiss: Number(process.env.K_ppm ?? 6),
+  puttPaceNoise: Number(process.env.K_ppn ?? 0.055),
   puttPaceGrowPx: Number(process.env.K_ppgrow ?? 70),
-  putterErrorDiv: Number(process.env.K_ped ?? 4.0)
+  putterErrorDiv: Number(process.env.K_ped ?? 2.4),
+  dispGood: Number(process.env.K_dg ?? 3.6),
+  dispMiss: Number(process.env.K_dm ?? 7.5),
+  carryGood: Number(process.env.K_cg ?? 2.8),
+  carryMiss: Number(process.env.K_cm ?? 3.8),
+  golferErrBase: Number(process.env.K_geb ?? 0.35),
+  golferErrGain: Number(process.env.K_geg ?? 1.5)
 };
 
 function apply(k: KnobSet): void {
@@ -99,11 +129,22 @@ function apply(k: KnobSet): void {
   p.puttPaceNoise = k.puttPaceNoise;
   p.puttPaceGrowPx = k.puttPaceGrowPx;
   p.putterErrorDiv = k.putterErrorDiv;
+  (p.dispersionQualityMult as Record<string, number>).good = k.dispGood;
+  (p.dispersionQualityMult as Record<string, number>).miss = k.dispMiss;
+  (p.carryNoiseQualityMult as Record<string, number>).good = k.carryGood;
+  (p.carryNoiseQualityMult as Record<string, number>).miss = k.carryMiss;
+  p.golferErrBase = k.golferErrBase;
+  p.golferErrGain = k.golferErrGain;
 }
 
 function run(k: KnobSet): GridResult {
   apply(k);
-  return runGrid(COURSES, { roundsPerCourse: ROUNDS, seedBase: 900_000 });
+  return runGrid(COURSES, {
+    roundsPerCourse: ROUNDS,
+    seedBase: 900_000,
+    windMin: CAL_WIND.windMin,
+    windMax: CAL_WIND.windMax
+  });
 }
 
 // HEAVY instrument (thousands of seeded rounds, writes the dashboard) — OPT-IN
@@ -129,7 +170,13 @@ describe('difficulty calibration grid', () => {
         puttPaceMiss: PHYSICS.puttPaceQualityMult.miss,
         puttPaceNoise: PHYSICS.puttPaceNoise,
         puttPaceGrowPx: PHYSICS.puttPaceGrowPx,
-        putterErrorDiv: PHYSICS.putterErrorDiv
+        putterErrorDiv: PHYSICS.putterErrorDiv,
+        dispGood: PHYSICS.dispersionQualityMult.good,
+        dispMiss: PHYSICS.dispersionQualityMult.miss,
+        carryGood: PHYSICS.carryNoiseQualityMult.good,
+        carryMiss: PHYSICS.carryNoiseQualityMult.miss,
+        golferErrBase: PHYSICS.golferErrBase,
+        golferErrGain: PHYSICS.golferErrGain
       });
 
       const tuned = run(TUNED);
@@ -176,6 +223,16 @@ function textSummary(p: {
     lines.push(header);
     for (let ui = 0; ui < g.users.length; ui++) {
       const cols = g.cells[ui].map((c) => `${fmt(c.medianToPar)} [${fmt(c.p10ToPar)}/${fmt(c.p90ToPar)}]`);
+      lines.push([g.users[ui].name, ...cols].join('\t'));
+    }
+    lines.push('--- FIR % (fairways hit) ---');
+    for (let ui = 0; ui < g.users.length; ui++) {
+      const cols = g.cells[ui].map((c) => (Number.isNaN(c.meanFir) ? '--' : c.meanFir.toFixed(0)));
+      lines.push([g.users[ui].name, ...cols].join('\t'));
+    }
+    lines.push('--- GIR % (greens in regulation) ---');
+    for (let ui = 0; ui < g.users.length; ui++) {
+      const cols = g.cells[ui].map((c) => c.meanGir.toFixed(0));
       lines.push([g.users[ui].name, ...cols].join('\t'));
     }
     lines.push('--- putts/hole ---');

@@ -219,7 +219,13 @@ export function simulateRound(
   holeCount?: number,
   bounded = false,
   userModel?: UserSwingModel,
-  onSwing?: SimulateHoleOpts['onSwing']
+  onSwing?: SimulateHoleOpts['onSwing'],
+  /** CALIBRATION WIND override (mph). Each side, when defined, replaces the
+   *  course's own min/max wind — the difficulty simulator uses this to model a
+   *  realistic light "typical round" instead of the course fallback of a stiff
+   *  2..20mph breeze on every hole. Undefined → the course's own band (all
+   *  existing callers, whose behavior is unchanged). */
+  windOverride?: { windMin?: number; windMax?: number }
 ): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
@@ -234,8 +240,8 @@ export function simulateRound(
   const results = holes.map((h) =>
     simulateHole(h, golfer, {
       rng,
-      windMin: course.minWind,
-      windMax: course.maxWind,
+      windMin: windOverride?.windMin ?? course.minWind,
+      windMax: windOverride?.windMax ?? course.maxWind,
       bunkerDepthScale,
       wasteDepthScale,
       edgeWobble,

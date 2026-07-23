@@ -716,13 +716,14 @@ export class PhysicsEngine {
       // Full-shot distance control: delicate part-swings (chips) carry more
       // relative depth noise than committed full swings — this is what makes
       // chip-ins special (GDD 40%/15%/6%) and caps approach proximity.
-      const qMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 2 : 3.2;
+      const qMult =
+        PHYSICS.carryNoiseQualityMult[swing.powerQuality] ?? PHYSICS.carryNoiseQualityMult.miss;
       const frac = 0.05 * (1.25 - Math.min(1, swing.power) * 0.85);
       carryPx *= Math.max(0.4, 1 + gaussianOf(this.rng, 0, frac * qMult));
     }
 
     // Direction -----------------------------------------------------------
-    const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
+    const errFactor = PHYSICS.golferErrBase + ((100 - accuracy) / 100) * PHYSICS.golferErrGain;
     const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / PHYSICS.putterErrorDiv : PHYSICS.maxErrorDeg;
     // Residual start-line dispersion. A PERFECT click (accuracy===0) now launches
     // exactly on the intended line from a clean lie — the start line is earned
@@ -734,7 +735,8 @@ export class PhysicsEngine {
     // Appendix A dispersion table; residual tightens as the governing accuracy stat
     // rises; skipped in preview so the aim line is exact.
     // riskMult: extreme strike positions widen dispersion (Phase 4 widget).
-    const qualityMult = swing.accuracyQuality === 'perfect' ? 0 : swing.accuracyQuality === 'good' ? 2.4 : 6;
+    const qualityMult =
+      PHYSICS.dispersionQualityMult[swing.accuracyQuality] ?? PHYSICS.dispersionQualityMult.miss;
     // Lie penalty (rough/sand/etc's extra scatter) used to apply at FULL
     // strength regardless of strike quality — unlike every other dispersion
     // term here, which shrinks on a clean hit. Rough's lieError (3.5°) is

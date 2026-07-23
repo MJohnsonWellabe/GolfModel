@@ -40,9 +40,13 @@ export const SWING = {
   accuracySweepMult: 0.85,
   /** Perfect band half-width range (fraction of meter width): scales with the
    *  governing stat on a ^1.5 curve — GDD Appendix A "perfect zone scaling"
-   *  (Very Small at 60 → Very Large at 100, never above ~10% of the meter). */
-  perfectBandMin: 0.008,
-  perfectBandMax: 0.026,
+   *  (Very Small at 60 → Very Large at 100, never above ~10% of the meter).
+   *  RE-TUNED SMALLER (Step-2 difficulty pass, owner: "make the perfect zone
+   *  smaller so flushing it is real") from 0.008/0.026 — a near-all-perfect
+   *  player still flushes most swings, but the strong club player now leaves
+   *  perfect often enough that the harsher accuracy curve below bites. */
+  perfectBandMin: 0.005,
+  perfectBandMax: 0.018,
   /** Good band half-width as a fraction of meter width at MAX touch stat
    *  (drives the GDD missed-swing fairway rates). The good zone scales with the
    *  per-part touch stat (Irons/Wedge/Putting) between goodBandMin and this, on
@@ -75,23 +79,26 @@ export const SWING = {
    *  could rocket well past the hole. Capping the error at a fraction of the
    *  target keeps "good" reading as a near-target roll on every putt length. */
   puttGoodErrorFrac: 0.15,
-  /** DIFFICULTY CURVE (owner: "smooth but harsher"). The accuracy penalty stays
-   *  a continuous function of the timing error, but these two knobs steepen it:
-   *  the delivered start-line offset is `gain · |rawOffset|^exp` (sign kept).
+  /** DIFFICULTY CURVE (owner: "smooth but harsher — a miss must hurt"). The
+   *  accuracy penalty stays a continuous function of the timing error, but these
+   *  two knobs steepen it: the delivered start-line offset is `gain · |rawOffset|^exp`
+   *  (sign kept, clamped to [-1,1] so a full miss still delivers the max offset).
    *  - `accuracyCurveExp > 1` makes it CONVEX — gentle just outside perfect, then
    *    accelerating toward a miss (a bigger drop-off the further you stray).
-   *  - `accuracyCurveGain > 1` scales the whole thing up (harsher everywhere).
-   *  Both default to 1 → identical to the old linear curve; the difficulty pass
-   *  tunes them against the RoundSimulator skill grid (see the proposed values in
-   *  docs/roadmap/DIFFICULTY_TUNING_PROPOSAL.md — held pending an owner direction
-   *  call, NOT yet applied). */
-  accuracyCurveExp: 1,
-  accuracyCurveGain: 1,
+   *  - `accuracyCurveGain ≥ 1` scales the whole thing up (harsher everywhere).
+   *  RE-TUNED (Step-2 difficulty pass, calibrated against the recalibrated
+   *  RoundSimulator skill grid) from the shipped linear 1/1 to 1.6/1.3: convex
+   *  AND harsher, so leaving the (now smaller) perfect zone genuinely costs
+   *  strokes. NB the prior held proposal took the OPPOSITE direction — gain 0.42,
+   *  which made a full miss GENTLER; that was rejected. */
+  accuracyCurveExp: 1.6,
+  accuracyCurveGain: 1.3,
   /** Convex distance-loss for a SHORT full swing: the shortfall below the target
    *  bar is raised to this exponent before scaling delivered power, so a slightly
    *  short swing barely loses distance while a badly short one loses a lot
-   *  (smooth, accelerating). 1 = the old proportional loss. */
-  powerShortExp: 1
+   *  (smooth, accelerating). 1 = the old proportional loss. Raised to 1.5 in the
+   *  Step-2 pass so a mis-timed (short) power click bleeds more distance. */
+  powerShortExp: 1.5
 } as const;
 
 export const PHYSICS = {
@@ -168,6 +175,26 @@ export const PHYSICS = {
     wedge: 0.32,
     putter: 0.45
   } as Record<string, number>,
+  /** DIFFICULTY DISPERSION LEVERS (named for the SkillSimulator to tune — these
+   *  were inline literals in PhysicsEngine.resolveLaunch). Together they decide
+   *  how far a NON-perfect swing scatters, so the difficulty spread lives in
+   *  ball-striking (FIR/GIR) rather than only in putting.
+   *
+   *  - `dispersionQualityMult`: lateral start-line residual multiplier by the
+   *    accuracy-click quality. Perfect stays 0 (a flushed click launches dead
+   *    on-line — GDD §864); good/miss widen the directional scatter, so a weak
+   *    user (more good/miss clicks) or weak golfer misses more greens.
+   *  - `carryNoiseQualityMult`: depth (distance) 1σ multiplier by the
+   *    power-click quality — a mis-timed power click finishes long/short, which
+   *    also misses greens and stretches recoveries.
+   *  - `golferErrBase`/`golferErrGain`: a full accuracy MISS launches
+   *    `maxErrorDeg × (golferErrBase + (100-accuracy)/100 × golferErrGain)`
+   *    degrees offline, so a weaker golfer's accuracy stat scatters the ball
+   *    more (the golfer axis of the difficulty grid). */
+  dispersionQualityMult: { perfect: 0, good: 3.6, miss: 7.5 } as Record<string, number>,
+  carryNoiseQualityMult: { perfect: 1, good: 2.8, miss: 3.8 } as Record<string, number>,
+  golferErrBase: 0.35,
+  golferErrGain: 1.5,
   /** Airborne wind scaling: full effect at/above this height (world px),
    *  fading toward the ground — low flight cuts through wind (GDD §Wind). Raised
    *  45 -> 82 for the real-aero apex (~110 ft ≈ 73 u): a normal drive now sits

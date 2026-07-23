@@ -42,20 +42,25 @@ export function uniformGolfer(stat: number): Golfer {
 }
 
 /**
- * USER TIERS — σ chosen against the swingModel band HALF-widths (perfect half
- * ≈0.017–0.026, good half ≈0.075–0.09 before the lie/club shrink):
- *  - Expert: σ well inside the perfect band → mostly perfect clicks.
- *  - Good:   σ ≈ the perfect half → straddles perfect/good.
- *  - Average:σ ≈ mid good band → mostly good, occasional miss.
- *  - Novice: σ ≈ the good half → good/miss mix, perfect is rare.
- * (These are the DEFAULTS; the runner sweeps and prints the realized band mix so
- *  they can be verified/retuned against today's constants.)
+ * USER TIERS — a modeled player's 1σ meter-timing error (fraction of the bar).
+ * RECALIBRATED against real play (owner ground truth, 2026-07): at the shipped
+ * constants an Expert with a good golfer shoots −2/−3 and is not punished for a
+ * bad round. The prior σ ladder (.062/.04/.023/.012) ran the sim harder & wider
+ * than reality — its "Expert" (.012) only flushed ~85% of strokes (a strong
+ * amateur) and landed ≈ −1. The recalibrated ladder:
+ *  - Expert (.008): the OWNER — ~97% perfect strokes (near-all-perfect flush),
+ *    yields −2/−3 with a good golfer under the calibrated (light) wind.
+ *  - Good (.016):   straddles perfect/good — a strong club player.
+ *  - Average (.028):mostly good clicks, regular misses.
+ *  - Novice (.045): good/miss mix, perfect is occasional.
+ * (Still DEFAULTS; the runner prints the realized band mix so the mapping stays
+ *  verifiable under whatever swing constants are in force.)
  */
 export const USER_TIERS: UserTier[] = [
-  { name: 'Novice', sigmaPower: 0.062, sigmaAcc: 0.062 },
-  { name: 'Average', sigmaPower: 0.04, sigmaAcc: 0.04 },
-  { name: 'Good', sigmaPower: 0.023, sigmaAcc: 0.023 },
-  { name: 'Expert', sigmaPower: 0.012, sigmaAcc: 0.012 }
+  { name: 'Novice', sigmaPower: 0.045, sigmaAcc: 0.045 },
+  { name: 'Average', sigmaPower: 0.028, sigmaAcc: 0.028 },
+  { name: 'Good', sigmaPower: 0.016, sigmaAcc: 0.016 },
+  { name: 'Expert', sigmaPower: 0.008, sigmaAcc: 0.008 }
 ];
 
 /** GOLFER TIERS — uniform stats spanning ~55 → 100. */
@@ -153,6 +158,16 @@ export interface RunOpts {
   roundsPerCourse: number;
   /** Seed base; each (userIdx, golferIdx, courseIdx, round) gets a distinct seed. */
   seedBase?: number;
+  /** CALIBRATION WIND BAND (mph) the sim models as "typical playing conditions",
+   *  overriding each course's own band. The instrument's original default —
+   *  every course's fallback of 2..20mph on EVERY hole — models a constant stiff
+   *  breeze (mean 11mph) that cost the modeled expert ~1 full stroke and fattened
+   *  the score tails, running the sim harder & wider than the owner's real play.
+   *  A light band (calibrated 2026-07) reproduces the owner's −2/−3 expert round.
+   *  Undefined on either side → that course's own min/max (the pre-calibration
+   *  behavior), so existing non-grid callers are unaffected. */
+  windMin?: number;
+  windMax?: number;
 }
 
 /**
@@ -202,7 +217,10 @@ export function runCell(
         golferIdx * 31_013 +
         ci * 7_919 +
         s * 101;
-      const r = simulateRound(courses[ci], golfer, seed, undefined, false, user, onSwing);
+      const r = simulateRound(courses[ci], golfer, seed, undefined, false, user, onSwing, {
+        windMin: opts.windMin,
+        windMax: opts.windMax
+      });
       const rec = roundRecord(r);
       records.push(rec);
       toPars.push(rec.toPar);

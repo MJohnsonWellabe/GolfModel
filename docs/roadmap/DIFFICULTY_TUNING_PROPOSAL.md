@@ -1,6 +1,42 @@
-# Difficulty Tuning — Simulator Proposal (HELD, not applied)
+# Difficulty Tuning — Simulator Proposal (SUPERSEDED)
 
-**Status:** PROPOSAL. The constants below are **not** in the shipped config — they
+**Status (updated 2026-07):** SUPERSEDED. Option **C ("reconcile first")** below
+was taken. The instrument was first RECALIBRATED to ground truth (Step 1), then a
+re-tune landed in the OPPOSITE direction from the proposal in this doc (Step 2:
+*smaller* perfect zone + *harsher* convex accuracy + ball-striking-carried spread,
+not the bigger-zone/gentler-putting table below). The landed values live in
+`src/config.ts`; do not apply the table in this doc. The historical proposal is
+kept below for context.
+
+### What actually landed
+- **Step 1 — recalibration (why the sim ran harder & wider than reality).**
+  Two sim-modeling errors, fixed WITHOUT touching shipped game balance:
+  1. *Wind.* The instrument fell back to a uniform **2–20mph on every hole**
+     (mean 11 — a constant stiff breeze) that cost the modeled expert ~1 full
+     stroke and fattened the score tails. The sim now models a realistic light
+     **1–8mph** typical round (`SkillSimulator` `RunOpts.windMin/windMax`,
+     threaded through `simulateRound`; grid `CAL_WIND`).
+  2. *σ tiers.* The old "Expert" σ.012 flushed only ~85% of strokes (a strong
+     amateur, landing ≈ −1). Recalibrated ladder .045/.028/.016/.008 — the
+     Expert (.008) is the owner: ~97% perfect strokes, and now shoots **−2/−3**
+     with a good golfer, bad round ≈ even (unpunished), matching real play.
+- **Step 2 — the landed re-tune** (`src/config.ts`):
+  - `SWING.perfectBandMin` 0.008→**0.005**, `perfectBandMax` 0.026→**0.018**
+    (perfect zone SMALLER).
+  - `SWING.accuracyCurveExp` 1→**1.6**, `accuracyCurveGain` 1→**1.3** (convex AND
+    harsher — gain ≥ 1, the OPPOSITE of the rejected 0.42), `powerShortExp`
+    1→**1.5**.
+  - `PHYSICS.dispersionQualityMult` 2.4/6→**3.6/7.5**, `carryNoiseQualityMult`
+    2/3.2→**2.8/3.8**, `golferErrGain` 1.2→**1.5**, `golferErrBase` 0.4→**0.35**
+    (extracted from inline literals in `PhysicsEngine.resolveLaunch`). These
+    carry the spread in BALL-STRIKING: GIR now ranges ~44% (Novice+Bad) → ~86%
+    (Expert+Good). Putting left at shipped (near tour, secondary contributor).
+  - Full test suite green (904 passed); the meter/putting/dispersion/playability
+    gates all hold.
+
+---
+
+**Status (original):** PROPOSAL. The constants below are **not** in the shipped config — they
 were reverted pending an owner direction call (see "The catch"). The simulator,
 the user-swing path, and the dashboard generator ARE committed and are a reusable
 instrument.
