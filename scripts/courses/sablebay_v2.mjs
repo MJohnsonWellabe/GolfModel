@@ -150,8 +150,11 @@ const sablebayV2 = {
         // (x~402, not 362) so it rises through the green's opening framed by the
         // corridor pines — off to the left it hid behind the left treeline
         // (owner: must be viewable from the tee and the middle of the fairway).
-        seawall(402, 292, 16, 'stone_a', 221), seawall(428, 298, 14, 'stone_c', 222),
-        seawall(380, 304, 12, 'stone_b', 223)
+        // Clustered TIGHT (±11px) directly under the lighthouse base at (402,292)
+        // so it reads as the lighthouse standing ON the rocks, not rocks scattered
+        // beside it (owner: "rocks at the lighthouse base need to sit underneath it").
+        seawall(402, 293, 16, 'stone_a', 221), seawall(413, 298, 13, 'stone_c', 222),
+        seawall(391, 298, 13, 'stone_b', 223)
       ],
       // Coastal landmarks (CC0 Kenney props, upright): a tall LIGHTHOUSE on the
       // stone point behind the green (a clear skyline landmark from the tee and
@@ -254,13 +257,18 @@ const sablebayV2 = {
       // INVISIBLE ("can't even see the cobbles now anyway"). This form renders the
       // stones as intended while keeping the walkway a pure walk-up path.
       landforms: [
-        ...Array.from({ length: 18 }, (_, i) => ({
+        // Stones sit ON THE WALKWAY EDGE (the moat gap is x461..487, water 218/219)
+        // and run CONTINUOUS — tightened from 13px to 9px spacing so the little
+        // flint stones touch into an unbroken kerb down both edges of the path,
+        // tee bank to island (owner: "move the rocks onto the walkway edge and make
+        // it continuous"). The x452..496 sand base still carries them on dry sand.
+        ...Array.from({ length: 25 }, (_, i) => ({
           key: ['stone_a', 'stone_d', 'stone_b', 'stone_e', 'stone_c'][i % 5],
-          x: 453, y: 490 + i * 13, h: 4.2
+          x: 461, y: 490 + i * 9, h: 4.2
         })),
-        ...Array.from({ length: 18 }, (_, i) => ({
+        ...Array.from({ length: 25 }, (_, i) => ({
           key: ['stone_b', 'stone_e', 'stone_c', 'stone_a', 'stone_d'][i % 5],
-          x: 495, y: 490 + i * 13, h: 4.2
+          x: 487, y: 490 + i * 9, h: 4.2
         }))
       ],
       elevation: [
