@@ -216,7 +216,11 @@ const wildvalley = {
       // good one."). A prairie cedar lodge sitting on the amphitheater rim
       // directly behind the green, on the tee->green sightline so it reads as
       // the backdrop landmark. rot ~PI turns its porch/door to face the green.
-      props: [{ key: 'clubhouse', x: 440, y: 232, rot: 3.14, len: 66, upright: true }]
+      // A GIANT LOG CABIN behind the green (owner: the Palace clubhouse didn't
+      // fit — "what about a giant log cabin, that would fit"). A rustic timber
+      // lodge reads right on the open prairie. len bumped 66 -> 96 so it stands
+      // as a real landmark from the tee.
+      props: [{ key: 'logcabin', x: 440, y: 232, rot: 3.14, len: 96, upright: true }]
     },
     {
       number: 3, name: 'Sandbox', par: 5,

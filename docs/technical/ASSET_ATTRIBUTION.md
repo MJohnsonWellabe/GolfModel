@@ -45,3 +45,17 @@ Pre-existing Kenney/Quaternius assets (trees, rocks, grasses, the original
 License text: Creative Commons Zero (CC0 1.0),
 http://creativecommons.org/publicdomain/zero/1.0/ — "You can use this content
 for personal, educational, and commercial purposes."
+
+## Log cabin (via poly.pizza) — CC-BY
+
+Downloaded 2026-07-23 (owner: Wild Prairie #2 — the Palace clubhouse "didn't fit
+... what about a giant log cabin"). A single assembled low-poly timber lodge
+(~3.3k tris, Y-up, one merged mesh + door), placed as `assets/models/props/
+logcabin.glb` and used as the giant landmark behind Wild Prairie h2's green.
+
+| File (assets/models/props/) | Source | License |
+|---|---|---|
+| `logcabin.glb` | "Log cabin" by Poly by Google, via poly.pizza (https://poly.pizza/m/f7uccD5iyz0) | **CC-BY 4.0** — attribution required |
+
+License text: Creative Commons Attribution (CC-BY 4.0),
+https://creativecommons.org/licenses/by/4.0/ — attribution to Poly by Google.

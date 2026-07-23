@@ -1089,11 +1089,11 @@
       ],
       "props": [
         {
-          "key": "clubhouse",
+          "key": "logcabin",
           "x": 440,
           "y": 232,
           "rot": 3.14,
-          "len": 66,
+          "len": 96,
           "upright": true
         }
       ]
