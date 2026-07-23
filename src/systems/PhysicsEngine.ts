@@ -413,8 +413,12 @@ export class PhysicsEngine {
         if (this.inHazard(i, x, y)) water = true;
       } else if (t === 'trees' || t === 'building') {
         // keepGround woods leave the lie to whatever surface is beneath
-        // (Pinehurst-style trees standing in waste sand).
-        if (!hz[i].keepGround && this.inHazard(i, x, y)) trees = true;
+        // (Pinehurst-style trees standing in waste sand). A visualOnly grove
+        // carries no collision and no baked shadow (its whole contract is
+        // render-only trunks), so it must not stamp a trees LIE either — else a
+        // decorative blossom backdrop silently penalizes the ground beneath it
+        // and smothers hand-placed garden beds/scatter (Wildwood #2).
+        if (!hz[i].keepGround && !hz[i].visualOnly && this.inHazard(i, x, y)) trees = true;
       }
     }
     // Precedence: green > scoring-bunker > fringe > water > trees > fairway >

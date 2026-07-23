@@ -235,10 +235,13 @@ export interface Hazard {
    */
   accentIsPalm?: boolean;
   /**
-   * Trees only, VISUAL ONLY: a hazard entirely skipped for collision and the
-   * baked ground shadow (PhysicsEngine, bakeGroundShadows) — it only ever
-   * contributes trunks when rendering. Use this for a second, denser/closer
-   * polygon layered in front of a real (collision-safe) trees hazard.
+   * Trees only, VISUAL ONLY: a hazard entirely skipped for collision, the lie
+   * (surfaceAt returns the surface beneath, not 'trees'), the ground-albedo
+   * woods class, and the baked ground shadow — it only ever contributes trunks
+   * when rendering. Use this for a second, denser/closer polygon layered in
+   * front of a real (collision-safe) trees hazard, or for a purely decorative
+   * backdrop grove (e.g. a blossom band framing a green) that must not smother
+   * hand-placed garden beds or ground scatter beneath it.
    */
   visualOnly?: boolean;
   /**

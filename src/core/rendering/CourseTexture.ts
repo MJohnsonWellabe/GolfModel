@@ -213,7 +213,11 @@ function rasterizeClassGrid(
       6,
       (): void =>
         hole.hazards.forEach((hz) => {
-          if (hz.type === 'trees' && !hz.keepGround) poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
+          // visualOnly groves are render-only canopy (no collision, no baked
+          // shadow, no lie) — they must not stamp a woods class onto the ground
+          // albedo either, or the surface beneath a decorative blossom backdrop
+          // bakes dark and mismatches surfaceAt (Wildwood #2 back garden).
+          if (hz.type === 'trees' && !hz.keepGround && !hz.visualOnly) poly(roundPolygon(hz.polygon, TREES_BAKE_ROUND_ITERATIONS));
           else if (hz.type === 'building') poly(hz.polygon);
         })
     ],
