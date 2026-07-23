@@ -32,19 +32,19 @@ export class FireSystem {
    * Returns true if this swing just ignited the fire.
    */
   recordSwing(result: SwingResult): boolean {
-    if (result.powerQuality === 'miss' || result.accuracyQuality === 'miss') {
+    // ONLY an all-perfect swing keeps the fire alive (owner): anything less than
+    // perfect-perfect — a "good" band on either click, or a miss — puts it out.
+    // Fire is a reward for a flawless run, not a merely-decent one.
+    if (result.powerQuality !== 'perfect' || result.accuracyQuality !== 'perfect') {
       this.streak = 0;
       this.onFire = false;
       return false;
     }
-    if (result.powerQuality === 'perfect' && result.accuracyQuality === 'perfect') {
-      this.streak += 1;
-      if (!this.onFire && this.streak >= FIRE.streakToIgnite) {
-        this.onFire = true;
-        return true;
-      }
+    this.streak += 1;
+    if (!this.onFire && this.streak >= FIRE.streakToIgnite) {
+      this.onFire = true;
+      return true;
     }
-    // A merely "good" swing keeps the fire but does not extend the streak.
     return false;
   }
 

@@ -28,14 +28,24 @@ describe('FireSystem', () => {
     expect(f.isOnFire).toBe(false); // streak was only 1
   });
 
-  it('a good swing keeps the fire but a miss puts it out', () => {
+  it('only an all-perfect swing keeps the fire; a good swing puts it out', () => {
     const f = new FireSystem();
     f.recordSwing(swing('perfect', 'perfect'));
     f.recordSwing(swing('perfect', 'perfect'));
     expect(f.isOnFire).toBe(true);
 
+    // A merely "good" band on EITHER click ends the fire now (owner: fire is
+    // only for a flawless run, not a decent one).
     f.recordSwing(swing('good', 'good'));
-    expect(f.isOnFire).toBe(true); // survives a decent swing
+    expect(f.isOnFire).toBe(false);
+    expect(f.currentStreak).toBe(0);
+
+    // Re-ignite, then a one-perfect/one-good swing also ends it.
+    f.recordSwing(swing('perfect', 'perfect'));
+    f.recordSwing(swing('perfect', 'perfect'));
+    expect(f.isOnFire).toBe(true);
+    f.recordSwing(swing('perfect', 'good'));
+    expect(f.isOnFire).toBe(false);
 
     f.recordSwing(swing('miss', 'good'));
     expect(f.isOnFire).toBe(false);
@@ -67,10 +77,11 @@ describe('FireSystem', () => {
     expect(h2.isOnFire).toBe(true);
     expect(h2.currentStreak).toBe(h1.currentStreak);
 
-    // The streak still ends only on a missed band, on the new hole.
-    h2.recordSwing(swing('good', 'good'));
+    // The carried streak survives an all-perfect swing on the new hole...
+    h2.recordSwing(swing('perfect', 'perfect'));
     expect(h2.isOnFire).toBe(true);
-    h2.recordSwing(swing('miss', 'good'));
+    // ...but a less-than-perfect swing on the new hole ends it.
+    h2.recordSwing(swing('good', 'good'));
     expect(h2.isOnFire).toBe(false);
   });
 

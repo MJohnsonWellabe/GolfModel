@@ -649,6 +649,10 @@ class HoleScene {
    *  so a single overhead glance shows where off-course is (owner). Rebuilt on
    *  each aerial entry, disposed otherwise. */
   private obBorder: Mesh[] = [];
+  /** Cached OB-border segments for this hole. The border geometry is world-space
+   *  and static per hole, so the grid-march that computes it runs at most once —
+   *  the HoleScene (and this cache with it) is rebuilt on every hole change. */
+  private obSegsCache: Vector3[][] | null = null;
   private ais: (AIController | null)[] = [];
   /** Per-competitor state for this hole (1 for solo, 2 for 1v1/scramble). */
   private comps: Array<{
@@ -1208,7 +1212,11 @@ class HoleScene {
 
   private setCamSetup(): void {
     this.applyAerialFog(this.aerial);
-    this.syncObBorder();
+    // NOTE: the OB border is NOT rebuilt here. setCamSetup runs on every
+    // pointermove during an aim drag, and the border is static per hole — it's
+    // built once when the aerial view opens (toggleAerial / the 'aerial' camera
+    // preset) and disposed when it closes. Marching the world grid per drag
+    // frame was the "aerial refreshes everything and it's laggy" the owner hit.
     const f = this.fwd3(this.aim.yaw);
     const base = w2b(this.state.ballPos.x, this.state.ballPos.y, this.gh(this.state.ballPos.x, this.state.ballPos.y));
     const putt = this.aim.isPutting;
@@ -1497,6 +1505,7 @@ class HoleScene {
       this.camTarget.look = pin3;
     } else if (cam === 'aerial') {
       this.aerial = true;
+      this.syncObBorder();
       this.setCamSetup();
     } else if (cam === 'club') {
       // Golfer/club close-up: side-on view of the golfer at address so the whole
@@ -1528,8 +1537,22 @@ class HoleScene {
     for (const m of this.obBorder) m.dispose();
     this.obBorder = [];
     if (!this.aerial) return;
-    const h = this.hole;
     const RED = new Color3(0.92, 0.14, 0.11);
+    const segs = (this.obSegsCache ??= this.computeObSegs());
+    if (!segs.length) return;
+    const sys = MeshBuilder.CreateLineSystem('obLine', { lines: segs }, this.scene);
+    sys.color = RED;
+    sys.isPickable = false;
+    sys.applyFog = false;
+    this.obBorder.push(sys);
+  }
+
+  /** March the world grid ONCE per hole to trace the true out-of-bounds line
+   *  (the outer perimeter of the playable-region union) plus any authored `ob`
+   *  regions. Result is cached in `obSegsCache` — the geometry is static per
+   *  hole, so repeated aerial toggles reuse it instead of re-marching. */
+  private computeObSegs(): Vector3[][] {
+    const h = this.hole;
     const LIFT = 5;
     const segs: Vector3[][] = [];
     // THE OB LINE = the OUTER edge of the UNION of playable regions. Drawing
@@ -1568,12 +1591,7 @@ class HoleScene {
         segs.push([w2b(ax, ay, this.gh(ax, ay) + LIFT), w2b(bx, by, this.gh(bx, by) + LIFT)]);
       }
     }
-    if (!segs.length) return;
-    const sys = MeshBuilder.CreateLineSystem('obLine', { lines: segs }, this.scene);
-    sys.color = RED;
-    sys.isPickable = false;
-    sys.applyFog = false;
-    this.obBorder.push(sys);
+    return segs;
   }
 
   /** BOUNDED WORLD debug overlay (capture `?boundary=1`, or __slice3d.showBoundary()).
@@ -2007,6 +2025,7 @@ class HoleScene {
     // No red aiming overlays in the overhead planning view (owner) — pull any
     // live True Vision reveal off the map on the way up.
     if (this.aerial) this.trueVisionRoot.setEnabled(false);
+    this.syncObBorder(); // build (aerial on) / dispose (aerial off) the OB line once
     this.setCamSetup();
     this.updateAimVisuals(); // rescale the aim dots/ring for the new altitude
     // The overhead swap is a big camera move; re-capture the frozen reflection +
@@ -2768,8 +2787,11 @@ class HoleScene {
       if (!this.aim.moveDrag(this.ctx(), { x: e.clientX, y: e.clientY })) return;
       // While the drag lasts, let the parked water mirror + shadow map track
       // the reframing camera at their normal live cadence instead of forcing a
-      // full fresh capture per pointermove (see armMeter).
-      this.course3d.aimDragRTTs(true);
+      // full fresh capture per pointermove (see armMeter). NOT in the overhead
+      // view — the aerial is a frozen "picture from above" (owner), so keep both
+      // RTTs held rather than re-rendering the mirror + 1024² shadow map every
+      // drag frame from a vantage where the reflection barely changes.
+      if (!this.aerial) this.course3d.aimDragRTTs(true);
       this.golfer.placeAt(this.state.ballPos.x, this.state.ballPos.y, this.aim.yaw, this.gh(this.state.ballPos.x, this.state.ballPos.y));
       this.perchPal();
       this.setCamSetup();
