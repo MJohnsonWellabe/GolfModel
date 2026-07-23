@@ -72,11 +72,16 @@ const portjohnsonV2 = {
       centerline: [[500, 1140], [498, 980], [506, 810], [522, 640], [512, 470], [502, 360]],
       width: [50, 86, 92, 78, 64, 52],
       hazards: [
-        // The harbor along the right — cold slate water, the working edge.
+        // The harbor along the right — cold slate water, the working edge. Shore
+        // PUSHED IN toward the corridor (owner-approved §8 h1: bring the harbour
+        // water into play) — the inner edge slid ~65px left so it now bites the
+        // right of the drive/approach bands. A push or a bailed-right line finds
+        // the harbour instead of sailing safely wide of it; the fairway and the
+        // kept pot minefield are untouched (a rough buffer still separates them).
         {
           type: 'water',
           polygon: [
-            [742, 480], [980, 440], [980, 830], [760, 800], [700, 720], [688, 600], [712, 520]
+            [677, 480], [980, 440], [980, 830], [695, 800], [635, 720], [623, 600], [647, 520]
           ]
         },
         // Drive-band flank bunkers (plain sand, escapable at full length).
