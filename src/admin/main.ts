@@ -99,7 +99,15 @@ async function fetchRounds(): Promise<RoundRecord[]> {
  *  simply omits the retention section rather than failing. */
 async function fetchRetention(): Promise<RetentionStats | null> {
   try {
-    const res = await fetch(`${LEADERBOARD_URL}/events.json`);
+    // The /events node is ADMIN-READ-ONLY (docs/FIREBASE_SETUP.md: `.read` gated
+    // on the admins allow-list). Clients write freely (`.write: true`), so the
+    // data accumulates — but the READ must carry the signed-in admin's ID token
+    // or the RTDB rule denies it and the section reads empty despite live data.
+    const { getAuth } = await import('firebase/auth');
+    const user = getAuth().currentUser;
+    const token = user ? await user.getIdToken().catch(() => null) : null;
+    const url = `${LEADERBOARD_URL}/events.json${token ? `?auth=${encodeURIComponent(token)}` : ''}`;
+    const res = await fetch(url);
     if (!res.ok) return null;
     const node = (await res.json()) as RawEventsNode;
     const events = flattenEvents(node);
