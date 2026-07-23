@@ -1078,13 +1078,15 @@ class HoleScene {
     return fw;
   }
 
-  /** Launch a short salvo of fireworks in the sky above the green. Staggered
-   *  bursts at varied sky positions and colours read as a real display. `epic`
-   *  (hole-in-one / eagle) gets a bigger, longer show than a great hole-out.
+  /** Launch a short salvo of fireworks in the sky above `(cx, cy)` — the
+   *  celebrating GOLFER's spot, NOT the pin: on a hole-in-one the camera pushes
+   *  onto the golfer at the tee while the cup is hundreds of units away, so
+   *  pin-anchored bursts fired off-screen (owner: "fireworks on hole-in-ones
+   *  aren't firing"). Staggered bursts at varied sky positions/colours read as a
+   *  real display. `epic` (hole-in-one / eagle) gets a bigger, longer show.
    *  Reduced-motion players get a single modest burst. */
-  private launchFireworks(epic: boolean): void {
-    const pin = this.hole.pin;
-    const ground = this.gh(pin.x, pin.y);
+  private launchFireworks(epic: boolean, cx: number, cy: number): void {
+    const ground = this.gh(cx, cy);
     const palette: Array<[number, number, number]> = [
       [1, 0.3, 0.3], // red
       [1, 0.85, 0.25], // gold
@@ -1094,17 +1096,20 @@ class HoleScene {
     ];
     const reduced = profile.settings.reducedMotion;
     const bursts = reduced ? 1 : epic ? 7 : 4;
-    const perBurst = reduced ? 90 : 150;
+    const perBurst = reduced ? 120 : 220;
     for (let i = 0; i < bursts; i++) {
       const delayMs = i * (reduced ? 0 : 320);
       const col = palette[i % palette.length];
-      // Scatter the shells across the sky over the green — never right on the pin.
-      const jx = i === 0 ? 0 : (((i * 37) % 11) - 5) * 6;
-      const jy = i === 0 ? 0 : (((i * 53) % 11) - 5) * 6;
-      const sky = 60 + ((i * 17) % 30);
+      // Scatter the shells across the sky above the golfer — never dead-centre.
+      const jx = i === 0 ? 0 : (((i * 37) % 11) - 5) * 5;
+      const jy = i === 0 ? 0 : (((i * 53) % 11) - 5) * 5;
+      // Up in the sky but kept in the celebration camera's frame — that camera
+      // dollies to ~11u back / 4.6u up looking at the golfer's chest, so bursts
+      // much above ~40u sail over the top of the frame once it settles.
+      const sky = 20 + ((i * 17) % 18);
       setTimeout(() => {
         if (this.disposed) return;
-        (this.fireworks.emitter as Vector3).copyFrom(w2b(pin.x + jx, pin.y + jy, ground + sky));
+        (this.fireworks.emitter as Vector3).copyFrom(w2b(cx + jx, cy + jy, ground + sky));
         this.fireworks.color1 = new Color4(col[0], col[1], col[2], 1);
         this.fireworks.color2 = new Color4(col[0] * 0.6, col[1] * 0.6, col[2] * 0.6, 0.4);
         this.fireworks.manualEmitCount = perBurst;
@@ -2640,9 +2645,11 @@ class HoleScene {
       line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
     }
     if (!cine) return false;
-    // Fireworks over the green for every special hole-out (owner) — a bigger
-    // show for the epic tier (hole-in-one / eagle) than a great one.
-    this.launchFireworks(cine.tier === 'epic');
+    // Fireworks above the GOLFER for every special hole-out (owner) — a bigger
+    // show for the epic tier (hole-in-one / eagle) than a great one. Anchored to
+    // the shot origin (where the golfer stands + the celebration camera looks),
+    // not the distant cup, so a tee-shot ace still shows them.
+    this.launchFireworks(cine.tier === 'epic', origin.x, origin.y);
     // Golden burst at the cup — three staggered emits read as a shower.
     const pin = this.hole.pin;
     (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 1 + this.gh(pin.x, pin.y)));
