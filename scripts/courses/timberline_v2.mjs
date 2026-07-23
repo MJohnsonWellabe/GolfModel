@@ -455,9 +455,15 @@ const timberlineV2 = {
         // still need to be able to hit into the left fairway ... trees shouldn't
         // completely block that tee shot"). Lines y660–1120, opens below.
         { type: 'trees', spacing: 32, visualSpacing: 22, polygon: [[600, 668], [548, 800], [476, 1010], [430, 1130], [338, 1150], [300, 940], [300, 700], [356, 516]] },
-        // RIGHT-OF-RIGHT WOODS — lines the whole right side of the right
-        // fairway, top to bottom (owner).
-        { type: 'trees', spacing: 40, visualSpacing: 26, polygon: [[900, 1290], [944, 1000], [952, 640], [904, 470], [1052, 500], [1086, 820], [1052, 1120], [956, 1300]] },
+        // RIGHT-OF-RIGHT WOODS — lines the right side of the right fairway, top
+        // to bottom, but PULLED BACK off the corridor and thinned (owner: the
+        // right path is the SAFE/easy line and shouldn't read tree-choked — the
+        // right-lining trees were visually in the way of the drive and the second
+        // shot even though they never get hit). Inner edge slid ~45px right (the
+        // fairway-to-treeline gap opens from ~33px to ~80px of clear rough) and
+        // the render grid loosened (visualSpacing 26 -> 38) so it frames the
+        // right path as an open corridor instead of walling it.
+        { type: 'trees', spacing: 46, visualSpacing: 38, polygon: [[945, 1290], [989, 1000], [997, 640], [949, 470], [1052, 500], [1086, 820], [1052, 1120], [960, 1300]] },
         // Behind-green woods (mountainside).
         { type: 'trees', spacing: 42, visualSpacing: 26, polygon: [[760, 258], [860, 214], [980, 236], [1000, 168], [840, 146], [740, 200]] },
         // THE FRONT POND — wraps the LEFT and FRONT-CENTER of the green so the
