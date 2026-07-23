@@ -313,7 +313,11 @@ export class AIController {
     club: ClubSpec,
     lie: Surface
   ): SwingResult {
-    const { distance, accuracy } = statsForClub(club, this.golfer, this.fire.statBoost);
+    // zone (the per-part touch stat) sizes the swing meter, so it governs how
+    // cleanly the AI strikes BOTH meter clicks — matching the player, whose
+    // perfect/good zone is set by the same touch stat. (The carry the AI plans
+    // to is effectiveCarryYards below, which reads Power internally.)
+    const { zone } = statsForClub(club, this.golfer, this.fire.statBoost);
     const carry = effectiveCarryYards(club, this.golfer, this.fire.statBoost, lie);
     // Full shots rate their power for the elevation-adjusted distance (putts
     // have their own slope-aware pace path below).
@@ -343,8 +347,8 @@ export class AIController {
       if (lie === 'fringe') targetPower = clamp(targetPower * 1.5, minPower, 1.0);
     }
 
-    const powerBand = this.sampleBand(distance);
-    const accuracyBand = this.sampleBand(accuracy);
+    const powerBand = this.sampleBand(zone);
+    const accuracyBand = this.sampleBand(zone);
 
     // Even "perfect" AI swings carry a little dispersion — a perfect meter
     // click for the player is deterministic, but the AI shouldn't be a robot

@@ -1,15 +1,25 @@
 /** Shared type definitions for the whole game. */
 
+/**
+ * Player skill attributes and how they matter (see PhysicsEngine.statsForClub):
+ * - `drivingPower` is POWER — it sets the DISTANCE for EVERY club.
+ * - `drivingAccuracy` is ACCURACY — it sets the shot DISPERSION for EVERY club.
+ * - `approach` / `chipping` / `putting` are the per-part TOUCH stats — each sizes
+ *   the swing-meter perfect + good ZONES for its part of the game (irons / wedge
+ *   short game / putting). The woods take Accuracy for their zone (no separate
+ *   touch stat). A stat at 100 is elite for its role; the mean of all five is the
+ *   golfer's overall rating.
+ */
 export interface GolferStats {
-  /** Driving power — distance with woods. */
+  /** POWER — full-swing distance for every club. */
   drivingPower: number;
-  /** Driving accuracy — direction with woods. */
+  /** ACCURACY — shot dispersion (start-line + residual) for every club. */
   drivingAccuracy: number;
-  /** Approach — irons, distance and direction. */
+  /** Irons touch — sizes the perfect/good swing-meter zones on iron shots. */
   approach: number;
-  /** Chipping — wedges around the green. */
+  /** Wedge touch — sizes the perfect/good swing-meter zones on wedge shots. */
   chipping: number;
-  /** Putting. */
+  /** Putting touch — sizes the perfect/good swing-meter zones when putting. */
   putting: number;
 }
 

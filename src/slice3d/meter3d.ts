@@ -194,6 +194,17 @@ export class DomMeter {
     return half * (this.ctx.perfectMult ?? 1) * (this.ctx.difficultyMult ?? 1);
   }
 
+  private goodHalf(): number {
+    // The GOOD zone scales with the SAME touch stat as the perfect zone (owner:
+    // Irons/Putting/Wedge size the perfect AND good zones), on the same ^1.5
+    // curve, between goodBandMin (low skill) and goodBand (max). The same
+    // fire/lie/perk mults apply, so it always stays wider than perfectHalf and
+    // frames it.
+    const t = Math.pow(clamp(this.ctx.stat, 0, 100) / 100, 1.5);
+    const half = SWING.goodBandMin + t * (SWING.goodBand - SWING.goodBandMin);
+    return half * (this.ctx.perfectMult ?? 1) * (this.ctx.difficultyMult ?? 1);
+  }
+
   private sweepSpeed(): number {
     let ms = baseSweepMs(this.ctx.stat);
     if (this.ctx.isPutt) ms *= 1.2;
@@ -269,7 +280,7 @@ export class DomMeter {
   private bandFor(cursor: number, target: number): Band {
     const d = Math.abs(cursor - target);
     if (d <= this.perfectHalf()) return 'perfect';
-    if (d <= SWING.goodBand) return 'good';
+    if (d <= this.goodHalf()) return 'good';
     return 'miss';
   }
 
@@ -386,17 +397,18 @@ export class DomMeter {
     const z = this.zoneEls;
     const pTarget = this.targetBar();
     const perfect = this.perfectHalf();
+    const good = this.goodHalf();
     // Overswing danger zone above the power target (non-putts only)
     if (!this.ctx.isPutt && pTarget < 1) {
-      place(z.overswing, pTarget + SWING.goodBand, 1 - (pTarget + SWING.goodBand));
+      place(z.overswing, pTarget + good, 1 - (pTarget + good));
     } else {
       z.overswing.style.display = 'none';
     }
-    band(z.powerGood, pTarget, SWING.goodBand);
+    band(z.powerGood, pTarget, good);
     band(z.powerPerfect, pTarget, perfect);
     line(z.powerLine, pTarget);
     // Accuracy target
-    band(z.accGood, ACCURACY_TARGET, SWING.goodBand);
+    band(z.accGood, ACCURACY_TARGET, good);
     band(z.accPerfect, ACCURACY_TARGET, perfect);
     line(z.accLine, ACCURACY_TARGET);
   }

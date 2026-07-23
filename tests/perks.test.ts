@@ -48,11 +48,18 @@ describe('driver perk = distance, layered on club upgrades', () => {
     );
   });
 
-  it('does not change an iron/wedge/putter distance', () => {
+  it('lengthens EVERY club (drivingPower is the global Power stat)', () => {
+    // Skill model (owner): drivingPower = POWER, which sets the distance for
+    // every club. So the driver perk's power boost lengthens irons/wedges/putts
+    // too — the driver just gains the most (its woods-only carry multiplier
+    // stacks on top, tested above). The old "driver perk is club-isolated for
+    // distance" behaviour is intentionally gone under this model.
     const iron = clubById('7i');
     const base = assembleGolfer('A', 'chip', 'sniper');
     const perked = assembleGolfer('A', 'chip', 'sniper', {}, drive2);
-    expect(effectiveCarryYards(iron, perked, 0, 'fairway')).toBe(effectiveCarryYards(iron, base, 0, 'fairway'));
+    expect(effectiveCarryYards(iron, perked, 0, 'fairway')).toBeGreaterThan(
+      effectiveCarryYards(iron, base, 0, 'fairway')
+    );
   });
 });
 

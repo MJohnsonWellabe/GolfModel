@@ -43,7 +43,7 @@ describe('full-meter sweep time is uniform across every shot on every hole', () 
         for (const arch of ARCHETYPES) {
           const golfer = assembleGolfer('Timing', 'chip', arch.id);
           for (const club of FULL_SWING_CLUBS) {
-            const stat = statsForClub(club, golfer, 0).accuracy;
+            const stat = statsForClub(club, golfer, 0).zone;
             times.push({
               label: `${courseId} h${hole.number} ${arch.id} ${club.id}`,
               ms: fullMeterSweepMs(stat)
@@ -69,7 +69,7 @@ describe('full-meter sweep time is uniform across every shot on every hole', () 
   it('is identical on every hole for a fixed golfer + club (no hole dependence)', () => {
     const golfer = assembleGolfer('Timing', 'chip', 'bigHitter');
     const driver = CLUBS.find((c) => c.id === 'driver')!;
-    const stat = statsForClub(driver, golfer, 0).accuracy;
+    const stat = statsForClub(driver, golfer, 0).zone;
     const ref = fullMeterSweepMs(stat);
     for (const course of Object.values(COURSES)) {
       for (const hole of course.holes) {

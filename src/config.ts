@@ -43,9 +43,16 @@ export const SWING = {
    *  (Very Small at 60 → Very Large at 100, never above ~10% of the meter). */
   perfectBandMin: 0.008,
   perfectBandMax: 0.026,
-  /** Good band half-width as a fraction of meter width (drives the GDD
-   *  missed-swing fairway rates). */
+  /** Good band half-width as a fraction of meter width at MAX touch stat
+   *  (drives the GDD missed-swing fairway rates). The good zone scales with the
+   *  per-part touch stat (Irons/Wedge/Putting) between goodBandMin and this, on
+   *  the same curve as the perfect zone — so skill sizes the perfect AND good
+   *  zones (owner). */
   goodBand: 0.09,
+  /** Good band half-width at ZERO touch stat — the floor the good zone shrinks
+   *  to for a low-skill part of the game. Stays comfortably wider than the
+   *  perfect zone (even on fire) so it always frames it. */
+  goodBandMin: 0.055,
   /** Multiplier applied to the perfect band while on fire. */
   firePerfectMult: 1.4,
   /** Bar position a full-carry shot's target sits at, leaving room above it

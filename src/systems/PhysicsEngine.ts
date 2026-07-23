@@ -100,26 +100,24 @@ export function statsForClub(
   club: ClubSpec,
   golfer: Golfer,
   fireBoost: number
-): { distance: number; accuracy: number } {
+): { distance: number; dispersion: number; zone: number } {
   const s = golfer.stats;
-  let distance: number;
-  let accuracy: number;
-  if (club.id === 'driver' || club.id === '3w' || club.id === '5w') {
-    distance = s.drivingPower;
-    accuracy = s.drivingAccuracy;
-  } else if (club.id === 'pw' || club.id === 'sw') {
-    distance = s.chipping;
-    accuracy = s.chipping;
-  } else if (club.id === 'putter') {
-    distance = s.putting;
-    accuracy = s.putting;
-  } else {
-    distance = s.approach;
-    accuracy = s.approach;
-  }
+  // Skill model (owner): POWER (drivingPower) sets the DISTANCE for every club;
+  // ACCURACY (drivingAccuracy) sets the shot DISPERSION for every club; and the
+  // per-part TOUCH stat sizes the swing-meter perfect/good ZONE for that club
+  // family — irons→approach, wedges→chipping, putts→putting (the woods take
+  // Accuracy, as they have no separate touch stat). For a UNIFORM golfer (every
+  // stat equal — as the sims use) all three collapse to the same value, so this
+  // is a no-op there; only differentiated archetypes feel the split.
+  let zone: number;
+  if (club.id === 'pw' || club.id === 'sw') zone = s.chipping;
+  else if (club.id === 'putter') zone = s.putting;
+  else if (club.id === 'driver' || club.id === '3w' || club.id === '5w') zone = s.drivingAccuracy;
+  else zone = s.approach;
   return {
-    distance: Math.min(100, distance + fireBoost),
-    accuracy: Math.min(100, accuracy + fireBoost)
+    distance: Math.min(100, s.drivingPower + fireBoost),
+    dispersion: Math.min(100, s.drivingAccuracy + fireBoost),
+    zone: Math.min(100, zone + fireBoost)
   };
 }
 
@@ -693,7 +691,8 @@ export class PhysicsEngine {
   /** Draw all pre-flight randomness and fix the launch state. */
   resolveLaunch(params: ShotParams): ResolvedLaunch {
     const { origin, aimAngle, swing, club, golfer, fireBoost, lie, wind } = params;
-    const { accuracy } = statsForClub(club, golfer, fireBoost);
+    // Dispersion is governed by ACCURACY (drivingAccuracy) for every club.
+    const { dispersion: accuracy } = statsForClub(club, golfer, fireBoost);
     // Recovery shots (2nd/3rd around a tree) get a smaller collision core.
     this.shotTreeMult = PHYSICS.treeCanopyMult * ((params.stroke ?? 0) >= 1 ? PHYSICS.treeRecoveryMult : 1);
 

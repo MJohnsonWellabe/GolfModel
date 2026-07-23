@@ -1075,7 +1075,7 @@ class HoleScene {
     const upgradeZone = upgradePerfectZoneMult(this.aim.club.id, this.curPart().golfer.clubUpgrades ?? {});
     const perkZone = perkPerfectZoneMult(this.aim.club.id, this.curPart().golfer.perk);
     meter.arm({
-      stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).accuracy,
+      stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).zone,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
       perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone,
