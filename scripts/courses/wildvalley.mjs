@@ -85,10 +85,13 @@ const wildvalley = {
       centerline: [[470, 1100], [460, 960], [455, 830], [462, 700], [472, 590], [468, 470], [496, 385]],
       width: [50, 84, 108, 128, 138, 92, 56],
       hazards: [
-        // THE SPLIT: a deep central bunker in the actual drive zone —
-        // ~26yd wide, fully inside the 75yd-wide fairway, leaving ~24yd of
-        // legitimate fairway lane on BOTH sides (carry it, or pick a lane).
-        { type: 'bunker', polygon: blob(472, 592, 26, 30, 12, 0.42, 49) },
+        // THE SPLIT: a deep central bunker pushed UP-FAIRWAY into the aggressive
+        // carry band (owner-approved §8 h1: guard the aggressive carry) — now at
+        // the front of the drive-rest cloud (~y545) where the fairway pinches, so
+        // the bold long line must carry it while the short line still holds a
+        // lane. Kept first in the hazard list and inside cy in [530,660]. The h1
+        // fairway snapshot in terrainPass was re-pinned to this shape.
+        { type: 'bunker', polygon: blob(472, 545, 24, 28, 12, 0.42, 49) },
         // Flank blowouts pressed against the drive zone's edges (torn from
         // the great ridge's flank right, the counter-ridge left).
         { type: 'bunker', waste: true, polygon: blob(626, 652, 90, 96, 14, 0.52, 41, 0.7) },
