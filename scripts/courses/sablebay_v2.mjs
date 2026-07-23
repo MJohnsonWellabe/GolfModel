@@ -235,17 +235,27 @@ const sablebayV2 = {
       sailboats: 3,
       // THE STONE CAUSEWAY — a tight, staggered line of shore stones laid down the
       // walkway strip out to the island (owner: rebuild the walkway as a real
-      // stone path, not the flat brown mulch strip). Small collidable boulders on
-      // the firm-sand base above read as a cobbled coastal causeway. (The mulch
-      // GardenBed that used to render the walkway is deleted.)
-      // Dense border of LITTLE FLINT STONES down BOTH full edges of the walkway
-      // (owner: "a line of stones on both sides, little flint stones, border the
-      // entire walkway"). Small grey cobbles every ~13px, tee bank to green.
+      // stone path, not the flat brown mulch strip). A dense border of LITTLE
+      // FLINT STONES down BOTH full edges of the walkway (owner: "a line of stones
+      // on both sides, little flint stones, border the entire walkway"), every
+      // ~13px from the tee bank to the green.
+      //
+      // NON-COLLIDABLE DECOR (owner-approved): these are emitted as decorative
+      // `{key,x,y,h}` landforms with h below PHYSICS.landformCollideMinH (12), so
+      // they never deflect a ball. The old seawall() form wrote a rock-hazard
+      // shape (cx/cy/height) into the landforms array; the landform renderer reads
+      // x/y/h, so it drew them at an undefined position — the cobbles were
+      // INVISIBLE ("can't even see the cobbles now anyway"). This form renders the
+      // stones as intended while keeping the walkway a pure walk-up path.
       landforms: [
-        ...Array.from({ length: 18 }, (_, i) =>
-          seawall(453, 490 + i * 13, 3.4, ['stone_a', 'stone_d', 'stone_b', 'stone_e', 'stone_c'][i % 5], 300 + i)),
-        ...Array.from({ length: 18 }, (_, i) =>
-          seawall(495, 490 + i * 13, 3.4, ['stone_b', 'stone_e', 'stone_c', 'stone_a', 'stone_d'][i % 5], 350 + i))
+        ...Array.from({ length: 18 }, (_, i) => ({
+          key: ['stone_a', 'stone_d', 'stone_b', 'stone_e', 'stone_c'][i % 5],
+          x: 453, y: 490 + i * 13, h: 4.2
+        })),
+        ...Array.from({ length: 18 }, (_, i) => ({
+          key: ['stone_b', 'stone_e', 'stone_c', 'stone_a', 'stone_d'][i % 5],
+          x: 495, y: 490 + i * 13, h: 4.2
+        }))
       ],
       elevation: [
         { x: 468, y: 776, h: 12, r: 130, shape: 'plateau' }, // tee shelf
