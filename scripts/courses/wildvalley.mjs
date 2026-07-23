@@ -235,8 +235,13 @@ const wildvalley = {
         { type: 'bunker', waste: true, depthMul: 1.35, polygon: blob(388, 1030, 80, 92, 15, 0.44, 61) },
         // THE WILD HORSE BUNKER (owner: "make the one on the right look like Wild
         // Horse's famous bunker") — a huge SPRAWLING native blowout with ragged
-        // fingered edges, hard against the drive zone's right, dug deep.
-        { type: 'bunker', waste: true, depthMul: 1.6, polygon: blob(728, 972, 80, 106, 17, 0.5, 71) },
+        // fingered edges, dug deep. PULLED into the actual drive-rest band
+        // (owner-approved §8 h3): the S-curve moved the landing to x521-560/
+        // y956-1057, leaving this trap out of play at x728. Slid LEFT to centroid
+        // ~640 so its ragged left edge sits hard against the band's right, biting
+        // into the fairway right so a drive leaked right of the safe line is
+        // swallowed instead of sailing past a decorative blowout.
+        { type: 'bunker', waste: true, depthMul: 1.6, polygon: blob(640, 985, 80, 106, 17, 0.5, 71) },
         // The HERO blowout complex torn from the second ridge's face —
         // shifted onto the aggressive carry line over the ridge.
         { type: 'bunker', waste: true, polygon: blob(806, 914, 100, 110, 14, 0.52, 62) },
