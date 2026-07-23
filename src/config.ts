@@ -101,6 +101,44 @@ export const SWING = {
   powerShortExp: 1.5
 } as const;
 
+/**
+ * AI shot-STRATEGY tuning (target selection, not execution). Extracted from
+ * inline literals in AIController so the difficulty simulator can tune course
+ * management the same way it tunes the swing/dispersion constants. These decide
+ * how the "lay back to the short grass" club-down behaves.
+ */
+export const AI_STRATEGY = {
+  /** A tee-shot landing in rough/sand is TOLERATED (the yards are taken, no
+   *  club-down) when the golfer's aggression is at least this. Below it, the AI
+   *  lays back to keep the ball on the short grass. Trees are avoided by everyone
+   *  regardless.
+   *
+   *  TUNED 0.6 → 0.5 (difficulty re-validation, smarter lay-back). The headless
+   *  RoundSimulator plays every golfer at the BALANCED default (aggression 0.5),
+   *  so this gate is what the whole difficulty grid AND every simulated opponent
+   *  see. At 0.6 a balanced golfer laid back off rough/sand too — which threw
+   *  away a longer golfer's distance advantage (its extra power became a NET
+   *  LIABILITY: it clubbed down, left longer approaches, hit FEWER greens than a
+   *  weaker golfer — breaking the golfer axis) and neutered the aggressive
+   *  opponents (Tiger fell to −0.35). At 0.5 a balanced-or-bolder golfer takes
+   *  the minor rough/sand penalty for the yards and only bails out of the
+   *  CATASTROPHIC hazard (trees): the golfer axis goes monotonic (a longer
+   *  golfer keeps its edge), Tiger recovers to −0.53, and the Expert row deepens
+   *  to −2. Live, this still gives a sensible spread — Sergio (0.35) lays back,
+   *  JD/Phil/Tiger (≥0.65) take the rough. */
+  layBackRoughToleranceAggression: 0.5,
+  /** Never lay back PAST this fraction of the intended carry — beyond it the
+   *  club-down has thrown away so much distance it is a wasted stroke, not a
+   *  smart lay-up, so the AI takes the original (aggressive) line instead. (Lower
+   *  = more room to find safe short grass when bailing out of trees; a sweep
+   *  showed the score is insensitive to this within 0.45..0.72, so it sits at the
+   *  looser 0.45 to maximize the trees-escape search window.) */
+  layBackMinCarryFrac: 0.45,
+  /** Step (yards) the lay-back walks back along the shot line looking for the
+   *  farthest short-grass point. Finer = a tighter fit to the fairway edge. */
+  layBackStepYards: 6
+} as const;
+
 export const PHYSICS = {
   /** Gravity in world px/s². */
   gravity: 420,

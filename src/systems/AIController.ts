@@ -1,4 +1,4 @@
-import { PHYSICS, PX_PER_YARD } from '../config';
+import { AI_STRATEGY, PHYSICS, PX_PER_YARD } from '../config';
 import { CLUBS, clubById } from '../data/clubs';
 import { FireSystem } from './FireSystem';
 import { gaussianOf, Rng } from '../utils/Random';
@@ -151,22 +151,66 @@ export class AIController {
       const toT = dist(ballPos, route[i]);
       if (toT >= 25 * PX_PER_YARD && toT <= reachPx) idx = i;
     }
+    let target: Point;
     if (idx === -1) {
       // No waypoint in range: press toward the first one that's ahead
       const next = route.find((t) => dist(ballPos, t) > 25 * PX_PER_YARD) ?? pin;
       const d = dist(ballPos, next);
       const t = Math.min(1, reachPx / d);
-      return { x: ballPos.x + (next.x - ballPos.x) * t, y: ballPos.y + (next.y - ballPos.y) * t };
+      target = { x: ballPos.x + (next.x - ballPos.x) * t, y: ballPos.y + (next.y - ballPos.y) * t };
+    } else {
+      const base = route[idx];
+      const next = route[Math.min(idx + 1, route.length - 1)];
+      const leftover = reachPx - dist(ballPos, base);
+      const segLen = dist(base, next);
+      if (leftover > 10 && segLen > 1) {
+        const t = Math.min(1, leftover / segLen);
+        target = { x: base.x + (next.x - base.x) * t, y: base.y + (next.y - base.y) * t };
+      } else {
+        target = base;
+      }
     }
-    const base = route[idx];
-    const next = route[Math.min(idx + 1, route.length - 1)];
-    const leftover = reachPx - dist(ballPos, base);
-    const segLen = dist(base, next);
-    if (leftover > 10 && segLen > 1) {
-      const t = Math.min(1, leftover / segLen);
-      return { x: base.x + (next.x - base.x) * t, y: base.y + (next.y - base.y) * t };
+    // CLUB DOWN instead of bombing through the fairway: if the full-carry landing
+    // would find rough/sand/water/OB/trees, lay back to the farthest point that
+    // still holds the short grass (chooseClub then reaches it with a shorter
+    // club). A longer hitter keeps its position rather than overshooting into
+    // trouble — the difference between using distance and being reckless with it.
+    return this.layBackToSafe(ballPos, target);
+  }
+
+  /** Walk back along the shot line from an intended landing point to the farthest
+   *  point that still lands on the short grass, if the intended point is in
+   *  trouble. Aggression tolerates rough/sand (a gambler takes the extra yards
+   *  from a playable lie); trees are avoided by everyone. (`surfaceAt` reports
+   *  rough/sand/trees for trouble — water/OB are hazard-polygon penalties, and a
+   *  water carry's landing zone reads as short grass, so it's kept.) No probe →
+   *  unchanged. */
+  private layBackToSafe(ballPos: Point, target: Point): Point {
+    const probe = this.terrain?.surfaceAt?.bind(this.terrain);
+    if (!probe) return target;
+    const shortGrass = (s: Surface): boolean =>
+      s === 'fairway' || s === 'green' || s === 'fringe' || s === 'tee';
+    const acceptable = (s: Surface): boolean => {
+      if (shortGrass(s)) return true;
+      if (s === 'trees') return false; // never bomb into the trees
+      return this.personality.aggression >= AI_STRATEGY.layBackRoughToleranceAggression; // rough/sand ok for a gambler
+    };
+    if (acceptable(probe(target.x, target.y))) return target;
+    const dx = target.x - ballPos.x;
+    const dy = target.y - ballPos.y;
+    const total = Math.hypot(dx, dy);
+    if (total < 1) return target;
+    const ux = dx / total;
+    const uy = dy / total;
+    const step = AI_STRATEGY.layBackStepYards * PX_PER_YARD;
+    // Prefer the farthest SHORT-GRASS landing; never lay back past this fraction
+    // of the intended carry (beyond that it's a wasted club, not a smart lay-up).
+    for (let d = total - step; d >= total * AI_STRATEGY.layBackMinCarryFrac; d -= step) {
+      if (shortGrass(probe(ballPos.x + ux * d, ballPos.y + uy * d))) {
+        return { x: ballPos.x + ux * d, y: ballPos.y + uy * d };
+      }
     }
-    return base;
+    return target; // nothing safer within a sensible lay-back — take the original
   }
 
   /**
