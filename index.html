@@ -788,17 +788,19 @@
       }
       .landingNav .wide { grid-column: 1 / -1; }
       @media (max-width: 760px) {
-        /* Portrait: `cover` leaves no vertical slack (the image's height fits
-           exactly), which parked the island green dead-center — right behind
-           the menu. Enlarge the image (auto 150%) and frame it high so the
-           green sits in the clear upper third above the bottom-anchored menu,
-           with the scrim light on top (island stays bright) and dark below
-           (menu stays readable). */
+        /* Portrait: `cover` leaves no vertical slack (a 16:9 image scaled to a
+           tall screen fits its HEIGHT exactly), so `center 42%` did nothing and
+           the green sat dead-center right behind the menu. Enlarge the image
+           (auto 150% — height is 1.5× the viewport, giving real vertical slack)
+           and frame it near the bottom (center 92%) so the whole image shifts UP,
+           lifting the green (which lives mid-image) into the clear upper quarter
+           above the bottom-anchored menu. Scrim stays light on top (green stays
+           bright) and dark below (menu stays readable). */
         #landing {
           align-items: flex-end;
           background:
             linear-gradient(180deg, rgba(2, 12, 8, 0.16) 0%, rgba(2, 12, 8, 0.4) 46%, rgba(2, 12, 8, 0.88) 76%),
-            url('assets/marketing/img/wildwood-green.png') center 42% / cover no-repeat,
+            url('assets/marketing/img/wildwood-green.png') center 92% / auto 150% no-repeat,
             #071d12;
         }
         .landingInner {
