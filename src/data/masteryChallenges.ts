@@ -92,6 +92,24 @@ export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
     S('Timber Eagle', 'Eagle the par 5', eagle)
   ]),
 
+  // ---- Timberline West (forest sibling; pine-alley dogleg, tree-ringed
+  //      hollow, dogleg-right gauntlet — precision through the pines) ----
+  ladder('timberlinewest', 1, [
+    S('Thread the Alley', 'Hit the fairway and make par', (h) => fir(h) && par(h)),
+    S('Alley Birdie', 'Birdie the hole', birdie),
+    S('Flawless Alley', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('timberlinewest', 2, [
+    S('Into the Hollow', 'Hit the green in regulation', gir),
+    S('Hollow Birdie', 'Green in regulation and one putt', (h) => gir(h) && onePutt(h)),
+    S('Hollow Dagger', 'Stick the tee shot inside 6 feet', (h) => inside(h, 6))
+  ]),
+  ladder('timberlinewest', 3, [
+    S('Run the Gauntlet', 'Make par avoiding the sand', (h) => par(h) && noSand(h)),
+    S('Gauntlet Birdie', 'Birdie the par 5', birdie),
+    S('Gauntlet Eagle', 'Eagle the par 5', eagle)
+  ]),
+
   // ---- Port Johnson Links (links; pot bunkers; real wind) ----
   ladder('portjohnson', 1, [
     S('Pot Luck', 'Make par avoiding every bunker', (h) => par(h) && noSand(h)),
