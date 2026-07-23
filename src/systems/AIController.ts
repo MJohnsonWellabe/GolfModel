@@ -21,6 +21,11 @@ export interface AIDecision {
   aimAngle: number;
   aimPoint: Point;
   swing: SwingResult;
+  /** Intended power as a physics fraction, BEFORE any execution noise — the bar
+   *  target the swing was rated for (elevation/lie/putt-slope aware). The skill
+   *  simulator uses this as the powerTarget a modeled USER swings at, keeping the
+   *  AI's club + aim + strategy but substituting the user's timing execution. */
+  powerTarget: number;
   /** Shot-shaping spin (pin hunters spin their wedges back). */
   spin?: SpinState;
 }
@@ -94,14 +99,14 @@ export class AIController {
     }
     const aimAngle = angleTo(ballPos, adjusted);
 
-    const swing = this.rollSwing(ballPos, aimPoint, club, lie);
+    const { swing, powerTarget } = this.rollSwing(ballPos, aimPoint, club, lie);
     // Pin hunters rip their wedges back at the flag (Phase 4 spin usage)
     const spinsWedge =
       this.personality.pinHunting > 0.6 &&
       (club.id === 'pw' || club.id === 'sw' || club.id === '9i') &&
       (lie === 'fairway' || lie === 'tee' || lie === 'fringe');
     const spin = spinsWedge ? { side: 0, top: -0.7 } : undefined;
-    return { club, aimAngle, aimPoint: adjusted, swing, spin };
+    return { club, aimAngle, aimPoint: adjusted, swing, powerTarget, spin };
   }
 
   private chooseTarget(ballPos: Point, lie: Surface, hole: HoleData): Point {
@@ -312,7 +317,7 @@ export class AIController {
     aimPoint: Point,
     club: ClubSpec,
     lie: Surface
-  ): SwingResult {
+  ): { swing: SwingResult; powerTarget: number } {
     // zone (the per-part touch stat) sizes the swing meter, so it governs how
     // cleanly the AI strikes BOTH meter clicks — matching the player, whose
     // perfect/good zone is set by the same touch stat. (The carry the AI plans
@@ -372,10 +377,13 @@ export class AIController {
     if (accuracyBand === 'miss') accOffset = clamp(gaussianOf(this.rng, 0, 0.5), -1, 1);
 
     return {
-      power,
-      powerQuality: powerBand,
-      accuracy: accOffset,
-      accuracyQuality: accuracyBand
+      swing: {
+        power,
+        powerQuality: powerBand,
+        accuracy: accOffset,
+        accuracyQuality: accuracyBand
+      },
+      powerTarget: targetPower
     };
   }
 

@@ -1,9 +1,14 @@
 import { SWING } from '../config';
 import { clamp } from '../utils/Geometry';
 import { Band, SwingResult } from '../core/types';
+import * as swing from '../systems/swingModel';
 
 /** Fixed accuracy target (fraction of the bar) — same as the 2D meter. */
-const ACCURACY_TARGET = 0.08;
+const ACCURACY_TARGET = swing.ACCURACY_TARGET;
+
+/** Re-exported for callers that imported it from here (kept for compat); the
+ *  canonical definition now lives in the pure swing model. */
+export const normalizedAccuracyOffset = swing.normalizedAccuracyOffset;
 
 /**
  * Advance a sweeping meter cursor by dtMs. Pure, so the per-frame renderer and
@@ -56,11 +61,6 @@ export function baseSweepMs(stat: number): number {
  *  across every full shot (perf test in tests/meterTiming.test.ts). */
 export function fullMeterSweepMs(stat: number): number {
   return baseSweepMs(stat) * SWING.fullPowerMark;
-}
-
-export function normalizedAccuracyOffset(cursor: number, target = ACCURACY_TARGET): number {
-  const room = cursor >= target ? 1 - target : target;
-  return clamp((cursor - target) / Math.max(0.001, room), -1, 1);
 }
 
 export interface MeterContext {
@@ -179,30 +179,17 @@ export class DomMeter {
     return this.state === 'power' || this.state === 'accuracy';
   }
 
-  /** Where the power target sits on the bar (0..1). */
+  /** Where the power target sits on the bar (0..1). Delegates to the pure model. */
   private targetBar(): number {
-    return this.ctx.isPutt ? this.ctx.powerTarget : this.ctx.powerTarget * SWING.fullPowerMark;
+    return swing.targetBar(this.ctx);
   }
 
   private perfectHalf(): number {
-    // Appendix A perfect-zone scaling: a real spread across the stat range
-    // (Very Small at low stats → Very Large at 100) on a ^1.5 curve, still
-    // comfortably under the GDD's 10%-of-meter ceiling even on fire.
-    const t = Math.pow(clamp(this.ctx.stat, 0, 100) / 100, 1.5);
-    const half = SWING.perfectBandMin + t * (SWING.perfectBandMax - SWING.perfectBandMin);
-    // Harder lies + longer clubs shrink the zone (FB5); fire widens it.
-    return half * (this.ctx.perfectMult ?? 1) * (this.ctx.difficultyMult ?? 1);
+    return swing.perfectHalf(this.ctx);
   }
 
   private goodHalf(): number {
-    // The GOOD zone scales with the SAME touch stat as the perfect zone (owner:
-    // Irons/Putting/Wedge size the perfect AND good zones), on the same ^1.5
-    // curve, between goodBandMin (low skill) and goodBand (max). The same
-    // fire/lie/perk mults apply, so it always stays wider than perfectHalf and
-    // frames it.
-    const t = Math.pow(clamp(this.ctx.stat, 0, 100) / 100, 1.5);
-    const half = SWING.goodBandMin + t * (SWING.goodBand - SWING.goodBandMin);
-    return half * (this.ctx.perfectMult ?? 1) * (this.ctx.difficultyMult ?? 1);
+    return swing.goodHalf(this.ctx);
   }
 
   private sweepSpeed(): number {
@@ -278,40 +265,13 @@ export class DomMeter {
   }
 
   private bandFor(cursor: number, target: number): Band {
-    const d = Math.abs(cursor - target);
-    if (d <= this.perfectHalf()) return 'perfect';
-    if (d <= this.goodHalf()) return 'good';
-    return 'miss';
+    return swing.bandFor(cursor, target, this.perfectHalf(), this.goodHalf());
   }
 
-  /** Physics power (non-putt) or bar fraction (putt) for the locked cursor. */
+  /** Physics power (non-putt) or bar fraction (putt) for the locked cursor.
+   *  Delegates to the pure model (see swingModel.deliveredPower). */
   private deliveredPower(): number {
-    const t = this.targetBar();
-    const c = this.lockedPower;
-    if (this.ctx.isPutt) {
-      if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
-      // A "good" putt tap used to deliver the raw stopped cursor with no
-      // reference to the target at all — unlike every other case here, which
-      // scales power relative to where the target sits. Putts have no
-      // fullPowerMark headroom (the bar position IS the intended power
-      // fraction), so that raw pass-through let goodBand's fixed absolute
-      // width blow up into a huge RELATIVE error on a short putt's small
-      // target (a "good" tap-in could land 50%+ over/under target power and
-      // rocket past the hole). Cap the error at a fraction of the target
-      // instead, so "good" reads as a near-target roll at any putt length.
-      const errCap = t * SWING.puttGoodErrorFrac;
-      return clamp(t + clamp(c - t, -errCap, errCap), 0.03, 1);
-    }
-    // Non-putt: powerTarget is the intended physics fraction; the bar target
-    // sits at powerTarget * fullPowerMark.
-    if (this.lockedPowerBand === 'perfect') return this.ctx.powerTarget;
-    if (c <= t) {
-      // Short of the target — proportionally weaker (owner: short = less).
-      return clamp(c / SWING.fullPowerMark, 0.1, 1.08);
-    }
-    // Past the target — overswing ADDS distance (owner: long = more), capped so
-    // it can't run away. The risk is the smaller zone + wider miss bands.
-    return clamp(this.ctx.powerTarget + SWING.overswingBonus * (c - t), 0.1, 1.2);
+    return swing.deliveredPower(this.ctx, this.lockedPower, this.lockedPowerBand);
   }
 
   private lockAccuracy(cursor: number, forceMiss = false): void {
@@ -329,8 +289,9 @@ export class DomMeter {
     // to a left start line. Magnitude still grows with the size of the miss.
     // (Only the player's meter is flipped — the AI sets its own accuracy and its
     // physics dispersion is unchanged.)
-    let offset = -normalizedAccuracyOffset(cursor);
-    if (band === 'perfect') offset = 0;
+    // The delivered start-line offset (with the difficulty curve applied) comes
+    // from the pure model — same math the sim tunes against.
+    const offset = swing.accuracyOffsetSigned(cursor, band);
     this.onBand?.('accuracy', band);
 
     let power = this.deliveredPower();

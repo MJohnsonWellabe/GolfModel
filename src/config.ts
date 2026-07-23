@@ -74,7 +74,22 @@ export const SWING = {
    *  a "good" tap land 50%+ over/under the intended power — a "good" tap-in
    *  could rocket well past the hole. Capping the error at a fraction of the
    *  target keeps "good" reading as a near-target roll on every putt length. */
-  puttGoodErrorFrac: 0.15
+  puttGoodErrorFrac: 0.15,
+  /** DIFFICULTY CURVE (owner: "smooth but harsher"). The accuracy penalty stays
+   *  a continuous function of the timing error, but these two knobs steepen it:
+   *  the delivered start-line offset is `gain · |rawOffset|^exp` (sign kept).
+   *  - `accuracyCurveExp > 1` makes it CONVEX — gentle just outside perfect, then
+   *    accelerating toward a miss (a bigger drop-off the further you stray).
+   *  - `accuracyCurveGain > 1` scales the whole thing up (harsher everywhere).
+   *  Both default to 1 → identical to the old linear curve; the difficulty pass
+   *  tunes them against the RoundSimulator skill grid. */
+  accuracyCurveExp: 1,
+  accuracyCurveGain: 1,
+  /** Convex distance-loss for a SHORT full swing: the shortfall below the target
+   *  bar is raised to this exponent before scaling delivered power, so a slightly
+   *  short swing barely loses distance while a badly short one loses a lot
+   *  (smooth, accelerating). 1 = the old proportional loss. */
+  powerShortExp: 1
 } as const;
 
 export const PHYSICS = {
