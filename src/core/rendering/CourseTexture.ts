@@ -972,21 +972,6 @@ export function renderGreenPatch(
   const greenPat = theme.greenMowPattern ?? 'columns';
   const gCol0 = rgb(theme.greenLight);
   const gCol1 = rgb(theme.green);
-  // Greenside sand painted by this high-res patch must match the main bake's
-  // sculpting or a shading seam appears at the green-mesh skirt.
-  const sculpt = theme.sandSculpt;
-  const bunkers = hole.hazards
-    // Beach bands are flat coastal sand, not dished traps — exclude them from
-    // the radial depth-dish (they keep the ripple grain from the sand class).
-    .filter((z) => z.type === 'bunker' && !z.beach && !z.waste)
-    .map((z) => {
-      const bcx = z.polygon.reduce((a, p) => a + p[0], 0) / z.polygon.length;
-      const bcy = z.polygon.reduce((a, p) => a + p[1], 0) / z.polygon.length;
-      const maxR = Math.max(...z.polygon.map((p) => Math.hypot(p[0] - bcx, p[1] - bcy)));
-      // bbox for a cheap per-texel reject — a bunker can only dish texels within
-      // maxR of its centre, so most of a hazard-dense hole's traps skip instantly.
-      return { cx: bcx, cy: bcy, maxR, x0: bcx - maxR, y0: bcy - maxR, x1: bcx + maxR, y1: bcy + maxR };
-    });
 
   // Rasterized classification at full patch resolution (same native-fill
   // approach as the main bake — the per-texel surfaceAt() pass was a big
@@ -1012,10 +997,20 @@ export function renderGreenPatch(
     const sty = py / SLAT - sly;
     for (let px = 0; px < w; px++) {
       const wx = x0 + px / scale;
-      const surf = ID_SURFACE[grid[py * w + px]];
-      let [r, gr, b] = cols[surf] ?? cols.rough;
-      let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : surf === 'fringe' ? 0.11 : 0.14);
-      if (surf !== 'water') {
+      // Only the green top and its fringe collar are ever rendered by the
+      // plateau mesh — it ends at the fringe skirt (green edge + ~1.18·FRINGE),
+      // so every patch texel beyond the collar is UNUSED canvas whose sole
+      // effect is to poison the patch's mipmaps: coarse mips (used at approach
+      // distance) area-average the small green into the surrounding class. On a
+      // red-desert course (Red Hollow) that surround is red-orange sand, so the
+      // average is literally BROWN — the owner's "green renders brown on the
+      // approach, only green up close". Paint everything that isn't fringe as
+      // green so the whole mip chain stays green; the real greenside sand is
+      // still drawn by the ground mesh beneath the plateau, unchanged.
+      const surf = ID_SURFACE[grid[py * w + px]] === 'fringe' ? 'fringe' : 'green';
+      let [r, gr, b] = cols[surf];
+      let light = 1 + (grain(px, py) - 0.5) * (surf === 'green' ? 0.085 : 0.11);
+      {
         const slx = Math.min(slw - 2, (px / SLAT) | 0);
         const stx = px / SLAT - slx;
         const s00 = sly * slw + slx;
@@ -1034,28 +1029,6 @@ export function renderGreenPatch(
         // Tight, subtle mow stripes along the play axis
         const along = wx * ax + wy * ay;
         light *= 1 + Math.sin((along / 30) * Math.PI) * 0.075;
-      }
-      if (surf === 'sand') {
-        // Must stay in lockstep with the main bake's cls===4 branch (both
-        // sample in world coordinates, so the two canvases agree despite
-        // different scales) — see the seam warning there.
-        const sandGrain = theme.sandGrainKey
-          ? sampleGrassGrain(theme.sandGrainKey, wx, wy, theme.sandGrainTile ?? 18)
-          : null;
-        if (sandGrain !== null) {
-          light *= 1 + (sandGrain - 0.5) * 0.42;
-        } else if (sculpt > 0) {
-          light *= 1 + Math.sin((wx * 0.74 + wy * 0.52) * 1.15) * 0.065;
-          light *= 1 + Math.sin((wx * 0.61 - wy * 0.83) * 1.35) * 0.05 * sculpt;
-        }
-        if (sculpt > 0) {
-          let d = 1;
-          for (const bk of bunkers) {
-            if (wx < bk.x0 || wx > bk.x1 || wy < bk.y0 || wy > bk.y1) continue;
-            d = Math.min(d, Math.hypot(wx - bk.cx, wy - bk.cy) / bk.maxR);
-          }
-          light *= 1 - 0.12 * sculpt * Math.max(0, 1 - d);
-        }
       }
       // Crisp darker rim right at the green/fringe boundary anchors the collar
       if (surf === 'fringe' && ID_SURFACE[grid[py * w + Math.min(w - 1, px + rimStep)]] !== 'fringe')
