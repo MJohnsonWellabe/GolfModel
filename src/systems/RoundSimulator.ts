@@ -1,14 +1,48 @@
 import { PX_PER_YARD, RULES } from '../config';
-import { CourseData, Golfer, HoleData, Surface, Wind } from '../core/types';
+import { CourseData, Golfer, HoleData, Surface, SwingResult, Wind } from '../core/types';
 import { resolveTheme } from '../core/rendering/Theme';
-import { mulberry32, Rng } from '../utils/Random';
+import { gaussianOf, mulberry32, Rng } from '../utils/Random';
 import { AIController } from './AIController';
 import { FireSystem } from './FireSystem';
 import { buildHeightField } from './HeightField';
-import { PhysicsEngine } from './PhysicsEngine';
+import { PhysicsEngine, statsForClub } from './PhysicsEngine';
 import { withPlayableBoundary } from './PlayableBoundary';
 import { TreeSpecies } from './treeField';
 import { DEFAULT_TREE_MIX } from './treeHitbox';
+import { ACCURACY_TARGET, resolveUserSwing, SwingCtx, targetBar } from './swingModel';
+
+/**
+ * A modeled USER's timing execution: gaussian σ (in bar-fraction units) for the
+ * power cursor and the accuracy cursor. When supplied to the round sim, the AI
+ * still chooses the club, aim, and intended power (powerTarget), but the SWING
+ * itself is drawn from this human error model instead of the AI's stat-band
+ * sampler — so the difficulty simulator measures how a real player of a given
+ * steadiness scores, not how the AI scores. σ_power/σ_acc are compared directly
+ * against the perfect/good band HALF-widths in swingModel to place a tier.
+ */
+export interface UserSwingModel {
+  /** 1σ timing error on the POWER click (fraction of the meter bar). */
+  sigmaPower: number;
+  /** 1σ timing error on the ACCURACY click (fraction of the meter bar). */
+  sigmaAcc: number;
+}
+
+/**
+ * Replicate main.ts `swingDifficulty()` EXACTLY (the live meter's lie+club perfect
+ * zone shrink) so the modeled user's bands match what the live meter would show.
+ * Putting → 1; otherwise a lie base, times a per-club factor off any non-tee lie.
+ */
+export function swingDifficultyFor(lie: Surface, clubId: string, isPutt: boolean): number {
+  if (isPutt) return 1;
+  let d = lie === 'sand' ? 0.62 : lie === 'trees' ? 0.68 : lie === 'rough' ? 0.8 : lie === 'fringe' ? 0.92 : 1;
+  if (lie !== 'tee') {
+    const byClub: Record<string, number> = {
+      driver: 0.68, '3w': 0.74, '5w': 0.8, '3i': 0.82, '4h': 0.85, '5i': 0.88, '7i': 0.93, '9i': 0.97, pw: 1, sw: 1
+    };
+    d *= byClub[clubId] ?? 1;
+  }
+  return d;
+}
 
 /**
  * Headless round player: the AIController + PhysicsEngine drive a golfer
@@ -58,6 +92,14 @@ export interface SimulateHoleOpts {
    *  for the hole so the balancing AI pays the same off-course penalties the
    *  live round does. Defaults false (classic full-world behavior). */
   bounded?: boolean;
+  /** When set, keep the AI's club/aim/powerTarget but SUBSTITUTE a modeled user
+   *  swing (this timing-error model) for the AI's stat-band swing. Defaults
+   *  undefined → the classic AI swing (existing sims + tests unchanged). */
+  userModel?: UserSwingModel;
+  /** Verification hook: called with each resolved swing's band qualities (the
+   *  difficulty simulator tallies the realized perfect/good/miss mix per tier).
+   *  Off the critical path for the live game (only the sim passes it). */
+  onSwing?: (info: { isPutt: boolean; powerQuality: string; accuracyQuality: string }) => void;
 }
 
 /**
@@ -119,10 +161,31 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     // Pre-shot fire boost (the streak earned by PRIOR swings), then feed THIS
     // swing into the streak after it resolves — the live ordering (main.ts).
     const fireBoost = fire.statBoost;
+    // Swing execution: the AI's stat-band sampler by default, OR a modeled
+    // user's timing error (userModel). The user path builds the EXACT SwingCtx
+    // the live meter would (statsForClub.zone, fire perfect-zone mult, lie+club
+    // difficulty), samples the two cursors as gaussian jitter around their
+    // targets, and resolves them through the shared swingModel — identical math
+    // to the live meter, so the sim tunes the real difficulty curve.
+    let swing: SwingResult = d.swing;
+    if (opts.userModel) {
+      const isPutt = d.club.id === 'putter';
+      const ctx: SwingCtx = {
+        stat: statsForClub(d.club, golfer, fireBoost).zone,
+        powerTarget: d.powerTarget,
+        isPutt,
+        perfectMult: fire.perfectZoneMultiplier,
+        difficultyMult: swingDifficultyFor(lie, d.club.id, isPutt)
+      };
+      const powerCursor = targetBar(ctx) + gaussianOf(rng, 0, opts.userModel.sigmaPower);
+      const accCursor = ACCURACY_TARGET + gaussianOf(rng, 0, opts.userModel.sigmaAcc);
+      swing = resolveUserSwing(ctx, powerCursor, accCursor, rng);
+      opts.onSwing?.({ isPutt, powerQuality: swing.powerQuality, accuracyQuality: swing.accuracyQuality });
+    }
     const out = engine.simulate({
       origin: ball,
       aimAngle: d.aimAngle,
-      swing: d.swing,
+      swing,
       club: d.club,
       golfer,
       fireBoost,
@@ -135,7 +198,7 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
       // gives them — the sim omitted this and over-punished escapes.
       stroke: strokes
     });
-    fire.recordSwing(d.swing);
+    fire.recordSwing(swing);
     if (d.club.id === 'putter') putts++;
     strokes += 1 + (out.waterPenalty ? 1 : 0) + (out.obPenalty ? 1 : 0);
     ball = { ...out.finalPos };
@@ -154,7 +217,9 @@ export function simulateRound(
   golfer: Golfer,
   seed: number,
   holeCount?: number,
-  bounded = false
+  bounded = false,
+  userModel?: UserSwingModel,
+  onSwing?: SimulateHoleOpts['onSwing']
 ): RoundSimResult {
   const rng = mulberry32(seed);
   const holes = course.holes.slice(0, holeCount ?? Math.min(RULES.holesPerRound, course.holes.length));
@@ -175,7 +240,9 @@ export function simulateRound(
       wasteDepthScale,
       edgeWobble,
       treeSpecies,
-      bounded
+      bounded,
+      userModel,
+      onSwing
     })
   );
   const total = results.reduce((a, r) => a + r.strokes, 0);

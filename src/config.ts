@@ -82,7 +82,9 @@ export const SWING = {
    *    accelerating toward a miss (a bigger drop-off the further you stray).
    *  - `accuracyCurveGain > 1` scales the whole thing up (harsher everywhere).
    *  Both default to 1 → identical to the old linear curve; the difficulty pass
-   *  tunes them against the RoundSimulator skill grid. */
+   *  tunes them against the RoundSimulator skill grid (see the proposed values in
+   *  docs/roadmap/DIFFICULTY_TUNING_PROPOSAL.md — held pending an owner direction
+   *  call, NOT yet applied). */
   accuracyCurveExp: 1,
   accuracyCurveGain: 1,
   /** Convex distance-loss for a SHORT full swing: the shortfall below the target
@@ -149,6 +151,13 @@ export const PHYSICS = {
   maxWind: 20,
   /** Max direction error (degrees) for a fully missed accuracy click, before stat scaling. */
   maxErrorDeg: 13,
+  /** PUTT direction forgiveness: a putter's start-line error is `maxErrorDeg /
+   *  putterErrorDiv`, so a putt is less punishing off-line than a full swing.
+   *  Raise to make putts straighter/more forgiving; lower to punish a mis-read
+   *  putt harder. Named for the difficulty simulator (SkillSimulator) to tune —
+   *  a higher value is one of the proposed changes held in
+   *  docs/roadmap/DIFFICULTY_TUNING_PROPOSAL.md (NOT applied; this is shipped). */
+  putterErrorDiv: 2.4,
   /** Residual directional dispersion (degrees, 1σ) even on a PERFECT accuracy
    *  click, by club family. Kept small so a centered/perfect strike launches
    *  almost exactly on the intended start line; good/missed swings still widen
@@ -289,9 +298,19 @@ export const PHYSICS = {
    *  (1 + roll/puttPaceGrowPx) px. Retuned hard on playtest feedback — the old
    *  values gave a "perfect" 70ft putt a ~30ft 1σ error (it could finish 20ft+
    *  short). Now a perfect lag putt finishes within a few feet; long-putt
-   *  difficulty comes from reading the break, not random pace. */
+   *  difficulty comes from reading the break, not random pace. The difficulty
+   *  pass proposes easing this to ~0.04 (tighter perfect-putt pace lifts skilled
+   *  birdie conversion) — held in docs/roadmap/DIFFICULTY_TUNING_PROPOSAL.md, NOT
+   *  applied; this is the shipped value. */
   puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
+  /** PUTT pace forgiveness by strike quality — the 1σ pace noise is scaled by
+   *  this factor for a perfect / good / missed putt-power click. A perfect
+   *  stroke lags tight (×1); a good stroke widens; a miss scatters. This is THE
+   *  putting-forgiveness lever (owner: "putting more forgiving than other
+   *  shots", target tour make-rates for a good user with a good putter). Tuned
+   *  by the difficulty simulator (SkillSimulator); was inline 1/3/6 literals. */
+  puttPaceQualityMult: { perfect: 1, good: 3, miss: 6 } as Record<string, number>,
   /** Ground roll friction (px/s²) per surface. The firm tee/fairway were
    *  softened 500 -> 400 alongside the real-aero flight: a realistic drive lands
    *  steep and comparatively slow, so the old high friction killed its rollout

@@ -709,7 +709,7 @@ export class PhysicsEngine {
       // reliably finishes near the hole (playtest FB9 — no more 20ft-short
       // "perfect" long putts); mishits scatter hard, so difficulty comes from
       // striking the meter, not random perfect strokes.
-      const paceMult = swing.powerQuality === 'perfect' ? 1 : swing.powerQuality === 'good' ? 3 : 6;
+      const paceMult = PHYSICS.puttPaceQualityMult[swing.powerQuality] ?? PHYSICS.puttPaceQualityMult.miss;
       const sigmaPx = PHYSICS.puttPaceNoise * carryPx * (1 + carryPx / PHYSICS.puttPaceGrowPx) * paceMult;
       carryPx = Math.max(2, carryPx + gaussianOf(this.rng, 0, sigmaPx));
     } else if (!params.preview) {
@@ -723,7 +723,7 @@ export class PhysicsEngine {
 
     // Direction -----------------------------------------------------------
     const errFactor = 0.4 + ((100 - accuracy) / 100) * 1.2;
-    const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / 2.4 : PHYSICS.maxErrorDeg;
+    const maxErr = club.id === 'putter' ? PHYSICS.maxErrorDeg / PHYSICS.putterErrorDiv : PHYSICS.maxErrorDeg;
     // Residual start-line dispersion. A PERFECT click (accuracy===0) now launches
     // exactly on the intended line from a clean lie — the start line is earned
     // (GDD §864: "a perfect swing launches on the intended line"). End dispersion
