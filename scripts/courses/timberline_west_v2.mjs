@@ -132,6 +132,13 @@ const timberlineWestV2 = {
       teeBox: { w: 30, d: 22 },
       green: { cx: 452, cy: 430, rx: 42, ry: 32, rot: 0.4 },
       slope: { angle: 2.3, strength: 0.32 },
+      // PINS tucked BEHIND the pincer pots (owner-approved §8 h2: the default
+      // ring sat all three dead-centre). Front-left pin behind the front-left
+      // pot (402,470); back-right pin behind the back-right pot (502,392), kept
+      // on the back tier's flat top so it stays puttable; the third is a safe
+      // central option. On this small tiered green the tuck rides the playability
+      // sim right at its tolerance — accepted (owner).
+      pins: [[438, 446], [460, 418], [452, 430]],
       centerline: [[450, 716], [450, 694]],
       width: [40, 40],
       hazards: [
