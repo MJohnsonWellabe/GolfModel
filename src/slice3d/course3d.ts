@@ -725,6 +725,7 @@ export function buildCourse(
         return false;
       };
       let lastCount = -1;
+      let lastMeshCount = -1;
       let stable = 0;
       const fillStart = performance.now();
       // Hard cutoff: on a bed-heavy hole (Wildwood's 17 garden beds cover a
@@ -748,10 +749,21 @@ export function buildCourse(
           scene.onBeforeRenderObservable.remove(fill);
           return;
         }
-        const list = scene.meshes.filter(isReflectable);
-        if (list.length === lastCount) {
+        // Instances are only ever ADDED during planting, so the reflectable
+        // subset cannot change unless scene.meshes.length changes. Gate the O(n)
+        // filter + array alloc on the total count: on the many frames between
+        // instance bursts (mesh count static) we skip the scan entirely — the
+        // per-frame cost the comment above warns about. Same renderList result.
+        const meshCount = scene.meshes.length;
+        if (meshCount === lastMeshCount) {
           // Instances arrive in one synchronous burst after the glb resolves;
           // once the count holds for a few frames the forest is fully planted.
+          if (++stable > 4 && lastCount > 0) scene.onBeforeRenderObservable.remove(fill);
+          return;
+        }
+        lastMeshCount = meshCount;
+        const list = scene.meshes.filter(isReflectable);
+        if (list.length === lastCount) {
           if (++stable > 4 && lastCount > 0) scene.onBeforeRenderObservable.remove(fill);
           return;
         }
@@ -878,11 +890,15 @@ export function buildCourse(
       wm.reflectionFresnelParameters = fr;
     }
     waterMesh.material = wm;
+    const emissiveBase = waterMirror ? 0.22 : 0.34;
     scene.onBeforeRenderObservable.add(() => {
       const t = animTime();
       waterNormalTex.uOffset = t * 0.009;
       waterNormalTex.vOffset = t * 0.006 + Math.sin(t * 0.4) * 0.012;
-      wm.emissiveColor = c3(shade(wDeepHex, (waterMirror ? 0.22 : 0.34) + Math.sin(t * 1.3) * 0.05));
+      // Mutate the existing Color3 in place rather than allocating a fresh one
+      // every frame (per-water-hole GC churn) — same `shade()` math, byte-identical.
+      const shaded = shade(wDeepHex, emissiveBase + Math.sin(t * 1.3) * 0.05);
+      wm.emissiveColor.set(((shaded >> 16) & 255) / 255, ((shaded >> 8) & 255) / 255, (shaded & 255) / 255);
     });
   }
 
