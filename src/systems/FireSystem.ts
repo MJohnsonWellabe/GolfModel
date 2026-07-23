@@ -52,4 +52,17 @@ export class FireSystem {
     this.streak = 0;
     this.onFire = false;
   }
+
+  /** Serialize the streak so it can survive a hole change (the per-hole
+   *  HoleScene, and its FireSystems, are disposed and rebuilt each hole — the
+   *  streak must persist within a round, ending only on a missed band). */
+  snapshot(): { streak: number; onFire: boolean } {
+    return { streak: this.streak, onFire: this.onFire };
+  }
+
+  restore(state: { streak: number; onFire: boolean } | undefined): void {
+    if (!state) return;
+    this.streak = state.streak;
+    this.onFire = state.onFire;
+  }
 }

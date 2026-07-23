@@ -51,4 +51,33 @@ describe('FireSystem', () => {
     expect(f.isOnFire).toBe(false);
     expect(f.currentStreak).toBe(0);
   });
+
+  it('snapshot/restore carries the streak across a hole change', () => {
+    // Simulate a hole change: the old FireSystem is disposed with the HoleScene;
+    // its snapshot is restored onto the fresh FireSystem built for the next hole.
+    const h1 = new FireSystem();
+    h1.recordSwing(swing('perfect', 'perfect'));
+    h1.recordSwing(swing('perfect', 'perfect'));
+    expect(h1.isOnFire).toBe(true);
+    const carried = h1.snapshot();
+
+    const h2 = new FireSystem();
+    expect(h2.isOnFire).toBe(false); // a brand-new hole starts cold...
+    h2.restore(carried); // ...until the round's carried streak is restored
+    expect(h2.isOnFire).toBe(true);
+    expect(h2.currentStreak).toBe(h1.currentStreak);
+
+    // The streak still ends only on a missed band, on the new hole.
+    h2.recordSwing(swing('good', 'good'));
+    expect(h2.isOnFire).toBe(true);
+    h2.recordSwing(swing('miss', 'good'));
+    expect(h2.isOnFire).toBe(false);
+  });
+
+  it('restore(undefined) is a no-op (first hole of a round)', () => {
+    const f = new FireSystem();
+    f.recordSwing(swing('perfect', 'perfect'));
+    f.restore(undefined);
+    expect(f.currentStreak).toBe(1);
+  });
 });

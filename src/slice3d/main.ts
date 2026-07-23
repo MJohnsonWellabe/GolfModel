@@ -380,6 +380,11 @@ interface RoundState {
   mode: GameMode;
   holeIdx: number;
   players: Participant[];
+  /** Per-competitor "on fire" streak carried BETWEEN holes. The per-hole
+   *  HoleScene (and its FireSystems) is disposed and rebuilt each hole, so
+   *  without this the streak silently reset on every hole change; a streak
+   *  should end only on a missed band, never on advancing to a new hole. */
+  fireState?: Array<{ streak: number; onFire: boolean }>;
   /** Which participant is currently playing the active hole. */
   activePlayer: number;
   /** Wind per hole index — generated once so 1v1 players share conditions. */
@@ -830,6 +835,9 @@ class HoleScene {
       shadows.addShadowCaster(b);
       this.balls.push(b);
       const fire = new FireSystem();
+      // Carry the streak in from the previous hole of this round (holeIdx 0 =
+      // fresh start; a missed band is still the only thing that puts it out).
+      if (round.holeIdx > 0) fire.restore(round.fireState?.[i]);
       this.fires.push(fire);
       const personality = (part.golfer as AIOpponent).personality ?? BALANCED_PERSONALITY;
       this.ais.push(
@@ -2693,6 +2701,9 @@ class HoleScene {
 
   private finishHole(): void {
     this.state.phase = 'done';
+    // Persist each competitor's fire streak so it survives the HoleScene
+    // teardown/rebuild on the way to the next hole (only a missed band ends it).
+    round.fireState = this.fires.map((f) => f.snapshot());
     this.onHoleComplete(
       this.comps.map((c) => (this.tm.isScramble ? this.tm.teamStrokes : c.strokes))
     );
