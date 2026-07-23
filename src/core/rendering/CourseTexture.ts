@@ -794,6 +794,52 @@ export function renderCourseCanvas(
       data[i + 3] = 255;
     }
   }
+  // HORIZON HAZE FADE: the ground mesh carries the hole's albedo all the way to
+  // its padded edge, so on the compact (bounded) world the tint reached the
+  // world edge before the EXP2 fog could dissolve it — a colored band sat at the
+  // skyline (Red Hollow red, Wild Prairie tan, water horizons). Fade the outer
+  // MARGIN band (the region beyond the authored [0,w]x[0,h] play rectangle, i.e.
+  // the TEXTURE_PAD skirt no shot ever reaches) toward theme.haze so the terrain
+  // dissolves into the same haze the void-floor + fog use, before the horizon.
+  // The play rectangle itself is untouched (fade weight is 0 at the world edge),
+  // so nothing inside the boundary shifts color.
+  {
+    const [hzR, hzG, hzB] = rgb(theme.haze);
+    const worldW = hole.world.width;
+    const worldH = hole.world.height;
+    const FADE_SPAN = 175; // world px; completes inside the 220 px pad skirt
+    const innerX0 = Math.round(pad * scale);
+    const innerX1 = Math.round((pad + worldW) * scale);
+    const innerY0 = Math.round(pad * scale);
+    const innerY1 = Math.round((pad + worldH) * scale);
+    const smooth = (x: number): number => {
+      const t = x <= 0 ? 0 : x >= FADE_SPAN ? 1 : x / FADE_SPAN;
+      return t * t * (3 - 2 * t);
+    };
+    const fadeTexel = (px: number, py: number): void => {
+      const worldX = px / scale - pad;
+      const worldY = py / scale - pad;
+      const dOutX = Math.max(-worldX, worldX - worldW, 0);
+      const dOutY = Math.max(-worldY, worldY - worldH, 0);
+      const dOut = Math.hypot(dOutX, dOutY);
+      if (dOut <= 0) return;
+      const f = smooth(dOut);
+      const i = (py * w + px) * 4;
+      data[i] = data[i] * (1 - f) + hzR * f;
+      data[i + 1] = data[i + 1] * (1 - f) + hzG * f;
+      data[i + 2] = data[i + 2] * (1 - f) + hzB * f;
+    };
+    // Border band only — the interior (inside the play rectangle) never fades,
+    // so skip it rather than scanning the whole canvas a second time.
+    for (let py = 0; py < h; py++) {
+      if (py >= innerY0 && py < innerY1) {
+        for (let px = 0; px < innerX0; px++) fadeTexel(px, py);
+        for (let px = innerX1; px < w; px++) fadeTexel(px, py);
+      } else {
+        for (let px = 0; px < w; px++) fadeTexel(px, py);
+      }
+    }
+  }
   ctx.putImageData(img, 0, 0);
 
   // Baked contact AO: a soft dark seam around ponds grounds them in the turf.
