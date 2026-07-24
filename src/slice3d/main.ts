@@ -71,6 +71,7 @@ import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defau
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
+import { TutorialCoach } from './tutorial';
 import { guestId } from '../profile/GuestIdentity';
 import { dailyOverrideFor, LiveOpsConfig, weeklyOverrideFor } from '../data/liveOpsConfig';
 import { fetchLiveOpsConfigREST } from '../firebase/LiveOpsConfig';
@@ -1875,6 +1876,12 @@ class HoleScene {
     this.refreshTrueVisionBtn();
     this.updateStrikeUI();
     this.refreshClubBar();
+    // Tutorial coaching, keyed to what this turn is: the green read + True Vision
+    // when putting, the opening aim/swing/shape lessons off the first tee, else
+    // the aerial-view tip on an approach. Each concept shows exactly once.
+    if (tutorialCoach.isActive()) {
+      tutorialCoach.onAiming(this.aim.isPutting, this.state.strokes === 0 && !this.aim.isPutting);
+    }
   }
 
   /** Show/refresh the strike pad for the current turn. */
@@ -2347,6 +2354,8 @@ class HoleScene {
     // Snapshot the True Vision promise BEFORE hideTrueVision() clears it.
     const tvReveal = this.tvReveal;
     this.state.phase = 'swinging';
+    // Tutorial: the ball is about to fly — teach in-flight spin (putts don't spin).
+    if (tutorialCoach.isActive() && !this.aim.isPutting) tutorialCoach.onShot();
     // Meter's done and the flight camera is about to take over: let the scatter
     // finish filling AND release the mirror/shadow freeze so they animate live
     // through the flight.
@@ -3430,6 +3439,8 @@ function playHole(): void {
   swingBtn.style.display = '';
   hudEl.style.display = '';
   current = new HoleScene((scores) => {
+    // Tutorial: the first hole is the lesson — wrap up once it's done.
+    if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone();
     round.players.forEach((p, i) => {
       p.scores[round.holeIdx] = scores[i] ?? 0;
     });
@@ -5120,6 +5131,24 @@ let pendingWeekly: WeeklyEvent | null = null;
  *  challenger's exact setup (course + shared seed). */
 let pendingChallenge: AsyncChallengeDef | null = null;
 
+/** Opt-in "Learn to play" onboarding coach (dev-only, `tutorial` flag). Owns its
+ *  own overlay; the game just feeds it lifecycle events from beginTurn/
+ *  executeShot/the hole-done callback. */
+const tutorialCoach = new TutorialCoach();
+
+/** Start the guided lesson: a solo round on Sable Bay #1 with coaching overlaid.
+ *  A no-op unless the tutorial flag is on (the entry is hidden in prod anyway). */
+function startTutorial(): void {
+  if (!flag('tutorial')) return;
+  tutorialCoach.stop(); // discard any half-finished prior run
+  sel.mode = 'solo';
+  sel.courseId = 'sablebay';
+  landingEl.classList.remove('on');
+  analytics.track('tutorial_started', { course: 'sablebay' });
+  tutorialCoach.start(() => undefined);
+  startRound(0);
+}
+
 /** Enter a tournament: lock the mode + course, then send the player through the
  *  setup wizard so they pick their own golfer, pal, and style before teeing off
  *  (the round itself still runs under the tournament's shared seed). */
@@ -6182,8 +6211,13 @@ function goStep(n: number): void {
 
 function showLanding(): void {
   pendingTournament = null;
+  tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
+  // Opt-in "Learn to play" entry — dev-only, and only worth surfacing to a
+  // player who hasn't clearly found their feet yet.
+  const learn = document.getElementById('landingLearn');
+  if (learn) learn.style.display = flag('tutorial') ? 'block' : 'none';
   refreshLandingCards();
   updateLandingProfileButton();
 }
@@ -6468,6 +6502,7 @@ function renderAcctMenu(): void {
 }
 
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
+document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
