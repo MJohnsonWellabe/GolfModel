@@ -6214,11 +6214,7 @@ function showLanding(): void {
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
-  // Opt-in "Learn to play" entry — dev-only, and only worth surfacing to a
-  // player who hasn't clearly found their feet yet.
-  const learn = document.getElementById('landingLearn');
-  if (learn) learn.style.display = flag('tutorial') ? 'block' : 'none';
-  refreshLandingCards();
+  refreshLandingCards(); // owns the "Learn to play" entry (incl. its new-player hero)
   updateLandingProfileButton();
 }
 
@@ -6250,6 +6246,32 @@ function refreshLandingCards(): void {
     updateDailyBanner();
     updateWeeklyCard();
   }
+  updateLearnEntry(newPlayer);
+}
+
+/** Place the opt-in "Learn to play" entry. It's hidden unless the tutorial flag
+ *  is on. For someone likely new to the game — a guest, or a device with no
+ *  round played yet — it becomes the HERO (above, and louder than, Play Now) so
+ *  the first thing they see is the invitation to learn; everyone else gets a
+ *  quiet secondary button that keeps it available (it's replayable) without
+ *  competing with Play. */
+function updateLearnEntry(newPlayer: boolean): void {
+  const learn = document.getElementById('landingLearn');
+  const play = document.getElementById('landingPlay');
+  if (!learn || !play) return;
+  if (!flag('tutorial')) {
+    learn.style.display = 'none';
+    play.classList.remove('demoted');
+    return;
+  }
+  learn.style.display = 'block';
+  const hero = newPlayer || !signedIn; // "first device login or guest"
+  learn.classList.toggle('heroLearn', hero);
+  play.classList.toggle('demoted', hero);
+  learn.textContent = hero ? '🎓 New here? Learn to play →' : '🎓 Learn to play';
+  // Lead with the lesson for newcomers; otherwise keep it just below Play.
+  if (hero) play.insertAdjacentElement('beforebegin', learn);
+  else play.insertAdjacentElement('afterend', learn);
 }
 
 function showSetup(): void {

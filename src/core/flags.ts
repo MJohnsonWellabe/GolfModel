@@ -151,7 +151,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       '(hazard `spacing`) and hole geometry are untouched — visuals only. Off = ' +
       'the shipped Wildwood, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED to prod (playtest-approved) — fold the thinning into ' +
       'wildwood.json + course3d and remove the flag'
@@ -164,7 +164,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'in-flight spin, aerial view, the uphill-putt pace rule, and True Vision. ' +
       'Never forced; replayable. Off = no tutorial surface at all.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED to prod (playtest-approved) — remove the flag once onboarding ' +
       'has soaked'

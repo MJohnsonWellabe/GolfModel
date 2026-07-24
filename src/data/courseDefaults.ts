@@ -3,11 +3,13 @@ import { CourseData } from '../core/types';
 /**
  * The course used whenever no VALID course is otherwise chosen — first launch,
  * a missing/invalid saved or requested course, and every mode/tournament
- * fallback. A valid explicit selection is ALWAYS preserved; Wildwood is only
- * the fallback. Centralised here so "the default course" is decided in exactly
- * one place and can be unit-tested without booting the 3D app.
+ * fallback. A valid explicit selection is ALWAYS preserved; Sable Bay is only
+ * the fallback. Sable Bay is the intro course (it is also the tutorial hole) —
+ * Wildwood was retired from the default slot as too heavy a first scene.
+ * Centralised here so "the default course" is decided in exactly one place and
+ * can be unit-tested without booting the 3D app.
  */
-export const DEFAULT_COURSE_ID = 'wildwood';
+export const DEFAULT_COURSE_ID = 'sablebay';
 
 /**
  * Resolve a course id to its CourseData, falling back to the default course
