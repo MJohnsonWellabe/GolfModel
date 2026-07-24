@@ -694,7 +694,7 @@ export function buildCourse(
     if (hz.type !== 'water') continue;
     const level = hz.level ?? 0.35;
     if (theme.waterReflect && !waterMirror) {
-      waterMirror = new MirrorTexture('waterMirror', { ratio: 0.35 }, scene, false);
+      waterMirror = new MirrorTexture('waterMirror', { ratio: theme.waterReflectRatio ?? 0.35 }, scene, false);
       waterMirror.mirrorPlane = new Plane(0, -1, 0, level);
       waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
       // A light blur hides the low reflection resolution without smearing the
@@ -714,7 +714,7 @@ export function buildCourse(
           return true;
         }
         // Nature instances: only species tagged reflect=true (trees, cloud
-        // meshes — see natureModels.ts) feed the mirror. At a 0.35 RTT ratio
+        // meshes — see natureModels.ts) feed the mirror. At the low RTT ratio
         // plus adaptive blur, individual grass/flower/heather cards never
         // resolve anyway — they're pure re-render cost on a dense hole's
         // thousands of ground-scatter instances (the water-hole meter lag).

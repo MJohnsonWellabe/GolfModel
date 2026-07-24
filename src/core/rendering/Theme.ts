@@ -34,6 +34,10 @@ export interface CourseTheme {
   waterReflect?: boolean;
   /** Reflection blend strength 0..1 for waterReflect ponds (default 0.62). */
   waterReflectStrength?: number;
+  /** Planar-mirror RTT resolution ratio for waterReflect ponds (default 0.35).
+   *  Lower = a cheaper (softer) reflection; the scrolling normal map + blur hide
+   *  the drop. Used by the Wildwood perf pass to cut the mirror's per-frame cost. */
+  waterReflectRatio?: number;
   treeCanopy: number;
   treeCanopyLight: number;
   treeTrunk: number;
@@ -405,6 +409,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bareRough'
     | 'waterReflect'
     | 'waterReflectStrength'
+    | 'waterReflectRatio'
     | 'tallGrass'
     | 'atmosphere'
   >;
@@ -524,6 +529,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.wasteRimKeys = strings(spec.wasteRimKeys);
   if (spec.waterReflect === true) t.waterReflect = true;
   if (typeof spec.waterReflectStrength === 'number') t.waterReflectStrength = spec.waterReflectStrength;
+  if (typeof spec.waterReflectRatio === 'number') t.waterReflectRatio = spec.waterReflectRatio;
   const tg = spec.tallGrass as { cap?: unknown; density?: unknown; waste?: unknown } | undefined;
   if (tg && typeof tg.cap === 'number' && typeof tg.density === 'number') {
     t.tallGrass = { cap: tg.cap, density: tg.density, waste: tg.waste === true };
