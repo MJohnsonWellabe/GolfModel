@@ -3012,6 +3012,81 @@
         font-size: 17px;
         font-weight: 800;
       }
+      /* "Learn to play" landing entry (dev-only, tutorial flag). */
+      #landingLearn {
+        width: 100%;
+        margin-top: 10px;
+        padding: 13px;
+        border-radius: 16px;
+        border: 1.5px solid rgba(255, 213, 79, 0.55);
+        background: rgba(255, 213, 79, 0.12);
+        color: #ffe28a;
+        font-size: 16px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      /* Onboarding coach card (tutorial.ts). */
+      .tutCard {
+        max-width: 440px;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 14px 16px;
+        border-radius: 16px;
+        background: rgba(18, 26, 22, 0.94);
+        border: 1px solid rgba(255, 213, 79, 0.45);
+        box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+        color: #eef3ec;
+      }
+      .tutCard .tutTitle {
+        font-size: 17px;
+        font-weight: 900;
+        color: #ffe28a;
+        margin-bottom: 5px;
+      }
+      .tutCard .tutBody {
+        font-size: 14px;
+        line-height: 1.42;
+      }
+      .tutCard .tutRow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .tutCard .tutSkip {
+        background: none;
+        border: none;
+        color: #9fb89a;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .tutCard .tutNext {
+        border: none;
+        border-radius: 12px;
+        padding: 9px 20px;
+        background: linear-gradient(180deg, #ffe28a, #d99b20);
+        color: #241805;
+        font-size: 15px;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      /* Highlight ring on the control a card points at. */
+      .tutHi {
+        outline: 3px solid #ffd54f !important;
+        outline-offset: 3px;
+        border-radius: 10px;
+        animation: tutPulse 1.2s ease-in-out infinite;
+      }
+      @keyframes tutPulse {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(255, 213, 79, 0.55); }
+        50% { box-shadow: 0 0 0 7px rgba(255, 213, 79, 0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .tutHi { animation: none; }
+      }
+      html.reduce-motion .tutHi { animation: none; }
     </style>
   </head>
   <body>
@@ -3060,6 +3135,7 @@
           <div id="dailyCard"></div>
           <div id="weeklyCard"></div>
           <button id="landingPlay" class="landingPlay">Play Now</button>
+          <button id="landingLearn" style="display:none">🎓 New? Learn to play</button>
           <div class="landingNav">
             <button id="landingSeason">Season Pass</button>
             <button id="landingStore">Store</button>
