@@ -140,6 +140,21 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     removeWhen:
       'RELEASED to prod (playtest-approved) — fold the v2 JSONs over the ' +
       'originals and remove the flag'
+  },
+  {
+    key: 'wildwoodPerf',
+    description:
+      'Wildwood Glen performance pass: a dev-only load-time transform that thins ' +
+      'render vegetation the player cannot pick out from the tee (dense wood ' +
+      'interiors, downrange/behind-tee trunks, backdrop woods), trims garden ' +
+      'blooms marginally, and cheapens the water reflection. Collision hitboxes ' +
+      '(hazard `spacing`) and hole geometry are untouched — visuals only. Off = ' +
+      'the shipped Wildwood, byte-identical.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'PROMOTED to prod (playtest-approved) — fold the thinning into ' +
+      'wildwood.json + course3d and remove the flag'
   }
 ];
 

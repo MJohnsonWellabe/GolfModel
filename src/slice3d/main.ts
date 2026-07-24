@@ -38,6 +38,7 @@ import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archety
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { personalityFor } from '../data/characterPersonality';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
+import { withWildwoodPerf } from '../systems/wildwoodPerf';
 import { courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
@@ -418,8 +419,14 @@ const REBUILDS: Record<string, unknown> = rebuildsOn
   : {};
 const courseSrc = (id: string, original: unknown): CourseAuthoring =>
   (REBUILDS[id] ?? original) as CourseAuthoring;
+// Wildwood Glen perf pass (dev-only, `wildwoodPerf` flag): a pure, visuals-only
+// thinning of the default course's render vegetation + reflection cost. Prod
+// (flag off) loads the shipped JSON untouched. See systems/wildwoodPerf.ts.
+const wildwoodSrc: unknown = flag('wildwoodPerf')
+  ? withWildwoodPerf(wildwood as unknown as CourseAuthoring)
+  : wildwood;
 const COURSES: Record<string, CourseData> = {
-  wildwood: loadCourse(courseSrc('wildwood', wildwood)),
+  wildwood: loadCourse(courseSrc('wildwood', wildwoodSrc)),
   sablebay: loadCourse(courseSrc('sablebay', sablebay)),
   // `timberline` (id preserved for dev-save/records compatibility) loads the v2
   // rebuild — now branded "Timberline East" — when the rebuild flag is on.
