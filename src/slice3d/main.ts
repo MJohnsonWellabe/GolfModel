@@ -16,7 +16,7 @@ import {
   Vector3,
   Viewport
 } from '@babylonjs/core';
-import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES } from '../config';
+import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES, SWING } from '../config';
 import { activeBedKind, BedKind, COURSE_BEDS, startBed } from '../core/audio/beds';
 import { setAmbienceMasterVolume } from '../core/audio/engine';
 import { playBuffer } from '../core/audio/sfx';
@@ -633,7 +633,7 @@ function scoreToPar(p: Participant): string {
 /** Pooled dots that draw the white aim line (ball → carry-landing on full shots,
  *  ball → chosen spot on putts). Dense enough that the full-shot line reads as a
  *  continuous line rather than a few scattered specks. */
-const AIM_DOT_COUNT = 24;
+const AIM_DOT_COUNT = 40;
 
 /** Everything that lives for exactly one hole. Rebuilt between holes. */
 class HoleScene {
@@ -1172,12 +1172,20 @@ class HoleScene {
     // An equipped iron/wedge/putter PERK layers on top of both, same widening.
     const upgradeZone = upgradePerfectZoneMult(this.aim.club.id, this.curPart().golfer.clubUpgrades ?? {});
     const perkZone = perkPerfectZoneMult(this.aim.club.id, this.curPart().golfer.perk);
+    // Tee-shot overpower fix (dev-only): the driver drops the overswing distance
+    // bonus so a big overswing no longer flies miles past target; every other
+    // club keeps the shared bonus. Undefined → swingModel uses SWING.overswingBonus.
+    const overswingBonus =
+      flag('driverOverswingNerf') && !this.aim.isPutting && this.aim.club.id === 'driver'
+        ? SWING.driverOverswingBonus
+        : undefined;
     meter.arm({
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).zone,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
       perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone,
-      difficultyMult: this.swingDifficulty()
+      difficultyMult: this.swingDifficulty(),
+      overswingBonus
     });
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
@@ -1985,7 +1993,11 @@ class HoleScene {
         dy = by + (target.y - by) * f;
       }
       dot.position = w2b(dx, dy, 0.12 + this.gh(dx, dy));
-      dot.scaling.setAll(dotScale);
+      // Full-shot play view: grow the dots along the line so the FAR half (which
+      // perspective otherwise shrinks to specks near the target) still reads. No
+      // taper on putts (short line) or in the flat aerial view.
+      const taper = !this.aim.isPutting && !this.aerial ? 1 + 0.8 * f : 1;
+      dot.scaling.setAll(dotScale * taper);
     });
     if (!hideCircles) {
       this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));

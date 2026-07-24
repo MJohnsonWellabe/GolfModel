@@ -73,6 +73,9 @@ export interface MeterContext {
   perfectMult?: number;
   /** Difficulty multiplier from lie + club (<1 shrinks the zone); default 1. */
   difficultyMult?: number;
+  /** Overswing power bonus override (defaults to SWING.overswingBonus). Used to
+   *  defuse the driver's overpower behind the `driverOverswingNerf` flag. */
+  overswingBonus?: number;
 }
 
 /**

@@ -28,6 +28,11 @@ export interface SwingCtx {
   perfectMult?: number;
   /** Difficulty multiplier from lie + club (<1 shrinks the zone); default 1. */
   difficultyMult?: number;
+  /** Physics power gained per bar-unit of overswing past the target. Defaults to
+   *  `SWING.overswingBonus`; the live game passes a lower value to defuse the
+   *  driver's runaway overpower (see the `driverOverswingNerf` flag). The pure
+   *  sim leaves it unset and keeps the shipped bonus. */
+  overswingBonus?: number;
 }
 
 /** Raw (linear) normalized signed offset of the accuracy cursor from its target,
@@ -88,7 +93,8 @@ export function deliveredPower(ctx: SwingCtx, lockedCursor: number, band: Band):
     return clamp(delivered, 0.1, 1.08);
   }
   // Past the target — overswing ADDS distance, capped so it can't run away.
-  return clamp(ctx.powerTarget + SWING.overswingBonus * (c - t), 0.1, 1.2);
+  const overswingBonus = ctx.overswingBonus ?? SWING.overswingBonus;
+  return clamp(ctx.powerTarget + overswingBonus * (c - t), 0.1, 1.2);
 }
 
 /** Apply the difficulty curve to a raw normalized offset: `gain · |raw|^exp`,
