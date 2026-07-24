@@ -630,6 +630,11 @@ function scoreToPar(p: Participant): string {
 
 // ----------------------------------------------------------- hole scene
 
+/** Pooled dots that draw the white aim line (ball → carry-landing on full shots,
+ *  ball → chosen spot on putts). Dense enough that the full-shot line reads as a
+ *  continuous line rather than a few scattered specks. */
+const AIM_DOT_COUNT = 24;
+
 /** Everything that lives for exactly one hole. Rebuilt between holes. */
 class HoleScene {
   readonly scene: Scene;
@@ -893,7 +898,10 @@ class HoleScene {
     aimMat.emissiveColor = new Color3(0.9, 0.9, 0.7);
     aimMat.disableLighting = true;
     this.aimRoot = new TransformNode('aimRoot', this.scene);
-    for (let i = 0; i < 10; i++) {
+    // A denser pool so the full-shot aim line reads as a LINE, not a couple of
+    // specks lost across a 250-yd carry (owner: "you just see the aim marker").
+    // Putts use the same pool at a fine scale, so denser only helps them too.
+    for (let i = 0; i < AIM_DOT_COUNT; i++) {
       const dot = MeshBuilder.CreateDisc(`aimDot${i}`, { radius: 0.55, tessellation: 12 }, this.scene);
       dot.rotation.x = Math.PI / 2;
       dot.material = aimMat;
@@ -1904,7 +1912,7 @@ class HoleScene {
         : 0.42
       : this.aerial
         ? Math.min(9, Math.max(4, span / 120))
-        : 1;
+        : 1.4; // full-shot play view: big enough that the dotted line reads
   }
 
   /** Redraw the ground aim guide from the current aim + preview. */
