@@ -119,6 +119,9 @@ Implementation records (evidence, not governing guidance):
 - `27_THE_RIVAL.md` (one named opponent, one fixture a day, a running
   head-to-head — house rivals played headlessly, friend rivals over a shared
   channel; the daily-return retention pass — dev-gated)
+- `28_HOLE_BUILDER.md` (the authoring loop: asset library, drag-and-drop
+  placement, the simulator-backed hole critique, preview play in the real game,
+  and the Claude JSON round trip)
 - `03B_REFERENCE_GUIDE.md` (creative reference)
 
 Proposals awaiting approval (not building yet):

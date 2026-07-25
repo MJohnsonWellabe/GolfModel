@@ -39,6 +39,7 @@ import { CHARACTERS, CharacterKey } from '../data/characters';
 import { personalityFor } from '../data/characterPersonality';
 import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import { coursesFor, rosterFor } from '../data/courseRoster';
+import { loadCourse } from '../data/courseLoader';
 import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
 import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
@@ -7254,6 +7255,66 @@ function recordDailyAttempt(): void {
   publishRivalEntry(dateKey, strokes, lastRecording);
 }
 
+/** Reserved course id a hole handed over by the Hole Builder is registered
+ *  under. Separate from the daily's so a preview can never be mistaken for the
+ *  day's attempt, or vice versa. */
+const BUILDER_COURSE_ID = '__builder';
+
+/**
+ * PREVIEW PLAY (`holebuilder.html` → "▶ Play it").
+ *
+ * The builder hands its edited hole over in sessionStorage and opens the game
+ * with `?builderHole=1`. The hole is registered under a reserved id and played
+ * as an ordinary one-hole round, which is the whole point: "play it" has to mean
+ * the real game — the real physics, the real renderer, the real swing — or the
+ * feedback is about an approximation and the designer tunes the wrong thing.
+ *
+ * Admin/dev only, and never recorded: a preview is not a score.
+ */
+function startBuilderHole(): boolean {
+  // Admin-gated in production for the same reason the authoring tools are:
+  // it plays arbitrary handed-over geometry.
+  if (ENV.isProd && !adminUnlocked()) return false;
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem('bsg.builderHole.v1');
+  } catch {
+    return false;
+  }
+  if (!raw) return false;
+  try {
+    const payload = JSON.parse(raw) as {
+      name?: string;
+      theme?: Record<string, string | number | string[]> | null;
+      minWind?: number;
+      maxWind?: number;
+      hole: unknown;
+    };
+    const course = loadCourse({
+      name: payload.name || 'Hole Builder preview',
+      theme: payload.theme ?? undefined,
+      minWind: payload.minWind,
+      maxWind: payload.maxWind,
+      holes: [payload.hole]
+    } as never);
+    if (!course.holes.length) return false;
+    COURSES[BUILDER_COURSE_ID] = course;
+    endPractice();
+    dailyRound = null;
+    pendingTournament = null;
+    pendingGhost = null;
+    sel.mode = 'solo';
+    sel.courseId = BUILDER_COURSE_ID;
+    landingEl.classList.remove('on');
+    startRound(0);
+    showMsg('Preview — this round is not scored', 2600);
+    return true;
+  } catch (err) {
+    if (!ENV.isProd) console.warn('[builderHole] could not load the handed-over hole', err);
+    return false;
+  }
+}
+
 /**
  * Play today's hole. A one-hole round on generated geometry, seeded off the
  * date so the wind and pin match everybody else's, and recorded so the attempt
@@ -7890,6 +7951,8 @@ else {
     const rcode = params.get('rival');
     if (rcode && flag('rival')) void receiveRivalInvite(rcode);
     else void checkPendingRivalInvite();
+    // ?builderHole=1 tees off the hole the Hole Builder just handed over.
+    if (params.get('builderHole') === '1') startBuilderHole();
   } catch {
     /* no query string (e.g. non-browser test host) */
   }
