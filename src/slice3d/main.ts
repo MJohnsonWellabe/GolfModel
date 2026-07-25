@@ -46,6 +46,7 @@ import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
 import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
 import { attributeShot, attributionTable, ShotAttribution } from '../systems/ShotAttribution';
+import { recordBoards } from '../systems/RecordBoards';
 import { dailyHole, shareText } from '../systems/DailyHoleService';
 import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
@@ -75,7 +76,7 @@ import { TutorialCoach } from './tutorial';
 import { guestId } from '../profile/GuestIdentity';
 import { dailyOverrideFor, LiveOpsConfig, weeklyOverrideFor } from '../data/liveOpsConfig';
 import { fetchLiveOpsConfigREST } from '../firebase/LiveOpsConfig';
-import { weeklyEventFor, weeklyStanding, weeklyTimeLeft, WeeklyEvent } from '../systems/WeeklyFeatured';
+import { dailyEventFor, weeklyEventFor, weeklyStanding, weeklyTimeLeft, WeeklyEvent } from '../systems/WeeklyFeatured';
 import { fetchWeeklyEntries, submitWeeklyEntry } from '../firebase/Weekly';
 import {
   AsyncChallengeDef,
@@ -4362,6 +4363,10 @@ function showSummary(): void {
     holes: me.scores.slice(0, holes.length),
     putts: holes.reduce((a, h) => a + (shotAcc.holePutts[h.number] ?? 0), 0),
     hputts: holes.map((h) => shotAcc.holePutts[h.number] ?? 0),
+    // For the record boards: two facts that only ever lived in the profile, so
+    // no leaderboard could see them.
+    ...(rstats.longestDriveYds > 0 ? { drive: Math.round(rstats.longestDriveYds) } : {}),
+    ...(rstats.chipIns > 0 ? { chipIns: rstats.chipIns } : {}),
     // Signed in → the real Firebase uid; guest → the device's STABLE guest id
     // (so a guest's rounds group together across a session), flagged `guest`.
     uid: signedIn ? profile.id : guestId(),
@@ -4460,6 +4465,7 @@ function showSummary(): void {
     `<span class="toPar">${parLabel(totals[0])}</span>` +
     `<span class="pb${isNewBest ? ' newBest' : ''}">${pbLabel}</span></div>` +
     starLine +
+    holeSurveyHtml() +
     recLines +
     // WHAT YOU EARNED — one block. These were five separate stacked lines
     // (rewards, streak, protection, purse, and the sign-in nudge under them),
@@ -4501,6 +4507,7 @@ function showSummary(): void {
     `</details>` +
     (midTour ? '' : `<button id="againBtn" class="ghostBtn summaryMenu">☰ Menu</button>`);
   summaryEl.style.display = 'block';
+  wireHoleSurvey();
   replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
   // Reveal cascade (Pass B): children stagger in under ff-delight (CSS is
   // scoped, so the class is inert with the flag off). Re-added per show so the
@@ -5681,14 +5688,27 @@ function fmtRecordDate(epochMs: number): string {
 let recCourseId: string | null = null;
 
 /** Records / leaderboard overlay: top rounds per course (tabs) + mode. */
+/** The boards live under a reserved tab id, so the course tabs stay a plain
+ *  course-id lookup and nothing has to special-case a magic name. */
+const BOARDS_TAB = '__boards';
+
 async function renderRecords(): Promise<void> {
   recordsEl.style.display = 'flex';
-  if (!recCourseId || !COURSES[recCourseId]) recCourseId = courseIdByName(round.course.name);
-  const tabs = COURSE_LIST.map(
-    (c) =>
-      `<button class="recTab${c.id === recCourseId ? ' sel' : ''}" data-course="${c.id}">` +
-      `${c.icon} ${COURSES[c.id].name}</button>`
-  ).join('');
+  if (recCourseId !== BOARDS_TAB && (!recCourseId || !COURSES[recCourseId]))
+    recCourseId = flag('recordBoards') ? BOARDS_TAB : courseIdByName(round.course.name);
+  // THE BOARDS TAB (`recordBoards`) sits FIRST, because "who has hit it
+  // furthest" is a more interesting question than "who shot low at Sable Bay",
+  // and the per-course lists were the only thing here for a long time.
+  const boardsTab = flag('recordBoards')
+    ? `<button class="recTab${recCourseId === BOARDS_TAB ? ' sel' : ''}" data-course="${BOARDS_TAB}">🏅 Records</button>`
+    : '';
+  const tabs =
+    boardsTab +
+    COURSE_LIST.map(
+      (c) =>
+        `<button class="recTab${c.id === recCourseId ? ' sel' : ''}" data-course="${c.id}">` +
+        `${c.icon} ${COURSES[c.id].name}</button>`
+    ).join('');
   recordsEl.innerHTML =
     `<div class="recInner"><h2>Records</h2>` +
     `<div class="recTabs">${tabs}</div>` +
@@ -5707,6 +5727,25 @@ async function renderRecords(): Promise<void> {
     if (!listEl) return;
     if (!data) {
       listEl.innerHTML = 'Loading…';
+      return;
+    }
+    if (recCourseId === BOARDS_TAB) {
+      listEl.innerHTML = recordBoards(data)
+        .map((b) => {
+          const rows = b.entries.length
+            ? b.entries
+                .map(
+                  (e, i) =>
+                    `<div class="recRow"><span class="recRk">${i === 0 ? '🏆' : `${i + 1}.`}</span>` +
+                    `<span class="recNm">${escapeHtml(e.name)}</span>` +
+                    `<span class="recTot">${escapeHtml(e.label)}</span></div>`
+                )
+                .join('')
+            : `<div class="recEmpty">Nobody yet — be first.</div>`;
+          return `<div class="boardBlock"><div class="boardHead">${b.title}</div>` +
+            `<div class="boardBlurb">${escapeHtml(b.blurb)}</div>${rows}</div>`;
+        })
+        .join('');
       return;
     }
     const best = bestRounds(data, COURSES[recCourseId!].name, round.mode, 5);
@@ -6558,7 +6597,7 @@ const PRACTICE_MAX_SHOTS = 12;
 
 /** Set while a Hole of the Day round is in progress, so the results card knows
  *  to record the attempt and offer the share. */
-let dailyRound: { dateKey: string; par: number; rival: RoundRecording | null } | null = null;
+let dailyRound: { dateKey: string; par: number; rival: RoundRecording | null; seed: number } | null = null;
 
 /**
  * Seal the round recording at the end of the round and self-check it: replay
@@ -6661,6 +6700,9 @@ function stepLabels(): string[] {
   // Entering an online tournament: mode + course are locked, so just confirm.
   if (pendingTournament) return ['Ready'];
   if (sel.mode === 'aitour') return ['Mode'];
+  // With the modes stripped there is exactly one, so asking which is a step
+  // that can only be answered one way.
+  if (flag('focusedGame')) return ['Course'];
   return sel.mode === 'solo'
     ? ['Mode', 'Course']
     : ['Mode', 'Course', sel.mode === '1v1' ? 'Rival' : 'Partner'];
@@ -6734,11 +6776,28 @@ function randomOf<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/**
+ * THE STRIP-DOWN (`focusedGame`).
+ *
+ * Four ways to play a round, three ways to race somebody and two tournament
+ * cadences — all aimed at a library of 21 holes. With the flag on the game is
+ * solo golf, one social feature, and one thing to come back for each day.
+ * Everything else is hidden rather than deleted, so living with the decision is
+ * a flag flip rather than an archaeology exercise.
+ */
+function offeredModes(): typeof MODES {
+  return flag('focusedGame') ? MODES.filter((m) => m.id === 'solo') : MODES;
+}
+
 function renderMode(): void {
+  const modes = offeredModes();
+  // With one mode there is no question to ask; the step still exists so the
+  // wizard's shape does not change under the flag, but it states rather than
+  // asks.
   stepBodyEl.innerHTML =
-    `<div class="stepTitle">How do you want to play?</div>` +
+    `<div class="stepTitle">${modes.length > 1 ? 'How do you want to play?' : 'Your round'}</div>` +
     `<div class="modeGrid">` +
-    MODES.map(
+    modes.map(
       (m) =>
         `<div class="archCard modeCard${sel.mode === m.id ? ' sel' : ''}" data-mode="${m.id}">` +
         `<div class="ahead"><span class="an">${m.icon} ${m.name}</span></div>` +
@@ -7398,10 +7457,19 @@ function updateDestinations(newPlayer: boolean): void {
     const el = document.getElementById(id);
     if (el) el.style.display = on ? '' : 'none';
   };
-  show('landingAdmin', adminUnlocked());
-  show('landingAdminSite', adminUnlocked());
-  show('landingDev', devToolsActive());
+  // ONE ADMIN DOOR (`focusedGame`). Admin panel, admin dashboard and dev tools
+  // were three separate entries to three surfaces that all mean "the owner's
+  // controls". Stripped, there is one, and it opens the dashboard where
+  // everything lives.
+  const focused = flag('focusedGame');
+  show('landingAdmin', adminUnlocked() && !focused);
+  show('landingAdminSite', adminUnlocked() || (focused && devToolsActive()));
+  show('landingDev', devToolsActive() && !focused);
   show('landingBuilder', devToolsActive());
+  const tourny = document.getElementById('tournyLink');
+  // Online tournaments: a whole matchmaking surface for a game whose social
+  // feature is now a link you send a friend.
+  if (tourny) tourny.style.display = focused ? 'none' : '';
 }
 
 /** How many season-pass levels are sitting unclaimed. Cheap arithmetic over the
@@ -7442,6 +7510,7 @@ function closeDest(): void {
  * their round happen when the landing paints, never during play.
  */
 function ensureRival(): void {
+  if (flag('focusedGame')) return; // stripped — see the flag registry
   const r = profile.retention.rival;
   if (hasRival(r)) return;
   // Calibrate against recent form so the very first rival is already the right
@@ -7829,12 +7898,55 @@ function updateDailyHoleCard(): void {
 
 /** Book the Hole of the Day attempt when its round ends. First attempt wins —
  *  replaying to improve a shared score is what one-a-day exists to prevent. */
+/**
+ * RATE THE HOLE.
+ *
+ * The Hole of the Day is GENERATED, vetted only by a simulator that can measure
+ * whether a hole is playable and cannot tell whether it is any good. The
+ * generator's vocabulary widens from here, and the only honest signal about
+ * which holes are worth making more of comes from the people who played them.
+ *
+ * Asked once, at the moment the opinion exists — the shot that just finished —
+ * and never asked twice about the same hole. A survey that nags is a survey
+ * nobody answers truthfully.
+ */
+let pendingHoleSurvey: { dateKey: string; seed: number } | null = null;
+
+function holeSurveyHtml(): string {
+  if (!pendingHoleSurvey) return '';
+  return (
+    `<div class="holeSurvey"><span class="hsAsk">Was that a good hole?</span>` +
+    `<span class="hsRow">` +
+    [1, 2, 3, 4, 5]
+      .map((n) => `<button class="hsStar" data-rate="${n}" aria-label="${n} out of 5">${'★'.repeat(1)}</button>`)
+      .join('') +
+    `</span></div>`
+  );
+}
+
+function wireHoleSurvey(): void {
+  const pending = pendingHoleSurvey;
+  if (!pending) return;
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('.hsStar'))) {
+    el.addEventListener('pointerdown', () => {
+      const rating = Number(el.dataset.rate);
+      // Analytics only: the rating is about the GENERATOR, not about the
+      // player, so it never touches the profile and never blocks anything.
+      analytics.track('daily_hole_rated', { rating, hole_seed: pending.seed, date: pending.dateKey });
+      pendingHoleSurvey = null;
+      const box = el.closest('.holeSurvey');
+      if (box) box.innerHTML = `<span class="hsAsk">Thanks — that shapes the next one.</span>`;
+    });
+  }
+}
+
 function recordDailyAttempt(): void {
   if (!dailyRound) return;
   const strokes = round.players[0]?.scores[0] ?? 0;
-  const { dateKey, par, rival } = dailyRound;
+  const { dateKey, par, rival, seed } = dailyRound;
   dailyRound = null;
   if (strokes <= 0) return;
+  if (flag('focusedGame')) pendingHoleSurvey = { dateKey, seed };
   saveDailyPlay({ dateKey, strokes, par, at: Date.now() });
   analytics.track('daily_hole_completed', { score_to_par: strokes - par });
   // Settle the fixture against the rival round this attempt was actually
@@ -8009,7 +8121,7 @@ function startDailyHole(): void {
   // The rival is the opponent for today's fixture: their round flies beside
   // yours, and the result settles the head-to-head when the attempt is booked.
   const rival = todaysRivalRound(key, DAILY_COURSE_ID, res.spec.course);
-  dailyRound = { dateKey: key, par: res.spec.par, rival };
+  dailyRound = { dateKey: key, par: res.spec.par, rival, seed: res.spec.seed };
   pendingTournament = null;
   pendingGhost = rival;
   sel.mode = 'solo';
@@ -8110,6 +8222,9 @@ function updateGhostCard(): void {
   const el = document.getElementById('ghostCard');
   if (!el) return;
   el.innerHTML = '';
+  // Stripped: racing a recorded round is a whole third opponent system on top
+  // of the daily hole and the challenge link (`focusedGame`).
+  if (flag('focusedGame')) return;
   if (!flag('ghostRace') || !flag('roundRecording')) return;
   const courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
   const course = COURSES[courseId];
@@ -8302,7 +8417,9 @@ function effectiveDailyChallenge(dateKey: string): DailyChallenge {
 
 /** This week's featured event, with any published live-ops course override. */
 function effectiveWeeklyEvent(): WeeklyEvent {
-  const ev = weeklyEventFor(devNow());
+  // DAILY under the strip-down: a week is a very long time to leave one course
+  // featured in a game whose rounds take four minutes.
+  const ev = flag('focusedGame') ? dailyEventFor(devNow()) : weeklyEventFor(devNow());
   const override = weeklyOverrideFor(liveOps, ev.id);
   return override && COURSES[override] ? { ...ev, courseId: override } : ev;
 }
@@ -8318,7 +8435,7 @@ function updateWeeklyCard(): void {
   const best = profile.retention.records.bestWeekly[ev.id];
   const bestBit = best ? `Best ${best.total} (${best.toPar === 0 ? 'E' : best.toPar > 0 ? `+${best.toPar}` : best.toPar})` : 'Not played yet';
   el.innerHTML =
-    `<div class="wkInfo"><span class="wkLabel">WEEKLY FEATURED · ${weeklyTimeLeft(ev, Date.now())} left</span>` +
+    `<div class="wkInfo"><span class="wkLabel">${flag('focusedGame') ? 'TODAY\'S TOURNAMENT' : 'WEEKLY FEATURED'} · ${weeklyTimeLeft(ev, Date.now())} left</span>` +
     `<div class="wkLine">${escapeHtml(course.name)} · <span id="wkStanding">${bestBit}</span></div></div>` +
     `<button id="wkPlay" class="wkPlay">Play</button>`;
   document.getElementById('wkPlay')!.addEventListener('pointerdown', () => {

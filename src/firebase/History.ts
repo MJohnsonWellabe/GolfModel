@@ -19,6 +19,17 @@ export interface RoundRecord {
   putts?: number;
   /** Putts taken per hole, parallel to holes[]. */
   hputts?: number[];
+  /**
+   * Longest drive in this round, yards, and chip-ins holed.
+   *
+   * ADDITIVE, for the record boards (`systems/RecordBoards`). Aces and averages
+   * were already derivable from `holes` and `toPar` and nobody had looked;
+   * these two only ever existed inside the player's own profile, so they were
+   * invisible to any leaderboard. Optional so every round already stored keeps
+   * its meaning and simply does not appear on those two boards.
+   */
+  drive?: number;
+  chipIns?: number;
   /** Signed-in account uid, OR the device's stable GUEST id (`g-…`) when this
    *  is a guest round (see `guest`). Absent only on rounds recorded before
    *  account tracking shipped. */

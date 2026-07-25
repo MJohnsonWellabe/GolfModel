@@ -63,7 +63,10 @@ test('the dev tools are two taps from the front door, not a scroll to the bottom
   await seedReturningDevice(page);
   // `devTools` is a dev-default flag; ask for it explicitly so this spec states
   // its own precondition instead of inheriting one.
-  await page.goto('/?ff.devTools=on');
+  // With the strip-down ON there is ONE admin door and no separate dev entry,
+  // which is the point of it; this spec is about the dev tools being reachable
+  // at all, so it asks for the shape that has them.
+  await page.goto('/?ff.devTools=on&ff.focusedGame=off');
   await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 30_000 });
   await openDestination(page, 'more');
 
@@ -139,4 +142,17 @@ test('the post-round card leads with the two actions that start the next round',
 
   // Menu is always there — leaving must never need a disclosure opened first.
   await expect(page.locator('#againBtn')).toBeVisible();
+});
+
+test('the strip-down leaves ONE door to the owner controls', async ({ page }) => {
+  // Admin panel, admin dashboard and dev tools were three entries to three
+  // surfaces that all mean "the owner's controls".
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?ff.devTools=on&ff.focusedGame=on');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 30_000 });
+  await openDestination(page, 'more');
+  await expect(page.locator('#landingAdminSite'), 'no way in to the owner controls').toBeVisible();
+  await expect(page.locator('#landingAdmin')).toBeHidden();
+  await expect(page.locator('#landingDev')).toBeHidden();
 });

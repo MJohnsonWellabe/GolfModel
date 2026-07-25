@@ -54,10 +54,15 @@ test('a flaky nature-prop fetch recovers via retry', async ({ page }) => {
 test('wizard course step lists every course', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
-  // Boot lands on the menu, not the wizard — open the setup wizard first, then
-  // advance from Mode (step 0) to the Course step (step 1).
+  // Boot lands on the menu, not the wizard. Under the strip-down
+  // (`focusedGame`) there is one mode, so the wizard OPENS on Course; with the
+  // modes restored it opens on Mode and Course is one step further. Advance
+  // only if the course cards are not already up, so this spec is about the
+  // course list rather than about the wizard's shape.
   await openSetupWizard(page);
-  await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  if (!(await page.locator('.modeCard[data-course]').count())) {
+    await page.evaluate(() => (document.getElementById('nextBtn') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  }
   await page.waitForSelector('.modeCard[data-course]');
   const count = await page.locator('.modeCard[data-course]').count();
   // Tests run against the dev environment, so the wizard lists the full dev

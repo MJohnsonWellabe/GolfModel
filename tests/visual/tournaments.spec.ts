@@ -6,7 +6,10 @@ import { openDestination, openSetupWizard, seedReturningDevice } from './support
  *  rather than erroring. */
 test('online tournaments overlay opens from the menu', async ({ page }) => {
   await seedReturningDevice(page);
-  await page.goto('/');
+  // The strip-down (`focusedGame`) removes online tournaments outright, so a
+  // spec ABOUT that surface asks for the un-stripped game. Not a stale
+  // expectation — a different product shape, and both are real.
+  await page.goto('/?ff.focusedGame=off');
   // Online Tournaments is a Compete destination (it used to hang off the
   // bottom of the setup wizard).
   await openDestination(page, 'compete');
@@ -27,7 +30,7 @@ test('AI tournament is a wizard mode that skips the course step', async ({ page 
   // round flow entirely, so the wizard is now the per-round choices only. It
   // was waiting on a screen that had been deliberately deleted.
   await seedReturningDevice(page);
-  await page.goto('/');
+  await page.goto('/?ff.focusedGame=off'); // AI tournaments are a stripped mode
   // The mode cards live in the setup wizard. This spec pre-dates one-tap Play,
   // when the landing WAS the wizard, so it waited on a card that no longer
   // paints until the wizard is opened.
@@ -58,7 +61,7 @@ test('create a tournament surfaces a shareable code', async ({ page }) => {
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(store[path] ?? null) });
   });
-  await page.goto('/?lb=https://rtdb.test');
+  await page.goto('/?lb=https://rtdb.test&ff.focusedGame=off');
   await openDestination(page, 'compete');
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('click')));

@@ -18,9 +18,9 @@ import { openDestination, seedReturningDevice } from './support/wizard';
 /** The reference phone. Small enough to be honest, common enough to matter. */
 const PHONE = { width: 360, height: 800 };
 
-async function landing(page: import('@playwright/test').Page): Promise<void> {
+async function landing(page: import('@playwright/test').Page, query = ''): Promise<void> {
   await seedReturningDevice(page);
-  await page.goto('/');
+  await page.goto(`/${query}`);
   await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 30_000 });
 }
 
@@ -74,7 +74,10 @@ test('every destination opens, names itself, and closes', async ({ page }) => {
 
 test('nothing that used to be on the landing became unreachable', async ({ page }) => {
   await page.setViewportSize(PHONE);
-  await landing(page);
+  // The FULL game's inventory. The strip-down (`focusedGame`) deliberately
+  // removes several of these; that shape is asserted separately below, and
+  // conflating the two would let a genuine regression hide behind the flag.
+  await landing(page, '?ff.focusedGame=off');
 
   // The exact list of things the ten-card stack used to offer. If a rebuild
   // ever drops one, this is what says so.
@@ -134,4 +137,25 @@ test('opening a destination does not press the thing underneath it', async ({ pa
   // Still on the game, not on the marketing page.
   expect(page.url(), 'tapping More navigated away').not.toContain('marketing');
   await expect(page.locator('#landingPlay')).toBeVisible();
+});
+
+test('the strip-down removes systems rather than burying them', async ({ page }) => {
+  // `focusedGame` is the decision to stop shipping four ways to play a round
+  // and three ways to race somebody for a game with 21 holes. What it removes
+  // has to be GONE from the menus — a hidden entry that still half-works is the
+  // worst of both shapes.
+  await page.setViewportSize(PHONE);
+  await landing(page, '?ff.focusedGame=on');
+
+  await openDestination(page, 'compete');
+  await expect(page.locator('#tournyLink'), 'online tournaments survived the strip-down').toBeHidden();
+  // Course & mode and Records are core golf and stay.
+  await expect(page.locator('#landingSetup')).toBeVisible();
+  await expect(page.locator('#recordsLink')).toBeVisible();
+  await page.locator('#destSheetClose').dispatchEvent('pointerdown');
+
+  // The ghost race is one of three opponent systems; the daily hole carries it.
+  await openDestination(page, 'today');
+  await expect(page.locator('#ghostCard')).toBeEmpty();
+  await expect(page.locator('#dailyHoleCard')).not.toBeEmpty();
 });

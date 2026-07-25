@@ -2650,6 +2650,35 @@
       /* Summary button row + new-record banner */
       /* Menu sits below the fold-away details — always available, never
          competing with the two primary actions. */
+      /* Rate-the-hole. Asked once, at the moment the opinion exists. */
+      .holeSurvey {
+        margin: 8px 0 4px;
+        padding: 8px 10px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .holeSurvey .hsAsk {
+        display: block;
+        font-size: 12.5px;
+        font-weight: 800;
+        color: #dbe8d6;
+        margin-bottom: 6px;
+      }
+      .holeSurvey .hsRow {
+        display: flex;
+        gap: 6px;
+        justify-content: center;
+      }
+      .holeSurvey .hsStar {
+        width: 42px;
+        min-height: 38px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 213, 79, 0.4);
+        background: rgba(255, 213, 79, 0.1);
+        color: #ffd54f;
+        font-size: 16px;
+      }
       #summary .summaryMenu {
         margin-top: 8px;
         opacity: 0.8;
@@ -3209,6 +3238,20 @@
       }
       .profPane { display: none; }
       .profPane.on { display: block; }
+      /* Record boards: several short leaderboards stacked, each captioned so a
+         list of strangers means something. */
+      .boardBlock { margin-bottom: 14px; }
+      .boardHead {
+        font-size: 14px;
+        font-weight: 900;
+        color: #ffd54f;
+        margin-bottom: 2px;
+      }
+      .boardBlurb {
+        font-size: 11.5px;
+        color: #9fb8a4;
+        margin-bottom: 6px;
+      }
       .recList {
         display: flex;
         flex-direction: column;

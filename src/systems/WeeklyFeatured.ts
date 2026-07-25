@@ -65,6 +65,32 @@ function hash32(s: string): number {
   return h >>> 0;
 }
 
+/**
+ * The featured event covering `date`, on a DAILY cadence.
+ *
+ * A week is a very long time to leave one course featured in a game whose
+ * rounds take four minutes: by Wednesday there is nothing left to find on it,
+ * and the card is furniture until Monday. A day is the cadence everything else
+ * in the retention layer already runs on — the hole, the challenge, the streak
+ * — so the featured round joins them.
+ *
+ * The event id keeps its shape (`w<year>-<n>`) because it is a STORAGE KEY:
+ * profile bests and the shared leaderboard node are filed under it, and
+ * changing the format would orphan every existing entry rather than migrate it.
+ * The number is now the day-of-epoch rather than the ISO week.
+ */
+export function dailyEventFor(date: Date): WeeklyEvent {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  const dayNum = Math.floor(start.getTime() / 86400000);
+  const id = `w${start.getFullYear()}-d${dayNum}`;
+  const courseId = WEEKLY_ROTATION[((dayNum % WEEKLY_ROTATION.length) + WEEKLY_ROTATION.length) % WEEKLY_ROTATION.length];
+  const { isoYear, isoWeek } = isoWeekOf(date);
+  return { id, isoYear, isoWeek, courseId, seed: hash32(id), startMs: start.getTime(), endMs: end.getTime() };
+}
+
 /** The featured event covering `date` (defaults to now). Pure + deterministic. */
 export function weeklyEventFor(date: Date): WeeklyEvent {
   const { isoYear, isoWeek } = isoWeekOf(date);

@@ -366,6 +366,37 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     removeWhen:
       'PROMOTED to prod (playtest-approved) — bake the driver coefficient in and ' +
       'remove the flag'
+  },
+  {
+    key: 'focusedGame',
+    description:
+      'THE STRIP-DOWN (dev-only). The game had grown four ways to play a round ' +
+      '(solo, 1v1, scramble, AI tournament), three ways to race somebody (ghost, ' +
+      'rival, online tournament) and two tournament cadences — most of it aimed ' +
+      'at a content library of 21 holes. On: solo golf only, one social feature ' +
+      '(challenge a friend), the Hole of the Day with a rate-it survey, and a ' +
+      'DAILY tournament in place of the weekly. The modes and systems are hidden ' +
+      'rather than deleted, so the decision is reversible on a flag while it is ' +
+      'being lived with. Off = everything as shipped.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'DECIDED — either the removals are made permanent (delete the modes, the ' +
+      'rival and the ghost outright) or the flag comes out and the game keeps ' +
+      'them. It must not linger as a permanent fork.'
+  },
+  {
+    key: 'recordBoards',
+    description:
+      'LEADERBOARDS PER RECORD (dev-only): longest drive, most holes-in-one, ' +
+      'best average score, most chip-ins, and the rest of the career stats the ' +
+      'profile already tracks — ranked across every player, not just your own ' +
+      'personal bests. Reads the same world-readable /rounds node the admin ' +
+      'dashboard aggregates, so it costs no new writes on any gameplay path. ' +
+      'Off = Records shows only your own rounds, as it does today.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED once the boards have been watched on real traffic'
   }
 ];
 
@@ -402,8 +433,21 @@ function readOverride(key: string): boolean | null {
   return null;
 }
 
+/**
+ * Systems the strip-down switches off wholesale.
+ *
+ * `focusedGame` is not a feature of its own — it is the decision to stop
+ * shipping three parallel opponent systems for a 21-hole game. Composing it
+ * here rather than at each of the dozen call sites means the removal cannot be
+ * half-applied: there is no path where the rival is off but its invite handler
+ * is still armed. One level deep by construction, since `focusedGame` itself is
+ * not in the set.
+ */
+const SUPERSEDED_BY_FOCUS = new Set(['rival', 'ghostRace']);
+
 /** Resolve a flag to its effective boolean for this environment + overrides. */
 export function flag(key: string): boolean {
+  if (SUPERSEDED_BY_FOCUS.has(key) && flag('focusedGame')) return false;
   const def = DEFS_BY_KEY.get(key);
   if (!def) {
     // An unknown key is a programming error; fail safe to OFF rather than throw
