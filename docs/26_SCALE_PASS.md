@@ -305,7 +305,12 @@ same thing.
   (+30 over the previous pass).
 - `natureBatching` pixel gate green on three courses with real prop counts;
   gameplay / occlusion / results specs green.
-- Production build succeeds; `babylon` chunk 684 KB gz (from 1484 KB).
+- Production build succeeds; `babylon` chunk **703 KB gz** (from 1484 KB). It
+  was 684 KB when this pass first measured it; the courses and features added
+  since have pulled in a few more engine modules. The structural guards in
+  `tests/bundle.test.ts` are what actually hold the line — a single barrel
+  import would put it back over 1.4 MB, and no size number in a doc would
+  notice.
 - Live smokes: Hole of the Day builds and plays; the resume flow re-enters on
   hole 2 keeping the hole-1 score; one-tap Play skips the wizard; the tutorial
   card order is correct.

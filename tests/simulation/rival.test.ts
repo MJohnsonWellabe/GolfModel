@@ -81,6 +81,16 @@ describe('rival state', () => {
     expect(s.history[s.history.length - 1].date).toBe('2026-06-30');
   });
 
+  it('keeps the settled result, so a recalibration cannot rewrite the past', () => {
+    // The card reads a settled day out of history rather than re-deriving it.
+    // Without that, a sweep that moves the rival's standard would re-synthesise
+    // today's round and report a score the player never played against.
+    const s = settleRivalDay(armed(), '2026-07-25', 3, 5).state;
+    const today = s.history.find((d) => d.date === '2026-07-25')!;
+    expect(today.them).toBe(5);
+    expect(recalibrateRival({ ...s, skill: 1 }).history).toEqual(s.history);
+  });
+
   it('reads the standing from the player point of view', () => {
     expect(rivalStanding(armed()).label).toBe('First round against Dana Vaughn');
     expect(rivalStanding(armed({ wins: 12, losses: 9 })).label).toBe('You lead 12–9');

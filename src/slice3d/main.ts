@@ -7113,11 +7113,22 @@ function publishRivalEntry(dateKey: string, strokes: number, rec: RoundRecording
 
 /** The rival's line on the daily card: who they are, what they shot, and where
  *  the rivalry stands. One sentence — it is the reason to tap, not a screen. */
-function rivalLine(rec: RoundRecording | null): string {
+function rivalLine(rec: RoundRecording | null, dateKey?: string): string {
   if (!flag('rival')) return '';
   const r = profile.retention.rival;
   if (!hasRival(r)) return '';
   const standing = rivalStanding(r);
+  // Once a day is SETTLED, its result is the truth — not whatever a fresh
+  // synthesis would produce now. Recalibration moves the rival's standard after
+  // a sweep, so re-deriving today's round afterwards would quietly report a
+  // score the player never actually played against.
+  const settled = dateKey ? r.history.find((d) => d.date === dateKey) : undefined;
+  if (settled) {
+    return (
+      `<div class="dhRival">👤 <b>${escapeHtml(r.name)}</b> went round in ${settled.them}` +
+      ` · ${escapeHtml(standing.label)}</div>`
+    );
+  }
   if (!rec) {
     // A friend who has not teed off yet. Saying so is the honest version of an
     // empty fixture, and it is also a nudge — they are waiting on you too.
@@ -7212,7 +7223,7 @@ function updateDailyHoleCard(): void {
       `<span class="dhLabel">⛳ HOLE OF THE DAY · DONE</span>` +
       `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
       ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
-      rivalLine(rivalRec) +
+      rivalLine(rivalRec, key) +
       `<button id="dhShare" class="dhPlay">Share result</button>` +
       rivalInviteRow();
     document.getElementById('dhShare')!.addEventListener('pointerdown', () => {
