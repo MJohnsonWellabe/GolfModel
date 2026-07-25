@@ -172,15 +172,15 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'driverOverswingNerf',
     description:
-      'Tee-shot overpower fix (DEV-ONLY for now): removes the overswing distance ' +
-      'bonus for the DRIVER only (SWING.driverOverswingBonus), so overswinging a ' +
-      'drive no longer rockets the ball way past target. Every other club keeps ' +
-      'the shared overswing bonus. Gated to dev while we confirm it does not ' +
-      'disturb the wider swing feel. Off = the shipped behavior, byte-identical.',
+      'Tee-shot overpower fix: the DRIVER uses a negative overswing coefficient ' +
+      '(SWING.driverOverswingBonus), so an overhit drive flies SHORTER than a ' +
+      'flush strike instead of rocketing past target — the more you overswing the ' +
+      'more distance you lose. Every other club keeps the shared positive ' +
+      'overswing bonus. Off = the shipped behavior, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
-      'PROMOTED to prod (playtest-approved) — bake the driver bonus in and ' +
+      'PROMOTED to prod (playtest-approved) — bake the driver coefficient in and ' +
       'remove the flag'
   }
 ];

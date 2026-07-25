@@ -53,7 +53,7 @@ describe('feature flags', () => {
     // wildwoodPerf (default-course thinning) and tutorial ("Learn to play")
     // both default on in prod now — production runs the thinned Wildwood and
     // shows the onboarding entry.
-    for (const key of ['wildwoodPerf', 'tutorial']) {
+    for (const key of ['wildwoodPerf', 'tutorial', 'driverOverswingNerf']) {
       const def = FLAG_DEFS.find((d) => d.key === key);
       expect(def, key).toBeTruthy();
       expect(def!.defaults.dev, `${key} dev`).toBe(true);
