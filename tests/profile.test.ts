@@ -324,9 +324,20 @@ describe('loadoutLocked flag', () => {
 describe('device settings (persistent audio/motion preferences)', () => {
   it('round-trips through storage for guests (no profile persistence needed)', () => {
     const s = memStorage();
-    saveDeviceSettings({ sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false }, s);
+    saveDeviceSettings(
+      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood' },
+      s
+    );
     const back = loadDeviceSettings(s);
-    expect(back).toEqual({ sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false });
+    expect(back).toEqual({
+      sound: 0,
+      ambience: 0,
+      reducedMotion: true,
+      clipCapture: false,
+      firstRoundDone: false,
+      tutorialDone: true,
+      lastCourseId: 'wildwood'
+    });
   });
 
   it('returns null when nothing was ever saved (first visit uses defaults)', () => {

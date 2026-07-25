@@ -1,11 +1,11 @@
 {
   "name": "bite-sized-golf",
   "version": "1.0.0",
-  "description": "Johnson's Golf — mobile browser golf game (Babylon.js 3D + TypeScript)",
+  "description": "Johnson's Golf \u2014 mobile browser golf game (Babylon.js 3D + TypeScript)",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && node scripts/build-verify-bundle.mjs && vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:fast": "vitest run --exclude tests/simulation/scoring.test.ts --exclude tests/simulation/newCourses.test.ts --exclude tests/simulation/aiTournament.test.ts",
@@ -17,7 +17,9 @@
     "convert:nature": "node scripts/convert-nature.mjs",
     "convert:pals": "node scripts/convert-pals.mjs",
     "convert:sand": "node scripts/convert-sand-texture.mjs",
-    "convert:turf": "node scripts/convert-turf-texture.mjs"
+    "convert:turf": "node scripts/convert-turf-texture.mjs",
+    "build:verify": "node scripts/build-verify-bundle.mjs",
+    "models:compress": "node scripts/compress-models.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^9.15.0",
@@ -29,8 +31,10 @@
     "@gltf-transform/core": "^4.4.1",
     "@gltf-transform/functions": "^4.4.1",
     "@playwright/test": "^1.61.1",
+    "@types/pngjs": "^6.0.5",
     "fbx2gltf": "^0.9.7-p1",
     "meshoptimizer": "^1.2.0",
+    "pngjs": "^7.0.0",
     "sharp": "^0.34.0",
     "typescript": "^5.4.5",
     "vite": "^5.2.11",

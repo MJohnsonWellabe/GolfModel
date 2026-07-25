@@ -316,3 +316,33 @@ export async function signInWithGoogle(): Promise<string | null> {
     return null;
   }
 }
+
+/**
+ * Submit a finished round for SERVER-SIDE verification (docs/26_SCALE_PASS.md).
+ *
+ * The recording is the shots the player actually played; the function replays
+ * them through the same physics and writes the result to a node the client
+ * cannot write. Leaderboards read from there, so a score only counts once the
+ * server has re-played it.
+ *
+ * Never blocks gameplay: it is called after the results card is already on
+ * screen, every failure path is swallowed, and a signed-out or offline player
+ * simply gets an unverified round (their local records are unaffected).
+ */
+export async function submitRoundForVerification(
+  recording: unknown
+): Promise<{ ok: boolean; status?: string; error?: string }> {
+  if (!authConfigured()) return { ok: false, error: 'auth not configured' };
+  try {
+    await ensureFirebase();
+    const { getApp } = await import('firebase/app');
+    const { getFunctions, httpsCallable } = await import('firebase/functions');
+    const fns = getFunctions(getApp(), 'us-central1');
+    const call = httpsCallable(fns, 'verifyRound');
+    const res = await call({ recording });
+    const data = res.data as { ok?: boolean; status?: string };
+    return { ok: !!data.ok, status: data.status };
+  } catch (e) {
+    return { ok: false, error: (e as { message?: string }).message ?? String(e) };
+  }
+}

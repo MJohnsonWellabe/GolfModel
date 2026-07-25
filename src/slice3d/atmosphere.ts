@@ -6,7 +6,7 @@ import {
   Scene,
   StandardMaterial,
   Vector3
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { isFrozen } from '../core/debugFlags';
 import { hash2 } from '../systems/treeField';
 

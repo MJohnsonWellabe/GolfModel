@@ -60,3 +60,35 @@ export function pickAuthoredPin(hole: HoleData, rng: () => number): Point | null
   if (!pins || pins.length === 0) return null;
   return pins[Math.min(Math.floor(rng() * pins.length), pins.length - 1)];
 }
+
+/**
+ * The KINDEST authored pin on a hole: the one nearest the middle of the green.
+ *
+ * This is what a superintendent means by an easy pin — not tucked behind a
+ * bunker, not on a shelf, not three paces from an edge, so a slightly missed
+ * approach still finds putting surface instead of trouble. It is used to ease a
+ * device's first few rounds (`easeIn`): simulation puts the first-hole blow-up
+ * rate at 10% on Wildwood and 8% on Timberline for a casual player, and a
+ * beginner's very first hole is the worst possible place to spend that.
+ *
+ * Returns null when the hole has no authored pins, so the caller falls back to
+ * the normal seeded draw.
+ */
+export function gentlestAuthoredPin(hole: HoleData): Point | null {
+  const pins = hole.pins;
+  if (!pins || pins.length === 0) return null;
+  const cx = hole.green.cx;
+  const cy = hole.green.cy;
+  let best = pins[0];
+  let bestD = Infinity;
+  for (const p of pins) {
+    // Normalised by the green's radii so an oval green is judged by how far
+    // toward its EDGE the pin sits, not by raw distance.
+    const d = Math.hypot((p.x - cx) / (hole.green.rx || 1), (p.y - cy) / (hole.green.ry || 1));
+    if (d < bestD) {
+      bestD = d;
+      best = p;
+    }
+  }
+  return best;
+}

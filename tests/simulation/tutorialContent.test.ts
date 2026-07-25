@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PUTT_RULE } from '../../src/slice3d/tutorial';
+import { PUTT_RULE, WIND_RULE } from '../../src/slice3d/tutorial';
 import { PHYSICS } from '../../src/config';
 
 /**
@@ -29,5 +29,32 @@ describe('tutorial putting lesson', () => {
     // longer holds and this test flags that the lesson needs revisiting.
     expect(typeof PHYSICS.puttSlopePaceBoost).toBe('number');
     expect(PHYSICS.puttSlopePaceBoost).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The extended lesson (`tutorialDepth`) teaches wind, which is the input a new
+ * player is most likely to mistake for randomness. Same standard as the putting
+ * rule: the copy has to describe what the game actually does — the HUD arrow is
+ * drawn RELATIVE to the aim (HoleScene.updateHud rotates it by
+ * wind.angle - aim.yaw), the number is a speed, and nothing corrects for it.
+ */
+describe('tutorial wind lesson', () => {
+  it('points the player at the HUD wind chip', () => {
+    expect(WIND_RULE.toLowerCase()).toContain('wind');
+    expect(WIND_RULE.toLowerCase()).toMatch(/arrow/);
+  });
+
+  it('explains the arrow is relative to the aim, not the compass', () => {
+    expect(WIND_RULE.toLowerCase()).toContain('relative to your aim');
+  });
+
+  it('is honest that nothing auto-corrects for wind', () => {
+    expect(WIND_RULE.toLowerCase()).toMatch(/nothing here corrects|but you/);
+  });
+
+  it('wind is a real force in the physics the lesson describes', () => {
+    expect(typeof PHYSICS.maxWind).toBe('number');
+    expect(PHYSICS.maxWind).toBeGreaterThan(0);
   });
 });

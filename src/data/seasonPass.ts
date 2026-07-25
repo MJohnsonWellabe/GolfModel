@@ -1,8 +1,11 @@
 /**
  * Season Pass config — Season 1. Config only; the pure `SeasonPassEngine`
  * consumes this. Pass XP mirrors the round XP the player already earns
- * (ProgressionEngine's 'xp' event), so ~120 XP/round × 1200 XP/level × 50
- * levels ≈ 500 rounds to finish the track — the owner's pacing target.
+ * (ProgressionEngine's 'xp' event): at ~120 XP/round and 400 XP/level over 50
+ * levels the track is ~165 rounds — a season-long commitment that a committed
+ * player can actually finish. (It was 1200 XP/level ≈ 500 rounds, which against
+ * 21 authored holes meant replaying every hole ~70 times; see
+ * docs/26_SCALE_PASS.md.)
  *
  * Reward mix (owner spec, exact counts, total 50):
  *   ball 5 · trail 5 · club colors (clubskin) 5 · skin colors (outfit) 5 ·
@@ -64,8 +67,18 @@ export interface SeasonDef {
  * flatCost got small enough that the remainder reached d), breaking the
  * "every level costs strictly more" invariant.
  */
+/** XP per pass level, averaged across the progressive curve. See the note at
+ *  the SEASON_1 definition for why this is 400 and not the original 1200. */
+export const SEASON_XP_PER_LEVEL = 400;
+
 function progressiveXpCosts(levels: number, flatCost: number): number[] {
-  const d = Math.round(flatCost / 48 / 25) * 25; // clean step, ~2% of flatCost
+  // Step per level: ~2% of the flat cost, rounded to a clean number. The
+  // rounding GRANULARITY has to scale with the cost — quantising to 25 was fine
+  // at 1200 XP/level (step 25) but collapses to ZERO below ~600, which silently
+  // flattens the curve and breaks the "every level costs more than the last"
+  // invariant. Quantising to 5 keeps the 1200 curve byte-identical (1200/48 = 25
+  // either way) and stays progressive at the rescoped 400.
+  const d = Math.max(5, Math.round(flatCost / 48 / 5) * 5);
   const total = flatCost * levels;
   const a = Math.round((total - (d * levels * (levels - 1)) / 2) / levels);
   const costs = Array.from({ length: levels }, (_, i) => a + d * i);
@@ -169,7 +182,14 @@ export const SEASON_1: SeasonDef = {
   end: '2026-11-30',
   // Launch day (moved up from the original July 16 date).
   salesOpenAt: '2026-07-14T00:00:00Z',
-  xpPerLevel: progressiveXpCosts(50, 1200),
+  // PACING RESCOPE (docs/26_SCALE_PASS.md). The 1200 XP/level target was set
+  // for a game with far more content than 21 authored holes: ~120 XP/round
+  // meant ~500 rounds — about 1,500 hole-plays, or 70 visits to every hole in
+  // the game. A pass a real player cannot finish is worse than no pass; it
+  // teaches them the reward is not for them. 400 XP/level puts the track at
+  // ~165 rounds, still a season-long commitment, and the daily hole
+  // (`dailyHole`) is what will justify raising it again.
+  xpPerLevel: progressiveXpCosts(50, SEASON_XP_PER_LEVEL),
   levels: 50,
   rewards: REWARDS,
   priceUsd: 5,

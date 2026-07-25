@@ -6,7 +6,7 @@ import {
   Scene,
   SolidParticleSystem,
   StandardMaterial
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { isFrozen } from '../core/debugFlags';
 import { HoleData } from '../core/types';
 import { PhysicsEngine } from '../systems/PhysicsEngine';

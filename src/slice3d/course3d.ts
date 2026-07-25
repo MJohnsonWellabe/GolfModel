@@ -21,7 +21,7 @@ import {
   TransformNode,
   Vector3,
   VertexData
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { PHYSICS } from '../config';
 import { animTime, isFrozen } from '../core/debugFlags';
 import { flag as featureFlag } from '../core/flags';
@@ -47,6 +47,7 @@ import { HoleData } from '../core/types';
 import { AtmosphereKind, buildAtmosphere } from './atmosphere';
 import { buildBreakDots } from './breakDots';
 import { renderPacing } from './renderPacing';
+import { instanceHandle, NatureBatcher, PropHandle } from './natureBatch';
 import {
   BUSH_KEYS,
   CONIFER_KEYS,
@@ -689,6 +690,12 @@ export function buildCourse(
   // the horizon silhouettes that actually read in a reflection.
   const reflectStrength = theme.waterReflectStrength ?? 0.62;
   let waterMirror: MirrorTexture | null = null;
+  /** Set once a mirror exists: rebuild its render list from the scene as it
+   *  stands now. The fill loop below latches after a few stable frames (it
+   *  cannot run forever), so the scatter drain calls this once when planting
+   *  finishes to guarantee the final reflectable set — a straggler tree that
+   *  landed after the latch otherwise never reflects. */
+  let refreshMirrorList: (() => void) | null = null;
   let wi = 0;
   for (const hz of hole.hazards) {
     if (hz.type !== 'water') continue;
@@ -719,7 +726,10 @@ export function buildCourse(
         // resolve anyway — they're pure re-render cost on a dense hole's
         // thousands of ground-scatter instances (the water-hole meter lag).
         if (nm.startsWith('nat') && !nm.startsWith('natProto')) {
-          const src = (m as InstancedMesh).sourceMesh;
+          // Classic path: an instance carries the tag on its source. Batched
+          // path (`natureBatching`): the batch mesh IS the drawable and copies
+          // the prototype's metadata, so fall through to its own tag.
+          const src = (m as InstancedMesh).sourceMesh ?? m;
           return src?.metadata?.reflect === true;
         }
         return false;
@@ -727,6 +737,14 @@ export function buildCourse(
       let lastCount = -1;
       let lastMeshCount = -1;
       let stable = 0;
+      refreshMirrorList = (): void => {
+        if (!waterMirror) return;
+        const list = scene.meshes.filter(isReflectable);
+        if (list.length === lastCount) return;
+        lastCount = list.length;
+        waterMirror.renderList = list;
+        if (renderPacing.cameraParked) waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+      };
       const fillStart = performance.now();
       // Hard cutoff: on a bed-heavy hole (Wildwood's 17 garden beds cover a
       // combined ~140k sq units — many times any other course's scatter job)
@@ -1816,7 +1834,10 @@ export function buildCourse(
   // synchronously — the array is populated gradually as nature props load and
   // plant in, which the occlusion scan tolerates fine (it just sees more
   // candidates over time).
-  const canopyOcclusion: Array<{ insts: InstancedMesh[]; x: number; y: number; r: number; mass?: boolean }> = [];
+  const canopyOcclusion: Array<{ insts: PropHandle[]; x: number; y: number; r: number; mass?: boolean }> = [];
+  // Static-scatter batching (`natureBatching`). Off = the classic one-
+  // InstancedMesh-per-prop path, byte-identical.
+  const batcher = featureFlag('natureBatching') ? new NatureBatcher(treeRoot) : null;
   // Resolves once every tree/bush/flower/grass instance has actually been
   // planted (the chunked plant/pop queue below has fully drained) — the
   // flyover waits on this so the sweep never outruns the scatter and shows
@@ -1896,13 +1917,24 @@ export function buildCourse(
       y: number,
       targetH: number,
       tint?: Color4,
-      onPlanted?: (insts: InstancedMesh[]) => void
+      onPlanted?: (insts: PropHandle[]) => void
     ): void => {
       plantQueue.push(() => {
         const s = targetH / proto.height;
         const pos = w2b(x, y, heightAt(x, y));
         const rotY = hash2(y, x) * Math.PI * 2;
-        const planted: InstancedMesh[] = [];
+        const planted: PropHandle[] = [];
+        // BATCHED PATH (`natureBatching`): the same props, drawn as static thin
+        // instances grouped by spatial cell — no per-frame matrix upload and a
+        // few dozen scene nodes instead of thousands. See natureBatch.ts.
+        if (batcher) {
+          for (const part of proto.parts) {
+            const tintable = (part as Mesh & { tintable?: boolean }).tintable === true;
+            planted.push(batcher.plant(part, pos, rotY, s, tintable ? (tint ?? WHITE_TINT) : undefined));
+          }
+          onPlanted?.(planted);
+          return;
+        }
         // Instance every material part of the prop with one shared transform.
         for (const part of proto.parts) {
           const inst = part.createInstance(`nat${n++}`);
@@ -1929,7 +1961,7 @@ export function buildCourse(
           inst.freezeWorldMatrix();
           inst.doNotSyncBoundingInfo = true;
           inst.isPickable = false;
-          planted.push(inst);
+          planted.push(instanceHandle(inst));
         }
         onPlanted?.(planted);
       });
@@ -1954,11 +1986,21 @@ export function buildCourse(
           else if (plantHead < plantQueue.length) plantQueue[plantHead++]();
           else {
             scene.onBeforeRenderObservable.remove(drain);
+            // Batched path: push the final cell transforms before the course is
+            // declared ready, so the flyover never sees a half-uploaded batch.
+            batcher?.flush();
+            refreshMirrorList?.();
             resolveNatureReady();
             return;
           }
         }
-        if (performance.now() - t0 >= budget) return;
+        if (performance.now() - t0 >= budget) {
+          // Upload what this frame planted so the scatter fills in progressively
+          // (same visible behaviour as the instanced path) rather than popping in
+          // all at once at the end.
+          batcher?.flush();
+          return;
+        }
       }
     });
     // ---------------------------------------------- parked-camera perf pacing
@@ -2099,7 +2141,7 @@ export function buildCourse(
       // trunk (kind 3, treeField.collectTreeBlobs) uses the blossom prototype
       // — ordinary woods get an occasional cherry tree scattered through them
       // (Wildwood's spring-parkland identity), not just the dedicated groves.
-      const register = (insts: InstancedMesh[]): void => {
+      const register = (insts: PropHandle[]): void => {
         canopyOcclusion.push({ insts, x: b.x, y: b.y, r: Math.max(8, b.r) });
       };
       if ((b.blossom || b.kind === 3) && blossomProto) {
@@ -3435,7 +3477,7 @@ export function buildCourse(
     }
     return g;
   };
-  const activeGhosts = new Map<InstancedMesh, Mesh>();
+  const activeGhosts = new Map<PropHandle, Mesh>();
   let occlusionFrame = 0;
   const updateTreeOcclusion = (camPos: Vector3, golferPos: Vector3): void => {
     occlusionFrame++;
@@ -3443,7 +3485,7 @@ export function buildCourse(
     const dx = golferPos.x - camPos.x;
     const dz = golferPos.z - camPos.z;
     const segLen = Math.hypot(dx, dz);
-    const nowOccluding = new Set<InstancedMesh>();
+    const nowOccluding = new Set<PropHandle>();
     if (segLen > 0.5) {
       const ux = dx / segLen;
       const uz = dz / segLen;
@@ -3483,30 +3525,33 @@ export function buildCourse(
         if (perp < c.r * 1.3) for (const m of c.insts) nowOccluding.add(m);
       }
     }
-    // Entering occlusion: hide the instance, show a translucent ghost.
-    for (const inst of nowOccluding) {
-      if (activeGhosts.has(inst) || !(inst.sourceMesh.material instanceof StandardMaterial)) continue;
-      const src = inst.sourceMesh;
+    // Entering occlusion: hide the prop, show a translucent ghost.
+    for (const prop of nowOccluding) {
+      if (activeGhosts.has(prop) || !(prop.source.material instanceof StandardMaterial)) continue;
+      const src = prop.source;
       const ghost = src.clone(`ghost${src.name}${activeGhosts.size}`, treeRoot);
-      ghost.position.copyFrom(inst.position);
-      ghost.rotation.copyFrom(inst.rotation);
-      ghost.scaling.copyFrom(inst.scaling);
+      ghost.position.copyFrom(prop.position);
+      ghost.rotation.set(0, prop.rotationY, 0);
+      ghost.scaling.set(prop.scale, prop.scale, prop.scale);
       ghost.material = ghostFor(src.material as StandardMaterial);
       ghost.isPickable = false;
       ghost.doNotSyncBoundingInfo = true;
       ghost.receiveShadows = false;
       ghost.computeWorldMatrix(true);
       ghost.freezeWorldMatrix();
-      inst.isVisible = false;
-      activeGhosts.set(inst, ghost);
+      prop.setVisible(false);
+      activeGhosts.set(prop, ghost);
     }
-    // Leaving occlusion: drop the ghost, show the instance again.
-    for (const [inst, ghost] of activeGhosts) {
-      if (nowOccluding.has(inst)) continue;
+    // Leaving occlusion: drop the ghost, show the prop again.
+    for (const [prop, ghost] of activeGhosts) {
+      if (nowOccluding.has(prop)) continue;
       ghost.dispose();
-      inst.isVisible = true;
-      activeGhosts.delete(inst);
+      prop.setVisible(true);
+      activeGhosts.delete(prop);
     }
+    // A fade only ever rewrites matrices already inside a batch's bounds, so
+    // this is a small buffer re-upload on the frames the fade set changes.
+    batcher?.flush();
   };
 
   return {

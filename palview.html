@@ -18,8 +18,8 @@
   <body>
     <canvas id="c"></canvas>
     <script type="module">
-      import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, LoadAssetContainerAsync, Color4 } from '@babylonjs/core';
-      import '@babylonjs/loaders/glTF';
+      import { Engine, Scene, ArcRotateCamera, HemisphericLight, DirectionalLight, Vector3, LoadAssetContainerAsync, Color4 } from '/src/core/rendering/babylon';
+      import '/src/core/rendering/gltf';
       const q = new URLSearchParams(location.search);
       const pal = q.get('pal') ?? 'dragon';
       const ry = parseFloat(q.get('ry') ?? '0');

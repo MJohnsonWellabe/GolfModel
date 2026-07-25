@@ -61,6 +61,50 @@ describe('feature flags', () => {
     }
   });
 
+  it('everything from the smoothness + scale passes ships DEV-ONLY', () => {
+    // Every one of these changes how a live round looks, flows or scores, so
+    // they soak in dev until the device matrix has had them. A flag flipped to
+    // prod here by accident would ship an unplaytested change to live players.
+    for (const key of [
+      'natureBatching',
+      'resumeRound',
+      'tutorialDepth',
+      'quickPlay',
+      'roundRecording',
+      'dailyHole',
+      'shotAttribution',
+      'easeIn',
+      'practiceRange'
+    ]) {
+      const def = FLAG_DEFS.find((d) => d.key === key);
+      expect(def, key).toBeTruthy();
+      expect(def!.defaults.dev, `${key} dev`).toBe(true);
+      expect(def!.defaults.prod, `${key} prod`).toBe(false);
+    }
+  });
+
+  it('ghosts + verified scores stay off until the replay round-trip is exact', () => {
+    // Both consume a replayed recording. Until a live round reproduces
+    // bit-for-bit (tests/visual/roundRecording.spec.ts, currently fixme'd), a
+    // ghost would fly a line its owner never hit and the verifier would reject
+    // honest rounds. The recording itself stays ON — it self-checks and is
+    // harmless — so the data keeps accruing while the gap is closed.
+    for (const key of ['ghostRace', 'verifiedScores']) {
+      const def = FLAG_DEFS.find((d) => d.key === key)!;
+      expect(def.defaults.dev, `${key} dev`).toBe(false);
+      expect(def.defaults.prod, `${key} prod`).toBe(false);
+    }
+  });
+
+  it('the drag swing is off even in dev — it replaces a core control', () => {
+    // Unlike the rest of the pass, this one changes how every shot is HIT.
+    // It stays opt-in (?ff.dragSwing=on) so a dev session is playing the same
+    // game production is unless the swing is explicitly what is being tested.
+    const def = FLAG_DEFS.find((d) => d.key === 'dragSwing')!;
+    expect(def.defaults.dev).toBe(false);
+    expect(def.defaults.prod).toBe(false);
+  });
+
   it('allFlags snapshots every registered flag with a resolved value', () => {
     const snap = allFlags();
     expect(snap.map((s) => s.def.key)).toEqual(FLAG_DEFS.map((d) => d.key));

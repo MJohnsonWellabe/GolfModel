@@ -15,7 +15,7 @@ import {
   TransformNode,
   Vector3,
   Viewport
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES, SWING } from '../config';
 import { activeBedKind, BedKind, COURSE_BEDS, startBed } from '../core/audio/beds';
 import { setAmbienceMasterVolume } from '../core/audio/engine';
@@ -32,24 +32,23 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, TrajectoryPoint, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SpinState, SwingResult, TrajectoryPoint, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { personalityFor } from '../data/characterPersonality';
-import { CourseAuthoring, loadCourse } from '../data/courseLoader';
-import { withWildwoodPerf } from '../systems/wildwoodPerf';
-import { courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
-import wildwood from '../data/courses/wildwood.json';
-import sablebay from '../data/courses/sablebay.json';
-import timberline from '../data/courses/timberline.json';
-import portjohnson from '../data/courses/portjohnson.json';
-import redhollow from '../data/courses/redhollow.json';
-import wildvalley from '../data/courses/wildvalley.json';
-import timberlineV2 from '../data/courses/v2/timberline.json';
-import timberlineWestV2 from '../data/courses/v2/timberlinewest.json';
-import sablebayV2 from '../data/courses/v2/sablebay.json';
-import portjohnsonV2 from '../data/courses/v2/portjohnson.json';
+import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
+import { coursesFor, rosterFor } from '../data/courseRoster';
+import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
+import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
+import { ReplayOptions } from '../systems/RoundReplay';
+import { GhostRun } from '../systems/GhostRun';
+import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
+import { attributeShot } from '../systems/ShotAttribution';
+import { dailyHole, shareText } from '../systems/DailyHoleService';
+import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
+import { verifyRecording } from '../systems/RoundVerify';
+import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -63,9 +62,9 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyTeeVariants, pickAuthoredPin } from '../systems/Layouts';
+import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
@@ -115,7 +114,7 @@ import { TurnManager } from '../systems/TurnManager';
 import { drawWind } from '../systems/RoundSimulator';
 import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
-import { dist, randomPinForGreen } from '../utils/Geometry';
+import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { TreeSpecies } from '../systems/treeField';
 import { DEFAULT_TREE_MIX } from '../systems/treeHitbox';
@@ -124,7 +123,8 @@ import { computeTrueVisionOutcome } from '../systems/TrueVision';
 import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
-import { DomMeter } from './meter3d';
+import { DomMeter, MeterContext } from './meter3d';
+import { DragState, readDrag, resolveDragSwing, tuningForViewport } from '../core/input/DragSwing';
 import { ShotCapture } from './shotCapture';
 
 // ------------------------------------------------------------------- boot
@@ -248,6 +248,18 @@ function showMsg(text: string, ms = 1200): void {
   msgEl.textContent = text;
   msgEl.style.opacity = '1';
   setTimeout(() => (msgEl.style.opacity = '0'), ms);
+}
+
+/** The quiet "why that happened" line under the result (`shotAttribution`).
+ *  Empty text hides it — a shot with nothing to explain says nothing. */
+const shotWhyEl = document.getElementById('shotWhy') as HTMLElement | null;
+let shotWhyTimer: ReturnType<typeof setTimeout> | null = null;
+function showShotWhy(text: string, ms = 2400): void {
+  if (!shotWhyEl) return;
+  if (shotWhyTimer) clearTimeout(shotWhyTimer);
+  shotWhyEl.textContent = text;
+  shotWhyEl.style.opacity = text ? '1' : '0';
+  if (text) shotWhyTimer = setTimeout(() => (shotWhyEl.style.opacity = '0'), ms);
 }
 
 /** Last cloud-save outcome, so the account UI can flag a persistent failure. */
@@ -409,44 +421,18 @@ interface RoundState {
 // ON in production (playtest-approved release), so the two courses load for
 // everyone; adminUnlocked() remains as a legacy override path. The flag stays as
 // a kill switch until the courses are folded into the base roster.
+// The roster and which JSON each course loads now live in data/courseRoster.ts
+// — the server-side verifier has to build the SAME roster from the SAME files
+// and cannot import this module (Babylon, DOM, Firebase). Flags are resolved
+// here and passed in, so the roster module itself stays pure.
 const loadNewCourses = flag('newCourses') || adminUnlocked();
-// COURSE TEARDOWN/REBUILD (`courseRebuilds` flag): rebuilt v2 variants
-// (src/data/courses/v2/, emitted by gen-new-courses.mjs) replace the shipped
-// originals. The flag now defaults ON in production (playtest-approved release);
-// it remains as a kill switch until the v2 JSONs are folded over the originals.
 const rebuildsOn = flag('courseRebuilds');
-const REBUILDS: Record<string, unknown> = rebuildsOn
-  ? { timberline: timberlineV2, sablebay: sablebayV2, portjohnson: portjohnsonV2 }
-  : {};
-const courseSrc = (id: string, original: unknown): CourseAuthoring =>
-  (REBUILDS[id] ?? original) as CourseAuthoring;
-// Wildwood Glen perf pass (dev-only, `wildwoodPerf` flag): a pure, visuals-only
-// thinning of the default course's render vegetation + reflection cost. Prod
-// (flag off) loads the shipped JSON untouched. See systems/wildwoodPerf.ts.
-const wildwoodSrc: unknown = flag('wildwoodPerf')
-  ? withWildwoodPerf(wildwood as unknown as CourseAuthoring)
-  : wildwood;
-const COURSES: Record<string, CourseData> = {
-  wildwood: loadCourse(courseSrc('wildwood', wildwoodSrc)),
-  sablebay: loadCourse(courseSrc('sablebay', sablebay)),
-  // `timberline` (id preserved for dev-save/records compatibility) loads the v2
-  // rebuild — now branded "Timberline East" — when the rebuild flag is on.
-  timberline: loadCourse(courseSrc('timberline', timberline)),
-  portjohnson: loadCourse(courseSrc('portjohnson', portjohnson)),
-  // Timberline West: a NEW dev-only course (no production original). It appears
-  // in the roster only under the courseRebuilds flag, with its own id/records.
-  ...(rebuildsOn ? { timberlinewest: loadCourse(timberlineWestV2 as unknown as CourseAuthoring) } : {}),
-  ...(loadNewCourses
-    ? {
-        redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
-        wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring)
-      }
-    : {})
+const ROSTER_FLAGS = {
+  newCourses: loadNewCourses,
+  courseRebuilds: rebuildsOn,
+  wildwoodPerf: flag('wildwoodPerf')
 };
-
-/** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
- *  Sable Bay. Thin binding of the shared roster to courseDefaults' helper. */
-const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, COURSES);
+const COURSES: Record<string, CourseData> = coursesFor(ROSTER_FLAGS);
 
 // Fire the real-turf-grain preloads at boot, well before any round can start
 // (the menu is always shown first) — the ground bake is synchronous and
@@ -457,27 +443,17 @@ preloadGrassGrain('textures/turf_grain_rough.jpg');
 preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Full course roster metadata (id → display + one-line character). */
-const COURSE_ROSTER: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'marketing/img/sablebay-island.png', difficulty: 'Daring' },
-  // Under the courseRebuilds flag (dev) the v2 rebuild is branded "Timberline
-  // East" and a sibling "Timberline West" (production routing, East presentation)
-  // joins the roster; in production the id stays plain "Timberline".
-  { id: 'timberline', name: rebuildsOn ? 'Timberline East' : 'Timberline', tag: 'Forest · granite doglegs, a downhill tarn, a two-route par 5', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
-  ...(rebuildsOn
-    ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' }]
-    : []),
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
-  // V2 content expansion — now released (newCourses defaults on in prod), so they
-  // load into COURSES and appear as playable entries in COURSE_LIST.
-  { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
-  { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
-];
+const COURSE_ROSTER = rosterFor(ROSTER_FLAGS);
 /** The playable roster (loaded into COURSES). */
 const COURSE_LIST = COURSE_ROSTER.filter((c) => COURSES[c.id]);
 /** Roster entries present in the metadata but NOT loaded — shown as locked
  *  "Coming soon" teaser cards. Empty now that every course is released. */
+
 const COMING_SOON_COURSES = COURSE_ROSTER.filter((c) => !COURSES[c.id]);
+
+/** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
+ *  Sable Bay. Thin binding of the shared roster to courseDefaults' helper. */
+const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, COURSES);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
@@ -599,27 +575,43 @@ function windForHole(idx: number): Wind {
  *  casual rounds. Kept clear of the green's rim by randomPinForGreen. */
 function pinForHole(idx: number): Point {
   if (!round.holePins[idx]) {
-    const h = round.course.holes[idx];
-    const rng = round.seed !== undefined ? mulberry32(round.seed * 2003 + idx * 97 + 7) : Math.random;
-    // Layouts (flag-gated): a hole with AUTHORED pin placements draws among
-    // those deliberate positions; otherwise (or flag off) the classic random
-    // ellipse pin. Same seeded stream either way.
-    const authored = flag('layouts') ? pickAuthoredPin(h, rng) : null;
-    // Contoured greens (tiers, crowns, shelves): veto random cups on slopes
-    // too steep to hold a resting ball — the same heightfield the round
-    // plays on, so the veto and the roll agree exactly.
     const theme = resolveTheme(round.course);
-    const hf = buildHeightField(h, theme.bunkerDepthScale ?? 1, theme.wasteDepthScale ?? 0);
-    const gradMag = hf
-      ? (x: number, y: number) => {
-          const g = hf.gradientAt(x, y);
-          return Math.hypot(g.x, g.y);
-        }
-      : undefined;
-    round.holePins[idx] = authored ?? randomPinForGreen(h.green, h.green2, rng, gradMag);
+    round.holePins[idx] = pinForSeed(round.seed, idx, round.course.holes[idx], {
+      useAuthoredPins: flag('layouts'),
+      bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+      wasteDepthScale: theme.wasteDepthScale ?? 0,
+      gentlePins: easeInActive()
+    });
   }
   return round.holePins[idx];
 }
+
+/**
+ * Ease-in (`easeIn`): should THIS round draw the kindest pins?
+ *
+ * Only for a device's first few casual rounds. Simulation puts the casual
+ * first-hole blow-up rate at 10% on Wildwood and 8% on Timberline, and a
+ * beginner's opening hole is the worst place in the product to spend that — it
+ * lands before any of the progressive-disclosure rewards unlock.
+ *
+ * Deliberately EXCLUDES every shared-seed round — weekly, async challenge,
+ * tournament, Hole of the Day, ghost race — because those promise identical
+ * conditions for every entrant, and quietly softening one player's pins would
+ * make their score incomparable. Invisible when it applies, absent when it
+ * would be unfair.
+ */
+function easeInActive(): boolean {
+  if (!flag('easeIn')) return false;
+  if (round.tournament || round.weeklyEventId || round.challenge || activeGhost || dailyRound) return false;
+  if (round.mode !== 'solo') return false;
+  return profile.stats.rounds < EASE_IN_ROUNDS;
+}
+
+/** How many completed rounds the gentle-pin ease-in covers. Three is one full
+ *  sitting: long enough to learn the swing, short enough that the player is on
+ *  the real course before they could form a habit around softer pins. */
+const EASE_IN_ROUNDS = 3;
+
 
 /** Score vs par across a participant's completed holes, broadcast style. */
 function scoreToPar(p: Participant): string {
@@ -780,6 +772,28 @@ class HoleScene {
   /** Current ball-mesh size multiplier (1 off the green, PUTT_BALL_SCALE on it)
    *  so the ball rests on the surface at either size. */
   private ballScale = 1;
+  /** Translucent stand-in flying the ghost's recorded shot alongside the
+   *  player's (`ghostRace`). Created lazily on the first ghost shot and
+   *  disposed with the scene. */
+  private ghostBall: Mesh | null = null;
+  /** The ghost's flight currently in the air, advanced by the same tick that
+   *  advances the player's so both balls read as one moment. */
+  private ghostFlight: { path: TrajectoryPoint[]; progress: number } | null = null;
+  /** How many shots the ghost has played on this hole so far. */
+  private ghostShotIdx = 0;
+  /** The exact parameters + spin of the shot in the air, kept so the post-shot
+   *  breakdown can re-fly counterfactuals off them (`shotAttribution`). */
+  private lastShotParams: Parameters<PhysicsEngine['resolveLaunch']>[0] | null = null;
+  private lastShotSpin: SpinState = { side: 0, top: 0 };
+  /** The swing context this turn was armed with, shared by the tap meter and
+   *  the drag swing so a perfect strike means the same thing on both. */
+  private swingCtx: MeterContext | null = null;
+  /** Live drag-swing gesture (`dragSwing`), or null when not swinging. */
+  private dragSwing: { x0: number; y0: number; state: DragState } | null = null;
+  /** Per-shot random source for the physics engine (see the engine's
+   *  construction). Re-seeded before every shot from the round seed, the hole
+   *  and the stroke number, so the same shot always breaks the same way. */
+  private shotRng: () => number = mulberry32(1);
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     markPerf(round.course.name, this.hole.number, 'hole-constructor-start');
@@ -798,7 +812,15 @@ class HoleScene {
     this.engine2d = new PhysicsEngine(
       this.hole,
       buildHeightField(this.hole, this.theme.bunkerDepthScale ?? 1, this.theme.wasteDepthScale ?? 0),
-      undefined,
+      // DETERMINISM: the physics consults randomness in exactly one place — the
+      // deflection angle when a putt lips out and horseshoes away. Left as
+      // Math.random that single branch makes a round IRREPRODUCIBLE, which
+      // quietly breaks everything built on replaying one: an honest round with
+      // a lip-out would fail verification, and a ghost would take a different
+      // line than its owner did. Seeding it per shot (below, in executeShot)
+      // costs nothing, changes no distribution, and makes the whole game a
+      // function of (seed, inputs).
+      () => this.shotRng(),
       treeSpecies,
       this.theme.edgeWobble ?? 1
     );
@@ -960,6 +982,7 @@ class HoleScene {
       scores: this.curPart().scores
     };
 
+    this.ghostShotIdx = 0; // the ghost's shot index is per HOLE, not per round
     this.wireInput();
     this.scene.onBeforeRenderObservable.add(() => this.tick());
     // Compile the address-time shaders DURING the flyover so the first shot is
@@ -1179,14 +1202,18 @@ class HoleScene {
       flag('driverOverswingNerf') && !this.aim.isPutting && this.aim.club.id === 'driver'
         ? SWING.driverOverswingBonus
         : undefined;
-    meter.arm({
+    const swingCtx = {
       stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).zone,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
       perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone,
       difficultyMult: this.swingDifficulty(),
       overswingBonus
-    });
+    };
+    // The drag swing (`dragSwing`) resolves against the SAME context, so both
+    // control schemes share one definition of a perfect strike.
+    this.swingCtx = swingCtx;
+    meter.arm(swingCtx);
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
     // Fire vignette (juice): while an on-fire HUMAN is at address, a static
@@ -1896,7 +1923,11 @@ class HoleScene {
     // when putting, the opening aim/swing/shape lessons off the first tee, else
     // the aerial-view tip on an approach. Each concept shows exactly once.
     if (tutorialCoach.isActive()) {
-      tutorialCoach.onAiming(this.aim.isPutting, this.state.strokes === 0 && !this.aim.isPutting);
+      tutorialCoach.onAiming({
+        isPutting: this.aim.isPutting,
+        firstTee: this.state.strokes === 0 && !this.aim.isPutting,
+        lie: this.state.lie
+      });
     }
   }
 
@@ -2329,7 +2360,8 @@ class HoleScene {
       `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(this.curPart())}</span></div>` +
       (round.mode !== 'solo'
         ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
-        : '');
+        : '') +
+      (activeGhost ? this.ghostHudRow() : '');
     if (html !== this.lastHudHtml) {
       this.lastHudHtml = html;
       hudEl.innerHTML = html;
@@ -2417,7 +2449,7 @@ class HoleScene {
         : { ...this.strike.shapeSpin };
     const launchMult = !shaping ? 1 : this.ai ? 1 - shape.top * 0.18 : this.strike.launchMult;
     const spin = { side: 0, top: shape.top };
-    const launch = this.engine2d.resolveLaunch({
+    const shotParams = {
       origin: this.state.ballPos,
       aimAngle: this.aim.yaw,
       swing: converted,
@@ -2433,7 +2465,17 @@ class HoleScene {
       // Pre-shot stroke count (0 = tee shot) → recovery shots get a more
       // forgiving tree hitbox.
       stroke: this.state.strokes
-    });
+    };
+    const launch = this.engine2d.resolveLaunch(shotParams);
+    // Re-seed the physics randomness for THIS shot so the round stays
+    // reproducible (see the engine construction). Derived from the round seed,
+    // hole and stroke number — the same three things the replay knows.
+    this.shotRng = mulberry32(shotRngSeed(round.seed ?? 0, round.holeIdx, this.state.strokes));
+    // Keep the EXACT parameters this shot resolved from, so the post-shot
+    // breakdown can re-fly it with one factor removed and measure the real
+    // difference rather than estimating one (systems/ShotAttribution.ts).
+    this.lastShotParams = shotParams;
+    this.lastShotSpin = { ...spin };
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
     // hit perfect perfect, I shouldn't miss"): a PERFECT-PERFECT stroke on the
@@ -2453,6 +2495,26 @@ class HoleScene {
       outcome = tvReveal.outcome;
     }
     this.strike.resetDot();
+    // Record the HUMAN's inputs for this stroke (`roundRecording`). Everything
+    // else about the shot — where the ball was, the lie, the wind, the stroke
+    // count — is a consequence of the seed and the shots before it, so it is
+    // deliberately NOT stored. Pure array push; nothing here touches storage or
+    // the network, so it is safe on the shot path.
+    if (!this.ai) {
+      roundRecorder.add({
+        h: round.holeIdx,
+        a: this.aim.yaw,
+        c: club.id,
+        p: converted.power,
+        pq: converted.powerQuality,
+        ac: converted.accuracy,
+        aq: converted.accuracyQuality,
+        ss: shape.side,
+        st: shape.top,
+        lm: launchMult,
+        rm: shaping && !this.ai ? this.strike.riskMult : 1
+      });
+    }
     // Feed the streak AFTER the shot resolves with the pre-shot boost
     if (fire.recordSwing(converted)) {
       if (!this.ai && flag('delight')) {
@@ -2513,6 +2575,7 @@ class HoleScene {
         tmat.alpha = onFire ? 0.62 : 0.55;
         trail.material = tmat;
       }
+      this.launchGhostShot();
       this.flight = {
         outcome,
         progress: 0,
@@ -2617,9 +2680,11 @@ class HoleScene {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
       this.golfer.react('deject');
+      if (!c.isAI && tutorialCoach.isActive()) tutorialCoach.onPenalty('water');
     } else if (outcome.obPenalty) {
       showMsg('OUT OF BOUNDS! +1 penalty', 1500);
       this.golfer.react('deject');
+      if (!c.isAI && tutorialCoach.isActive()) tutorialCoach.onPenalty('ob');
     } else if (outcome.hitRock) {
       // Stone knock: the existing 'hit' buffer, rate-shifted brighter than a
       // turf thump so the carom reads as rock, not ground.
@@ -2632,9 +2697,23 @@ class HoleScene {
     } else if (!c.isAI) {
       this.showShotReadout(origin, outcome, club);
     }
-    if (this.state.strokes >= RULES.maxStrokes && !c.holed) {
+    // Practice has no stroke cap — the whole point is to keep hitting. Elsewhere
+    // the cap is what stops a bad hole becoming an endless one.
+    if (!practiceMode && this.state.strokes >= RULES.maxStrokes && !c.holed) {
       showMsg(`Pick up — max ${RULES.maxStrokes}`, 1600);
       this.golfer.react('deject');
+    }
+    if (practiceMode) {
+      practiceShots += 1;
+      // A practice ball that has wandered a long way from the hole has stopped
+      // teaching anything; re-tee rather than making the player walk it back.
+      if (this.state.strokes >= PRACTICE_MAX_SHOTS && !c.holed) {
+        showMsg('New ball', 900);
+        setTimeout(() => {
+          if (!this.disposed) this.resetToTee();
+        }, 700);
+        return;
+      }
     }
 
     // Hole over when every competitor has holed / picked up; otherwise the
@@ -2797,7 +2876,26 @@ class HoleScene {
     } else {
       msg = toPinYd < 30 ? `${Math.round(toPinYd * 3)} ft to the hole` : `${Math.round(toPinYd)} yd to the hole`;
     }
+    // WHY it finished there (`shotAttribution`). Counterfactual re-flights of
+    // the same resolved shot with one factor removed — see
+    // systems/ShotAttribution.ts. Runs at REST, never on the tap path, and says
+    // nothing at all when nothing was worth saying.
     showMsg(msg, 1600);
+    showShotWhy(this.shotWhy(outcome), 2600);
+  }
+
+  /** One line of "here is what happened to that shot", or '' when the shot was
+   *  unremarkable. Putts are excluded: pace and read are already taught
+   *  directly, and a breakdown on every tap-in would be noise. */
+  private shotWhy(outcome: ShotOutcome): string {
+    if (!flag('shotAttribution') || !this.lastShotParams) return '';
+    if (this.lastShotParams.club.id === 'putter') return '';
+    try {
+      return attributeShot(this.engine2d, this.lastShotParams, this.lastShotSpin, outcome.finalPos).summary;
+    } catch {
+      // A breakdown is a nicety; it must never be able to break a shot.
+      return '';
+    }
   }
 
   /** Scramble: collect both teammates' attempts, keep the better ball. */
@@ -2838,6 +2936,18 @@ class HoleScene {
   }
 
   private finishHole(): void {
+    // PRACTICE (`practiceRange`): no card, no round, no end. Holing out just
+    // re-tees — the point of a practice ground is that nothing is at stake and
+    // the next ball is always right there.
+    if (practiceMode) {
+      practiceShots = 0;
+      showMsg('Nice — another ball', 1100);
+      setTimeout(() => {
+        if (this.disposed) return;
+        this.resetToTee();
+      }, 900);
+      return;
+    }
     this.state.phase = 'done';
     // Persist each competitor's fire streak so it survives the HoleScene
     // teardown/rebuild on the way to the next hole (only a missed band ends it).
@@ -2852,6 +2962,19 @@ class HoleScene {
   private wireInput(): void {
     this.onSwingTap = (e: Event): void => {
       e.preventDefault();
+      // DRAG SWING (`dragSwing`): press and pull back instead of tapping three
+      // times. Handled here so the button stays the one place a swing starts,
+      // whichever scheme is live.
+      if (flag('dragSwing') && !this.ai && this.state.phase === 'aiming') {
+        const pe = e as PointerEvent;
+        startAmbience();
+        if (!meter.isArmed) this.armMeter();
+        meterEl.style.display = 'block';
+        shotCapture.setRotationPaused(!isFrozen());
+        this.dragSwing = { x0: pe.clientX, y0: pe.clientY, state: { power: 0, face: 0, engaged: false } };
+        promptEl.textContent = 'Pull back… release to strike';
+        return;
+      }
       // ADJ-3 input-latency: the "ignored taps" complaint is event DISPATCH
       // latency — a pointerdown queued behind a long render frame runs late.
       // e.timeStamp is the input's creation time (same epoch as performance.now),
@@ -2876,6 +2999,35 @@ class HoleScene {
       meter.handleTap();
     };
     swingBtn.addEventListener('pointerdown', this.onSwingTap);
+
+    // Drag-swing move/release live on the WINDOW: the pull naturally travels
+    // off the button, and a release outside it must still strike (or cancel)
+    // rather than leaving the player holding a club forever.
+    this.onDragSwingMove = (e: PointerEvent): void => {
+      if (!this.dragSwing) return;
+      e.preventDefault();
+      const t = tuningForViewport(window.innerHeight);
+      this.dragSwing.state = readDrag(e.clientX - this.dragSwing.x0, e.clientY - this.dragSwing.y0, t);
+      meter.showDrag(this.dragSwing.state.power, this.dragSwing.state.face);
+      const pct = Math.round(this.dragSwing.state.power * 100);
+      promptEl.textContent = this.dragSwing.state.engaged ? `${pct}% — release to strike` : 'Pull back…';
+    };
+    this.onDragSwingUp = (): void => {
+      const drag = this.dragSwing;
+      this.dragSwing = null;
+      if (!drag) return;
+      meter.hideDrag();
+      if (!drag.state.engaged || !this.swingCtx) {
+        // Too small to be a swing — treat it as a cancel, not a duffed shot.
+        promptEl.textContent = 'Drag to aim — tap SWING';
+        shotCapture.setRotationPaused(false);
+        return;
+      }
+      this.executeShot(resolveDragSwing(drag.state, this.swingCtx));
+    };
+    window.addEventListener('pointermove', this.onDragSwingMove);
+    window.addEventListener('pointerup', this.onDragSwingUp);
+    window.addEventListener('pointercancel', this.onDragSwingUp);
 
     this.onPointerDown = (e: PointerEvent): void => {
       startAmbience();
@@ -3002,6 +3154,75 @@ class HoleScene {
   }
 
   /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */
+  /**
+   * Send the ghost's corresponding shot into the air at the same moment the
+   * player's leaves the club. Same hole, same shot number — so on a par 4 your
+   * drive races their drive, not their putt. When the ghost has already holed
+   * out there is simply nothing left to fly, which reads exactly as it should.
+   */
+  private launchGhostShot(): void {
+    const ghost = activeGhost;
+    if (!ghost || this.ai) return;
+    const shot = ghost.shot(round.holeIdx, this.ghostShotIdx);
+    this.ghostShotIdx += 1;
+    if (!shot || !shot.path.length) return;
+    if (!this.ghostBall) {
+      const g = MeshBuilder.CreateSphere('ghostBall', { diameter: 1.0, segments: 10 }, this.scene);
+      const gm = new StandardMaterial('ghostBallMat', this.scene);
+      gm.diffuseColor = new Color3(0.55, 0.85, 1);
+      gm.emissiveColor = new Color3(0.2, 0.42, 0.6);
+      gm.specularColor = new Color3(0.2, 0.2, 0.2);
+      // Translucent so it never hides the player's own ball or the pin, and
+      // unpickable/shadowless so a second ball adds no gameplay ambiguity and
+      // no per-frame cost beyond its own draw.
+      gm.alpha = 0.55;
+      g.material = gm;
+      g.isPickable = false;
+      g.receiveShadows = false;
+      this.ghostBall = g;
+    }
+    this.ghostBall.scaling.setAll(this.ballScale);
+    this.ghostBall.setEnabled(true);
+    this.ghostFlight = { path: shot.path, progress: 0 };
+  }
+
+  /** The running head-to-head line. Like-for-like: the ghost's strokes on the
+   *  hole in progress only count as far as the player has played it, so the
+   *  readout never says you are behind on a hole you have not started. */
+  private ghostHudRow(): string {
+    const ghost = activeGhost;
+    if (!ghost) return '';
+    const st = ghost.standing(this.curPart().scores, round.holeIdx, this.state.strokes, round.holeIdx);
+    const cls = st.diff > 0 ? 'ghostAhead' : st.diff < 0 ? 'ghostBehind' : '';
+    return (
+      `<div class="row"><span class="chip ghost ${cls}">👻 ${escapeHtml(ghost.name)} ${st.ghost}` +
+      ` · you ${st.you} — ${st.label}</span></div>`
+    );
+  }
+
+  /** Advance the ghost's ball along its recorded path. Driven by the same tick
+   *  and the same timescale as the player's flight, so the two shots stay in
+   *  step; when it runs out of path the ball rests where the ghost's did. */
+  private tickGhost(dt: number): void {
+    const gf = this.ghostFlight;
+    if (!gf || !this.ghostBall) return;
+    gf.progress += dt * 60 * this.flightTimescale();
+    const i = Math.floor(gf.progress);
+    if (i >= gf.path.length - 1) {
+      const last = gf.path[gf.path.length - 1];
+      this.ghostBall.position = w2b(last.x, last.y, last.z + this.ballRestH() + this.gh(last.x, last.y));
+      this.ghostFlight = null;
+      return;
+    }
+    const p = gf.path[i];
+    const pn = gf.path[i + 1];
+    const f = gf.progress - i;
+    const bx = p.x + (pn.x - p.x) * f;
+    const by = p.y + (pn.y - p.y) * f;
+    const bz = p.z + (pn.z - p.z) * f;
+    this.ghostBall.position = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
+  }
+
   private applySwipeSpin(e: PointerEvent): void {
     const fl = this.flight;
     if (!fl || !fl.launch || fl.landed || fl.isPutt || !this.swipeLast) {
@@ -3039,10 +3260,16 @@ class HoleScene {
       }
     }
     fl.landIdx = landIdx;
+    // The recording keeps the LAST swipe and the step it was applied from —
+    // replaying with the spin applied from step 0 would land the ball somewhere
+    // the player never hit it (systems/RoundRecording.ts).
+    if (!this.ai) roundRecorder.setFlightSpin(ns.side, ns.top, cur);
     promptEl.textContent = `✨ spin ${ns.side >= 0 ? '→' : '←'}${Math.abs(ns.side).toFixed(1)} ${ns.top >= 0 ? '↟' : '↡'}${Math.abs(ns.top).toFixed(1)}`;
   }
 
   private onSwingTap!: (e: Event) => void;
+  private onDragSwingMove!: (e: PointerEvent) => void;
+  private onDragSwingUp!: () => void;
   private onPointerDown!: (e: PointerEvent) => void;
   private onPointerMove!: (e: PointerEvent) => void;
   private onPointerUp!: () => void;
@@ -3095,6 +3322,8 @@ class HoleScene {
         aimReadoutEl.style.display = 'none';
       }
     }
+
+    this.tickGhost(dt);
 
     if (this.flight) {
       this.flight.progress += dt * 60 * this.flightTimescale();
@@ -3274,6 +3503,35 @@ class HoleScene {
     return this.course3d.occlusionCandidates();
   }
 
+  /** Put the ball back on the tee with a clean card. Practice re-tees with it;
+   *  the test hook `dropAt` uses the same path from an arbitrary spot. */
+  resetToTee(): void {
+    const c = this.comps[this.turnIdx];
+    c.ball = { ...this.hole.tee };
+    c.lie = 'tee';
+    c.holed = false;
+    c.strokes = 0;
+    this.state.strokes = 0;
+    this.beginTurn();
+  }
+
+  /**
+   * Test hook: fast-forward the shot currently in the air to its resting place.
+   *
+   * Headless throttles rAF, and a tight `scene.render()` loop produces
+   * near-zero frame deltas, so a flight advances a fraction of a sample per
+   * render — a spec cannot play a round in reasonable time by rendering. This
+   * jumps playback to the final sample, which lands on the same terminal branch
+   * the normal tick reaches (the one a "tap to skip the roll" already uses), so
+   * the shot resolves through the real code path.
+   */
+  settleFlight(): boolean {
+    if (!this.flight) return false;
+    this.flight.progress = this.flight.outcome.path.length;
+    this.tick();
+    return true;
+  }
+
   /** Test hook: place the current competitor's ball anywhere and re-tee. */
   dropAt(x: number, y: number): void {
     const c = this.comps[this.turnIdx];
@@ -3308,6 +3566,9 @@ class HoleScene {
     for (const t of this.introTimers) clearTimeout(t);
     this.introTimers.length = 0;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
+    window.removeEventListener('pointermove', this.onDragSwingMove);
+    window.removeEventListener('pointerup', this.onDragSwingUp);
+    window.removeEventListener('pointercancel', this.onDragSwingUp);
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     canvas.removeEventListener('pointerup', this.onPointerUp);
@@ -3405,6 +3666,11 @@ let roundNewStars: Array<{ hole: number; star: 1 | 2 | 3 }> = [];
 function beginRoundTracking(): void {
   roundNewStars = [];
   roundStartedAt = Date.now();
+  // Practice is not a round and must never enter the funnel: it has no end, so
+  // every practice session would otherwise read as a started-and-abandoned
+  // round and quietly wreck the completion metric the retention dashboard is
+  // built on (docs/technical/ANALYTICS_FRAMEWORK.md).
+  if (practiceMode) return;
   analytics.track('round_started', {
     course: courseIdByName(round.course.name),
     mode: round.mode
@@ -3448,7 +3714,43 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
   });
 }
 
+/**
+ * Checkpoint the round at a hole boundary so an interrupted player can come
+ * back and finish it (`resumeRound` flag). Deliberately narrow: plain solo
+ * rounds only — see systems/RoundCheckpoint.ts for why versus / AI-tournament /
+ * weekly / tournament / challenge rounds are excluded — and never during the
+ * tutorial, which is its own guided thing with its own entry point.
+ */
+function checkpointRound(): void {
+  if (!flag('resumeRound') || practiceMode) return;
+  if (
+    round.mode !== 'solo' ||
+    aiTour ||
+    round.tournament ||
+    round.weeklyEventId ||
+    round.challenge ||
+    tutorialCoach.isActive() ||
+    round.seed === undefined
+  ) {
+    return;
+  }
+  const holes = holesThisRound();
+  if (round.holeIdx <= 0 || round.holeIdx >= holes) return;
+  saveCheckpoint(
+    checkpointFor({
+      courseId: courseIdByName(round.course.name),
+      seed: round.seed,
+      holeIdx: round.holeIdx,
+      holes,
+      scores: round.players[0]?.scores ?? [],
+      parSoFar: round.course.holes.slice(0, round.holeIdx).reduce((a, h) => a + h.par, 0),
+      at: Date.now()
+    })
+  );
+}
+
 function playHole(): void {
+  checkpointRound();
   current?.dispose();
   // Layouts (flag-gated): materialize this seed's tee variants onto the round
   // course. Idempotent + deterministic (same seed → same tees), so calling it
@@ -3460,7 +3762,7 @@ function playHole(): void {
   hudEl.style.display = '';
   current = new HoleScene((scores) => {
     // Tutorial: the first hole is the lesson — wrap up once it's done.
-    if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone();
+    if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone(completeTutorial());
     round.players.forEach((p, i) => {
       p.scores[round.holeIdx] = scores[i] ?? 0;
     });
@@ -3535,6 +3837,8 @@ function replayAnim(el: HTMLElement, cls: string): void {
 function showSummary(): void {
   current?.dispose();
   current = null;
+  sealRoundRecording();
+  recordDailyAttempt();
   // Take the gameplay chrome down with the scene — the results card is the
   // whole screen's purpose now (leftover HUD/aim-readout/SWING read as noise
   // around the card). playHole() restores them for the next round.
@@ -3694,6 +3998,8 @@ function showSummary(): void {
   // First completed round on this device → the landing's secondary systems
   // (daily/weekly/season/store) reveal from now on (Part 11).
   if (!deviceSettings.firstRoundDone) updateDeviceSettings({ firstRoundDone: true });
+  // The round is in the book — there is nothing left to resume.
+  clearCheckpoint();
 
   const record: RoundRecord = {
     id: makeRoundId(),
@@ -3829,6 +4135,7 @@ function showSummary(): void {
         `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
         `<button id="profBtn" class="ghostBtn">Profile</button>` +
         `<button id="shareChBtn" class="ghostBtn">⚔ Share</button>` +
+        (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
         `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
   replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
@@ -3900,6 +4207,7 @@ function showSummary(): void {
   // Challenges" in the profile can show who won. The share sheet opens a
   // ready-to-text message; clipboard/prompt fallbacks where share isn't
   // available.
+  document.getElementById('ghostBtn')?.addEventListener('pointerdown', () => startGhostRematch());
   document.getElementById('shareChBtn')?.addEventListener('pointerdown', () => {
     const cid = makeChallengeId();
     const def: AsyncChallengeDef = {
@@ -5160,13 +5468,41 @@ const tutorialCoach = new TutorialCoach();
  *  A no-op unless the tutorial flag is on (the entry is hidden in prod anyway). */
 function startTutorial(): void {
   if (!flag('tutorial')) return;
+  endPractice();
   tutorialCoach.stop(); // discard any half-finished prior run
   sel.mode = 'solo';
   sel.courseId = 'sablebay';
   landingEl.classList.remove('on');
   analytics.track('tutorial_started', { course: 'sablebay' });
-  tutorialCoach.start(() => undefined);
+  tutorialCoach.start(() => undefined, flag('tutorialDepth'));
   startRound(0);
+}
+
+/**
+ * The lesson hole is done. Mark it complete on this device (so the landing's
+ * lesson hero steps aside — the lesson stays available, it just stops
+ * competing with Play) and pay the one-time completion reward.
+ *
+ * Idempotent by construction: the payout is gated on the same device flag it
+ * sets, so replaying the lesson never pays twice. Returns what was actually
+ * granted so the closing card can name it, or undefined when nothing was.
+ */
+function completeTutorial(): { coins: number } | undefined {
+  const first = !deviceSettings.tutorialDone;
+  if (first) updateDeviceSettings({ tutorialDone: true });
+  refreshLandingCards();
+  analytics.track('tutorial_completed', { course: 'sablebay', result: first ? 'first' : 'replay' });
+  if (!first || !flag('tutorialDepth')) return undefined;
+  profile.coins += COINS.tutorial;
+  profile.coinsEarned += COINS.tutorial;
+  persistProfile();
+  if (signedIn) {
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
+  }
+  return { coins: COINS.tutorial };
 }
 
 /** Enter a tournament: lock the mode + course, then send the player through the
@@ -5199,6 +5535,9 @@ function startTournamentRound(meta: Tournament): void {
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
+  // A tournament round is not the plain solo round the recorder covers.
+  lastRecording = null;
+  roundRecorder.stop();
   // Persist the wizard's picks like a normal round so they stick next launch.
   persistProfile();
   const golfer = roundGolfer();
@@ -5274,6 +5613,9 @@ function startAiTourRound(): void {
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
+  // A tournament round is not the plain solo round the recorder covers.
+  lastRecording = null;
+  roundRecorder.stop();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
@@ -5388,6 +5730,12 @@ function exposeDebug(): void {
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
         skipIntro: () => current?.skipIntro(),
+        // Play a real shot and settle it. Together these let a spec play a
+        // whole round through the LIVE code path — which is the only way to
+        // prove the game records what it actually played
+        // (tests/visual/roundRecording.spec.ts).
+        executeShot: (sw: SwingResult, physicsPower = true) => current?.executeShot(sw, physicsPower),
+        settleFlight: () => current?.settleFlight() ?? false,
         clubLab: (tuning: Partial<ClubTuning> | undefined, kind: 'swing' | 'driver' | 'putter') =>
           current?.clubLab(tuning, kind),
         clubLabView: (view: 'hero' | 'face' | 'edge') => current?.clubLabView(view),
@@ -5455,7 +5803,9 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   ambience: profile.settings.ambience,
   reducedMotion: profile.settings.reducedMotion,
   clipCapture: false,
-  firstRoundDone: legacyLocal.stats.rounds > 0 // returning devices skip the intro reveal
+  firstRoundDone: legacyLocal.stats.rounds > 0, // returning devices skip the intro reveal
+  tutorialDone: false,
+  lastCourseId: ''
 };
 
 /** Push the device preferences into the live profile + live audio. Call after
@@ -5667,6 +6017,133 @@ void (async () => {
   const automated = typeof navigator !== 'undefined' && navigator.webdriver;
   if (!profile.name.trim() && !SHOT.hole && !automated) promptName(false);
 })();
+
+/** Capture-harness seed override (set only by the __startRound test hook for
+ *  the one call it wraps, so two page loads can render the identical round). */
+let forcedSeed: number | undefined;
+
+/** Set for the duration of ONE startRound call when the player chose Resume, so
+ *  that call keeps the stored seed and scores instead of starting clean. */
+let resumingFrom: RoundCheckpoint | null = null;
+
+/**
+ * Records the human's shot INPUTS for the round in progress (`roundRecording`).
+ * The recording is what makes a score verifiable and a ghost possible — see
+ * systems/RoundRecording.ts. Solo rounds only: a versus round's scorecard is
+ * not the human's alone, and replaying it would need the AI's stream too.
+ */
+const roundRecorder = new RoundRecorder();
+
+/** The last completed round's recording, held for the results screen (share,
+ *  ghost challenge, verification) until the next round starts. */
+let lastRecording: RoundRecording | null = null;
+
+/**
+ * The opponent being raced this round, or null for an ordinary solo round
+ * (`ghostRace`). Read by the hole scene to fly the ghost's ball and by the HUD
+ * to show the standing; cleared when a round starts without one.
+ */
+let activeGhost: GhostRun | null = null;
+
+/** A recording armed to be raced by the NEXT startRound (the landing/results
+ *  entry points set this, then start the round). */
+let pendingGhost: RoundRecording | null = null;
+
+/** Reserved course id the generated Hole of the Day is registered under, so it
+ *  flows through the same lookup-by-id path as every authored course. */
+const DAILY_COURSE_ID = '__daily';
+
+/**
+ * PRACTICE GROUND (`practiceRange`).
+ *
+ * Every golf game has one, and this one never did. It is where the swing is
+ * actually learned — no card, no penalty, no consequence — and it is the only
+ * entry point that fits a 90-second session, which a three-hole round does not.
+ * Holing out simply re-tees; there is no scorecard, no reward, and nothing is
+ * recorded, so nothing here can inflate a record or a streak.
+ */
+let practiceMode = false;
+/** Shots on the current practice ball before it is replaced. */
+let practiceShots = 0;
+/** Strokes after which a wandering practice ball is re-teed. */
+const PRACTICE_MAX_SHOTS = 12;
+
+/** Set while a Hole of the Day round is in progress, so the results card knows
+ *  to record the attempt and offer the share. */
+let dailyRound: { dateKey: string; par: number } | null = null;
+
+/**
+ * Seal the round recording at the end of the round and self-check it: replay
+ * the inputs through the same physics the round just ran on, and keep the
+ * recording only if it reproduces the score that was actually played.
+ *
+ * That check runs on the CLIENT deliberately. It is not a security measure —
+ * verification against a leaderboard belongs on the server
+ * (systems/RoundVerify.ts, functions/verifyRound). It is a CORRECTNESS measure:
+ * a recording that does not round-trip means the game and the replay engine
+ * have drifted apart, and shipping a ghost or a challenge built on it would
+ * show the player a round that never happened. Better to drop it silently.
+ */
+function sealRoundRecording(): void {
+  if (!roundRecorder.isRecording()) return;
+  const courseId = courseIdByName(round.course.name);
+  const me = round.players[0];
+  const rec = roundRecorder.finish({
+    courseId,
+    seed: round.seed ?? 0,
+    holes: holesThisRound(),
+    golfer: {
+      character: profile.character,
+      archetype: profile.archetype,
+      upgrades: { ...profile.clubUpgrades }
+    },
+    scores: me?.scores ?? [],
+    at: Date.now(),
+    name: profile.name || 'Player'
+  });
+  if (!rec) return;
+  const check = verifyRecording(rec, COURSES, replayOptions());
+  if (!check.ok) {
+    // Never surfaced to the player — there is nothing they did wrong and
+    // nothing they can do. Logged in dev so drift is caught in playtesting.
+    if (!ENV.isProd) {
+      console.warn(`[recording] dropped — ${check.status}: ${check.detail ?? ''}`, check);
+    }
+    analytics.track('recording_rejected', { result: check.status, course: courseId });
+    return;
+  }
+  lastRecording = rec;
+  saveRecording(rec);
+  // Submit for SERVER verification, well off the gameplay path: the results
+  // card is already on screen, the call is fire-and-forget, and a signed-out or
+  // offline player simply keeps an unverified round. Only a server-verified
+  // round can back a leaderboard claim (functions/index.js verifyRound).
+  if (flag('verifiedScores') && signedIn) {
+    void submitRoundForVerification(rec).then((res) => {
+      if (!res.ok && !ENV.isProd) console.warn('[verify] server rejected/failed', res);
+      analytics.track('round_verified', { result: res.ok ? 'verified' : (res.status ?? 'failed'), course: courseId });
+    });
+  }
+}
+
+/** The replay/verify options that mirror this build's feature flags. Kept in
+ *  one place so the client self-check, ghost playback and the server verifier
+ *  cannot disagree about how the round was played. */
+function replayOptions(): ReplayOptions {
+  const theme = resolveTheme(round.course);
+  return {
+    useAuthoredPins: flag('layouts'),
+    bounded: flag('boundedWorld'),
+    bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+    wasteDepthScale: theme.wasteDepthScale ?? 0,
+    edgeWobble: theme.edgeWobble ?? 1,
+    // The course's tree mix shapes every trunk's HITBOX. Omitting it gives the
+    // replay generic broadleaf lollipops instead of the real species, so a
+    // drive that threaded a pine alley live clips a tree in the replay — the
+    // divergence that stopped honest rounds verifying at all.
+    treeSpecies: { trees: theme.treeKeys ?? DEFAULT_TREE_MIX, accents: theme.accentTreeKeys ?? [] }
+  };
+}
 
 /** The setup choices, prefilled from the profile so returning players jump
  *  straight to "Tee off". */
@@ -6230,6 +6707,7 @@ function goStep(n: number): void {
 }
 
 function showLanding(): void {
+  endPractice();
   pendingTournament = null;
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';
@@ -6267,6 +6745,251 @@ function refreshLandingCards(): void {
     updateWeeklyCard();
   }
   updateLearnEntry(newPlayer);
+  updateResumeCard();
+  updateSetupEntry();
+  updateGhostCard();
+  updateDailyHoleCard();
+  const practice = document.getElementById('landingPractice');
+  if (practice) practice.style.display = flag('practiceRange') ? '' : 'none';
+}
+
+/**
+ * Hole of the Day (`dailyHole`) — one generated hole, the same for everyone,
+ * one attempt, a spoiler-free shareable result.
+ *
+ * The hole is resolved lazily on first paint of the landing (a few tens of ms
+ * of pure arithmetic: generate, simulate ~140 rounds, retry until one lands in
+ * the playable band) and memoised for the session. Never on a gameplay path.
+ */
+function updateDailyHoleCard(): void {
+  const el = document.getElementById('dailyHoleCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('dailyHole')) return;
+  const key = todayKey();
+  const res = dailyHole(key, COURSES);
+  if (!res.spec) {
+    // No candidate passed the band today. Showing nothing is correct: a daily
+    // hole nobody vetted is worse than no daily hole.
+    if (!ENV.isProd) console.warn(`[dailyHole] no playable hole for ${key}`, res.rejected);
+    return;
+  }
+  const played = loadDailyPlay(key);
+  const { par, yardage, attempts } = res.spec;
+  const themeName = COURSES[res.spec.themeId]?.name ?? '';
+  if (played) {
+    const toPar = played.strokes - par;
+    el.innerHTML =
+      `<span class="dhLabel">⛳ HOLE OF THE DAY · DONE</span>` +
+      `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
+      ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
+      `<button id="dhShare" class="dhPlay">Share result</button>`;
+    document.getElementById('dhShare')!.addEventListener('pointerdown', () => {
+      void shareDailyResult(key, par, played.strokes);
+    });
+    return;
+  }
+  el.innerHTML =
+    `<span class="dhLabel">⛳ HOLE OF THE DAY</span>` +
+    `<div class="dhName">A brand-new par ${par}, ${yardage} yd${themeName ? ` at ${escapeHtml(themeName)}` : ''}` +
+    ` — same hole for everyone, one attempt.</div>` +
+    `<button id="dhPlay" class="dhPlay">Play today's hole</button>` +
+    (ENV.isProd ? '' : `<div class="dhDev">seed ${res.spec.seed} · attempt ${attempts} · ${res.rejected.length} rejected</div>`);
+  document.getElementById('dhPlay')!.addEventListener('pointerdown', () => startDailyHole());
+}
+
+/** Book the Hole of the Day attempt when its round ends. First attempt wins —
+ *  replaying to improve a shared score is what one-a-day exists to prevent. */
+function recordDailyAttempt(): void {
+  if (!dailyRound) return;
+  const strokes = round.players[0]?.scores[0] ?? 0;
+  const { dateKey, par } = dailyRound;
+  dailyRound = null;
+  if (strokes <= 0) return;
+  saveDailyPlay({ dateKey, strokes, par, at: Date.now() });
+  analytics.track('daily_hole_completed', { score_to_par: strokes - par });
+}
+
+/**
+ * Play today's hole. A one-hole round on generated geometry, seeded off the
+ * date so the wind and pin match everybody else's, and recorded so the attempt
+ * can be verified and shared.
+ *
+ * The generated course is injected into COURSES under a reserved id, because
+ * everything downstream — the scene builder, the physics, the recorder, the
+ * results card — looks courses up by id. Doing it this way means the daily hole
+ * runs through exactly the same code as an authored one.
+ */
+function startDailyHole(): void {
+  if (!flag('dailyHole')) return;
+  endPractice();
+  const key = todayKey();
+  if (loadDailyPlay(key)) {
+    showMsg("You've already played today's hole — back tomorrow", 1800);
+    return;
+  }
+  const res = dailyHole(key, COURSES);
+  if (!res.spec) return;
+  COURSES[DAILY_COURSE_ID] = res.spec.course;
+  dailyRound = { dateKey: key, par: res.spec.par };
+  pendingTournament = null;
+  pendingGhost = null;
+  sel.mode = 'solo';
+  sel.courseId = DAILY_COURSE_ID;
+  landingEl.classList.remove('on');
+  analytics.track('daily_hole_started', { course: res.spec.themeId });
+  // Seeded off the DATE so every player faces the same wind and the same cup.
+  forcedSeed = res.spec.seed;
+  startRound(0);
+  forcedSeed = undefined;
+}
+
+/**
+ * Open the practice ground: the default course's opening hole, no card, no
+ * round, infinite balls. Nothing that happens here is recorded, scored,
+ * rewarded, or counted toward a streak — that is what makes it practice.
+ */
+function startPractice(): void {
+  if (!flag('practiceRange')) return;
+  practiceMode = true;
+  practiceShots = 0;
+  pendingTournament = null;
+  pendingGhost = null;
+  dailyRound = null;
+  sel.mode = 'solo';
+  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  landingEl.classList.remove('on');
+  analytics.track('practice_started', { course: sel.courseId });
+  startRound(0);
+}
+
+/** Leave practice. Called whenever any other flow starts a round, so practice
+ *  can never leak into a scored one. */
+function endPractice(): void {
+  practiceMode = false;
+  practiceShots = 0;
+}
+
+/** Copy the spoiler-free result, falling back to a visible message when the
+ *  clipboard is unavailable (iOS without a user-gesture-scoped permission). */
+async function shareDailyResult(key: string, par: number, strokes: number): Promise<void> {
+  const text = shareText(key, par, strokes);
+  try {
+    if (navigator.share) {
+      await navigator.share({ text });
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    showMsg('Result copied', 1200);
+  } catch {
+    showMsg(text, 2600);
+  }
+}
+
+/** True when the round just finished can be raced again as a ghost — i.e. it
+ *  was recorded and survived its own replay check. */
+function ghostRematchAvailable(): boolean {
+  return flag('ghostRace') && flag('roundRecording') && !!lastRecording;
+}
+
+/** Replay the round that just finished, against the round that just finished.
+ *  Same course, same seed, same pins and wind — the only variable is you. */
+function startGhostRematch(): void {
+  if (!lastRecording) return;
+  endPractice();
+  pendingGhost = lastRecording;
+  sel.mode = 'solo';
+  sel.courseId = lastRecording.courseId;
+  forcedSeed = lastRecording.seed;
+  summaryEl.style.display = 'none';
+  startRound(0);
+  forcedSeed = undefined;
+}
+
+/**
+ * "Race your best" (`ghostRace`). The player's own best recorded round on the
+ * course they would play next is the one opponent guaranteed to exist — no
+ * friends, no network, no matchmaking — and beating yourself is the oldest
+ * motivation in golf. Hidden until a recording exists, so a first-time player
+ * never sees an entry that cannot do anything.
+ */
+function updateGhostCard(): void {
+  const el = document.getElementById('ghostCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('ghostRace') || !flag('roundRecording')) return;
+  const courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  const course = COURSES[courseId];
+  const best = bestRecordingFor(courseId, Math.min(RULES.holesPerRound, course?.holes.length ?? 3));
+  if (!best || !course) return;
+  const total = best.scores.reduce((a, b) => a + b, 0);
+  const par = course.holes.slice(0, best.holes).reduce((a, h) => a + h.par, 0);
+  const toPar = total - par;
+  el.innerHTML =
+    `<span class="gcLabel">👻 RACE YOUR BEST</span>` +
+    `<div class="gcName">${escapeHtml(course.name)} · ${total} (${toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar})` +
+    ` — shot for shot, against the round you played</div>` +
+    `<button id="gcPlay" class="gcPlay">Race it</button>`;
+  document.getElementById('gcPlay')!.addEventListener('pointerdown', () => {
+    pendingGhost = best;
+    sel.mode = 'solo';
+    sel.courseId = courseId;
+    landingEl.classList.remove('on');
+    // The ghost's round used a specific seed; racing it on different wind and
+    // pins would not be the same race, so the rematch inherits the seed.
+    forcedSeed = best.seed;
+    startRound(0);
+    forcedSeed = undefined;
+  });
+}
+
+/**
+ * The unfinished-round card (`resumeRound`). Shown only when a checkpoint that
+ * is still worth finishing exists — see systems/RoundCheckpoint.isResumable,
+ * which rejects stale, structurally broken, and no-progress records. It sits
+ * above the daily/weekly cards on purpose: the best next action for someone
+ * mid-round is the round they are already mid-way through.
+ *
+ * "Start fresh" is offered beside it because a player who has moved on should
+ * not have to finish an old round to clear the shelf.
+ */
+function updateResumeCard(): void {
+  const el = document.getElementById('resumeCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('resumeRound')) return;
+  const cp = loadCheckpoint();
+  if (!cp) return;
+  const course = COURSES[cp.courseId];
+  if (!course) {
+    // The course is no longer in the roster (flag change, renamed id) — the
+    // round can never be resumed, so retire the record rather than show a
+    // button that cannot work.
+    clearCheckpoint();
+    return;
+  }
+  el.innerHTML =
+    `<span class="rsLabel">↩ UNFINISHED ROUND</span>` +
+    `<div class="rsName">${escapeHtml(course.name)} · hole ${cp.holeIdx + 1} of ${cp.holes} · ${toParLabel(cp)}</div>` +
+    `<div class="rsRow"><button id="rsPlay" class="rsPlay">Finish the round</button>` +
+    `<button id="rsDrop" class="rsDrop">Start fresh</button></div>`;
+  document.getElementById('rsPlay')!.addEventListener('pointerdown', () => resumeSavedRound(cp));
+  document.getElementById('rsDrop')!.addEventListener('pointerdown', () => {
+    clearCheckpoint();
+    updateResumeCard();
+  });
+}
+
+/** Re-enter a checkpointed round on the hole that was in progress, with the
+ *  same seed (identical wind and pins) and the completed holes back on the
+ *  card. The hole itself restarts from its tee — nothing mid-shot is stored. */
+function resumeSavedRound(cp: RoundCheckpoint): void {
+  endPractice();
+  resumingFrom = cp;
+  sel.mode = 'solo';
+  sel.courseId = cp.courseId;
+  landingEl.classList.remove('on');
+  startRound(cp.holeIdx);
 }
 
 /** Place the opt-in "Learn to play" entry. It's hidden unless the tutorial flag
@@ -6285,7 +7008,9 @@ function updateLearnEntry(newPlayer: boolean): void {
     return;
   }
   learn.style.display = 'block';
-  const hero = newPlayer || !signedIn; // "first device login or guest"
+  // Someone who has already been through the lesson is not the audience for a
+  // hero-sized invitation to take it again — it stays, quietly, below Play.
+  const hero = (newPlayer || !signedIn) && !deviceSettings.tutorialDone;
   learn.classList.toggle('heroLearn', hero);
   play.classList.toggle('demoted', hero);
   learn.textContent = hero ? '🎓 New here? Learn to play →' : '🎓 Learn to play';
@@ -6294,7 +7019,38 @@ function updateLearnEntry(newPlayer: boolean): void {
   else play.insertAdjacentElement('afterend', learn);
 }
 
+/**
+ * One-tap Play (`quickPlay`).
+ *
+ * The wizard asks two questions — mode and course — before a first-time player
+ * has any basis for answering either, and it charges every returning player two
+ * extra taps to say "the same as last time". The vision doc asks the landing to
+ * present "a clear primary action rather than a dashboard of competing
+ * demands", so Play Now now DOES the obvious thing (a solo round on the course
+ * this device last played, or the default course) and the wizard moves to an
+ * explicit "Course & mode" entry beneath it for anyone who wants to choose.
+ */
+function quickPlay(): void {
+  endPractice();
+  pendingTournament = null;
+  sel.mode = 'solo';
+  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  landingEl.classList.remove('on');
+  startRound(0);
+}
+
+/** Show/hide the explicit wizard entry, which only exists while Play Now is
+ *  the one-tap action (with `quickPlay` off, Play Now IS the wizard). */
+function updateSetupEntry(): void {
+  const btn = document.getElementById('landingSetup');
+  if (!btn) return;
+  btn.style.display = flag('quickPlay') ? '' : 'none';
+  const course = COURSES[courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES)];
+  btn.textContent = `⛳ Course & mode · ${course?.name ?? 'choose'}`;
+}
+
 function showSetup(): void {
+  endPractice();
   pendingTournament = null; // a normal Play Now open is not a tournament entry
   landingEl.classList.remove('on');
   setupEl.style.display = 'flex';
@@ -6450,6 +7206,8 @@ function grantRoundTrueVision(): void {
 function startRound(startHoleIdx = 0): void {
   // A fresh start from the menu abandons any half-finished AI tournament.
   aiTour = null;
+  // ...and any unfinished-round checkpoint, unless THIS call is the resume.
+  if (!resumingFrom) clearCheckpoint();
   round.course = courseFallback(sel.courseId);
   round.mode = sel.mode;
   // Normal play always opens on hole 1; the perf/verification hooks can boot a
@@ -6462,8 +7220,14 @@ function startRound(startHoleIdx = 0): void {
   // used): casual rounds roll a fresh random one — identical distribution —
   // which makes ANY round shareable as an async challenge, and lets a weekly
   // or challenge entry pin the standardized seed instead.
-  round.seed = pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0;
+  round.seed =
+    forcedSeed ??
+    resumingFrom?.seed ??
+    (pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0);
   round.tournament = null;
+  // Remember where this device last teed off, so one-tap Play reopens there.
+  const startedCourseId = courseIdByName(round.course.name);
+  if (deviceSettings.lastCourseId !== startedCourseId) updateDeviceSettings({ lastCourseId: startedCourseId });
   round.weeklyEventId = pendingWeekly ? pendingWeekly.id : null;
   round.challenge = pendingChallenge;
   // weekly_round_started deprecated 2026-07-18: the weekly funnel is served by
@@ -6487,8 +7251,40 @@ function startRound(startHoleIdx = 0): void {
   }
   beginRoundTracking();
   grantRoundTrueVision();
+  // Record plain solo rounds only (see roundRecorder). A RESUMED round cannot
+  // be recorded: its earlier holes were played in a previous session and their
+  // inputs are gone, so a partial recording would verify as the wrong score.
+  lastRecording = null;
+  if (flag('roundRecording') && sel.mode === 'solo' && !resumingFrom && !practiceMode && startHoleIdx === 0) {
+    roundRecorder.start();
+  } else {
+    roundRecorder.stop();
+  }
+  // Arm the ghost, if one was chosen. Replaying the whole opponent round up
+  // front (a few ms of the same physics the round runs on) means nothing but a
+  // lookup happens during play. A ghost that fails to replay — a stale
+  // recording, a course that has changed under it — is dropped rather than
+  // shown flying somewhere its owner never hit it.
+  activeGhost = null;
+  if (flag('ghostRace') && pendingGhost && sel.mode === 'solo' && startHoleIdx === 0) {
+    const candidate = new GhostRun(pendingGhost, round.course, replayOptions());
+    if (candidate.ok) {
+      activeGhost = candidate;
+      analytics.track('ghost_race_started', { course: courseIdByName(round.course.name) });
+    } else if (!ENV.isProd) {
+      console.warn(`[ghost] dropped — ${candidate.reason}`);
+    }
+  }
+  pendingGhost = null;
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
+  if (resumingFrom) {
+    // Put the completed holes back on the card so the scorecard, the running
+    // to-par and the end-of-round scoring all see the whole round.
+    round.players[0].scores = resumingFrom.scores.slice();
+    analytics.track('round_resumed', { course: courseIdByName(round.course.name), hole: resumingFrom.holeIdx + 1 });
+    resumingFrom = null;
+  }
   if (round.mode !== 'solo') {
     const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
     round.players.push({ golfer: opp, isAI: true, scores: [] });
@@ -6543,8 +7339,13 @@ function renderAcctMenu(): void {
   }
 }
 
-document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
+document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
+  if (flag('quickPlay')) quickPlay();
+  else showSetup();
+});
+document.getElementById('landingSetup')?.addEventListener('pointerdown', () => showSetup());
 document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
+document.getElementById('landingPractice')?.addEventListener('pointerdown', () => startPractice());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
@@ -6634,6 +7435,9 @@ else {
   courseId?: string;
   /** 1-based hole to boot directly (perf spec: WW3/TL3 heavy first tee shots). */
   hole?: number;
+  /** Pin the round seed so a capture spec can render the SAME wind and pins
+   *  twice (the natureBatching pixel gate compares two page loads). */
+  seed?: number;
 }) => {
   if (opts?.name !== undefined) {
     sel.name = opts.name;
@@ -6641,13 +7445,23 @@ else {
   }
   if (opts?.character) sel.character = opts.character;
   if (opts?.archetype) sel.archetype = opts.archetype;
+  if (opts?.character || opts?.archetype) {
+    // roundGolfer() re-rolls a random owned loadout unless the profile has one
+    // locked in, which would silently discard the loadout the caller just asked
+    // for. A hook caller naming a golfer means it.
+    profile.character = opts.character ?? profile.character;
+    profile.archetype = opts.archetype ?? profile.archetype;
+    profile.loadoutLocked = true;
+  }
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
   if (opts?.courseId && COURSES[opts.courseId]) sel.courseId = opts.courseId;
   // Mirror the real Play flow: the landing overlay comes down before the
   // round starts (a hook-started round otherwise leaves it covering the game).
   landingEl.classList.remove('on');
+  forcedSeed = opts?.seed;
   startRound(opts?.hole ? opts.hole - 1 : 0);
+  forcedSeed = undefined;
 };
 
 // Test hook: complete the current round instantly with the given (or par)
@@ -6671,6 +7485,16 @@ else {
 
 // Test hook: expose the live AI-tournament state so specs can assert the
 // rota/standings without scraping the DOM (read-only snapshot).
+// Test hook: the last completed round's recording, plus an in-page
+// verification of it. The e2e gate plays a real round and asserts the inputs
+// replay to the score that was actually played — the round-trip everything
+// else (verification, ghosts, replays) is built on.
+(window as unknown as { __lastRecording: unknown }).__lastRecording = () => lastRecording;
+(window as unknown as { __verifyLastRecording: unknown }).__verifyLastRecording = () =>
+  lastRecording ? verifyRecording(lastRecording, COURSES, replayOptions()) : null;
+(window as unknown as { __ghostStanding: unknown }).__ghostStanding = () =>
+  activeGhost ? { name: activeGhost.name, scores: activeGhost.scores } : null;
+
 (window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
 
 // Test hook: read the player's current True Vision charge count (owned +
