@@ -291,21 +291,48 @@
       }
       /* Post-shot breakdown (`shotAttribution`) — deliberately much quieter
          than #msg above it: the result is the headline, the cause is a note. */
+      /* The post-shot breakdown. It used to sit across the middle of the screen
+         and fade after 2.6s — too fast to read, and gone before you could
+         compare it to where the ball actually was. Now it is a compact stack in
+         the top RIGHT (clear of the HUD, top-left) and it STAYS until the next
+         shot, so it is there while you think about the next one. */
       #shotWhy {
         position: fixed;
-        top: calc(34% + 42px);
-        left: 0;
-        right: 0;
-        text-align: center;
-        font-size: 15px;
+        top: max(56px, calc(env(safe-area-inset-top) + 56px));
+        right: 10px;
+        max-width: 46vw;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 2px;
+        padding: 7px 10px;
+        border-radius: 12px;
+        background: rgba(8, 20, 12, 0.66);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        backdrop-filter: blur(3px);
+        text-align: right;
+        font-size: 12.5px;
         font-weight: 700;
         letter-spacing: 0.2px;
         color: #dbe8d6;
-        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
         pointer-events: none;
         opacity: 0;
         transition: opacity 0.25s;
+        z-index: 5;
       }
+      #shotWhy .swHead {
+        font-size: 14px;
+        font-weight: 900;
+        color: #f2f7ef;
+      }
+      #shotWhy .swRow {
+        opacity: 0.86;
+        white-space: nowrap;
+      }
+      /* Cost reads warm, gain reads cool — readable at a glance without
+         needing to parse the words. */
+      #shotWhy .swRow.cost { color: #ffc9b6; }
+      #shotWhy .swRow.gain { color: #bfe9c4; }
       #prompt {
         position: fixed;
         bottom: 158px;
@@ -406,6 +433,25 @@
         color: #ffd54f;
         font-size: 16px;
         font-weight: 800;
+      }
+      /* Leave-round control. Top RIGHT, opposite the HUD, deliberately small and
+         quiet — it is an escape hatch, not an invitation. */
+      #pauseBtn {
+        position: fixed;
+        top: max(10px, env(safe-area-inset-top));
+        right: 10px;
+        display: none;
+        width: 38px;
+        height: 38px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(8, 20, 12, 0.72);
+        color: #cfe0d2;
+        font-size: 17px;
+        font-weight: 800;
+        line-height: 1;
+        cursor: pointer;
+        z-index: 6;
       }
       #aerialBtn {
         position: fixed;
@@ -3368,6 +3414,10 @@
     <button id="captureBtn">🎥 CLIP</button>
     <button id="aerialBtn">AERIAL</button>
     <button id="tourBoardBtn">🏆</button>
+    <!-- Leave the round. There was no way back to the menu once a round had
+         started — the only exits were finishing all three holes or reloading
+         the page, and reloading loses the card. -->
+    <button id="pauseBtn" aria-label="Leave round">✕</button>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
 

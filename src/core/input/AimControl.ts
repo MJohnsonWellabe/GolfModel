@@ -256,7 +256,7 @@ export class AimControl {
     this.setClubById(id);
   }
 
-  /** Step through the bag, re-clamping the aim to the new club's reach. */
+  /** Step through the bag. A newly chosen club aims at its FULL reach. */
   cycleClub(dir: number, ctx: ShotContext): void {
     this.clubIdx = (this.clubIdx + dir + CLUBS.length) % CLUBS.length;
     if (this.isDistanceAimed(ctx)) {
@@ -264,8 +264,15 @@ export class AimControl {
       // re-defaults the aim spot AT the pin.
       this.distPx = clamp(dist(ctx.ball, this.hole.pin), 1, this.maxCarryPx(ctx));
     } else {
-      // Keep aiming at the same spot when possible; clamp to the new club's reach
-      this.distPx = Math.min(this.distPx, this.maxCarryPx(ctx));
+      // FULL DISTANCE ON A NEW CLUB.
+      //
+      // This used to carry the previous club's aim distance forward and merely
+      // clamp it down, so reaching for more club gave you a longer club still
+      // swinging at the SHORTER club's power target — you changed club and
+      // nothing changed. Picking up a 5-iron means you intend to hit a 5-iron;
+      // dialling back from there is a deliberate act (drag the aim in), not the
+      // default.
+      this.distPx = this.maxCarryPx(ctx);
     }
   }
 

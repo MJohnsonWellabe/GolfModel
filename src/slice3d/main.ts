@@ -45,7 +45,7 @@ import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
 import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
-import { attributeShot } from '../systems/ShotAttribution';
+import { attributeShot, ShotAttribution } from '../systems/ShotAttribution';
 import { dailyHole, shareText } from '../systems/DailyHoleService';
 import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
@@ -212,6 +212,7 @@ const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
 const tourBoardBtn = document.getElementById('tourBoardBtn')!;
+const pauseBtn = document.getElementById('pauseBtn')!;
 const trueVisionBtn = document.getElementById('trueVisionBtn')! as HTMLButtonElement;
 const skipBtn = document.getElementById('skipBtn')!;
 const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
@@ -273,13 +274,44 @@ function showMsg(text: string, ms = 1200): void {
 /** The quiet "why that happened" line under the result (`shotAttribution`).
  *  Empty text hides it — a shot with nothing to explain says nothing. */
 const shotWhyEl = document.getElementById('shotWhy') as HTMLElement | null;
-let shotWhyTimer: ReturnType<typeof setTimeout> | null = null;
-function showShotWhy(text: string, ms = 2400): void {
+
+/**
+ * The post-shot breakdown.
+ *
+ * It used to be one long sentence across the middle of the screen that faded
+ * after 2.6 seconds — too fast to read, and gone before the player could look at
+ * where the ball actually finished. Now it is a compact stack in the top right
+ * that STAYS UP until the next shot, so it is still there while they choose the
+ * next one. That is the whole point of a breakdown: it is input to the next
+ * decision, not a receipt for the last.
+ */
+function showShotWhy(a: ShotAttribution | null): void {
   if (!shotWhyEl) return;
-  if (shotWhyTimer) clearTimeout(shotWhyTimer);
-  shotWhyEl.textContent = text;
-  shotWhyEl.style.opacity = text ? '1' : '0';
-  if (text) shotWhyTimer = setTimeout(() => (shotWhyEl.style.opacity = '0'), ms);
+  if (!a || (!a.factors.length && Math.abs(a.lateralYd) < 5)) {
+    shotWhyEl.style.opacity = '0';
+    shotWhyEl.innerHTML = '';
+    return;
+  }
+  const rows = a.factors.map((f) => {
+    // Slope is context, not a cost or a gain — it gets no colour.
+    const cls = f.kind === 'slope' ? '' : f.yards > 0 ? ' cost' : ' gain';
+    return `<span class="swRow${cls}">${escapeHtml(f.label)}</span>`;
+  });
+  if (Math.abs(a.lateralYd) >= 5) {
+    rows.push(
+      `<span class="swRow">${Math.round(Math.abs(a.lateralYd))} yd ` +
+        `${a.lateralYd > 0 ? 'right' : 'left'}</span>`
+    );
+  }
+  shotWhyEl.innerHTML = `<span class="swHead">${Math.round(a.distanceYd)} yd</span>${rows.join('')}`;
+  shotWhyEl.style.opacity = '1';
+}
+
+/** Clear the breakdown when the next shot is armed — the one moment it stops
+ *  being about the shot in front of the player. */
+function clearShotWhy(): void {
+  if (!shotWhyEl) return;
+  shotWhyEl.style.opacity = '0';
 }
 
 /** Last cloud-save outcome, so the account UI can flag a persistent failure. */
@@ -826,6 +858,7 @@ class HoleScene {
   /** The exact parameters + spin of the shot in the air, kept so the post-shot
    *  breakdown can re-fly counterfactuals off them (`shotAttribution`). */
   private lastShotParams: Parameters<PhysicsEngine['resolveLaunch']>[0] | null = null;
+  private lastShotStrokes = 0;
   private lastShotSpin: SpinState = { side: 0, top: 0 };
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
@@ -1255,6 +1288,8 @@ class HoleScene {
     // The drag swing (`dragSwing`) resolves against the SAME context, so both
     // control schemes share one definition of a perfect strike.
     this.swingCtx = swingCtx;
+    // The last shot's breakdown has done its job the moment this one is armed.
+    clearShotWhy();
     meter.arm(swingCtx);
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
@@ -2193,6 +2228,18 @@ class HoleScene {
     );
     play('putt');
     showMsg('Gimme — good!', 1100);
+    // A CONCEDED PUTT IS STILL A PUTT.
+    //
+    // The tally lives in `afterShot`, which a gimme never reaches — it
+    // short-circuits the shot path entirely. So every conceded tap-in went
+    // uncounted, and the putts-per-round figure on the card, in career stats and
+    // in the records was quietly low for every player. The headless simulator
+    // has always counted it (RoundSimulator.simulateHole), so this also puts the
+    // live game and the model back in agreement.
+    if (!this.ai) {
+      shotAcc.holePutts[this.hole.number] = (shotAcc.holePutts[this.hole.number] ?? 0) + 1;
+      shotAcc.puttsMade++;
+    }
     this.updateHud();
     if (this.tm.isScramble) this.afterScrambleShot(outcome);
     else this.afterShot(outcome);
@@ -2554,6 +2601,9 @@ class HoleScene {
     // breakdown can re-fly it with one factor removed and measure the real
     // difference rather than estimating one (systems/ShotAttribution.ts).
     this.lastShotParams = shotParams;
+    // The stroke count this shot resolved AT — the third input to its RNG seed,
+    // captured before the stroke is charged so the breakdown can reproduce it.
+    this.lastShotStrokes = this.state.strokes;
     this.lastShotSpin = { ...spin };
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
@@ -2960,20 +3010,31 @@ class HoleScene {
     // systems/ShotAttribution.ts. Runs at REST, never on the tap path, and says
     // nothing at all when nothing was worth saying.
     showMsg(msg, 1600);
-    showShotWhy(this.shotWhy(outcome), 2600);
+    showShotWhy(this.shotWhy(outcome));
   }
 
   /** One line of "here is what happened to that shot", or '' when the shot was
    *  unremarkable. Putts are excluded: pace and read are already taught
    *  directly, and a breakdown on every tap-in would be noise. */
-  private shotWhy(outcome: ShotOutcome): string {
-    if (!flag('shotAttribution') || !this.lastShotParams) return '';
-    if (this.lastShotParams.club.id === 'putter') return '';
+  private shotWhy(outcome: ShotOutcome): ShotAttribution | null {
+    if (!flag('shotAttribution') || !this.lastShotParams) return null;
+    if (this.lastShotParams.club.id === 'putter') return null;
     try {
-      return attributeShot(this.engine2d, this.lastShotParams, this.lastShotSpin, outcome.finalPos).summary;
+      // Re-seed the shot's own random stream before each counterfactual, so a
+      // re-fly differs from the real shot ONLY by the factor being removed.
+      // Without this the breakdown reported several yards of fresh dice as
+      // "wind" or "lie" (tests/shotAttribution.test.ts).
+      const seed = shotRngSeed(round.seed ?? 0, round.holeIdx, this.lastShotStrokes);
+      return attributeShot(
+        this.engine2d,
+        this.lastShotParams,
+        this.lastShotSpin,
+        outcome.finalPos,
+        () => (this.shotRng = mulberry32(seed))
+      );
     } catch {
       // A breakdown is a nicety; it must never be able to break a shot.
-      return '';
+      return null;
     }
   }
 
@@ -3865,6 +3926,7 @@ function playHole(): void {
   // Restore the gameplay chrome the results screen hid.
   swingBtn.style.display = '';
   hudEl.style.display = '';
+  pauseBtn.style.display = 'block';
   current = new HoleScene((scores) => {
     // Tutorial: the first hole is the lesson — wrap up once it's done.
     if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone(completeTutorial());
@@ -3949,6 +4011,7 @@ function showSummary(): void {
   // around the card). playHole() restores them for the next round.
   swingBtn.style.display = 'none';
   hudEl.style.display = 'none';
+  pauseBtn.style.display = 'none';
   promptEl.textContent = '';
   aimReadoutEl.style.display = 'none';
   const holes = round.course.holes.slice(0, holesThisRound());
@@ -7928,6 +7991,47 @@ function renderAcctMenu(): void {
   }
 }
 
+/**
+ * LEAVE THE ROUND.
+ *
+ * There was no way back to the menu once a round started: the only exits were
+ * playing all three holes out or reloading the page, and a reload loses the
+ * card. That is a trap, and on a phone it is the reason a session ends for good
+ * rather than pausing.
+ *
+ * A solo round is checkpointed on the way out (`checkpointRound` already runs
+ * per hole under `resumeRound`), so leaving offers to pick the round back up
+ * from the landing rather than throwing it away. Modes that cannot be resumed —
+ * a tournament, a shared-seed daily — say so plainly instead of pretending.
+ */
+function leaveRound(): void {
+  if (!current) return;
+  const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound && !round.tournament;
+  const message = resumable
+    ? 'Leave this round? Your card is saved — you can finish it from the menu.'
+    : "Leave this round? This one can't be resumed, so the card is lost.";
+  if (!window.confirm(message)) return;
+  if (resumable) checkpointRound();
+  else clearCheckpoint();
+  // Tear the scene down the same way a finished round does, so nothing is left
+  // holding the engine (observers, RTTs, audio) between rounds.
+  current.dispose();
+  current = null;
+  exposeDebug();
+  roundRecorder.stop();
+  dailyRound = null;
+  activeGhost = null;
+  swingBtn.style.display = 'none';
+  hudEl.style.display = 'none';
+  pauseBtn.style.display = 'none';
+  promptEl.textContent = '';
+  aimReadoutEl.style.display = 'none';
+  summaryEl.style.display = 'none';
+  analytics.track('round_abandoned', { hole: round.holeIdx + 1, resumable });
+  showLanding();
+}
+pauseBtn.addEventListener('pointerdown', () => leaveRound());
+
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
   if (flag('quickPlay')) quickPlay();
   else showSetup();
@@ -8104,6 +8208,13 @@ else {
 // Test hook: read the player's current True Vision charge count (owned +
 // this round's ephemeral bonus, matching what the in-round button shows), so
 // specs can assert every round grants at least one without scraping the DOM.
+// Test hook: the live round's putt tally. A conceded gimme never reaches the
+// shot path where putts are counted, so this is the only way a spec can prove
+// the concession was booked (tests/visual/inRound.spec.ts).
+(window as unknown as { __roundPutts: unknown }).__roundPutts = () => ({
+  puttsMade: shotAcc.puttsMade,
+  holePutts: { ...shotAcc.holePutts }
+});
 (window as unknown as { __trueVisionCharges: unknown }).__trueVisionCharges = () =>
   chargesRemaining(profile, TRUE_VISION.id) + roundTrueVisionBonus;
 

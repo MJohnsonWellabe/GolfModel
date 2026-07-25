@@ -315,3 +315,48 @@ describe('putter defaults on surface, not pin distance', () => {
     expect(clubAt(center, 'fairway')).toBe('putter');
   });
 });
+
+/**
+ * Reaching for more club has to actually reach further.
+ *
+ * `cycleClub` used to carry the previous club's aim distance forward and merely
+ * clamp it to the new club's reach, so stepping UP a club left the meter still
+ * swinging at the shorter club's power target — the player changed club and the
+ * shot did not change. Picking up a longer club is a statement of intent.
+ */
+describe('choosing a club aims at its full distance', () => {
+  const course = loadCourse(wildwood as unknown as CourseAuthoring);
+  const hole = course.holes[0];
+  const engine = new PhysicsEngine(hole, buildHeightField(hole));
+
+  function fromTee(): { aim: AimControl; ctx: ShotContext } {
+    const aim = new AimControl(hole, engine);
+    const ctx: ShotContext = { ball: { ...hole.tee }, lie: 'tee', golfer: GOLFER, fireBoost: 0, strokes: 0 };
+    return { aim, ctx };
+  }
+
+  it('steps up to the new club’s full reach, not the old club’s distance', () => {
+    const { aim, ctx } = fromTee();
+    // Start on a short club with a deliberately short aim.
+    aim.setClubById('9i');
+    aim.resetAim(ctx);
+    aim.distPx = aim.maxCarryPx(ctx) * 0.4;
+    const shortAim = aim.distPx;
+
+    // Step to a longer club: the aim must jump to that club's full carry.
+    aim.cycleClub(-1, ctx);
+    expect(aim.distPx).toBeGreaterThan(shortAim);
+    expect(aim.distPx).toBeCloseTo(aim.maxCarryPx(ctx), 5);
+  });
+
+  it('every club in the bag arms at 100% of its own carry', () => {
+    const { aim, ctx } = fromTee();
+    aim.setClubById('driver');
+    aim.resetAim(ctx);
+    for (let i = 0; i < 8; i++) {
+      aim.cycleClub(1, ctx);
+      if (aim.club.id === 'putter') continue; // putting aims at the pin, by design
+      expect(aim.distPx, `${aim.club.id} did not arm at full carry`).toBeCloseTo(aim.maxCarryPx(ctx), 5);
+    }
+  });
+});
