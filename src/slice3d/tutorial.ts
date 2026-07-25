@@ -35,6 +35,8 @@
  *   - a closing card that names the next action rather than trailing off.
  */
 
+import { flag } from '../core/flags';
+
 interface CoachCard {
   title: string;
   body: string;
@@ -169,13 +171,27 @@ export class TutorialCoach {
         },
         {
           key: 'hit',
-          card: {
-            title: 'Take your swing',
-            body: 'Tap SWING three times: start, lock power, lock strike. Hit the PERFECT band.',
-            highlight: 'swingBtn',
-            cta: 'Let me try',
-            step: 5
-          }
+          // THE LESSON HAS TO MATCH THE CONTROL IN FRONT OF THEM.
+          //
+          // There are two swings now, and the tutorial taught one. A player on
+          // the traced swing was being told to tap a button that is not on
+          // their screen — which is worse than no tutorial, because it teaches
+          // them the game is broken.
+          card: flag('dragSwing')
+            ? {
+                title: 'Take your swing',
+                body: 'Follow the moving dot around the pad. How far you get is power; staying on the line and in time is the strike.',
+                highlight: 'tracePad',
+                cta: 'Let me try',
+                step: 5
+              }
+            : {
+                title: 'Take your swing',
+                body: 'Tap SWING three times: start, lock power, lock strike. Hit the PERFECT band.',
+                highlight: 'swingBtn',
+                cta: 'Let me try',
+                step: 5
+              }
         }
       ]);
       return;

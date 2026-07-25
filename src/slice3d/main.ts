@@ -145,8 +145,8 @@ import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter, MeterContext } from './meter3d';
-import { DragSample, DragState, readDrag, resolveDragSwing, tuningForViewport } from '../core/input/DragSwing';
-import { DragTrack } from './dragTrack';
+import { readTrace, resolveTraceSwing, type TraceSample, type TraceState } from '../core/input/TraceSwing';
+import { TracePad } from './tracePad';
 import { DesignMode } from './designMode';
 import { ShotCapture } from './shotCapture';
 
@@ -214,8 +214,8 @@ const swingBtn = document.getElementById('swingBtn')!;
 /** The drag swing's own surface (`dragSwing`). Built once and kept hidden until
  *  a shot arms it, so the flag being off costs nothing but this element. */
 const designBtn = document.getElementById('designBtn')!;
-const dragTrackEl = document.getElementById('dragTrack')!;
-const dragTrack = new DragTrack(dragTrackEl);
+const tracePadEl = document.getElementById('tracePad')!;
+const tracePad = new TracePad(tracePadEl);
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
@@ -884,22 +884,20 @@ class HoleScene {
    *  the drag swing so a perfect strike means the same thing on both. */
   private swingCtx: MeterContext | null = null;
   /**
-   * Live drag-swing gesture (`dragSwing`), or null when not swinging.
+   * The live traced swing (`dragSwing`), or null when not swinging.
    *
-   * The whole PATH is kept, not just the origin: the rebuilt control scores how
-   * smoothly and how straight the club was taken back, and neither is knowable
-   * from the release point alone.
+   * The whole PATH is kept, not just the release point: the control scores how
+   * far along the route you got, how close to the line you stayed and how well
+   * you kept the guide dot's tempo, and none of the three is knowable from
+   * where the finger happened to lift.
    */
-  private dragSwing: { path: DragSample[]; state: DragState } | null = null;
+  private trace: { path: TraceSample[]; state: TraceState } | null = null;
   /**
    * FLY MODE (builder previews only). While it is up the canvas belongs to it:
    * the pointer steers a free camera over the real hole and places assets, and
    * the round is paused underneath.
    */
   design: DesignMode | null = null;
-  /** Screen point and timestamp the live pull began at; every sample is stored
-   *  relative to it, so the reader never sees absolute coordinates. */
-  private dragOrigin = { x: 0, y: 0, t: 0 };
   /** Per-shot random source for the physics engine (see the engine's
    *  construction). Re-seeded before every shot from the round seed, the hole
    *  and the stroke number, so the same shot always breaks the same way. */
@@ -1326,19 +1324,19 @@ class HoleScene {
     meter.arm(swingCtx);
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
-    // DRAG SWING (`dragSwing`): the pull track down the right edge IS the swing
-    // surface, and it draws this shot's bands on its own rail. Showing the
-    // horizontal meter as well would put the target in two places, one of them
-    // nowhere near the thumb — so it is one control or the other, and the SWING
-    // button goes with the meter.
+    // TRACED SWING (`dragSwing`): the pad IS the swing surface, and it marks
+    // the point on the route this club is asking for — the same `targetBar` the
+    // meter marks. Showing the horizontal meter as well would put the target in
+    // two places, so it is one control or the other, and the SWING button goes
+    // with the meter.
     const pulling = flag('dragSwing') && !this.comps[this.turnIdx].isAI;
     if (pulling) {
       meterEl.style.display = 'none';
       swingBtn.style.display = 'none';
-      dragTrack.arm(swingCtx);
+      tracePad.arm(swingCtx);
     } else {
       swingBtn.style.display = '';
-      dragTrack.hide();
+      tracePad.hide();
     }
     // Fire vignette (juice): while an on-fire HUMAN is at address, a static
     // warm edge glow carries the state beyond the meter. CSS-only overlay;
@@ -1456,12 +1454,12 @@ class HoleScene {
   private chromeBefore: Array<[HTMLElement, string]> = [];
 
   private setChromeForDesign(designing: boolean): void {
-    const chrome = [swingBtn, meterEl, clubBar, hudEl, dragTrackEl];
+    const chrome = [swingBtn, meterEl, clubBar, hudEl, tracePadEl];
     if (designing) {
       this.chromeBefore = chrome.map((el) => [el, el.style.display]);
       for (const el of chrome) el.style.display = 'none';
       promptEl.textContent = '';
-      dragTrack.hide();
+      tracePad.hide();
     } else {
       for (const [el, display] of this.chromeBefore) el.style.display = display;
       this.chromeBefore = [];
@@ -2665,9 +2663,9 @@ class HoleScene {
     // Clearing it when the METER ARMS (as this first did) wiped it instantly,
     // because the next turn arms the moment the ball comes to rest.
     clearShotWhy();
-    // The pull track belongs to the address, not the flight; the next turn's
-    // armMeter puts it back up with that shot's bands.
-    dragTrack.hide();
+    // The trace pad is NOT hidden here: the path you just drew stays on it
+    // through the flight and the next address, which is the whole point of
+    // drawing it. The next `armMeter` resets it for the coming swing.
     // Snapshot the True Vision promise BEFORE hideTrueVision() clears it.
     const tvReveal = this.tvReveal;
     this.state.phase = 'swinging';
@@ -3284,7 +3282,7 @@ class HoleScene {
     // DRAG SWING (`dragSwing`): the pull starts on the track down the right
     // edge — the one part of a phone screen with a full backswing's worth of
     // travel beneath the thumb.
-    this.onDragSwingDown = (e: PointerEvent): void => {
+    this.onTraceDown = (e: PointerEvent): void => {
       if (!flag('dragSwing') || this.ai || this.state.phase !== 'aiming') return;
       e.preventDefault();
       startAmbience();
@@ -3292,43 +3290,48 @@ class HoleScene {
       // Same rationale as the tap path: defer the capture recorder's segment
       // swap across the swing only, not across the whole aiming window.
       shotCapture.setRotationPaused(!isFrozen());
-      this.dragOrigin = { x: e.clientX, y: e.clientY, t: e.timeStamp };
-      const first: DragSample = { x: 0, y: 0, t: 0 };
-      this.dragSwing = { path: [first], state: readDrag([first], tuningForViewport(window.innerHeight)) };
-      dragTrack.update(this.dragSwing.state);
-      promptEl.textContent = 'Pull back — smooth and straight';
+      // The guide dot's clock starts on the PRESS, so tempo is measured from
+      // the moment the player commits rather than from when the pad appeared.
+      tracePad.begin(performance.now());
+      const first: TraceSample = { ...tracePad.toPad(e.clientX, e.clientY), t: 0 };
+      this.trace = { path: [first], state: readTrace([first]) };
+      tracePad.update(first, this.trace.state);
+      promptEl.textContent = 'Follow the dot';
     };
-    dragTrackEl.addEventListener('pointerdown', this.onDragSwingDown);
+    tracePadEl.addEventListener('pointerdown', this.onTraceDown);
 
     // Move/release live on the WINDOW: the pull naturally travels off the
     // track, and a release outside it must still strike (or cancel) rather than
     // leaving the player holding a club forever.
-    this.onDragSwingMove = (e: PointerEvent): void => {
-      const drag = this.dragSwing;
+    this.onTraceMove = (e: PointerEvent): void => {
+      const drag = this.trace;
       if (!drag) return;
       e.preventDefault();
-      const o = this.dragOrigin;
-      drag.path.push({ x: e.clientX - o.x, y: e.clientY - o.y, t: e.timeStamp - o.t });
-      drag.state = readDrag(drag.path, tuningForViewport(window.innerHeight));
-      dragTrack.update(drag.state);
-      promptEl.textContent = drag.state.engaged ? 'Release to strike' : 'Pull back…';
+      const now = performance.now();
+      const sample: TraceSample = { ...tracePad.toPad(e.clientX, e.clientY), t: tracePad.elapsed(now) };
+      drag.path.push(sample);
+      drag.state = readTrace(drag.path);
+      tracePad.update(sample, drag.state);
+      promptEl.textContent = drag.state.engaged ? 'Release to strike' : 'Follow the dot';
     };
-    this.onDragSwingUp = (): void => {
-      const drag = this.dragSwing;
-      this.dragSwing = null;
+    this.onTraceUp = (): void => {
+      const drag = this.trace;
+      this.trace = null;
       if (!drag) return;
-      dragTrack.release();
       if (!drag.state.engaged || !this.swingCtx) {
         // Too small to be a swing — treat it as a cancel, not a duffed shot.
-        promptEl.textContent = 'Drag to aim — pull the track to swing';
+        promptEl.textContent = 'Drag to aim — trace the pad to swing';
         shotCapture.setRotationPaused(false);
         return;
       }
-      this.executeShot(resolveDragSwing(drag.state, this.swingCtx));
+      // The finished trace stays on the pad until the next swing begins: a
+      // control that says "miss" and nothing else is a slot machine.
+      tracePad.finish(drag.state);
+      this.executeShot(resolveTraceSwing(drag.state, this.swingCtx));
     };
-    window.addEventListener('pointermove', this.onDragSwingMove);
-    window.addEventListener('pointerup', this.onDragSwingUp);
-    window.addEventListener('pointercancel', this.onDragSwingUp);
+    window.addEventListener('pointermove', this.onTraceMove);
+    window.addEventListener('pointerup', this.onTraceUp);
+    window.addEventListener('pointercancel', this.onTraceUp);
 
     this.onPointerDown = (e: PointerEvent): void => {
       // FLY MODE owns the canvas outright while it is up: the pointer is
@@ -3607,9 +3610,9 @@ class HoleScene {
   }
 
   private onSwingTap!: (e: Event) => void;
-  private onDragSwingDown!: (e: PointerEvent) => void;
-  private onDragSwingMove!: (e: PointerEvent) => void;
-  private onDragSwingUp!: () => void;
+  private onTraceDown!: (e: PointerEvent) => void;
+  private onTraceMove!: (e: PointerEvent) => void;
+  private onTraceUp!: () => void;
   private onPointerDown!: (e: PointerEvent) => void;
   private onPointerMove!: (e: PointerEvent) => void;
   private onPointerUp!: (e: PointerEvent) => void;
@@ -3907,12 +3910,12 @@ class HoleScene {
     for (const t of this.introTimers) clearTimeout(t);
     this.introTimers.length = 0;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
-    dragTrackEl.removeEventListener('pointerdown', this.onDragSwingDown);
-    this.dragSwing = null;
-    dragTrack.hide();
-    window.removeEventListener('pointermove', this.onDragSwingMove);
-    window.removeEventListener('pointerup', this.onDragSwingUp);
-    window.removeEventListener('pointercancel', this.onDragSwingUp);
+    tracePadEl.removeEventListener('pointerdown', this.onTraceDown);
+    this.trace = null;
+    tracePad.hide();
+    window.removeEventListener('pointermove', this.onTraceMove);
+    window.removeEventListener('pointerup', this.onTraceUp);
+    window.removeEventListener('pointercancel', this.onTraceUp);
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     canvas.removeEventListener('pointerup', this.onPointerUp);

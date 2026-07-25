@@ -186,16 +186,16 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'dragSwing',
     description:
-      'Drag-back-and-release swing (DEV-ONLY, opt-in experiment): grip the ' +
-      'track down the RIGHT edge and pull the club back, release to strike — ' +
-      'one gesture, matching the drag that already sets the aim, instead of ' +
-      'three taps on a timing bar. How DEEP you pull is the backswing, how ' +
-      'SMOOTHLY you pull is the strike, and how STRAIGHT you pull is the face. ' +
-      'ONLY the input changes: power, the perfect/good/miss bands and the ' +
-      'accuracy curve all come from the shared swingModel, so difficulty and ' +
-      'every simulation stay exactly where they are calibrated. On, the meter ' +
-      'and the SWING button give way to the track; off = the three-tap meter, ' +
-      'untouched.',
+      'TRACED SWING (DEV-ONLY, opt-in experiment): a pad with a guide dot ' +
+      'travelling the arc a club head takes, and the gesture is to follow it. ' +
+      'How far along you get is the backswing, how close to the line you stay ' +
+      'is the strike and the face, and how well you keep the dot\'s tempo is ' +
+      'the timing. After the shot the pad holds BOTH paths — the route and ' +
+      'yours — until the next swing, so a miss shows you its own shape. ONLY ' +
+      'the input changes: power, the perfect/good/miss bands and the accuracy ' +
+      'curve all come from the shared swingModel, so difficulty and every ' +
+      'simulation stay exactly where they are calibrated. On, the meter and the ' +
+      'SWING button give way to the pad; off = the three-tap meter, untouched.',
     owner: 'matt',
     defaults: { prod: false, dev: false },
     removeWhen:

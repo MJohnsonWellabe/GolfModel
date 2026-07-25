@@ -1,18 +1,17 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * The drag swing has to have somewhere to go.
+ * The traced swing has to be usable by a thumb.
  *
- * Its first version anchored the gesture on the SWING button — 18px off the
- * bottom of the screen — so a phone offered roughly a finger's width of travel
- * and the owner's report was simply that you cannot pull back far enough. That
- * is a GEOMETRY failure, and the suite of the day could not see it: the unit
- * tests exercised the mapping with abstract pixel counts, and the visual specs
- * never turned the flag on.
+ * Its ancestors failed here twice, and neither failure was visible to a unit
+ * test: the first anchored the gesture on the SWING button (a finger's width of
+ * travel on a phone), the second asked one question a player answers correctly
+ * on their third attempt. Both were caught by playing, not by the suite.
  *
- * So this spec plays a real pull with real pointer events on a real phone
- * viewport, and asserts that the stroke fits, that the surface reacts, and that
- * the release actually strikes the ball.
+ * So this spec traces a real gesture with real pointer events on a real phone
+ * viewport, and asserts that the pad is there, that it reacts while the finger
+ * is still down, that the release strikes, and — the part that is the whole
+ * point of the control — that the path stays on screen afterwards.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -46,49 +45,50 @@ async function startRound(page: import('@playwright/test').Page): Promise<void> 
   await page.locator('#loading').waitFor({ state: 'hidden', timeout: 60_000 });
 }
 
-test('the pull track has a full backswing of travel beneath the thumb', async ({ page }) => {
+test('the trace pad gives the gesture real room', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
   await startRound(page);
 
-  const grip = page.locator('#dragGrip');
-  await expect(grip, 'the pull track never appeared with the flag on').toBeVisible();
-  const box = (await grip.boundingBox())!;
+  const pad = page.locator('#tracePad');
+  await expect(pad, 'the trace pad never appeared with the flag on').toBeVisible();
+  const box = (await pad.boundingBox())!;
 
-  // On the right edge, where a thumb is.
-  expect(box.x + box.width, 'the track is not on the right edge').toBeGreaterThan(PHONE.width - 90);
-
-  // And with a full backswing PLUS its overswing headroom underneath it. This
-  // is the number the old build could not satisfy.
-  const travel = PHONE.height - (box.y + box.height);
-  expect(travel, `only ${Math.round(travel)}px of travel below the grip`).toBeGreaterThan(PHONE.height * 0.45);
+  // A gesture surface needs AREA — the failure both previous controls shipped
+  // with was being handed a sliver of screen and asked for a stroke.
+  expect(box.width, `pad is ${Math.round(box.width)}px wide`).toBeGreaterThan(PHONE.width * 0.8);
+  expect(box.height, `pad is ${Math.round(box.height)}px tall`).toBeGreaterThan(180);
+  expect(box.y + box.height, 'the pad runs off the bottom').toBeLessThanOrEqual(PHONE.height + 1);
 });
 
-test('a pull down the track powers up, and the release strikes the ball', async ({ page }) => {
+test('tracing the pad powers up, strikes, and leaves the path on screen', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
   await startRound(page);
 
-  const grip = (await page.locator('#dragGrip').boundingBox())!;
-  const x = grip.x + grip.width / 2;
-  const y0 = grip.y + grip.height / 2;
-
-  // A pull the hand of a real player would make: unhurried, straight, and
-  // stopping well short of the bottom of the screen.
-  const depth = PHONE.height * 0.36;
-  await page.mouse.move(x, y0);
+  const box = (await page.locator('#tracePad').boundingBox())!;
+  // Follow roughly the route the guide dot takes: bottom-centre, out and up,
+  // back in. Approximate on purpose — a spec that traced it exactly would be
+  // asserting the arithmetic rather than the control.
+  const at = (u: number): [number, number] => {
+    const a = 0.11 * Math.PI + (0.78 * Math.PI) * u;
+    return [
+      box.x + box.width * (0.5 + Math.cos(a) * 0.42),
+      box.y + box.height * (0.95 - Math.sin(a) * 0.72)
+    ];
+  };
+  const [sx, sy] = at(0);
+  await page.mouse.move(sx, sy);
   await page.mouse.down();
-  for (let i = 1; i <= 24; i++) {
-    await page.mouse.move(x, y0 + (depth * i) / 24);
+  for (let i = 1; i <= 20; i++) {
+    const [x, y] = at(i / 20);
+    await page.mouse.move(x, y);
     await page.waitForTimeout(16);
   }
 
-  // The surface responds to the stroke while it is still in the hand — the
-  // whole affordance a spatial control buys over a timing bar.
-  const fill = await page.locator('#dragFill').evaluate((el) => (el as HTMLElement).style.height);
-  expect(parseFloat(fill), `fill was "${fill}"`).toBeGreaterThan(10);
-  await expect(page.locator('#dragKnob')).toBeVisible();
-  expect(await page.locator('#dragReadout').innerText()).toMatch(/%/);
+  // The surface responds while the finger is still down — the affordance a
+  // gesture control buys over a timing bar.
+  expect(await page.locator('#tracePadReadout').innerText()).toMatch(/%/);
 
   await page.mouse.up();
 
@@ -102,6 +102,12 @@ test('a pull down the track powers up, and the release strikes the ball', async 
     undefined,
     { timeout: 20_000 }
   );
+
+  // AND THE PATH STAYS UP. A control that says "miss" and nothing else is a
+  // slot machine; showing the shape of your own mistake is the only way
+  // tracing gets better, so the pad survives the strike.
+  await expect(page.locator('#tracePad')).toBeVisible();
+  expect(await page.locator('#tracePadReadout').innerText()).toMatch(/line|tempo/i);
 });
 
 test('a touch that never pulls back is a cancel, not a duffed shot', async ({ page }) => {
@@ -109,10 +115,13 @@ test('a touch that never pulls back is a cancel, not a duffed shot', async ({ pa
   await page.setViewportSize(PHONE);
   await startRound(page);
 
-  const grip = (await page.locator('#dragGrip').boundingBox())!;
-  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+  // At the START of the route, where a real stray touch would land.
+  const box = (await page.locator('#tracePad').boundingBox())!;
+  const x = box.x + box.width * (0.5 + Math.cos(0.11 * Math.PI) * 0.42);
+  const y = box.y + box.height * (0.95 - Math.sin(0.11 * Math.PI) * 0.72);
+  await page.mouse.move(x, y);
   await page.mouse.down();
-  await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2 + 6);
+  await page.mouse.move(x + 4, y - 3);
   await page.mouse.up();
   await page.waitForTimeout(400);
 
@@ -146,7 +155,7 @@ test('with the flag off, nothing about the tap meter changes', async ({ page }) 
     { timeout: 60_000 }
   );
 
-  await expect(page.locator('#dragTrack')).toBeHidden();
+  await expect(page.locator('#tracePad')).toBeHidden();
   await expect(page.locator('#swingBtn')).toBeVisible();
   await expect(page.locator('#meter')).toBeVisible();
 });
