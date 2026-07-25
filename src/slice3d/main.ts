@@ -4341,31 +4341,45 @@ function showSummary(): void {
     `<span class="pb${isNewBest ? ' newBest' : ''}">${pbLabel}</span></div>` +
     starLine +
     recLines +
+    // WHAT YOU EARNED — one block. These were five separate stacked lines
+    // (rewards, streak, protection, purse, and the sign-in nudge under them),
+    // each styled to be noticed, all saying "you got something".
     rewardStripHtml(events) +
     streakRewardLine +
     protectionLine +
+    purseLine +
+    signInNudge +
+    // WHAT IT MEANT — the competitive outcomes. A weekly entry, a challenge
+    // settled and a tournament standing are the reason the round was played,
+    // so they stay on the card; everything hole-by-hole goes behind the fold.
     weeklyLine +
     challengeLine +
     aiTourBlock +
     tourBlock +
-    purseLine +
-    signInNudge +
     `<div class="objLine">🎯 ${escapeHtml(objective)}</div>` +
-    `<details class="roundDetails"><summary>Round details</summary>` +
-    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
-    `</details>` +
+    // THE TWO PRIMARY ACTIONS, directly under the objective — the card's whole
+    // job is to start the next round, and on a phone anything below a details
+    // expander and a five-button row is a scroll away.
     (midTour
-      ? `<div class="primaryRow"><button id="againBtn">Next Round →</button></div>` +
-        `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
-        `<button id="profBtn" class="ghostBtn">Profile</button>` +
-        `<button id="quitTourBtn" class="ghostBtn">Quit</button></div>`
+      ? `<div class="primaryRow"><button id="againBtn">Next Round →</button></div>`
       : `<div class="primaryRow"><button id="replayBtn">${replayLabel}</button>` +
-        `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>` +
-        `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
-        `<button id="profBtn" class="ghostBtn">Profile</button>` +
-        `<button id="shareChBtn" class="ghostBtn">⚔ Share</button>` +
+        `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>`) +
+    // The retention actions keep their own row — racing this round and
+    // challenging somebody with it are the two things that bring a player
+    // back, so they are one tap, not two.
+    (midTour
+      ? `<div class="btnRow"><button id="quitTourBtn" class="ghostBtn">Quit tournament</button></div>`
+      : `<div class="btnRow">` +
         (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
-        `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
+        `<button id="shareChBtn" class="ghostBtn">⚔ Challenge a friend</button></div>`) +
+    // Everything else — the scorecard, and the two destinations that are
+    // always one tap from the menu anyway — folds away.
+    `<details class="roundDetails"><summary>Scorecard &amp; more</summary>` +
+    `<table><tr><th>Hole</th><th>Par</th>${headCols}</tr>${rows}${totalRow}${teamRow}</table>` +
+    `<div class="btnRow"><button id="recBtn" class="ghostBtn">🏆 Records</button>` +
+    `<button id="profBtn" class="ghostBtn">👤 Profile</button></div>` +
+    `</details>` +
+    (midTour ? '' : `<button id="againBtn" class="ghostBtn summaryMenu">☰ Menu</button>`);
   summaryEl.style.display = 'block';
   replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
   // Reveal cascade (Pass B): children stagger in under ff-delight (CSS is
@@ -4572,79 +4586,154 @@ function masteryDetailHtml(p: PlayerProfile): string {
   }).join('');
 }
 
-/** Profile overlay: level ring, career stats and achievements (Phase 6). */
-function renderProfile(): void {
+/**
+ * THE PROFILE, AS TABS.
+ *
+ * This was one column and about two thousand pixels of it: identity, ten stat
+ * cells, mastery chips, a per-hole mastery drill-down, challenges,
+ * achievements, four settings, a danger zone — and then, at the very bottom of
+ * all that, the Admin panel and the Dev tools. Two surfaces that get used
+ * constantly during development were the furthest thing on the screen from the
+ * player's thumb, reachable only by scrolling past everything else.
+ *
+ * Same shape as the landing, one level down: pick a section, see that section.
+ *
+ *   Player     who you are, and the career numbers
+ *   Progress   mastery, challenges, achievements
+ *   Settings   sound, motion, clips, the account row, and the danger zone
+ *   Admin      only for an admin account
+ *   Dev        only off production, with the dev-tools flag on
+ *
+ * `renderProfile('dev')` opens straight onto a tab, which is what the landing's
+ * More menu uses — so Admin and Dev are now two taps from the front door
+ * instead of a scroll to the bottom of a wall.
+ */
+type ProfileTab = 'player' | 'progress' | 'settings' | 'admin' | 'dev';
+
+const PROFILE_TAB_LABELS: Record<ProfileTab, string> = {
+  player: 'Player',
+  progress: 'Progress',
+  settings: 'Settings',
+  admin: '🔑 Admin',
+  dev: '🛠 Dev'
+};
+
+/** Which tab was last open, so a re-render (a claim, a grant, a reset) comes
+ *  back to where the player was rather than throwing them to the top. */
+let profileTab: ProfileTab = 'player';
+
+/** The tabs this session is entitled to. Admin follows the signed-in account;
+ *  Dev follows the environment and the flag. */
+function profileTabs(): ProfileTab[] {
+  const tabs: ProfileTab[] = ['player', 'progress', 'settings'];
+  if (adminUnlocked()) tabs.push('admin');
+  if (devToolsActive()) tabs.push('dev');
+  return tabs;
+}
+
+/** Profile overlay: identity, career, progress, settings — and the tools. */
+function renderProfile(tab?: ProfileTab): void {
   const p = profile;
   const s = p.stats;
   const cur = xpForLevel(p.level);
   const next = xpForLevel(p.level + 1);
   const pct = next > cur ? Math.round(((p.xp - cur) / (next - cur)) * 100) : 100;
+  const tabs = profileTabs();
+  if (tab && tabs.includes(tab)) profileTab = tab;
+  if (!tabs.includes(profileTab)) profileTab = 'player';
+  const pane = (id: ProfileTab, body: string): string =>
+    `<div class="profPane${id === profileTab ? ' on' : ''}" data-tab="${id}">${body}</div>`;
+
   recordsEl.style.display = 'flex';
   recordsEl.innerHTML =
     `<div class="recInner"><h2>${escapeHtml(p.name || 'Golfer')}</h2>` +
     `<div class="profLvl">Level ${p.level} · ${p.coins} 🪙 · ${p.xp} XP</div>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
-    `<div class="profStats">` +
-    statCell(s.rounds, 'Rounds') +
-    statCell(s.birdies, 'Birdies') +
-    statCell(s.eagles, 'Eagles') +
-    statCell(s.holeInOnes, 'Aces') +
-    statCell(s.bestRoundToPar === null ? '—' : s.bestRoundToPar, 'Best') +
-    statCell(Math.round(s.longestDriveYds), 'Long drive') +
-    statCell(s.chipIns, 'Chip-ins') +
-    statCell(s.wins, 'Wins') +
-    statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
-    statCell(`⭐ ${starCount(p.retention.mastery)}`, 'Mastery stars') +
+    `<div class="profTabs">` +
+    tabs
+      .map(
+        (t) =>
+          `<button class="recTab profTab${t === profileTab ? ' sel' : ''}" data-tab="${t}">${PROFILE_TAB_LABELS[t]}</button>`
+      )
+      .join('') +
     `</div>` +
-    // Course-by-course mastery totals + an expandable per-hole drill-down so
-    // the player can see exactly which stars are done and which remain.
-    `<div class="profMastery">` +
-    COURSE_LIST.map((c) => `<span class="chip">${c.icon} ${starCount(p.retention.mastery, c.id)}/9</span>`).join('') +
-    `</div>` +
-    `<details class="masteryDetails"><summary>View mastery stars by hole</summary>` +
-    masteryDetailHtml(p) +
-    `</details>` +
-    // Your Challenges (1v1): who you challenged, the result, and the W-L
-    // record — filled asynchronously from the shared /challenges docs.
-    (p.retention.challenges.length
-      ? `<div class="chSection"><div class="chHead">⚔ Your Challenges <span id="chRecord" class="chip"></span></div>` +
-        `<div id="chList" class="chList"><span class="chPending">Loading results…</span></div></div>`
-      : '') +
-    // Achievements: earned first, then a FEW useful next targets — never the
-    // whole locked wall (Part 6).
-    `<div class="achList">` +
-    (() => {
-      const earned = ACHIEVEMENTS.filter((a) => p.achievements.includes(a.id));
-      const next = ACHIEVEMENTS.filter((a) => !p.achievements.includes(a.id)).slice(0, 3);
-      const hidden = ACHIEVEMENTS.length - earned.length - next.length;
-      return (
-        earned.map((a) => `<div class="achRow got">🏅 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
-        next.map((a) => `<div class="achRow">🎯 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
-        (hidden > 0 ? `<div class="achRow"><span>… ${hidden} more to discover</span></div>` : '')
-      );
-    })() +
-    `</div>` +
-    `<div class="profSettings">` +
-    (authConfigured()
-      ? `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
-        `<button id="linkGoogle" class="ghostBtn">Sign in with Google</button></div>`
-      : '') +
-    `<label class="setRow"><span>Sound</span>` +
-    `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
-    `<label class="setRow"><span>Ambience</span>` +
-    `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
-    `<label class="setRow"><span>Reduced motion</span>` +
-    `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
-    (shotCapture.supported
-      ? `<label class="setRow"><span>Record shot clips</span>` +
-        `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
-      : '') +
-    `<div id="resetZone" class="resetZone">` +
-    `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
-    `</div>` +
-    `<div id="profAdminZone"></div>` +
-    `<div id="profDevZone"></div>` +
+    pane(
+      'player',
+      `<div class="profStats">` +
+        statCell(s.rounds, 'Rounds') +
+        statCell(s.birdies, 'Birdies') +
+        statCell(s.eagles, 'Eagles') +
+        statCell(s.holeInOnes, 'Aces') +
+        statCell(s.bestRoundToPar === null ? '—' : s.bestRoundToPar, 'Best') +
+        statCell(Math.round(s.longestDriveYds), 'Long drive') +
+        statCell(s.chipIns, 'Chip-ins') +
+        statCell(s.wins, 'Wins') +
+        statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
+        statCell(`⭐ ${starCount(p.retention.mastery)}`, 'Mastery stars') +
+        `</div>`
+    ) +
+    pane(
+      'progress',
+      // Course-by-course mastery totals + an expandable per-hole drill-down so
+      // the player can see exactly which stars are done and which remain.
+      `<div class="profMastery">` +
+        COURSE_LIST.map((c) => `<span class="chip">${c.icon} ${starCount(p.retention.mastery, c.id)}/9</span>`).join('') +
+        `</div>` +
+        `<details class="masteryDetails"><summary>View mastery stars by hole</summary>` +
+        masteryDetailHtml(p) +
+        `</details>` +
+        // Your Challenges (1v1): who you challenged, the result, and the W-L
+        // record — filled asynchronously from the shared /challenges docs.
+        (p.retention.challenges.length
+          ? `<div class="chSection"><div class="chHead">⚔ Your Challenges <span id="chRecord" class="chip"></span></div>` +
+            `<div id="chList" class="chList"><span class="chPending">Loading results…</span></div></div>`
+          : '') +
+        // Achievements: earned first, then a FEW useful next targets — never the
+        // whole locked wall (Part 6).
+        `<div class="achList">` +
+        (() => {
+          const earned = ACHIEVEMENTS.filter((a) => p.achievements.includes(a.id));
+          const nextUp = ACHIEVEMENTS.filter((a) => !p.achievements.includes(a.id)).slice(0, 3);
+          const hidden = ACHIEVEMENTS.length - earned.length - nextUp.length;
+          return (
+            earned.map((a) => `<div class="achRow got">🏅 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
+            nextUp.map((a) => `<div class="achRow">🎯 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
+            (hidden > 0 ? `<div class="achRow"><span>… ${hidden} more to discover</span></div>` : '')
+          );
+        })() +
+        `</div>`
+    ) +
+    pane(
+      'settings',
+      `<div class="profSettings">` +
+        (authConfigured()
+          ? `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
+            `<button id="linkGoogle" class="ghostBtn">Sign in with Google</button></div>`
+          : '') +
+        `<label class="setRow"><span>Sound</span>` +
+        `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
+        `<label class="setRow"><span>Ambience</span>` +
+        `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
+        `<label class="setRow"><span>Reduced motion</span>` +
+        `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+        (shotCapture.supported
+          ? `<label class="setRow"><span>Record shot clips</span>` +
+            `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
+          : '') +
+        `<div id="resetZone" class="resetZone">` +
+        `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
+        `</div>`
+    ) +
+    pane('admin', `<div id="profAdminZone"></div>`) +
+    pane('dev', `<div id="profDevZone"></div>`) +
     `<button id="profBack">Back</button></div>`;
+
+  // Switching tabs re-renders rather than toggling classes: the Admin and Dev
+  // panes are rebuilt from live state (an account check, the current flag
+  // values), and a stale pane behind a tab is worse than a repaint.
+  for (const el of Array.from(recordsEl.querySelectorAll<HTMLElement>('.profTab'))) {
+    el.addEventListener('pointerdown', () => renderProfile(el.dataset.tab as ProfileTab));
+  }
   // 'click' (not 'pointerdown') — see the #lkLock comment in renderLockerRoom:
   // hiding this full-screen overlay on the down-stroke lets the release land
   // on whatever's exposed underneath instead.
@@ -7161,10 +7250,19 @@ function updateDestinations(newPlayer: boolean): void {
   // MORE — the account, and the tools when they apply.
   set('more', true, signedIn ? profile.name || 'Your account' : 'Sign in to sync');
 
-  const builder = document.getElementById('landingBuilder');
-  if (builder) builder.style.display = devToolsActive() ? '' : 'none';
-  const admin = document.getElementById('landingAdmin');
-  if (admin) admin.style.display = devToolsActive() ? '' : 'none';
+  // THE TOOLS. Two different gates, deliberately: Admin follows the signed-in
+  // ACCOUNT (so an admin sees it in production, which is where they need it),
+  // Dev follows the environment plus the devTools flag. Binding both to
+  // devToolsActive() — as the first cut did — hid the admin panel from the
+  // only place it matters.
+  const show = (id: string, on: boolean): void => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = on ? '' : 'none';
+  };
+  show('landingAdmin', adminUnlocked());
+  show('landingAdminSite', adminUnlocked());
+  show('landingDev', devToolsActive());
+  show('landingBuilder', devToolsActive());
 }
 
 /** How many season-pass levels are sitting unclaimed. Cheap arithmetic over the
@@ -8299,7 +8397,11 @@ document.getElementById('landingLearn')!.addEventListener('pointerdown', () => s
 document.getElementById('landingPractice')?.addEventListener('pointerdown', () => startPractice());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
+document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile('player'));
+document.getElementById('landingSettings')!.addEventListener('pointerdown', () => renderProfile('settings'));
+// Straight to the tab, not to the top of a scroll.
+document.getElementById('landingAdmin')!.addEventListener('pointerdown', () => renderProfile('admin'));
+document.getElementById('landingDev')!.addEventListener('pointerdown', () => renderProfile('dev'));
 document.getElementById('landingLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());

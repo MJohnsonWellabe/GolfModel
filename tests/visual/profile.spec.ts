@@ -6,10 +6,11 @@ import { openDestination } from './support/wizard';
  *  so a scroll flick that merely starts on the button can't trigger a wipe. */
 test('reset records asks for confirmation before wiping', async ({ page }) => {
   await page.goto('/');
-  // Profile is a More destination (the old #acctProfileLinkOut sign-in block
-  // no longer exists in the landing DOM).
+  // Reset Records lives in the profile's SETTINGS tab — the profile is five
+  // sections behind a tab strip now, not one two-thousand-pixel column — and
+  // the landing offers a direct entry to it.
   await openDestination(page, 'more');
-  await page.evaluate(() => (document.getElementById('landingProfile') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#resetRecords');
   // First tap only opens the confirm modal — no wipe yet.
   await page.evaluate(() => (document.getElementById('resetRecords') as HTMLElement).dispatchEvent(new Event('click')));
@@ -28,8 +29,9 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
  *  we can capture the account row. No sign-in happens, so nothing is written. */
 test('profile shows the cloud account row when auth is configured', async ({ page }) => {
   await page.goto('/?env=prod');
+  // The account row is in Settings alongside the rest of the account chrome.
   await openDestination(page, 'more');
-  await page.evaluate(() => (document.getElementById('landingProfile') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#linkGoogle');
   // Signed out the control reads "Sign in with Google"; signed in, "Log out".
   await expect(page.locator('#linkGoogle')).toContainText('Google');

@@ -2502,6 +2502,12 @@
         padding: 4px 0;
       }
       /* Summary button row + new-record banner */
+      /* Menu sits below the fold-away details — always available, never
+         competing with the two primary actions. */
+      #summary .summaryMenu {
+        margin-top: 8px;
+        opacity: 0.8;
+      }
       .btnRow {
         display: flex;
         gap: 10px;
@@ -3046,6 +3052,17 @@
         background: rgba(255, 213, 79, 0.14);
         color: #ffe28a;
       }
+      /* Profile section tabs. Same chip as the Records/Season tabs, wrapped so
+         five of them still fit a 360px phone. */
+      .profTabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        justify-content: center;
+        margin: 12px 0 14px;
+      }
+      .profPane { display: none; }
+      .profPane.on { display: block; }
       .recList {
         display: flex;
         flex-direction: column;
@@ -3680,9 +3697,16 @@
             </div>
             <div class="destPane" id="paneMore">
               <button id="landingProfile" class="destLink">Log In / Profile</button>
+              <button id="landingSettings" class="destLink">⚙️ Settings</button>
               <a id="landingAbout" class="destLink" href="marketing.html">ℹ️ About the game</a>
-              <a id="landingBuilder" class="destLink" href="holebuilder.html" style="display:none">🛠️ Hole builder</a>
-              <a id="landingAdmin" class="destLink" href="admin.html" style="display:none">🔧 Admin</a>
+              <!-- The tools. Admin follows the signed-in ACCOUNT; Dev follows
+                   the environment and the devTools flag — two different gates,
+                   so they are two different entries. Both were previously
+                   reachable only by scrolling to the bottom of the profile. -->
+              <button id="landingAdmin" class="destLink" style="display:none">🔑 Admin panel</button>
+              <a id="landingAdminSite" class="destLink" href="admin.html" style="display:none">🔑 Admin dashboard ↗</a>
+              <button id="landingDev" class="destLink" style="display:none">🛠 Dev tools</button>
+              <a id="landingBuilder" class="destLink" href="holebuilder.html" style="display:none">🧰 Hole builder ↗</a>
             </div>
           </div>
         </div>

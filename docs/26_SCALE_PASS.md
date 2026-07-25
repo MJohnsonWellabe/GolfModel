@@ -438,6 +438,48 @@ offered Play, Compete and More, while Today and Locker stay closed until a first
 round is in the books. Previously the same rule blanked individual cards, which
 left a newcomer looking at gaps.
 
+### The profile, and getting to the tools
+
+The profile had the same disease one level down: one column about two thousand
+pixels tall — identity, ten stat cells, mastery chips, a per-hole mastery
+drill-down, challenges, achievements, four settings, a danger zone — and then,
+at the very bottom of all of it, **the Admin panel and the Dev tools**. Two
+surfaces used constantly during development were the furthest thing on the
+screen from the player's thumb.
+
+It is sections now, same shape as the landing: **Player · Progress · Settings**,
+plus **Admin** and **Dev** when they apply. `renderProfile('dev')` opens
+straight onto a tab, which is what the landing's More menu uses — so the tools
+are **two taps from the front door** instead of a scroll to the bottom of a
+wall. Switching tabs re-renders rather than toggling a class, because the Admin
+and Dev panes are built from live state (an account check, current flag values)
+and a stale pane behind a tab is worse than a repaint.
+
+The two tools are gated **differently, on purpose**, which the first cut got
+wrong by binding both to `devToolsActive()`:
+
+| Entry | Gate |
+| --- | --- |
+| 🔑 Admin panel / dashboard | `adminUnlocked()` — the signed-in ACCOUNT, so an admin sees it in production, which is where they need it |
+| 🛠 Dev tools / 🧰 Hole builder | `devToolsActive()` — off production, with the `devTools` flag on |
+
+Settings also gets its own front-door entry, since "change the volume" should
+not route through "look at my career stats".
+
+### The post-round card
+
+Up to ten notice lines and seven buttons, with the two actions that actually
+start the next round somewhere in the middle. It now reads: **result → what you
+earned → what it meant → one objective → Replay / Play Next**, with the two
+retention actions (👻 Race this, ⚔ Challenge a friend) on their own row, and the
+scorecard plus Records/Profile folded into one disclosure. Menu stays outside
+the disclosure — leaving must never require opening something first.
+
+`tests/visual/menusIA.spec.ts` gates all of it at 360×800: one profile pane open
+at a time, Settings and the Dev tools each reachable in two taps, the tools
+absent for a player who is neither an admin nor in dev, and both primary
+post-round actions above the fold.
+
 Two things were found dead while doing this and removed: `updateSeasonLink` and
 `updateStoreBanner` rendered `#seasonBanner` and `#storeBanner`, neither of
 which has existed in the landing markup for some time — both ran, found nothing
