@@ -116,6 +116,9 @@ Implementation records (evidence, not governing guidance):
 - `26_SCALE_PASS.md` (cold start, rounds-as-inputs, verified scores, ghost
   head-to-head, Hole of the Day, shot attribution, practice ground, first-rounds
   ease-in, the drag-swing experiment and the Season Pass rescope — dev-gated)
+- `27_THE_RIVAL.md` (one named opponent, one fixture a day, a running
+  head-to-head — house rivals played headlessly, friend rivals over a shared
+  channel; the daily-return retention pass — dev-gated)
 - `03B_REFERENCE_GUIDE.md` (creative reference)
 
 Proposals awaiting approval (not building yet):

@@ -95,8 +95,25 @@ import {
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
-import { calibrateRivalSkill, hasRival, houseRival, rivalStanding, settleRivalDay } from '../systems/Rival';
+import {
+  calibrateRivalSkill,
+  hasRival,
+  houseRival,
+  recalibrateRival,
+  rivalStanding,
+  settleRivalDay
+} from '../systems/Rival';
 import { synthesiseRivalRound } from '../systems/RivalRound';
+import {
+  acceptRivalInvite,
+  createRivalInvite,
+  fetchRivalEntry,
+  fetchRivalInvite,
+  makeRivalInviteCode,
+  pairId,
+  postRivalEntry,
+  RivalEntry
+} from '../firebase/Rivals';
 import { applyHoleMastery, emptyMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -459,7 +476,16 @@ const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, C
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
-  return COURSE_LIST.find((c) => COURSES[c.id]?.name === name)?.id ?? DEFAULT_COURSE_ID;
+  const listed = COURSE_LIST.find((c) => COURSES[c.id]?.name === name)?.id;
+  if (listed) return listed;
+  // COURSE_LIST is the static roster; COURSES additionally holds courses
+  // registered at runtime — today's Hole of the Day under a reserved id. A
+  // daily round used to fall through to DEFAULT_COURSE_ID here, which stamped
+  // its recording with WILDWOOD: the verifier then replayed the generated
+  // hole's shots on a completely different hole, so no daily attempt could ever
+  // verify and every one of them was silently dropped.
+  const registered = Object.keys(COURSES).find((id) => COURSES[id]?.name === name);
+  return registered ?? DEFAULT_COURSE_ID;
 }
 
 interface HoleState {
@@ -5049,6 +5075,23 @@ function equippedPerkDef(): PerkDef | undefined {
  *  the Locker Room, use it; otherwise roll a random OWNED loadout for THIS
  *  round (character + style + a random owned pal) — "if they don't choose, it
  *  just randomizes from what they own". */
+/**
+ * The loadout the CURRENT round is actually being played with.
+ *
+ * An unlocked profile re-rolls its character and archetype every round
+ * (`roundGolfer`), and those choices used to live only inside that function's
+ * locals. Anything downstream asking "who played this round?" read
+ * `profile.character/archetype` instead and got the wrong golfer — including
+ * `sealRoundRecording`, which stamped every recording with a loadout that did
+ * not play it. The replay then assembled a DIFFERENT golfer, the round did not
+ * reproduce, and the recording was silently dropped. For any player who has not
+ * locked a loadout, that was every round.
+ */
+let roundLoadout: { character: CharacterKey; archetype: ArchetypeId } = {
+  character: 'chip',
+  archetype: 'bigHitter'
+};
+
 function roundGolfer(): Golfer {
   let character = profile.character as CharacterKey;
   let archetype = profile.archetype as ArchetypeId;
@@ -5059,8 +5102,15 @@ function roundGolfer(): Golfer {
     const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(profile, i));
     if (ownedPals.length) equip(profile, randomOf(ownedPals).id); // a random companion for the round
   }
-  return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, equippedPerkDef());
+  roundLoadout = { character, archetype };
+  const perk = equippedPerkDef();
+  roundPerkId = perk?.id ?? null;
+  return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, perk);
 }
+
+/** The perk the CURRENT round is being played with — recorded for the same
+ *  reason the loadout is: a replay without it assembles a different golfer. */
+let roundPerkId: string | null = null;
 
 function updateSeasonLink(): void {
   const btn = document.getElementById('seasonBanner');
@@ -6178,14 +6228,17 @@ function sealRoundRecording(): void {
     seed: round.seed ?? 0,
     holes: holesThisRound(),
     golfer: {
-      character: profile.character,
-      archetype: profile.archetype,
+      // The loadout that PLAYED this round, not the one sitting on the profile.
+      // They differ on every round an unlocked profile re-rolls (roundGolfer).
+      character: roundLoadout.character,
+      archetype: roundLoadout.archetype,
       upgrades: { ...profile.clubUpgrades }
     },
     scores: me?.scores ?? [],
     at: Date.now(),
     name: profile.name || 'Player',
-    gentlePins: roundGentlePins
+    gentlePins: roundGentlePins,
+    perkId: roundPerkId
   });
   if (!rec) return;
   const check = verifyRecording(rec, COURSES, replayOptions());
@@ -6193,7 +6246,10 @@ function sealRoundRecording(): void {
     // Never surfaced to the player — there is nothing they did wrong and
     // nothing they can do. Logged in dev so drift is caught in playtesting.
     if (!ENV.isProd) {
-      console.warn(`[recording] dropped — ${check.status}: ${check.detail ?? ''}`, check);
+      console.warn(
+        `[recording] dropped — ${check.status}: ${check.detail ?? ''} course=${rec.courseId} shots=${rec.shots.length} scores=${rec.scores.join('/')}`,
+        check
+      );
     }
     analytics.track('recording_rejected', { result: check.status, course: courseId });
     return;
@@ -6878,39 +6934,180 @@ function ensureRival(): void {
   analytics.track('rival_assigned', { kind: 'house' });
 }
 
+/**
+ * FRIEND RIVALS. Adopting a real person as the rival, and keeping the channel
+ * they post their rounds to.
+ *
+ * A rivalry is mutual, so it cannot be established by a one-way link: the
+ * sender never learns who accepted. The link carries an invite CODE naming a
+ * rendezvous both sides read — see `firebase/Rivals.ts`. This side of it is:
+ * create one, accept one, and check whether an invite you sent was taken up.
+ */
+function adoptFriendRival(playerId: string, name: string): void {
+  if (!playerId || !name) return;
+  profile.retention.rival = {
+    ...profile.retention.rival,
+    id: playerId,
+    name: name.slice(0, 20),
+    kind: 'friend',
+    // A friend's standard is whatever they actually shoot; the synthesis dial
+    // is meaningless for them and is zeroed so it can never be read by mistake.
+    skill: 0,
+    // A new opponent starts a new record. Carrying the old one forward would
+    // credit this person with wins against somebody else.
+    wins: 0,
+    losses: 0,
+    ties: 0,
+    history: [],
+    lastDate: ''
+  };
+  rivalRoundCache = null;
+  persistProfile();
+  analytics.track('rival_assigned', { kind: 'friend' });
+  showMsg(`${name} is your rival. Play today's hole to open the account.`, 3200);
+  showLanding();
+}
+
+/** The invite this device sent and is waiting on, if any (device-local — it is
+ *  a pending handshake, not profile state worth syncing). */
+const PENDING_RIVAL_INVITE_KEY = 'bsg.rivalInvite.v1';
+
+function pendingRivalInvite(): string {
+  try {
+    return localStorage.getItem(PENDING_RIVAL_INVITE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function setPendingRivalInvite(code: string): void {
+  try {
+    if (code) localStorage.setItem(PENDING_RIVAL_INVITE_KEY, code);
+    else localStorage.removeItem(PENDING_RIVAL_INVITE_KEY);
+  } catch {
+    /* storage blocked — the invite simply cannot be tracked on this device */
+  }
+}
+
+/** Create and share a rival invite. */
+async function inviteRival(): Promise<void> {
+  const code = makeRivalInviteCode();
+  const me = { playerId: challengePlayerId(), name: profile.name || 'Player' };
+  const ok = await createRivalInvite({ code, from: me, at: Date.now() });
+  if (!ok) {
+    showMsg('Could not create the invite — check your connection', 2400);
+    return;
+  }
+  setPendingRivalInvite(code);
+  const url = `${location.origin}${location.pathname}?rival=${encodeURIComponent(code)}`;
+  await shareOrCopy(`Be my rival on Bite-Sized Golf — same hole every day, ghost for ghost.`, url);
+  updateDailyHoleCard();
+}
+
+/** Open an invite someone sent: adopt them, and claim the other half so they
+ *  can adopt you back. */
+async function receiveRivalInvite(code: string): Promise<void> {
+  const invite = await fetchRivalInvite(code);
+  if (!invite) {
+    showMsg('That rival invite has expired', 2400);
+    return;
+  }
+  const me = challengePlayerId();
+  if (invite.from.playerId === me) {
+    showMsg('That is your own invite — send it to a friend', 2600);
+    return;
+  }
+  await acceptRivalInvite(code, { playerId: me, name: profile.name || 'Player' });
+  adoptFriendRival(invite.from.playerId, invite.from.name);
+}
+
+/** Has an invite this device sent been accepted? Checked when the landing
+ *  paints — one bounded read, and only while an invite is outstanding. */
+async function checkPendingRivalInvite(): Promise<void> {
+  const code = pendingRivalInvite();
+  if (!code || !flag('rival')) return;
+  const invite = await fetchRivalInvite(code);
+  if (!invite?.to) return;
+  setPendingRivalInvite('');
+  adoptFriendRival(invite.to.playerId, invite.to.name);
+}
+
 /** Today's rival round, memoised for the session (synthesis is a few ms of
  *  pure physics, but it should still happen once). */
 let rivalRoundCache: { key: string; rec: RoundRecording | null } | null = null;
+
+/** A friend rival's round for today, once fetched. Kept beside the synthesis
+ *  cache so both kinds of rival read through one path. */
+let friendRivalToday: { key: string; entry: RivalEntry | null } | null = null;
 
 function todaysRivalRound(dateKey: string, courseId: string, course: CourseData): RoundRecording | null {
   if (!flag('rival') || !flag('roundRecording') || !flag('ghostRace')) return null;
   ensureRival();
   const r = profile.retention.rival;
   if (!hasRival(r)) return null;
+  // A FRIEND's round is not synthesised — it is fetched, because they have to
+  // actually play it. Until they do, there is no fixture today and the card
+  // says so rather than inventing an opponent. The fetch itself is kicked off
+  // by `refreshFriendRival`; this reads whatever has landed.
+  if (r.kind === 'friend') {
+    return friendRivalToday?.key === `${dateKey}|${r.id}` ? (friendRivalToday.entry?.rec ?? null) : null;
+  }
   const cacheKey = `${dateKey}|${courseId}|${r.id}|${r.skill}`;
   if (rivalRoundCache?.key === cacheKey) return rivalRoundCache.rec;
   const theme = resolveTheme(course);
-  const rec =
-    r.kind === 'friend'
-      ? null // a friend's rounds arrive as real recordings, not synthesised ones
-      : synthesiseRivalRound({
-          courseId,
-          course,
-          holes: Math.min(RULES.holesPerRound, course.holes.length),
-          name: r.name,
-          seed: r.seed,
-          skill: r.skill,
-          dateKey,
-          at: Date.now(),
-          useAuthoredPins: flag('layouts'),
-          bounded: flag('boundedWorld'),
-          bunkerDepthScale: theme.bunkerDepthScale ?? 1,
-          wasteDepthScale: theme.wasteDepthScale ?? 0,
-          edgeWobble: theme.edgeWobble ?? 1,
-          treeSpecies: { trees: theme.treeKeys ?? DEFAULT_TREE_MIX, accents: theme.accentTreeKeys ?? [] }
-        });
+  const rec = synthesiseRivalRound({
+    courseId,
+    course,
+    holes: Math.min(RULES.holesPerRound, course.holes.length),
+    name: r.name,
+    seed: r.seed,
+    skill: r.skill,
+    dateKey,
+    at: Date.now(),
+    useAuthoredPins: flag('layouts'),
+    bounded: flag('boundedWorld'),
+    bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+    wasteDepthScale: theme.wasteDepthScale ?? 0,
+    edgeWobble: theme.edgeWobble ?? 1,
+    treeSpecies: { trees: theme.treeKeys ?? DEFAULT_TREE_MIX, accents: theme.accentTreeKeys ?? [] }
+  });
   rivalRoundCache = { key: cacheKey, rec };
   return rec;
+}
+
+/**
+ * Fetch a friend rival's round for today, then repaint the card.
+ *
+ * Bounded, async, and entirely off every gameplay path — a friend who has not
+ * played yet is an ordinary state, not an error, and the card reads "hasn't
+ * played yet" rather than fabricating a score.
+ */
+async function refreshFriendRival(dateKey: string): Promise<void> {
+  const r = profile.retention.rival;
+  if (!flag('rival') || r.kind !== 'friend' || !hasRival(r)) return;
+  const key = `${dateKey}|${r.id}`;
+  if (friendRivalToday?.key === key && friendRivalToday.entry) return;
+  const entry = await fetchRivalEntry(pairId(challengePlayerId(), r.id), dateKey, r.id);
+  friendRivalToday = { key, entry };
+  if (entry) updateDailyHoleCard();
+}
+
+/**
+ * Publish this player's daily round so their rival can fly it. Fire-and-forget:
+ * the results card is already on screen, and a failed post costs the friend
+ * one day's ghost, never the player's own score.
+ */
+function publishRivalEntry(dateKey: string, strokes: number, rec: RoundRecording | null): void {
+  const r = profile.retention.rival;
+  if (!flag('rival') || r.kind !== 'friend' || !hasRival(r)) return;
+  const me = challengePlayerId();
+  void postRivalEntry(pairId(me, r.id), dateKey, {
+    playerId: me,
+    name: profile.name || 'Player',
+    total: strokes,
+    rec: rec ?? undefined,
+    at: Date.now()
+  });
 }
 
 /** The rival's line on the daily card: who they are, what they shot, and where
@@ -6918,13 +7115,31 @@ function todaysRivalRound(dateKey: string, courseId: string, course: CourseData)
 function rivalLine(rec: RoundRecording | null): string {
   if (!flag('rival')) return '';
   const r = profile.retention.rival;
-  if (!hasRival(r) || !rec) return '';
-  const them = rec.scores.reduce((a, b) => a + b, 0);
+  if (!hasRival(r)) return '';
   const standing = rivalStanding(r);
+  if (!rec) {
+    // A friend who has not teed off yet. Saying so is the honest version of an
+    // empty fixture, and it is also a nudge — they are waiting on you too.
+    return r.kind === 'friend'
+      ? `<div class="dhRival">👤 <b>${escapeHtml(r.name)}</b> hasn't played today yet` +
+          ` · ${escapeHtml(standing.label)}</div>`
+      : '';
+  }
+  const them = rec.scores.reduce((a, b) => a + b, 0);
   return (
     `<div class="dhRival">👤 <b>${escapeHtml(r.name)}</b> went round in ${them}` +
     ` · ${escapeHtml(standing.label)}</div>`
   );
+}
+
+/** The "make it a friend" entry. Deliberately quiet: the house rival already
+ *  works, so this is an upgrade, not a prerequisite. */
+function rivalInviteRow(): string {
+  if (!flag('rival') || !hasRival(profile.retention.rival)) return '';
+  const waiting = !!pendingRivalInvite() && profile.retention.rival.kind !== 'friend';
+  return waiting
+    ? `<div class="dhInvite">Rival invite sent — they become your rival when they open it.</div>`
+    : `<button id="dhInvite" class="dhInviteBtn">Make a friend your rival</button>`;
 }
 
 /**
@@ -6939,7 +7154,9 @@ function settleRivalFixture(dateKey: string, yourStrokes: number, rec: RoundReco
   const them = rec.scores.reduce((a, b) => a + b, 0);
   const out = settleRivalDay(profile.retention.rival, dateKey, yourStrokes, them);
   if (!out.result) return;
-  profile.retention.rival = out.state;
+  // Drift the standard against recent form so the rival stays beatable in both
+  // directions — the next fixture is built from this.
+  profile.retention.rival = recalibrateRival(out.state);
   analytics.track('rival_day_settled', { result: out.result });
   const r = out.state;
   showMsg(
@@ -6985,6 +7202,9 @@ function updateDailyHoleCard(): void {
   // merely PAINTING THE LANDING added a seventh course to the wizard. Only
   // `startDailyHole` registers it, and only when it is about to be played.
   const rivalRec = todaysRivalRound(key, DAILY_COURSE_ID, res.spec.course);
+  // A friend rival's round has to be fetched; a house rival's is already here.
+  // Both are off the gameplay path, and the card repaints when it lands.
+  void refreshFriendRival(key);
   if (played) {
     const toPar = played.strokes - par;
     el.innerHTML =
@@ -6992,10 +7212,15 @@ function updateDailyHoleCard(): void {
       `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
       ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
       rivalLine(rivalRec) +
-      `<button id="dhShare" class="dhPlay">Share result</button>`;
+      `<button id="dhShare" class="dhPlay">Share result</button>` +
+      rivalInviteRow();
     document.getElementById('dhShare')!.addEventListener('pointerdown', () => {
       void shareDailyResult(key, par, played.strokes);
     });
+    document.getElementById('dhInvite')?.addEventListener('pointerdown', () => void inviteRival());
+    // A friend may post their round after the player has already played, so a
+    // fixture can settle late. Settle whatever is now known.
+    if (rivalRec) settleRivalFixture(key, played.strokes, rivalRec);
     return;
   }
   const rivalName = flag('rival') && rivalRec ? profile.retention.rival.name : '';
@@ -7005,8 +7230,10 @@ function updateDailyHoleCard(): void {
     ` — same hole for everyone, one attempt.</div>` +
     rivalLine(rivalRec) +
     `<button id="dhPlay" class="dhPlay">${rivalName ? `Play — beat ${escapeHtml(rivalName)}` : "Play today's hole"}</button>` +
+    rivalInviteRow() +
     (ENV.isProd ? '' : `<div class="dhDev">seed ${res.spec.seed} · attempt ${attempts} · ${res.rejected.length} rejected</div>`);
   document.getElementById('dhPlay')!.addEventListener('pointerdown', () => startDailyHole());
+  document.getElementById('dhInvite')?.addEventListener('pointerdown', () => void inviteRival());
 }
 
 /** Book the Hole of the Day attempt when its round ends. First attempt wins —
@@ -7022,6 +7249,9 @@ function recordDailyAttempt(): void {
   // Settle the fixture against the rival round this attempt was actually
   // played against — not whatever the card would synthesise now.
   settleRivalFixture(dateKey, strokes, rival);
+  // Publish this round so a friend rival can fly it as their ghost. Off the
+  // gameplay path and failure-tolerant: the results card is already up.
+  publishRivalEntry(dateKey, strokes, lastRecording);
 }
 
 /**
@@ -7090,16 +7320,29 @@ function endPractice(): void {
 /** Copy the spoiler-free result, falling back to a visible message when the
  *  clipboard is unavailable (iOS without a user-gesture-scoped permission). */
 async function shareDailyResult(key: string, par: number, strokes: number): Promise<void> {
-  const text = shareText(key, par, strokes);
+  await shareOrCopy(shareText(key, par, strokes));
+}
+
+/**
+ * Hand something to the OS share sheet, falling back to the clipboard and then
+ * to showing it. One implementation because there are now four callers and the
+ * fallback chain is the part that is easy to get subtly wrong — a share that
+ * silently does nothing on a desktop browser is indistinguishable from a broken
+ * button.
+ */
+async function shareOrCopy(text: string, url?: string): Promise<void> {
+  const payload = url ? `${text} ${url}` : text;
   try {
-    if (navigator.share) {
-      await navigator.share({ text });
+    if (typeof navigator.share === 'function') {
+      await navigator.share(url ? { text, url } : { text });
       return;
     }
-    await navigator.clipboard.writeText(text);
-    showMsg('Result copied', 1200);
+    await navigator.clipboard.writeText(payload);
+    showMsg('Copied — send it to a friend', 1800);
   } catch {
-    showMsg(text, 2600);
+    // Share cancelled, clipboard blocked, or neither available: put it on
+    // screen so the player can still get at it.
+    showMsg(payload, 2600);
   }
 }
 
@@ -7643,6 +7886,10 @@ else {
     if (tcode) renderTournaments(tcode.toUpperCase());
     const ccode = params.get('c');
     if (ccode) receiveChallenge(ccode);
+    // A ?rival=CODE link makes the sender your rival (and you theirs).
+    const rcode = params.get('rival');
+    if (rcode && flag('rival')) void receiveRivalInvite(rcode);
+    else void checkPendingRivalInvite();
   } catch {
     /* no query string (e.g. non-browser test host) */
   }
@@ -7715,6 +7962,15 @@ else {
 (window as unknown as { __lastRecording: unknown }).__lastRecording = () => lastRecording;
 (window as unknown as { __verifyLastRecording: unknown }).__verifyLastRecording = () =>
   lastRecording ? verifyRecording(lastRecording, COURSES, replayOptions()) : null;
+// Test hook: the rivalry's state (tests/visual/rival.spec.ts). The head-to-head
+// is the one number the feature asks the player to believe, so a spec has to be
+// able to read it directly rather than parse it back out of a sentence.
+(window as unknown as { __rival: unknown }).__rival = () => {
+  const r = profile.retention.rival;
+  if (!hasRival(r)) return null;
+  const st = rivalStanding(r);
+  return { name: r.name, kind: r.kind, skill: r.skill, wins: r.wins, losses: r.losses, ties: r.ties, played: st.played };
+};
 (window as unknown as { __ghostStanding: unknown }).__ghostStanding = () =>
   activeGhost ? { name: activeGhost.name, scores: activeGhost.scores } : null;
 

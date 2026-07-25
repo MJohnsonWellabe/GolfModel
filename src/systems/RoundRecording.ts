@@ -92,6 +92,11 @@ export interface RoundRecording {
   at: number;
   /** Display name of the player, for ghost labels. Never used for identity. */
   name?: string;
+  /** The season-pass perk equipped for this round, if any. Perks change the
+   *  golfer's stats and perfect-zone width, so a replay that did not know about
+   *  one would assemble a WEAKER golfer than the round was played with — the
+   *  same failure the recorded character and archetype exist to prevent. */
+  pk?: string;
   /** This round drew the ease-in (kindest) pins rather than the seeded ones —
    *  see `easeIn`. The pin is otherwise derived purely from the seed, so a
    *  replay that did not know this would play the round into a DIFFERENT cup
@@ -157,6 +162,7 @@ export class RoundRecorder {
     at: number;
     name?: string;
     gentlePins?: boolean;
+    perkId?: string | null;
   }): RoundRecording | null {
     this.active = false;
     if (!this.shots.length) return null;
@@ -170,6 +176,7 @@ export class RoundRecorder {
       scores: meta.scores.slice(0, meta.holes),
       at: meta.at,
       name: meta.name,
+      ...(meta.perkId ? { pk: meta.perkId } : {}),
       // Only written when true, so the common case costs nothing on the wire
       // and old recordings (no field) mean what they always meant: seeded pins.
       ...(meta.gentlePins ? { gp: true } : {})

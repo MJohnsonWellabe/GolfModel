@@ -137,6 +137,21 @@ the shared leaderboard) — or any project you prefer.
              "$player": { ".write": "!data.exists()" }
            }
          }
+       },
+       "rivalInvites": {
+         "$code": {
+           ".read": true,
+           ".write": "!data.exists()",
+           "to": { ".write": "!data.exists()" }
+         }
+       },
+       "rivals": {
+         "$pair": {
+           ".read": true,
+           "$date": {
+             "$player": { ".write": "!data.exists()" }
+           }
+         }
        }
      }
    }
@@ -167,6 +182,20 @@ the shared leaderboard) — or any project you prefer.
    results ("I shot -2 — can you do better?"): world-readable; the challenge
    doc and each player's response are write-once, so neither side can edit a
    posted score.
+   `rivals` and `rivalInvites` back the Rival (`rival` flag — one named
+   opponent, one fixture a day). `rivalInvites/$code` is the rendezvous that
+   makes a rivalry mutual: the inviter writes the doc once, the accepter writes
+   `to` once, and each side adopts the other from the half it did not write —
+   both halves write-once, so an invite cannot be hijacked after it is taken up.
+   `rivals/$pair/$date/$player` is one small doc per person per day holding the
+   round they played AS INPUTS, which is what lets the other side re-fly it as a
+   ghost rather than approximate it from a score; write-once per player per day,
+   so the first attempt is the one that counts. `$pair` is derived by hashing
+   both player ids (order-independent), so the node name does not disclose
+   either identity to anyone reading the tree. Same friends-tier trust as
+   `challenges`: writes are unauthenticated, and the defence against a
+   fabricated entry is that it must be a physically valid round that replays to
+   its claimed score (`verifyRound`).
    `liveOpsConfig` is the retention live-ops override layer (Daily Challenge
    date pins, Weekly Featured course overrides — Admin → Retention / Live
    Ops): world-readable like `marketingConfig` (players resolve it at menu

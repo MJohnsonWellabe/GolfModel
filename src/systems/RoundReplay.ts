@@ -30,6 +30,7 @@
  */
 
 import { assembleGolfer } from '../data/golfers';
+import { perkById } from '../data/perks';
 import { buildHeightField } from './HeightField';
 import { FireSystem } from './FireSystem';
 import { PhysicsEngine } from './PhysicsEngine';
@@ -131,7 +132,10 @@ export function replayRound(
     rec.name || 'Player',
     rec.golfer.character as CharacterKey,
     rec.golfer.archetype as ArchetypeId,
-    rec.golfer.upgrades ?? {}
+    rec.golfer.upgrades ?? {},
+    // A perk raises stats and widens the perfect zone. Omitting it assembles a
+    // weaker golfer than the one that played, so the round does not reproduce.
+    perkById(rec.pk)
   );
 
   const holes: ReplayedHole[] = [];

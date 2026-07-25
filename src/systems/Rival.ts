@@ -184,6 +184,39 @@ export function settleRivalDay(prev: RivalState, dateKey: string, you: number, t
   return { state: s, result };
 }
 
+/**
+ * Keep the rival beatable — in both directions.
+ *
+ * A fixed standard decays into one of the two failure modes the whole design
+ * exists to avoid: beat them five days running and they are furniture; lose five
+ * days running and they are a wall. Either way the fixture stops being worth
+ * turning up for, which is the only thing this feature sells.
+ *
+ * So the standard drifts, slowly, against recent form: a run of wins makes them
+ * better, a run of losses makes them worse, and anything mixed leaves them
+ * alone. Quarter-stroke steps over a three-day window — slow enough that the
+ * player never feels the game reaching for the dial, fast enough that a
+ * mismatch corrects inside a week.
+ *
+ * Only house rivals drift. A friend's standard is whatever they actually shoot,
+ * and quietly adjusting a real person's score would be a lie.
+ */
+export const RIVAL_FORM_WINDOW = 3;
+
+export function recalibrateRival(s: RivalState): RivalState {
+  if (s.kind !== 'house') return s;
+  const recent = s.history.slice(-RIVAL_FORM_WINDOW);
+  if (recent.length < RIVAL_FORM_WINDOW) return s;
+  const youWon = recent.filter((d) => d.you < d.them).length;
+  const theyWon = recent.filter((d) => d.them < d.you).length;
+  // A clean sweep either way, and only then. Anything closer is a good rivalry
+  // and must not be touched.
+  const step = youWon === recent.length ? -0.25 : theyWon === recent.length ? 0.25 : 0;
+  if (step === 0) return s;
+  const skill = Math.min(2, Math.max(-1, s.skill + step));
+  return skill === s.skill ? s : { ...s, skill };
+}
+
 export interface RivalStanding {
   /** Positive = you are ahead in the rivalry. */
   lead: number;

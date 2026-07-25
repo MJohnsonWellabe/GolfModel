@@ -8,6 +8,7 @@ import {
   houseRival,
   mergeRival,
   migrateRival,
+  recalibrateRival,
   RivalState,
   rivalStanding,
   settleRivalDay
@@ -125,6 +126,41 @@ describe('rival calibration', () => {
     // Clamped at both ends so the rival stays a golfer.
     expect(calibrateRivalSkill([9, 9, 9])).toBe(2);
     expect(calibrateRivalSkill([-9, -9])).toBe(-1);
+  });
+
+  it('drifts the standard only on a clean sweep, and only for a house rival', () => {
+    // A good rivalry must be left alone. The dial exists for the two failure
+    // modes — a rival who is furniture, and one who is a wall.
+    const sweep = (you: number, them: number): RivalState => {
+      let s = armed();
+      for (let d = 1; d <= 3; d++) s = settleRivalDay(s, `2026-07-0${d}`, you, them).state;
+      return s;
+    };
+    // Player wins three straight → the rival gets better (lower target).
+    expect(recalibrateRival(sweep(3, 5)).skill).toBe(-0.25);
+    // Player loses three straight → the rival eases off.
+    expect(recalibrateRival(sweep(5, 3)).skill).toBe(0.25);
+
+    // A mixed window is a good rivalry — untouched.
+    let mixed = armed();
+    mixed = settleRivalDay(mixed, '2026-07-01', 3, 5).state;
+    mixed = settleRivalDay(mixed, '2026-07-02', 5, 3).state;
+    mixed = settleRivalDay(mixed, '2026-07-03', 3, 5).state;
+    expect(recalibrateRival(mixed).skill).toBe(0);
+
+    // Too little history to read form yet.
+    const young = settleRivalDay(armed(), '2026-07-01', 3, 5).state;
+    expect(recalibrateRival(young).skill).toBe(0);
+
+    // A friend's standard is whatever they actually shot — never adjusted.
+    const friend = { ...sweep(3, 5), kind: 'friend' as const };
+    expect(recalibrateRival(friend).skill).toBe(0);
+  });
+
+  it('never drifts past the band that keeps them a golfer', () => {
+    let s = armed({ skill: -1 });
+    for (let d = 1; d <= 3; d++) s = settleRivalDay(s, `2026-07-0${d}`, 2, 9).state;
+    expect(recalibrateRival(s).skill).toBe(-1);
   });
 
   it('gives the same seed the same person, every time', () => {

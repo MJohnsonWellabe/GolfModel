@@ -140,6 +140,54 @@ test('a round played in the real game replays to the score it was played at', as
 });
 
 /**
+ * The case the other tests cannot see: a player who has NOT locked a loadout.
+ *
+ * Every other spec here names a character and archetype, which locks the
+ * loadout — and locking it happens to make `roundGolfer` return exactly what the
+ * profile says. An unlocked profile RE-ROLLS both every round, and the recording
+ * used to be stamped from the profile rather than from the roll, so it named a
+ * golfer who did not play. The replay assembled that golfer, the round did not
+ * reproduce, and the recording was dropped. That was the default state: every
+ * round, for every player who never visited the Locker Room.
+ */
+test('a round played on an unlocked loadout records the golfer that actually played', async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => {
+    const t = m.text();
+    if (t.includes('[recording]')) console.log('PAGE ' + t);
+  });
+
+  await page.goto('/?freeze=1');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
+  // Deliberately no character/archetype: that is what leaves the loadout
+  // unlocked and lets the round roll its own.
+  await page.evaluate(() =>
+    (window as never as { __startRound: (o: unknown) => void }).__startRound({
+      name: 'Unlocked',
+      courseId: 'sablebay',
+      seed: 8642
+    })
+  );
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, {
+    timeout: 90_000
+  });
+
+  const rec = await playRound(page);
+  const verdict = await page.evaluate(() =>
+    (
+      window as never as {
+        __verifyLastRecording(): { ok: boolean; status: string; detail?: string };
+      }
+    ).__verifyLastRecording()
+  );
+  console.log(`UNLOCKED ${rec.shots.length} shots, scores ${rec.scores.join('/')} → ${JSON.stringify(verdict)}`);
+  expect(verdict.status, verdict.detail ?? '').toBe('verified');
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+/**
  * The ghost is the recording stack's other consumer, and it can fail in ways
  * verification cannot see. Verification only compares a NUMBER; a ghost puts a
  * ball in the air. A ghost that is armed but never flies, or that stops after
