@@ -184,6 +184,35 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'PROMOTED to prod once ghosts + verified leaderboards ship on top of it'
   },
   {
+    key: 'dailyHole',
+    description:
+      'Hole of the Day (DEV-ONLY for now): a brand-new hole generated from the ' +
+      'date, played hundreds of times by the headless simulator and only served ' +
+      'if it lands in a fair-and-interesting band, wearing a shipped course\'s ' +
+      'art direction. Same hole for every player, one attempt, spoiler-free ' +
+      'shareable result. Turns a 21-hole game into an unlimited one. Off = no ' +
+      'daily surface and nothing is generated.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'PROMOTED once a week of generated holes has been played and judged good'
+  },
+  {
+    key: 'verifiedScores',
+    description:
+      'Server-authoritative score verification (DEV-ONLY for now): a finished ' +
+      'round is submitted as its INPUTS and replayed by a Cloud Function ' +
+      'running the game\'s own physics, which writes the result to a node the ' +
+      'client cannot forge. Turns leaderboards from an honour system into a ' +
+      'fact. Requires `roundRecording`, a signed-in player, and the deployed ' +
+      'function (docs/26_SCALE_PASS.md). Off = nothing is submitted.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'PROMOTED once the function is deployed and leaderboards read the ' +
+      'verified node'
+  },
+  {
     key: 'ghostRace',
     description:
       'Ghost head-to-head (DEV-ONLY for now): an opponent round recorded as ' +

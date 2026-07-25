@@ -164,3 +164,73 @@ exports.giftSeasonReward = onCall({ region: 'us-central1' }, async (request) => 
   console.log(`gift: ${auth.token.email} granted ${xp} season XP + ${tv} True Vision to ${targetEmail} (${uid})`);
   return { ok: true, uid, grantedXp: xp, grantedTrueVision: tv };
 });
+
+// ---------------------------------------------------------------- score verification
+/**
+ * Server-authoritative score verification (docs/26_SCALE_PASS.md).
+ *
+ * The game's physics is pure and deterministic, so a round submitted as the
+ * INPUTS that produced it can be replayed here and the score it really makes
+ * compared with the score it claims. `verifyRound.bundle.cjs` is the game's own
+ * physics + course data, bundled by scripts/build-verify-bundle.mjs — not a
+ * re-implementation, which would drift.
+ *
+ * A verified submission is written to `verified/{uid}/{roundId}` (function-write
+ * only, so the client cannot forge one) and leaderboards read from there. A
+ * rejected one is recorded too, with its reason, because a sudden run of
+ * rejections is the signal that the bundle is stale relative to the deployed
+ * client — the one failure mode that would wrongly punish honest players.
+ *
+ * REDEPLOY THIS FUNCTION whenever physics, course JSON or the replay changes.
+ */
+const { verify: verifyRound } = require('./verifyRound.bundle.cjs');
+
+exports.verifyRound = onCall({ cors: true }, async (req) => {
+  const uid = req.auth && req.auth.uid;
+  if (!uid) throw new HttpsError('unauthenticated', 'Sign in to submit a verified round.');
+  const recording = req.data && req.data.recording;
+  if (!recording || typeof recording !== 'object') {
+    throw new HttpsError('invalid-argument', 'recording is required.');
+  }
+  // Cheap size guard before any physics runs: a real round is well under 1 KB,
+  // and replaying an enormous submission is the obvious way to burn function
+  // time for free.
+  const size = JSON.stringify(recording).length;
+  if (size > 64 * 1024) throw new HttpsError('invalid-argument', 'recording too large.');
+
+  let result;
+  try {
+    result = verifyRound({ recording });
+  } catch (err) {
+    console.error('verifyRound: replay threw', err);
+    throw new HttpsError('internal', 'Could not replay the round.');
+  }
+
+  const roundId = `${recording.courseId || 'unknown'}-${recording.seed}-${recording.at || Date.now()}`;
+  const record = {
+    uid,
+    status: result.status,
+    total: result.actualTotal,
+    claimed: result.claimedTotal,
+    scores: result.actualScores,
+    courseId: recording.courseId || null,
+    seed: typeof recording.seed === 'number' ? recording.seed : null,
+    rosterVersion: result.rosterVersion,
+    at: admin.database.ServerValue.TIMESTAMP
+  };
+  await admin
+    .database()
+    .ref(`${result.ok ? 'verified' : 'rejected'}/${uid}/${roundId}`)
+    .set(record);
+
+  if (!result.ok) {
+    console.warn(`verifyRound: ${result.status} for ${uid} — ${result.detail || ''}`);
+  }
+  return {
+    ok: result.ok,
+    status: result.status,
+    total: result.actualTotal,
+    claimed: result.claimedTotal,
+    rosterVersion: result.rosterVersion
+  };
+});

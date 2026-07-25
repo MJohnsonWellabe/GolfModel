@@ -1177,6 +1177,45 @@
         font-weight: 700;
         font-size: 12px;
       }
+      /* Hole of the Day (`dailyHole`) — one generated hole, same for everyone. */
+      #dailyHoleCard {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        text-align: left;
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.16), rgba(255, 213, 79, 0.05));
+        border: 1px solid rgba(255, 213, 79, 0.34);
+      }
+      #dailyHoleCard:empty {
+        display: none;
+      }
+      #dailyHoleCard .dhLabel {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        color: #ffd54f;
+      }
+      #dailyHoleCard .dhName {
+        font-size: 13px;
+        font-weight: 700;
+        color: #eef5ea;
+        margin: 3px 0 7px;
+      }
+      #dailyHoleCard .dhPlay {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: none;
+        font-weight: 800;
+        font-size: 13px;
+        color: #33260a;
+        background: linear-gradient(180deg, #ffe28a, #e8b93a);
+      }
+      #dailyHoleCard .dhDev {
+        margin-top: 6px;
+        font-size: 10px;
+        opacity: 0.55;
+        font-family: ui-monospace, monospace;
+      }
       /* Ghost race card (`ghostRace`) — your own best round as an opponent. */
       #ghostCard {
         margin: 0 0 10px;
@@ -3278,6 +3317,7 @@
         </div>
         <div class="landingPanel">
           <div id="resumeCard"></div>
+          <div id="dailyHoleCard"></div>
           <div id="ghostCard"></div>
           <div id="challengeBanner"></div>
           <div id="dailyCard"></div>

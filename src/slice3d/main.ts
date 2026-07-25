@@ -37,25 +37,16 @@ import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
 import { personalityFor } from '../data/characterPersonality';
-import { CourseAuthoring, loadCourse } from '../data/courseLoader';
-import { withWildwoodPerf } from '../systems/wildwoodPerf';
 import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
+import { coursesFor, rosterFor } from '../data/courseRoster';
 import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
 import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
+import { dailyHole, shareText } from '../systems/DailyHoleService';
+import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
-import wildwood from '../data/courses/wildwood.json';
-import sablebay from '../data/courses/sablebay.json';
-import timberline from '../data/courses/timberline.json';
-import portjohnson from '../data/courses/portjohnson.json';
-import redhollow from '../data/courses/redhollow.json';
-import wildvalley from '../data/courses/wildvalley.json';
-import timberlineV2 from '../data/courses/v2/timberline.json';
-import timberlineWestV2 from '../data/courses/v2/timberlinewest.json';
-import sablebayV2 from '../data/courses/v2/sablebay.json';
-import portjohnsonV2 from '../data/courses/v2/portjohnson.json';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import {
   createTournament,
@@ -71,7 +62,7 @@ import {
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { applyTeeVariants, pickAuthoredPin } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount } from '../firebase/FirebaseClient';
+import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
@@ -415,44 +406,18 @@ interface RoundState {
 // ON in production (playtest-approved release), so the two courses load for
 // everyone; adminUnlocked() remains as a legacy override path. The flag stays as
 // a kill switch until the courses are folded into the base roster.
+// The roster and which JSON each course loads now live in data/courseRoster.ts
+// — the server-side verifier has to build the SAME roster from the SAME files
+// and cannot import this module (Babylon, DOM, Firebase). Flags are resolved
+// here and passed in, so the roster module itself stays pure.
 const loadNewCourses = flag('newCourses') || adminUnlocked();
-// COURSE TEARDOWN/REBUILD (`courseRebuilds` flag): rebuilt v2 variants
-// (src/data/courses/v2/, emitted by gen-new-courses.mjs) replace the shipped
-// originals. The flag now defaults ON in production (playtest-approved release);
-// it remains as a kill switch until the v2 JSONs are folded over the originals.
 const rebuildsOn = flag('courseRebuilds');
-const REBUILDS: Record<string, unknown> = rebuildsOn
-  ? { timberline: timberlineV2, sablebay: sablebayV2, portjohnson: portjohnsonV2 }
-  : {};
-const courseSrc = (id: string, original: unknown): CourseAuthoring =>
-  (REBUILDS[id] ?? original) as CourseAuthoring;
-// Wildwood Glen perf pass (dev-only, `wildwoodPerf` flag): a pure, visuals-only
-// thinning of the default course's render vegetation + reflection cost. Prod
-// (flag off) loads the shipped JSON untouched. See systems/wildwoodPerf.ts.
-const wildwoodSrc: unknown = flag('wildwoodPerf')
-  ? withWildwoodPerf(wildwood as unknown as CourseAuthoring)
-  : wildwood;
-const COURSES: Record<string, CourseData> = {
-  wildwood: loadCourse(courseSrc('wildwood', wildwoodSrc)),
-  sablebay: loadCourse(courseSrc('sablebay', sablebay)),
-  // `timberline` (id preserved for dev-save/records compatibility) loads the v2
-  // rebuild — now branded "Timberline East" — when the rebuild flag is on.
-  timberline: loadCourse(courseSrc('timberline', timberline)),
-  portjohnson: loadCourse(courseSrc('portjohnson', portjohnson)),
-  // Timberline West: a NEW dev-only course (no production original). It appears
-  // in the roster only under the courseRebuilds flag, with its own id/records.
-  ...(rebuildsOn ? { timberlinewest: loadCourse(timberlineWestV2 as unknown as CourseAuthoring) } : {}),
-  ...(loadNewCourses
-    ? {
-        redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
-        wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring)
-      }
-    : {})
+const ROSTER_FLAGS = {
+  newCourses: loadNewCourses,
+  courseRebuilds: rebuildsOn,
+  wildwoodPerf: flag('wildwoodPerf')
 };
-
-/** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
- *  Sable Bay. Thin binding of the shared roster to courseDefaults' helper. */
-const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, COURSES);
+const COURSES: Record<string, CourseData> = coursesFor(ROSTER_FLAGS);
 
 // Fire the real-turf-grain preloads at boot, well before any round can start
 // (the menu is always shown first) — the ground bake is synchronous and
@@ -463,27 +428,17 @@ preloadGrassGrain('textures/turf_grain_rough.jpg');
 preloadGrassGrain('textures/sand_ripple.jpg');
 
 /** Full course roster metadata (id → display + one-line character). */
-const COURSE_ROSTER: Array<{ id: string; name: string; tag: string; icon: string; art: string; difficulty: string }> = [
-  { id: 'wildwood', name: 'Wildwood Glen', tag: 'Parkland · creeks & ponds, tight woods, wildflower beds', icon: '🌳', art: 'marketing/img/wildwood-cherry.png', difficulty: 'Balanced' },
-  { id: 'sablebay', name: 'Sable Bay', tag: 'Coastal · water everywhere, waste sand, a true island green', icon: '🌊', art: 'marketing/img/sablebay-island.png', difficulty: 'Daring' },
-  // Under the courseRebuilds flag (dev) the v2 rebuild is branded "Timberline
-  // East" and a sibling "Timberline West" (production routing, East presentation)
-  // joins the roster; in production the id stays plain "Timberline".
-  { id: 'timberline', name: rebuildsOn ? 'Timberline East' : 'Timberline', tag: 'Forest · granite doglegs, a downhill tarn, a two-route par 5', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
-  ...(rebuildsOn
-    ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' }]
-    : []),
-  { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
-  // V2 content expansion — now released (newCourses defaults on in prod), so they
-  // load into COURSES and appear as playable entries in COURSE_LIST.
-  { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
-  { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
-];
+const COURSE_ROSTER = rosterFor(ROSTER_FLAGS);
 /** The playable roster (loaded into COURSES). */
 const COURSE_LIST = COURSE_ROSTER.filter((c) => COURSES[c.id]);
 /** Roster entries present in the metadata but NOT loaded — shown as locked
  *  "Coming soon" teaser cards. Empty now that every course is released. */
+
 const COMING_SOON_COURSES = COURSE_ROSTER.filter((c) => !COURSES[c.id]);
+
+/** Resolve a course id (or absent/invalid one) to CourseData, defaulting to
+ *  Sable Bay. Thin binding of the shared roster to courseDefaults' helper. */
+const courseFallback = (id?: string | null): CourseData => courseOrDefault(id, COURSES);
 
 /** Resolve a course by its display name (tournament entries carry the name). */
 function courseIdByName(name: string): string {
@@ -3691,6 +3646,7 @@ function showSummary(): void {
   current?.dispose();
   current = null;
   sealRoundRecording();
+  recordDailyAttempt();
   // Take the gameplay chrome down with the scene — the results card is the
   // whole screen's purpose now (leftover HUD/aim-readout/SWING read as noise
   // around the card). playHole() restores them for the next round.
@@ -5894,6 +5850,14 @@ let activeGhost: GhostRun | null = null;
  *  entry points set this, then start the round). */
 let pendingGhost: RoundRecording | null = null;
 
+/** Reserved course id the generated Hole of the Day is registered under, so it
+ *  flows through the same lookup-by-id path as every authored course. */
+const DAILY_COURSE_ID = '__daily';
+
+/** Set while a Hole of the Day round is in progress, so the results card knows
+ *  to record the attempt and offer the share. */
+let dailyRound: { dateKey: string; par: number } | null = null;
+
 /**
  * Seal the round recording at the end of the round and self-check it: replay
  * the inputs through the same physics the round just ran on, and keep the
@@ -5936,6 +5900,16 @@ function sealRoundRecording(): void {
   }
   lastRecording = rec;
   saveRecording(rec);
+  // Submit for SERVER verification, well off the gameplay path: the results
+  // card is already on screen, the call is fire-and-forget, and a signed-out or
+  // offline player simply keeps an unverified round. Only a server-verified
+  // round can back a leaderboard claim (functions/index.js verifyRound).
+  if (flag('verifiedScores') && signedIn) {
+    void submitRoundForVerification(rec).then((res) => {
+      if (!res.ok && !ENV.isProd) console.warn('[verify] server rejected/failed', res);
+      analytics.track('round_verified', { result: res.ok ? 'verified' : (res.status ?? 'failed'), course: courseId });
+    });
+  }
 }
 
 /** The replay/verify options that mirror this build's feature flags. Kept in
@@ -6554,6 +6528,113 @@ function refreshLandingCards(): void {
   updateResumeCard();
   updateSetupEntry();
   updateGhostCard();
+  updateDailyHoleCard();
+}
+
+/**
+ * Hole of the Day (`dailyHole`) — one generated hole, the same for everyone,
+ * one attempt, a spoiler-free shareable result.
+ *
+ * The hole is resolved lazily on first paint of the landing (a few tens of ms
+ * of pure arithmetic: generate, simulate ~140 rounds, retry until one lands in
+ * the playable band) and memoised for the session. Never on a gameplay path.
+ */
+function updateDailyHoleCard(): void {
+  const el = document.getElementById('dailyHoleCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('dailyHole')) return;
+  const key = todayKey();
+  const res = dailyHole(key, COURSES);
+  if (!res.spec) {
+    // No candidate passed the band today. Showing nothing is correct: a daily
+    // hole nobody vetted is worse than no daily hole.
+    if (!ENV.isProd) console.warn(`[dailyHole] no playable hole for ${key}`, res.rejected);
+    return;
+  }
+  const played = loadDailyPlay(key);
+  const { par, yardage, attempts } = res.spec;
+  const themeName = COURSES[res.spec.themeId]?.name ?? '';
+  if (played) {
+    const toPar = played.strokes - par;
+    el.innerHTML =
+      `<span class="dhLabel">⛳ HOLE OF THE DAY · DONE</span>` +
+      `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
+      ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
+      `<button id="dhShare" class="dhPlay">Share result</button>`;
+    document.getElementById('dhShare')!.addEventListener('pointerdown', () => {
+      void shareDailyResult(key, par, played.strokes);
+    });
+    return;
+  }
+  el.innerHTML =
+    `<span class="dhLabel">⛳ HOLE OF THE DAY</span>` +
+    `<div class="dhName">A brand-new par ${par}, ${yardage} yd${themeName ? ` at ${escapeHtml(themeName)}` : ''}` +
+    ` — same hole for everyone, one attempt.</div>` +
+    `<button id="dhPlay" class="dhPlay">Play today's hole</button>` +
+    (ENV.isProd ? '' : `<div class="dhDev">seed ${res.spec.seed} · attempt ${attempts} · ${res.rejected.length} rejected</div>`);
+  document.getElementById('dhPlay')!.addEventListener('pointerdown', () => startDailyHole());
+}
+
+/** Book the Hole of the Day attempt when its round ends. First attempt wins —
+ *  replaying to improve a shared score is what one-a-day exists to prevent. */
+function recordDailyAttempt(): void {
+  if (!dailyRound) return;
+  const strokes = round.players[0]?.scores[0] ?? 0;
+  const { dateKey, par } = dailyRound;
+  dailyRound = null;
+  if (strokes <= 0) return;
+  saveDailyPlay({ dateKey, strokes, par, at: Date.now() });
+  analytics.track('daily_hole_completed', { score_to_par: strokes - par });
+}
+
+/**
+ * Play today's hole. A one-hole round on generated geometry, seeded off the
+ * date so the wind and pin match everybody else's, and recorded so the attempt
+ * can be verified and shared.
+ *
+ * The generated course is injected into COURSES under a reserved id, because
+ * everything downstream — the scene builder, the physics, the recorder, the
+ * results card — looks courses up by id. Doing it this way means the daily hole
+ * runs through exactly the same code as an authored one.
+ */
+function startDailyHole(): void {
+  if (!flag('dailyHole')) return;
+  const key = todayKey();
+  if (loadDailyPlay(key)) {
+    showMsg("You've already played today's hole — back tomorrow", 1800);
+    return;
+  }
+  const res = dailyHole(key, COURSES);
+  if (!res.spec) return;
+  COURSES[DAILY_COURSE_ID] = res.spec.course;
+  dailyRound = { dateKey: key, par: res.spec.par };
+  pendingTournament = null;
+  pendingGhost = null;
+  sel.mode = 'solo';
+  sel.courseId = DAILY_COURSE_ID;
+  landingEl.classList.remove('on');
+  analytics.track('daily_hole_started', { course: res.spec.themeId });
+  // Seeded off the DATE so every player faces the same wind and the same cup.
+  forcedSeed = res.spec.seed;
+  startRound(0);
+  forcedSeed = undefined;
+}
+
+/** Copy the spoiler-free result, falling back to a visible message when the
+ *  clipboard is unavailable (iOS without a user-gesture-scoped permission). */
+async function shareDailyResult(key: string, par: number, strokes: number): Promise<void> {
+  const text = shareText(key, par, strokes);
+  try {
+    if (navigator.share) {
+      await navigator.share({ text });
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    showMsg('Result copied', 1200);
+  } catch {
+    showMsg(text, 2600);
+  }
 }
 
 /** True when the round just finished can be raced again as a ghost — i.e. it
