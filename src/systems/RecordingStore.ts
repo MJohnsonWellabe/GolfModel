@@ -87,13 +87,21 @@ export function saveRecording(
   }
 }
 
-/** The player's best recorded round on a course, if any. */
+/**
+ * The player's best recorded round on a course, if any.
+ *
+ * Ease-in rounds (`gp`) are excluded: they were played to the kindest cup on
+ * every green, so offering one as the round to beat would set the bar on an
+ * easier course than the one the player is about to tee off on.
+ */
 export function bestRecordingFor(
   courseId: string,
   holes: number,
   storage: KVStorage | null = defaultStorage()
 ): RoundRecording | null {
-  const matches = loadRecordings(storage).filter((r) => r.courseId === courseId && r.holes === holes);
+  const matches = loadRecordings(storage).filter(
+    (r) => r.courseId === courseId && r.holes === holes && !r.gp
+  );
   if (!matches.length) return null;
   return matches.reduce((best, r) => (total(r) < total(best) ? r : best));
 }

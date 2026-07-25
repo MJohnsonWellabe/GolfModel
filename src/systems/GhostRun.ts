@@ -51,6 +51,17 @@ export class GhostRun {
 
   constructor(recording: RoundRecording, course: CourseData, opts: ReplayOptions) {
     this.name = recording.name?.trim() || 'Ghost';
+    // A round played to the EASE-IN pins is not a fair opponent. Those rounds
+    // are played to the kindest cup on each green, while a ghost race — being a
+    // shared-seed round — always uses the seeded one (`easeInActive`). Racing it
+    // would mean racing a score set on an easier course and losing to it
+    // unfairly. It replays perfectly; it just should not be the opponent.
+    if (recording.gp) {
+      this.ok = false;
+      this.reason = 'round used ease-in pins';
+      this.scores = [];
+      return;
+    }
     const replay = replayRound(recording, course, opts);
     this.ok = replay.ok;
     this.reason = replay.reason;

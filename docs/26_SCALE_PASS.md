@@ -33,8 +33,8 @@ works for about ten sessions.
 | Flag | Prod/Dev | What it does |
 | --- | --- | --- |
 | `roundRecording` | off / on | Rounds stored as the INPUTS that produced them |
-| `verifiedScores` | off / **off** | A Cloud Function replays a submission and checks the score |
-| `ghostRace` | off / **off** | An opponent's round re-flown shot for shot beside yours |
+| `verifiedScores` | off / on | A Cloud Function replays a submission and checks the score |
+| `ghostRace` | off / on | An opponent's round re-flown shot for shot beside yours |
 | `dailyHole` | off / on | A generated hole per day, vetted by the simulator |
 | `shotAttribution` | off / on | One line naming what actually produced the shot |
 | `practiceRange` | off / on | No card, no cap, no end — holing out re-tees |
@@ -108,6 +108,66 @@ gives all of it, because the physics here is pure and deterministic.
   ball where the player never hit it.
 - Every recording is self-checked against a replay before it is kept. Not
   security — a **drift detector** between the game and the replay engine.
+
+### Making it exact
+
+Determinism was not free, and nothing but an end-to-end test would have found
+what was wrong with it. `tests/visual/roundRecording.spec.ts` plays a real round
+through the live code path and asks the page to verify its own recording. It
+failed at first, and each failure was a genuine divergence:
+
+1. **Tree species were not passed to the replay**, so trunk hitboxes were
+   generic and drives clipped trees that were never there. Threaded through
+   `ReplayOptions` from the resolved theme.
+2. **Tee variants were not applied** in the replay, so the ball started
+   somewhere the player never teed from. `applyTeeVariants` now runs in both.
+3. **The max-strokes pick-up was not modelled** — a hole the player picked up on
+   scored differently on replay. The replay carries a `pickedUp` flag.
+4. **The per-shot RNG was seeded after `resolveLaunch`, not before it.** This was
+   the subtlest: `resolveLaunch` is the *first and heaviest* consumer of the
+   random stream — carry noise, lie noise and residual dispersion are all
+   gaussian draws — so seeding after it left the resolve running on leftover
+   stream state and made every shot unreproducible. It showed as a ~30 yd carry
+   difference on a tee shot with every recorded input matching exactly. The seed
+   now sits immediately before the resolve, derived via
+   `RoundConditions.shotRngSeed(seed, holeIdx, strokes)` — the same three things
+   the replay knows. (The comment on that function claimed the engine consulted
+   randomness "in exactly one place — a putt lipping out". It was wrong, and it
+   is what made the bug hard to see. It now documents the real consumers and the
+   ordering requirement.)
+5. **The ease-in pin choice was not recorded.** A device's first casual rounds
+   are played to the *kindest* cup on each green rather than the seeded one
+   (`easeIn`). That is the only condition in a round not derivable from the seed,
+   and the recording did not carry it — so a new player's rounds were replayed
+   into a different hole than they played and their recordings were silently
+   dropped. Exactly the players whose rounds are most worth keeping. The
+   recording now carries `gp`, `RoundReplay` honours it, and the decision is
+   fixed once at the tee (`roundGentlePins`) rather than re-derived per hole from
+   a `profile.stats.rounds` counter that moves when the round is banked.
+
+Ease-in rounds are also **not offered as ghosts** (`GhostRun`, `bestRecordingFor`,
+`ghostRematchAvailable`). They replay perfectly; they were just played to an
+easier cup than a ghost race — a shared-seed round — uses, so racing one would
+mean racing a score set on a course that no longer exists.
+
+With those closed, `ghostRace` + `verifiedScores` are on in dev.
+
+### The gate that proves it
+
+`tests/visual/roundRecording.spec.ts` plays through the live game and then asks
+the page to verify its own recording. Two things make it worth trusting:
+
+- **It plays a competent round.** It first drove one fixed swing every stroke,
+  which capped every hole at `RULES.maxStrokes` — and a capped hole scores 8
+  wherever the cup is, so the replay was never asked to reproduce the pin. It now
+  borrows the AI's shot selection and plays it through the human path
+  (`HoleScene.playSkilledShot`), producing a round that reaches greens and holes
+  out (4/3/4 on Sable Bay). The spec asserts at least one hole beat the cap.
+- **It races the result.** A second test takes the recorded round through the
+  real "Race this" button and checks the ghost is armed, named, scored to its
+  owner's actual scores, and putting a ball in the air that moves along its
+  recorded path. Verification only ever compares a *number*; a ghost that never
+  flew would pass it.
 
 ---
 
@@ -241,43 +301,26 @@ same thing.
 
 ## Verification
 
-- `npx tsc --noEmit` clean; `npx vitest run` — **980 passed, 1 skipped**
-  (+23 over the previous pass).
+- `npx tsc --noEmit` clean; `npx vitest run` — **987 passed, 1 skipped**
+  (+30 over the previous pass).
 - `natureBatching` pixel gate green on three courses with real prop counts;
   gameplay / occlusion / results specs green.
 - Production build succeeds; `babylon` chunk 684 KB gz (from 1484 KB).
 - Live smokes: Hole of the Day builds and plays; the resume flow re-enters on
   hole 2 keeping the hole-1 score; one-tap Play skips the wizard; the tutorial
   card order is correct.
-- The end-to-end recording gate plays a real round through the live code path
-  and asks the page to verify its own recording. It currently FAILS (see Known
-  limitations) and is `test.fixme`'d rather than weakened — it is the test that
-  says whether ghosts and verified scores are real, so it must keep telling the
-  truth.
+- The end-to-end recording gate is **green**: a 10-shot round on Sable Bay
+  (4/3/4, holed out, ease-in pins) replays to the score it was played at, and a
+  second test races that round as a ghost and watches the ghost ball fly. It is
+  the test that says whether ghosts and verified scores are real, so it was never
+  weakened to pass — the code was fixed until it did.
+- Two flaky/stale tests fixed while here, both mine: `physicsEngine.test.ts`'s
+  bunker dead-stop sampled `Math.random` for a distance assertion (now seeded),
+  and `menu.spec.ts` still opened the wizard via "Play Now", which `quickPlay`
+  had turned into an immediate tee-off.
 
 ## Known limitations
 
-- **The live→replay round-trip is not yet exact, and this gates two features.**
-  A round played through the game does not reproduce bit-for-bit when replayed,
-  so `ghostRace` and `verifiedScores` are **off even in dev** until it does.
-  Two causes were found and fixed:
-  1. the replay was not given the course's **tree species**, so trunk hitboxes
-     were generic and drives clipped trees that were never there — this
-     accounted for most of the divergence;
-  2. the physics' single random branch (the deflection of a putt that lips out)
-     was unseeded, making any round containing one irreproducible. It is now
-     seeded per shot from `(round seed, hole, stroke)` in both the game and the
-     replay — `RoundConditions.shotRngSeed`.
-
-  A residual divergence of roughly 30 yd on a tee shot remains and is not yet
-  identified. `tests/visual/roundRecording.spec.ts` is the gate; it is
-  `test.fixme`'d with the evidence so the next session starts from it rather
-  than from scratch.
-
-  **It fails safe.** `sealRoundRecording` verifies every recording against a
-  replay before keeping it, so a recording that does not round-trip is dropped
-  rather than used. Recording itself stays on and keeps accruing data; nothing
-  produces a wrong ghost or a wrong verdict in the meantime.
 - **The device matrix is still the arbiter.** None of these flags should be
   promoted before a real-device pass.
 - The daily generator's vocabulary is deliberately narrow (one fairway ribbon,
@@ -286,6 +329,10 @@ same thing.
   is the obvious next step, and the gate already exists to keep it honest.
 - Ghost racing currently only offers your own past rounds. Friend ghosts need
   the recording carried in the challenge link.
+- A device's first few casual rounds (ease-in pins) are recorded and verifiable
+  but cannot be raced — see above. In practice the "race your best" card appears
+  once the player is off the gentle pins, which is also when a personal best
+  starts meaning something.
 - Model compression rewrote tracked binaries in place; the originals are in git
   history.
 - `verifyRound` is written and bundled but **not deployed** — that is an owner

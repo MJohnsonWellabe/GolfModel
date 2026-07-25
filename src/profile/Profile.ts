@@ -3,6 +3,7 @@ import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
 import { emptyStreak, mergeStreak, migrateStreak, StreakState } from '../systems/Streak';
+import { emptyRival, mergeRival, migrateRival, RivalState } from '../systems/Rival';
 import { emptyMastery, mergeMastery, migrateMastery, MasteryState } from '../systems/Mastery';
 
 /**
@@ -129,10 +130,18 @@ export interface RetentionState {
   mastery: MasteryState;
   /** 1v1 challenges joined, newest first, capped. Merges by union (cid). */
   challenges: ChallengeRef[];
+  /** The player's current rival and the running head-to-head (`rival`). */
+  rival: RivalState;
 }
 
 export function emptyRetention(): RetentionState {
-  return { records: emptyRecords(), streak: emptyStreak(), mastery: emptyMastery(), challenges: [] };
+  return {
+    records: emptyRecords(),
+    streak: emptyStreak(),
+    mastery: emptyMastery(),
+    challenges: [],
+    rival: emptyRival()
+  };
 }
 
 const CHALLENGE_REF_CAP = 30;
@@ -159,7 +168,8 @@ function migrateRetention(raw: unknown): RetentionState {
     records: migrateRecords(r.records),
     streak: migrateStreak(r.streak),
     mastery: migrateMastery(r.mastery),
-    challenges: migrateChallengeRefs(r.challenges)
+    challenges: migrateChallengeRefs(r.challenges),
+    rival: migrateRival(r.rival)
   };
 }
 
@@ -170,7 +180,8 @@ function mergeRetention(a: RetentionState | undefined, b: RetentionState | undef
     records: mergeRecords(ma.records, mb.records),
     streak: mergeStreak(ma.streak, mb.streak),
     mastery: mergeMastery(ma.mastery, mb.mastery),
-    challenges: mergeChallengeRefs(ma.challenges, mb.challenges)
+    challenges: mergeChallengeRefs(ma.challenges, mb.challenges),
+    rival: mergeRival(ma.rival, mb.rival)
   };
 }
 

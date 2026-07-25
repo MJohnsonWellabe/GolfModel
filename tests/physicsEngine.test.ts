@@ -3,6 +3,7 @@ import { PX_PER_YARD } from '../src/config';
 import { PhysicsEngine, effectiveCarryYards } from '../src/systems/PhysicsEngine';
 import { clubById } from '../src/data/clubs';
 import { Golfer, HoleData, SwingResult, Wind } from '../src/core/types';
+import { mulberry32 } from '../src/utils/Random';
 
 /** Flat-stat golfer so carries are easy to reason about. */
 const GOLFER: Golfer = {
@@ -224,7 +225,12 @@ describe('bunker dead-stop', () => {
       pin: { x: 1000, y: 100 },
       hazards: [{ type: 'bunker', polygon: [[700, 400], [1300, 400], [1300, 1700], [700, 1700]] }]
     };
-    const e = new PhysicsEngine(sandHole);
+    // Seeded: the engine defaults to Math.random, and this assertion measures a
+    // DISTANCE. Carry noise moves where the ball touches down and how steeply,
+    // which moves the plug by a couple of px run to run — enough to cross a 2px
+    // threshold now and then. The mechanic under test (sand kills roll) is not
+    // random, so the sampling should not be either.
+    const e = new PhysicsEngine(sandHole, null, mulberry32(0x5a4d));
     const out = e.simulate({
       origin: { x: 1000, y: 1800 },
       aimAngle: -Math.PI / 2,

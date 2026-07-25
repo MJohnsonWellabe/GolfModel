@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openSetupWizard } from './support/wizard';
 
 /** The setup menu shows today's daily challenge banner (Phase 6). Progressive
  *  disclosure (Part 11) hides the daily systems until a device's first round
@@ -14,8 +15,8 @@ test('menu shows the daily challenge banner', async ({ page }) => {
   });
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
-  // The banner lives on the setup wizard — open Play first.
-  await page.locator('#landingPlay').dispatchEvent('pointerdown');
+  // The banner lives on the setup wizard — open it first.
+  await openSetupWizard(page);
   await page.waitForSelector('#dailyBanner');
   const text = await page.locator('#dailyBanner').innerText();
   expect(text).toContain('DAILY');

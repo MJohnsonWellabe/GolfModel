@@ -120,6 +120,11 @@ export function replayRound(
     useAuthoredPins: opts.useAuthoredPins,
     bunkerDepthScale: opts.bunkerDepthScale,
     wasteDepthScale: opts.wasteDepthScale,
+    // EASE-IN PINS: a device's first casual rounds are played to the kindest
+    // authored cup rather than the seeded one. That choice is not derivable from
+    // the seed, so the recording carries it; without this the replay plays the
+    // round into a different hole than the player did.
+    gentlePins: rec.gp === true,
     maxWind: PHYSICS.maxWind
   });
   const golfer = assembleGolfer(

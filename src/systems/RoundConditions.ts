@@ -113,11 +113,19 @@ export function conditionsForRound(
 /**
  * Seed for the physics engine's per-shot randomness.
  *
- * The engine consults randomness in exactly one place — the deflection angle of
- * a putt that lips out. Deriving it from the round seed, the hole and the
- * stroke number makes a round fully reproducible from its inputs, which is what
- * verification and ghost playback require. The live game and the replay MUST
- * derive it identically; that is why it lives here rather than in either one.
+ * Deriving it from the round seed, the hole and the stroke number makes a round
+ * fully reproducible from its inputs, which is what verification and ghost
+ * playback require. The live game and the replay MUST derive it identically;
+ * that is why it lives here rather than in either one.
+ *
+ * WHERE THE STREAM IS CONSUMED — and why the ORDER matters. `resolveLaunch` is
+ * the first and heaviest consumer: putt pace noise, full-shot carry noise, lie
+ * noise and residual dispersion are all draws from it. `integrateLaunch` then
+ * takes one more for a putt that lips out. So a caller must re-seed BEFORE
+ * resolving the shot, not after — seeding afterwards leaves the resolve running
+ * on the previous shot's leftover stream state and nothing reproduces. That was
+ * a real bug, and it read as a ~30 yd carry difference on a tee shot whose every
+ * recorded input matched exactly.
  */
 export function shotRngSeed(seed: number, holeIdx: number, strokes: number): number {
   return ((seed >>> 0) * 7919 + holeIdx * 131 + strokes * 17 + 3) >>> 0;

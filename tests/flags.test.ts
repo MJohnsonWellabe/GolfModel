@@ -71,7 +71,10 @@ describe('feature flags', () => {
       'tutorialDepth',
       'quickPlay',
       'roundRecording',
+      'ghostRace',
+      'verifiedScores',
       'dailyHole',
+      'rival',
       'shotAttribution',
       'easeIn',
       'practiceRange'
@@ -80,19 +83,6 @@ describe('feature flags', () => {
       expect(def, key).toBeTruthy();
       expect(def!.defaults.dev, `${key} dev`).toBe(true);
       expect(def!.defaults.prod, `${key} prod`).toBe(false);
-    }
-  });
-
-  it('ghosts + verified scores stay off until the replay round-trip is exact', () => {
-    // Both consume a replayed recording. Until a live round reproduces
-    // bit-for-bit (tests/visual/roundRecording.spec.ts, currently fixme'd), a
-    // ghost would fly a line its owner never hit and the verifier would reject
-    // honest rounds. The recording itself stays ON — it self-checks and is
-    // harmless — so the data keeps accruing while the gap is closed.
-    for (const key of ['ghostRace', 'verifiedScores']) {
-      const def = FLAG_DEFS.find((d) => d.key === key)!;
-      expect(def.defaults.dev, `${key} dev`).toBe(false);
-      expect(def.defaults.prod, `${key} prod`).toBe(false);
     }
   });
 

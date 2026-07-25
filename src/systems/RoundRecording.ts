@@ -92,6 +92,12 @@ export interface RoundRecording {
   at: number;
   /** Display name of the player, for ghost labels. Never used for identity. */
   name?: string;
+  /** This round drew the ease-in (kindest) pins rather than the seeded ones —
+   *  see `easeIn`. The pin is otherwise derived purely from the seed, so a
+   *  replay that did not know this would play the round into a DIFFERENT cup
+   *  than the player did and reject an honest score. Absent/false = seeded
+   *  pins, which is every round except a device's first few casual ones. */
+  gp?: boolean;
 }
 
 export const RECORDING_VERSION = 1;
@@ -150,6 +156,7 @@ export class RoundRecorder {
     scores: number[];
     at: number;
     name?: string;
+    gentlePins?: boolean;
   }): RoundRecording | null {
     this.active = false;
     if (!this.shots.length) return null;
@@ -162,7 +169,10 @@ export class RoundRecorder {
       shots: this.shots.slice(),
       scores: meta.scores.slice(0, meta.holes),
       at: meta.at,
-      name: meta.name
+      name: meta.name,
+      // Only written when true, so the common case costs nothing on the wire
+      // and old recordings (no field) mean what they always meant: seeded pins.
+      ...(meta.gentlePins ? { gp: true } : {})
     };
   }
 }

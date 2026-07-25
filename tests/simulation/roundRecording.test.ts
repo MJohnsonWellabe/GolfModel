@@ -56,7 +56,7 @@ function shot(over: Partial<ShotInput> = {}): ShotInput {
  * hand-written numbers — it produces a round that genuinely holes out, and it
  * proves the recording format can express real play rather than just parse.
  */
-function playRecording(seed: number, holes = 1): RoundRecording {
+function playRecording(seed: number, holes = 1, gentlePins = false): RoundRecording {
   const recorder = new RoundRecorder();
   recorder.start();
   const golfer = assembleGolfer('Tester', 'chip', 'bigHitter');
@@ -66,6 +66,7 @@ function playRecording(seed: number, holes = 1): RoundRecording {
   const teed = applyTeeVariants(course, seed);
   const conditions = conditionsForRound(teed, seed, holes, {
     useAuthoredPins: OPTS.useAuthoredPins,
+    gentlePins,
     maxWind: PHYSICS.maxWind
   });
   const scores: number[] = [];
@@ -138,7 +139,8 @@ function playRecording(seed: number, holes = 1): RoundRecording {
     golfer: { character: 'chip', archetype: 'bigHitter' },
     scores,
     at: 1_700_000_000_000,
-    name: 'Tester'
+    name: 'Tester',
+    gentlePins
   })!;
 }
 
@@ -229,6 +231,47 @@ describe('round replay', () => {
   });
 });
 
+describe('ease-in pins round-trip', () => {
+  // The ease-in pass plays a device's first casual rounds to the KINDEST cup on
+  // each green instead of the seeded one. That is the only condition in a round
+  // that is not derivable from the seed, so it has to travel with the recording
+  // — otherwise the replay plays the round into a different hole and rejects an
+  // honest score. The seed below is one where the two choices genuinely differ.
+  const SEED = 1234567;
+
+  it('the gentle pin is really a different cup (this test would be vacuous otherwise)', () => {
+    const opts = { useAuthoredPins: true, maxWind: PHYSICS.maxWind };
+    const seeded = conditionsForRound(course, SEED, 3, opts);
+    const gentle = conditionsForRound(course, SEED, 3, { ...opts, gentlePins: true });
+    expect(gentle.pins).not.toEqual(seeded.pins);
+  });
+
+  it('records the choice and replays to the score that was played', () => {
+    const rec = playRecording(SEED, 3, true);
+    expect(rec.gp).toBe(true);
+    expect(verifyRecording(rec, courses, OPTS).status).toBe('verified');
+  });
+
+  it('a replay that ignores the choice plays a different round', () => {
+    // Strip the flag exactly as an older client would have written it. The
+    // replay then draws the seeded pin, and the score it produces is not the
+    // score that was played — which is precisely the failure mode the field
+    // exists to prevent.
+    const rec = playRecording(SEED, 3, true);
+    const { gp: _gp, ...blind } = rec;
+    expect(verifyRecording(blind as RoundRecording, courses, OPTS).status).not.toBe('verified');
+  });
+
+  it('an ease-in round is not offered as a ghost', () => {
+    // It replays perfectly — but a ghost race uses the SEEDED pins, so racing it
+    // would mean racing a score set on an easier course.
+    const gentle = new GhostRun(playRecording(SEED, 1, true), course, OPTS);
+    expect(gentle.ok).toBe(false);
+    expect(gentle.reason).toMatch(/ease-in/);
+    expect(new GhostRun(playRecording(SEED, 1, false), course, OPTS).ok).toBe(true);
+  });
+});
+
 describe('score verification', () => {
   it('verifies a round that really was played', () => {
     const rec = playRecording(777);
@@ -303,6 +346,16 @@ describe('recording store', () => {
     expect(saveRecording(good, s)).toBe(false); // worse — not stored
     expect(loadRecordings(s)).toHaveLength(1);
     expect(bestRecordingFor('sablebay', good.holes, s)?.scores).toEqual(better.scores);
+  });
+
+  it('never offers an ease-in round as the one to beat', () => {
+    // It would set the bar on an easier course than the player is about to
+    // play, so it is stored but never surfaced as an opponent.
+    const s = mem() as never;
+    const gentle = playRecording(1, 1, true);
+    expect(saveRecording(gentle, s)).toBe(true);
+    expect(loadRecordings(s)).toHaveLength(1);
+    expect(bestRecordingFor('sablebay', gentle.holes, s)).toBeNull();
   });
 
   it('reads corrupt storage as an empty library', () => {

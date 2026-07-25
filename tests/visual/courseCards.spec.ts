@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { openSetupWizard } from './support/wizard';
 
 /**
  * Course-selection cards across the v1.0 viewport classes (Final UX item 4:
@@ -32,8 +33,11 @@ for (const s of SIZES) {
     await page.setViewportSize({ width: s.width, height: s.height });
     await page.goto('/');
     await dismissNameModal(page);
-    // Play Now → step 0 (Mode); Next → the Course step (solo default flow).
-    await page.locator('#landingPlay').dispatchEvent('pointerdown');
+    // Into the wizard → step 0 (Mode); Next → the Course step (solo default
+    // flow). Which entry opens the wizard depends on `quickPlay`: with the flag
+    // on, "Play Now" tees off immediately and the wizard moves to the explicit
+    // "Course & mode" entry beneath it.
+    await openSetupWizard(page);
     await page.waitForSelector('#nextBtn', { state: 'visible' });
     await page.locator('#nextBtn').dispatchEvent('pointerdown');
     await page.waitForSelector('.modeGrid--courses .courseCard', { state: 'visible' });

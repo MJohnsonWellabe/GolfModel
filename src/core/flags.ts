@@ -254,6 +254,20 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'PROMOTED once a week of generated holes has been played and judged good'
   },
   {
+    key: 'rival',
+    description:
+      'The Rival (DEV-ONLY for now): one named opponent who plays the Hole of ' +
+      'the Day every day, whose ghost flies beside you, and against whom a ' +
+      'season-long head-to-head record accumulates. A friend rival is their ' +
+      'real recorded round; with no friend, a house rival is assigned and their ' +
+      'rounds are genuinely played headlessly at a standard calibrated just ' +
+      'above the player. Requires `roundRecording`, `ghostRace` and ' +
+      '`dailyHole`. Off = no rival surface and nothing is synthesised.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED once a fortnight of rivalries has been played and judged good'
+  },
+  {
     key: 'verifiedScores',
     description:
       'Server-authoritative score verification (DEV-ONLY for now): a finished ' +
@@ -261,11 +275,10 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'running the game\'s own physics, which writes the result to a node the ' +
       'client cannot forge. Turns leaderboards from an honour system into a ' +
       'fact. Requires `roundRecording`, a signed-in player, and the deployed ' +
-      'function (docs/26_SCALE_PASS.md). OFF by default until the live→replay ' +
-      'round-trip is exact (tests/visual/roundRecording.spec.ts) — submitting ' +
-      'rounds a correct verifier would reject is worse than not submitting.',
+      'function (docs/26_SCALE_PASS.md). The live→replay round-trip is exact ' +
+      'and gated by tests/visual/roundRecording.spec.ts.',
     owner: 'matt',
-    defaults: { prod: false, dev: false },
+    defaults: { prod: false, dev: true },
     removeWhen:
       'PROMOTED once the function is deployed and leaderboards read the ' +
       'verified node'
@@ -279,11 +292,10 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'Asynchronous, but it plays as though they were there. Currently raced ' +
       'against your own best round on the course; the same machinery accepts a ' +
       "friend's recording from a challenge link. Requires `roundRecording`. " +
-      'OFF by default until the live→replay round-trip is exact ' +
-      '(tests/visual/roundRecording.spec.ts) — a ghost built on a recording ' +
-      'that does not reproduce would fly a line its owner never hit.',
+      'The live→replay round-trip is exact, so a ghost flies the line its ' +
+      'owner actually hit (tests/visual/roundRecording.spec.ts).',
     owner: 'matt',
-    defaults: { prod: false, dev: false },
+    defaults: { prod: false, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {

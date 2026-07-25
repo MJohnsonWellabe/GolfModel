@@ -95,6 +95,8 @@ import {
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
+import { calibrateRivalSkill, hasRival, houseRival, rivalStanding, settleRivalDay } from '../systems/Rival';
+import { synthesiseRivalRound } from '../systems/RivalRound';
 import { applyHoleMastery, emptyMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
 import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
@@ -580,7 +582,7 @@ function pinForHole(idx: number): Point {
       useAuthoredPins: flag('layouts'),
       bunkerDepthScale: theme.bunkerDepthScale ?? 1,
       wasteDepthScale: theme.wasteDepthScale ?? 0,
-      gentlePins: easeInActive()
+      gentlePins: roundGentlePins
     });
   }
   return round.holePins[idx];
@@ -606,6 +608,19 @@ function easeInActive(): boolean {
   if (round.mode !== 'solo') return false;
   return profile.stats.rounds < EASE_IN_ROUNDS;
 }
+
+/**
+ * Whether THIS round is drawing the ease-in pins — decided once at the tee and
+ * held for the whole round.
+ *
+ * `easeInActive()` reads `profile.stats.rounds`, which increments when a round
+ * is banked. Calling it per hole (as `pinForHole` first did) meant the answer
+ * could change underneath a round in progress, and — worse — that the seal path
+ * could ask "was this round gentle?" after the counter had already moved and be
+ * told no. Pins that the replay cannot reproduce make an honest round fail
+ * verification. One decision, one round.
+ */
+let roundGentlePins = false;
 
 /** How many completed rounds the gentle-pin ease-in covers. Three is one full
  *  sitting: long enough to learn the swing, short enough that the player is on
@@ -2338,6 +2353,40 @@ class HoleScene {
     }, 1100);
   }
 
+  /** Scratch AI used only by `playSkilledShot` (the e2e recording gate). Never
+   *  created during normal play. */
+  private probeAi: AIController | null = null;
+
+  /**
+   * Test hook: play ONE competent shot through the human path.
+   *
+   * The recording gate needs a round that actually holes out. Hitting the same
+   * fixed swing every stroke does not: it caps out at `RULES.maxStrokes` on
+   * every hole, and a capped hole scores 8 no matter WHERE the cup is — which
+   * silently excused the replay from reproducing the pin at all. Borrowing the
+   * AI's shot selection (club, aim, spin) and playing it through `executeShot`
+   * exactly as `aiTurn` does gives a round that reaches the green and putts,
+   * so the gate exercises holing out, gimmes and pin placement too.
+   *
+   * The AI's own rng is fixed, and it never touches `this.shotRng` — the shot
+   * stream stays exactly as reproducible as a human's.
+   */
+  playSkilledShot(): boolean {
+    if (this.state.phase !== 'aiming' || this.ai) return false;
+    this.probeAi ??= new AIController(
+      this.curPart().golfer,
+      this.fires[this.turnIdx],
+      this.engine2d,
+      () => 0.5
+    );
+    const decision = this.probeAi.decide(this.state.ballPos, this.state.lie, this.wind, this.hole);
+    this.aim.setClubById(decision.club.id);
+    this.aim.yaw = decision.aimAngle;
+    this.aim.distPx = dist(this.state.ballPos, decision.aimPoint);
+    this.executeShot(decision.swing, true);
+    return true;
+  }
+
   /** Last HUD markup written — skip the innerHTML write (style/layout work)
    *  when a drag-to-aim pointermove didn't actually change what's shown. */
   private lastHudHtml = '';
@@ -2466,11 +2515,14 @@ class HoleScene {
       // forgiving tree hitbox.
       stroke: this.state.strokes
     };
-    const launch = this.engine2d.resolveLaunch(shotParams);
-    // Re-seed the physics randomness for THIS shot so the round stays
-    // reproducible (see the engine construction). Derived from the round seed,
-    // hole and stroke number — the same three things the replay knows.
+    // Re-seed the physics randomness for THIS shot BEFORE anything consumes it.
+    // resolveLaunch is the first consumer and a heavy one — carry noise, lie
+    // noise and residual dispersion are all gaussian draws — so seeding after
+    // it (as this first did) left the resolve running on leftover stream state
+    // and made the shot unreproducible. Derived from the round seed, hole and
+    // stroke number: the same three things the replay knows.
     this.shotRng = mulberry32(shotRngSeed(round.seed ?? 0, round.holeIdx, this.state.strokes));
+    const launch = this.engine2d.resolveLaunch(shotParams);
     // Keep the EXACT parameters this shot resolved from, so the post-shot
     // breakdown can re-fly it with one factor removed and measure the real
     // difference rather than estimating one (systems/ShotAttribution.ts).
@@ -3221,6 +3273,32 @@ class HoleScene {
     const by = p.y + (pn.y - p.y) * f;
     const bz = p.z + (pn.z - p.z) * f;
     this.ghostBall.position = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
+  }
+
+  /** Test hook: what the ghost's stand-in is actually doing right now
+   *  (tests/visual/ghostRace.spec.ts). A ghost that is armed but never puts a
+   *  ball in the air looks exactly like no ghost at all from the outside, and
+   *  the HUD standing would still read correctly — so the spec has to be able
+   *  to see the ball itself, not just the score line. */
+  ghostDebug(): { shown: boolean; flying: boolean; shotIdx: number; pos: [number, number, number] | null } {
+    const b = this.ghostBall;
+    return {
+      shown: !!b && b.isEnabled(),
+      flying: !!this.ghostFlight,
+      shotIdx: this.ghostShotIdx,
+      pos: b ? [b.position.x, b.position.y, b.position.z] : null
+    };
+  }
+
+  /** Test hook: run the ghost's flight to its end, the ghost-side counterpart
+   *  of `settleFlight`. Headless throttles rAF hard enough that a flight would
+   *  otherwise advance a fraction of a sample per render. */
+  settleGhostFlight(): boolean {
+    const gf = this.ghostFlight;
+    if (!gf || !this.ghostBall) return false;
+    gf.progress = gf.path.length - 1;
+    this.tickGhost(0);
+    return true;
   }
 
   private applySwipeSpin(e: PointerEvent): void {
@@ -5735,7 +5813,14 @@ function exposeDebug(): void {
         // prove the game records what it actually played
         // (tests/visual/roundRecording.spec.ts).
         executeShot: (sw: SwingResult, physicsPower = true) => current?.executeShot(sw, physicsPower),
+        // A competent shot (AI selection, human path) so a spec can play a
+        // round that actually holes out rather than capping every hole.
+        playSkilledShot: () => current?.playSkilledShot() ?? false,
         settleFlight: () => current?.settleFlight() ?? false,
+        // The ghost's stand-in ball — armed, in the air, and where
+        // (tests/visual/ghostRace.spec.ts).
+        ghostDebug: () => current?.ghostDebug() ?? null,
+        settleGhostFlight: () => current?.settleGhostFlight() ?? false,
         clubLab: (tuning: Partial<ClubTuning> | undefined, kind: 'swing' | 'driver' | 'putter') =>
           current?.clubLab(tuning, kind),
         clubLabView: (view: 'hero' | 'face' | 'edge') => current?.clubLabView(view),
@@ -6070,7 +6155,7 @@ const PRACTICE_MAX_SHOTS = 12;
 
 /** Set while a Hole of the Day round is in progress, so the results card knows
  *  to record the attempt and offer the share. */
-let dailyRound: { dateKey: string; par: number } | null = null;
+let dailyRound: { dateKey: string; par: number; rival: RoundRecording | null } | null = null;
 
 /**
  * Seal the round recording at the end of the round and self-check it: replay
@@ -6099,7 +6184,8 @@ function sealRoundRecording(): void {
     },
     scores: me?.scores ?? [],
     at: Date.now(),
-    name: profile.name || 'Player'
+    name: profile.name || 'Player',
+    gentlePins: roundGentlePins
   });
   if (!rec) return;
   const check = verifyRecording(rec, COURSES, replayOptions());
@@ -6754,6 +6840,119 @@ function refreshLandingCards(): void {
 }
 
 /**
+ * THE RIVAL (`rival`).
+ *
+ * The daily hole answers "what shall I play today". The rival answers "why
+ * today rather than whenever" — there is a person on the other side of it, the
+ * fixture is settled at the end of the day, and the record between you is
+ * unfinished by construction. See systems/Rival.ts for the reasoning.
+ *
+ * Everything here is lazy and memoised: assigning a rival and synthesising
+ * their round happen when the landing paints, never during play.
+ */
+function ensureRival(): void {
+  const r = profile.retention.rival;
+  if (hasRival(r)) return;
+  // Calibrate against recent form so the very first rival is already the right
+  // size. `toPar` is per ROUND; the standard is per hole.
+  const recent = loadLocal()
+    .slice(-10)
+    .map((x) => (x.holes.length ? x.toPar / x.holes.length : 0));
+  const skill = calibrateRivalSkill(recent);
+  // Seeded off the player's own id, so the same person meets the same rival on
+  // every device they sign in on — and a fresh device does not hand them a
+  // stranger mid-rivalry.
+  let seed = 2166136261;
+  for (const ch of profile.id || 'guest') {
+    seed = Math.imul(seed ^ ch.charCodeAt(0), 16777619);
+  }
+  const house = houseRival(seed >>> 0, skill);
+  profile.retention.rival = {
+    ...profile.retention.rival,
+    id: house.id,
+    name: house.name,
+    kind: 'house',
+    seed: house.seed,
+    skill: house.skill
+  };
+  analytics.track('rival_assigned', { kind: 'house' });
+}
+
+/** Today's rival round, memoised for the session (synthesis is a few ms of
+ *  pure physics, but it should still happen once). */
+let rivalRoundCache: { key: string; rec: RoundRecording | null } | null = null;
+
+function todaysRivalRound(dateKey: string, courseId: string, course: CourseData): RoundRecording | null {
+  if (!flag('rival') || !flag('roundRecording') || !flag('ghostRace')) return null;
+  ensureRival();
+  const r = profile.retention.rival;
+  if (!hasRival(r)) return null;
+  const cacheKey = `${dateKey}|${courseId}|${r.id}|${r.skill}`;
+  if (rivalRoundCache?.key === cacheKey) return rivalRoundCache.rec;
+  const theme = resolveTheme(course);
+  const rec =
+    r.kind === 'friend'
+      ? null // a friend's rounds arrive as real recordings, not synthesised ones
+      : synthesiseRivalRound({
+          courseId,
+          course,
+          holes: Math.min(RULES.holesPerRound, course.holes.length),
+          name: r.name,
+          seed: r.seed,
+          skill: r.skill,
+          dateKey,
+          at: Date.now(),
+          useAuthoredPins: flag('layouts'),
+          bounded: flag('boundedWorld'),
+          bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+          wasteDepthScale: theme.wasteDepthScale ?? 0,
+          edgeWobble: theme.edgeWobble ?? 1,
+          treeSpecies: { trees: theme.treeKeys ?? DEFAULT_TREE_MIX, accents: theme.accentTreeKeys ?? [] }
+        });
+  rivalRoundCache = { key: cacheKey, rec };
+  return rec;
+}
+
+/** The rival's line on the daily card: who they are, what they shot, and where
+ *  the rivalry stands. One sentence — it is the reason to tap, not a screen. */
+function rivalLine(rec: RoundRecording | null): string {
+  if (!flag('rival')) return '';
+  const r = profile.retention.rival;
+  if (!hasRival(r) || !rec) return '';
+  const them = rec.scores.reduce((a, b) => a + b, 0);
+  const standing = rivalStanding(r);
+  return (
+    `<div class="dhRival">👤 <b>${escapeHtml(r.name)}</b> went round in ${them}` +
+    ` · ${escapeHtml(standing.label)}</div>`
+  );
+}
+
+/**
+ * Settle today's fixture. Called once the daily attempt is booked, so the
+ * result the player just posted is the one compared.
+ *
+ * Idempotent by date inside `settleRivalDay` — a replay, a resume or a late
+ * cloud sync can never pad the record.
+ */
+function settleRivalFixture(dateKey: string, yourStrokes: number, rec: RoundRecording | null): void {
+  if (!flag('rival') || !rec) return;
+  const them = rec.scores.reduce((a, b) => a + b, 0);
+  const out = settleRivalDay(profile.retention.rival, dateKey, yourStrokes, them);
+  if (!out.result) return;
+  profile.retention.rival = out.state;
+  analytics.track('rival_day_settled', { result: out.result });
+  const r = out.state;
+  showMsg(
+    out.result === 'win'
+      ? `You beat ${r.name} ${yourStrokes}–${them}. ${rivalStanding(r).label}.`
+      : out.result === 'loss'
+        ? `${r.name} takes it ${them}–${yourStrokes}. ${rivalStanding(r).label}.`
+        : `Tied with ${r.name} on ${them}. ${rivalStanding(r).label}.`,
+    3200
+  );
+}
+
+/**
  * Hole of the Day (`dailyHole`) — one generated hole, the same for everyone,
  * one attempt, a spoiler-free shareable result.
  *
@@ -6777,23 +6976,35 @@ function updateDailyHoleCard(): void {
   const played = loadDailyPlay(key);
   const { par, yardage, attempts } = res.spec;
   const themeName = COURSES[res.spec.themeId]?.name ?? '';
+  // The rival plays the same hole. Their round is synthesised here, off every
+  // gameplay path, so the card can say what they shot before the player tees
+  // off — a target to chase is worth more than a result to discover.
+  //
+  // Deliberately does NOT register the generated hole in COURSES: that map is
+  // the roster every course list reads, and putting today's hole in it while
+  // merely PAINTING THE LANDING added a seventh course to the wizard. Only
+  // `startDailyHole` registers it, and only when it is about to be played.
+  const rivalRec = todaysRivalRound(key, DAILY_COURSE_ID, res.spec.course);
   if (played) {
     const toPar = played.strokes - par;
     el.innerHTML =
       `<span class="dhLabel">⛳ HOLE OF THE DAY · DONE</span>` +
       `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
       ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
+      rivalLine(rivalRec) +
       `<button id="dhShare" class="dhPlay">Share result</button>`;
     document.getElementById('dhShare')!.addEventListener('pointerdown', () => {
       void shareDailyResult(key, par, played.strokes);
     });
     return;
   }
+  const rivalName = flag('rival') && rivalRec ? profile.retention.rival.name : '';
   el.innerHTML =
     `<span class="dhLabel">⛳ HOLE OF THE DAY</span>` +
     `<div class="dhName">A brand-new par ${par}, ${yardage} yd${themeName ? ` at ${escapeHtml(themeName)}` : ''}` +
     ` — same hole for everyone, one attempt.</div>` +
-    `<button id="dhPlay" class="dhPlay">Play today's hole</button>` +
+    rivalLine(rivalRec) +
+    `<button id="dhPlay" class="dhPlay">${rivalName ? `Play — beat ${escapeHtml(rivalName)}` : "Play today's hole"}</button>` +
     (ENV.isProd ? '' : `<div class="dhDev">seed ${res.spec.seed} · attempt ${attempts} · ${res.rejected.length} rejected</div>`);
   document.getElementById('dhPlay')!.addEventListener('pointerdown', () => startDailyHole());
 }
@@ -6803,11 +7014,14 @@ function updateDailyHoleCard(): void {
 function recordDailyAttempt(): void {
   if (!dailyRound) return;
   const strokes = round.players[0]?.scores[0] ?? 0;
-  const { dateKey, par } = dailyRound;
+  const { dateKey, par, rival } = dailyRound;
   dailyRound = null;
   if (strokes <= 0) return;
   saveDailyPlay({ dateKey, strokes, par, at: Date.now() });
   analytics.track('daily_hole_completed', { score_to_par: strokes - par });
+  // Settle the fixture against the rival round this attempt was actually
+  // played against — not whatever the card would synthesise now.
+  settleRivalFixture(dateKey, strokes, rival);
 }
 
 /**
@@ -6831,9 +7045,12 @@ function startDailyHole(): void {
   const res = dailyHole(key, COURSES);
   if (!res.spec) return;
   COURSES[DAILY_COURSE_ID] = res.spec.course;
-  dailyRound = { dateKey: key, par: res.spec.par };
+  // The rival is the opponent for today's fixture: their round flies beside
+  // yours, and the result settles the head-to-head when the attempt is booked.
+  const rival = todaysRivalRound(key, DAILY_COURSE_ID, res.spec.course);
+  dailyRound = { dateKey: key, par: res.spec.par, rival };
   pendingTournament = null;
-  pendingGhost = null;
+  pendingGhost = rival;
   sel.mode = 'solo';
   sel.courseId = DAILY_COURSE_ID;
   landingEl.classList.remove('on');
@@ -6889,7 +7106,9 @@ async function shareDailyResult(key: string, par: number, strokes: number): Prom
 /** True when the round just finished can be raced again as a ghost — i.e. it
  *  was recorded and survived its own replay check. */
 function ghostRematchAvailable(): boolean {
-  return flag('ghostRace') && flag('roundRecording') && !!lastRecording;
+  // `gp` — an ease-in round, played to the kindest pins. It replays fine, but a
+  // ghost race uses the seeded pins, so it would not be the same course twice.
+  return flag('ghostRace') && flag('roundRecording') && !!lastRecording && !lastRecording.gp;
 }
 
 /** Replay the round that just finished, against the round that just finished.
@@ -7276,6 +7495,10 @@ function startRound(startHoleIdx = 0): void {
     }
   }
   pendingGhost = null;
+  // Fix the ease-in pin decision now that everything it depends on is settled
+  // (mode, ghost, daily, seed). Pins are drawn lazily per hole, so this only has
+  // to precede the first `pinForHole` — but it must be ONE answer for the round.
+  roundGentlePins = easeInActive();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (resumingFrom) {

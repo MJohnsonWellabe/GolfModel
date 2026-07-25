@@ -23,10 +23,11 @@ test('admin landing + staging areas render', async ({ page }) => {
     (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
   }, ADMIN_EMAIL);
 
-  // Landing: five destination cards (dashboard, marketing, season, store, live ops).
+  // Landing: six destination cards (dashboard, marketing, season, store, live
+  // ops, design studio).
   await page.waitForSelector('.adminGrid .adminCard', { state: 'visible' });
   const cards = await page.locator('.adminGrid .adminCard').count();
-  expect(cards).toBe(5);
+  expect(cards).toBe(6);
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'tests/visual/__shots__/admin-landing.png', fullPage: true });
 

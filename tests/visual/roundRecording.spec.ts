@@ -13,24 +13,76 @@ import { expect, test } from '@playwright/test';
  *
  * So: play real shots through the real game, then ask the page to verify its own
  * recording against a replay. Nothing is stubbed.
+ *
+ * Every divergence this gate has caught was the kind nothing else would have:
+ * the replay was missing the course's TREE SPECIES (so trunk hitboxes differed
+ * and drives clipped trees that were never there); the max-strokes pick-up was
+ * not modelled; tee variants were not applied; the ease-in pin choice was not
+ * carried in the recording; and — the subtlest — the per-shot RNG was re-seeded
+ * AFTER `resolveLaunch` rather than before it, so the first and heaviest
+ * consumer of the stream (carry noise, lie noise, residual dispersion) ran on
+ * leftover state and no shot was reproducible.
+ *
+ * The system also fails SAFE by design: `sealRoundRecording` verifies every
+ * recording against a replay before keeping it, so a recording that somehow
+ * stops round-tripping is dropped rather than used by a ghost or a verifier.
  */
-// KNOWN OPEN — see docs/26_SCALE_PASS.md "Known limitations".
-//
-// A round played through the live game does not yet replay bit-for-bit. Two
-// causes were found and fixed while writing this (the replay was missing the
-// course's TREE SPECIES, so trunk hitboxes differed and drives clipped trees
-// that were never there; and the physics' one random branch — a putt lipping
-// out — was unseeded, making a round irreproducible). A residual divergence of
-// roughly 30 yd on a tee shot remains, and it is NOT yet identified.
-//
-// The system fails SAFE in the meantime: `sealRoundRecording` verifies every
-// recording against a replay before keeping it, so a recording that does not
-// round-trip is dropped rather than used. Ghosts and verified scores therefore
-// under-trigger; they never produce a wrong result.
-//
-// Un-fixme this the moment the last divergence is closed — it is the gate that
-// says the feature is real.
-test.fixme('a round played in the real game replays to the score it was played at', async ({ page }) => {
+
+/** Play a whole round through the live code path. Returns the sealed recording.
+ *
+ *  Shots come from `playSkilledShot` (the AI's selection, played through the
+ *  human path) rather than one fixed swing repeated. A fixed swing caps out at
+ *  RULES.maxStrokes on every hole, and a capped hole scores 8 wherever the cup
+ *  is — which quietly excused the replay from reproducing the PIN at all. A
+ *  competent round reaches greens and holes out, so this covers putting, gimmes
+ *  and pin placement as well as ball flight. */
+async function playRound(page: import('@playwright/test').Page): Promise<{
+  shots: unknown[];
+  scores: number[];
+  gp?: boolean;
+}> {
+  for (let guard = 0; guard < 600; guard++) {
+    const step = await page.evaluate(() => {
+      const w = window as never as {
+        __slice3d?: {
+          state: { phase: string };
+          skipIntro(): void;
+          playSkilledShot(): boolean;
+          settleFlight(): boolean;
+        };
+      };
+      const s = w.__slice3d;
+      // `__slice3d` is null between holes while the next scene builds — that
+      // means WAIT, never STOP.
+      if (!s) return 'wait';
+      if (s.state.phase === 'intro') {
+        s.skipIntro();
+        return 'intro';
+      }
+      if (s.state.phase === 'flying') {
+        s.settleFlight();
+        return 'settle';
+      }
+      if (s.state.phase === 'aiming') {
+        s.playSkilledShot();
+        return 'hit';
+      }
+      return 'wait';
+    });
+    await page.waitForTimeout(step === 'wait' ? 200 : 80);
+    const rec = await page.evaluate(() =>
+      (
+        window as never as {
+          __lastRecording(): { shots: unknown[]; scores: number[]; gp?: boolean } | null;
+        }
+      ).__lastRecording()
+    );
+    if (rec) return rec;
+  }
+  throw new Error('the round never finished');
+}
+
+test('a round played in the real game replays to the score it was played at', async ({ page }) => {
   test.setTimeout(300_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -41,7 +93,11 @@ test.fixme('a round played in the real game replays to the score it was played a
     if (t.includes('[recording]')) console.log('PAGE ' + t);
   });
 
-  await page.goto('/?freeze=1');
+  // easeIn ON deliberately: a device's first casual rounds are played to the
+  // KINDEST cup rather than the seeded one, and that choice is not derivable
+  // from the seed. The recording has to carry it (`gp`) or the replay plays the
+  // round into a different hole. This is the configuration that caught that.
+  await page.goto('/?freeze=1&ff.easeIn=on');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
   await page.evaluate(() =>
     (window as never as { __startRound: (o: unknown) => void }).__startRound({
@@ -57,48 +113,17 @@ test.fixme('a round played in the real game replays to the score it was played a
     timeout: 90_000
   });
 
-  // Drive the whole round through the LIVE code path: hit a real shot when the
-  // game is asking for one, settle it when it is in the air, wait otherwise
-  // (`__slice3d` is null between holes while the next scene builds, which means
-  // WAIT, never STOP).
-  for (let guard = 0; guard < 400; guard++) {
-    const step = await page.evaluate(() => {
-      const w = window as never as {
-        __slice3d?: {
-          state: { phase: string };
-          skipIntro(): void;
-          executeShot(s: unknown, physicsPower: boolean): void;
-          settleFlight(): boolean;
-        };
-      };
-      const s = w.__slice3d;
-      if (!s) return 'wait';
-      if (s.state.phase === 'intro') {
-        s.skipIntro();
-        return 'intro';
-      }
-      if (s.state.phase === 'flying') {
-        s.settleFlight();
-        return 'settle';
-      }
-      if (s.state.phase === 'aiming') {
-        // A solid but imperfect swing, so the round contains a spread of bands
-        // rather than only the perfect path.
-        s.executeShot({ power: 0.86, powerQuality: 'good', accuracy: 0.05, accuracyQuality: 'good' }, true);
-        return 'hit';
-      }
-      return 'wait';
-    });
-    await page.waitForTimeout(step === 'wait' ? 200 : 80);
-    const finished = await page.evaluate(
-      () => !!(window as never as { __lastRecording(): unknown }).__lastRecording()
-    );
-    if (finished) break;
-  }
+  const rec = await playRound(page);
+  expect(rec.shots.length, 'a played round must record shots').toBeGreaterThan(0);
+  expect(rec.gp, 'a first round with easeIn on must record that it drew the gentle pins').toBe(true);
+  // A round where every hole capped out proves far less than it looks: the
+  // score is the cap regardless of where the ball or the cup ended up. At least
+  // one hole must have been genuinely holed out.
+  expect(
+    Math.min(...rec.scores),
+    `every hole hit the 8-stroke cap (${rec.scores.join('/')}) — nothing was holed out, so this round never tested the pin`
+  ).toBeLessThan(8);
 
-  const rec = await page.evaluate(() =>
-    (window as never as { __lastRecording(): { shots: unknown[]; scores: number[] } | null }).__lastRecording()
-  );
   const verdict = await page.evaluate(() =>
     (
       window as never as {
@@ -106,8 +131,121 @@ test.fixme('a round played in the real game replays to the score it was played a
       }
     ).__verifyLastRecording()
   );
-  console.log(`RECORDING ${rec!.shots.length} shots, scores ${rec!.scores.join('/')} → ${JSON.stringify(verdict)}`);
+  console.log(
+    `RECORDING ${rec.shots.length} shots, scores ${rec.scores.join('/')}${rec.gp ? ' (ease-in pins)' : ''} → ${JSON.stringify(verdict)}`
+  );
   expect(verdict.status, verdict.detail ?? '').toBe('verified');
   expect(verdict.actualTotal).toBe(verdict.claimedTotal);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+/**
+ * The ghost is the recording stack's other consumer, and it can fail in ways
+ * verification cannot see. Verification only compares a NUMBER; a ghost puts a
+ * ball in the air. A ghost that is armed but never flies, or that stops after
+ * the first hole, or whose standing is computed against the wrong hole, would
+ * all still "verify" perfectly.
+ *
+ * So: play a round, race it, and check that the opponent is real — armed, named,
+ * scored, and putting a ball in the air on the hole being played.
+ */
+test('a recorded round can be raced as a ghost, and the ghost actually flies', async ({ page }) => {
+  test.setTimeout(420_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('console', (m) => {
+    const t = m.text();
+    if (t.includes('[recording]') || t.includes('[ghost]')) console.log('PAGE ' + t);
+  });
+
+  // easeIn OFF: those rounds are played to the kindest cup and are deliberately
+  // NOT offered as ghosts (a race uses the seeded pins, so it would be a race
+  // against a score set on an easier course). With it on, this spec would be
+  // exercising that rejection rather than the racing path.
+  await page.goto('/?freeze=1&ff.easeIn=off');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
+  await page.evaluate(() =>
+    (window as never as { __startRound: (o: unknown) => void }).__startRound({
+      name: 'Racer',
+      courseId: 'sablebay',
+      seed: 13579,
+      character: 'chip',
+      archetype: 'bigHitter'
+    })
+  );
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, {
+    timeout: 90_000
+  });
+
+  const first = await playRound(page);
+  console.log(`GHOST SOURCE ${first.shots.length} shots, scores ${first.scores.join('/')}`);
+  expect(first.gp ?? false, 'easeIn was off, so this round must not be flagged gentle').toBe(false);
+
+  // Race it through the real button on the results card, not a back door.
+  await page.click('#ghostBtn');
+  // Wait for a NEW scene (the seq counter moves per hole build), not just any —
+  // the previous round's scene can still be answering for a moment.
+  await page.waitForFunction(
+    () => {
+      const w = window as never as {
+        __slice3d?: { state: { holeIdx: number; strokes: number } };
+        __ghostStanding(): unknown;
+      };
+      return !!w.__slice3d && w.__slice3d.state.holeIdx === 0 && !!w.__ghostStanding();
+    },
+    undefined,
+    { timeout: 90_000 }
+  );
+
+  const standing = await page.evaluate(() =>
+    (window as never as { __ghostStanding(): { name: string; scores: number[] } | null }).__ghostStanding()
+  );
+  expect(standing, 'the ghost was dropped rather than armed').toBeTruthy();
+  expect(standing!.name).toBe('Racer');
+  // The ghost's replayed scores must be the scores its owner actually posted —
+  // if these differ, the ghost is racing a round that was never played.
+  expect(standing!.scores).toEqual(first.scores);
+
+  // Now play far enough to see the ghost fly. One shot is enough to prove the
+  // ball is created, enabled and moved along its recorded path; the standing
+  // above proves the whole round replayed.
+  let flew = false;
+  for (let guard = 0; guard < 120 && !flew; guard++) {
+    flew = (await page.evaluate(() => {
+      const w = window as never as {
+        __slice3d?: {
+          state: { phase: string };
+          skipIntro(): void;
+          playSkilledShot(): boolean;
+          settleFlight(): boolean;
+          settleGhostFlight(): boolean;
+          ghostDebug(): { shown: boolean; flying: boolean; shotIdx: number; pos: number[] | null } | null;
+        };
+      };
+      const s = w.__slice3d;
+      if (!s) return false;
+      if (s.state.phase === 'intro') {
+        s.skipIntro();
+        return false;
+      }
+      if (s.state.phase === 'aiming') {
+        s.playSkilledShot();
+        // The ghost's shot is launched alongside the player's, so by now it is
+        // armed and in the air.
+        const g = s.ghostDebug();
+        if (!g || !g.shown || !g.flying) return false;
+        const start = g.pos!.slice();
+        s.settleGhostFlight();
+        const end = s.ghostDebug()!.pos!;
+        const moved = Math.hypot(end[0] - start[0], end[1] - start[1], end[2] - start[2]);
+        if (moved < 1) throw new Error(`ghost ball did not move (${moved.toFixed(3)} units)`);
+        return true;
+      }
+      if (s.state.phase === 'flying') s.settleFlight();
+      return false;
+    })) as boolean;
+    await page.waitForTimeout(80);
+  }
+  expect(flew, 'the ghost never put a ball in the air alongside the player').toBe(true);
   expect(errors, errors.join('\n')).toEqual([]);
 });
