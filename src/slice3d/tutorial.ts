@@ -53,19 +53,15 @@ interface CoachCard {
  *  ratio, independent of putt length), symmetric downhill; the aim line never
  *  compensates — the ▲/▼ readout is the player's to act on. */
 export const PUTT_RULE =
-  'Pace is everything on the green. This game runs 1 foot long for every 2 inches ' +
-  'of uphill — a 6-to-1 rule, and the same in reverse going downhill. Your aim ' +
-  'line does NOT add that for you: read the ▲ uphill / ▼ downhill number by the ' +
-  'hole and aim past the cup to match it.';
+  'Add 1 foot for every 2 inches of uphill — a 6-to-1 rule, reversed downhill. ' +
+  'Your aim line does not add it for you: read the ▲/▼ number and aim past the cup.';
 
 /** The wind lesson. Wind is real, per-hole, and shown in the HUD as an arrow
  *  drawn RELATIVE to your aim (up = straight down your line) plus a speed in
  *  mph — see HoleScene.updateHud. */
 export const WIND_RULE =
-  'Check the wind chip at the top: the arrow points where the wind is blowing, ' +
-  'drawn relative to your aim, and the number is its strength. Pointing up means ' +
-  'it is behind you and the ball will fly further; across means aim into it, ' +
-  'because the ball WILL drift with it. Nothing here corrects for wind but you.';
+  'The arrow is drawn relative to your aim. Up means it is behind you — the ball ' +
+  'flies further. Across means aim into it. Nothing here corrects for wind but you.';
 
 /** Lifecycle context for one aiming turn. */
 export interface AimingContext {
@@ -126,9 +122,7 @@ export class TutorialCoach {
           key: 'truevision',
           card: {
             title: 'True Vision',
-            body:
-              'Not sure of the read? Tap TRUE VISION to preview exactly how your ' +
-              'current putt will roll on the real slope. You get one free look each round.',
+            body: 'Tap TRUE VISION to see exactly how this putt will roll. One free look a round.',
             highlight: 'trueVisionBtn',
             step: 8
           }
@@ -142,10 +136,7 @@ export class TutorialCoach {
           key: 'aim',
           card: {
             title: 'Aim',
-            body:
-              'Drag anywhere on the hole to aim, and drag farther to reach farther. ' +
-              'The white line is your aim — a straight guess that ignores slope and ' +
-              'wind. Reading those is your job.',
+            body: 'Drag to aim, drag farther to reach farther. The white line ignores wind and slope.',
             highlight: 'clubBar',
             step: 1
           }
@@ -160,11 +151,7 @@ export class TutorialCoach {
                 key: 'club',
                 card: {
                   title: 'Pick your club',
-                  body:
-                    'The ◀ ▶ arrows change clubs, and the yardage beside the club name ' +
-                    'is how far THAT club carries at full power. Match the club to the ' +
-                    'distance left to the pin — a smooth full swing beats forcing a ' +
-                    'short club.',
+                  body: '◀ ▶ change club. The yardage is that club at full power — match it to the pin.',
                   highlight: 'clubBar',
                   step: 3
                 }
@@ -175,9 +162,7 @@ export class TutorialCoach {
           key: 'shape',
           card: {
             title: 'Shape your shot',
-            body:
-              'Drag the dot on the ball face to bend the flight: right for a draw ' +
-              '(curves right→left), left for a fade, low for a higher launch.',
+            body: 'Drag the dot on the ball face: right to draw, left to fade, low to launch higher.',
             highlight: 'strikePad',
             step: 4
           }
@@ -186,9 +171,7 @@ export class TutorialCoach {
           key: 'hit',
           card: {
             title: 'Take your swing',
-            body:
-              'Tap SWING three times: once to start the meter, once to lock power, ' +
-              'once to lock your strike. Land it in the PERFECT band for a pure hit.',
+            body: 'Tap SWING three times: start, lock power, lock strike. Hit the PERFECT band.',
             highlight: 'swingBtn',
             cta: 'Let me try',
             step: 5
@@ -204,7 +187,7 @@ export class TutorialCoach {
         key: 'aerial',
         card: {
           title: 'Plan from above',
-          body: 'Tap AERIAL for a top-down view to scout your line, then tap it again to return.',
+          body: 'Tap AERIAL to scout your line from above. Tap again to come back.',
           highlight: 'aerialBtn',
           step: 6
         }
@@ -217,10 +200,8 @@ export class TutorialCoach {
           card: {
             title: `You're in the ${ctx.lie}`,
             body:
-              'Your lie is in the HUD next to the pin distance, and it costs you: ' +
-              'rough and sand take distance off the shot and kill the spin that stops ' +
-              'the ball. Take enough club, aim at the fat part of the green, and get ' +
-              'back in play rather than chasing the flag.',
+              'Rough and sand cost distance and kill spin. Take more club, aim at the fat ' +
+              'part of the green, get back in play.',
             highlight: 'hud'
           }
         }
@@ -236,9 +217,7 @@ export class TutorialCoach {
         key: 'spin',
         card: {
           title: 'Add spin in the air',
-          body:
-            'While the ball is flying, swipe on the screen to work it: swipe down ' +
-            'for backspin (it bites and stops), up for topspin (it runs out).'
+          body: 'While it flies, swipe down for backspin (it bites), up for topspin (it runs).'
         }
       }
     ]);
@@ -257,9 +236,8 @@ export class TutorialCoach {
         card: {
           title: kind === 'water' ? 'In the water — one shot back' : 'Out of play — one shot back',
           body:
-            'That costs a penalty stroke and you play on from near where it went in. ' +
-            'It happens to everybody. The recovery is the fun part: take one more club ' +
-            'than you think, aim at the safe middle, and get the next one back in play.',
+            'One stroke, and you play on from near where it crossed. Happens to everybody — ' +
+            'take one more club and aim at the safe middle.',
           cta: 'Play on'
         }
       }
@@ -277,14 +255,10 @@ export class TutorialCoach {
         card: {
           title: "You've got the basics!",
           body: this.deep
-            ? 'Aim, wind, club, swing, shape, spin, and read the green — that is the ' +
-              'whole game.' +
+            ? 'Aim, wind, club, swing, shape, spin, read the green — that is the whole game.' +
               rewardLine +
-              ' Two holes left in this round: play them out and your score ' +
-              'goes in the book. You can replay this lesson any time.'
-            : 'Aim, swing, shape, spin, and read the green — that’s the whole game. ' +
-              'Play on from here, or head home anytime. You can replay this lesson ' +
-              'whenever you like.',
+              ' Two holes left: play them out and the score goes in the book.'
+            : 'Aim, swing, shape, spin, read the green — that’s the whole game. Play on.',
           cta: this.deep ? 'Finish my round' : 'Keep playing'
         }
       }
@@ -350,6 +324,35 @@ export class TutorialCoach {
       this.stop();
     });
     this.setHighlight(next.highlight);
+    this.placeClearOf(next.highlight);
+  }
+
+  /**
+   * Put the card where it is NOT covering the thing it is talking about.
+   *
+   * The overlay was pinned to the top of the screen, and so is the HUD — so the
+   * card explaining how to read the wind sat directly on top of the wind. The
+   * rule is simply: if the subject is in the upper half, the card goes to the
+   * bottom, and vice versa. Anchoring precisely to each element would be more
+   * elegant and much more fragile; the halves are enough to never overlap.
+   */
+  private placeClearOf(id?: string): void {
+    if (!this.root) return;
+    const el = id ? document.getElementById(id) : null;
+    const box = el?.getBoundingClientRect();
+    const subjectHigh = !!box && box.height > 0 && box.top + box.height / 2 < window.innerHeight / 2;
+    if (subjectHigh) {
+      // Sit above the swing controls rather than over them.
+      this.root.style.top = '';
+      this.root.style.bottom = '0';
+      this.root.style.alignItems = 'flex-end';
+      this.root.style.padding = '0 12px calc(150px + env(safe-area-inset-bottom))';
+    } else {
+      this.root.style.bottom = '';
+      this.root.style.top = '0';
+      this.root.style.alignItems = 'flex-start';
+      this.root.style.padding = 'calc(12px + env(safe-area-inset-top)) 12px 0';
+    }
   }
 
   private setHighlight(id?: string): void {
