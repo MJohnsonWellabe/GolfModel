@@ -646,6 +646,104 @@
       #swingBtn:active {
         transform: translateX(-50%) scale(0.94);
       }
+      /* ---- Drag-swing pull track (`dragSwing`) ------------------------------
+         A full-height column on the right edge. `top` and the grip height are
+         set from `trackLayout()` so the backswing always fits below the grip;
+         everything else is presentation. */
+      #dragTrack {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        width: 76px;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        z-index: 7;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+      #dragGrip {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 16px 0 0 16px;
+        border: 2px solid rgba(255, 255, 255, 0.55);
+        border-right: none;
+        background: linear-gradient(180deg, rgba(53, 165, 88, 0.92), rgba(30, 122, 60, 0.92));
+        color: #fff;
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        line-height: 1.2;
+        text-align: center;
+        box-shadow: -3px 2px 10px rgba(0, 0, 0, 0.4);
+      }
+      #dragTrack.pulling #dragGrip {
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.92), rgba(214, 158, 26, 0.92));
+      }
+      #dragRail {
+        position: relative;
+        flex: 1;
+        width: 14px;
+        margin: 8px 0;
+        border-radius: 7px;
+        background: rgba(10, 24, 15, 0.72);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+      }
+      #dragRailClip {
+        position: absolute;
+        inset: 0;
+        border-radius: 7px;
+        overflow: hidden;
+      }
+      #dragRail .dzone,
+      #dragRail #dragLine,
+      #dragRail #dragFill {
+        position: absolute;
+        left: 0;
+        right: 0;
+      }
+      #dragGood {
+        background: rgba(255, 213, 79, 0.4);
+      }
+      #dragPerfect {
+        background: rgba(88, 226, 130, 0.55);
+      }
+      #dragLine {
+        height: 2px;
+        background: rgba(255, 255, 255, 0.9);
+      }
+      #dragFill {
+        top: 0;
+        height: 0;
+        background: linear-gradient(180deg, rgba(127, 212, 255, 0.28), rgba(127, 212, 255, 0.6));
+      }
+      #dragKnob {
+        position: absolute;
+        left: 50%;
+        display: none;
+        width: 26px;
+        height: 26px;
+        margin: 0;
+        border-radius: 50%;
+        border: 3px solid #fff;
+        background: radial-gradient(circle at 50% 35%, #7fd4ff, #2b7fb0);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+        transform: translate(-50%, -50%);
+      }
+      #dragReadout {
+        margin-bottom: calc(10px + env(safe-area-inset-bottom));
+        padding: 3px 8px;
+        border-radius: 9px;
+        background: rgba(12, 30, 18, 0.82);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: #f2f7f0;
+        font-size: 12px;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+      }
       #hud .chip.wind .arrow {
         display: inline-block;
         color: #7fd4ff;
@@ -3437,6 +3535,25 @@
     <button id="pauseBtn">☰ Menu</button>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
+
+    <!-- Drag-swing pull track (`dragSwing`). Down the RIGHT edge, because that
+         is the axis a phone has room on: the grip sits in the upper third and
+         everything beneath it is backswing. Hidden unless the flag is on. -->
+    <div id="dragTrack">
+      <div id="dragGrip"><span>PULL<br />BACK</span></div>
+      <div id="dragRail">
+        <!-- Zones and fill are clipped to the rail's rounded ends; the knob is
+             wider than the rail, so it lives outside the clip. -->
+        <div id="dragRailClip">
+          <div id="dragGood" class="dzone"></div>
+          <div id="dragPerfect" class="dzone"></div>
+          <div id="dragLine"></div>
+          <div id="dragFill"></div>
+        </div>
+        <div id="dragKnob"></div>
+      </div>
+      <div id="dragReadout">PULL</div>
+    </div>
 
     <div id="landing">
       <div class="landingInner">

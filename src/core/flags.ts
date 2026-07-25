@@ -186,13 +186,16 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'dragSwing',
     description:
-      'Drag-back-and-release swing (DEV-ONLY, opt-in experiment): press SWING ' +
-      'and pull back for power, sideways for face angle, release to strike — ' +
+      'Drag-back-and-release swing (DEV-ONLY, opt-in experiment): grip the ' +
+      'track down the RIGHT edge and pull the club back, release to strike — ' +
       'one gesture, matching the drag that already sets the aim, instead of ' +
-      'three taps on a timing bar. ONLY the input changes: power, the ' +
-      'perfect/good/miss bands and the accuracy curve all come from the shared ' +
-      'swingModel, so difficulty and every simulation stay exactly where they ' +
-      'are calibrated. Off = the three-tap meter, untouched.',
+      'three taps on a timing bar. How DEEP you pull is the backswing, how ' +
+      'SMOOTHLY you pull is the strike, and how STRAIGHT you pull is the face. ' +
+      'ONLY the input changes: power, the perfect/good/miss bands and the ' +
+      'accuracy curve all come from the shared swingModel, so difficulty and ' +
+      'every simulation stay exactly where they are calibrated. On, the meter ' +
+      'and the SWING button give way to the track; off = the three-tap meter, ' +
+      'untouched.',
     owner: 'matt',
     defaults: { prod: false, dev: false },
     removeWhen:

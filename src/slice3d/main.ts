@@ -144,7 +144,8 @@ import { scoreName } from '../systems/Scoring';
 import { buildCourse, w2b } from './course3d';
 import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter, MeterContext } from './meter3d';
-import { DragState, readDrag, resolveDragSwing, tuningForViewport } from '../core/input/DragSwing';
+import { DragSample, DragState, readDrag, resolveDragSwing, tuningForViewport } from '../core/input/DragSwing';
+import { DragTrack } from './dragTrack';
 import { ShotCapture } from './shotCapture';
 
 // ------------------------------------------------------------------- boot
@@ -208,6 +209,10 @@ meter.onActiveChange = (active) => {
   renderPacing.meterActive = active && !isFrozen();
 };
 const swingBtn = document.getElementById('swingBtn')!;
+/** The drag swing's own surface (`dragSwing`). Built once and kept hidden until
+ *  a shot arms it, so the flag being off costs nothing but this element. */
+const dragTrackEl = document.getElementById('dragTrack')!;
+const dragTrack = new DragTrack(dragTrackEl);
 const clubBar = document.getElementById('clubBar')!;
 const clubName = document.getElementById('clubName')!;
 const aerialBtn = document.getElementById('aerialBtn')!;
@@ -867,8 +872,17 @@ class HoleScene {
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
   private swingCtx: MeterContext | null = null;
-  /** Live drag-swing gesture (`dragSwing`), or null when not swinging. */
-  private dragSwing: { x0: number; y0: number; state: DragState } | null = null;
+  /**
+   * Live drag-swing gesture (`dragSwing`), or null when not swinging.
+   *
+   * The whole PATH is kept, not just the origin: the rebuilt control scores how
+   * smoothly and how straight the club was taken back, and neither is knowable
+   * from the release point alone.
+   */
+  private dragSwing: { path: DragSample[]; state: DragState } | null = null;
+  /** Screen point and timestamp the live pull began at; every sample is stored
+   *  relative to it, so the reader never sees absolute coordinates. */
+  private dragOrigin = { x: 0, y: 0, t: 0 };
   /** Per-shot random source for the physics engine (see the engine's
    *  construction). Re-seeded before every shot from the round seed, the hole
    *  and the stroke number, so the same shot always breaks the same way. */
@@ -1295,6 +1309,20 @@ class HoleScene {
     meter.arm(swingCtx);
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
+    // DRAG SWING (`dragSwing`): the pull track down the right edge IS the swing
+    // surface, and it draws this shot's bands on its own rail. Showing the
+    // horizontal meter as well would put the target in two places, one of them
+    // nowhere near the thumb — so it is one control or the other, and the SWING
+    // button goes with the meter.
+    const pulling = flag('dragSwing') && !this.comps[this.turnIdx].isAI;
+    if (pulling) {
+      meterEl.style.display = 'none';
+      swingBtn.style.display = 'none';
+      dragTrack.arm(swingCtx);
+    } else {
+      swingBtn.style.display = '';
+      dragTrack.hide();
+    }
     // Fire vignette (juice): while an on-fire HUMAN is at address, a static
     // warm edge glow carries the state beyond the meter. CSS-only overlay;
     // cleared on launch (executeShot) and scene teardown (dispose).
@@ -2534,6 +2562,9 @@ class HoleScene {
     // Clearing it when the METER ARMS (as this first did) wiped it instantly,
     // because the next turn arms the moment the ball comes to rest.
     clearShotWhy();
+    // The pull track belongs to the address, not the flight; the next turn's
+    // armMeter puts it back up with that shot's bands.
+    dragTrack.hide();
     // Snapshot the True Vision promise BEFORE hideTrueVision() clears it.
     const tvReveal = this.tvReveal;
     this.state.phase = 'swinging';
@@ -3115,19 +3146,6 @@ class HoleScene {
   private wireInput(): void {
     this.onSwingTap = (e: Event): void => {
       e.preventDefault();
-      // DRAG SWING (`dragSwing`): press and pull back instead of tapping three
-      // times. Handled here so the button stays the one place a swing starts,
-      // whichever scheme is live.
-      if (flag('dragSwing') && !this.ai && this.state.phase === 'aiming') {
-        const pe = e as PointerEvent;
-        startAmbience();
-        if (!meter.isArmed) this.armMeter();
-        meterEl.style.display = 'block';
-        shotCapture.setRotationPaused(!isFrozen());
-        this.dragSwing = { x0: pe.clientX, y0: pe.clientY, state: { power: 0, face: 0, engaged: false } };
-        promptEl.textContent = 'Pull back… release to strike';
-        return;
-      }
       // ADJ-3 input-latency: the "ignored taps" complaint is event DISPATCH
       // latency — a pointerdown queued behind a long render frame runs late.
       // e.timeStamp is the input's creation time (same epoch as performance.now),
@@ -3153,26 +3171,46 @@ class HoleScene {
     };
     swingBtn.addEventListener('pointerdown', this.onSwingTap);
 
-    // Drag-swing move/release live on the WINDOW: the pull naturally travels
-    // off the button, and a release outside it must still strike (or cancel)
-    // rather than leaving the player holding a club forever.
-    this.onDragSwingMove = (e: PointerEvent): void => {
-      if (!this.dragSwing) return;
+    // DRAG SWING (`dragSwing`): the pull starts on the track down the right
+    // edge — the one part of a phone screen with a full backswing's worth of
+    // travel beneath the thumb.
+    this.onDragSwingDown = (e: PointerEvent): void => {
+      if (!flag('dragSwing') || this.ai || this.state.phase !== 'aiming') return;
       e.preventDefault();
-      const t = tuningForViewport(window.innerHeight);
-      this.dragSwing.state = readDrag(e.clientX - this.dragSwing.x0, e.clientY - this.dragSwing.y0, t);
-      meter.showDrag(this.dragSwing.state.power, this.dragSwing.state.face);
-      const pct = Math.round(this.dragSwing.state.power * 100);
-      promptEl.textContent = this.dragSwing.state.engaged ? `${pct}% — release to strike` : 'Pull back…';
+      startAmbience();
+      if (!meter.isArmed) this.armMeter();
+      // Same rationale as the tap path: defer the capture recorder's segment
+      // swap across the swing only, not across the whole aiming window.
+      shotCapture.setRotationPaused(!isFrozen());
+      this.dragOrigin = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+      const first: DragSample = { x: 0, y: 0, t: 0 };
+      this.dragSwing = { path: [first], state: readDrag([first], tuningForViewport(window.innerHeight)) };
+      dragTrack.update(this.dragSwing.state);
+      promptEl.textContent = 'Pull back — smooth and straight';
+    };
+    dragTrackEl.addEventListener('pointerdown', this.onDragSwingDown);
+
+    // Move/release live on the WINDOW: the pull naturally travels off the
+    // track, and a release outside it must still strike (or cancel) rather than
+    // leaving the player holding a club forever.
+    this.onDragSwingMove = (e: PointerEvent): void => {
+      const drag = this.dragSwing;
+      if (!drag) return;
+      e.preventDefault();
+      const o = this.dragOrigin;
+      drag.path.push({ x: e.clientX - o.x, y: e.clientY - o.y, t: e.timeStamp - o.t });
+      drag.state = readDrag(drag.path, tuningForViewport(window.innerHeight));
+      dragTrack.update(drag.state);
+      promptEl.textContent = drag.state.engaged ? 'Release to strike' : 'Pull back…';
     };
     this.onDragSwingUp = (): void => {
       const drag = this.dragSwing;
       this.dragSwing = null;
       if (!drag) return;
-      meter.hideDrag();
+      dragTrack.release();
       if (!drag.state.engaged || !this.swingCtx) {
         // Too small to be a swing — treat it as a cancel, not a duffed shot.
-        promptEl.textContent = 'Drag to aim — tap SWING';
+        promptEl.textContent = 'Drag to aim — pull the track to swing';
         shotCapture.setRotationPaused(false);
         return;
       }
@@ -3447,6 +3485,7 @@ class HoleScene {
   }
 
   private onSwingTap!: (e: Event) => void;
+  private onDragSwingDown!: (e: PointerEvent) => void;
   private onDragSwingMove!: (e: PointerEvent) => void;
   private onDragSwingUp!: () => void;
   private onPointerDown!: (e: PointerEvent) => void;
@@ -3745,6 +3784,9 @@ class HoleScene {
     for (const t of this.introTimers) clearTimeout(t);
     this.introTimers.length = 0;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
+    dragTrackEl.removeEventListener('pointerdown', this.onDragSwingDown);
+    this.dragSwing = null;
+    dragTrack.hide();
     window.removeEventListener('pointermove', this.onDragSwingMove);
     window.removeEventListener('pointerup', this.onDragSwingUp);
     window.removeEventListener('pointercancel', this.onDragSwingUp);

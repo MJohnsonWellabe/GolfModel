@@ -214,31 +214,10 @@ export class DomMeter {
     this.cursorEl.style.left = '0%';
   }
 
-  /**
-   * Reflect a live drag-back swing on the same bar (`dragSwing`).
-   *
-   * The bar is reused deliberately rather than replaced: the zones a player has
-   * already learned — where perfect is, how wide it is for this club and lie —
-   * are exactly what the pull is aiming at, so the drag reads against the same
-   * target they have been reading all along. Only the cursor's SOURCE changes
-   * (a finger instead of a sweep).
-   */
-  showDrag(power: number, face: number): void {
-    if (this.state === 'hidden') return;
-    this.el.style.display = 'block';
-    this.cursorEl.style.left = `${Math.max(0, Math.min(1, power)) * 100}%`;
-    // The face offset rides as a lateral nudge on the cursor, so a pull that
-    // drifts sideways visibly leaves the line before it is released.
-    this.cursorEl.style.transform = `translateX(${Math.round(face * 14)}px)`;
-    this.markerEl.style.left = `${this.targetBar() * 100}%`;
-    this.markerEl.style.display = 'block';
-  }
-
-  /** End the drag presentation and put the bar back as it was. */
-  hideDrag(): void {
-    this.cursorEl.style.transform = '';
-    this.markerEl.style.display = 'none';
-  }
+  // The drag swing used to borrow this bar as its readout. It now has its own
+  // surface (`slice3d/dragTrack`), which draws the same bands from the same
+  // pure `swingModel` functions right beside the thumb — so this meter is once
+  // again only the tap meter, and `showDrag`/`hideDrag` are gone with it.
 
   hide(): void {
     this.onActiveChange?.(false);

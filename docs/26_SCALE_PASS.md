@@ -261,18 +261,50 @@ candidate accepted.
 ## 9. Drag swing (experiment, off by default)
 
 A shot currently uses two input languages: drag to aim, then tap a timing bar
-three times. `core/input/DragSwing.ts` offers one gesture instead — pull back
-for power, sideways for face angle, release to strike.
+three times. `core/input/DragSwing.ts` offers one gesture instead — grip the
+track down the right edge, pull the club back, release to strike.
+
+**The stroke is the shot.** The gesture is read as a whole path, not as a
+release point, and each part of it answers one of the three questions the tap
+meter asks in three separate taps:
+
+| The gesture | The shot |
+| --- | --- |
+| how **deep** you pull | the backswing — the power cursor |
+| how **smoothly** you pull | the strike — a stab loses distance and drops out of the perfect band |
+| how **straight** you pull | the face angle — a curved pull is a push or a pull |
+
+Smoothness is scored over the **takeaway only** — from leaving the ball to
+reaching the deepest point — as relative jerk between time-binned velocities
+plus a separate, heavier penalty for any part of the stroke that travels back
+up. Hesitating before you start and settling at the bottom before you let go are
+both free, because being able to hold and adjust is the whole advantage a
+spatial control has over a timing bar. Straightness is weighted-mean lateral
+drift plus the wander about it, so an S-shaped pull whose halves cancel is still
+a miss.
 
 **Only the input changes.** Power, the bands and the accuracy curve all come
-from the shared `swingModel`, so a drag and a tap of equal quality produce an
-identical `SwingResult` and every calibration holds. `tests/simulation/
-dragSwing.test.ts` asserts that parity directly.
+from the shared `swingModel`, so a drag and a tap that put the cursor in the
+same place produce an identical `SwingResult` and every calibration holds.
+`tests/simulation/dragSwing.test.ts` asserts that parity directly.
 
-Recorded because it was a real bug caught by that test: the first mapping
-projected the face angle onto the meter's cursor space, and since the accuracy
-target sits near the bar's left edge, an identical pull left and right produced
-very different misses — a right-handed bias nobody would have found by playing.
+The track (`slice3d/dragTrack.ts`) draws this shot's perfect/good bands on its
+own rail, from the same pure `swingModel` functions the meter uses — a target
+you cannot see while you use the control is a reaction test, not a skill — so
+with the flag on the horizontal meter and the SWING button stand down.
+
+### Two bugs recorded, because both were invisible from the outside
+
+- The first mapping projected the face angle onto the meter's cursor space, and
+  since the accuracy target sits near the bar's left edge, an identical pull
+  left and right produced very different misses — a right-handed bias nobody
+  would have found by playing. Caught by the parity test.
+- The first version anchored the gesture on the **SWING button**, 18px off the
+  bottom of the screen, so a phone offered about a finger's width of travel:
+  "you can't pull down far enough at the bottom". Nothing could see it — the
+  unit tests used abstract pixel counts and no visual spec turned the flag on.
+  The geometry is now data (`trackLayout`), asserted at nine viewport heights,
+  and `tests/visual/dragSwing.spec.ts` plays a real pull at 390×844.
 
 **Off even in dev.** It replaces a core control; a dev session should be playing
 the same game production is unless the swing is explicitly what is being tested
