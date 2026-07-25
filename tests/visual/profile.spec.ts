@@ -10,7 +10,7 @@ test('reset records asks for confirmation before wiping', async ({ page }) => {
   // sections behind a tab strip now, not one two-thousand-pixel column — and
   // the landing offers a direct entry to it.
   await openDestination(page, 'more');
-  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#resetRecords');
   // First tap only opens the confirm modal — no wipe yet.
   await page.evaluate(() => (document.getElementById('resetRecords') as HTMLElement).dispatchEvent(new Event('click')));
@@ -31,7 +31,7 @@ test('profile shows the cloud account row when auth is configured', async ({ pag
   await page.goto('/?env=prod');
   // The account row is in Settings alongside the rest of the account chrome.
   await openDestination(page, 'more');
-  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('landingSettings') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#linkGoogle');
   // Signed out the control reads "Sign in with Google"; signed in, "Log out".
   await expect(page.locator('#linkGoogle')).toContainText('Google');

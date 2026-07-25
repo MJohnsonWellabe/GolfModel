@@ -11,7 +11,7 @@ test('online tournaments overlay opens from the menu', async ({ page }) => {
   // bottom of the setup wizard).
   await openDestination(page, 'compete');
   await page.waitForSelector('#tournyLink');
-  await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#tournaments .recInner');
   await expect(page.locator('#tournaments h2')).toContainText('Online Tournaments');
   await page.screenshot({ path: 'tests/visual/__shots__/tournaments.png' });
@@ -61,7 +61,7 @@ test('create a tournament surfaces a shareable code', async ({ page }) => {
   await page.goto('/?lb=https://rtdb.test');
   await openDestination(page, 'compete');
   await page.waitForSelector('#tournyLink');
-  await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#tourCreate');
   await page.evaluate(() => (document.getElementById('tourCreate') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   // Creating now starts with a course picker — everyone plays the creator's pick.

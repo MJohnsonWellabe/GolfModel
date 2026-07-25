@@ -79,6 +79,9 @@ export class DragTrack {
     this.line.style.top = `${railPos(target) * 100}%`;
     this.layout();
     this.el.style.display = 'flex';
+    // The right-edge button stack has to step out of the track's column, or it
+    // sits behind it and cannot be tapped.
+    document.documentElement.classList.add('drag-track');
     this.el.classList.remove('pulling');
     this.fill.style.height = '0%';
     this.knob.style.display = 'none';
@@ -113,6 +116,7 @@ export class DragTrack {
 
   hide(): void {
     this.el.style.display = 'none';
+    document.documentElement.classList.remove('drag-track');
     this.release();
   }
 

@@ -10,7 +10,7 @@ test('records overlay offers a tab per course', async ({ page }) => {
   // and then not do it.
   await openDestination(page, 'compete');
   await page.waitForSelector('#recordsLink');
-  await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
+  await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('.recTab');
   // ONE TAB PER COURSE — derived, not remembered. This was pinned to 4 and went
   // red the moment the roster grew to 7; a hard-coded count tests the roster's

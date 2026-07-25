@@ -31,7 +31,9 @@ function shoot(
   /** Where the player pointed. Defaults to a clean strike in dead air on THIS
    *  hole; pass one explicitly to model a player who aimed at a spot without
    *  allowing for what the ground there would do. */
-  aimAt?: { x: number; y: number }
+  aimAt?: { x: number; y: number },
+  /** Read the shot in FEET, as a putt is. */
+  isPutt = false
 ): ReturnType<typeof attributeShot> {
   const SEED = 0x5eed;
   let rng = mulberry32(SEED);
@@ -66,7 +68,7 @@ function shoot(
   });
   rng = mulberry32(SEED);
   const aimPoint = aimAt ?? engine.integrateLaunch(aimLaunch, { side: 0, top: 0 }, 0).finalPos;
-  return attributeShot(engine, params, spin, out.finalPos, aimPoint, () => (rng = mulberry32(SEED)));
+  return attributeShot(engine, params, spin, out.finalPos, aimPoint, () => (rng = mulberry32(SEED)), isPutt);
 }
 
 describe('what the breakdown reports', () => {
@@ -272,10 +274,41 @@ describe('the table the player actually reads', () => {
 
   it('reads the way a golfer would say it', () => {
     const t = attributionTable(messy());
-    for (const e of t.dist) expect(e.text, e.text).toMatch(/^[+−]\d+ yds \S/);
-    for (const e of t.side) expect(e.text, e.text).toMatch(/^[←→] \d+ yds \S/);
-    if (t.head.dist) expect(t.head.dist).toMatch(/^\d+ yards (short|long)$/);
-    if (t.head.side) expect(t.head.side).toMatch(/^\d+ yards (right|left)$/);
+    for (const e of t.dist) expect(e.text, e.text).toMatch(/^[+−]\d+ yd \S/);
+    for (const e of t.side) expect(e.text, e.text).toMatch(/^[←→] \d+ yd \S/);
+    if (t.head.dist) expect(t.head.dist).toMatch(/^\d+ yd (short|long)$/);
+    if (t.head.side) expect(t.head.side).toMatch(/^\d+ yd (right|left)$/);
+  });
+
+  it('a putt is the same breakdown in FEET, with a floor a putt can clear', () => {
+    // Putts were excluded outright. They are the shot where this feature is
+    // worth MOST — how much break you failed to play — and the only thing that
+    // actually differs is scale: a four-YARD floor silences every putt ever
+    // struck, which is why excluding them looked reasonable.
+    const miss = {
+      swing: { power: 0.95, powerQuality: 'miss' as const, accuracy: 0.9, accuracyQuality: 'miss' as const }
+    };
+    const inYards = shoot(openHole(), miss);
+    const inFeet = shoot(openHole(), miss, { side: 0, top: 0 }, undefined, true);
+    expect(inYards.unit).toBe('yd');
+    expect(inFeet.unit).toBe('ft');
+    // Same shot, three times the number — and the wording follows the unit.
+    expect(Math.abs(inFeet.shortYd)).toBeCloseTo(Math.abs(inYards.shortYd) * 3, 4);
+    const t = attributionTable(inFeet);
+    for (const e of [...t.dist, ...t.side]) expect(e.text, e.text).toMatch(/ ft /);
+    if (t.head.dist) expect(t.head.dist).toMatch(/ ft /);
+  });
+
+  it('names a putt\'s residual THE BREAK, which is what a golfer calls it', () => {
+    const a = shoot(
+      openHole(),
+      { swing: { power: 0.95, powerQuality: 'miss', accuracy: 0.9, accuracyQuality: 'miss' } },
+      { side: 0, top: 0 },
+      undefined,
+      true
+    );
+    const ground = a.factors.find((f) => f.kind === 'slope');
+    if (ground) expect(ground.noun).toBe('the break');
   });
 
   it('names a strike miss by what the player felt', () => {

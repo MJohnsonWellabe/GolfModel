@@ -307,9 +307,14 @@
         max-width: 48vw;
         min-width: 132px;
         display: grid;
-        grid-template-columns: auto auto;
-        column-gap: 12px;
+        /* Two columns that SHARE the card rather than each demanding their
+           natural width: `auto auto` let a long row ("+12 yds 14 ft downhill")
+           push the card past its max-width and clip. minmax(0, …) lets a cell
+           shrink, and the cells wrap instead of overflowing. */
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        column-gap: 10px;
         row-gap: 2px;
+        max-width: min(76vw, 320px);
         padding: 7px 10px;
         border-radius: 12px;
         background: rgba(8, 20, 12, 0.66);
@@ -331,9 +336,10 @@
       /* Two columns: what moved the ball up and down the aim line, and what
          moved it across. A golfer reads a card in columns. */
       #shotWhy .swCell {
-        white-space: nowrap;
+        min-width: 0;
         opacity: 0.86;
         font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
       }
       #shotWhy .swHead {
         font-size: 13px;
@@ -763,6 +769,15 @@
          A full-height column on the right edge. `top` and the grip height are
          set from `trackLayout()` so the backswing always fits below the grip;
          everything else is presentation. */
+      /* The right-edge button stack lives in the same column as the pull track,
+         which is z-index 7 — so with the drag swing on, True Vision, Aerial and
+         the tournament board were BEHIND it and could not be tapped. They step
+         left of the track's 76px column while it is up. */
+      html.drag-track #trueVisionBtn,
+      html.drag-track #aerialBtn,
+      html.drag-track #tourBoardBtn {
+        right: 92px;
+      }
       #dragTrack {
         position: fixed;
         right: 0;
@@ -3419,6 +3434,19 @@
         gap: 10px;
         flex: 0 0 auto;
         padding-top: 10px;
+      }
+      /* Where the contents of this room come from. Quieter than the footer's
+         primary action — these are errands, not the reason you opened it. */
+      .lkGet {
+        display: flex;
+        gap: 10px;
+        flex: 0 0 auto;
+        padding-top: 10px;
+      }
+      .lkGet .lkFootBtn {
+        padding: 10px;
+        font-size: 13px;
+        opacity: 0.92;
       }
       .lkFootBtn {
         flex: 1 1 auto;

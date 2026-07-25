@@ -1468,6 +1468,20 @@ class HoleScene {
     this.aimRoot.setEnabled(!designing);
   }
 
+  /**
+   * Take the aiming furniture off the screen for a screenshot.
+   *
+   * Poses are captured at address, so without this the aim ring, the aim dots
+   * and the distance readout are baked into every marketing image — including
+   * the one used as the landing's background.
+   */
+  hideAimForCapture(): void {
+    this.aimRoot.setEnabled(false);
+    this.trueVisionRoot.setEnabled(false);
+    aimReadoutEl.style.display = 'none';
+    promptEl.textContent = '';
+  }
+
   /** Test-only: current refresh rates of the two per-frame RTTs the perf pacing
    *  freezes while the meter is live (0 = frozen). Lets the perf spec assert the
    *  freeze mechanism engages/disengages with the meter deterministically. */
@@ -3141,12 +3155,18 @@ class HoleScene {
     showShotWhy(this.shotWhy(outcome));
   }
 
-  /** One line of "here is what happened to that shot", or '' when the shot was
-   *  unremarkable. Putts are excluded: pace and read are already taught
-   *  directly, and a breakdown on every tap-in would be noise. */
+  /**
+   * "Here is what happened to that shot", or null when it was unremarkable.
+   *
+   * PUTTS INCLUDED. They were excluded on the grounds that a breakdown on every
+   * tap-in is noise — right instinct, wrong conclusion. How much break the
+   * player failed to play, and whether the pace was the culprit, is the most
+   * useful thing this feature can say, and it is the same counterfactual. What
+   * changes is scale: a putt is measured in FEET, with a one-foot floor instead
+   * of four yards, so a tap-in still says nothing.
+   */
   private shotWhy(outcome: ShotOutcome): ShotAttribution | null {
     if (!flag('shotAttribution') || !this.lastShotParams) return null;
-    if (this.lastShotParams.club.id === 'putter') return null;
     try {
       // Re-seed the shot's own random stream before each counterfactual, so a
       // re-fly differs from the real shot ONLY by the factor being removed.
@@ -3162,7 +3182,8 @@ class HoleScene {
         // against. Captured at address, because the aim control has already
         // moved on to the next shot by the time the ball rests.
         this.lastAimPoint,
-        () => (this.shotRng = mulberry32(seed))
+        () => (this.shotRng = mulberry32(seed)),
+        this.lastShotParams.club.id === 'putter'
       );
     } catch {
       // A breakdown is a nicety; it must never be able to break a shot.
@@ -6995,9 +7016,19 @@ function renderLockerRoom(): void {
     `<div class="lkName">Golfer: <b>${escapeHtml(p.name || 'Player')}</b> <button id="lkEditName" class="ghostBtn">Edit</button></div>` +
     `<div class="recTabs lkTabs">${tabBar}</div>` +
     `<div class="storeScroll lkScroll">${body}</div>` +
+    // The two places you GET the things this room equips. Everything in here
+    // is bought on the Season Pass or in the Store, so sending the player back
+    // out to the landing to reach either was a round trip through a menu they
+    // had already navigated once.
+    `<div class="lkGet"><button id="lkSeason" class="lkFootBtn">🎫 Season Pass</button>` +
+    `<button id="lkStore" class="lkFootBtn">🛍️ Store</button></div>` +
     `<div class="lkFooter"><button id="lkRandom" class="lkFootBtn">🎲 Randomize</button>` +
     `<button id="lkLock" class="lkFootBtn primary">${p.loadoutLocked ? '✓ Locked in' : 'Lock it in'}</button></div>` +
     `</div>`;
+  // 'click' — see the #lkLock comment below: hiding a full-screen overlay on
+  // the down-stroke lets the release land on whatever is exposed underneath.
+  lockerEl.querySelector('#lkSeason')!.addEventListener('click', () => renderSeasonPass());
+  lockerEl.querySelector('#lkStore')!.addEventListener('click', () => renderStore());
 
   lockerEl.querySelectorAll('.lkTab').forEach((el) =>
     el.addEventListener('pointerdown', () => {
@@ -8585,21 +8616,29 @@ document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
 document.getElementById('landingSetup')?.addEventListener('pointerdown', () => showSetup());
 document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
 document.getElementById('landingPractice')?.addEventListener('pointerdown', () => startPractice());
-document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
-document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
-document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile('player'));
-document.getElementById('landingSettings')!.addEventListener('pointerdown', () => renderProfile('settings'));
+document.getElementById('landingSeason')!.addEventListener('click', () => renderSeasonPass());
+document.getElementById('landingStore')!.addEventListener('click', () => renderStore());
+document.getElementById('landingProfile')!.addEventListener('click', () => renderProfile('player'));
+document.getElementById('landingSettings')!.addEventListener('click', () => renderProfile('settings'));
 // Straight to the tab, not to the top of a scroll.
-document.getElementById('landingAdmin')!.addEventListener('pointerdown', () => renderProfile('admin'));
-document.getElementById('landingDev')!.addEventListener('pointerdown', () => renderProfile('dev'));
-document.getElementById('landingLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
+document.getElementById('landingAdmin')!.addEventListener('click', () => renderProfile('admin'));
+document.getElementById('landingDev')!.addEventListener('click', () => renderProfile('dev'));
+document.getElementById('landingLocker')!.addEventListener('click', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
-document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
-document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
+document.getElementById('recordsLink')!.addEventListener('click', () => renderRecords());
+document.getElementById('tournyLink')!.addEventListener('click', () => renderTournaments());
 // The four doors. Delegated off each tile rather than bound by id so adding a
 // destination is a markup change.
+// 'click', NOT 'pointerdown'.
+//
+// The sheet appears on the press, so a pointerdown binding meant the RELEASE
+// landed on whatever the sheet had just put under the finger — and under the
+// More tile that is the "About the game" link, which is an anchor, so tapping
+// More navigated straight off the page. Same trap as the #lkLock note in
+// renderLockerRoom. A menu that opens on the release is imperceptibly slower
+// and cannot do this.
 for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile'))) {
-  tile.addEventListener('pointerdown', () => openDest(tile.dataset.dest as DestId));
+  tile.addEventListener('click', () => openDest(tile.dataset.dest as DestId));
 }
 document.getElementById('destSheetClose')!.addEventListener('pointerdown', () => closeDest());
 // Tapping the scrim closes it; tapping the sheet itself must not.
@@ -8647,6 +8686,14 @@ async function startShotCapture(): Promise<void> {
   playHole();
   const scene = current!;
   scene.enterShotPose(SHOT.cam);
+  // NO AIM OVERLAY IN A CAPTURE.
+  //
+  // The harness poses the camera but left the game at address, so every image
+  // it has ever produced carries the aim reticle and the distance chip — which
+  // is how the marketing green shot ended up with a marker sitting on the
+  // flagstick, and that image is the landing's own background. A screenshot is
+  // of the COURSE; the aiming furniture belongs to a player who is not there.
+  scene.hideAimForCapture();
   if (SHOT.boundary) scene.showBoundary();
   void Promise.all([
     scene.bodiesReady,

@@ -30,7 +30,7 @@ test('the profile is sections, not a scroll — and one is showing at a time', a
   await page.setViewportSize(PHONE);
   await landing(page);
   await openDestination(page, 'more');
-  await page.locator('#landingProfile').dispatchEvent('pointerdown');
+  await page.locator('#landingProfile').dispatchEvent('click');
 
   await page.locator('.profTab').first().waitFor({ state: 'visible', timeout: 20_000 });
   const tabs = await page.locator('.profTab').allInnerTexts();
@@ -52,7 +52,7 @@ test('Settings is its own entry from the front door', async ({ page }) => {
   await page.setViewportSize(PHONE);
   await landing(page);
   await openDestination(page, 'more');
-  await page.locator('#landingSettings').dispatchEvent('pointerdown');
+  await page.locator('#landingSettings').dispatchEvent('click');
   // Straight onto the tab, not to the top of a scroll.
   await expect(page.locator('#resetRecords')).toBeVisible();
   await expect(page.locator('.profTab.sel')).toContainText('Settings');
@@ -69,7 +69,7 @@ test('the dev tools are two taps from the front door, not a scroll to the bottom
 
   const dev = page.locator('#landingDev');
   await expect(dev, 'no route to the dev tools').toBeVisible();
-  await dev.dispatchEvent('pointerdown');
+  await dev.dispatchEvent('click');
   // Opens ON the dev tab — the whole point of deep-linking it.
   await expect(page.locator('.profTab.sel')).toContainText('Dev');
   await expect(page.locator('#devVeteran')).toBeVisible();
@@ -92,7 +92,7 @@ test('the tools stay hidden from a player who is neither an admin nor in dev', a
   // there is nothing to show.
   await expect(page.locator('#landingAdmin')).toBeHidden();
   // A profile opened here has no Admin or Dev tab at all.
-  await page.locator('#landingProfile').dispatchEvent('pointerdown');
+  await page.locator('#landingProfile').dispatchEvent('click');
   await page.locator('.profTab').first().waitFor({ state: 'visible', timeout: 20_000 });
   const tabs = await page.locator('.profTab').allInnerTexts();
   expect(tabs.join(' ')).not.toMatch(/Dev|Admin/);

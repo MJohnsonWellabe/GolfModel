@@ -38,7 +38,7 @@ for (const s of SIZES) {
     await page.waitForSelector('#landingPlay', { state: 'visible' });
     await page.screenshot({ path: `tests/visual/__shots__/landing-${s.name}.png` });
     await openDestination(page, 'locker');
-    await page.locator('#landingSeason').dispatchEvent('pointerdown');
+    await page.locator('#landingSeason').dispatchEvent('click');
     await page.waitForSelector('#seasonPass', { state: 'visible' });
     await page.waitForSelector('.spWallet', { state: 'visible' });
     await page.waitForTimeout(150);

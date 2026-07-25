@@ -52,7 +52,10 @@ export async function openDestination(
 ): Promise<void> {
   const tile = page.locator(`.destTile[data-dest="${dest}"]`);
   await tile.waitFor({ state: 'visible', timeout: 30_000 });
-  await tile.dispatchEvent('pointerdown');
+  // 'click', because the tiles open the sheet on the RELEASE — a pointerdown
+  // binding let the release land on whatever the sheet had just put under the
+  // finger, which under More is the About link (an anchor: it navigated).
+  await tile.dispatchEvent('click');
   await page.locator('#destSheet.on').waitFor({ timeout: 10_000 });
 }
 

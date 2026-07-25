@@ -1,5 +1,5 @@
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path'; import { chromium } from '@playwright/test';
-const DIST=path.resolve('dist'); const OUT='/tmp/claude-0/-home-user-GolfModel/3ec77395-fc8a-5d95-a546-66246bc2835d/scratchpad/shots'; fs.mkdirSync(OUT,{recursive:true});
+const DIST=path.resolve('dist'); const OUT=process.env.OUT||'/tmp/claude-0/-home-user/d2c27694-77fe-50f8-b585-babc4fe7735f/scratchpad/shots'; fs.mkdirSync(OUT,{recursive:true});
 const MIME={'.html':'text/html','.js':'text/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.svg':'image/svg+xml','.glb':'model/gltf-binary','.mp4':'video/mp4','.wav':'audio/wav','.mp3':'audio/mpeg','.ico':'image/x-icon','.woff2':'font/woff2','.ktx2':'application/octet-stream','.bin':'application/octet-stream'};
 const server=http.createServer((req,res)=>{let p=decodeURIComponent(req.url.split('?')[0]); if(p==='/'||p==='')p='/index.html'; let fp=path.join(DIST,p); if(!fp.startsWith(DIST)){res.writeHead(403);return res.end();} fs.readFile(fp,(e,d)=>{if(e){res.writeHead(404);return res.end('nf');} res.writeHead(200,{'Content-Type':MIME[path.extname(fp)]||'application/octet-stream'});res.end(d);});});
 await new Promise(r=>server.listen(8099,r));

@@ -111,3 +111,27 @@ test('each tile says what is behind it', async ({ page }) => {
   }
   expect(await page.locator('#destToday .dtSub').innerText()).toMatch(/hole of the day|challenge|streak|tomorrow/i);
 });
+
+test('opening a destination does not press the thing underneath it', async ({ page }) => {
+  // THE BUG: the tiles opened the sheet on POINTERDOWN, so the release landed
+  // on whatever the sheet had just put under the finger. Under More that is the
+  // "About the game" link — an anchor — so tapping More navigated straight off
+  // the page and the menu was unusable. Same trap the locker room documents.
+  //
+  // Driven with real input rather than a dispatched event, because a synthetic
+  // pointerdown cannot reproduce it: the whole failure lives in the gap between
+  // the press and the release.
+  await page.setViewportSize(PHONE);
+  await landing(page);
+  const tile = page.locator('#destMore');
+  const box = (await tile.boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+
+  await expect(page.locator('#destSheet')).toHaveClass(/on/);
+  await expect(page.locator('#paneMore')).toHaveClass(/on/);
+  // Still on the game, not on the marketing page.
+  expect(page.url(), 'tapping More navigated away').not.toContain('marketing');
+  await expect(page.locator('#landingPlay')).toBeVisible();
+});
