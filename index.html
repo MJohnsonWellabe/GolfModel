@@ -654,6 +654,92 @@
       html.builder-preview #shotWhy {
         top: calc(max(10px, env(safe-area-inset-top)) + 132px);
       }
+      #designBtn {
+        position: fixed;
+        top: calc(max(10px, env(safe-area-inset-top)) + 88px);
+        right: 10px;
+        z-index: 8;
+        display: none;
+        padding: 8px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(127, 212, 255, 0.55);
+        background: linear-gradient(180deg, rgba(12, 48, 66, 0.92), rgba(6, 28, 40, 0.9));
+        color: #cdefff;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      /* The palette owns the bottom of the screen and nothing else, so the hole
+         — the thing this mode exists to look at — keeps the rest. */
+      #designBar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 9;
+        display: none;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+        background: linear-gradient(180deg, rgba(4, 16, 11, 0.72), rgba(4, 16, 11, 0.94));
+        border-top: 1px solid rgba(255, 255, 255, 0.16);
+        backdrop-filter: blur(6px);
+      }
+      #designHead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: #dbe8d6;
+        font-size: 12.5px;
+        font-weight: 800;
+      }
+      #designHead .dmActions {
+        display: flex;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      #designHead button {
+        min-height: 34px;
+        padding: 0 11px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: #eef5ea;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 800;
+      }
+      #designHead #designRebuild {
+        border-color: rgba(127, 212, 255, 0.55);
+        color: #cdefff;
+      }
+      /* One row, scrolled sideways: the whole catalog without a panel. */
+      #designAssets {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 2px;
+        -webkit-overflow-scrolling: touch;
+      }
+      #designAssets .dmAsset {
+        flex: 0 0 auto;
+        min-height: 40px;
+        padding: 0 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.07);
+        color: #dfeeda;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      #designAssets .dmAsset.on {
+        border-color: #ffd54f;
+        background: rgba(255, 213, 79, 0.16);
+        color: #ffe28a;
+      }
       #swingBtn {
         position: fixed;
         left: 50%;
@@ -3635,6 +3721,21 @@
     <!-- Preview rounds only (?builderHole=1): the way back to the design you
          are testing. Without it "Play it" is a one-way trip. -->
     <button id="builderBackBtn">← Builder</button>
+    <button id="designBtn">🎨 Design</button>
+
+    <!-- FLY MODE (?builderHole=1). Placing assets on the hole you actually
+         play, rather than on a grid that doesn't look like it. -->
+    <div id="designBar">
+      <div id="designHead">
+        <span id="designCount"></span>
+        <span class="dmActions">
+          <button id="designUndo">↶ Undo</button>
+          <button id="designRebuild">⟳ Rebuild</button>
+          <button id="designExit">Done</button>
+        </span>
+      </div>
+      <div id="designAssets"></div>
+    </div>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
 

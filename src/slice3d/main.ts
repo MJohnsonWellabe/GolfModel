@@ -146,6 +146,7 @@ import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter, MeterContext } from './meter3d';
 import { DragSample, DragState, readDrag, resolveDragSwing, tuningForViewport } from '../core/input/DragSwing';
 import { DragTrack } from './dragTrack';
+import { DesignMode } from './designMode';
 import { ShotCapture } from './shotCapture';
 
 // ------------------------------------------------------------------- boot
@@ -211,6 +212,7 @@ meter.onActiveChange = (active) => {
 const swingBtn = document.getElementById('swingBtn')!;
 /** The drag swing's own surface (`dragSwing`). Built once and kept hidden until
  *  a shot arms it, so the flag being off costs nothing but this element. */
+const designBtn = document.getElementById('designBtn')!;
 const dragTrackEl = document.getElementById('dragTrack')!;
 const dragTrack = new DragTrack(dragTrackEl);
 const clubBar = document.getElementById('clubBar')!;
@@ -729,7 +731,9 @@ class HoleScene {
   // Shallow-clone the hole with a randomized cup so every consumer (physics,
   // AI, aim, flag/cup mesh, HUD) reads the SAME pin — without mutating the
   // shared COURSES singleton. The authored `pin` is the fallback.
-  private hole: HoleData = withPlayableBoundary(
+  /** The hole being played. Readable from outside so a builder preview can hand
+   *  its (fly-mode edited) geometry back to the builder. */
+  hole: HoleData = withPlayableBoundary(
     { ...round.course.holes[round.holeIdx], pin: pinForHole(round.holeIdx) },
     flag('boundedWorld')
   );
@@ -886,6 +890,12 @@ class HoleScene {
    * from the release point alone.
    */
   private dragSwing: { path: DragSample[]; state: DragState } | null = null;
+  /**
+   * FLY MODE (builder previews only). While it is up the canvas belongs to it:
+   * the pointer steers a free camera over the real hole and places assets, and
+   * the round is paused underneath.
+   */
+  design: DesignMode | null = null;
   /** Screen point and timestamp the live pull began at; every sample is stored
    *  relative to it, so the reader never sees absolute coordinates. */
   private dragOrigin = { x: 0, y: 0, t: 0 };
@@ -1384,6 +1394,78 @@ class HoleScene {
   /** Cosmetic ground height (green plateau / tee platform) under a world point. */
   private gh(x: number, y: number): number {
     return this.course3d.groundHeightAt(x, y);
+  }
+
+  /**
+   * Enter or leave FLY MODE.
+   *
+   * The gameplay chrome comes down entirely: a swing meter and an aim line are
+   * meaningless while you are placing trees, and leaving them up would invite
+   * a tap that plays a shot into a hole you are halfway through editing.
+   */
+  toggleDesign(on = !this.design): void {
+    if (on === !!this.design) return;
+    if (!on) {
+      this.design?.dispose();
+      this.design = null;
+      designBtn.classList.remove('on');
+      this.setChromeForDesign(false);
+      this.setCamSetup();
+      return;
+    }
+    const bar = document.getElementById('designBar');
+    if (!bar) return;
+    this.design = new DesignMode(
+      {
+        scene: this.scene,
+        hole: this.hole,
+        setCam: (pos, look) => {
+          this.camTarget.pos = pos;
+          this.camTarget.look = look;
+          this.camTarget.k = 12; // barely smoothed: a design camera must feel direct
+          this.camTarget.fov = 1.05;
+        },
+        groundAt: (x, y) => this.gh(x, y),
+        rebuild: () => rebuildBuilderPreview(this.hole),
+        exit: () => this.toggleDesign(false)
+      },
+      bar
+    );
+    designBtn.classList.add('on');
+    this.setChromeForDesign(true);
+    // SNAP, don't lerp. Picking unprojects through the CURRENT view matrix, so
+    // a tap made while the camera is still gliding into position resolves
+    // against the old vantage — placing the asset somewhere the designer never
+    // pointed, or (from a near-horizontal address camera) nowhere at all. An
+    // editing mode should arrive instantly anyway.
+    this.camera.position.copyFrom(this.camTarget.pos);
+    this.camera.setTarget(this.camTarget.look);
+    this.camera.fov = this.camTarget.fov;
+  }
+
+  /**
+   * Take the gameplay chrome down around fly mode, and put it back EXACTLY as
+   * it was.
+   *
+   * Snapshotted rather than reset to '': these elements do not share a default.
+   * `#clubBar` and `#meter` are `display: none` in the stylesheet and switched
+   * on by gameplay, so clearing the inline style hides them for good — which is
+   * how leaving fly mode first shipped with no club selector.
+   */
+  private chromeBefore: Array<[HTMLElement, string]> = [];
+
+  private setChromeForDesign(designing: boolean): void {
+    const chrome = [swingBtn, meterEl, clubBar, hudEl, dragTrackEl];
+    if (designing) {
+      this.chromeBefore = chrome.map((el) => [el, el.style.display]);
+      for (const el of chrome) el.style.display = 'none';
+      promptEl.textContent = '';
+      dragTrack.hide();
+    } else {
+      for (const [el, display] of this.chromeBefore) el.style.display = display;
+      this.chromeBefore = [];
+    }
+    this.aimRoot.setEnabled(!designing);
   }
 
   /** Test-only: current refresh rates of the two per-frame RTTs the perf pacing
@@ -3227,6 +3309,9 @@ class HoleScene {
     window.addEventListener('pointercancel', this.onDragSwingUp);
 
     this.onPointerDown = (e: PointerEvent): void => {
+      // FLY MODE owns the canvas outright while it is up: the pointer is
+      // steering a camera and placing assets, not aiming a shot.
+      if (this.design?.handlePointer(e)) return;
       startAmbience();
       // Mid-flight: start a spin swipe (aerial spin window while the slowed
       // ball is still airborne — GDD Phase 4)
@@ -3246,6 +3331,7 @@ class HoleScene {
       this.aim.beginDrag({ x: e.clientX, y: e.clientY });
     };
     this.onPointerMove = (e: PointerEvent): void => {
+      if (this.design?.handlePointer(e)) return;
       if (this.swipeLast) {
         this.applySwipeSpin(e);
         return;
@@ -3272,7 +3358,8 @@ class HoleScene {
       // line (and putt scaling) track the new aim.
       if (meter.isArmed) this.armMeter(true);
     };
-    this.onPointerUp = (): void => {
+    this.onPointerUp = (e: PointerEvent): void => {
+      if (this.design?.handlePointer(e)) return;
       this.swipeLast = null;
       const wasAiming = this.aim.isDragging;
       this.aim.endDrag();
@@ -3283,6 +3370,13 @@ class HoleScene {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerUp);
+    this.onDesignWheel = (e: WheelEvent): void => {
+      if (!this.design) return;
+      e.preventDefault();
+      this.design.handleWheel(e.deltaY);
+    };
+    canvas.addEventListener('wheel', this.onDesignWheel, { passive: false });
 
     this.onPrevClub = () => this.cycleClub(-1);
     this.onNextClub = () => this.cycleClub(1);
@@ -3496,7 +3590,8 @@ class HoleScene {
   private onDragSwingUp!: () => void;
   private onPointerDown!: (e: PointerEvent) => void;
   private onPointerMove!: (e: PointerEvent) => void;
-  private onPointerUp!: () => void;
+  private onPointerUp!: (e: PointerEvent) => void;
+  private onDesignWheel!: (e: WheelEvent) => void;
   private onPrevClub!: () => void;
   private onNextClub!: () => void;
   private onAerial!: () => void;
@@ -3799,6 +3894,10 @@ class HoleScene {
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     canvas.removeEventListener('pointerup', this.onPointerUp);
+    canvas.removeEventListener('pointercancel', this.onPointerUp);
+    canvas.removeEventListener('wheel', this.onDesignWheel);
+    this.design?.dispose();
+    this.design = null;
     document.getElementById('prevClub')!.removeEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.removeEventListener('pointerdown', this.onNextClub);
     aerialBtn.removeEventListener('pointerdown', this.onAerial);
@@ -6082,6 +6181,15 @@ function exposeDebug(): void {
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
         skipIntro: () => current?.skipIntro(),
+        // FLY MODE, so a spec can drive the whole loop — enter, place on the
+        // rendered hole, and check the placement reached the hole DATA rather
+        // than inferring it from pixels.
+        toggleDesign: (on?: boolean) => current?.toggleDesign(on),
+        designActive: () => !!current?.design,
+        holeCounts: () => ({
+          props: (current?.hole.props ?? []).length,
+          hazards: (current?.hole.hazards ?? []).length
+        }),
         // Play a real shot and settle it. Together these let a spec play a
         // whole round through the LIVE code path — which is the only way to
         // prove the game records what it actually played
@@ -7727,12 +7835,55 @@ const BUILDER_COURSE_ID = '__builder';
 function showBuilderReturn(on: boolean): void {
   const btn = document.getElementById('builderBackBtn');
   if (btn) btn.style.display = on ? 'block' : 'none';
+  designBtn.style.display = on ? 'block' : 'none';
   // The top-right stack (Menu, Clip, breakdown) shifts down a row so nothing
   // sits on top of anything else.
   document.documentElement.classList.toggle('builder-preview', on);
 }
 
+/**
+ * Rebuild the preview so fly-mode placements become real geometry.
+ *
+ * `buildCourse` plants a hole's nature in one chunked pass at scene build —
+ * there is no incremental "add one tree" seam — so seeing a placement for real
+ * means building the hole again. That is deliberate rather than a limitation:
+ * inventing a second way to render a prop would mean two code paths for what a
+ * hole looks like, which is the class of divergence this codebase has already
+ * been bitten by once (live vs replay).
+ *
+ * The edited hole is written back to the handover slot on the way, so the
+ * builder picks up the placements whether you rebuild, play on, or leave.
+ */
+function rebuildBuilderPreview(hole: HoleData): void {
+  saveBuilderEdits(hole);
+  buildWithLoading(() => {
+    if (!startBuilderHole()) showMsg('Could not rebuild the hole', 2200);
+  }, 'Rebuilding the hole');
+}
+
+/**
+ * Hand fly-mode edits back to the builder.
+ *
+ * The preview tab was opened by the builder, so it holds a COPY of the
+ * builder's sessionStorage. Writing the edited hole into the same slot the
+ * handover used means the builder — reopened here, or reached by closing this
+ * tab — reads back exactly what was placed.
+ */
+function saveBuilderEdits(hole: HoleData): void {
+  try {
+    const raw = sessionStorage.getItem('bsg.builderHole.v1');
+    if (!raw) return;
+    const payload = JSON.parse(raw) as Record<string, unknown>;
+    payload.hole = hole;
+    payload.editedAt = Date.now();
+    sessionStorage.setItem('bsg.builderHole.v1', JSON.stringify(payload));
+  } catch {
+    /* storage unavailable — the edits still apply to this session's scene */
+  }
+}
+
 function backToBuilder(): void {
+  if (current) saveBuilderEdits(current.hole);
   // The preview was opened by the builder with window.open, so closing this tab
   // returns to the builder tab EXACTLY as it was left — unsaved edits included.
   // A tab we did not open cannot be closed by script, so navigation is the
@@ -8425,6 +8576,7 @@ function leaveRound(): void {
 }
 pauseBtn.addEventListener('pointerdown', () => leaveRound());
 document.getElementById('builderBackBtn')!.addEventListener('pointerdown', () => backToBuilder());
+designBtn.addEventListener('pointerdown', () => current?.toggleDesign());
 
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
   if (flag('quickPlay')) quickPlay();

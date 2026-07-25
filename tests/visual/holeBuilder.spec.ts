@@ -401,3 +401,128 @@ test.describe('on a phone', () => {
     expect(errors, errors.join('\n')).toEqual([]);
   });
 });
+
+/**
+ * FLY MODE — placing on the hole you actually play.
+ *
+ * The plan is an abstract diagram. It is the right tool for drawing a fairway
+ * corridor and the wrong one for deciding where a tree looks right, which is
+ * the owner's complaint in his own words: "a grid that doesn't look like the
+ * hole". Fly mode puts the asset library over the REAL rendered hole.
+ *
+ * Every step of that loop is a wire between the page, the renderer and the
+ * builder's own data model, and a broken one leaves a mode that looks correct
+ * and changes nothing.
+ */
+test('fly mode places assets on the rendered hole, and the builder gets them back', async ({ page }) => {
+  test.setTimeout(240_000);
+  const errors = await openBuilder(page);
+  const payload = await page.evaluate(() =>
+    (window as never as { __builder(): { handover(): string } }).__builder().handover()
+  );
+
+  // Seed the handover ONLY if it is not already there: this init script runs on
+  // every navigation, and the trip home is a navigation — overwriting the slot
+  // then would wipe the very edits this spec exists to follow.
+  await page.addInitScript((p) => {
+    if (!sessionStorage.getItem('bsg.builderHole.v1')) sessionStorage.setItem('bsg.builderHole.v1', p as string);
+  }, payload);
+  await page.goto('/?builderHole=1&freeze=1');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, {
+    timeout: 90_000
+  });
+  await page.evaluate(() => (window as never as { __slice3d: { skipIntro(): void } }).__slice3d.skipIntro());
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 90_000 }
+  );
+
+  // The way in is offered — a preview with no route into design mode, or out of
+  // it, is the one-way trip this whole pass is fixing.
+  await expect(page.locator('#designBtn')).toBeVisible();
+  await expect(page.locator('#builderBackBtn')).toBeVisible();
+
+  await page.locator('#designBtn').dispatchEvent('pointerdown');
+  await expect(page.locator('#designBar')).toBeVisible();
+  // Fly mode SNAPS its camera rather than gliding to it, because picking
+  // unprojects through the current view matrix: a tap made mid-glide resolves
+  // against the old vantage and places the asset where nobody pointed. This is
+  // the assertion that keeps the snap.
+  const settled = await page.evaluate(() => {
+    const s3 = (window as never as { __slice3d: { scene: { activeCamera: { position: { y: number } } } } }).__slice3d;
+    return s3.scene.activeCamera.position.y;
+  });
+  expect(settled, 'the design camera never got off the deck').toBeGreaterThan(30);
+  expect(await page.evaluate(() => (window as never as { __slice3d: { designActive(): boolean } }).__slice3d.designActive())).toBe(true);
+
+  // Gameplay chrome is down: a swing meter while you are placing trees is an
+  // invitation to hit a shot into a hole you are halfway through editing.
+  await expect(page.locator('#swingBtn')).toBeHidden();
+  await expect(page.locator('#clubBar')).toBeHidden();
+
+  // The catalog is here, not a subset of it.
+  const chips = await page.locator('#designAssets .dmAsset').count();
+  expect(chips, 'the asset library did not reach fly mode').toBeGreaterThan(20);
+
+  const before = await page.evaluate(() =>
+    (window as never as { __slice3d: { holeCounts(): { props: number; hazards: number } } }).__slice3d.holeCounts()
+  );
+
+  // Arm a tree and tap the middle of the hole. A tap, not a drag — a drag is a
+  // camera pan, and telling them apart is the whole of the pointer logic.
+  await page.locator('#designAssets .dmAsset').first().dispatchEvent('pointerdown');
+  const vp = page.viewportSize()!;
+  await page.mouse.move(vp.width / 2, vp.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+
+  const after = await page.evaluate(() =>
+    (window as never as { __slice3d: { holeCounts(): { props: number; hazards: number } } }).__slice3d.holeCounts()
+  );
+  expect(
+    after.props + after.hazards,
+    `hole went from ${before.props + before.hazards} to ${after.props + after.hazards} placements`
+  ).toBe(before.props + before.hazards + 1);
+
+  // Undo is honest about what it removes.
+  await page.locator('#designUndo').dispatchEvent('pointerdown');
+  const undone = await page.evaluate(() =>
+    (window as never as { __slice3d: { holeCounts(): { props: number; hazards: number } } }).__slice3d.holeCounts()
+  );
+  expect(undone.props + undone.hazards).toBe(before.props + before.hazards);
+
+  // Place again, then leave — the edits must ride back to the builder, or the
+  // whole mode is a sandbox that throws your work away. A DIFFERENT chip,
+  // because tapping the armed one disarms (that is the way out of a placement
+  // mode you have stopped wanting).
+  await page.locator('#designAssets .dmAsset').nth(1).dispatchEvent('pointerdown');
+  await page.mouse.move(vp.width / 2, vp.height / 2 + 40);
+  await page.mouse.down();
+  await page.mouse.up();
+  await page.locator('#designExit').dispatchEvent('pointerdown');
+  await expect(page.locator('#designBar')).toBeHidden();
+  // Leaving fly mode gives the round its controls back.
+  await expect(page.locator('#clubBar')).toBeVisible();
+
+  // Back to the builder. The preview tab was opened by the builder, so closing
+  // it is the real path home; a Playwright-driven tab cannot be closed by
+  // script, which is exactly the case the navigation fallback exists for.
+  await page.locator('#builderBackBtn').dispatchEvent('pointerdown');
+  await page.waitForURL(/holebuilder\.html/, { timeout: 30_000 });
+  await page.waitForFunction(() => (document.getElementById('hole') as HTMLSelectElement)?.options.length > 0, undefined, {
+    timeout: 30_000
+  });
+
+  // THE END OF THE LOOP: what was placed on the rendered hole is on the plan.
+  // Without this the mode is a sandbox that throws your work away.
+  await page.waitForFunction(
+    (want) => {
+      const b = (window as never as { __builder(): { hazards: number; props: number } }).__builder();
+      return b.hazards + b.props === want;
+    },
+    before.props + before.hazards + 1,
+    { timeout: 15_000 }
+  );
+  expect(errors, errors.join('\n')).toEqual([]);
+});

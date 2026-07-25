@@ -424,6 +424,11 @@
       </div>
 
       <h2>Send to Claude</h2>
+      <div class="hint">
+        <b>▶ Play it</b> opens the hole in the real game. Tap <b>🎨 Design</b>
+        there to fly over it and place assets on the hole itself — they come
+        back here when you return.
+      </div>
       <div class="hint" style="margin-top:0">
         Copy the hole plus its measured critique, ask for a change, paste the
         answer back and play it.
@@ -1719,12 +1724,54 @@
         view: () => ({ x: view.x, y: view.y, scale: view.scale })
       });
 
+      /**
+       * PICK UP WHAT FLY MODE PUT DOWN.
+       *
+       * The preview can now place assets on the rendered hole and writes the
+       * edited geometry back into the same handover slot. Returning here — by
+       * closing the preview tab, or by reopening the builder — has to show
+       * those placements, or the loop is one-way and the mode is a toy.
+       *
+       * Only applied when the payload carries an `editedAt` stamp the plan has
+       * not already absorbed, so a plain "play it and come back" does not
+       * overwrite work done here in the meantime.
+       */
+      let absorbedEdit = 0;
+      function absorbPreviewEdits() {
+        let raw = null;
+        try { raw = sessionStorage.getItem('bsg.builderHole.v1'); } catch { return false; }
+        if (!raw) return false;
+        let payload;
+        try { payload = JSON.parse(raw); } catch { return false; }
+        if (!payload?.editedAt || payload.editedAt <= absorbedEdit || !payload.hole) return false;
+        const h = hole();
+        if (!h) return false;
+        absorbedEdit = payload.editedAt;
+        pushUndo();
+        // Only the placement arrays travel back: fly mode places things, it does
+        // not redraw corridors, and taking the whole hole would quietly discard
+        // any plan edit made while the preview was open.
+        for (const field of ['props', 'hazards', 'landforms', 'gardens', 'elevation', 'aiTargets']) {
+          if (Array.isArray(payload.hole[field])) h[field] = structuredClone(payload.hole[field]);
+        }
+        selectHole(hi);
+        staleCritique();
+        toast('picked up what you placed in fly mode');
+        return true;
+      }
+      // The preview may hand edits back at any point (a tab closing, a switch
+      // back to this one), so check whenever this tab is looked at again.
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) absorbPreviewEdits(); });
+      window.addEventListener('focus', absorbPreviewEdits);
+
       // ---- boot ---------------------------------------------------------------
       renderLibrary();
       new ResizeObserver(resize).observe(canvas);
       window.addEventListener('resize', resize);
       buildCourseSelect();
-      loadBundled(BUNDLED[0].id).catch(err => { toast('could not load — run npm run dev'); console.error(err); });
+      loadBundled(BUNDLED[0].id)
+        .then(() => absorbPreviewEdits())
+        .catch(err => { toast('could not load — run npm run dev'); console.error(err); });
     </script>
   </body>
 </html>
