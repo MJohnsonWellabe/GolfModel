@@ -390,7 +390,15 @@
         <button data-tool="pin">📍 Pins</button>
         <button data-tool="poly:water">💧 Water</button>
         <button data-tool="poly:bunker">🏖 Bunker</button>
+        <button data-tool="poly:waste">🏜 Waste sand</button>
+        <button data-tool="poly:trees">🌲 Tree stand</button>
+        <button data-tool="poly:ob">🚫 Out of bounds</button>
+        <button data-tool="poly:building">🏠 Building</button>
       </div>
+      <!-- ROUGH IS THE BASE. There is no "paint rough" tool because rough is
+           what a hole IS before anything is drawn on it: fairway, green, sand
+           and water are all cut out of it. -->
+      <div class="hint">Everything you don't draw is rough — fairway, sand and water are cut out of it.</div>
       <div id="drawHint"></div>
       <div class="hint">
         Build in order: tee → fairway → green → three pins. Then drop trees,
@@ -479,6 +487,7 @@
         <button id="zoomIn" title="Zoom in">+</button>
         <button id="zoomOut" title="Zoom out">−</button>
         <button id="zoomFit" title="Fit the hole">⛶</button>
+        <button id="zoomYards" title="Yardages (y)">yd</button>
       </div>
       <div id="placeBadge"></div>
       <div id="toast"></div>
@@ -496,6 +505,7 @@
       // Babylon-free (tests/bundle.test.ts enforces that HTML entry points do
       // not pull the engine into the shared chunk).
       import { ASSET_LIBRARY, assetById, placementFor } from './src/data/assetLibrary';
+      import { PX_PER_YARD } from './src/config';
       import { critiqueHole, holeBrief, parseHoleBrief, structuralIssues } from './src/systems/HoleCritique';
 
       // Bundled V2 courses (served by the Vite dev server from /src).
@@ -538,6 +548,10 @@
       let view = { x: 0, y: 0, scale: 1 };  // world→screen: sx = (wx-view.x)*scale
       let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       let snap = false;
+      /** Yardage overlay (range arcs, hole length, per-object distances). On by
+       *  default: golf is a game about distance, and a plan that hides it is a
+       *  picture. Toggled with `y`. */
+      let showYards = true;
       let sel = null;         // { kind, ref, i } selected handle
       let drag = null;        // active drag state
       let pointer = { wx: 0, wy: 0, inside: false };
@@ -622,12 +636,16 @@
         });
         s.value = String(hi);
       }
-      function selectHole(i) {
-        hi = i; sel = null; drag = null;
+      function refreshMeta() {
         const h = hole();
         document.getElementById('meta').textContent = h
           ? `Par ${h.par ?? '—'}${h.yardage ? ` · ${h.yardage} yd` : ''} · world ${h.world.width}×${h.world.height}`
           : '';
+      }
+      function selectHole(i) {
+        hi = i; sel = null; drag = null;
+        syncHoleMetrics(hole());
+        refreshMeta();
         renderSel();
         fit();
       }
@@ -858,8 +876,83 @@
           ctx.fillStyle = '#ff5a4d'; ctx.beginPath(); ctx.moveTo(px, py - 16); ctx.lineTo(px + 10, py - 13); ctx.lineTo(px, py - 10); ctx.fill();
         }
 
+        drawYardages(h);
         drawDraft();
         drawHud();
+      }
+
+      /**
+       * THE HOLE IN YARDS.
+       *
+       * The plan was drawn entirely in world pixels, so the one question a
+       * designer asks constantly — "how far is that from the tee?" — could only
+       * be answered by arithmetic in your head against a 2.0 px/yd scale. Golf
+       * is a game about distance; a hole plan that does not show distance is a
+       * picture.
+       *
+       * Three things, all off the TEE, because that is the reference every
+       * decision is made from:
+       *   - range arcs at the distances a player actually thinks in;
+       *   - the tee→green line with the hole's own length on it;
+       *   - a yardage on every hazard, prop and target that has been placed.
+       */
+      const RANGE_ARCS = [100, 150, 200, 250, 300, 350];
+      function yardsFrom(h, x, y) {
+        return Math.round(Math.hypot(x - h.tee.x, y - h.tee.y) / PX_PER_YARD);
+      }
+      function drawYardages(h) {
+        if (!showYards) return;
+        const [tx, ty] = toScreen(h.tee.x, h.tee.y);
+        ctx.save();
+        // Range arcs. Drawn as arcs rather than full rings so they read as
+        // "distance down the hole" instead of a target.
+        const toGreen = Math.atan2(h.green.cy - h.tee.y, h.green.cx - h.tee.x);
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 5]);
+        for (const yd of RANGE_ARCS) {
+          const r = yd * PX_PER_YARD * view.scale;
+          if (r < 26 || r > Math.max(canvas.clientWidth, canvas.clientHeight) * 1.6) continue;
+          ctx.strokeStyle = 'rgba(255,255,255,.16)';
+          ctx.beginPath();
+          ctx.arc(tx, ty, r, toGreen - 1.05, toGreen + 1.05);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(210,232,214,.5)';
+          ctx.font = '10px ui-monospace, monospace';
+          ctx.textAlign = 'center';
+          ctx.fillText(`${yd}`, tx + Math.cos(toGreen - 1.05) * r, ty + Math.sin(toGreen - 1.05) * r - 3);
+        }
+        ctx.setLineDash([]);
+
+        // The hole's own length, on the line it is measured along.
+        const [gx, gy] = toScreen(h.green.cx, h.green.cy);
+        ctx.strokeStyle = 'rgba(255,204,77,.32)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(gx, gy); ctx.stroke();
+        ctx.fillStyle = '#ffcc4d';
+        ctx.font = '700 11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${yardsFrom(h, h.green.cx, h.green.cy)} yd`, (tx + gx) / 2, (ty + gy) / 2 - 5);
+
+        // And a distance on everything placed, so "that bunker" has a number.
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(223,238,218,.62)';
+        const label = (x, y) => {
+          const [sx2, sy2] = toScreen(x, y);
+          ctx.fillText(`${yardsFrom(h, x, y)}`, sx2 + 7, sy2 - 6);
+        };
+        if (on.hazards) for (const hz of h.hazards || []) { const c = polyCentroid(hz.polygon); if (c) label(c[0], c[1]); }
+        if (on.props) for (const pr of h.props || []) label(pr.x, pr.y);
+        if (on.aiTargets) for (const t of h.aiTargets || []) label(t.x, t.y);
+        if (on.elevation) for (const e of h.elevation || []) label(e.x, e.y);
+        ctx.restore();
+      }
+
+      function polyCentroid(poly) {
+        if (!Array.isArray(poly) || !poly.length) return null;
+        let x = 0, y = 0;
+        for (const p of poly) { x += p[0]; y += p[1]; }
+        return [x / poly.length, y / poly.length];
       }
 
       function drawHud() {
@@ -1157,6 +1250,10 @@
           if (snap) { nx = Math.round(nx / 5) * 5; ny = Math.round(ny / 5) * 5; }
           drag.ref.x = round1(nx); drag.ref.y = round1(ny);
           drag.moved = true;
+          // Yardage is a MEASUREMENT: moving the tee or the green changes it,
+          // so it is re-derived here rather than left for somebody to retype.
+          syncHoleMetrics(hole());
+          refreshMeta();
           syncSelInputs(); draw();
         } else if (drag?.kind === 'pan') {
           view.x = drag.vx - (sx - drag.sx) / view.scale;
@@ -1205,6 +1302,7 @@
       zoomButton('zoomIn', 1.35);
       zoomButton('zoomOut', 1 / 1.35);
       document.getElementById('zoomFit').addEventListener('click', () => { fit(); draw(); });
+      document.getElementById('zoomYards').addEventListener('click', () => { showYards = !showYards; draw(); });
 
       window.addEventListener('keydown', (ev) => {
         if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); undo(); return; }
@@ -1214,6 +1312,7 @@
         if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT' || ev.target.tagName === 'TEXTAREA') return;
         if (ev.key === 'f' || ev.key === 'F') fit();
         else if (ev.key === 'g' || ev.key === 'G') { snap = !snap; updateSnapBadge(); }
+        else if (ev.key === 'y' || ev.key === 'Y') { showYards = !showYards; draw(); toast(showYards ? 'yardages on' : 'yardages off'); }
         else if (ev.key === 'Delete' || ev.key === 'Backspace') removeSelected();
       });
       function updateSnapBadge() {
@@ -1332,21 +1431,58 @@
       const drawHint = document.getElementById('drawHint');
 
       /** A blank hole: a world, a tee, a green and nothing else to argue with. */
+      /**
+       * A blank hole knows nothing about itself yet.
+       *
+       * It used to arrive as "par 4, 400 yards" whatever you then drew, because
+       * those were literals — so a 180-yard one-shotter was still labelled a
+       * 400-yard par 4 until somebody remembered to retype both. The tee and the
+       * green have to EXIST (the renderer and the physics both read them
+       * unconditionally), so they start stacked at the middle of the world where
+       * they are obviously placeholders, and every number that can be derived
+       * from them is derived — see `syncHoleMetrics`.
+       */
       function blankHole(number = 1) {
         const world = { width: 1100, height: 1700 };
-        return {
+        const h = {
           number,
-          par: 4,
-          yardage: 400,
+          par: 3,
+          yardage: 0,
           world,
           tee: { x: world.width / 2, y: world.height - 200 },
-          green: { cx: world.width / 2, cy: 260, rx: 62, ry: 52 },
+          green: { cx: world.width / 2, cy: world.height - 500, rx: 62, ry: 52 },
           slope: { angle: 0, strength: 0.25 },
-          pin: { x: world.width / 2, y: 260 },
+          pin: { x: world.width / 2, y: world.height - 500 },
           fairway: [],
           hazards: [],
           aiTargets: []
         };
+        syncHoleMetrics(h);
+        return h;
+      }
+
+      /**
+       * Yardage and par FOLLOW the tee and the green.
+       *
+       * Length is a measurement, not an opinion: it is the distance from the tee
+       * to the middle of the green, and re-typing it by hand after every edit is
+       * how a hole ends up mislabelled. Par is the standard scoring ladder off
+       * that length, and it stays overridable — a 240-yard par 4 over water is a
+       * real design decision — but it is never left stale by default.
+       *
+       * `parLocked` is set the moment a designer types a par themselves, so the
+       * derivation never argues with them afterwards.
+       */
+      function suggestedPar(yards) {
+        if (yards <= 260) return 3;
+        if (yards <= 480) return 4;
+        return 5;
+      }
+      function syncHoleMetrics(h) {
+        if (!h?.tee || !h?.green) return;
+        const yards = Math.round(Math.hypot(h.green.cx - h.tee.x, h.green.cy - h.tee.y) / PX_PER_YARD);
+        h.yardage = yards;
+        if (!h.parLocked) h.par = suggestedPar(yards);
       }
 
       function newBlankHole() {
@@ -1391,7 +1527,11 @@
         green: 'Tap the centre of the green',
         pin: 'Tap up to three pin positions',
         'poly:water': 'Tap around the water · Done to close',
-        'poly:bunker': 'Tap around the bunker · Done to close'
+        'poly:bunker': 'Tap around the bunker · Done to close',
+        'poly:waste': 'Tap around the waste area · Done to close',
+        'poly:trees': 'Tap around the stand · arm a tree in the library first to choose the species',
+        'poly:ob': 'Tap around the out-of-bounds area · Done to close',
+        'poly:building': 'Tap around the footprint · Done to close'
       };
 
       function renderDrawHint() {
@@ -1475,8 +1615,20 @@
           if (draft.points.length < 3) { toast('a hazard needs at least three points'); return; }
           pushUndo();
           h.hazards = h.hazards || [];
-          h.hazards.push({ type: tool.split(':')[1], polygon: draft.points.map((p) => [p[0], p[1]]) });
-          toast(`${tool.split(':')[1]} drawn`);
+          const kind = tool.split(':')[1];
+          const polygon = draft.points.map((p) => [p[0], p[1]]);
+          // WASTE is a bunker with a flag, not a type of its own — the physics
+          // and the renderer both read it that way, so authoring it as anything
+          // else would produce sand the ball never finds.
+          const hz = kind === 'waste'
+            ? { type: 'bunker', waste: true, polygon }
+            : { type: kind, polygon };
+          // A stand drawn while a TREE is armed in the library is planted from
+          // that species; without one it follows the course theme, which is the
+          // behaviour every shipped hole relies on.
+          if (kind === 'trees' && armed?.kind === 'trees' && armed.key) hz.treeKeys = [armed.key];
+          h.hazards.push(hz);
+          toast(kind === 'trees' && hz.treeKeys ? `${armed.label} stand drawn` : `${kind} drawn`);
         }
         setTool(null);
         staleCritique();
@@ -1721,7 +1873,15 @@
         handover: handoverPayload,
         // The view, so a spec can assert that zooming and panning actually moved
         // it rather than inferring it from pixels.
-        view: () => ({ x: view.x, y: view.y, scale: view.scale })
+        view: () => ({ x: view.x, y: view.y, scale: view.scale }),
+        yards: () => showYards,
+        metrics: () => ({ par: hole()?.par, yardage: hole()?.yardage }),
+        setGreen: (x, y) => {
+          const h = hole();
+          if (!h) return;
+          h.green.cx = x; h.green.cy = y; h.pin.x = x; h.pin.y = y;
+          syncHoleMetrics(h); refreshMeta(); draw();
+        }
       });
 
       /**

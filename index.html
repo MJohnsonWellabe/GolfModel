@@ -719,6 +719,27 @@
         border-color: rgba(127, 212, 255, 0.55);
         color: #cdefff;
       }
+      #designTools {
+        display: flex;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      #designTools .dmTool {
+        flex: 1 1 0;
+        min-height: 38px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.07);
+        color: #dfeeda;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 800;
+      }
+      #designTools .dmTool.on {
+        border-color: #7fd4ff;
+        background: rgba(127, 212, 255, 0.17);
+        color: #cdefff;
+      }
       /* One row, scrolled sideways: the whole catalog without a panel. */
       #designAssets {
         display: flex;
@@ -3761,6 +3782,15 @@
           <button id="designRebuild">⟳ Rebuild</button>
           <button id="designExit">Done</button>
         </span>
+      </div>
+      <!-- What a tap does. Sculpting is a TOOL rather than an asset because it
+           is a verb: you fly around pushing the ground repeatedly, and re-arming
+           a chip between every push would make it unusable. -->
+      <div id="designTools">
+        <button id="designTool_place" class="dmTool on">✋ Place</button>
+        <button id="designTool_erase" class="dmTool">🧽 Erase</button>
+        <button id="designTool_raise" class="dmTool">⛰️ Raise</button>
+        <button id="designTool_lower" class="dmTool">🕳️ Lower</button>
       </div>
       <div id="designAssets"></div>
     </div>

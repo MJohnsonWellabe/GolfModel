@@ -963,6 +963,11 @@ export function buildCourse(
       ...hole.hazards.filter((hz) => hz.type === 'rock').map((hz) => hz.key ?? 'rocks_red_bright'),
       // Blooms a hand-placed garden bed uses beyond the theme's ambient set.
       ...(hole.gardens ?? []).flatMap((g) => g.flowerKeys ?? []),
+      // SPECIES A TREES HAZARD NAMES ITSELF. Without loading these the
+      // prototype is missing at plant time, pickKeyed returns nothing and the
+      // authored stand grows the theme's species instead — which is exactly
+      // what made the hole builder's tree picker look broken.
+      ...hole.hazards.flatMap((hz) => (hz.type === 'trees' ? (hz.treeKeys ?? []) : [])),
       // The real sakura model backs the blossom system wherever it's used
       // (see blossomProto below) — load it whenever this hole/course needs one.
       ...(usesBlossom ? ['tree_sakura'] : [])
@@ -2148,12 +2153,22 @@ export function buildCourse(
         placeProto(blossomProto, b.x, b.y, Math.max(24, b.r * 2.0), undefined, register);
         return;
       }
+      // AUTHORED SPECIES WIN. A `trees` hazard that names its own treeKeys is a
+      // deliberate act — a fir stand on a parkland course, the hole builder's
+      // species picker — and it beat nothing at all before this: every tree was
+      // drawn from the course THEME, so choosing a species in the builder
+      // silently did nothing.
+      const authored = b.keys?.length ? pickKeyed(b.keys) : [];
       // Accent species (e.g. birch among Timberline's pines) on ~15% of trees;
       // hazards authored `accent: true` ALWAYS plant from the accent set
       // (deliberate specimens — Sable Bay's fairway/island palms), and
       // `accentChance` dials the mix per hazard (palm-heavy shore lines).
       const roll = b.accentChance ?? 0.15;
-      const set = accents.length && (b.accent || hash2(b.x * 1.7, b.y * 0.9) < roll) ? accents : trees;
+      const set = authored.length
+        ? authored
+        : accents.length && (b.accent || hash2(b.x * 1.7, b.y * 0.9) < roll)
+          ? accents
+          : trees;
       if (!set.length) return;
       const e = set[Math.floor(hash2(b.x, b.y) * set.length) % set.length];
       // Conifer silhouettes are tall and narrow; at broadleaf target heights

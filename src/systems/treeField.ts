@@ -51,6 +51,16 @@ export interface TreeBlob {
   accent?: boolean;
   /** Per-hazard accent fraction (types.ts accentChance) — a mixed line. */
   accentChance?: number;
+  /**
+   * Species this trunk must be planted from, when the HAZARD names them.
+   *
+   * Without this the renderer picked every tree from the course THEME, so a
+   * hole authored with `treeKeys: ['tree_fir_a']` grew whatever the course
+   * happened to plant — the hole builder's species picker did nothing at all,
+   * and the report was simply that trees "place different trees than the
+   * intention". An authored species is a deliberate act and beats the theme.
+   */
+  keys?: readonly string[];
   /** True if THIS trunk collides as a palm (trunk + elevated canopy, gap
    *  between) rather than the usual single flat band. Resolved per-trunk at
    *  build time: `hz.palm` (100% palm hazards) OR, for a mixed `accentChance`
@@ -190,6 +200,7 @@ export function collectTreeBlobs(
           blossom: hz.blossom,
           accent: hz.accent,
           accentChance: hz.accentChance,
+          keys: hz.treeKeys,
           isPalm: resolveIsPalm(hz, sx + offX, sy + offY)
         });
       }
@@ -260,6 +271,7 @@ export function collectTreeBlobs(
           blossom: hz.blossom,
           accent: hz.accent,
           accentChance: hz.accentChance,
+          keys: hz.treeKeys,
           isPalm: resolveIsPalm(hz, jx + offX, jy + offY)
         });
       }

@@ -72,9 +72,25 @@ export class DesignMode {
   private readonly count: HTMLElement;
   private cam: FlyCam;
   private armed: AssetDef | null = null;
+  /**
+   * What a tap does.
+   *
+   *   place   drop the armed asset
+   *   erase   remove the nearest thing you put down
+   *   raise   push the ground UP under the tap
+   *   lower   push it down
+   *
+   * Sculpting is a tool rather than an asset because it is a verb: you fly
+   * around and shape the ground repeatedly, and having to re-arm a chip between
+   * every push would make it unusable.
+   */
+  private tool: 'place' | 'erase' | 'raise' | 'lower' = 'place';
+  /** The translucent ghost of what is about to be placed, at true footprint. */
+  private ghost: Mesh | null = null;
+  private ghostMat: StandardMaterial;
   private markers: Mesh[] = [];
   /** Placements made in THIS session, newest last — so undo is honest. */
-  private placed: Array<{ field: string; marker: Mesh }> = [];
+  private placed: Array<{ field: string; index: number; marker: Mesh }> = [];
   private markerMat: StandardMaterial;
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: { dist: number; height: number } | null = null;
@@ -100,6 +116,12 @@ export class DesignMode {
     this.markerMat.diffuseColor = new Color3(1, 0.84, 0.31);
     this.markerMat.emissiveColor = new Color3(0.5, 0.4, 0.1);
     this.markerMat.alpha = 0.72;
+    // The ghost reads cool against the warm placed markers, so "about to" and
+    // "already there" are never confused.
+    this.ghostMat = new StandardMaterial('designGhost', host.scene);
+    this.ghostMat.diffuseColor = new Color3(0.5, 0.83, 1);
+    this.ghostMat.emissiveColor = new Color3(0.16, 0.36, 0.5);
+    this.ghostMat.alpha = 0.42;
 
     this.renderPalette();
     this.wireButtons();
@@ -124,6 +146,12 @@ export class DesignMode {
         // Tapping the armed chip disarms — the way out of a placement mode you
         // have stopped wanting, without hunting for a cancel.
         this.armed = this.armed?.id === asset?.id ? null : asset;
+        // Picking an asset means you intend to place it.
+        if (this.armed) {
+          this.tool = 'place';
+          this.syncToolButtons();
+        }
+        this.clearGhost();
         for (const other of Array.from(this.list.querySelectorAll('.dmAsset'))) {
           other.classList.toggle('on', other === el && this.armed !== null);
         }
@@ -142,15 +170,42 @@ export class DesignMode {
     on('designUndo', () => this.undo());
     on('designRebuild', () => this.host.rebuild());
     on('designExit', () => this.host.exit());
+    for (const t of ['place', 'erase', 'raise', 'lower'] as const) {
+      on(`designTool_${t}`, () => this.setTool(t));
+    }
+    this.syncToolButtons();
+  }
+
+  private setTool(tool: DesignMode['tool']): void {
+    // Tapping the active tool returns to placing — the way out of a mode you
+    // have stopped wanting, without hunting for a cancel.
+    this.tool = this.tool === tool ? 'place' : tool;
+    if (this.tool !== 'place') this.clearGhost();
+    this.syncToolButtons();
+    this.refreshCount();
+  }
+
+  private syncToolButtons(): void {
+    for (const t of ['place', 'erase', 'raise', 'lower']) {
+      this.bar.querySelector(`#designTool_${t}`)?.classList.toggle('on', this.tool === t);
+    }
+    // The palette is only meaningful while placing.
+    this.list.style.opacity = this.tool === 'place' ? '1' : '0.35';
   }
 
   private refreshCount(): void {
     const n = this.placed.length;
-    this.count.textContent = this.armed
-      ? `Tap the hole to place ${this.armed.label}`
-      : n
-        ? `${n} placed — Rebuild to see them for real`
-        : 'Pick an asset, then tap the hole';
+    const pending = n ? ` · ${n} placed, Rebuild to see them for real` : '';
+    this.count.textContent =
+      this.tool === 'erase'
+        ? `Tap a marker to remove it${pending}`
+        : this.tool === 'raise'
+          ? `Tap the ground to push it UP${pending}`
+          : this.tool === 'lower'
+            ? `Tap the ground to push it DOWN${pending}`
+            : this.armed
+              ? `Tap the hole to place ${this.armed.label}${pending}`
+              : `Pick an asset, then tap the hole${pending}`;
   }
 
   // ------------------------------------------------------------------- camera
@@ -191,19 +246,54 @@ export class DesignMode {
    */
   private pick(sx: number, sy: number): { x: number; y: number } | null {
     const engine = this.host.scene.getEngine();
+    const canvas = engine.getRenderingCanvas();
     const w = engine.getRenderWidth();
     const h = engine.getRenderHeight();
+    // CLIENT PIXELS ARE NOT RENDER PIXELS.
+    //
+    // The pointer arrives in CSS pixels relative to the viewport; unproject
+    // wants render-buffer pixels relative to the canvas. On any display where
+    // the two differ — a retina phone, a browser zoom, Babylon's own hardware
+    // scaling — feeding one to the other lands the pick somewhere else
+    // entirely, and the further from the top-left corner you tap the worse it
+    // gets. That is the "things aren't placing where you click" report exactly.
+    let px = sx;
+    let py = sy;
+    if (canvas) {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        px = (sx - rect.left) * (w / rect.width);
+        py = (sy - rect.top) * (h / rect.height);
+      }
+    }
     const view = this.host.scene.getViewMatrix();
     const proj = this.host.scene.getProjectionMatrix();
     const id = Matrix.Identity();
-    const near = Vector3.Unproject(new Vector3(sx, sy, 0), w, h, id, view, proj);
-    const far = Vector3.Unproject(new Vector3(sx, sy, 1), w, h, id, view, proj);
+    const near = Vector3.Unproject(new Vector3(px, py, 0), w, h, id, view, proj);
+    const far = Vector3.Unproject(new Vector3(px, py, 1), w, h, id, view, proj);
     const dir = far.subtract(near);
     if (Math.abs(dir.y) < 1e-6) return null;
-    const t = -near.y / dir.y;
-    if (t <= 0) return null;
-    const p = near.add(dir.scale(t));
-    return { x: p.x, y: -p.z }; // w2b maps world y to -z
+
+    // THE GROUND IS NOT AT ZERO.
+    //
+    // Solving against the y=0 plane puts the hit where the ray crosses SEA
+    // level, but the terrain the designer is looking at has height — so on a
+    // raised green or a plateau the asset landed short of (or past) the spot
+    // under the cursor, along the view direction. Two refinement steps against
+    // the real surface height converge well inside a yard, which is finer than
+    // anything placed by thumb.
+    let x = 0;
+    let y = 0;
+    let ground = 0;
+    for (let i = 0; i < 3; i++) {
+      const t = (ground - near.y) / dir.y;
+      if (t <= 0) return null;
+      const p = near.add(dir.scale(t));
+      x = p.x;
+      y = -p.z; // w2b maps world y to -z
+      ground = this.host.groundAt(x, y);
+    }
+    return { x, y };
   }
 
   // ----------------------------------------------------------------- pointers
@@ -219,6 +309,10 @@ export class DesignMode {
         return true;
       }
       this.drag = { sx: e.clientX, sy: e.clientY, cx: this.cam.x, cy: this.cam.y, moved: false };
+      // A thumb has no hover, so the press is the only chance to show what is
+      // about to happen before it happens.
+      const at = this.pick(e.clientX, e.clientY);
+      if (at) this.showGhost(at.x, at.y);
       return true;
     }
     if (e.type === 'pointermove') {
@@ -231,7 +325,12 @@ export class DesignMode {
         this.applyCam();
         return true;
       }
-      if (!this.drag) return false;
+      if (!this.drag) {
+        // Hovering (a mouse) previews where the asset would land.
+        const at = this.pick(e.clientX, e.clientY);
+        if (at) this.showGhost(at.x, at.y);
+        return false;
+      }
       const k = this.worldPerPx();
       const dx = e.clientX - this.drag.sx;
       const dy = e.clientY - this.drag.sy;
@@ -246,10 +345,15 @@ export class DesignMode {
     if (this.pointers.size < 2) this.gesture = null;
     const drag = this.drag;
     this.drag = null;
-    // A tap that never travelled is a placement; a drag that did is a pan.
-    if (e.type === 'pointerup' && drag && !drag.moved && this.armed) {
+    // A tap that never travelled acts; a drag that did was a pan.
+    if (e.type === 'pointerup' && drag && !drag.moved) {
       const at = this.pick(e.clientX, e.clientY);
-      if (at) this.place(this.armed, at.x, at.y);
+      if (at) {
+        if (this.tool === 'erase') this.erase(at.x, at.y);
+        else if (this.tool === 'raise') this.sculpt(at.x, at.y, 1);
+        else if (this.tool === 'lower') this.sculpt(at.x, at.y, -1);
+        else if (this.armed) this.place(this.armed, at.x, at.y);
+      }
     }
     return true;
   }
@@ -262,14 +366,109 @@ export class DesignMode {
 
   // ---------------------------------------------------------------- placement
 
+  /**
+   * Show what is about to be placed, where it is about to go, at its real size.
+   *
+   * Placing blind — pick a chip, tap, find out — makes every placement a guess,
+   * and a footprint is not something you can estimate from a label. The ghost is
+   * the same ring the marker uses, in a cool colour so "about to" and "already
+   * there" never read as the same thing.
+   */
+  private showGhost(x: number, y: number): void {
+    if (this.tool !== 'place' || !this.armed) return this.clearGhost();
+    const r = Math.max(2, this.armed.radius ?? 30);
+    const g = this.host.groundAt(x, y);
+    if (!this.ghost || Math.abs((this.ghost.metadata as number) - r) > 0.01) {
+      this.clearGhost();
+      this.ghost = MeshBuilder.CreateDisc('dmGhost', { radius: r, tessellation: 24 }, this.host.scene);
+      this.ghost.rotation.x = Math.PI / 2;
+      this.ghost.material = this.ghostMat;
+      this.ghost.isPickable = false;
+      this.ghost.metadata = r;
+    }
+    this.ghost.position = w2b(x, y, g + 0.4);
+  }
+
+  private clearGhost(): void {
+    this.ghost?.dispose();
+    this.ghost = null;
+  }
+
+  /**
+   * Remove the nearest thing placed in this session, within a generous reach.
+   *
+   * Only this session's placements: the hole arrived with geometry authored on
+   * the plan, and letting a stray tap delete a fairway bunker somebody drew
+   * deliberately would be a much worse bug than not having an eraser.
+   */
+  private erase(x: number, y: number): void {
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < this.placed.length; i++) {
+      const m = this.placed[i].marker.position;
+      const d = Math.hypot(m.x - x, -m.z - y);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    // Reach scales with the marker so a big water hazard is as easy to hit as a
+    // stone, and a miss is a miss rather than a surprise deletion far away.
+    if (best < 0 || bestD > Math.max(30, (this.placed[best].marker.metadata as number) ?? 30)) {
+      this.count.textContent = 'Nothing of yours there to erase';
+      return;
+    }
+    this.removeAt(best);
+  }
+
+  /**
+   * Push the ground up or down under the tap.
+   *
+   * Written as an ordinary `elevation` control point — the same thing the plan's
+   * mound/hollow tools produce and the same thing the terrain compiler reads —
+   * so sculpting from the air and shaping on the plan are one feature with one
+   * data model. Repeated taps on the same spot ACCUMULATE rather than stacking
+   * new points, which is what makes it feel like pushing clay.
+   */
+  private sculpt(x: number, y: number, dir: 1 | -1): void {
+    const STEP = 8; // ~10 ft per push (the vertical unit is ~1.25 ft)
+    const R = 110;
+    const hole = this.host.hole as unknown as Record<string, Array<Record<string, number>>>;
+    const list = (hole.elevation ??= []);
+    // Reuse a nearby point of my own making rather than piling up control
+    // points — a hundred overlapping domes is unreadable on the plan and slow
+    // to compile.
+    const mine = this.placed.filter((p) => p.field === 'elevation');
+    for (const p of mine) {
+      const m = p.marker.position;
+      if (Math.hypot(m.x - x, -m.z - y) < R * 0.5) {
+        const idx = p.index;
+        const pt = list[idx];
+        if (pt) {
+          pt.h = Math.max(-90, Math.min(90, (pt.h ?? 0) + STEP * dir));
+          this.refreshCount();
+          return;
+        }
+      }
+    }
+    list.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h: STEP * dir, r: R });
+    this.placed.push({
+      field: 'elevation',
+      index: list.length - 1,
+      marker: this.marker(x, y, R * 0.5)
+    });
+    this.refreshCount();
+  }
+
   private place(asset: AssetDef, x: number, y: number): void {
     // The SAME translation the plan uses, so a tree placed here and a tree
     // placed on the plan are the same tree in the same JSON.
     const p = placementFor(asset, x, y);
     if (!p) return;
     const hole = this.host.hole as unknown as Record<string, unknown[]>;
-    (hole[p.field] ??= []).push(p.value);
-    this.placed.push({ field: p.field, marker: this.marker(x, y, asset.radius ?? 30) });
+    const list = (hole[p.field] ??= []);
+    list.push(p.value);
+    this.placed.push({ field: p.field, index: list.length - 1, marker: this.marker(x, y, asset.radius ?? 30) });
     this.refreshCount();
   }
 
@@ -289,18 +488,35 @@ export class DesignMode {
     post.isPickable = false;
     post.parent = disc;
     post.position = new Vector3(0, 0, -r * 1.1); // disc is rotated, so its local -z is up
+    disc.metadata = r;
     this.markers.push(disc);
     return disc;
   }
 
   private undo(): void {
-    const last = this.placed.pop();
-    if (!last) return;
+    if (this.placed.length) this.removeAt(this.placed.length - 1);
+  }
+
+  /**
+   * Remove one placement, from the hole and from the screen.
+   *
+   * Removing from the MIDDLE of an array shifts every later index, so the
+   * bookkeeping of everything placed after it has to shift too — otherwise the
+   * next erase deletes the wrong thing, which is the sort of bug that only
+   * shows up after ten minutes of work.
+   */
+  private removeAt(i: number): void {
+    const entry = this.placed[i];
+    if (!entry) return;
     const hole = this.host.hole as unknown as Record<string, unknown[] | undefined>;
-    hole[last.field]?.pop();
-    last.marker.getChildMeshes().forEach((m) => m.dispose());
-    last.marker.dispose();
-    this.markers = this.markers.filter((m) => m !== last.marker);
+    hole[entry.field]?.splice(entry.index, 1);
+    for (const other of this.placed) {
+      if (other !== entry && other.field === entry.field && other.index > entry.index) other.index -= 1;
+    }
+    this.placed.splice(i, 1);
+    entry.marker.getChildMeshes().forEach((m) => m.dispose());
+    entry.marker.dispose();
+    this.markers = this.markers.filter((m) => m !== entry.marker);
     this.refreshCount();
   }
 
@@ -312,6 +528,8 @@ export class DesignMode {
 
   dispose(): void {
     this.bar.style.display = 'none';
+    this.clearGhost();
+    this.ghostMat.dispose();
     for (const m of this.markers) {
       m.getChildMeshes().forEach((c) => c.dispose());
       m.dispose();

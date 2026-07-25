@@ -267,6 +267,18 @@ export function footprint(x: number, y: number, r: number, sides = 12): number[]
  * does one generic mutation rather than a switch per asset kind — which is what
  * keeps adding a new asset a data change rather than a code change.
  */
+/**
+ * Props that stand up.
+ *
+ * The renderer has two paths: UPRIGHT keeps the model's own Y-up orientation
+ * and rests its base on the ground; the other measures the extents and lays the
+ * longest axis flat, which is right for a bridge span and catastrophic for a
+ * bench. Everything the catalog can place is classified here rather than left
+ * to a default, because getting it wrong is silent — the prop simply appears
+ * upside down.
+ */
+const UPRIGHT_PROPS = new Set(['bench', 'fence', 'lighthouse', 'boat', 'flagpole', 'signpost', 'cart', 'shed', 'hut', 'tower', 'windmill', 'gazebo']);
+
 export function placementFor(
   asset: AssetDef,
   x: number,
@@ -285,7 +297,13 @@ export function placementFor(
       // generated octagon so generic hazard consumers never see undefined.
       return { field: 'hazards', value: { type: 'rock', cx: rx, cy: ry, r, polygon: footprint(rx, ry, r, 8) } };
     case 'prop':
-      return { field: 'props', value: { key: asset.key, x: rx, y: ry, rot: 0, len: 40 } };
+      // UPRIGHT props keep their native Y-up orientation. Without the flag the
+      // renderer takes the BRIDGE path, which measures the extents and lays the
+      // longest axis flat — which is why a placed bench arrived on its face.
+      return {
+        field: 'props',
+        value: { key: asset.key, x: rx, y: ry, rot: 0, len: asset.radius ?? 40, upright: UPRIGHT_PROPS.has(asset.key ?? '') }
+      };
     case 'landform':
       return { field: 'landforms', value: { key: asset.key, x: rx, y: ry, h: 40 } };
     case 'garden':

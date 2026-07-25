@@ -526,3 +526,55 @@ test('fly mode places assets on the rendered hole, and the builder gets them bac
   );
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+/**
+ * WHAT THE PLAN AND THE FLY VIEW OWED THE DESIGNER.
+ *
+ * Six reports from using the tool in anger, each of which looks like a
+ * different problem and is actually the same one: the builder knew things it
+ * never told you, and did things you never asked for.
+ */
+test('a blank hole measures itself instead of claiming par 4, 400 yards', async ({ page }) => {
+  const errors = await openBuilder(page);
+  await openSheet(page, 'side');
+  await page.locator('#newHole').click();
+  // The old blank hole was a literal "par 4 / 400 yd" whatever you then drew,
+  // so a 180-yard one-shotter stayed labelled a 400-yard par 4 until somebody
+  // remembered to retype both.
+  const before = await page.evaluate(() => (window as never as { __builder(): { metrics(): { par: number; yardage: number } } }).__builder().metrics());
+  expect(before.yardage, `blank hole claims ${before.yardage} yd`).toBeLessThan(400);
+
+  // Move the green: the length follows, and so does the par.
+  await page.evaluate(() => {
+    const b = window as never as { __builder(): { setGreen(x: number, y: number): void } };
+    b.__builder().setGreen(550, 200);
+  });
+  const long = await page.evaluate(() => (window as never as { __builder(): { metrics(): { par: number; yardage: number } } }).__builder().metrics());
+  expect(long.yardage, 'yardage did not follow the green').toBeGreaterThan(before.yardage);
+  expect(long.par, `par ${long.par} at ${long.yardage} yd`).toBeGreaterThanOrEqual(before.par);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('the plan can say how far everything is', async ({ page }) => {
+  const errors = await openBuilder(page);
+  // Golf is a game about distance and the plan was drawn purely in world
+  // pixels, so "how far is that bunker" needed arithmetic against a 2 px/yd
+  // scale, in your head, every time.
+  await expect(page.locator('#zoomYards')).toBeVisible();
+  expect(await page.evaluate(() => (window as never as { __builder(): { yards(): boolean } }).__builder().yards())).toBe(true);
+  await page.locator('#zoomYards').click();
+  expect(await page.evaluate(() => (window as never as { __builder(): { yards(): boolean } }).__builder().yards())).toBe(false);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('the surfaces a hole is made of can all be drawn', async ({ page }) => {
+  const errors = await openBuilder(page);
+  await openSheet(page, 'side');
+  // Sand, trees, out of bounds and a building footprint were all authorable in
+  // JSON and none of them were drawable — so a hole built here could only ever
+  // have water and one kind of bunker.
+  for (const t of ['poly:waste', 'poly:trees', 'poly:ob', 'poly:building']) {
+    await expect(page.locator(`#toolBar button[data-tool="${t}"]`), t).toBeVisible();
+  }
+  expect(errors, errors.join('\n')).toEqual([]);
+});

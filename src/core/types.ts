@@ -233,6 +233,17 @@ export interface Hazard {
    */
   accentChance?: number;
   /**
+   * Trees only: the SPECIES this stand is planted from, overriding the course
+   * theme's mix.
+   *
+   * A hole that authors a fir stand on a parkland course is making a deliberate
+   * decision, and until this existed the renderer ignored it entirely and drew
+   * whatever the theme drew — which is what made the hole builder's species
+   * picker look broken. The keys are also added to the hole's prototype load
+   * list, or the stand would simply not grow.
+   */
+  treeKeys?: string[];
+  /**
    * Trees only: every trunk in this hazard is a palm — collides only at the
    * trunk (near ground) and again at the canopy up top, with open air in
    * between (a real palm's silhouette), instead of the usual single flat
