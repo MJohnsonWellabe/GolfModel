@@ -42,6 +42,20 @@ describe('asset library', () => {
     expect(shippedProps.filter((k) => !listed.has(k)), 'props that ship but are not offered').toEqual([]);
   });
 
+  it('never labels a chip with a bare letter', () => {
+    // The family prefix is dropped because the group heading already says it,
+    // but `stone_a` stripped to "A" would make the library a list of filenames
+    // again. Anything that reduces to a letter or a letter+number keeps its
+    // family.
+    for (const a of ASSET_LIBRARY) {
+      expect(a.label, `${a.id} → "${a.label}"`).not.toMatch(/^[A-Z]\d?$/);
+    }
+    const stone = ASSET_LIBRARY.find((a) => a.key === 'stone_a')!;
+    expect(stone.label).toBe('Stone A');
+    const birch = ASSET_LIBRARY.find((a) => a.key === 'tree_birch_b')!;
+    expect(birch.label).toBe('Birch B');
+  });
+
   it('has unique ids and a group for everything', () => {
     const ids = ASSET_LIBRARY.map((a) => a.id);
     expect(new Set(ids).size, 'duplicate asset ids').toBe(ids.length);

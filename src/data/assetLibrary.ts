@@ -78,13 +78,22 @@ const LANDFORM = ['canyon_red_a', 'canyon_red_b', 'rocks_red_cluster', 'dunes_sa
 const BUSH = ['bush_a', 'bush_b', 'bush_c', 'bush_leafy', 'bush_bloom', 'bush_berry', 'bush_juniper', 'bush_currant', 'bush_raspberry', 'bush_forest_a', 'bush_forest_b', 'bush_wolfberry', 'bush_kenney_a', 'bush_kenney_b', 'bush_kenney_c'];
 const PROPS = ['bench', 'bridge', 'bridge_stone', 'castle', 'clubhouse', 'fence', 'lighthouse', 'logcabin', 'rowboat'];
 
-/** Title-case a model key: `tree_birch_b` → "Birch B". */
+/**
+ * Title-case a model key: `tree_birch_b` → "Birch B".
+ *
+ * The family prefix is dropped because the group heading already says it — but
+ * only when something descriptive survives. `stone_a` and `tree_a` would
+ * otherwise become a bare "A", and a library of chips reading A, B, C, D is a
+ * list of filenames again.
+ */
 function labelFor(key: string): string {
-  return key
-    .replace(/^(tree|rock|bush|stone|mesa|canyon|dunes|rocks)_/, '')
-    .split('_')
-    .map((w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
-    .join(' ');
+  const title = (s: string): string =>
+    s
+      .split('_')
+      .map((w) => (w.length <= 2 ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)))
+      .join(' ');
+  const stripped = key.replace(/^(tree|rock|bush|stone|mesa|canyon|dunes|rocks)_/, '');
+  return /^[a-z]$|^[a-z]?\d+$/i.test(stripped) ? title(key) : title(stripped);
 }
 
 function trees(keys: string[], group: string, note: string): AssetDef[] {
