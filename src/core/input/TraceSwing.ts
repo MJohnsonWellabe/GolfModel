@@ -1,247 +1,180 @@
 /**
- * THE TRACED SWING — follow the club, don't just yank it.
+ * THE TEMPO TRACE — follow the rabbit straight down, then straight back up.
  *
- * WHY THIS REPLACES THE PULL
- * --------------------------
- * The previous drag swing asked one question — how far back did you pull, and
- * how tidily — which a player answers correctly on their third attempt and then
- * never thinks about again. A golf swing is not a distance; it is a PATH taken
- * at a TEMPO, and both are things you can be good at.
+ * WHY THIS SHAPE (owner spec, EA-Sports style)
+ * --------------------------------------------
+ * The arc route was clever and wrong: a swing gesture on a phone is a THUMB
+ * gesture, and a thumb's natural travel is straight up and down the edge of
+ * the screen. So the control is a tall rectangle on the right, a vertical
+ * rail, and a guide dot — the rabbit — that runs straight DOWN to this club's
+ * pull depth and straight back UP through impact, at an unhurried, constant
+ * tempo. The player's whole job is to stay with it:
  *
- * So the control is a rectangle with a guide dot travelling a route through it,
- * and the gesture is to follow that dot. Three things are then measurable, and
- * every one of them is a thing a real golfer would recognise:
+ *   how deep you actually went     → the backswing (power, vs the club's target)
+ *   how well you stayed WITH the   → the strike (tempo — ahead of the rabbit is
+ *     rabbit in time                  a lunge, behind it is a decel)
+ *   how straight you kept the line → the face (lateral wobble off the rail)
  *
- *   how far along the route you got   → the length of the backswing
- *   how close to the line you stayed  → the strike, and the face
- *   how well you kept the dot's tempo → the timing
+ * Track the tempo and the path and you have hit a perfect shot — which is the
+ * whole promise: the skill is rhythm, not reaction.
  *
  * WHAT IT FEEDS
  * -------------
- * The same `SwingResult` (power / powerQuality / accuracy / accuracyQuality)
- * the tap meter produces, resolved through the same `systems/swingModel`. So a
- * traced swing and a tapped swing of equal quality produce an identical shot,
- * and difficulty, scoring, recordings, replays and every headless simulation
- * stay exactly where they were calibrated. The control changes; the game does
- * not.
- *
- * WHY THE ROUTE IS AN ARC AND NOT A STRAIGHT LINE
- * -----------------------------------------------
- * A straight line is traced perfectly by resting a thumb against the edge of
- * the phone, which is not a skill. The route curves back and through, the way a
- * club does, so staying on it needs attention the whole way — and the deviation
- * that costs you is the same deviation that would open or close a clubface.
+ * The same `SwingResult` the tap meter produces, resolved through the same
+ * `systems/swingModel`, so a traced swing and a tapped swing that put the
+ * cursor in the same place produce an identical shot. Difficulty, scoring,
+ * recording, replay and every headless simulation stay exactly where they
+ * were calibrated. Only the input changes.
  */
 
 import * as swing from '../../systems/swingModel';
 import type { Band, SwingResult } from '../types';
 
-/** One sampled point of the player's gesture, in NORMALISED pad space. */
+/** One sampled point of the gesture, in NORMALISED pad space (0..1 each way,
+ *  y grows downward), stamped ms since the gesture began. */
 export interface TraceSample {
-  /** 0..1 across the pad, left to right. */
   x: number;
-  /** 0..1 down the pad, top to bottom. */
   y: number;
-  /** Milliseconds since the gesture began. */
   t: number;
 }
 
-/** A point on the guide route, in the same normalised pad space. */
-export interface RoutePoint {
-  x: number;
-  y: number;
-  /** Distance along the route, 0..1 — what the guide dot's progress means. */
-  s: number;
-}
-
 export interface TraceState {
-  /** 0..1 — how far along the route the gesture reached. The backswing. */
+  /** 0..MAX_PULL — the deepest point reached, as a power cursor. */
   progress: number;
-  /** 0..1 — 1 is dead on the line. */
-  accuracy: number;
-  /** 0..1 — 1 is in perfect time with the guide dot. */
+  /** 0..1 — how well the finger stayed WITH the rabbit. 1 = locked on. */
   timing: number;
-  /**
-   * Signed average deviation, −1 (inside the arc) .. 1 (outside it). This is
-   * the FACE: cutting the corner and drifting wide are different misses and a
-   * golfer feels them differently, so the sign is kept rather than squared away.
-   */
+  /** Signed lateral wobble, −1 (left of the rail) .. 1 (right of it). */
   face: number;
-  /** True once the gesture is far enough along to be a swing at all. */
+  /** True once the pull is deep enough to be a swing at all. */
   engaged: boolean;
 }
 
-/** Below this the player barely moved — a stray touch, not a swing. */
-const DEAD_ZONE = 0.08;
+/**
+ * THE RAIL'S GEOMETRY, in pad space.
+ *
+ * The rabbit starts at ADDRESS_Y (the top of the stroke), and FULL_Y is a
+ * 100% backswing; the club's target depth lands proportionally between them.
+ * Data, not layout — the pad draws from these numbers and the reader scores
+ * against them, so they cannot drift apart.
+ */
+export const RAIL_X = 0.5;
+export const ADDRESS_Y = 0.1;
+export const FULL_Y = 0.88;
+
+/** Below this fraction of a full pull the touch is a stray, not a swing. */
+const DEAD_ZONE = 0.06;
+/** Overswing headroom past the club's target — same convention as the meter's
+ *  bounce past 1; the shared model treats it as an over-power miss. */
+export const MAX_PULL = 1.18;
 
 /**
- * Deviation, as a fraction of the pad, that costs ALL of the accuracy score.
- *
- * Generous on purpose: this control is played with a thumb on glass, and the
- * difference between a good player and a great one should live in the last
- * fifth of the range rather than in whether they can hold a line at all.
+ * Lateral wobble, as a fraction of the pad's width, that costs the whole face.
+ * A thumb on glass wobbles a little by physiology; the skill band lives above
+ * that, not inside it.
  */
-const FULL_MISS = 0.12;
-
-/** Timing error, as a fraction of the total sweep, that costs all of the
- *  timing score. A fifth of the swing out of step is a lunge. */
-const FULL_LATE = 0.22;
-
-/** How much of the pulled distance survives a total loss of timing. A badly
- *  timed swing is short, not a whiff. */
+const FULL_MISS = 0.14;
+/** Mean tempo error, in power-cursor units, that costs all of the timing. */
+const FULL_OFF_TEMPO = 0.3;
+/** How much of the pulled depth survives a total loss of tempo. A lunged
+ *  swing is short, not a whiff. */
 const TIMING_FLOOR = 0.8;
 
-/** How long the guide dot takes to travel the whole route, ms. Slow enough to
- *  follow, quick enough that a round does not become a chore. */
-export const SWEEP_MS = 1150;
+/** The rabbit's full trip, ms: down (backswing) then up (through). Slow enough
+ *  to stay with, quick enough that a round keeps its pace. */
+export const SWEEP_MS = 1400;
+/** A real swing takes the club back slower than it swings through. */
+export const DOWN_FRACTION = 0.55;
 
 function clamp(v: number, lo: number, hi: number): number {
   return v < lo ? lo : v > hi ? hi : v;
 }
 
-/**
- * The guide route: the arc a club head takes, seen face-on.
- *
- * Starts low on the RIGHT (address), sweeps up over the top (the backswing) and
- * finishes low on the LEFT (through impact). One continuous arc — which reads
- * as a swing, spans the whole pad, and cannot be traced by resting a thumb
- * against a straight edge, which a line could be.
- *
- * The start matters as much as the shape: an earlier version began in the
- * MIDDLE of the pad, so a stray touch near the bottom landed close to the far
- * end of the route and registered as most of a backswing.
- */
-export function guideRoute(steps = 48): RoutePoint[] {
-  const pts: Array<{ x: number; y: number }> = [];
-  const FROM = 0.11 * Math.PI; // 20°, low right
-  const TO = 0.89 * Math.PI; // 160°, low left
-  for (let i = 0; i <= steps; i++) {
-    const a = FROM + (TO - FROM) * (i / steps);
-    pts.push({ x: 0.5 + Math.cos(a) * 0.42, y: 0.95 - Math.sin(a) * 0.72 });
-  }
-  // Arc-length parameterise, so the dot moves at a CONSTANT speed. Without this
-  // it hurries through the curve's tight part, and a player who followed it
-  // faithfully would be told their timing was poor.
-  let total = 0;
-  const cum = [0];
-  for (let i = 1; i < pts.length; i++) {
-    total += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
-    cum.push(total);
-  }
-  return pts.map((p, i) => ({ ...p, s: total > 0 ? cum[i] / total : 0 }));
+/** A power cursor (0..1 of a FULL pull) → the rail y it sits at. */
+export function railY(cursor: number): number {
+  return ADDRESS_Y + (FULL_Y - ADDRESS_Y) * clamp(cursor, 0, MAX_PULL);
 }
 
-/** Where the guide dot is at `ms` into the sweep. */
-export function guideAt(route: RoutePoint[], ms: number): { x: number; y: number; s: number } {
-  const s = clamp(ms / SWEEP_MS, 0, 1);
-  return pointAt(route, s);
-}
-
-/** The route point at arc-length fraction `s`, linearly interpolated. */
-export function pointAt(route: RoutePoint[], s: number): { x: number; y: number; s: number } {
-  const t = clamp(s, 0, 1);
-  for (let i = 1; i < route.length; i++) {
-    if (route[i].s >= t) {
-      const a = route[i - 1];
-      const b = route[i];
-      const span = b.s - a.s || 1;
-      const k = (t - a.s) / span;
-      return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, s: t };
-    }
-  }
-  const last = route[route.length - 1];
-  return { x: last.x, y: last.y, s: t };
+/** A rail y → the power cursor it means. */
+export function cursorAt(y: number): number {
+  return clamp((y - ADDRESS_Y) / (FULL_Y - ADDRESS_Y), 0, MAX_PULL);
 }
 
 /**
- * Nearest point on the route to (x, y): its arc-length, and the SIGNED
- * perpendicular distance — positive when the gesture is outside the arc.
+ * Where the rabbit is, `ms` into the sweep, for a club whose target depth is
+ * `target` (the shared model's `targetBar`).
  *
- * Projected onto the SEGMENTS rather than measured to the nearest vertex. A
- * vertex measurement overstates the distance to a curve by up to half the
- * vertex spacing, and — worse — the sign of that phantom error is arbitrary, so
- * a gesture that followed the route exactly came out with a small systematic
- * face on it. The control would have had a permanent, invisible push.
+ * Down to the TARGET — not to the bottom — then back up through the address to
+ * a short follow-through. The rabbit demonstrates the correct swing for THIS
+ * club, so tracking it exactly is, by construction, a perfect shot.
  */
-function nearest(route: RoutePoint[], x: number, y: number): { s: number; signed: number } {
-  let bestD = Infinity;
-  let bestS = 0;
-  let bestSign = 1;
-  for (let i = 1; i < route.length; i++) {
-    const a = route[i - 1];
-    const b = route[i];
-    const vx = b.x - a.x;
-    const vy = b.y - a.y;
-    const len2 = vx * vx + vy * vy;
-    const k = len2 > 0 ? clamp(((x - a.x) * vx + (y - a.y) * vy) / len2, 0, 1) : 0;
-    const px = a.x + vx * k;
-    const py = a.y + vy * k;
-    const d = Math.hypot(x - px, y - py);
-    if (d < bestD) {
-      bestD = d;
-      bestS = a.s + (b.s - a.s) * k;
-      // Which side of the route's local direction the point falls on, so
-      // cutting the corner and drifting wide are told apart.
-      bestSign = vx * (y - a.y) - vy * (x - a.x) >= 0 ? 1 : -1;
-    }
+export function rabbitAt(ms: number, target: number): { y: number; cursor: number; done: boolean } {
+  const downMs = SWEEP_MS * DOWN_FRACTION;
+  const upMs = SWEEP_MS - downMs;
+  const t = clamp(ms, 0, SWEEP_MS);
+  if (t <= downMs) {
+    const k = t / downMs;
+    const cursor = target * k;
+    return { y: railY(cursor), cursor, done: false };
   }
-  return { s: bestS, signed: bestD * bestSign };
+  const k = (t - downMs) / upMs;
+  const cursor = target * (1 - k);
+  return { y: railY(Math.max(0, cursor)), cursor, done: ms >= SWEEP_MS };
 }
 
 /**
- * Read a traced gesture.
+ * Read the whole traced gesture against the rabbit it was chasing.
  *
- * `path` is the whole stroke in normalised pad space, and it is read as a
- * whole: a control that scores only the release point cannot tell a swing from
- * a flick, which is the lesson the previous version taught.
+ * The path is read as a whole — a control that scores only the release point
+ * cannot tell a swing from a flick, which is the lesson every previous version
+ * of this control taught the hard way.
  */
-export function readTrace(path: TraceSample[], route: RoutePoint[] = guideRoute()): TraceState {
-  if (path.length < 2) return { progress: 0, accuracy: 1, timing: 1, face: 0, engaged: false };
+export function readTrace(path: TraceSample[], target = 0.9): TraceState {
+  if (path.length < 2) return { progress: 0, timing: 1, face: 0, engaged: false };
 
-  let progress = 0;
-  let devSum = 0;
-  let signedSum = 0;
-  let lateSum = 0;
+  let deepest = 0;
+  let offTempo = 0;
+  let wobble = 0;
   let n = 0;
-
   for (const p of path) {
-    const near = nearest(route, p.x, p.y);
-    // Progress is the FURTHEST point reached, not the last: easing off at the
-    // end of the stroke is a release, not a decision to swing shorter.
-    if (near.s > progress) progress = near.s;
-    devSum += Math.abs(near.signed);
-    signedSum += near.signed;
-    // Timing: where the guide dot was at this instant versus where the finger
-    // actually is, along the same route.
-    lateSum += Math.abs(near.s - clamp(p.t / SWEEP_MS, 0, 1));
+    const cur = cursorAt(p.y);
+    if (cur > deepest) deepest = cur;
+    // TEMPO: where the rabbit was at this instant vs where the finger is, in
+    // power-cursor units so a deep club and a chip are held to the same
+    // standard. Ahead of the rabbit is a lunge; behind it is a decel; both are
+    // the same fault — not being WITH it.
+    const rabbit = rabbitAt(p.t, target);
+    offTempo += Math.abs(cur - rabbit.cursor);
+    // FACE: signed wobble off the rail. Straight back and straight through is
+    // the whole path skill, so the mean keeps its sign — a bowed-right stroke
+    // and a bowed-left one are different misses.
+    wobble += p.x - RAIL_X;
     n++;
   }
 
-  const meanDev = devSum / n;
-  const meanLate = lateSum / n;
+  const meanOff = offTempo / n;
+  const meanWobble = wobble / n;
+  // Depth may exceed the target (overswing) up to the same headroom the meter
+  // allows; the shared model turns that into an over-power miss.
+  const progress = clamp(deepest, 0, MAX_PULL);
   return {
     progress,
-    accuracy: clamp(1 - meanDev / FULL_MISS, 0, 1),
-    timing: clamp(1 - meanLate / FULL_LATE, 0, 1),
-    face: clamp(signedSum / n / FULL_MISS, -1, 1),
+    timing: clamp(1 - meanOff / FULL_OFF_TEMPO, 0, 1),
+    face: clamp(meanWobble / FULL_MISS, -1, 1),
     engaged: progress > DEAD_ZONE
   };
 }
 
 /**
- * The power cursor a trace delivers: how far you took it back, discounted by
- * how well you kept time.
- *
- * Exposed so the pad can draw the SAME number the shot will use — a control
- * whose displayed power and its result disagree cannot be learned from.
+ * The power cursor a trace delivers: the depth you reached, discounted by how
+ * far you fell out of tempo. Exposed so the pad can draw the SAME number the
+ * shot will use — a readout that disagrees with its result cannot be learned
+ * from.
  */
 export function effectivePower(state: TraceState): number {
   return state.progress * (TIMING_FLOOR + (1 - TIMING_FLOOR) * clamp(state.timing, 0, 1));
 }
 
-/**
- * Turn a released trace into the SAME `SwingResult` the tap meter produces.
- */
+/** Turn a released trace into the SAME `SwingResult` the tap meter produces. */
 export function resolveTraceSwing(state: TraceState, ctx: swing.SwingCtx): SwingResult {
   const target = swing.targetBar(ctx);
   const pHalf = swing.perfectHalf(ctx);
@@ -251,11 +184,11 @@ export function resolveTraceSwing(state: TraceState, ctx: swing.SwingCtx): Swing
   const powerQuality: Band = swing.bandFor(powerCursor, target, pHalf, gHalf);
   const power = swing.deliveredPower(ctx, powerCursor, powerQuality);
 
-  // The face offset is ALREADY a signed, normalised −1..1 miss — the same thing
-  // the meter's locked accuracy cursor produces — so it is banded and shaped
+  // The face is ALREADY a signed, normalised −1..1 miss — exactly what the
+  // meter's locked accuracy cursor produces — so it is banded and shaped
   // directly rather than re-projected onto the bar's cursor space. (Projecting
-  // it was the drag swing's first bug: the accuracy target sits near the bar's
-  // left edge, so an identical miss left and right came out very differently.)
+  // was the original drag swing's first bug: the accuracy target sits near the
+  // bar's left edge, so an identical miss left and right came out different.)
   const travel = 1 - swing.ACCURACY_TARGET;
   const faceMiss = Math.abs(state.face);
   const accuracyQuality: Band =

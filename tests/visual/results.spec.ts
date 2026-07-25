@@ -100,12 +100,15 @@ test('landing shows ONE concise daily card (returning device)', async ({ page })
     await page.locator('#nmSave').dispatchEvent('pointerdown');
     await page.waitForSelector('#nmInput', { state: 'hidden', timeout: 4000 }).catch(() => null);
   }
-  // The daily and weekly cards live under the TODAY destination now — the
-  // landing is one primary action and four doors, not a stack of cards.
-  await openDestination(page, 'today');
+  // The daily challenge lives in the 🔥 chip's popup now; the weekly/daily
+  // tournament card stays under Today.
+  await page.locator('#psStreak').dispatchEvent('click');
+  await expect(page.locator('#dailyPopup')).toHaveClass(/on/);
   await expect(page.locator('#dailyCard')).toBeVisible();
-  await expect(page.locator('#weeklyCard')).toBeVisible();
   await expect(page.locator('#dailyCard .dcName')).toHaveCount(1);
+  await page.locator('#dpClose').dispatchEvent('click');
+  await openDestination(page, 'today');
+  await expect(page.locator('#weeklyCard')).toBeVisible();
   // ...and the tile says so from the top level, so nothing became invisible.
   expect(await page.locator('#destToday .dtSub').innerText()).not.toBe('');
   // No horizontal overflow at 360px (mobile acceptance).
@@ -130,7 +133,7 @@ test('brand-new device sees core golf only (progressive disclosure)', async ({ p
   await expect(page.locator('#progressStrip')).toBeEmpty();
   // The one primary action is right there.
   await expect(page.locator('#landingPlay')).toBeVisible();
-  // And so is core golf: choosing a course, and your account.
-  await expect(page.locator('#destCompete')).toBeVisible();
+  // And so is core golf: choosing a course, the boards, and your account.
+  await expect(page.locator('#destBoards')).toBeVisible();
   await expect(page.locator('#destMore')).toBeVisible();
 });

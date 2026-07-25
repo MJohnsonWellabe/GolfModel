@@ -52,7 +52,7 @@ describe('structural checks', () => {
     };
     const msgs = structuralIssues(broken).map((i) => i.message);
     expect(msgs.some((m) => /Elevation point 1 has no radius/.test(m))).toBe(true);
-    // 300 units is ~375 ft — the classic yards-vs-1.25ft mistake.
+    // 300 units is ~450 ft — the classic yards-vs-1.5ft mistake.
     expect(msgs.some((m) => /Elevation point 2 is 300 units/.test(m))).toBe(true);
   });
 
@@ -109,8 +109,11 @@ describe('the Claude round trip', () => {
     expect(brief.hole.number).toBe(course.holes[0].number);
     expect(brief.critique.tiers).toHaveLength(3);
     expect(brief.intent).toContain('decision');
-    // The units rule is the one that has actually bitten this project.
-    expect(brief.constraints.join(' ')).toMatch(/1\.25 ft/);
+    // The units rule is the one that has actually bitten this project — the
+    // shipping conversion is 1.5 ft/unit (field guide §2), and the brief must
+    // quote the real horizontal scale too, not a hard-coded one.
+    expect(brief.constraints.join(' ')).toMatch(/1\.5 ft/);
+    expect(brief.constraints.join(' ')).toContain('1 yd = 2 px');
     expect(brief.constraints).toEqual(HOLE_BRIEF_CONSTRAINTS);
   });
 

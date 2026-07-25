@@ -166,7 +166,7 @@ export const ASSET_LIBRARY: AssetDef[] = [
     group: 'Terrain shaping',
     kind: 'elevation',
     radius: 90,
-    note: 'A rounded rise. Height is in ~1.25 ft units, not yards.'
+    note: 'A rounded rise. Height is in ~1.5 ft units, not yards.'
   },
   {
     id: 'elevation:hollow',

@@ -221,9 +221,9 @@ describe('slope — the ground, measured as what is left over', () => {
   });
 
   it('reads elevation in FEET, not world units', () => {
-    // The vertical unit is ~1.25 ft, and confusing the two is the single most
+    // The vertical unit is ~1.5 ft, and confusing the two is the single most
     // repeated mistake in this codebase (see the course field guide). A 90-unit
-    // rise is ~112 ft, so a label reporting "90 ft" would mean the conversion
+    // rise is ~135 ft, so a label reporting "90 ft" would mean the conversion
     // was dropped.
     const a = shoot(hilly(1), {}, { side: 0, top: 0 }, flatLanding);
     const noun = a.factors.find((f) => f.kind === 'slope')!.noun;

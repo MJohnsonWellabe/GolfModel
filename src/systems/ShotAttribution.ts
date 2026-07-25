@@ -202,7 +202,7 @@ export function attributeShot(
   // are still dropped rather than shown, so the sum is exact only to within one
   // such row — a player cannot feel three yards, and saying it is worse than
   // silence.)
-  const climbFt = (engine.groundAt(actualFinal.x, actualFinal.y) - engine.groundAt(origin.x, origin.y)) * 1.25;
+  const climbFt = (engine.groundAt(actualFinal.x, actualFinal.y) - engine.groundAt(origin.x, origin.y)) * 1.5;
   const residual = {
     short: shortYd - factors.reduce((s, f) => s + f.short, 0),
     right: rightYd - factors.reduce((s, f) => s + f.right, 0)

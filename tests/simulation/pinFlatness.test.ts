@@ -8,6 +8,7 @@ import v2West from '../../src/data/courses/v2/timberlinewest.json';
 import v2Sable from '../../src/data/courses/v2/sablebay.json';
 import v2PJ from '../../src/data/courses/v2/portjohnson.json';
 import redhollow from '../../src/data/courses/redhollow.json';
+import maplevale from '../../src/data/courses/maplevale.json';
 import wildvalley from '../../src/data/courses/wildvalley.json';
 
 /**
@@ -22,7 +23,8 @@ import wildvalley from '../../src/data/courses/wildvalley.json';
  */
 const COURSES: Array<[string, unknown]> = [
   ['Wildwood', wildwood], ['Timberline East', v2Timber], ['Timberline West', v2West],
-  ['Sable Bay', v2Sable], ['Port Johnson', v2PJ], ['Red Hollow', redhollow], ['Wild Prairie', wildvalley]
+  ['Sable Bay', v2Sable], ['Port Johnson', v2PJ], ['Red Hollow', redhollow], ['Wild Prairie', wildvalley],
+  ['Maple Vale', maplevale]
 ];
 const CREEP = PHYSICS.friction.green / PHYSICS.slopeGradAccel; // ≈ 0.273
 const LIMIT = 0.11;

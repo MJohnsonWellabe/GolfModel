@@ -24,6 +24,7 @@ import timberline from './courses/timberline.json';
 import portjohnson from './courses/portjohnson.json';
 import redhollow from './courses/redhollow.json';
 import wildvalley from './courses/wildvalley.json';
+import maplevale from './courses/maplevale.json';
 import sablebayV2 from './courses/v2/sablebay.json';
 import timberlineV2 from './courses/v2/timberline.json';
 import timberlineWestV2 from './courses/v2/timberlinewest.json';
@@ -63,7 +64,8 @@ export function rosterFor(flags: RosterFlags): RosterEntry[] {
       : []),
     { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
     { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
-    { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' }
+    { id: 'wildvalley', name: 'Wild Prairie', tag: 'Sand hills · golden fescue seas, bright ribbons, huge blowouts', icon: '🌾', art: 'marketing/img/wildvalley-blowout.png', difficulty: 'Rolling' },
+    { id: 'maplevale', name: 'Maple Vale', tag: 'Autumn highlands · fire-red woods, dark tarns, first snow on the peaks', icon: '🍁', art: 'marketing/img/maplevale-tarn.png', difficulty: 'Balanced' }
   ];
 }
 
@@ -87,7 +89,8 @@ export function coursesFor(flags: RosterFlags): Record<string, CourseData> {
     ...(flags.newCourses
       ? {
           redhollow: loadCourse(redhollow as unknown as CourseAuthoring),
-          wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring)
+          wildvalley: loadCourse(wildvalley as unknown as CourseAuthoring),
+          maplevale: loadCourse(maplevale as unknown as CourseAuthoring)
         }
       : {})
   };

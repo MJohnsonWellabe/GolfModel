@@ -48,7 +48,7 @@ export async function seedReturningDevice(page: Page): Promise<void> {
  */
 export async function openDestination(
   page: Page,
-  dest: 'today' | 'compete' | 'locker' | 'more'
+  dest: 'today' | 'locker' | 'more'
 ): Promise<void> {
   const tile = page.locator(`.destTile[data-dest="${dest}"]`);
   await tile.waitFor({ state: 'visible', timeout: 30_000 });
@@ -60,23 +60,20 @@ export async function openDestination(
 }
 
 /**
- * Open the course/mode setup wizard.
+ * Open the course setup wizard.
  *
- * Which control does this depends on the `quickPlay` flag: with it OFF, "Play
- * Now" (`#landingPlay`) opens the wizard; with it ON, Play Now tees off
- * immediately and the wizard is "Course & mode" (`#landingSetup`) under the
- * Compete destination.
+ * Which control does this depends on the `quickPlay` flag: with it OFF, the
+ * primary button (`#landingPlay`) IS the wizard; with it ON, Quick Start tees
+ * off immediately and the wizard is the "Choose your course" button
+ * (`#landingChoose`) right beneath it — on the landing itself now, not behind
+ * a door.
  */
 export async function openSetupWizard(page: Page): Promise<void> {
-  const play = page.locator('#landingPlay');
+  const choose = page.locator('#landingChoose');
   const quick = await page.evaluate(() => {
-    const el = document.getElementById('landingSetup');
+    const el = document.getElementById('landingChoose');
     return !!el && el.style.display !== 'none';
   });
-  if (!quick) {
-    await play.dispatchEvent('pointerdown');
-    return;
-  }
-  await openDestination(page, 'compete');
-  await page.locator('#landingSetup').dispatchEvent('pointerdown');
+  if (quick) await choose.dispatchEvent('click');
+  else await page.locator('#landingPlay').dispatchEvent('pointerdown');
 }

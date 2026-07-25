@@ -34,9 +34,11 @@ test('the primary action is above the fold on a 360x800 phone', async ({ page })
   );
   expect(play.y, 'Play starts off the top of the screen').toBeGreaterThanOrEqual(0);
 
-  // And the doors are reachable too — an action you must scroll to find is the
-  // same failure one row further down.
-  for (const dest of ['destToday', 'destCompete', 'destLocker', 'destMore']) {
+  // The Choose-course action and the tiles are reachable too — an action you
+  // must scroll to find is the same failure one row further down.
+  const choose = (await page.locator('#landingChoose').boundingBox())!;
+  expect(choose.y + choose.height, 'Choose course is below the fold').toBeLessThanOrEqual(PHONE.height);
+  for (const dest of ['destToday', 'destBoards', 'destLocker', 'destMore']) {
     const box = (await page.locator(`#${dest}`).boundingBox())!;
     expect(box.y + box.height, `${dest} ends at ${Math.round(box.y + box.height)}px`).toBeLessThanOrEqual(
       PHONE.height
@@ -58,9 +60,9 @@ test('every destination opens, names itself, and closes', async ({ page }) => {
 
   for (const [dest, title] of [
     ['today', 'Today'],
-    ['compete', 'Compete'],
     ['locker', 'Locker'],
-    ['more', 'More']
+    // The id stays 'more'; what the player READS is Profile now.
+    ['more', 'Profile']
   ] as const) {
     await openDestination(page, dest);
     await expect(page.locator('#destSheetTitle')).toHaveText(title);
@@ -79,27 +81,40 @@ test('nothing that used to be on the landing became unreachable', async ({ page 
   // conflating the two would let a genuine regression hide behind the flag.
   await landing(page, '?ff.focusedGame=off');
 
-  // The exact list of things the ten-card stack used to offer. If a rebuild
-  // ever drops one, this is what says so.
+  // The exact list of things the old stack used to offer, at their NEW homes.
+  // If a rework ever drops one, this is what says so.
   const behind: Array<[Parameters<typeof openDestination>[1], string]> = [
     ['today', '#dailyHoleCard'],
     ['today', '#ghostCard'],
-    ['today', '#dailyCard'],
     ['today', '#weeklyCard'],
-    ['compete', '#landingSetup'],
-    ['compete', '#tournyLink'],
-    ['compete', '#recordsLink'],
+    ['today', '#tournyLink'],
     ['locker', '#landingSeason'],
     ['locker', '#landingStore'],
     ['locker', '#landingLocker'],
     ['more', '#landingProfile'],
-    ['more', '#landingAbout']
+    ['more', '#landingSettings']
   ];
   for (const [dest, sel] of behind) {
     await openDestination(page, dest);
     await expect(page.locator(sel), `${sel} is not reachable under ${dest}`).toBeVisible();
     await page.locator('#destSheetClose').dispatchEvent('pointerdown');
   }
+
+  // The rest moved to direct surfaces rather than panes:
+  // the wizard is the Choose button, the records are the Leaderboards tile,
+  // the daily challenge is the streak chip's popup.
+  await expect(page.locator('#landingChoose')).toBeVisible();
+  await page.locator('#destBoards').dispatchEvent('click');
+  await expect(page.locator('#records')).toBeVisible();
+  await page.locator('#recBack').dispatchEvent('click');
+  await page.locator('#psStreak').dispatchEvent('click');
+  await expect(page.locator('#dailyPopup')).toHaveClass(/on/);
+  await expect(page.locator('#dailyCard')).toBeVisible();
+  await page.locator('#dpClose').dispatchEvent('click');
+  // And About the game lives in the profile's Settings tab.
+  await openDestination(page, 'more');
+  await page.locator('#landingSettings').dispatchEvent('click');
+  await expect(page.locator('.aboutGameRow')).toBeVisible();
 });
 
 test('each tile says what is behind it', async ({ page }) => {
@@ -108,7 +123,7 @@ test('each tile says what is behind it', async ({ page }) => {
   // A door with nothing written on it is worse than the stack of cards it
   // replaced: the daily hole and the streak have to keep advertising themselves
   // from the top level, or the retention layer is buried.
-  for (const dest of ['destToday', 'destCompete', 'destLocker', 'destMore']) {
+  for (const dest of ['destToday', 'destBoards', 'destLocker', 'destMore']) {
     const sub = await page.locator(`#${dest} .dtSub`).innerText();
     expect(sub.trim().length, `${dest} has no headline`).toBeGreaterThan(0);
   }
@@ -147,15 +162,14 @@ test('the strip-down removes systems rather than burying them', async ({ page })
   await page.setViewportSize(PHONE);
   await landing(page, '?ff.focusedGame=on');
 
-  await openDestination(page, 'compete');
-  await expect(page.locator('#tournyLink'), 'online tournaments survived the strip-down').toBeHidden();
-  // Course & mode and Records are core golf and stay.
-  await expect(page.locator('#landingSetup')).toBeVisible();
-  await expect(page.locator('#recordsLink')).toBeVisible();
-  await page.locator('#destSheetClose').dispatchEvent('pointerdown');
+  // Course choice and leaderboards are core golf and stay.
+  await expect(page.locator('#landingChoose')).toBeVisible();
+  await expect(page.locator('#destBoards')).toBeVisible();
 
-  // The ghost race is one of three opponent systems; the daily hole carries it.
+  // The ghost race is one of three opponent systems; the daily hole carries
+  // it. Tournaments are gone from Today under the strip-down.
   await openDestination(page, 'today');
+  await expect(page.locator('#tournyLink'), 'online tournaments survived the strip-down').toBeHidden();
   await expect(page.locator('#ghostCard')).toBeEmpty();
   await expect(page.locator('#dailyHoleCard')).not.toBeEmpty();
 });

@@ -36,13 +36,14 @@ import timberlineWest from '../data/courses/v2/timberlinewest.json';
 import portjohnson from '../data/courses/v2/portjohnson.json';
 import redhollow from '../data/courses/redhollow.json';
 import wildvalley from '../data/courses/wildvalley.json';
+import maplevale from '../data/courses/maplevale.json';
 // Base "Timberline" kept too so any pre-rename straggler still counts.
 import timberlineBase from '../data/courses/timberline.json';
 
 // Only CURRENT content — the public rounds node still holds rounds from prior
 // game versions (retired courses/characters). Drop anything not in the live roster.
 const ACTIVE_COURSES = new Set<string>(
-  [wildwood, sablebay, timberlineEast, timberlineWest, portjohnson, redhollow, wildvalley, timberlineBase].map(
+  [wildwood, sablebay, timberlineEast, timberlineWest, portjohnson, redhollow, wildvalley, maplevale, timberlineBase].map(
     (c) => (c as { name: string }).name
   )
 );

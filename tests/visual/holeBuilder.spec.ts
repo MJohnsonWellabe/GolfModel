@@ -578,3 +578,136 @@ test('the surfaces a hole is made of can all be drawn', async ({ page }) => {
   }
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+/**
+ * THE ENGINE: authoring a hole FROM THE AIR.
+ *
+ * The plan stops being the primary surface here — the loop the owner asked for
+ * is flyover-first: draw the green to the shape you want, place the tee, run
+ * the fairway, set the par, save. Every commit that changes terrain triggers a
+ * rebuild, and fly mode must SURVIVE it (camera and all), or the loop is
+ * draw → get thrown back to address → hunt for the button → repeat.
+ */
+test('a hole can be drawn from the air: green, tee, fairway, par, save', async ({ page }) => {
+  test.setTimeout(300_000);
+  const errors = await openBuilder(page);
+  const payload = await page.evaluate(() =>
+    (window as never as { __builder(): { handover(): string } }).__builder().handover()
+  );
+  await page.addInitScript((p) => {
+    if (!sessionStorage.getItem('bsg.builderHole.v1')) sessionStorage.setItem('bsg.builderHole.v1', p as string);
+  }, payload);
+  await page.goto('/?builderHole=1&freeze=1');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, {
+    timeout: 90_000
+  });
+  await page.evaluate(() => (window as never as { __slice3d: { skipIntro(): void } }).__slice3d.skipIntro());
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 90_000 }
+  );
+  await page.locator('#designBtn').dispatchEvent('pointerdown');
+  await expect(page.locator('#designBar')).toBeVisible();
+  const vp = page.viewportSize()!;
+  const tap = async (x: number, y: number): Promise<void> => {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.up();
+  };
+  const shape = () =>
+    page.evaluate(() =>
+      (window as never as {
+        __slice3d: { holeShape(): { tee: { x: number; y: number }; green: { cx: number } | null; par?: number; fairways: number } };
+      }).__slice3d.holeShape()
+    );
+  const sceneSeq = () =>
+    page.evaluate(() => (window as never as { __slice3d: { seq: number } }).__slice3d.seq);
+  // A commit rebuilds the scene; `designActive` alone is NOT a rebuild signal
+  // (the OLD scene is still design-active while the new one builds behind the
+  // veil). The scene sequence number is: wait for the NEXT scene to exist AND
+  // be back in fly mode before reading the data.
+  const awaitRebuild = (seq0: number) =>
+    page.waitForFunction(
+      (s0) => {
+        const s = (window as never as { __slice3d?: { seq: number; designActive?(): boolean } }).__slice3d;
+        return !!s && s.seq > (s0 as number) && s.designActive?.() === true;
+      },
+      seq0,
+      { timeout: 90_000 }
+    );
+  const before = await shape();
+
+  // DRAW THE GREEN: tap an outline, Done fits the ellipse — and the commit
+  // rebuilds the scene with fly mode RESUMED on the other side.
+  await page.locator('#designTool_green').dispatchEvent('pointerdown');
+  await tap(vp.width / 2 - 70, vp.height / 2 - 50);
+  await tap(vp.width / 2 + 70, vp.height / 2 - 50);
+  await tap(vp.width / 2 + 70, vp.height / 2 + 50);
+  await tap(vp.width / 2 - 70, vp.height / 2 + 50);
+  const seqGreen = await sceneSeq();
+  await page.locator('#designDraftDone').dispatchEvent('pointerdown');
+  // The rebuild veil comes and goes; fly mode is back without a tap.
+  await awaitRebuild(seqGreen);
+  const afterGreen = await shape();
+  expect(afterGreen.green, 'the drawn green never reached the data').not.toBeNull();
+  expect(afterGreen.green!.cx, 'the green did not move to where it was drawn').not.toBe(before.green?.cx);
+
+  // PLACE THE TEE — one tap, committed on the spot, rebuild survived again.
+  await page.locator('#designTool_tee').dispatchEvent('pointerdown');
+  const seqTee = await sceneSeq();
+  await tap(vp.width / 2, vp.height * 0.7);
+  await awaitRebuild(seqTee);
+  const afterTee = await shape();
+  expect(afterTee.tee.x, 'the tee did not move').not.toBe(before.tee.x);
+
+  // RUN A FAIRWAY: waypoints, Done.
+  await page.locator('#designTool_fairway').dispatchEvent('pointerdown');
+  await tap(vp.width / 2, vp.height * 0.65);
+  await tap(vp.width / 2 - 20, vp.height * 0.45);
+  await tap(vp.width / 2, vp.height * 0.3);
+  const seqFairway = await sceneSeq();
+  await page.locator('#designDraftDone').dispatchEvent('pointerdown');
+  await awaitRebuild(seqFairway);
+  const afterFairway = await shape();
+  expect(afterFairway.fairways, 'the fairway ribbon never landed').toBe(before.fairways + 1);
+
+  // PAR is a stepper, and a hand-set par is a decision the yardage derivation
+  // must not argue with.
+  const par0 = afterFairway.par ?? 4;
+  await page.locator('#designParUp').dispatchEvent('pointerdown');
+  expect((await shape()).par).toBe(Math.min(6, par0 + 1));
+
+  // UNDO reaches EVERYTHING — the par step it just made, whatever kind of edit
+  // came before it. One stack.
+  await page.locator('#designUndo').dispatchEvent('pointerdown');
+  expect((await shape()).par).toBe(par0);
+
+  // SAVE writes the device list the builder's side sheet reads.
+  await page.locator('#designSave').dispatchEvent('pointerdown');
+  const saves = await page.evaluate(() => JSON.parse(localStorage.getItem('bsg.builderSaves.v1') || '[]'));
+  expect(Array.isArray(saves) && saves.length, 'nothing was saved').toBeTruthy();
+  expect(saves[saves.length - 1].hole, 'the save carries no hole').toBeTruthy();
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
+test('the builder loads the whole roster, including Maple Vale', async ({ page }) => {
+  const errors = await openBuilder(page);
+  // The picker lives in the side sheet on the phone-first layout.
+  await openSheet(page, 'side');
+  // The picker was hard-coded to the four v2 rebuilds; everything else could
+  // only come in through drag-and-drop.
+  const options = await page.$$eval('#course option', (els) => els.map((o) => (o as HTMLOptionElement).value));
+  for (const id of ['wildwood', 'redhollow', 'wildvalley', 'maplevale']) {
+    expect(options, `${id} missing from the course picker`).toContain(id);
+  }
+  await page.selectOption('#course', 'maplevale');
+  await page.waitForFunction(
+    () => (document.getElementById('meta')?.textContent ?? '').includes('Par'),
+    undefined,
+    { timeout: 20_000 }
+  );
+  const holes = await page.$$eval('#hole option', (els) => els.length);
+  expect(holes, 'Maple Vale did not load').toBe(3);
+  expect(errors, errors.join('\n')).toEqual([]);
+});

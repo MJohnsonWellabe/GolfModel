@@ -161,6 +161,23 @@ export const MASTERY_CHALLENGES: HoleMasteryDef[] = [
     S('Out of the Sandbox', 'Make par avoiding every bunker', (h) => par(h) && noSand(h)),
     S('Sandbox Birdie', 'Birdie the par 5', birdie),
     S('Barrens Eagle', 'Eagle the par 5', eagle)
+  ]),
+
+  // ---- Maple Vale (autumn highlands; fire woods, dark tarns) ----
+  ladder('maplevale', 1, [
+    S('Down the Corridor', 'Hit the fairway and make par', (h) => fir(h) && par(h)),
+    S('Falling Leaves', 'Birdie the downhill', birdie),
+    S('Clean Descent', 'Fairway, green in regulation, and one putt', cleanBirdie)
+  ]),
+  ladder('maplevale', 2, [
+    S('Over Blackwater', 'Hit the green in regulation', gir),
+    S('Cold Carry', 'Green in regulation and one putt', (h) => gir(h) && onePutt(h)),
+    S('Tarn Ace Run', 'Hole a putt of 15 feet or longer', (h) => (h.longestPuttFt ?? 0) >= 15)
+  ]),
+  ladder('maplevale', 3, [
+    S('The Long Climb', 'Make par avoiding every bunker', (h) => par(h) && noSand(h)),
+    S('Uphill Birdie', 'Birdie the par 5', birdie),
+    S('Summit Eagle', 'Eagle the par 5', eagle)
   ])
 ];
 

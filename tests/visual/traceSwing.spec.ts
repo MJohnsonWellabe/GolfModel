@@ -1,17 +1,18 @@
 import { expect, test } from '@playwright/test';
 
 /**
- * The traced swing has to be usable by a thumb.
+ * The tempo trace has to be usable by a thumb.
  *
- * Its ancestors failed here twice, and neither failure was visible to a unit
- * test: the first anchored the gesture on the SWING button (a finger's width of
- * travel on a phone), the second asked one question a player answers correctly
- * on their third attempt. Both were caught by playing, not by the suite.
+ * Its ancestors failed three times, and no unit test saw any of it: anchored
+ * on the SWING button (a finger's width of travel), then a one-question pull,
+ * then an arc a thumb cannot comfortably draw. The owner's spec is the fix: a
+ * tall rectangle on the RIGHT, a rabbit that runs straight down and back up,
+ * and a player who follows it.
  *
  * So this spec traces a real gesture with real pointer events on a real phone
- * viewport, and asserts that the pad is there, that it reacts while the finger
- * is still down, that the release strikes, and — the part that is the whole
- * point of the control — that the path stays on screen afterwards.
+ * viewport, and asserts the pad is there on the right, that it reacts while
+ * the finger is down, that the release strikes, and — the whole point — that
+ * the path stays on screen afterwards.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -45,7 +46,7 @@ async function startRound(page: import('@playwright/test').Page): Promise<void> 
   await page.locator('#loading').waitFor({ state: 'hidden', timeout: 60_000 });
 }
 
-test('the trace pad gives the gesture real room', async ({ page }) => {
+test('the trace pad is a tall rectangle on the right with real travel', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
   await startRound(page);
@@ -54,36 +55,34 @@ test('the trace pad gives the gesture real room', async ({ page }) => {
   await expect(pad, 'the trace pad never appeared with the flag on').toBeVisible();
   const box = (await pad.boundingBox())!;
 
-  // A gesture surface needs AREA — the failure both previous controls shipped
-  // with was being handed a sliver of screen and asked for a stroke.
-  expect(box.width, `pad is ${Math.round(box.width)}px wide`).toBeGreaterThan(PHONE.width * 0.8);
-  expect(box.height, `pad is ${Math.round(box.height)}px tall`).toBeGreaterThan(180);
+  // RIGHT side, TALLER than wide — the owner's spec, and the axis a thumb
+  // actually has room on.
+  expect(box.x + box.width, 'the pad is not on the right edge').toBeGreaterThan(PHONE.width - 20);
+  expect(box.height, `pad is ${Math.round(box.height)}px tall`).toBeGreaterThan(box.width * 1.5);
+  expect(box.height, 'not enough vertical travel').toBeGreaterThan(PHONE.height * 0.45);
   expect(box.y + box.height, 'the pad runs off the bottom').toBeLessThanOrEqual(PHONE.height + 1);
 });
 
-test('tracing the pad powers up, strikes, and leaves the path on screen', async ({ page }) => {
+test('tracing the rabbit powers up, strikes, and leaves the path on screen', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
   await startRound(page);
 
   const box = (await page.locator('#tracePad').boundingBox())!;
-  // Follow roughly the route the guide dot takes: bottom-centre, out and up,
-  // back in. Approximate on purpose — a spec that traced it exactly would be
+  // Straight down the rail and straight back up, roughly at the rabbit's
+  // pace. Approximate on purpose — a spec that traced it exactly would be
   // asserting the arithmetic rather than the control.
-  const at = (u: number): [number, number] => {
-    const a = 0.11 * Math.PI + (0.78 * Math.PI) * u;
-    return [
-      box.x + box.width * (0.5 + Math.cos(a) * 0.42),
-      box.y + box.height * (0.95 - Math.sin(a) * 0.72)
-    ];
-  };
-  const [sx, sy] = at(0);
-  await page.mouse.move(sx, sy);
+  const railX = box.x + box.width * 0.5;
+  const yAt = (cursor: number): number => box.y + box.height * (0.1 + 0.78 * cursor);
+  await page.mouse.move(railX, yAt(0));
   await page.mouse.down();
-  for (let i = 1; i <= 20; i++) {
-    const [x, y] = at(i / 20);
-    await page.mouse.move(x, y);
-    await page.waitForTimeout(16);
+  for (let i = 1; i <= 12; i++) {
+    await page.mouse.move(railX, yAt(0.85 * (i / 12)));
+    await page.waitForTimeout(55);
+  }
+  for (let i = 1; i <= 10; i++) {
+    await page.mouse.move(railX, yAt(0.85 * (1 - i / 10)));
+    await page.waitForTimeout(55);
   }
 
   // The surface responds while the finger is still down — the affordance a
@@ -107,7 +106,7 @@ test('tracing the pad powers up, strikes, and leaves the path on screen', async 
   // slot machine; showing the shape of your own mistake is the only way
   // tracing gets better, so the pad survives the strike.
   await expect(page.locator('#tracePad')).toBeVisible();
-  expect(await page.locator('#tracePadReadout').innerText()).toMatch(/line|tempo/i);
+  expect(await page.locator('#tracePadReadout').innerText()).toMatch(/tempo|line/i);
 });
 
 test('a touch that never pulls back is a cancel, not a duffed shot', async ({ page }) => {
@@ -115,10 +114,10 @@ test('a touch that never pulls back is a cancel, not a duffed shot', async ({ pa
   await page.setViewportSize(PHONE);
   await startRound(page);
 
-  // At the START of the route, where a real stray touch would land.
+  // At ADDRESS — the top of the rail, where a real stray touch would land.
   const box = (await page.locator('#tracePad').boundingBox())!;
-  const x = box.x + box.width * (0.5 + Math.cos(0.11 * Math.PI) * 0.42);
-  const y = box.y + box.height * (0.95 - Math.sin(0.11 * Math.PI) * 0.72);
+  const x = box.x + box.width * 0.5;
+  const y = box.y + box.height * 0.1;
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x + 4, y - 3);

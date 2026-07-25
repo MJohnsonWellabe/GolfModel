@@ -346,6 +346,25 @@
         border: 1px dashed var(--line); border-radius: 8px; padding: 9px; text-align: center;
         color: var(--ink-dim); cursor: pointer; margin-top: 6px;
       }
+      #savedHoles { margin-top: 8px; }
+      #savedHoles .savedHole {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        margin-top: 6px;
+        padding: 9px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.05);
+        color: #dfeeda;
+        font: inherit;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        text-align: left;
+      }
+      #savedHoles .savedAt { opacity: 0.55; font-size: 11px; }
       .dz.hot { border-color: var(--accent-2); color: var(--accent-2); }
       a { color: var(--accent-2); }
       kbd {
@@ -406,6 +425,9 @@
       </div>
 
       <div class="dz" id="drop">Drop a course <b>.json</b> here (or click)</div>
+      <!-- Holes saved from fly mode (💾 Save). Same device, same browser —
+           localStorage — listed newest first, tap to load. -->
+      <div id="savedHoles"></div>
       <input type="file" id="file" accept="application/json,.json" hidden />
 
       <h2>Layers</h2>
@@ -509,11 +531,20 @@
       import { critiqueHole, holeBrief, parseHoleBrief, structuralIssues } from './src/systems/HoleCritique';
 
       // Bundled V2 courses (served by the Vite dev server from /src).
+      // THE WHOLE ROSTER. This list was hard-coded to the four v2 rebuilds,
+      // which made every other shipped course unreachable from the picker —
+      // Wildwood, Red Hollow, Wild Prairie and any NEW course could only come
+      // in through the drag-and-drop zone. Each entry names its directory,
+      // because the roster genuinely lives in two.
       const BUNDLED = [
-        { id: 'timberline', label: 'Timberline East' },
-        { id: 'timberlinewest', label: 'Timberline West' },
-        { id: 'sablebay', label: 'Sable Bay' },
-        { id: 'portjohnson', label: 'Port Johnson' },
+        { id: 'timberline', label: 'Timberline East', dir: '/src/data/courses/v2' },
+        { id: 'timberlinewest', label: 'Timberline West', dir: '/src/data/courses/v2' },
+        { id: 'sablebay', label: 'Sable Bay', dir: '/src/data/courses/v2' },
+        { id: 'portjohnson', label: 'Port Johnson', dir: '/src/data/courses/v2' },
+        { id: 'wildwood', label: 'Wildwood Glen', dir: '/src/data/courses' },
+        { id: 'redhollow', label: 'Red Hollow', dir: '/src/data/courses' },
+        { id: 'wildvalley', label: 'Wild Prairie', dir: '/src/data/courses' },
+        { id: 'maplevale', label: 'Maple Vale', dir: '/src/data/courses' },
       ];
 
       const LAYERS = [
@@ -580,7 +611,8 @@
 
       // ---- load ---------------------------------------------------------------
       async function loadBundled(id) {
-        const res = await fetch(`/src/data/courses/v2/${id}.json`);
+        const dir = (BUNDLED.find((b) => b.id === id) || {}).dir || '/src/data/courses/v2';
+        const res = await fetch(`${dir}/${id}.json`);
         if (!res.ok) throw new Error(`fetch ${id}: ${res.status}`);
         const data = await res.json();
         courseId = id;
@@ -1391,6 +1423,38 @@
         try { await loadBundled(v); buildCourseSelect(); } catch (err) { toast('load failed'); console.error(err); }
       });
       document.getElementById('hole').addEventListener('change', (e) => selectHole(parseInt(e.target.value, 10)));
+
+      // ---- saved holes (fly mode's 💾 Save writes these) ---------------------
+      const SAVES_KEY = 'bsg.builderSaves.v1';
+      function renderSavedHoles() {
+        const box = document.getElementById('savedHoles');
+        if (!box) return;
+        let saves = [];
+        try { saves = JSON.parse(localStorage.getItem(SAVES_KEY) || '[]'); } catch { saves = []; }
+        if (!Array.isArray(saves) || !saves.length) { box.innerHTML = ''; return; }
+        box.innerHTML =
+          '<div class="hint">Saved holes</div>' +
+          saves.slice().reverse().map((s2, i) =>
+            `<button class="savedHole" data-i="${saves.length - 1 - i}">💾 ${escapeHtml(String(s2.name || 'Hole'))}` +
+            ` <span class="savedAt">${new Date(s2.at || 0).toLocaleDateString()}</span></button>`
+          ).join('');
+        box.querySelectorAll('.savedHole').forEach((el) =>
+          el.addEventListener('click', () => {
+            const s2 = saves[Number(el.dataset.i)];
+            if (!s2 || !s2.hole) { toast('save unreadable'); return; }
+            // A saved hole loads as a one-hole course carrying the current
+            // theme, exactly like newBlankHole — so it previews correctly.
+            setCourse({ name: s2.name || 'Saved hole', holes: [s2.hole], theme: course?.theme });
+            courseId = '';
+            toast(`loaded "${s2.name}"`);
+          })
+        );
+      }
+      function escapeHtml(x) { return x.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+      renderSavedHoles();
+      // Fly mode saves land while the preview tab is focused; refresh when the
+      // builder tab comes back.
+      window.addEventListener('focus', renderSavedHoles);
 
       const fileInput = document.getElementById('file');
       const dz = document.getElementById('drop');

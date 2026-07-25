@@ -64,7 +64,7 @@ Two things are reported separately because they fail separately:
 
 - **Structure** — wrong regardless of difficulty, and invisible in plan view:
   a pin off its green, a layup target inside water, an elevation point with no
-  radius or in the wrong unit (the ~1.25 ft trap), geometry outside the world.
+  radius or in the wrong unit (the ~1.5 ft trap), geometry outside the world.
 - **Play** — how it actually scores. One number hides the difference between a
   hole everyone bogeys and a hole half the field pars and half triples, so the
   spread across standards *is* the design information. There is a verdict for

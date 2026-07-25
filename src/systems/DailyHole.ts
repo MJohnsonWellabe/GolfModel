@@ -44,7 +44,7 @@ import { mulberry32 } from '../utils/Random';
 import type { CourseData, EllipseArea, Hazard, Polygon } from '../core/types';
 
 /** Themes the daily hole borrows, by course id. Art direction stays authored. */
-export const DAILY_THEMES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley'] as const;
+export const DAILY_THEMES = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley', 'maplevale'] as const;
 
 export interface DailyHoleSpec {
   /** YYYY-MM-DD the hole belongs to. */

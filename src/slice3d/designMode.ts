@@ -1,38 +1,42 @@
 /**
- * FLY MODE — placing assets on the hole you actually play.
+ * FLY MODE — the course-builder engine, on the hole you actually play.
  *
  * WHY
  * ---
- * The hole builder's plan is an abstract top-down diagram: coloured shapes on a
- * grid. It is precise, and it is the right tool for drawing a fairway corridor
- * or nudging a pin by three yards. It is the wrong tool for the question a
- * designer is really asking when they place a tree — *does this look right from
- * where the player stands?* — because, in the owner's words, it is "a grid that
- * doesn't look like the hole".
- *
- * So placement moves onto the hole itself. The preview already loads the real
- * course into the real renderer; fly mode unlocks its camera, hands you the
- * asset library, and lets you put things down by looking at them.
+ * The hole builder's plan is an abstract top-down diagram: coloured shapes on
+ * a grid. It is precise, and it is the wrong tool for the question a designer
+ * is really asking — *does this look right from where the player stands?* So
+ * the flyover is the PRIMARY authoring surface now (owner direction): draw the
+ * green to the shape you want, place the tee, run the fairway, cut the
+ * hazards, set the par, save the hole — all from the air, over the real
+ * renderer. The 2-D plan remains as the inspector and the JSON round-trip.
  *
  * WHAT IS AUTHORITATIVE
  * ---------------------
- * The hole DATA is. Every placement is written straight into the same
- * `HoleData.props` / `hazards` arrays the plan edits, in world coordinates, via
- * the same `placementFor()` the builder uses — so a tree placed here and a tree
- * placed on the plan are the same tree, and the JSON that goes back to the
- * builder needs no translation.
+ * The hole DATA is. Every tool writes straight into the same `HoleData` fields
+ * the plan edits, in world coordinates, through the same `placementFor()` /
+ * ribbon / ellipse shapes the shipped courses author — so a green drawn from
+ * the air and a green drawn on the plan are the same green, and the JSON that
+ * goes back to the builder needs no translation.
  *
  * WHAT IS A PREVIEW
  * -----------------
- * The 3D. `buildCourse` plants a hole's nature in one chunked pass at scene
- * build; there is no incremental "add one tree" seam, and inventing one to save
- * a rebuild would mean two code paths for what a hole looks like — exactly the
- * kind of divergence this codebase has been bitten by before (live vs replay).
+ * The 3D. `buildCourse` bakes a hole's terrain paint and plants its nature in
+ * one pass at scene build; there is no incremental "repaint one green" seam,
+ * and inventing one would mean two code paths for what a hole looks like —
+ * the divergence this codebase has been bitten by before (live vs replay). So
+ * drafts render as honest markers, and committing a terrain-changing draw
+ * (tee, green, fairway, hazard) triggers a REBUILD — which the host now
+ * resumes fly mode across, camera and all, so the loop is draw → see it for
+ * real → keep drawing.
  *
- * So a new placement shows immediately as a MARKER at true world position and
- * true footprint radius, and the real geometry arrives when you rebuild — which
- * is one tap, and is the same thing "play it" does. The marker is honest about
- * being a marker; it never pretends to be the tree.
+ * UNDO
+ * ----
+ * Everything undoes. Every mutation — a placement, a sculpt, an erase, a
+ * drawn green — pushes its own inverse onto one stack, so ↶ walks back
+ * through the session no matter what kind of edit it was. Inverses hold VALUE
+ * REFERENCES, not indices: an index-based undo goes subtly wrong the moment
+ * anything else has touched the same array.
  */
 
 import { Color3, Matrix, Mesh, MeshBuilder, Scene, StandardMaterial, Vector3 } from '../core/rendering/babylon';
@@ -49,14 +53,16 @@ export interface DesignHost {
   setCam(pos: Vector3, look: Vector3): void;
   /** Cosmetic ground height at a world point, so markers sit on the surface. */
   groundAt(x: number, y: number): number;
-  /** Rebuild the scene so placements become real geometry. */
+  /** Rebuild the scene so edits become real geometry. The host resumes fly
+   *  mode (and the camera) across it. */
   rebuild(): void;
   /** Leave fly mode and go back to playing. */
   exit(): void;
 }
 
-/** Camera state: a point on the ground, and how high above it the eye sits. */
-interface FlyCam {
+/** Camera state: a point on the ground, and how high above it the eye sits.
+ *  Exported so the host can carry it across a rebuild. */
+export interface FlyCam {
   x: number;
   y: number;
   height: number;
@@ -64,6 +70,26 @@ interface FlyCam {
 
 const MIN_HEIGHT = 40;
 const MAX_HEIGHT = 1400;
+/** The undo stack's depth. Far beyond a session; a backstop, not a budget. */
+const MAX_OPS = 100;
+
+/** The draw tools: each is a small state machine over tapped points. */
+type DrawKind = 'tee' | 'green' | 'fairway' | 'water' | 'bunker' | 'waste';
+type Tool = 'place' | 'erase' | 'raise' | 'lower' | DrawKind;
+
+const DRAW_TOOLS: readonly DrawKind[] = ['tee', 'green', 'fairway', 'water', 'bunker', 'waste'];
+const DRAW_HINT: Record<DrawKind, string> = {
+  tee: 'Tap where the tee should be',
+  green: 'Tap around the green you want · Done to fit it',
+  fairway: 'Tap waypoints down the fairway · Done to lay it',
+  water: 'Tap around the water · Done to cut it',
+  bunker: 'Tap around the bunker · Done to cut it',
+  waste: 'Tap around the waste area · Done to cut it'
+};
+/** Loops need three points; a route needs two; a tee needs one. */
+const MIN_POINTS: Record<DrawKind, number> = { tee: 1, green: 3, fairway: 2, water: 3, bunker: 3, waste: 3 };
+
+const SAVES_KEY = 'bsg.builderSaves.v1';
 
 export class DesignMode {
   private readonly host: DesignHost;
@@ -72,41 +98,37 @@ export class DesignMode {
   private readonly count: HTMLElement;
   private cam: FlyCam;
   private armed: AssetDef | null = null;
-  /**
-   * What a tap does.
-   *
-   *   place   drop the armed asset
-   *   erase   remove the nearest thing you put down
-   *   raise   push the ground UP under the tap
-   *   lower   push it down
-   *
-   * Sculpting is a tool rather than an asset because it is a verb: you fly
-   * around and shape the ground repeatedly, and having to re-arm a chip between
-   * every push would make it unusable.
-   */
-  private tool: 'place' | 'erase' | 'raise' | 'lower' = 'place';
-  /** The translucent ghost of what is about to be placed, at true footprint. */
+  private tool: Tool = 'place';
+  /** The translucent preview of what is about to be placed. */
   private ghost: Mesh | null = null;
   private ghostMat: StandardMaterial;
   private markers: Mesh[] = [];
-  /** Placements made in THIS session, newest last — so undo is honest. */
-  private placed: Array<{ field: string; index: number; marker: Mesh }> = [];
+  /** Placements made in THIS session (erase only ever targets these — a stray
+   *  tap must not delete a bunker somebody authored on the plan). */
+  private placed: Array<{ field: string; value: unknown; marker: Mesh }> = [];
+  /** ONE stack of inverses, whatever kind of edit made them. */
+  private ops: Array<{ undo(): void }> = [];
+  /** The in-progress draw: tapped points and their preview markers. */
+  private draft: { kind: DrawKind; points: Array<{ x: number; y: number }>; dots: Mesh[] } | null = null;
   private markerMat: StandardMaterial;
+  private draftMat: StandardMaterial;
   private pointers = new Map<number, { x: number; y: number }>();
   private gesture: { dist: number; height: number } | null = null;
   private drag: { sx: number; sy: number; cx: number; cy: number; moved: boolean } | null = null;
 
-  constructor(host: DesignHost, bar: HTMLElement) {
+  constructor(host: DesignHost, bar: HTMLElement, resumeCam?: FlyCam) {
     this.host = host;
     this.bar = bar;
     this.list = bar.querySelector('#designAssets') as HTMLElement;
     this.count = bar.querySelector('#designCount') as HTMLElement;
 
-    // Frame the whole hole on entry: tee to pin, with room around it. The point
-    // of fly mode is to see the hole, so it opens showing all of it.
+    // Frame the whole hole on entry — unless we are RESUMING across a rebuild,
+    // in which case the camera must come back exactly where the designer left
+    // it, or every render throws them back to the aerial and loses the spot
+    // they were working on.
     const h = host.hole;
     const span = Math.hypot(h.pin.x - h.tee.x, h.pin.y - h.tee.y);
-    this.cam = {
+    this.cam = resumeCam ?? {
       x: (h.tee.x + h.pin.x) / 2,
       y: (h.tee.y + h.pin.y) / 2,
       height: Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, span * 1.15))
@@ -117,25 +139,32 @@ export class DesignMode {
     this.markerMat.emissiveColor = new Color3(0.5, 0.4, 0.1);
     this.markerMat.alpha = 0.72;
     // The ghost reads cool against the warm placed markers, so "about to" and
-    // "already there" are never confused.
+    // "already there" are never confused; drafts read hotter than both.
     this.ghostMat = new StandardMaterial('designGhost', host.scene);
     this.ghostMat.diffuseColor = new Color3(0.5, 0.83, 1);
     this.ghostMat.emissiveColor = new Color3(0.16, 0.36, 0.5);
     this.ghostMat.alpha = 0.42;
+    this.draftMat = new StandardMaterial('designDraft', host.scene);
+    this.draftMat.diffuseColor = new Color3(1, 0.45, 0.35);
+    this.draftMat.emissiveColor = new Color3(0.5, 0.16, 0.1);
+    this.draftMat.alpha = 0.85;
 
     this.renderPalette();
     this.wireButtons();
     this.bar.style.display = 'flex';
     this.applyCam();
+    this.syncPar();
     this.refreshCount();
+  }
+
+  /** The camera, for the host to carry across a rebuild. */
+  getCamState(): FlyCam {
+    return { ...this.cam };
   }
 
   // ------------------------------------------------------------------ palette
 
   private renderPalette(): void {
-    // The whole catalog, grouped the way the builder's library groups it. A
-    // horizontal scroller rather than a panel, because the hole is the thing
-    // worth the screen.
     this.list.innerHTML = ASSET_LIBRARY.map(
       (a) => `<button class="dmAsset" data-asset="${a.id}" title="${a.note ?? ''}">${a.label}</button>`
     ).join('');
@@ -147,10 +176,7 @@ export class DesignMode {
         // have stopped wanting, without hunting for a cancel.
         this.armed = this.armed?.id === asset?.id ? null : asset;
         // Picking an asset means you intend to place it.
-        if (this.armed) {
-          this.tool = 'place';
-          this.syncToolButtons();
-        }
+        if (this.armed) this.setTool('place', true);
         this.clearGhost();
         for (const other of Array.from(this.list.querySelectorAll('.dmAsset'))) {
           other.classList.toggle('on', other === el && this.armed !== null);
@@ -170,32 +196,53 @@ export class DesignMode {
     on('designUndo', () => this.undo());
     on('designRebuild', () => this.host.rebuild());
     on('designExit', () => this.host.exit());
-    for (const t of ['place', 'erase', 'raise', 'lower'] as const) {
+    on('designSave', () => this.saveHole());
+    on('designParDown', () => this.stepPar(-1));
+    on('designParUp', () => this.stepPar(1));
+    on('designDraftDone', () => this.commitDraft());
+    on('designDraftCancel', () => this.cancelDraft());
+    for (const t of ['place', 'erase', 'raise', 'lower', ...DRAW_TOOLS] as const) {
       on(`designTool_${t}`, () => this.setTool(t));
     }
     this.syncToolButtons();
   }
 
-  private setTool(tool: DesignMode['tool']): void {
-    // Tapping the active tool returns to placing — the way out of a mode you
-    // have stopped wanting, without hunting for a cancel.
-    this.tool = this.tool === tool ? 'place' : tool;
+  private setTool(tool: Tool, force = false): void {
+    const next = !force && this.tool === tool ? 'place' : tool;
+    if (next !== this.tool) this.cancelDraft(true);
+    this.tool = next;
     if (this.tool !== 'place') this.clearGhost();
+    if (DRAW_TOOLS.includes(this.tool as DrawKind)) {
+      this.draft = { kind: this.tool as DrawKind, points: [], dots: [] };
+    }
     this.syncToolButtons();
     this.refreshCount();
   }
 
   private syncToolButtons(): void {
-    for (const t of ['place', 'erase', 'raise', 'lower']) {
+    for (const t of ['place', 'erase', 'raise', 'lower', ...DRAW_TOOLS]) {
       this.bar.querySelector(`#designTool_${t}`)?.classList.toggle('on', this.tool === t);
     }
     // The palette is only meaningful while placing.
     this.list.style.opacity = this.tool === 'place' ? '1' : '0.35';
+    const drafting = !!this.draft;
+    const done = this.bar.querySelector<HTMLElement>('#designDraftDone');
+    const cancel = this.bar.querySelector<HTMLElement>('#designDraftCancel');
+    if (done) done.style.display = drafting ? '' : 'none';
+    if (cancel) cancel.style.display = drafting ? '' : 'none';
   }
 
   private refreshCount(): void {
-    const n = this.placed.length;
-    const pending = n ? ` · ${n} placed, Rebuild to see them for real` : '';
+    const n = this.ops.length;
+    const pending = n ? ` · ${n} edit${n > 1 ? 's' : ''} this session` : '';
+    if (this.draft) {
+      const need = MIN_POINTS[this.draft.kind];
+      const got = this.draft.points.length;
+      this.count.textContent =
+        `${DRAW_HINT[this.draft.kind]}${got ? ` · ${got} point${got > 1 ? 's' : ''}` : ''}` +
+        (got >= need ? '' : ` (need ${need})`);
+      return;
+    }
     this.count.textContent =
       this.tool === 'erase'
         ? `Tap a marker to remove it${pending}`
@@ -205,7 +252,7 @@ export class DesignMode {
             ? `Tap the ground to push it DOWN${pending}`
             : this.armed
               ? `Tap the hole to place ${this.armed.label}${pending}`
-              : `Pick an asset, then tap the hole${pending}`;
+              : `Pick an asset or a draw tool${pending}`;
   }
 
   // ------------------------------------------------------------------- camera
@@ -238,25 +285,16 @@ export class DesignMode {
    * nothing. Pulling `Ray` in to fix that would grow every player's download to
    * serve an authoring tool.
    *
-   * Unprojecting the near and far plane points needs only `Matrix` and
-   * `Vector3`, both already here for the maths. Intersecting the resulting ray
-   * with the ground PLANE (rather than picking the terrain mesh) is also more
-   * robust: it always hits, and it cannot be fooled by a tree standing on the
-   * spot you are aiming at.
+   * CLIENT PIXELS ARE NOT RENDER PIXELS (retina/zoom/hardware scaling), and
+   * THE GROUND IS NOT AT ZERO (a raised green would shift the hit along the
+   * view ray) — both were real mis-placement bugs; the conversion and the
+   * ground-height refinement below are their fixes.
    */
   private pick(sx: number, sy: number): { x: number; y: number } | null {
     const engine = this.host.scene.getEngine();
     const canvas = engine.getRenderingCanvas();
     const w = engine.getRenderWidth();
     const h = engine.getRenderHeight();
-    // CLIENT PIXELS ARE NOT RENDER PIXELS.
-    //
-    // The pointer arrives in CSS pixels relative to the viewport; unproject
-    // wants render-buffer pixels relative to the canvas. On any display where
-    // the two differ — a retina phone, a browser zoom, Babylon's own hardware
-    // scaling — feeding one to the other lands the pick somewhere else
-    // entirely, and the further from the top-left corner you tap the worse it
-    // gets. That is the "things aren't placing where you click" report exactly.
     let px = sx;
     let py = sy;
     if (canvas) {
@@ -273,15 +311,6 @@ export class DesignMode {
     const far = Vector3.Unproject(new Vector3(px, py, 1), w, h, id, view, proj);
     const dir = far.subtract(near);
     if (Math.abs(dir.y) < 1e-6) return null;
-
-    // THE GROUND IS NOT AT ZERO.
-    //
-    // Solving against the y=0 plane puts the hit where the ray crosses SEA
-    // level, but the terrain the designer is looking at has height — so on a
-    // raised green or a plateau the asset landed short of (or past) the spot
-    // under the cursor, along the view direction. Two refinement steps against
-    // the real surface height converge well inside a yard, which is finer than
-    // anything placed by thumb.
     let x = 0;
     let y = 0;
     let ground = 0;
@@ -349,7 +378,8 @@ export class DesignMode {
     if (e.type === 'pointerup' && drag && !drag.moved) {
       const at = this.pick(e.clientX, e.clientY);
       if (at) {
-        if (this.tool === 'erase') this.erase(at.x, at.y);
+        if (this.draft) this.addDraftPoint(at.x, at.y);
+        else if (this.tool === 'erase') this.erase(at.x, at.y);
         else if (this.tool === 'raise') this.sculpt(at.x, at.y, 1);
         else if (this.tool === 'lower') this.sculpt(at.x, at.y, -1);
         else if (this.armed) this.place(this.armed, at.x, at.y);
@@ -364,29 +394,227 @@ export class DesignMode {
     this.applyCam();
   }
 
+  // -------------------------------------------------------------------- undo
+
+  /** Record one edit's inverse. One stack, whatever kind of edit. */
+  private pushOp(undo: () => void): void {
+    this.ops.push({ undo });
+    if (this.ops.length > MAX_OPS) this.ops.shift();
+  }
+
+  private undo(): void {
+    if (this.draft?.points.length) {
+      // Mid-draft, undo means "take back the last tap" — the draft IS the
+      // designer's working memory right now.
+      const p = this.draft.points.pop();
+      const dot = this.draft.dots.pop();
+      dot?.dispose();
+      void p;
+      this.refreshCount();
+      return;
+    }
+    this.ops.pop()?.undo();
+    this.refreshCount();
+  }
+
+  // ---------------------------------------------------------------- drawing
+
+  private addDraftPoint(x: number, y: number): void {
+    if (!this.draft) return;
+    if (this.draft.kind === 'tee') {
+      // A tee is one decision, not a loop — commit on the tap.
+      this.draft.points = [{ x, y }];
+      this.commitDraft();
+      return;
+    }
+    this.draft.points.push({ x, y });
+    const g = this.host.groundAt(x, y);
+    const dot = MeshBuilder.CreateSphere('dmDraftDot', { diameter: 7 }, this.host.scene);
+    dot.position = w2b(x, y, g + 3);
+    dot.material = this.draftMat;
+    dot.isPickable = false;
+    this.draft.dots.push(dot);
+    this.refreshCount();
+  }
+
+  private cancelDraft(keepTool = false): void {
+    if (!this.draft) return;
+    for (const d of this.draft.dots) d.dispose();
+    this.draft = null;
+    if (!keepTool) this.tool = 'place';
+    this.syncToolButtons();
+    this.refreshCount();
+  }
+
+  /**
+   * Turn the tapped draft into hole data.
+   *
+   * Every commit that changes TERRAIN (all of these do) triggers a rebuild —
+   * the paint and the physics both come from the hole data, and a drawn green
+   * you cannot see is a guess. The host resumes fly mode across the rebuild.
+   */
+  private commitDraft(): void {
+    const draft = this.draft;
+    if (!draft) return;
+    if (draft.points.length < MIN_POINTS[draft.kind]) {
+      this.count.textContent = `Need at least ${MIN_POINTS[draft.kind]} points for a ${draft.kind}`;
+      return;
+    }
+    const hole = this.host.hole as unknown as Record<string, unknown>;
+    const pts = draft.points;
+
+    if (draft.kind === 'tee') {
+      const [p] = pts;
+      const before = { tee: structuredClone(hole.tee), teeBox: structuredClone(hole.teeBox) };
+      hole.tee = { x: round1(p.x), y: round1(p.y) };
+      // The tee box faces the green — the way every authored hole orients it.
+      const green = this.host.hole.green;
+      const angle = green ? Math.atan2(green.cy - p.y, green.cx - p.x) : 0;
+      hole.teeBox = { x: round1(p.x), y: round1(p.y), w: 26, d: 18, angle: round3(angle) };
+      this.pushOp(() => {
+        hole.tee = before.tee;
+        hole.teeBox = before.teeBox;
+      });
+    } else if (draft.kind === 'green') {
+      // FIT AN ELLIPSE to the tapped loop (principal axes of the points): the
+      // designer taps the outline they want, the data model wants
+      // cx/cy/rx/ry/rot, and the fit is the translation. Tap points sit ON the
+      // outline, so the axis radius is sqrt(2)·RMS along that axis.
+      const fit = fitEllipse(pts);
+      const before = {
+        green: structuredClone(hole.green),
+        pin: structuredClone(hole.pin),
+        pins: structuredClone(hole.pins)
+      };
+      hole.green = fit;
+      hole.pin = { x: fit.cx, y: fit.cy };
+      // Authored alternate pins from the old green would now be off the new
+      // one; dropping them re-derives sane defaults downstream.
+      delete hole.pins;
+      this.pushOp(() => {
+        hole.green = before.green;
+        hole.pin = before.pin;
+        if (before.pins !== undefined) hole.pins = before.pins;
+        else delete hole.pins;
+      });
+    } else if (draft.kind === 'fairway') {
+      // The same shape the shipped courses author: a centerline and a width
+      // per point — never a hand-drawn outline.
+      const fairways = ((hole.fairway ??= []) as unknown[]);
+      const ribbon = {
+        centerline: pts.map((p) => [round1(p.x), round1(p.y)]),
+        width: pts.map(() => 110)
+      };
+      fairways.push(ribbon);
+      this.pushOp(() => {
+        const i = fairways.indexOf(ribbon);
+        if (i >= 0) fairways.splice(i, 1);
+      });
+    } else {
+      // water / bunker / waste → a polygon hazard, exactly as the plan draws
+      // them. WASTE is a bunker with a flag, not a type of its own.
+      const hazards = ((hole.hazards ??= []) as unknown[]);
+      const polygon = pts.map((p) => [round1(p.x), round1(p.y)]);
+      const hz =
+        draft.kind === 'waste'
+          ? { type: 'bunker', waste: true, polygon }
+          : { type: draft.kind, polygon };
+      hazards.push(hz);
+      this.pushOp(() => {
+        const i = hazards.indexOf(hz);
+        if (i >= 0) hazards.splice(i, 1);
+      });
+    }
+
+    this.cancelDraft();
+    // See it for real: terrain paint and physics both come from the data just
+    // written, and the host brings fly mode straight back.
+    this.host.rebuild();
+  }
+
+  // ------------------------------------------------------------ par and save
+
+  private syncPar(): void {
+    const el = this.bar.querySelector('#designParVal');
+    if (el) el.textContent = `Par ${this.host.hole.par ?? '—'}`;
+  }
+
+  private stepPar(dir: 1 | -1): void {
+    const hole = this.host.hole as unknown as Record<string, unknown>;
+    const before = hole.par as number | undefined;
+    const next = Math.max(3, Math.min(6, ((before ?? 4) as number) + dir));
+    if (next === before) return;
+    hole.par = next;
+    // A hand-set par is a decision; the builder's yardage derivation must not
+    // argue with it afterwards.
+    hole.parLocked = true;
+    this.pushOp(() => {
+      hole.par = before;
+    });
+    this.syncPar();
+  }
+
+  /**
+   * Save the hole, as data, to the device.
+   *
+   * localStorage rather than a download prompt because saving must be
+   * reflexive — one tap mid-flight — and the builder's side sheet lists these
+   * saves for reload and export. Keyed by name; saving again under the same
+   * name overwrites, which is what "save" means everywhere else.
+   */
+  private saveHole(): void {
+    const hole = this.host.hole;
+    const name = (hole as unknown as { name?: string }).name || `Hole ${hole.number ?? 1}`;
+    try {
+      const raw = localStorage.getItem(SAVES_KEY);
+      const saves = (raw ? JSON.parse(raw) : []) as Array<{ name: string; at: number; hole: unknown }>;
+      const entry = { name, at: Date.now(), hole: structuredClone(hole) };
+      const i = saves.findIndex((s) => s.name === name);
+      if (i >= 0) saves[i] = entry;
+      else saves.push(entry);
+      localStorage.setItem(SAVES_KEY, JSON.stringify(saves.slice(-30)));
+      this.count.textContent = `Saved "${name}" — it is in the builder's Saved holes list`;
+    } catch {
+      this.count.textContent = 'Could not save (storage unavailable)';
+    }
+  }
+
   // ---------------------------------------------------------------- placement
 
   /**
-   * Show what is about to be placed, where it is about to go, at its real size.
-   *
-   * Placing blind — pick a chip, tap, find out — makes every placement a guess,
-   * and a footprint is not something you can estimate from a label. The ghost is
-   * the same ring the marker uses, in a cool colour so "about to" and "already
-   * there" never read as the same thing.
+   * Show what is about to be placed, where it is about to go, at its real
+   * size AND ROUGH SHAPE. A flat disc under a tree chip answered "where" but
+   * not "what" — the proxy is still an honest marker (it never pretends to be
+   * the tree), but a tree ghost now stands tree-height, a rock ghost has bulk,
+   * and a hazard ghost stays a footprint.
    */
   private showGhost(x: number, y: number): void {
     if (this.tool !== 'place' || !this.armed) return this.clearGhost();
-    const r = Math.max(2, this.armed.radius ?? 30);
+    const a = this.armed;
+    const r = Math.max(2, a.radius ?? 30);
     const g = this.host.groundAt(x, y);
-    if (!this.ghost || Math.abs((this.ghost.metadata as number) - r) > 0.01) {
+    const key = `${a.kind}:${r}`;
+    if (!this.ghost || this.ghost.metadata !== key) {
       this.clearGhost();
-      this.ghost = MeshBuilder.CreateDisc('dmGhost', { radius: r, tessellation: 24 }, this.host.scene);
-      this.ghost.rotation.x = Math.PI / 2;
+      if (a.kind === 'trees') {
+        // A stand reads as a trunk-and-canopy column at plausible height.
+        this.ghost = MeshBuilder.CreateCylinder(
+          'dmGhost',
+          { height: r * 2.4, diameterTop: r * 1.6, diameterBottom: r * 0.5, tessellation: 12 },
+          this.host.scene
+        );
+      } else if (a.kind === 'rock' || a.kind === 'landform' || a.kind === 'prop') {
+        this.ghost = MeshBuilder.CreateBox('dmGhost', { width: r * 1.6, depth: r * 1.6, height: r }, this.host.scene);
+      } else {
+        this.ghost = MeshBuilder.CreateDisc('dmGhost', { radius: r, tessellation: 24 }, this.host.scene);
+        this.ghost.rotation.x = Math.PI / 2;
+      }
       this.ghost.material = this.ghostMat;
       this.ghost.isPickable = false;
-      this.ghost.metadata = r;
+      this.ghost.metadata = key;
     }
-    this.ghost.position = w2b(x, y, g + 0.4);
+    const lift = a.kind === 'trees' ? r * 1.2 : a.kind === 'rock' || a.kind === 'landform' || a.kind === 'prop' ? r * 0.5 : 0.4;
+    this.ghost.position = w2b(x, y, g + lift);
   }
 
   private clearGhost(): void {
@@ -396,10 +624,8 @@ export class DesignMode {
 
   /**
    * Remove the nearest thing placed in this session, within a generous reach.
-   *
-   * Only this session's placements: the hole arrived with geometry authored on
-   * the plan, and letting a stray tap delete a fairway bunker somebody drew
-   * deliberately would be a much worse bug than not having an eraser.
+   * Only this session's placements — a stray tap must not delete a fairway
+   * bunker somebody authored deliberately.
    */
   private erase(x: number, y: number): void {
     let best = -1;
@@ -412,51 +638,54 @@ export class DesignMode {
         best = i;
       }
     }
-    // Reach scales with the marker so a big water hazard is as easy to hit as a
-    // stone, and a miss is a miss rather than a surprise deletion far away.
     if (best < 0 || bestD > Math.max(30, (this.placed[best].marker.metadata as number) ?? 30)) {
       this.count.textContent = 'Nothing of yours there to erase';
       return;
     }
-    this.removeAt(best);
+    const entry = this.placed[best];
+    this.removeEntry(entry);
+    // Undo of an erase puts the value back and re-marks it.
+    const hole = this.host.hole as unknown as Record<string, unknown[] | undefined>;
+    this.pushOp(() => {
+      (hole[entry.field] ??= []).push(entry.value);
+      const m = entry.marker.position;
+      this.placed.push({ field: entry.field, value: entry.value, marker: this.marker(m.x, -m.z, (entry.marker.metadata as number) ?? 30) });
+    });
+    this.refreshCount();
   }
 
   /**
    * Push the ground up or down under the tap.
    *
-   * Written as an ordinary `elevation` control point — the same thing the plan's
-   * mound/hollow tools produce and the same thing the terrain compiler reads —
-   * so sculpting from the air and shaping on the plan are one feature with one
-   * data model. Repeated taps on the same spot ACCUMULATE rather than stacking
-   * new points, which is what makes it feel like pushing clay.
+   * Written as an ordinary `elevation` control point — the same thing the
+   * plan's mound/hollow tools produce and the same thing the terrain compiler
+   * reads. Repeated taps on the same spot ACCUMULATE rather than stacking new
+   * points, which is what makes it feel like pushing clay.
    */
   private sculpt(x: number, y: number, dir: 1 | -1): void {
-    const STEP = 8; // ~10 ft per push (the vertical unit is ~1.25 ft)
+    const STEP = 8; // ~12 ft per push (the vertical unit is ~1.5 ft)
     const R = 110;
     const hole = this.host.hole as unknown as Record<string, Array<Record<string, number>>>;
     const list = (hole.elevation ??= []);
-    // Reuse a nearby point of my own making rather than piling up control
-    // points — a hundred overlapping domes is unreadable on the plan and slow
-    // to compile.
     const mine = this.placed.filter((p) => p.field === 'elevation');
     for (const p of mine) {
       const m = p.marker.position;
       if (Math.hypot(m.x - x, -m.z - y) < R * 0.5) {
-        const idx = p.index;
-        const pt = list[idx];
-        if (pt) {
-          pt.h = Math.max(-90, Math.min(90, (pt.h ?? 0) + STEP * dir));
-          this.refreshCount();
-          return;
-        }
+        const pt = p.value as Record<string, number>;
+        const before = pt.h ?? 0;
+        pt.h = Math.max(-90, Math.min(90, before + STEP * dir));
+        this.pushOp(() => {
+          pt.h = before;
+        });
+        this.refreshCount();
+        return;
       }
     }
-    list.push({ x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, h: STEP * dir, r: R });
-    this.placed.push({
-      field: 'elevation',
-      index: list.length - 1,
-      marker: this.marker(x, y, R * 0.5)
-    });
+    const value = { x: round1(x), y: round1(y), h: STEP * dir, r: R };
+    list.push(value);
+    const entry = { field: 'elevation', value, marker: this.marker(x, y, R * 0.5) };
+    this.placed.push(entry);
+    this.pushOp(() => this.removeEntry(entry));
     this.refreshCount();
   }
 
@@ -468,7 +697,9 @@ export class DesignMode {
     const hole = this.host.hole as unknown as Record<string, unknown[]>;
     const list = (hole[p.field] ??= []);
     list.push(p.value);
-    this.placed.push({ field: p.field, index: list.length - 1, marker: this.marker(x, y, asset.radius ?? 30) });
+    const entry = { field: p.field, value: p.value as unknown, marker: this.marker(x, y, asset.radius ?? 30) };
+    this.placed.push(entry);
+    this.pushOp(() => this.removeEntry(entry));
     this.refreshCount();
   }
 
@@ -483,7 +714,6 @@ export class DesignMode {
     disc.material = this.markerMat;
     disc.isPickable = false;
     const post = MeshBuilder.CreateCylinder('dmPost', { height: r * 2.2, diameter: Math.max(0.8, r * 0.18) }, this.host.scene);
-    post.position = w2b(x, y, g + r * 1.1);
     post.material = this.markerMat;
     post.isPickable = false;
     post.parent = disc;
@@ -493,50 +723,100 @@ export class DesignMode {
     return disc;
   }
 
-  private undo(): void {
-    if (this.placed.length) this.removeAt(this.placed.length - 1);
-  }
-
-  /**
-   * Remove one placement, from the hole and from the screen.
-   *
-   * Removing from the MIDDLE of an array shifts every later index, so the
-   * bookkeeping of everything placed after it has to shift too — otherwise the
-   * next erase deletes the wrong thing, which is the sort of bug that only
-   * shows up after ten minutes of work.
-   */
-  private removeAt(i: number): void {
-    const entry = this.placed[i];
-    if (!entry) return;
+  /** Remove a session placement: value out of the hole (BY REFERENCE — an
+   *  index would rot the moment anything else touched the array), marker off
+   *  the screen, entry out of the session list. */
+  private removeEntry(entry: { field: string; value: unknown; marker: Mesh }): void {
     const hole = this.host.hole as unknown as Record<string, unknown[] | undefined>;
-    hole[entry.field]?.splice(entry.index, 1);
-    for (const other of this.placed) {
-      if (other !== entry && other.field === entry.field && other.index > entry.index) other.index -= 1;
-    }
-    this.placed.splice(i, 1);
+    const list = hole[entry.field];
+    const i = list ? list.indexOf(entry.value) : -1;
+    if (list && i >= 0) list.splice(i, 1);
+    const pi = this.placed.indexOf(entry);
+    if (pi >= 0) this.placed.splice(pi, 1);
     entry.marker.getChildMeshes().forEach((m) => m.dispose());
     entry.marker.dispose();
     this.markers = this.markers.filter((m) => m !== entry.marker);
     this.refreshCount();
   }
 
-  /** How many placements are waiting for a rebuild — the host uses this to warn
-   *  before leaving. */
+  /** How many edits are waiting — the host uses this to warn before leaving. */
   get pending(): number {
-    return this.placed.length;
+    return this.ops.length;
   }
 
   dispose(): void {
     this.bar.style.display = 'none';
+    this.cancelDraft();
     this.clearGhost();
     this.ghostMat.dispose();
+    this.draftMat.dispose();
     for (const m of this.markers) {
       m.getChildMeshes().forEach((c) => c.dispose());
       m.dispose();
     }
     this.markers = [];
     this.placed = [];
+    this.ops = [];
     this.markerMat.dispose();
     this.pointers.clear();
   }
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+function round3(v: number): number {
+  return Math.round(v * 1000) / 1000;
+}
+
+/**
+ * Fit an ellipse to a tapped outline: centroid + principal axes.
+ *
+ * The eigenvectors of the 2×2 covariance give the axes; points tapped ON an
+ * ellipse's outline have variance a²/2 along its semi-axis a, so the radius is
+ * √2·RMS. Radii are floored so three careless taps still make a green a cup
+ * can sit on, and capped against absurdity.
+ */
+export function fitEllipse(pts: Array<{ x: number; y: number }>): {
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  rot: number;
+} {
+  const n = pts.length;
+  const cx = pts.reduce((a, p) => a + p.x, 0) / n;
+  const cy = pts.reduce((a, p) => a + p.y, 0) / n;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (const p of pts) {
+    const dx = p.x - cx;
+    const dy = p.y - cy;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+  }
+  sxx /= n;
+  syy /= n;
+  sxy /= n;
+  // Eigen-decomposition of [[sxx,sxy],[sxy,syy]].
+  const tr = sxx + syy;
+  const det = sxx * syy - sxy * sxy;
+  const disc = Math.sqrt(Math.max(0, (tr * tr) / 4 - det));
+  const l1 = tr / 2 + disc;
+  const l2 = Math.max(0, tr / 2 - disc);
+  let rot = Math.abs(sxy) < 1e-9 && sxx >= syy ? 0 : Math.atan2(l1 - sxx, sxy || 1e-9);
+  // An ellipse's rotation is π-periodic — fold into (-π/2, π/2] so a fit that
+  // lands at ~π writes ~0 into the JSON, like every authored green.
+  while (rot > Math.PI / 2) rot -= Math.PI;
+  while (rot <= -Math.PI / 2) rot += Math.PI;
+  const clampR = (v: number): number => Math.max(25, Math.min(140, v));
+  return {
+    cx: round1(cx),
+    cy: round1(cy),
+    rx: round1(clampR(Math.sqrt(2 * l1))),
+    ry: round1(clampR(Math.sqrt(2 * l2))),
+    rot: round3(rot)
+  };
 }

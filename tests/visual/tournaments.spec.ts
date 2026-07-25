@@ -10,9 +10,8 @@ test('online tournaments overlay opens from the menu', async ({ page }) => {
   // spec ABOUT that surface asks for the un-stripped game. Not a stale
   // expectation — a different product shape, and both are real.
   await page.goto('/?ff.focusedGame=off');
-  // Online Tournaments is a Compete destination (it used to hang off the
-  // bottom of the setup wizard).
-  await openDestination(page, 'compete');
+  // Online Tournaments lives in the Today pane now (outside the strip-down).
+  await openDestination(page, 'today');
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#tournaments .recInner');
@@ -62,7 +61,7 @@ test('create a tournament surfaces a shareable code', async ({ page }) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(store[path] ?? null) });
   });
   await page.goto('/?lb=https://rtdb.test&ff.focusedGame=off');
-  await openDestination(page, 'compete');
+  await openDestination(page, 'today');
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('#tourCreate');

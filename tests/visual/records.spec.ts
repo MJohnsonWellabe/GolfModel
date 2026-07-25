@@ -1,16 +1,13 @@
 import { expect, test } from '@playwright/test';
-import { openDestination, seedReturningDevice } from './support/wizard';
+import { seedReturningDevice } from './support/wizard';
 
 /** Records covers every course via tabs — not just the last-played one. */
 test('records overlay offers a tab per course', async ({ page }) => {
   await seedReturningDevice(page);
   await page.goto('/');
-  // Records is a Compete destination. It used to hang off the bottom of the
-  // setup wizard, so the only way to reach it was to start choosing a course
-  // and then not do it.
-  await openDestination(page, 'compete');
-  await page.waitForSelector('#recordsLink');
-  await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('click')));
+  // Leaderboards is a first-class landing tile now — one tap.
+  await page.waitForSelector('#destBoards');
+  await page.evaluate(() => (document.getElementById('destBoards') as HTMLElement).dispatchEvent(new Event('click')));
   await page.waitForSelector('.recTab');
   // ONE TAB PER COURSE — derived, not remembered. This was pinned to 4 and went
   // red the moment the roster grew to 7; a hard-coded count tests the roster's

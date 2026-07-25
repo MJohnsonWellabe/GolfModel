@@ -137,7 +137,7 @@ export function structuralIssues(hole: HoleData): StructuralIssue[] {
   for (const [i, e] of (hole.elevation ?? []).entries()) {
     if (!(e.r > 0)) err(`Elevation point ${i + 1} has no radius — it does nothing.`);
     if (Math.abs(e.h) > 120) {
-      warn(`Elevation point ${i + 1} is ${e.h} units (~${Math.round(e.h * 1.25)} ft) — check the unit.`);
+      warn(`Elevation point ${i + 1} is ${e.h} units (~${Math.round(e.h * 1.5)} ft) — check the unit.`);
     }
   }
   const w = hole.world;
@@ -240,7 +240,7 @@ export interface HoleBrief {
 
 export const HOLE_BRIEF_CONSTRAINTS: string[] = [
   'Return ONLY the JSON object, same shape, with `hole` edited. No prose.',
-  'World px: 1 yd = 3 px. Elevation `h` is in ~1.25 ft units, NOT yards.',
+  `World px: 1 yd = ${PX_PER_YARD} px. Elevation \`h\` is in ~1.5 ft units, NOT yards.`,
   'The pin must stay inside `green` (or `green2`).',
   'Keep `world`, `par` and `number` unchanged unless the intent asks otherwise.',
   'Hazard polygons are closed rings of [x, y] pairs in world px.',

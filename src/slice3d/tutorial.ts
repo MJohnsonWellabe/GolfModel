@@ -180,7 +180,7 @@ export class TutorialCoach {
           card: flag('dragSwing')
             ? {
                 title: 'Take your swing',
-                body: 'Follow the moving dot around the pad. How far you get is power; staying on the line and in time is the strike.',
+                body: 'Follow the dot straight down, then back up. Stay with its rhythm and on its line for a perfect strike.',
                 highlight: 'tracePad',
                 cta: 'Let me try',
                 step: 5

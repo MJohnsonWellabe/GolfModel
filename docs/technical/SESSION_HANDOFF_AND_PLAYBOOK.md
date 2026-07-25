@@ -142,7 +142,7 @@ everyone): `newCourses`, `courseRebuilds`, `boundedWorld`, plus the always-on po
 - **Gates (all must pass):** `npx tsc --noEmit`; `npx vitest run` (**902** tests) — notably
   `pinFlatness` (|grad| ≤ 0.11 over a 4 ft disc), `rebuilds` (puttable gradient + playability
   finish-rate), `newCourses`, `terrainPass`, `boundary`, `treeHitbox` (key coverage).
-- Vertical unit ≈ **1.25 ft** (not yards); horizontal `PX_PER_YARD = 2` (50 world px = 25 yд).
+- Vertical unit ≈ **1.5 ft** (not yards); horizontal `PX_PER_YARD = 2` (50 world px = 25 yd).
 - **Commit frequently** — a mid-session container rollback cost uncommitted work once.
 
 ## 7. Outstanding roadmap

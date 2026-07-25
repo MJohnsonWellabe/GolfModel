@@ -147,7 +147,7 @@ import { ClubTuning, Golfer3D } from './golfer3d';
 import { DomMeter, MeterContext } from './meter3d';
 import { readTrace, resolveTraceSwing, type TraceSample, type TraceState } from '../core/input/TraceSwing';
 import { TracePad } from './tracePad';
-import { DesignMode } from './designMode';
+import { DesignMode, type FlyCam } from './designMode';
 import { ShotCapture } from './shotCapture';
 
 // ------------------------------------------------------------------- boot
@@ -1402,7 +1402,7 @@ class HoleScene {
    * meaningless while you are placing trees, and leaving them up would invite
    * a tap that plays a shot into a hole you are halfway through editing.
    */
-  toggleDesign(on = !this.design): void {
+  toggleDesign(on = !this.design, resumeCam?: FlyCam): void {
     if (on === !!this.design) return;
     if (!on) {
       this.design?.dispose();
@@ -1425,10 +1425,18 @@ class HoleScene {
           this.camTarget.fov = 1.05;
         },
         groundAt: (x, y) => this.gh(x, y),
-        rebuild: () => rebuildBuilderPreview(this.hole),
+        // The rebuild must not END the design session: committing a drawn green
+        // triggers one, and being thrown back to address after every draw would
+        // break the loop the mode exists for (draw → see it → keep drawing).
+        // The camera travels across so the designer comes back to their spot.
+        rebuild: () => {
+          pendingFlyResume = this.design?.getCamState() ?? null;
+          rebuildBuilderPreview(this.hole);
+        },
         exit: () => this.toggleDesign(false)
       },
-      bar
+      bar,
+      resumeCam
     );
     designBtn.classList.add('on');
     this.setChromeForDesign(true);
@@ -1493,6 +1501,12 @@ class HoleScene {
     this.state.strokes = strokes;
     this.dropAt(x, y);
     showMsg(`Back where you left it — ${strokes} played`, 2200);
+  }
+
+  /** The course's population-queue completion — everything planted. Used by
+   *  the capture harness and available to specs via __slice3d. */
+  natureReady(): Promise<void> {
+    return this.course3d.natureReady;
   }
 
   /** Test-only: current refresh rates of the two per-frame RTTs the perf pacing
@@ -3313,9 +3327,9 @@ class HoleScene {
       // the moment the player commits rather than from when the pad appeared.
       tracePad.begin(performance.now());
       const first: TraceSample = { ...tracePad.toPad(e.clientX, e.clientY), t: 0 };
-      this.trace = { path: [first], state: readTrace([first]) };
+      this.trace = { path: [first], state: readTrace([first], tracePad.targetDepth()) };
       tracePad.update(first, this.trace.state);
-      promptEl.textContent = 'Follow the dot';
+      promptEl.textContent = 'Follow the dot — down, then back up';
     };
     tracePadEl.addEventListener('pointerdown', this.onTraceDown);
 
@@ -3329,7 +3343,7 @@ class HoleScene {
       const now = performance.now();
       const sample: TraceSample = { ...tracePad.toPad(e.clientX, e.clientY), t: tracePad.elapsed(now) };
       drag.path.push(sample);
-      drag.state = readTrace(drag.path);
+      drag.state = readTrace(drag.path, tracePad.targetDepth());
       tracePad.update(sample, drag.state);
       promptEl.textContent = drag.state.engaged ? 'Release to strike' : 'Follow the dot';
     };
@@ -4159,6 +4173,16 @@ function playHole(): void {
     }
   });
   exposeDebug();
+  // A builder-preview rebuild triggered from fly mode comes straight back to
+  // fly mode, camera and all — the rebuild is a render step in the drawing
+  // loop, not an exit from it.
+  if (pendingFlyResume && sel.courseId === BUILDER_COURSE_ID) {
+    const cam = pendingFlyResume;
+    pendingFlyResume = null;
+    current.toggleDesign(true, cam);
+  } else {
+    pendingFlyResume = null;
+  }
 }
 
 /** The canonical Play Next rotation (Part 1): a simple, predictable order the
@@ -4166,7 +4190,7 @@ function playHole(): void {
 // The expansion ids ride at the end; nextCourseIdAfter already skips any id
 // missing from COURSES, so with the newCourses flag off the rotation is the
 // original four and with it on the two new courses join the loop.
-const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley'];
+const PLAY_NEXT_ROTATION = ['sablebay', 'wildwood', 'timberline', 'portjohnson', 'redhollow', 'wildvalley', 'maplevale'];
 function nextCourseIdAfter(cur: string): string {
   const i = PLAY_NEXT_ROTATION.indexOf(cur);
   for (let step = 1; step <= PLAY_NEXT_ROTATION.length; step++) {
@@ -4878,6 +4902,7 @@ function renderProfile(tab?: ProfileTab): void {
           ? `<label class="setRow"><span>Record shot clips</span>` +
             `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
           : '') +
+        `<a class="ghostBtn aboutGameRow" href="marketing.html">ℹ️ About the game</a>` +
         `<div id="resetZone" class="resetZone">` +
         `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
         `</div>`
@@ -6272,6 +6297,7 @@ function exposeDebug(): void {
         poseActive: (p: number) => current?.poseActive(p),
         swingActive: () => current?.swingActive(),
         skipIntro: () => current?.skipIntro(),
+        natureReady: () => current?.natureReady(),
         // FLY MODE, so a spec can drive the whole loop — enter, place on the
         // rendered hole, and check the placement reached the hole DATA rather
         // than inferring it from pixels.
@@ -6280,6 +6306,14 @@ function exposeDebug(): void {
         holeCounts: () => ({
           props: (current?.hole.props ?? []).length,
           hazards: (current?.hole.hazards ?? []).length
+        }),
+        // The drawn shapes, for the builder-engine gates: a green drawn from
+        // the air must land in the DATA, not just on the screen.
+        holeShape: () => ({
+          tee: { ...(current?.hole.tee ?? { x: 0, y: 0 }) },
+          green: current?.hole.green ? { ...current.hole.green } : null,
+          par: current?.hole.par,
+          fairways: (current?.hole.fairway ?? []).length
         }),
         // Play a real shot and settle it. Together these let a spec play a
         // whole round through the LIVE code path — which is the only way to
@@ -6606,6 +6640,9 @@ let activeGhost: GhostRun | null = null;
 /** A recording armed to be raced by the NEXT startRound (the landing/results
  *  entry points set this, then start the round). */
 let pendingGhost: RoundRecording | null = null;
+/** Fly-mode camera carried across a builder-preview rebuild, so committing a
+ *  drawn green does not end the design session. Consumed by playHole. */
+let pendingFlyResume: FlyCam | null = null;
 
 /** Reserved course id the generated Hole of the Day is registered under, so it
  *  flows through the same lookup-by-id path as every authored course. */
@@ -7117,8 +7154,17 @@ function renderLockerRoom(): void {
     `</div>`;
   // 'click' — see the #lkLock comment below: hiding a full-screen overlay on
   // the down-stroke lets the release land on whatever is exposed underneath.
-  lockerEl.querySelector('#lkSeason')!.addEventListener('click', () => renderSeasonPass());
-  lockerEl.querySelector('#lkStore')!.addEventListener('click', () => renderStore());
+  // Leave the room first: with the locker left open it painted OVER the
+  // overlay it had just launched (all three shared z-index 25 and the locker
+  // is last in the DOM), so these two buttons looked dead until Done.
+  lockerEl.querySelector('#lkSeason')!.addEventListener('click', () => {
+    lockerEl.style.display = 'none';
+    renderSeasonPass();
+  });
+  lockerEl.querySelector('#lkStore')!.addEventListener('click', () => {
+    lockerEl.style.display = 'none';
+    renderStore();
+  });
 
   lockerEl.querySelectorAll('.lkTab').forEach((el) =>
     el.addEventListener('pointerdown', () => {
@@ -7401,13 +7447,14 @@ function refreshProgressSurfaces(): void {
 // it would be worse than the stack it replaced.
 // ---------------------------------------------------------------------------
 
-type DestId = 'today' | 'compete' | 'locker' | 'more';
+type DestId = 'today' | 'locker' | 'more';
 
 const DEST_TITLES: Record<DestId, string> = {
   today: 'Today',
-  compete: 'Compete',
   locker: 'Locker',
-  more: 'More'
+  // The id stays 'more' (it is baked into markup, specs and muscle memory);
+  // only what the player reads changed.
+  more: 'Profile'
 };
 
 /** Level · streak · coins, in one quiet row. Replaces three separate banners
@@ -7423,10 +7470,35 @@ function updateProgressStrip(newPlayer: boolean): void {
   }
   const { level } = levelProgress(SEASON_1, profile.season.xp);
   const streak = profile.retention.streak.current;
+  // BUTTONS, not readouts. Each chip is the front door to the thing it
+  // reports: the level to the pass that pays it, the streak to today's
+  // challenge that feeds it, the coins to the store that spends them. Bound on
+  // 'click' (the tap-through rule — see the destination tiles).
   el.innerHTML =
-    `<span>Level ${level}</span>` +
-    `<span>${streak > 0 ? `🔥 ${streak} day${streak > 1 ? 's' : ''}` : 'No streak yet'}</span>` +
-    `<span>🪙 ${profile.coins}</span>`;
+    `<button id="psLevel">Level ${level}</button>` +
+    `<button id="psStreak">${streak > 0 ? `🔥 ${streak} day${streak > 1 ? 's' : ''}` : '🔥 Daily'}</button>` +
+    `<button id="psCoins">🪙 ${profile.coins}</button>`;
+  document.getElementById('psLevel')!.addEventListener('click', () => renderSeasonPass());
+  document.getElementById('psStreak')!.addEventListener('click', () => openDailyPopup());
+  document.getElementById('psCoins')!.addEventListener('click', () => renderStore());
+}
+
+/**
+ * THE DAILY-CHALLENGE POPUP — the 🔥 chip's destination.
+ *
+ * The daily challenge is deliberately passive (it evaluates at the end of ANY
+ * round — ProgressionEngine.applyRound), which made it invisible: a status
+ * card buried in a pane, with nothing to tap. It is the reason to come back
+ * today, so it gets a surface of its own: what the challenge is, whether it is
+ * done, what the streak is worth, and one button that starts a round.
+ */
+function openDailyPopup(): void {
+  updateDailyBanner(); // repaint #dailyCard (it lives inside the popup now)
+  document.getElementById('dailyPopup')?.classList.add('on');
+}
+
+function closeDailyPopup(): void {
+  document.getElementById('dailyPopup')?.classList.remove('on');
 }
 
 /**
@@ -7463,9 +7535,14 @@ function updateDestinations(newPlayer: boolean): void {
         : 'All done — back tomorrow';
   set('today', !newPlayer, todaySub, dailyHoleOpen || !challengeDone);
 
-  // COMPETE — name the course you would actually be picking between.
-  const courseCount = Object.keys(COURSES).length;
-  set('compete', true, `${courseCount} courses · records · tournaments`);
+  // LEADERBOARDS — the Compete door collapsed into the one thing behind it
+  // once tournaments were stripped: a door with one thing behind it IS that
+  // thing. Direct button, no sheet.
+  const boards = document.getElementById('destBoards');
+  if (boards) {
+    const sub = boards.querySelector('.dtSub');
+    if (sub) sub.textContent = flag('recordBoards') ? 'drives · aces · averages' : 'best rounds by course';
+  }
 
   // LOCKER — an unclaimed reward is the one thing here worth interrupting for.
   const claimable = seasonClaimableCount();
@@ -7499,7 +7576,7 @@ function updateDestinations(newPlayer: boolean): void {
   show('landingBuilder', devToolsActive());
   const tourny = document.getElementById('tournyLink');
   // Online tournaments: a whole matchmaking surface for a game whose social
-  // feature is now a link you send a friend.
+  // feature is now a link you send a friend. Lives in Today when it lives.
   if (tourny) tourny.style.display = focused ? 'none' : '';
 }
 
@@ -8376,9 +8453,10 @@ function updateLearnEntry(newPlayer: boolean): void {
   learn.classList.toggle('heroLearn', hero);
   play.classList.toggle('demoted', hero);
   learn.textContent = hero ? '🎓 New here? Learn to play →' : '🎓 Learn to play';
-  // Lead with the lesson for newcomers; otherwise keep it just below Play.
-  if (hero) play.insertAdjacentElement('beforebegin', learn);
-  else play.insertAdjacentElement('afterend', learn);
+  // Learn sits ABOVE the tee-off actions for everyone now (owner call): the
+  // markup order is the order, and only the STYLING changes with experience.
+  // The old DOM swap moved the node per repaint, which is exactly the kind of
+  // mutation that makes a layout impossible to reason about.
 }
 
 /**
@@ -8401,18 +8479,16 @@ function quickPlay(): void {
   startRound(0);
 }
 
-/** Show/hide the explicit wizard entry, which only exists while Play Now is
- *  the one-tap action (with `quickPlay` off, Play Now IS the wizard). */
+/** The two tee-off actions: Quick Start says exactly what it will do, and
+ *  Choose-your-course exists only while quickPlay makes Quick Start one-tap
+ *  (with the flag off, the primary button IS the wizard). */
 function updateSetupEntry(): void {
-  const btn = document.getElementById('landingSetup');
+  const btn = document.getElementById('landingChoose');
   const course = COURSES[courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES)];
-  if (btn) {
-    btn.style.display = flag('quickPlay') ? '' : 'none';
-    btn.textContent = `⛳ Course & mode · ${course?.name ?? 'choose'}`;
-  }
-  // NAME THE COURSE AND THE GOLFER ON THE PLAY BUTTON.
+  if (btn) btn.style.display = flag('quickPlay') ? '' : 'none';
+  // NAME THE COURSE AND THE GOLFER ON THE BUTTON.
   //
-  // One-tap Play tees off on whatever this device played last, and the golfer is
+  // Quick Start tees off on whatever this device played last, and the golfer is
   // re-rolled every round until a loadout is locked — so the two variables that
   // move a score most were both invisible at the moment of committing to a
   // round. Simulation puts the course at up to ~2 strokes across the roster and
@@ -8424,7 +8500,7 @@ function updateSetupEntry(): void {
     ? archetypeById(profile.archetype).name
     : 'random golfer';
   play.innerHTML =
-    `<span class="lpMain">Play Now</span>` +
+    `<span class="lpMain">▶ Quick Start</span>` +
     `<span class="lpSub">${escapeHtml(course?.name ?? 'choose a course')} · ${escapeHtml(g)}</span>`;
 }
 
@@ -8771,7 +8847,16 @@ document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
   if (flag('quickPlay')) quickPlay();
   else showSetup();
 });
-document.getElementById('landingSetup')?.addEventListener('pointerdown', () => showSetup());
+document.getElementById('landingChoose')?.addEventListener('click', () => showSetup());
+document.getElementById('destBoards')?.addEventListener('click', () => renderRecords());
+document.getElementById('dpPlay')?.addEventListener('click', () => {
+  closeDailyPopup();
+  quickPlay();
+});
+document.getElementById('dpClose')?.addEventListener('click', () => closeDailyPopup());
+document.getElementById('dailyPopup')?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeDailyPopup();
+});
 document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
 document.getElementById('landingPractice')?.addEventListener('pointerdown', () => startPractice());
 document.getElementById('landingSeason')!.addEventListener('click', () => renderSeasonPass());
@@ -8783,7 +8868,6 @@ document.getElementById('landingAdmin')!.addEventListener('click', () => renderP
 document.getElementById('landingDev')!.addEventListener('click', () => renderProfile('dev'));
 document.getElementById('landingLocker')!.addEventListener('click', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
-document.getElementById('recordsLink')!.addEventListener('click', () => renderRecords());
 document.getElementById('tournyLink')!.addEventListener('click', () => renderTournaments());
 // The four doors. Delegated off each tile rather than bound by id so adding a
 // destination is a markup change.
@@ -8795,7 +8879,9 @@ document.getElementById('tournyLink')!.addEventListener('click', () => renderTou
 // More navigated straight off the page. Same trap as the #lkLock note in
 // renderLockerRoom. A menu that opens on the release is imperceptibly slower
 // and cannot do this.
-for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile'))) {
+// Only tiles that carry a data-dest open the sheet — Leaderboards is a tile
+// by LOOK but a direct button by behaviour.
+for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile[data-dest]'))) {
   tile.addEventListener('click', () => openDest(tile.dataset.dest as DestId));
 }
 document.getElementById('destSheetClose')!.addEventListener('pointerdown', () => closeDest());
@@ -8855,12 +8941,20 @@ async function startShotCapture(): Promise<void> {
   if (SHOT.boundary) scene.showBoundary();
   void Promise.all([
     scene.bodiesReady,
-    new Promise((resolve) => scene.scene.executeWhenReady(() => resolve(null)))
+    new Promise((resolve) => scene.scene.executeWhenReady(() => resolve(null))),
+    // THE SCATTER HAS TO ACTUALLY BE PLANTED. Ground scatter, garden beds and
+    // flowers drain from a per-frame population queue at ~3.5 ms/frame, and
+    // the beds are the LAST rows in it — so the old fixed 1500 ms settle
+    // routinely fired with the trees in and the flowers not, which is why the
+    // menus' background art had bare beds. `natureReady` resolves when the
+    // queue is empty (the intro flyover already waits on it); the race caps a
+    // bed-heavy worst case at the same ceiling the mirror refill uses.
+    Promise.race([scene.natureReady(), new Promise((resolve) => setTimeout(resolve, 8000))])
   ]).then(() => {
-    // Settle window for async prop glbs (trees/grass) instancing in
+    // One last beat for in-flight glb instancing to hit the GPU.
     setTimeout(() => {
       (window as unknown as { __shotReady: boolean }).__shotReady = true;
-    }, 1500);
+    }, 600);
   });
 }
 

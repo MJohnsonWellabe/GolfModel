@@ -735,6 +735,50 @@
         font-size: 12.5px;
         font-weight: 800;
       }
+      #designDrawTools {
+        display: flex;
+        gap: 6px;
+        flex: 0 0 auto;
+        margin-top: 4px;
+        overflow-x: auto;
+      }
+      #designDrawTools .dmTool {
+        flex: 0 0 auto;
+        min-height: 38px;
+        padding: 0 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.07);
+        color: #dfeeda;
+        font: inherit;
+        font-size: 12.5px;
+        font-weight: 800;
+      }
+      #designDrawTools .dmTool.on {
+        border-color: #7fd4ff;
+        background: rgba(127, 212, 255, 0.17);
+        color: #cdefff;
+      }
+      #designParWrap {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: #dfeeda;
+        font-size: 12.5px;
+        font-weight: 800;
+      }
+      #designParWrap button {
+        min-width: 30px;
+        min-height: 30px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+        color: #dfeeda;
+        font: inherit;
+        font-weight: 900;
+      }
+      #designDrawTools .dmTool.dmDone { border-color: #58e282; color: #bff5cd; }
+      #designDrawTools .dmTool.dmCancel { border-color: #ff8a6a; color: #ffd0c2; }
       #designTools .dmTool.on {
         border-color: #7fd4ff;
         background: rgba(127, 212, 255, 0.17);
@@ -790,15 +834,16 @@
          A full-height column on the right edge. `top` and the grip height are
          set from `trackLayout()` so the backswing always fits below the grip;
          everything else is presentation. */
-      /* The trace pad owns the bottom of the screen while a swing is live: it
-         is a gesture surface, so it needs area, and everything it covers is
-         either the swing button it replaces or chrome that has no job mid-swing. */
+      /* The trace pad is a TALL RECTANGLE ON THE RIGHT (owner spec): the rail
+         is vertical and the thumb's natural travel is up and down the edge of
+         the screen, so that is where the surface lives. */
       #tracePad {
         position: fixed;
-        left: 8px;
         right: 8px;
+        left: auto;
+        width: min(34vw, 150px);
         bottom: calc(8px + env(safe-area-inset-bottom));
-        height: min(42vh, 300px);
+        height: min(64vh, 460px);
         z-index: 7;
         display: none;
         flex-direction: column;
@@ -1113,7 +1158,7 @@
         margin-bottom: 10px;
       }
       #progressStrip:empty { display: none; }
-      #progressStrip span {
+      #progressStrip button {
         flex: 1 1 0;
         min-width: 0;
         padding: 7px 6px;
@@ -1128,6 +1173,64 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+      #progressStrip button { font: inherit; cursor: pointer; }
+      /* The second way to tee off: explicit course choice, quieter than Quick
+         Start but still an action, not a door. */
+      .landingChoose {
+        width: 100%;
+        min-height: 50px;
+        margin-top: 10px;
+        border-radius: 16px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.09);
+        color: #eef5ea;
+        font: inherit;
+        font-size: 15px;
+        font-weight: 850;
+        cursor: pointer;
+      }
+      /* ---- Daily-challenge popup ------------------------------------------ */
+      #dailyPopup {
+        position: fixed;
+        inset: 0;
+        z-index: 24;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 12, 8, 0.7);
+        backdrop-filter: blur(4px);
+      }
+      #dailyPopup.on { display: flex; }
+      #dailyPopupInner {
+        width: min(400px, calc(100% - 32px));
+        padding: 16px;
+        border-radius: 20px;
+        background: linear-gradient(180deg, rgba(9, 34, 22, 0.98), rgba(5, 18, 13, 0.98));
+        border: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      #dailyPopup .dpRow {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      #dailyPopup .dpRow button {
+        flex: 1 1 0;
+        min-height: 48px;
+        border-radius: 14px;
+        border: none;
+        font: inherit;
+        font-weight: 900;
+        cursor: pointer;
+      }
+      #dailyPopup #dpPlay {
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        color: #fff;
+      }
+      #dailyPopup #dpClose {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.08);
+        color: #eef5ea;
       }
       /* ---- The four destinations ----------------------------------------- */
       .landingDest {
@@ -2090,6 +2193,23 @@
         accent-color: #35a558;
         height: 26px;
       }
+      /* About-the-game, relocated from the sheet into Settings. A real link,
+         styled as a full-width quiet row. */
+      .aboutGameRow {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin: 10px 0 0;
+        padding: 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.05);
+        color: #cfe8d4;
+        font-size: 14px;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+      }
       .resetZone {
         margin-top: 6px;
       }
@@ -2762,6 +2882,13 @@
         justify-content: center;
         z-index: 25;
         overflow-y: auto;
+      }
+      /* Store and Season Pass can be opened FROM the locker room; with all
+         three at 25, DOM order decided, and the locker (last in the DOM)
+         painted on top of the screen it had just opened. */
+      #store,
+      #seasonPass {
+        z-index: 26;
       }
       /* Tournament overlays (online + AI standings, Phase 8) */
       .tourAction {
@@ -3862,8 +3989,10 @@
       <div id="designHead">
         <span id="designCount"></span>
         <span class="dmActions">
+          <span id="designParWrap"><button id="designParDown">−</button><span id="designParVal">Par —</span><button id="designParUp">+</button></span>
+          <button id="designSave">💾 Save</button>
           <button id="designUndo">↶ Undo</button>
-          <button id="designRebuild">⟳ Rebuild</button>
+          <button id="designRebuild">⟳ Render</button>
           <button id="designExit">Done</button>
         </span>
       </div>
@@ -3875,6 +4004,19 @@
         <button id="designTool_erase" class="dmTool">🧽 Erase</button>
         <button id="designTool_raise" class="dmTool">⛰️ Raise</button>
         <button id="designTool_lower" class="dmTool">🕳️ Lower</button>
+      </div>
+      <!-- The DRAW tools: the hole's own shapes, authored from the air. Each is
+           a tap-out draft; Done turns it into hole data and rebuilds so you see
+           it for real, with fly mode resuming where you were. -->
+      <div id="designDrawTools" class="designDraw">
+        <button id="designTool_tee" class="dmTool">⛳ Tee</button>
+        <button id="designTool_green" class="dmTool">🎯 Green</button>
+        <button id="designTool_fairway" class="dmTool">🟩 Fairway</button>
+        <button id="designTool_water" class="dmTool">💧 Water</button>
+        <button id="designTool_bunker" class="dmTool">🏖 Bunker</button>
+        <button id="designTool_waste" class="dmTool">🏜 Waste</button>
+        <button id="designDraftDone" class="dmTool dmDone" style="display:none">✔ Done</button>
+        <button id="designDraftCancel" class="dmTool dmCancel" style="display:none">✕ Cancel</button>
       </div>
       <div id="designAssets"></div>
     </div>
@@ -3915,33 +4057,48 @@
           <div class="landingTitle">Bite-Sized<br />Golf</div>
           <div class="landingSub">Beautiful courses, quick decisions, and true ball flight that rewards the shot you commit to — read the line, trust your plan, attack the pin.</div>
         </div>
-        <!-- ONE PRIMARY ACTION, FOUR DESTINATIONS.
-             The panel used to stack up to ten cards, so the thing a player came
-             to do — play a round — was somewhere in a list of everything the
-             game can do. What stays on the panel is: where you are (the
-             progression strip), what you were doing (an unfinished round), the
-             one action (Play), and four doors. Everything else moved behind a
-             door and says its own headline on the tile, so nothing became
-             harder to find. -->
+        <!-- THE PANEL, owner-tuned: where you are (three chips that are now
+             BUTTONS — level opens the pass, the streak opens today's challenge,
+             coins open the store), what you were doing (unfinished round), the
+             lesson for newcomers ABOVE the tee-off actions, then the two ways
+             to start — Quick Start on the last course, or choose one — and
+             three doors. Compete collapsed into a direct Leaderboards button
+             the moment tournaments were stripped: a door with one thing behind
+             it is just that thing. -->
         <div class="landingPanel">
           <div id="progressStrip"></div>
           <div id="resumeCard"></div>
           <div id="challengeBanner"></div>
-          <button id="landingPlay" class="landingPlay">Play Now</button>
           <button id="landingLearn" style="display:none">🎓 New? Learn to play</button>
+          <button id="landingPlay" class="landingPlay">Quick Start</button>
+          <button id="landingChoose" class="landingChoose">⛳ Choose your course</button>
           <div class="landingDest">
             <button id="destToday" class="destTile" data-dest="today">
               <span class="dtName">Today</span><span class="dtSub"></span>
             </button>
-            <button id="destCompete" class="destTile" data-dest="compete">
-              <span class="dtName">Compete</span><span class="dtSub"></span>
+            <button id="destBoards" class="destTile">
+              <span class="dtName">Leaderboards</span><span class="dtSub"></span>
             </button>
             <button id="destLocker" class="destTile" data-dest="locker">
               <span class="dtName">Locker</span><span class="dtSub"></span>
             </button>
             <button id="destMore" class="destTile" data-dest="more">
-              <span class="dtName">More</span><span class="dtSub"></span>
+              <span class="dtName">Profile</span><span class="dtSub"></span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- The daily-challenge popup (the 🔥 chip's destination). The challenge
+           was a passive card buried in a pane; it is the reason to come back
+           today, so it gets the front door. #dailyCard lives here now — the
+           same element updateDailyBanner always wrote. -->
+      <div id="dailyPopup">
+        <div id="dailyPopupInner">
+          <div id="dailyCard"></div>
+          <div class="dpRow">
+            <button id="dpPlay">Play a round</button>
+            <button id="dpClose" class="ghostBtn">Close</button>
           </div>
         </div>
       </div>
@@ -3959,14 +4116,11 @@
             <div class="destPane" id="paneToday">
               <div id="dailyHoleCard"></div>
               <div id="ghostCard"></div>
-              <div id="dailyCard"></div>
               <div id="weeklyCard"></div>
-            </div>
-            <div class="destPane" id="paneCompete">
-              <button id="landingSetup" class="destLink">⛳ Course &amp; mode</button>
-              <button id="tournyLink" class="destLink">🌐 Online tournaments</button>
-              <button id="recordsLink" class="destLink">🏆 Records</button>
               <button id="landingPractice" class="destLink" style="display:none">🏌️ Practice ground — no card, no pressure</button>
+              <!-- Online tournaments survives only outside the strip-down; it
+                   needs a home now that the Compete pane is gone. -->
+              <button id="tournyLink" class="destLink" style="display:none">🌐 Online tournaments</button>
             </div>
             <div class="destPane" id="paneLocker">
               <button id="landingSeason" class="destArt">Season Pass</button>
@@ -3976,7 +4130,8 @@
             <div class="destPane" id="paneMore">
               <button id="landingProfile" class="destLink">Log In / Profile</button>
               <button id="landingSettings" class="destLink">⚙️ Settings</button>
-              <a id="landingAbout" class="destLink" href="marketing.html">ℹ️ About the game</a>
+              <!-- About the game moved into the profile's Settings tab — the
+                   sheet is for the player's own things, not marketing. -->
               <!-- The tools. Admin follows the signed-in ACCOUNT; Dev follows
                    the environment and the devTools flag — two different gates,
                    so they are two different entries. Both were previously

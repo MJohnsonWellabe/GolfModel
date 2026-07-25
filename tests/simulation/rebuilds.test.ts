@@ -3,6 +3,7 @@ import timberlineV2 from '../../src/data/courses/v2/timberline.json';
 import timberlineWestV2 from '../../src/data/courses/v2/timberlinewest.json';
 import sablebayV2 from '../../src/data/courses/v2/sablebay.json';
 import portjohnsonV2 from '../../src/data/courses/v2/portjohnson.json';
+import maplevale from '../../src/data/courses/maplevale.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { buildHeightField } from '../../src/systems/HeightField';
@@ -27,7 +28,10 @@ const REBUILDS: Record<string, CourseAuthoring> = {
   'Timberline East': timberlineV2 as unknown as CourseAuthoring,
   'Timberline West': timberlineWestV2 as unknown as CourseAuthoring,
   'Sable Bay': sablebayV2 as unknown as CourseAuthoring,
-  'Port Johnson': portjohnsonV2 as unknown as CourseAuthoring
+  'Port Johnson': portjohnsonV2 as unknown as CourseAuthoring,
+  // Not a rebuild — the EIGHTH course — but a brand-new course must clear the
+  // same wall, and this map is the wall.
+  'Maple Vale': maplevale as unknown as CourseAuthoring
 };
 
 const UNFINISHED_TOLERANCE = 4; // ~2% of 180 hole-plays, same as newCourses

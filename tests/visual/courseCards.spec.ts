@@ -33,13 +33,15 @@ for (const s of SIZES) {
     await page.setViewportSize({ width: s.width, height: s.height });
     await page.goto('/');
     await dismissNameModal(page);
-    // Into the wizard → step 0 (Mode); Next → the Course step (solo default
-    // flow). Which entry opens the wizard depends on `quickPlay`: with the flag
-    // on, "Play Now" tees off immediately and the wizard moves to the explicit
-    // "Course & mode" entry beneath it.
+    // Into the wizard. Under the strip-down (`focusedGame`) the wizard OPENS
+    // on Course — there is no Mode step — so pressing Next unconditionally
+    // walked PAST the cards this spec is about. Advance only if they are not
+    // already up, so the spec is about the cards on either shape of the game.
     await openSetupWizard(page);
     await page.waitForSelector('#nextBtn', { state: 'visible' });
-    await page.locator('#nextBtn').dispatchEvent('pointerdown');
+    if (!(await page.locator('.modeGrid--courses .courseCard').count())) {
+      await page.locator('#nextBtn').dispatchEvent('pointerdown');
+    }
     await page.waitForSelector('.modeGrid--courses .courseCard', { state: 'visible' });
     await page.waitForTimeout(120);
     await page.screenshot({ path: `tests/visual/__shots__/coursecards-${s.name}.png` });
