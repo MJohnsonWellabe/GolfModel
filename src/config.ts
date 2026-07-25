@@ -70,12 +70,16 @@ export const SWING = {
    *  away, and the wider power/accuracy miss bands are the risk that balances
    *  reaching for it. */
   overswingBonus: 0.85,
-  /** Overswing bonus used for the DRIVER when the `driverOverswingNerf` flag is
-   *  on: 0 = overswinging a tee shot delivers only the target power (no runaway
-   *  extra distance), while the wider power/accuracy miss bands still make it a
-   *  risk. Off the flag, the driver uses the shared `overswingBonus` like every
-   *  club. Owner: overpower "makes sense on every other club, but not off the tee". */
-  driverOverswingBonus: 0,
+  /** Overswing coefficient used for the DRIVER when the `driverOverswingNerf`
+   *  flag is on. NEGATIVE = a PENALTY: overswinging a tee shot flies SHORTER than
+   *  a flush (perfect) strike, and the more you overswing past the target the
+   *  more distance you lose (delivered = powerTarget + coeff·overswing). At -1.0 a
+   *  full overswing to the top of the bar (~0.15 past a 0.85 target) delivers
+   *  ~0.85 power — ~15% shorter than a perfect drive. Off the flag, the driver
+   *  uses the shared positive `overswingBonus` like every club. Owner: overpower
+   *  "makes sense on every other club, but not off the tee — it should go less
+   *  far than a perfect drive". */
+  driverOverswingBonus: -1.0,
   /** Cap on a "good" (not perfect) PUTT's delivered-power error, as a FRACTION
    *  of the target itself rather than an absolute bar-width. Putts have no
    *  fullPowerMark headroom (the bar position for a putt IS its intended power
