@@ -630,6 +630,30 @@
         font-weight: 700;
         color: #ffd54f;
       }
+      #builderBackBtn {
+        position: fixed;
+        top: calc(max(10px, env(safe-area-inset-top)) + 44px);
+        right: 10px;
+        z-index: 8;
+        display: none;
+        padding: 8px 12px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 213, 79, 0.55);
+        background: linear-gradient(180deg, rgba(74, 58, 12, 0.92), rgba(46, 36, 6, 0.9));
+        color: #ffe28a;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+      }
+      /* When the preview's Back button occupies the second slot, everything
+         else in the top-right stack moves down a row rather than overlapping
+         it. */
+      html.builder-preview #captureBtn {
+        top: calc(max(10px, env(safe-area-inset-top)) + 88px);
+      }
+      html.builder-preview #shotWhy {
+        top: calc(max(10px, env(safe-area-inset-top)) + 132px);
+      }
       #swingBtn {
         position: fixed;
         left: 50%;
@@ -3608,6 +3632,9 @@
          started — the only exits were finishing all three holes or reloading
          the page, and reloading loses the card. -->
     <button id="pauseBtn">☰ Menu</button>
+    <!-- Preview rounds only (?builderHole=1): the way back to the design you
+         are testing. Without it "Play it" is a one-way trip. -->
+    <button id="builderBackBtn">← Builder</button>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
 

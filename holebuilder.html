@@ -206,10 +206,15 @@
       }
       /* Placement affordance on the canvas. */
       #stage.placing canvas { cursor: copy; }
+      /* The instruction chips float OVER the plan, so every one of them must be
+         transparent to the pointer. #hud and #toast already were; these two were
+         not, which made the top strip of the canvas — exactly where you place a
+         tee — untappable. */
       #placeBadge {
         position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: none;
         padding: 5px 12px; background: rgba(60,50,10,.92); border: 1px solid var(--accent);
         border-radius: 999px; color: var(--accent); font-size: 11.5px; white-space: nowrap;
+        pointer-events: none;
       }
       #stage.placing #placeBadge { display: block; }
 
@@ -262,7 +267,11 @@
       }
       textarea:focus { border-color: var(--accent-2); }
       #stage { position: relative; overflow: hidden; }
-      canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+      /* `touch-action: none` is load-bearing: without it the browser claims
+         every touch for its own scroll/pinch and the canvas sees a truncated
+         pointer stream — which is what made placing and panning by thumb feel
+         broken rather than merely fiddly. */
+      canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
       canvas.dragging { cursor: grabbing; }
 
       h1 { font-size: 14px; margin: 2px 0 10px; letter-spacing: .3px; }
@@ -315,7 +324,18 @@
         position: absolute; left: 12px; top: 12px; display: none; padding: 4px 9px;
         background: rgba(42,63,20,.9); border: 1px solid #46631f; border-radius: 999px;
         color: #dff5c2; font-size: 11px; font-variant-numeric: tabular-nums;
+        pointer-events: none;
       }
+      #zoomBar {
+        position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+        display: flex; flex-direction: column; gap: 6px;
+      }
+      #zoomBar button {
+        width: 40px; height: 40px; padding: 0; font-size: 17px; font-weight: 800;
+        background: rgba(12,18,23,.86); border: 1px solid var(--line); border-radius: 10px;
+        color: var(--ink); backdrop-filter: blur(3px); cursor: pointer;
+      }
+      #zoomBar button:active { border-color: var(--accent); color: var(--accent); }
       #sel {
         background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px;
         padding: 9px; margin-top: 6px;
@@ -448,6 +468,13 @@
       <canvas id="c"></canvas>
       <div id="hud"></div>
       <div id="snapBadge">grid snap · 5</div>
+      <!-- Zoom without a gesture and without a mouse wheel. A phone has
+           neither, and pinch is not discoverable. -->
+      <div id="zoomBar">
+        <button id="zoomIn" title="Zoom in">+</button>
+        <button id="zoomOut" title="Zoom out">−</button>
+        <button id="zoomFit" title="Fit the hole">⛶</button>
+      </div>
       <div id="placeBadge"></div>
       <div id="toast"></div>
     </div>
@@ -1012,16 +1039,70 @@
         const rect = canvas.getBoundingClientRect();
         return [ev.clientX - rect.left, ev.clientY - rect.top];
       }
+      /**
+       * TWO-FINGER PINCH AND PAN.
+       *
+       * The plan could only be zoomed with a mouse wheel and only panned by
+       * dragging empty space — so on a phone there was NO zoom at all, and while
+       * a draw tool was armed there was no pan either: every touch placed a
+       * point, which meant a fairway that ran off the edge of the screen was a
+       * fairway you were stuck with.
+       *
+       * Two fingers now zoom and pan in EVERY mode, including mid-draw. The
+       * gesture is tracked here rather than left to the browser because the
+       * canvas needs `touch-action: none` for single-finger drawing to work at
+       * all, which switches native pinch off.
+       */
+      const pointers = new Map();
+      let gesture = null;
+      /** A touch that MIGHT become a pinch, held until the finger lifts. */
+      let pendingPlace = null;
+
+      const gestureOf = () => {
+        const [a, b] = [...pointers.values()];
+        return {
+          dist: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+          cx: (a.x + b.x) / 2,
+          cy: (a.y + b.y) / 2
+        };
+      };
+
+      function zoomAt(sx, sy, factor) {
+        const [wx, wy] = toWorld(sx, sy);
+        view.scale = Math.max(0.05, Math.min(8, view.scale * factor));
+        view.x = wx - sx / view.scale;
+        view.y = wy - sy / view.scale;
+        draw();
+      }
+
       canvas.addEventListener('pointerdown', (ev) => {
         const [psx, psy] = localXY(ev);
+        pointers.set(ev.pointerId, { x: psx, y: psy });
+        // Second finger down: whatever was happening was not what the user
+        // meant. Abandon it and start a pinch.
+        if (pointers.size === 2) {
+          const g = gestureOf();
+          gesture = { ...g, scale: view.scale, vx: view.x, vy: view.y };
+          pendingPlace = null;
+          if (drag?.kind === 'handle' && !drag.moved) undoStack.pop();
+          drag = null;
+          canvas.classList.remove('dragging');
+          return;
+        }
+        if (pointers.size > 2) return;
         const [pwx, pwy] = toWorld(psx, psy);
-        // A DRAW TOOL owns the tap: it is placing geometry, not selecting it.
-        if (tool) { toolTap(snapped(pwx), snapped(pwy)); return; }
-        // An armed library asset takes the tap: place it and stay armed, so a
-        // treeline is a row of taps rather than a row of round trips to the
-        // library. Esc (or tapping the chip again) disarms.
-        if (armed) {
-          placeAsset(armed, snapped(pwx), snapped(pwy));
+        // TOUCH placement waits for the finger to LIFT. A press that turns into
+        // a pinch must not leave a stray point behind, and there is no way to
+        // know which it is until the second finger arrives (or does not). A
+        // mouse has no such ambiguity, so it still places on the press.
+        if (tool || armed) {
+          if (ev.pointerType === 'mouse') {
+            if (tool) toolTap(snapped(pwx), snapped(pwy));
+            else placeAsset(armed, snapped(pwx), snapped(pwy));
+          } else {
+            canvas.setPointerCapture(ev.pointerId);
+            pendingPlace = { id: ev.pointerId, sx: psx, sy: psy };
+          }
           return;
         }
         canvas.setPointerCapture(ev.pointerId);
@@ -1042,6 +1123,28 @@
       const snapped = (n) => (snap ? Math.round(n / 5) * 5 : round1(n));
       canvas.addEventListener('pointermove', (ev) => {
         const [sx, sy] = localXY(ev);
+        if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, { x: sx, y: sy });
+        if (gesture && pointers.size >= 2) {
+          const g = gestureOf();
+          // Scale about the gesture's own centre, and let that centre carry the
+          // view with it — so pinching and sliding are one motion, as they are
+          // in every map on the device.
+          const s2 = Math.max(0.05, Math.min(8, gesture.scale * (g.dist / gesture.dist)));
+          const [wx, wy] = [gesture.cx / gesture.scale + gesture.vx, gesture.cy / gesture.scale + gesture.vy];
+          view.scale = s2;
+          view.x = wx - g.cx / s2;
+          view.y = wy - g.cy / s2;
+          draw();
+          return;
+        }
+        // A deferred touch placement that travels is a pan, not a tap.
+        if (pendingPlace && ev.pointerId === pendingPlace.id) {
+          if (Math.hypot(sx - pendingPlace.sx, sy - pendingPlace.sy) > 12) {
+            drag = { kind: 'pan', sx: pendingPlace.sx, sy: pendingPlace.sy, vx: view.x, vy: view.y };
+            pendingPlace = null;
+            canvas.classList.add('dragging');
+          }
+        }
         const [wx, wy] = toWorld(sx, sy);
         pointer = { wx, wy, inside: true };
         if (drag?.kind === 'handle') {
@@ -1059,8 +1162,26 @@
           drawHud();
         }
       });
-      canvas.addEventListener('pointerup', () => {
+      const endPointer = (ev) => {
+        pointers.delete(ev.pointerId);
+        if (pointers.size < 2) gesture = null;
+        // The deferred touch placement lands here — the finger lifted without a
+        // second one joining it, so it was a tap after all.
+        if (pendingPlace && ev.pointerId === pendingPlace.id) {
+          const [wx, wy] = toWorld(pendingPlace.sx, pendingPlace.sy);
+          pendingPlace = null;
+          if (tool) toolTap(snapped(wx), snapped(wy));
+          else if (armed) placeAsset(armed, snapped(wx), snapped(wy));
+        }
         // A click that selected but never moved shouldn't leave an undo entry.
+        if (drag?.kind === 'handle' && !drag.moved) undoStack.pop();
+        drag = null; canvas.classList.remove('dragging');
+      };
+      canvas.addEventListener('pointerup', endPointer);
+      canvas.addEventListener('pointercancel', (ev) => {
+        pointers.delete(ev.pointerId);
+        if (pointers.size < 2) gesture = null;
+        pendingPlace = null;
         if (drag?.kind === 'handle' && !drag.moved) undoStack.pop();
         drag = null; canvas.classList.remove('dragging');
       });
@@ -1068,14 +1189,17 @@
       canvas.addEventListener('wheel', (ev) => {
         ev.preventDefault();
         const [sx, sy] = localXY(ev);
-        const [wx, wy] = toWorld(sx, sy);
-        const f = Math.exp(-ev.deltaY * 0.0012);
-        view.scale = Math.max(0.05, Math.min(8, view.scale * f));
-        // keep cursor world point fixed
-        view.x = wx - sx / view.scale;
-        view.y = wy - sy / view.scale;
-        draw();
+        zoomAt(sx, sy, Math.exp(-ev.deltaY * 0.0012)); // keeps the cursor's world point fixed
       }, { passive: false });
+
+      // Buttons, because pinch is not discoverable and a phone has no wheel.
+      // They zoom about the CENTRE of the view, which is what the eye expects
+      // from a control that is not attached to a cursor.
+      const zoomButton = (id, factor) =>
+        document.getElementById(id).addEventListener('click', () => zoomAt(canvas.clientWidth / 2, canvas.clientHeight / 2, factor));
+      zoomButton('zoomIn', 1.35);
+      zoomButton('zoomOut', 1 / 1.35);
+      document.getElementById('zoomFit').addEventListener('click', () => { fit(); draw(); });
 
       window.addEventListener('keydown', (ev) => {
         if ((ev.ctrlKey || ev.metaKey) && (ev.key === 'z' || ev.key === 'Z')) { ev.preventDefault(); undo(); return; }
@@ -1589,7 +1713,10 @@
         pins: (hole()?.pins || []).length,
         aiTargets: (hole()?.aiTargets || []).length,
         brief: () => JSON.stringify(holeBrief(course, hi, document.getElementById('intent').value.trim() || 'Improve this hole.'), null, 2),
-        handover: handoverPayload
+        handover: handoverPayload,
+        // The view, so a spec can assert that zooming and panning actually moved
+        // it rather than inferring it from pixels.
+        view: () => ({ x: view.x, y: view.y, scale: view.scale })
       });
 
       // ---- boot ---------------------------------------------------------------

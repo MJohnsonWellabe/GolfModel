@@ -286,3 +286,118 @@ test('a hole drawn from a blank canvas is playable in the real game', async ({ p
   );
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+/**
+ * NAVIGATING THE PLAN.
+ *
+ * Three faults the owner hit after the phone rebuild, and none of them were
+ * visible to a spec that only ever placed one asset in the middle of a fitted
+ * view:
+ *
+ *   - the instruction chips floated OVER the plan without
+ *     `pointer-events: none`, so the strip of canvas under them — the top
+ *     centre, which is exactly where you place a tee — swallowed every tap;
+ *   - the plan could only be zoomed with a mouse wheel, so a phone had no zoom
+ *     at all, and could only be panned by dragging empty space, so while a draw
+ *     tool was armed there was no pan either. A fairway that ran off the edge of
+ *     the screen was a fairway you were stuck with;
+ *   - `touch-action` was left at its default, so the browser claimed each touch
+ *     for its own scrolling and the canvas saw a truncated pointer stream.
+ */
+test('the instruction chips do not swallow taps meant for the plan', async ({ page }) => {
+  await openBuilder(page);
+  // Arm a tool so the badges are actually up.
+  await openSheet(page, 'side');
+  await page.locator('#toolBar button').first().click();
+  for (const id of ['#placeBadge', '#snapBadge', '#hud', '#toast']) {
+    const el = page.locator(id);
+    if (!(await el.count())) continue;
+    const pe = await el.evaluate((n) => getComputedStyle(n as HTMLElement).pointerEvents);
+    expect(pe, `${id} is still eating pointer events`).toBe('none');
+  }
+  // And the canvas is what is actually under the badge's own position.
+  const badge = await page.locator('#placeBadge').boundingBox();
+  if (badge) {
+    const under = await page.evaluate(
+      ([x, y]) => (document.elementFromPoint(x as number, y as number) as HTMLElement)?.id,
+      [badge.x + badge.width / 2, badge.y + badge.height / 2]
+    );
+    expect(under, 'the badge is still on top of the plan').toBe('c');
+  }
+});
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  test('the plan can be zoomed without a mouse wheel', async ({ page }) => {
+    const errors = await openBuilder(page);
+    const scale = (): Promise<number> =>
+      page.evaluate(() => (window as never as { __builder(): { view(): { scale: number } } }).__builder().view().scale);
+
+    const start = await scale();
+    await page.locator('#zoomIn').tap();
+    const zoomedIn = await scale();
+    expect(zoomedIn, `${start} -> ${zoomedIn}`).toBeGreaterThan(start);
+
+    await page.locator('#zoomOut').tap();
+    await page.locator('#zoomOut').tap();
+    expect(await scale()).toBeLessThan(zoomedIn);
+
+    // Fit puts it back to the whole hole.
+    await page.locator('#zoomFit').tap();
+    expect(Math.abs((await scale()) - start), 'fit did not restore the framing').toBeLessThan(start * 0.05);
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+
+  test('the plan pans by touch while a draw tool is armed', async ({ page }) => {
+    const errors = await openBuilder(page);
+    await page.locator('#sheetBar button[data-sheet="side"]').tap();
+    // Arm the fairway tool — the mode where a single tap places a point, and
+    // where panning used to be impossible.
+    await page.locator('#toolBar button', { hasText: /fairway/i }).first().tap();
+    await page.locator('#sheetBar button[data-sheet=""]').tap();
+
+    const before = await page.evaluate(
+      () => (window as never as { __builder(): { view(): { x: number } } }).__builder().view().x
+    );
+    const points = await page.evaluate(
+      () => (window as never as { __builder(): { fairways: number } }).__builder().fairways
+    );
+
+    // Two fingers: the gesture that has to work in every mode.
+    const box = (await page.locator('#c').boundingBox())!;
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await page.evaluate(
+      ([x, y]) => {
+        const c = document.getElementById('c')!;
+        const send = (type: string, id: number, px: number, py: number): void => {
+          c.dispatchEvent(
+            new PointerEvent(type, { pointerId: id, pointerType: 'touch', clientX: px, clientY: py, bubbles: true })
+          );
+        };
+        send('pointerdown', 1, (x as number) - 40, y as number);
+        send('pointerdown', 2, (x as number) + 40, y as number);
+        for (let i = 1; i <= 6; i++) {
+          send('pointermove', 1, (x as number) - 40 - i * 12, y as number);
+          send('pointermove', 2, (x as number) + 40 - i * 12, y as number);
+        }
+        send('pointerup', 1, (x as number) - 112, y as number);
+        send('pointerup', 2, (x as number) - 32, y as number);
+      },
+      [cx, cy]
+    );
+
+    const after = await page.evaluate(
+      () => (window as never as { __builder(): { view(): { x: number } } }).__builder().view().x
+    );
+    expect(after, `view.x ${before} -> ${after}`).not.toBeCloseTo(before, 1);
+    // And the pinch left no stray fairway point behind — the reason touch
+    // placement waits for the finger to lift.
+    const pointsAfter = await page.evaluate(
+      () => (window as never as { __builder(): { fairways: number } }).__builder().fairways
+    );
+    expect(pointsAfter, 'a two-finger gesture dropped a point on the hole').toBe(points);
+    expect(errors, errors.join('\n')).toEqual([]);
+  });
+});

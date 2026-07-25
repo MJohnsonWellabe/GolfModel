@@ -7712,6 +7712,42 @@ function recordDailyAttempt(): void {
 const BUILDER_COURSE_ID = '__builder';
 
 /**
+ * THE WAY BACK.
+ *
+ * "Play it" opens the preview in a new tab, and there was no route out of it:
+ * finishing the round landed on the game's own menu with the builder nowhere in
+ * sight, so the only way back to the design you were testing was to find the
+ * other tab yourself. A preview you cannot return from is a dead end, and it
+ * breaks the loop the whole tool is built around — draw, play, adjust, play.
+ *
+ * The button rides above the round chrome and survives to the results card,
+ * because "that green is too small" is a thought you have at the moment you
+ * hole out.
+ */
+function showBuilderReturn(on: boolean): void {
+  const btn = document.getElementById('builderBackBtn');
+  if (btn) btn.style.display = on ? 'block' : 'none';
+  // The top-right stack (Menu, Clip, breakdown) shifts down a row so nothing
+  // sits on top of anything else.
+  document.documentElement.classList.toggle('builder-preview', on);
+}
+
+function backToBuilder(): void {
+  // The preview was opened by the builder with window.open, so closing this tab
+  // returns to the builder tab EXACTLY as it was left — unsaved edits included.
+  // A tab we did not open cannot be closed by script, so navigation is the
+  // fallback rather than the first choice.
+  try {
+    window.close();
+  } catch {
+    /* not script-opened — fall through */
+  }
+  setTimeout(() => {
+    window.location.href = 'holebuilder.html';
+  }, 120);
+}
+
+/**
  * PREVIEW PLAY (`holebuilder.html` → "▶ Play it").
  *
  * The builder hands its edited hole over in sessionStorage and opens the game
@@ -7758,6 +7794,7 @@ function startBuilderHole(): boolean {
     sel.courseId = BUILDER_COURSE_ID;
     landingEl.classList.remove('on');
     startRound(0);
+    showBuilderReturn(true);
     showMsg('Preview — this round is not scored', 2600);
     return true;
   } catch (err) {
@@ -8387,6 +8424,7 @@ function leaveRound(): void {
   showLanding();
 }
 pauseBtn.addEventListener('pointerdown', () => leaveRound());
+document.getElementById('builderBackBtn')!.addEventListener('pointerdown', () => backToBuilder());
 
 document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
   if (flag('quickPlay')) quickPlay();
