@@ -841,14 +841,20 @@
         position: fixed;
         right: 8px;
         left: auto;
-        width: min(34vw, 150px);
+        /* A RAIL, not a room (owner: "take up less space — major reduction
+           horizontally"). The gesture is vertical; the width only has to admit
+           a thumb and show the wobble. */
+        width: min(22vw, 84px);
         bottom: calc(8px + env(safe-area-inset-bottom));
-        height: min(64vh, 460px);
+        height: min(52vh, 380px);
+        /* border-box, so the stated width IS the footprint — the visual gate
+           measures the box the thumb sees, padding and all. */
+        box-sizing: border-box;
         z-index: 7;
         display: none;
         flex-direction: column;
         gap: 4px;
-        padding: 8px;
+        padding: 6px;
         border-radius: 18px;
         background: rgba(6, 20, 13, 0.72);
         border: 1px solid rgba(255, 255, 255, 0.18);
@@ -871,10 +877,14 @@
         font-weight: 800;
         font-variant-numeric: tabular-nums;
       }
-      /* The club bar and the shape pad would sit under the trace surface. */
-      html.trace-pad #clubBar,
-      html.trace-pad #shotShape {
-        display: none !important;
+      /* The club bar and the shape pad live on the LEFT — they coexist with
+         the right-edge pad (owner: the drag swing must keep its club picker
+         and shape control). The right-edge buttons step out of the pad's
+         column instead, exactly like the old pull track's rule below. */
+      html.trace-pad #trueVisionBtn,
+      html.trace-pad #aerialBtn,
+      html.trace-pad #tourBoardBtn {
+        right: calc(min(22vw, 84px) + 16px);
       }
       /* The right-edge button stack lives in the same column as the pull track,
          which is z-index 7 — so with the drag swing on, True Vision, Aerial and
@@ -1073,7 +1083,7 @@
         background:
           linear-gradient(90deg, rgba(2, 12, 8, 0.86), rgba(2, 12, 8, 0.32) 54%, rgba(2, 12, 8, 0.76)),
           radial-gradient(70% 55% at 75% 12%, rgba(255, 226, 138, 0.18), transparent 66%),
-          url('assets/marketing/img/wildwood-green.png') center / cover no-repeat,
+          url('assets/marketing/img/wildwood-green.png?v=2') center / cover no-repeat,
           #071d12;
         overflow: auto;
       }
@@ -1405,7 +1415,7 @@
         border-color: rgba(255, 214, 96, 0.58);
         background-image:
           linear-gradient(180deg, rgba(6, 20, 14, 0.12), rgba(4, 14, 9, 0.82)),
-          url('assets/marketing/img/wildwood-cherry.png');
+          url('assets/marketing/img/wildwood-cherry.png?v=2');
         color: #fff6cd;
       }
       #landingStore {
@@ -1428,7 +1438,7 @@
           align-items: flex-end;
           background:
             linear-gradient(180deg, rgba(2, 12, 8, 0.16) 0%, rgba(2, 12, 8, 0.4) 46%, rgba(2, 12, 8, 0.88) 76%),
-            url('assets/marketing/img/wildwood-green.png') center 92% / auto 150% no-repeat,
+            url('assets/marketing/img/wildwood-green.png?v=2') center 92% / auto 150% no-repeat,
             #071d12;
         }
         .landingInner {
@@ -1470,7 +1480,7 @@
         background:
           linear-gradient(180deg, rgba(3, 15, 10, 0.28), rgba(2, 12, 8, 0.82)),
           radial-gradient(90% 60% at 50% 5%, rgba(255, 220, 130, 0.18), transparent 62%),
-          url('assets/marketing/img/wildwood-cherry.png') center / cover no-repeat,
+          url('assets/marketing/img/wildwood-cherry.png?v=2') center / cover no-repeat,
           linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
         display: flex;
         align-items: center;
@@ -2192,6 +2202,26 @@
         width: 55%;
         accent-color: #35a558;
         height: 26px;
+      }
+      /* Swing-type segmented choice (Settings): two labelled halves, the
+         selected one filled — a control scheme is a choice, not a toggle. */
+      .setSeg {
+        display: flex;
+        gap: 6px;
+      }
+      .setSeg .segBtn {
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: rgba(255, 255, 255, 0.08);
+        color: #dbe8d6;
+        font-size: 13px;
+        font-weight: 800;
+      }
+      .setSeg .segBtn.sel {
+        background: linear-gradient(180deg, #35a558, #1e7a3c);
+        border-color: transparent;
+        color: #fff;
       }
       /* About-the-game, relocated from the sheet into Settings. A real link,
          styled as a full-width quiet row. */
@@ -3774,6 +3804,23 @@
         background: rgba(255, 255, 255, 0.05);
         border: 1px solid rgba(255, 255, 255, 0.12);
         font-size: 14px;
+      }
+      /* The viewing player's own row on a board — highlighted wherever it
+         lands, top five or appended beneath them. */
+      .recRow.you {
+        background: rgba(53, 165, 88, 0.18);
+        border-color: rgba(88, 226, 130, 0.55);
+      }
+      .youTag {
+        margin-left: 8px;
+        padding: 1px 7px;
+        border-radius: 8px;
+        background: #35a558;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        vertical-align: 1px;
       }
       .recRow:first-child {
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.18), rgba(255, 213, 79, 0.06));

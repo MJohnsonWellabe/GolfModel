@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MIN_ROUNDS_FOR_AVERAGE, recordBoards } from '../src/systems/RecordBoards';
+import { BOARD_TOP, MIN_ROUNDS_FOR_AVERAGE, recordBoards } from '../src/systems/RecordBoards';
 import type { RoundRecord } from '../src/firebase/History';
 
 /**
@@ -109,5 +109,56 @@ describe('who is eligible', () => {
   it('says how many rounds an entry rests on', () => {
     const boards = recordBoards([round({ uid: 'a' }), round({ uid: 'a' })]);
     expect(byId('best')(boards).entries[0].rounds).toBe(2);
+  });
+});
+
+describe('top five, and you (owner pass 5)', () => {
+  /** Twelve players with descending drives: p1 hits 312, p2 311, ... p12 301. */
+  const field = Array.from({ length: 12 }, (_, i) =>
+    round({ uid: `p${i + 1}`, names: `P${i + 1}`, drive: 312 - i })
+  );
+
+  it('shows the top five, not a wall of strangers', () => {
+    const drive = byId('drive')(recordBoards(field));
+    expect(drive.entries).toHaveLength(BOARD_TOP);
+    expect(drive.entries.map((e) => e.rank)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("appends the viewer's own ranked row when they sit outside the top", () => {
+    // "Where am I" is the question that brings a player back to a board — a
+    // top-five of other people never answers it.
+    const drive = byId('drive')(recordBoards(field, 'p9'));
+    expect(drive.entries).toHaveLength(BOARD_TOP + 1);
+    const mine = drive.entries[drive.entries.length - 1];
+    expect(mine.you).toBe(true);
+    expect(mine.name).toBe('P9');
+    expect(mine.rank).toBe(9);
+    // ...and nobody else is marked as the viewer.
+    expect(drive.entries.filter((e) => e.you)).toHaveLength(1);
+  });
+
+  it('does not duplicate a viewer who is already in the top five', () => {
+    const drive = byId('drive')(recordBoards(field, 'p2'));
+    expect(drive.entries).toHaveLength(BOARD_TOP);
+    expect(drive.entries[1].you).toBe(true);
+  });
+
+  it('a guest viewer (null) marks nobody', () => {
+    const drive = byId('drive')(recordBoards(field, null));
+    expect(drive.entries.some((e) => e.you)).toBe(false);
+  });
+
+  it('ties share the better rank, competition style', () => {
+    const boards = recordBoards([
+      round({ uid: 'a', names: 'Ace', holes: [1, 4, 4] }),
+      round({ uid: 'b', names: 'Bee', holes: [1, 4, 4] }),
+      round({ uid: 'b', names: 'Bee', holes: [1, 4, 4] }),
+      round({ uid: 'c', names: 'Cee', holes: [1, 4, 4] })
+    ]);
+    // Bee has 2 aces (rank 1); Ace and Cee have 1 each — BOTH rank 2.
+    const ranks = new Map(byId('aces')(boards).entries.map((e) => [e.name, e.rank]));
+    expect(ranks.get('Bee')).toBe(1);
+    expect(ranks.get('Ace')).toBe(2);
+    expect(ranks.get('Cee')).toBe(2);
   });
 });

@@ -172,53 +172,53 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'roundRecording',
     description:
-      'Rounds are stored as the INPUTS that produced them (DEV-ONLY for now), ' +
+      'Rounds are stored as the INPUTS that produced them (promoted to prod, owner pass 5), ' +
       'not just the score. The enabler for server-verified leaderboards, ghost ' +
       'head-to-head and shareable replays — the physics is deterministic, so a ' +
       'dozen numbers per round reproduce it exactly. Solo rounds only; each ' +
       'recording is self-checked against a replay before it is kept. Off = no ' +
       'recording is made, stored or read.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED to prod once ghosts + verified leaderboards ship on top of it'
   },
   {
     key: 'dragSwing',
     description:
-      'TRACED SWING (DEV-ONLY, opt-in experiment): a pad with a guide dot ' +
-      'travelling the arc a club head takes, and the gesture is to follow it. ' +
-      'How far along you get is the backswing, how close to the line you stay ' +
-      'is the strike and the face, and how well you keep the dot\'s tempo is ' +
-      'the timing. After the shot the pad holds BOTH paths — the route and ' +
-      'yours — until the next swing, so a miss shows you its own shape. ONLY ' +
-      'the input changes: power, the perfect/good/miss bands and the accuracy ' +
-      'curve all come from the shared swingModel, so difficulty and every ' +
-      'simulation stay exactly where they are calibrated. On, the meter and the ' +
-      'SWING button give way to the pad; off = the three-tap meter, untouched.',
+      'TRACED SWING availability: a slim right-edge pad with a guide dot that ' +
+      'runs straight down to the club\'s pull depth and back up; the gesture ' +
+      'is to stay with it in tempo and on its line. This flag only OFFERS the ' +
+      'control — the player chooses it per device in Settings → Swing, and ' +
+      'the default is the three-click meter (owner pass 5). ONLY the input ' +
+      'changes: power, the perfect/good/miss bands and the accuracy curve all ' +
+      'come from the shared swingModel, so difficulty and every simulation ' +
+      'stay exactly where they are calibrated. Off = the setting is hidden ' +
+      'and everyone taps.',
     owner: 'matt',
-    defaults: { prod: false, dev: false },
+    defaults: { prod: true, dev: true },
     removeWhen:
-      'DECIDED — either the drag becomes the default (and the tap meter becomes ' +
-      'the option) or this is removed. It must not linger as a permanent fork.'
+      'DECIDED — either the trace becomes the default (and the tap meter ' +
+      'becomes the option) or this is removed. It must not linger as a ' +
+      'permanent fork.'
   },
   {
     key: 'practiceRange',
     description:
-      'Practice ground (DEV-ONLY for now): the default course\'s opening hole ' +
+      'Practice ground (promoted to prod, owner pass 5): the default course\'s opening hole ' +
       'with no card, no stroke cap and no end — holing out just re-tees. Every ' +
       'golf game has one and this never did; it is where the swing is actually ' +
       'learned, and the only entry point that fits a 90-second session (a ' +
       'three-hole round does not). Nothing is scored, recorded, rewarded or ' +
       'counted toward a streak. Off = no practice surface.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {
     key: 'easeIn',
     description:
-      "First-rounds ease-in (DEV-ONLY for now): a device's first three casual " +
+      "First-rounds ease-in (promoted to prod, owner pass 5): a device's first three casual " +
       'solo rounds draw the KINDEST authored pin on each green (nearest the ' +
       'middle — not tucked behind sand or on a shelf) instead of a seeded one. ' +
       'Simulation puts the casual first-hole blow-up rate at 10% on Wildwood ' +
@@ -226,40 +226,40 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'reward unlocks. Never applied to a shared-seed round (weekly, challenge, ' +
       'tournament, daily, ghost) — those must stay identical for everyone.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {
     key: 'shotAttribution',
     description:
-      'Post-shot breakdown (DEV-ONLY for now): after the ball comes to rest, ' +
+      'Post-shot breakdown (promoted to prod, owner pass 5): after the ball comes to rest, ' +
       'one line naming what actually produced the result — strike, wind, lie, ' +
       'and any sideways miss. Measured by re-flying the same resolved shot with ' +
       'one factor removed, so the numbers are real rather than estimated. Runs ' +
       'at rest, never on the tap path, and stays silent when there is nothing ' +
       'worth saying. Off = the existing distance-only readout.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {
     key: 'dailyHole',
     description:
-      'Hole of the Day (DEV-ONLY for now): a brand-new hole generated from the ' +
+      'Hole of the Day (promoted to prod, owner pass 5): a brand-new hole generated from the ' +
       'date, played hundreds of times by the headless simulator and only served ' +
       'if it lands in a fair-and-interesting band, wearing a shipped course\'s ' +
       'art direction. Same hole for every player, one attempt, spoiler-free ' +
       'shareable result. Turns a 21-hole game into an unlimited one. Off = no ' +
       'daily surface and nothing is generated.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED once a week of generated holes has been played and judged good'
   },
   {
     key: 'rival',
     description:
-      'The Rival (DEV-ONLY for now): one named opponent who plays the Hole of ' +
+      'The Rival (promoted to prod, owner pass 5): one named opponent who plays the Hole of ' +
       'the Day every day, whose ghost flies beside you, and against whom a ' +
       'season-long head-to-head record accumulates. A friend rival is their ' +
       'real recorded round; with no friend, a house rival is assigned and their ' +
@@ -273,7 +273,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'verifiedScores',
     description:
-      'Server-authoritative score verification (DEV-ONLY for now): a finished ' +
+      'Server-authoritative score verification (promoted to prod, owner pass 5): a finished ' +
       'round is submitted as its INPUTS and replayed by a Cloud Function ' +
       'running the game\'s own physics, which writes the result to a node the ' +
       'client cannot forge. Turns leaderboards from an honour system into a ' +
@@ -281,7 +281,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'function (docs/26_SCALE_PASS.md). The live→replay round-trip is exact ' +
       'and gated by tests/visual/roundRecording.spec.ts.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED once the function is deployed and leaderboards read the ' +
       'verified node'
@@ -289,7 +289,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'ghostRace',
     description:
-      'Ghost head-to-head (DEV-ONLY for now): an opponent round recorded as ' +
+      'Ghost head-to-head (promoted to prod, owner pass 5): an opponent round recorded as ' +
       'inputs is re-flown shot for shot beside yours — a translucent ball in ' +
       'the air at the same moment as yours and a running standing in the HUD. ' +
       'Asynchronous, but it plays as though they were there. Currently raced ' +
@@ -304,51 +304,51 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'quickPlay',
     description:
-      'One-tap Play (DEV-ONLY for now): the landing\'s Play Now tees off ' +
+      'One-tap Play (promoted to prod, owner pass 5): the landing\'s Play Now tees off ' +
       'immediately as a solo round on the course this device last played ' +
       '(default course on a first launch), and the mode/course wizard moves to ' +
       'an explicit "Course & mode" entry beneath it. Off = Play Now opens the ' +
       'wizard exactly as it does today and the extra entry is hidden.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {
     key: 'tutorialDepth',
     description:
-      'Extended "Learn to play" lesson (DEV-ONLY for now): adds the wind and ' +
+      'Extended "Learn to play" lesson (promoted to prod, owner pass 5): adds the wind and ' +
       'club-selection cards the shipped lesson never covered, a contextual ' +
       'card the first time the player plays from rough/sand, a recovery card ' +
       'after a penalty, a step counter, and a one-time coin reward for ' +
       'finishing. Off = the shipped card set, unchanged.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — fold the extra cards in and remove the flag'
   },
   {
     key: 'resumeRound',
     description:
-      'Unfinished-round resume (DEV-ONLY for now): a plain solo round is ' +
+      'Unfinished-round resume (promoted to prod, owner pass 5): a plain solo round is ' +
       'checkpointed at each hole boundary (course, seed, hole, scores) and the ' +
       'landing offers "Finish the round" until it is completed, discarded, or ' +
       'goes stale. Aimed squarely at the interrupted first round — the one ' +
       'that gates every progressive-disclosure reward. Off = no checkpoint is ' +
       'ever written or read.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
   {
     key: 'natureBatching',
     description:
-      'Static-scatter batching (DEV-ONLY for now): trees, tufts, blooms and ' +
+      'Static-scatter batching (promoted to prod, owner pass 5): trees, tufts, blooms and ' +
       'bushes are drawn as thin instances grouped into spatial cells instead of ' +
       'one InstancedMesh scene node per prop. Same geometry, materials, ' +
       'positions and tints — the image is identical — but the per-frame ' +
       'world-matrix upload and the active-mesh walk over thousands of nodes ' +
       'both go away. Off = the classic per-prop instancing, byte-identical.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'PROMOTED to prod (playtest-approved on the device matrix) — make ' +
       'batching the sole planting path and remove the flag'
@@ -370,7 +370,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'focusedGame',
     description:
-      'THE STRIP-DOWN (dev-only). The game had grown four ways to play a round ' +
+      'THE STRIP-DOWN (promoted to prod, owner pass 5). The game had grown four ways to play a round ' +
       '(solo, 1v1, scramble, AI tournament), three ways to race somebody (ghost, ' +
       'rival, online tournament) and two tournament cadences — most of it aimed ' +
       'at a content library of 21 holes. On: solo golf only, one social feature ' +
@@ -379,7 +379,7 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'rather than deleted, so the decision is reversible on a flag while it is ' +
       'being lived with. Off = everything as shipped.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen:
       'DECIDED — either the removals are made permanent (delete the modes, the ' +
       'rival and the ghost outright) or the flag comes out and the game keeps ' +
@@ -388,14 +388,14 @@ export const FLAG_DEFS: readonly FlagDef[] = [
   {
     key: 'recordBoards',
     description:
-      'LEADERBOARDS PER RECORD (dev-only): longest drive, most holes-in-one, ' +
+      'LEADERBOARDS PER RECORD (promoted to prod, owner pass 5): longest drive, most holes-in-one, ' +
       'best average score, most chip-ins, and the rest of the career stats the ' +
       'profile already tracks — ranked across every player, not just your own ' +
       'personal bests. Reads the same world-readable /rounds node the admin ' +
       'dashboard aggregates, so it costs no new writes on any gameplay path. ' +
       'Off = Records shows only your own rounds, as it does today.',
     owner: 'matt',
-    defaults: { prod: false, dev: true },
+    defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED once the boards have been watched on real traffic'
   }
 ];

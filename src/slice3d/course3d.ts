@@ -2124,11 +2124,13 @@ export function buildCourse(
     };
     // Cherry-blossom prototype (Wildwood's spring-parkland identity), planted
     // for any `blossom` trees hazard AND for the theme.blossomChance mix-in
-    // (treeField kind 3). Prefer the real uploaded sakura model — genuine
-    // blossom-photo canopy instead of a flat pink tint — falling back to a
-    // pink-repainted clone of a broadleaf if it isn't loaded for this course.
-    let blossomProto: NatureProto | null = protos.get('tree_sakura') ?? null;
-    if (!blossomProto) {
+    // (treeField kind 3). A pink-repainted clone of a broadleaf, ALWAYS: the
+    // uploaded sakura's photo canopy is baked so dark it reads maroon under
+    // scene lighting from every camera (owner, twice: "no flowers in the
+    // picture" — the whole spring identity read as autumn), and no material
+    // lift turns a red photo pink. Palette-driven blossom is guaranteed pink.
+    let blossomProto: NatureProto | null = null;
+    {
       const src = trees.find((t) => /maple|oak|poplar|aspen/.test(t.key)) ?? trees[0];
       if (src) {
         const pink = mat(scene, 'natBlossom', 0xf4a6c8, { emissive: shade(0xf4a6c8, 0.5) });

@@ -718,3 +718,40 @@ Every flag is an independent kill switch. The two unflagged changes — the cold
 start and the pass rescope — are revertible as ordinary commits; the cold-start
 work is behaviour-preserving by construction and covered by
 `tests/bundle.test.ts`.
+
+## 20. Owner pass 5 — top five and you, the choice of swing, and production
+
+The fifth owner pass, from playing the deploy:
+
+- **Boards show the top 5 and YOU** (`RecordBoards.board`): every stat cuts to
+  five rows, ranks are competition-style ("1224"), and the viewing player's own
+  ranked row rides along highlighted — appended beneath the top when they sit
+  outside it. "Where am I" is the question that brings a player back to a
+  board, and a top-five of strangers never answers it.
+- **The swing is a CHOICE now** (`DeviceSettings.swingType`): Settings → Swing
+  offers Three-click (the default) or Drag & trace. The `dragSwing` flag is
+  demoted to availability-of-the-option; both inputs still resolve through the
+  shared swingModel. The tutorial's hit card follows the control actually on
+  screen.
+- **The trace pad became a rail** (owner: "take up less space — major
+  reduction horizontally"): `min(22vw, 84px)` wide, `min(52vh, 380px)` tall.
+  The club bar and shape pad are no longer hidden while it is up (they live on
+  the left), and the right-edge buttons (True Vision / AERIAL / tour board)
+  step out of its column exactly as they did for the old pull track. Lateral
+  forgiveness retuned (`FULL_MISS` 0.14 → 0.24) so the same physical wobble in
+  millimetres costs the same face on the slim pad.
+- **The blossom was never pink** (owner, twice: "no flowers in the picture"):
+  the uploaded sakura's photo canopy is baked so dark it reads MAROON under
+  scene lighting — from every camera, batched and classic alike, which is also
+  what the "natureBatching Wildwood tint" report actually was. No additive
+  lift turns a red photo pink, so the blossom system now always uses the
+  palette-pink repainted broadleaf (course3d `blossomProto`), the sakura keeps
+  an unlit lift for direct builder placements, and the Wildwood marketing art
+  was re-captured (with `?v=2` cache-busting on the CSS refs, since the file
+  names didn't change).
+- **Production**: the soaked dev set defaults ON in prod — focusedGame,
+  recordBoards, quickPlay, dailyHole, roundRecording, verifiedScores,
+  shotAttribution, easeIn, practiceRange, tutorialDepth, resumeRound,
+  natureBatching, dragSwing (as the settings option; the default control is
+  the three-click meter). `rival`/`ghostRace` stay off everywhere — the
+  strip-down superseded them — and `devTools` stays non-prod.

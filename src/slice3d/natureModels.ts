@@ -499,6 +499,20 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
           // look — wanted, but at 1.0 they collapse to silhouettes against
           // the bright waste). Texture.level is a straight multiplier.
           if (key.startsWith('rocks_red')) tex.level = 1.6;
+        } else if (key === 'tree_sakura' && tex) {
+          // The blossom photo is baked DARK — under scene lighting the canopy
+          // read maroon at every camera, and Wildwood's spring identity read
+          // as autumn (owner: "still no flowers"). Render the cards UNLIT like
+          // the fescue and lift the photo hard toward the pink the palette
+          // fallback always promised.
+          // The blossom photo is baked DARK (it read maroon under scene
+          // lighting at every camera). Unlit with a straight lift it reads as
+          // a vivid flowering ornamental for direct placements; the Wildwood
+          // blossom SYSTEM uses the palette-pink repaint instead (course3d
+          // blossomProto), because no additive lift turns this red photo pink.
+          tm.emissiveTexture = tex;
+          tm.disableLighting = true;
+          tex.level = 1.5;
         } else if (key.startsWith('heather_fescue') && tex) {
           // Sand-hills fescue should read GOLDEN (playtest: "brighter,
           // longer grass, more vibrant — think Sand Valley"). The card

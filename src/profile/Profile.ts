@@ -238,6 +238,11 @@ export interface DeviceSettings {
    *  shouting) and makes the completion reward pay exactly once. Device-local
    *  for the same reason as firstRoundDone: guests must get it too. */
   tutorialDone: boolean;
+  /** How this device swings: the classic three-click meter (the default) or
+   *  the traced tempo swing. A control-scheme preference like the volumes —
+   *  both inputs resolve through the same swingModel, so this never changes
+   *  difficulty, only the gesture. */
+  swingType: 'tap' | 'trace';
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -253,7 +258,8 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       clipCapture: !!p.clipCapture,
       firstRoundDone: !!p.firstRoundDone,
       tutorialDone: !!p.tutorialDone,
-      lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : ''
+      lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : '',
+      swingType: p.swingType === 'trace' ? 'trace' : 'tap'
     };
   } catch {
     return null;

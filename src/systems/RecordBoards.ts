@@ -41,6 +41,12 @@ export interface BoardEntry {
   label: string;
   /** Rounds this player contributed, so a board can be honest about sample. */
   rounds: number;
+  /** 1-based position in the FULL ranking — carried on the entry because the
+   *  viewer's own row can sit far below the visible top of the board, where
+   *  its index says nothing about its rank. */
+  rank: number;
+  /** True on the viewing player's row, so the UI can say "that one is you". */
+  you: boolean;
 }
 
 export interface Board {
@@ -112,6 +118,10 @@ function toPar(n: number): string {
   return n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`;
 }
 
+/** How many rows a board shows before the viewer's own line (owner: "top 5
+ *  and the user who's viewing it, for each stat"). */
+export const BOARD_TOP = 5;
+
 function board(
   id: string,
   title: string,
@@ -119,23 +129,47 @@ function board(
   rows: Career[],
   pick: (c: Career) => { value: number; label: string } | null,
   order: 'high' | 'low',
-  limit = 10
+  viewerUid: string | null,
+  limit = BOARD_TOP
 ): Board {
   const entries: BoardEntry[] = [];
   for (const c of rows) {
     const v = pick(c);
     if (!v || !Number.isFinite(v.value)) continue;
-    entries.push({ uid: c.uid, name: c.name, value: v.value, label: v.label, rounds: c.rounds });
+    entries.push({
+      uid: c.uid,
+      name: c.name,
+      value: v.value,
+      label: v.label,
+      rounds: c.rounds,
+      rank: 0,
+      you: viewerUid !== null && c.uid === viewerUid
+    });
   }
   entries.sort((a, b) => (order === 'high' ? b.value - a.value : a.value - b.value));
-  return { id, title, blurb, entries: entries.slice(0, limit) };
+  // Competition ranking ("1224"): equal values share the better rank — two
+  // people with 3 aces are both 2nd, and the next player is 4th.
+  for (let i = 0; i < entries.length; i++) {
+    entries[i].rank = i > 0 && entries[i].value === entries[i - 1].value ? entries[i - 1].rank : i + 1;
+  }
+  const top = entries.slice(0, limit);
+  // The viewer rides along under the top even when they are 40th — a board
+  // that only ever shows five strangers answers "who's best" but never "where
+  // am I", and the second question is the one that brings a player back.
+  const mine = entries.find((e) => e.you);
+  if (mine && !top.includes(mine)) top.push(mine);
+  return { id, title, blurb, entries: top };
 }
 
 /**
  * Every board, in the order a golfer cares about them: what you did once at
  * your very best, then what you do on an ordinary day.
+ *
+ * `viewerUid` is the signed-in account looking at the boards (null for a
+ * guest): their row is marked `you` and appended below the top when they rank
+ * outside it.
  */
-export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
+export function recordBoards(rounds: readonly RoundRecord[], viewerUid: string | null = null): Board[] {
   const rows = careers(rounds);
   return [
     board(
@@ -144,7 +178,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
       'The furthest tee shot anybody has hit.',
       rows,
       (c) => (c.bestDrive > 0 ? { value: c.bestDrive, label: `${Math.round(c.bestDrive)} yd` } : null),
-      'high'
+      'high',
+      viewerUid
     ),
     board(
       'aces',
@@ -152,7 +187,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
       'Career aces. One is a story; two is a habit.',
       rows,
       (c) => (c.aces > 0 ? { value: c.aces, label: `${c.aces}` } : null),
-      'high'
+      'high',
+      viewerUid
     ),
     board(
       'chipins',
@@ -160,7 +196,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
       'Holed from off the green, career total.',
       rows,
       (c) => (c.chipIns > 0 ? { value: c.chipIns, label: `${c.chipIns}` } : null),
-      'high'
+      'high',
+      viewerUid
     ),
     board(
       'average',
@@ -171,7 +208,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
         c.rounds >= MIN_ROUNDS_FOR_AVERAGE
           ? { value: c.toParSum / c.rounds, label: `${(c.toParSum / c.rounds).toFixed(1)}` }
           : null,
-      'low'
+      'low',
+      viewerUid
     ),
     board(
       'best',
@@ -179,7 +217,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
       'The single best card anybody has posted.',
       rows,
       (c) => (Number.isFinite(c.bestRound) ? { value: c.bestRound, label: toPar(c.bestRound) } : null),
-      'low'
+      'low',
+      viewerUid
     ),
     board(
       'putts',
@@ -187,7 +226,8 @@ export function recordBoards(rounds: readonly RoundRecord[]): Board[] {
       'The tidiest day on the greens.',
       rows,
       (c) => (Number.isFinite(c.fewestPutts) ? { value: c.fewestPutts, label: `${c.fewestPutts}` } : null),
-      'low'
+      'low',
+      viewerUid
     )
   ];
 }

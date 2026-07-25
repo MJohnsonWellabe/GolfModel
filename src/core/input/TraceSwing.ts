@@ -70,9 +70,11 @@ export const MAX_PULL = 1.18;
 /**
  * Lateral wobble, as a fraction of the pad's width, that costs the whole face.
  * A thumb on glass wobbles a little by physiology; the skill band lives above
- * that, not inside it.
+ * that, not inside it. Tuned for the SLIM pad (~84 px): the fraction is larger
+ * than the wide pad needed so the same physical wobble in millimetres costs
+ * the same face.
  */
-const FULL_MISS = 0.14;
+const FULL_MISS = 0.24;
 /** Mean tempo error, in power-cursor units, that costs all of the timing. */
 const FULL_OFF_TEMPO = 0.3;
 /** How much of the pulled depth survives a total loss of tempo. A lunged

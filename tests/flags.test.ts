@@ -61,38 +61,50 @@ describe('feature flags', () => {
     }
   });
 
-  it('everything from the smoothness + scale passes ships DEV-ONLY', () => {
-    // Every one of these changes how a live round looks, flows or scores, so
-    // they soak in dev until the device matrix has had them. A flag flipped to
-    // prod here by accident would ship an unplaytested change to live players.
+  it('the smoothness + scale passes are PROMOTED to production (owner pass 5)', () => {
+    // The owner's call, verbatim: "then you can move everything into
+    // production." Everything that soaked in dev through passes 1–4 now
+    // defaults on for live players too.
     for (const key of [
       'natureBatching',
       'resumeRound',
       'tutorialDepth',
       'quickPlay',
       'roundRecording',
-      'ghostRace',
       'verifiedScores',
       'dailyHole',
-      'rival',
       'shotAttribution',
       'easeIn',
-      'practiceRange'
+      'practiceRange',
+      'focusedGame',
+      'recordBoards'
     ]) {
       const def = FLAG_DEFS.find((d) => d.key === key);
       expect(def, key).toBeTruthy();
       expect(def!.defaults.dev, `${key} dev`).toBe(true);
-      expect(def!.defaults.prod, `${key} prod`).toBe(false);
+      expect(def!.defaults.prod, `${key} prod`).toBe(true);
     }
   });
 
-  it('the drag swing is off even in dev — it replaces a core control', () => {
-    // Unlike the rest of the pass, this one changes how every shot is HIT.
-    // It stays opt-in (?ff.dragSwing=on) so a dev session is playing the same
-    // game production is unless the swing is explicitly what is being tested.
+  it('the systems the strip-down retired stay off everywhere', () => {
+    // focusedGame supersedes the rival and the ghost race wholesale (flag()
+    // composes it), so their own defaults never resurrect them — and they must
+    // not ship to prod as a side effect of the pass-5 promotion.
+    for (const key of ['rival', 'ghostRace']) {
+      const def = FLAG_DEFS.find((d) => d.key === key)!;
+      expect(def.defaults.prod, `${key} prod`).toBe(false);
+      expect(flag(key), `${key} resolved under focusedGame`).toBe(false);
+    }
+  });
+
+  it('the traced swing is AVAILABLE everywhere, and the default control is the meter', () => {
+    // The flag is availability — it puts the choice in Settings → Swing. The
+    // actual default control is the three-click meter, and that lives in
+    // DeviceSettings.swingType ('tap' unless the player picks otherwise),
+    // which tests/profile.test.ts pins.
     const def = FLAG_DEFS.find((d) => d.key === 'dragSwing')!;
-    expect(def.defaults.dev).toBe(false);
-    expect(def.defaults.prod).toBe(false);
+    expect(def.defaults.dev).toBe(true);
+    expect(def.defaults.prod).toBe(true);
   });
 
   it('allFlags snapshots every registered flag with a resolved value', () => {

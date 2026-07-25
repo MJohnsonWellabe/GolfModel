@@ -325,7 +325,7 @@ describe('device settings (persistent audio/motion preferences)', () => {
   it('round-trips through storage for guests (no profile persistence needed)', () => {
     const s = memStorage();
     saveDeviceSettings(
-      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood' },
+      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace' },
       s
     );
     const back = loadDeviceSettings(s);
@@ -336,7 +336,8 @@ describe('device settings (persistent audio/motion preferences)', () => {
       clipCapture: false,
       firstRoundDone: false,
       tutorialDone: true,
-      lastCourseId: 'wildwood'
+      lastCourseId: 'wildwood',
+      swingType: 'trace'
     });
   });
 
@@ -352,6 +353,8 @@ describe('device settings (persistent audio/motion preferences)', () => {
     expect(back.ambience).toBe(0);
     expect(back.reducedMotion).toBe(true);
     expect(back.clipCapture).toBe(true);
+    // An absent or corrupt swing choice is the DEFAULT control, never the pad.
+    expect(back.swingType).toBe('tap');
   });
 
   it('survives a broken JSON blob (falls back to null, not a throw)', () => {

@@ -1329,7 +1329,7 @@ class HoleScene {
     // meter marks. Showing the horizontal meter as well would put the target in
     // two places, so it is one control or the other, and the SWING button goes
     // with the meter.
-    const pulling = flag('dragSwing') && !this.comps[this.turnIdx].isAI;
+    const pulling = traceInputOn() && !this.comps[this.turnIdx].isAI;
     if (pulling) {
       meterEl.style.display = 'none';
       swingBtn.style.display = 'none';
@@ -3316,7 +3316,7 @@ class HoleScene {
     // edge — the one part of a phone screen with a full backswing's worth of
     // travel beneath the thumb.
     this.onTraceDown = (e: PointerEvent): void => {
-      if (!flag('dragSwing') || this.ai || this.state.phase !== 'aiming') return;
+      if (!traceInputOn() || this.ai || this.state.phase !== 'aiming') return;
       e.preventDefault();
       startAmbience();
       if (!meter.isArmed) this.armMeter();
@@ -4898,6 +4898,12 @@ function renderProfile(tab?: ProfileTab): void {
         `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
         `<label class="setRow"><span>Reduced motion</span>` +
         `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+        (flag('dragSwing')
+          ? `<div class="setRow"><span>Swing</span><div class="setSeg">` +
+            `<button id="setSwingTap" class="segBtn${deviceSettings.swingType === 'tap' ? ' sel' : ''}">Three-click</button>` +
+            `<button id="setSwingTrace" class="segBtn${deviceSettings.swingType === 'trace' ? ' sel' : ''}">Drag &amp; trace</button>` +
+            `</div></div>`
+          : '') +
         (shotCapture.supported
           ? `<label class="setRow"><span>Record shot clips</span>` +
             `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
@@ -4936,6 +4942,15 @@ function renderProfile(tab?: ProfileTab): void {
     updateDeviceSettings({ reducedMotion: (e.target as HTMLInputElement).checked });
     persistProfile();
   });
+  // Swing type is a mid-round-safe choice: the input surfaces are re-picked at
+  // the next address (armSwing reads traceInputOn), so no rebuild is needed.
+  const pickSwing = (type: DeviceSettings['swingType']): void => {
+    updateDeviceSettings({ swingType: type });
+    document.getElementById('setSwingTap')?.classList.toggle('sel', type === 'tap');
+    document.getElementById('setSwingTrace')?.classList.toggle('sel', type === 'trace');
+  };
+  document.getElementById('setSwingTap')?.addEventListener('click', () => pickSwing('tap'));
+  document.getElementById('setSwingTrace')?.addEventListener('click', () => pickSwing('trace'));
   document.getElementById('setClipCapture')?.addEventListener('change', (e) => {
     const on = (e.target as HTMLInputElement).checked;
     updateDeviceSettings({ clipCapture: on });
@@ -5786,14 +5801,18 @@ async function renderRecords(): Promise<void> {
       return;
     }
     if (recCourseId === BOARDS_TAB) {
-      listEl.innerHTML = recordBoards(data)
+      // Top 5 per stat, with the viewer's own ranked row riding along (marked
+      // and highlighted) even when they sit outside the top — "where am I" is
+      // the question that brings a player back to a board.
+      listEl.innerHTML = recordBoards(data, signedIn ? profile.id : null)
         .map((b) => {
           const rows = b.entries.length
             ? b.entries
                 .map(
-                  (e, i) =>
-                    `<div class="recRow"><span class="recRk">${i === 0 ? '🏆' : `${i + 1}.`}</span>` +
-                    `<span class="recNm">${escapeHtml(e.name)}</span>` +
+                  (e) =>
+                    `<div class="recRow${e.you ? ' you' : ''}">` +
+                    `<span class="recRk">${e.rank === 1 ? '🏆' : `${e.rank}.`}</span>` +
+                    `<span class="recNm">${escapeHtml(e.name)}${e.you ? '<span class="youTag">YOU</span>' : ''}</span>` +
                     `<span class="recTot">${escapeHtml(e.label)}</span></div>`
                 )
                 .join('')
@@ -6397,8 +6416,16 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   clipCapture: false,
   firstRoundDone: legacyLocal.stats.rounds > 0, // returning devices skip the intro reveal
   tutorialDone: false,
-  lastCourseId: ''
+  lastCourseId: '',
+  swingType: 'tap'
 };
+
+/** Whether THIS device swings by tracing the rabbit. The `dragSwing` flag is
+ *  availability (is the option offered at all); the device setting is the
+ *  player's choice — and the default is the three-click meter. */
+function traceInputOn(): boolean {
+  return flag('dragSwing') && deviceSettings.swingType === 'trace';
+}
 
 /** Push the device preferences into the live profile + live audio. Call after
  *  boot and after ANY wholesale profile replacement (cloud merge, sign-out). */

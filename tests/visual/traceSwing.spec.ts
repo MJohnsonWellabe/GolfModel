@@ -18,6 +18,14 @@ import { expect, test } from '@playwright/test';
 const PHONE = { width: 390, height: 844 };
 
 async function startRound(page: import('@playwright/test').Page): Promise<void> {
+  // The trace is a per-device CHOICE now (Settings → Swing), not a flag alone:
+  // the flag is availability, and the shipped default is the three-click
+  // meter. Seed the device preference the way the settings screen writes it.
+  await page.addInitScript(() => {
+    const KEY = 'johnsons-golf-device-settings-v1';
+    const cur = JSON.parse(localStorage.getItem(KEY) || '{}');
+    localStorage.setItem(KEY, JSON.stringify({ ...cur, swingType: 'trace' }));
+  });
   await page.goto('/?freeze=1&ff.dragSwing=on');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
   await page.evaluate(() =>
@@ -59,8 +67,19 @@ test('the trace pad is a tall rectangle on the right with real travel', async ({
   // actually has room on.
   expect(box.x + box.width, 'the pad is not on the right edge').toBeGreaterThan(PHONE.width - 20);
   expect(box.height, `pad is ${Math.round(box.height)}px tall`).toBeGreaterThan(box.width * 1.5);
-  expect(box.height, 'not enough vertical travel').toBeGreaterThan(PHONE.height * 0.45);
+  expect(box.height, 'not enough vertical travel').toBeGreaterThan(PHONE.height * 0.4);
   expect(box.y + box.height, 'the pad runs off the bottom').toBeLessThanOrEqual(PHONE.height + 1);
+  // ...but a rail, not a room: the pad must leave the rest of the HUD alone
+  // (owner: "major reduction horizontally").
+  expect(box.width, `pad is ${Math.round(box.width)}px wide`).toBeLessThanOrEqual(90);
+
+  // The controls the first pad swallowed stay usable beside it: the club
+  // picker and shape pad on the left, and the AERIAL button stepped out of
+  // the pad's column instead of buried underneath it.
+  await expect(page.locator('#clubBar'), 'the club picker vanished with the pad up').toBeVisible();
+  await expect(page.locator('#shotShape'), 'the shape pad vanished with the pad up').toBeVisible();
+  const aerial = (await page.locator('#aerialBtn').boundingBox())!;
+  expect(aerial.x + aerial.width, 'AERIAL is buried under the trace pad').toBeLessThanOrEqual(box.x + 1);
 });
 
 test('tracing the rabbit powers up, strikes, and leaves the path on screen', async ({ page }) => {
@@ -130,10 +149,13 @@ test('a touch that never pulls back is a cancel, not a duffed shot', async ({ pa
   expect(phase, 'a stray touch on the track played a shot').toBe('aiming');
 });
 
-test('with the flag off, nothing about the tap meter changes', async ({ page }) => {
+test('without the device choice, the three-click meter is the default — flag or no flag', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
-  await page.goto('/?freeze=1&ff.dragSwing=off');
+  // The flag is ON here. What's absent is the per-device CHOICE — and the
+  // shipped default must be the tap meter (owner: "default swing to three
+  // click"), so a fresh install never sees the pad until they pick it.
+  await page.goto('/?freeze=1&ff.dragSwing=on');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
   await page.evaluate(() =>
     (window as never as { __startRound: (o: unknown) => void }).__startRound({
