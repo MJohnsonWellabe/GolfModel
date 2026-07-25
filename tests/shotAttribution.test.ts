@@ -51,7 +51,18 @@ function shoot(
   rng = mulberry32(SEED);
   const launch = engine.resolveLaunch(params);
   const out = engine.integrateLaunch(launch, spin, 0);
-  return attributeShot(engine, params, spin, out.finalPos, () => (rng = mulberry32(SEED)));
+  // Where the player aimed: a clean strike in dead air, which is exactly what
+  // the in-game aim line previews. Every number is measured against this.
+  rng = mulberry32(SEED);
+  const aimLaunch = engine.resolveLaunch({
+    ...params,
+    wind: { angle: 0, speed: 0 },
+    spin: { side: 0, top: 0 },
+    swing: { ...params.swing, accuracy: 0, powerQuality: 'perfect', accuracyQuality: 'perfect' }
+  });
+  rng = mulberry32(SEED);
+  const aimPoint = engine.integrateLaunch(aimLaunch, { side: 0, top: 0 }, 0).finalPos;
+  return attributeShot(engine, params, spin, out.finalPos, aimPoint, () => (rng = mulberry32(SEED)));
 }
 
 describe('what the breakdown reports', () => {
@@ -70,11 +81,15 @@ describe('what the breakdown reports', () => {
     expect(wind, `factors: ${windy.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
   });
 
-  it('names a bad lie, and never blames the fairway', () => {
+  it('never blames the LIE, because the aim already accounts for it', () => {
+    // The owner's point, and the reason this was rewritten: the club and the
+    // power were chosen FOR the sand. Telling him "sand cost 20 yd" is telling
+    // him about a decision he already made. Only the things he could not fully
+    // see are worth naming.
     const rough = shoot(openHole(), { lie: 'rough' });
-    const lie = rough.factors.find((f) => f.kind === 'lie');
-    expect(lie?.label).toMatch(/rough/);
-    expect(shoot(openHole(), { lie: 'fairway' }).factors.some((f) => f.kind === 'lie')).toBe(false);
+    expect(rough.factors.map((f) => f.kind)).not.toContain('lie');
+    const sand = shoot(openHole(), { lie: 'sand' });
+    expect(sand.factors.map((f) => f.kind)).not.toContain('lie');
   });
 
   it('charges a badly missed strike to the strike, not to the conditions', () => {
@@ -87,18 +102,27 @@ describe('what the breakdown reports', () => {
     });
     const strike = a.factors.find((f) => f.kind === 'strike');
     expect(strike, `factors: ${a.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
-    // In this engine a mis-hit spends itself mostly sideways, so the strike is
-    // reported on whichever axis actually moved.
-    expect(strike!.label).toMatch(/strike (cost|pushed)/);
+    // Reported on whichever axis actually moved — in this engine a mis-hit
+    // spends itself mostly sideways.
+    expect(strike!.label).toMatch(/^strike /);
     // And the conditions are not blamed for it: dead calm, off a tee.
     expect(a.factors.some((f) => f.kind === 'wind')).toBe(false);
   });
 
-  it('says nothing at all about a clean, calm, flat shot', () => {
+  it('says nothing at all about a clean, calm, flat shot that finished on the aim', () => {
     // Silence is a feature. A breakdown that always finds something to say
     // trains the player to ignore it.
     const a = shoot(openHole());
-    expect(a.summary === '' || a.factors.length === 0).toBe(true);
+    expect(a.factors).toEqual([]);
+    expect(a.missLabel).toBe('');
+  });
+
+  it('reports the miss against the AIM, in short/long and left/right', () => {
+    const windy = shoot(openHole(), { wind: { angle: Math.PI / 2, speed: 20 } });
+    // A 20mph wind straight down the line has to move the ball off the aim, and
+    // the head line has to name it in terms a golfer uses.
+    expect(Math.abs(windy.shortYd) + Math.abs(windy.rightYd)).toBeGreaterThan(5);
+    expect(windy.missLabel, windy.missLabel).toMatch(/yd (short|long|left|right)/);
   });
 });
 
@@ -107,7 +131,7 @@ describe('spin — the factor the player chose', () => {
     const a = shoot(openHole(), { spin: { side: 0.8, top: 0 } }, { side: 0.8, top: 0 });
     const spin = a.factors.find((f) => f.kind === 'spin');
     expect(spin, `factors: ${a.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
-    expect(spin!.label).toMatch(/draw|fade|spin/);
+    expect(spin!.label).toMatch(/^spin /);
   });
 
   it('names the direction the ball actually moved', () => {

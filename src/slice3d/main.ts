@@ -287,23 +287,23 @@ const shotWhyEl = document.getElementById('shotWhy') as HTMLElement | null;
  */
 function showShotWhy(a: ShotAttribution | null): void {
   if (!shotWhyEl) return;
-  if (!a || (!a.factors.length && Math.abs(a.lateralYd) < 5)) {
+  if (!a || (!a.factors.length && !a.missLabel)) {
     shotWhyEl.style.opacity = '0';
     shotWhyEl.innerHTML = '';
     return;
   }
+  // Head line: the miss itself. If it finished on the aim, say so — that is
+  // information too, and it is the shot the player is trying to repeat.
+  const head = a.missLabel || 'on your aim';
   const rows = a.factors.map((f) => {
-    // Slope is context, not a cost or a gain — it gets no colour.
-    const cls = f.kind === 'slope' ? '' : f.yards > 0 ? ' cost' : ' gain';
+    // Slope is context, not blame — it gets no colour.
+    const cls = f.kind === 'slope' ? '' : ' cost';
     return `<span class="swRow${cls}">${escapeHtml(f.label)}</span>`;
   });
-  if (Math.abs(a.lateralYd) >= 5) {
-    rows.push(
-      `<span class="swRow">${Math.round(Math.abs(a.lateralYd))} yd ` +
-        `${a.lateralYd > 0 ? 'right' : 'left'}</span>`
-    );
-  }
-  shotWhyEl.innerHTML = `<span class="swHead">${Math.round(a.distanceYd)} yd</span>${rows.join('')}`;
+  shotWhyEl.innerHTML =
+    `<span class="swHead">${escapeHtml(head)}</span>` +
+    `<span class="swDist">${Math.round(a.distanceYd)} yd</span>` +
+    rows.join('');
   shotWhyEl.style.opacity = '1';
 }
 
@@ -312,6 +312,9 @@ function showShotWhy(a: ShotAttribution | null): void {
 function clearShotWhy(): void {
   if (!shotWhyEl) return;
   shotWhyEl.style.opacity = '0';
+  // Empty it too: an opacity-0 card still occupies the corner and still counts
+  // as on screen. `#shotWhy:empty` takes it out of the layout entirely.
+  shotWhyEl.innerHTML = '';
 }
 
 /** Last cloud-save outcome, so the account UI can flag a persistent failure. */
@@ -859,6 +862,7 @@ class HoleScene {
    *  breakdown can re-fly counterfactuals off them (`shotAttribution`). */
   private lastShotParams: Parameters<PhysicsEngine['resolveLaunch']>[0] | null = null;
   private lastShotStrokes = 0;
+  private lastAimPoint: { x: number; y: number } = { x: 0, y: 0 };
   private lastShotSpin: SpinState = { side: 0, top: 0 };
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
@@ -1288,8 +1292,6 @@ class HoleScene {
     // The drag swing (`dragSwing`) resolves against the SAME context, so both
     // control schemes share one definition of a perfect strike.
     this.swingCtx = swingCtx;
-    // The last shot's breakdown has done its job the moment this one is armed.
-    clearShotWhy();
     meter.arm(swingCtx);
     meterEl.style.display = 'block';
     meterEl.classList.toggle('onFire', fire.isOnFire);
@@ -1532,8 +1534,6 @@ class HoleScene {
       `<div class="hole-no">HOLE ${h.number}</div>` +
       `<div class="hole-facts">PAR ${h.par} · ${yards} yds</div>` +
       `<div class="hole-course">${round.course.name}</div>`;
-    const badge = document.getElementById('badge');
-    if (badge) badge.innerHTML = `${round.course.name}<br />${h.name ?? 'Hole ' + h.number}`;
     bannerEl.style.opacity = '1';
     skipBtn.style.display = 'block'; // let the player skip the flyover
     this.aim.autoSelectClub(this.ctx());
@@ -2477,10 +2477,13 @@ class HoleScene {
     // innerHTML rebuild entirely.
     const rel = Math.round((this.wind.angle - this.aim.yaw - Math.PI / 2) * 32) / 32;
     const html =
+      // Course and hole, in the HUD rather than in a separate badge fighting
+      // the round controls for the top-right corner.
+      `<div class="hudWhere">${escapeHtml(round.course.name)} · ${escapeHtml(this.hole.name ?? `Hole ${this.hole.number}`)} · par ${this.hole.par}</div>` +
       `<div class="row"><span class="chip club">${club.name}</span><span class="chip">${distLabel}</span>` +
       `<span class="chip wind"><span class="arrow" style="transform:rotate(${rel}rad)">➤</span> ${this.wind.speed}</span></div>` +
       `<div class="row"><span class="chip pin">⛳ ${pinLabel}</span><span class="chip">${this.state.lie}</span>` +
-      `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(this.curPart())}</span></div>` +
+      `<span class="chip">Shot ${this.state.strokes + 1}</span><span class="chip score">${scoreToPar(this.curPart())}</span></div>` +
       (round.mode !== 'solo'
         ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
         : '') +
@@ -2526,6 +2529,11 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     markPerf(round.course.name, this.hole.number, 'shot-resolved');
+    // The previous shot's breakdown stays up through the whole aiming phase —
+    // that is when it is useful — and goes only when a new ball is struck.
+    // Clearing it when the METER ARMS (as this first did) wiped it instantly,
+    // because the next turn arms the moment the ball comes to rest.
+    clearShotWhy();
     // Snapshot the True Vision promise BEFORE hideTrueVision() clears it.
     const tvReveal = this.tvReveal;
     this.state.phase = 'swinging';
@@ -2604,6 +2612,7 @@ class HoleScene {
     // The stroke count this shot resolved AT — the third input to its RNG seed,
     // captured before the stroke is charged so the breakdown can reproduce it.
     this.lastShotStrokes = this.state.strokes;
+    this.lastAimPoint = this.aim.aimPoint(this.state.ballPos);
     this.lastShotSpin = { ...spin };
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
@@ -3030,6 +3039,10 @@ class HoleScene {
         this.lastShotParams,
         this.lastShotSpin,
         outcome.finalPos,
+        // WHERE THE PLAYER AIMED — the reference every number is measured
+        // against. Captured at address, because the aim control has already
+        // moved on to the next shot by the time the ball rests.
+        this.lastAimPoint,
         () => (this.shotRng = mulberry32(seed))
       );
     } catch {

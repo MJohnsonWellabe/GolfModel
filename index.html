@@ -189,12 +189,16 @@
       #hud .chip.pin {
         color: #cde8c8;
       }
-      #badge {
-        top: max(10px, env(safe-area-inset-top));
-        right: 10px;
-        font-size: 12.5px;
+      /* Retired: the course and hole now live in the HUD (top left) rather than
+         competing for the top-right corner with the round controls. */
+      #badge { display: none; }
+      /* Course · hole line inside the HUD. */
+      #hud .hudWhere {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
         color: #9fbf9a;
-        text-align: right;
+        margin-bottom: 3px;
       }
       /* Cinematic celebration banner (V2 delight — replaces the emoji/plain
          showMsg for the earned moments). A letterboxed band in the upper
@@ -298,9 +302,10 @@
          shot, so it is there while you think about the next one. */
       #shotWhy {
         position: fixed;
-        top: max(56px, calc(env(safe-area-inset-top) + 56px));
+        top: calc(max(10px, env(safe-area-inset-top)) + 88px);
         right: 10px;
-        max-width: 46vw;
+        max-width: 48vw;
+        min-width: 132px;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
@@ -320,10 +325,19 @@
         transition: opacity 0.25s;
         z-index: 5;
       }
+      /* An emptied card must not leave a floating box behind — the same
+         :empty trick the landing cards use. */
+      #shotWhy:empty { display: none; }
       #shotWhy .swHead {
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 900;
         color: #f2f7ef;
+      }
+      #shotWhy .swDist {
+        font-size: 10.5px;
+        font-weight: 700;
+        opacity: 0.6;
+        margin-bottom: 2px;
       }
       #shotWhy .swRow {
         opacity: 0.86;
@@ -436,19 +450,22 @@
       }
       /* Leave-round control. Top RIGHT, opposite the HUD, deliberately small and
          quiet — it is an escape hatch, not an invitation. */
+      /* THE TOP-RIGHT STACK: Menu, then Clip, then the last shot's breakdown.
+         One column, one alignment, so the eye learns where round controls live
+         instead of hunting three corners. */
       #pauseBtn {
         position: fixed;
         top: max(10px, env(safe-area-inset-top));
         right: 10px;
         display: none;
-        width: 38px;
-        height: 38px;
+        padding: 8px 13px;
         border-radius: 12px;
         border: 1px solid rgba(255, 255, 255, 0.22);
-        background: rgba(8, 20, 12, 0.72);
-        color: #cfe0d2;
-        font-size: 17px;
+        background: rgba(8, 20, 12, 0.78);
+        color: #dbe8d6;
+        font-size: 12.5px;
         font-weight: 800;
+        letter-spacing: 0.3px;
         line-height: 1;
         cursor: pointer;
         z-index: 6;
@@ -529,7 +546,7 @@
       #captureBtn {
         position: fixed;
         right: 10px;
-        top: 58px;
+        top: calc(max(10px, env(safe-area-inset-top)) + 44px);
         display: none;
         padding: 9px 14px;
         border-radius: 12px;
@@ -3417,7 +3434,7 @@
     <!-- Leave the round. There was no way back to the menu once a round had
          started — the only exits were finishing all three holes or reloading
          the page, and reloading loses the card. -->
-    <button id="pauseBtn" aria-label="Leave round">✕</button>
+    <button id="pauseBtn">☰ Menu</button>
     <button id="skipBtn">SKIP ▶</button>
     <button id="swingBtn">SWING</button>
 

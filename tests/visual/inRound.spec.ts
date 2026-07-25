@@ -92,3 +92,65 @@ test('there is a way out of a round, and it lands back on the menu', async ({ pa
   const scene = await page.evaluate(() => (window as never as { __slice3d: unknown }).__slice3d);
   expect(scene, 'the round scene was left alive behind the menu').toBeNull();
 });
+
+/**
+ * The breakdown has to still be there when you look up.
+ *
+ * It was cleared when the swing meter ARMED — which happens the instant the ball
+ * comes to rest, so the card appeared and vanished in the same breath. It is
+ * input to the next decision, so it must survive the whole aiming phase and go
+ * only when a new ball is struck.
+ */
+test('the shot breakdown persists through aiming and clears on the next strike', async ({ page }) => {
+  test.setTimeout(300_000);
+  await startRound(page);
+  const card = page.locator('#shotWhy');
+
+  // Play one shot and settle it.
+  await page.evaluate(() => (window as never as { __slice3d: { playSkilledShot(): boolean } }).__slice3d.playSkilledShot());
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'flying',
+    undefined,
+    { timeout: 30_000 }
+  );
+  await page.evaluate(() => (window as never as { __slice3d: { settleFlight(): boolean } }).__slice3d.settleFlight());
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 60_000 }
+  );
+
+  // It is up, and it STAYS up while the player takes their time over the next
+  // shot — which is exactly when it is useful.
+  await expect(card).toBeVisible();
+  const shown = await card.innerText();
+  expect(shown.length, 'the breakdown rendered empty').toBeGreaterThan(0);
+  await page.waitForTimeout(4000);
+  await expect(card, 'the breakdown vanished while the player was still aiming').toBeVisible();
+  expect(await card.innerText()).toBe(shown);
+
+  // And it goes when a new ball is struck.
+  await page.evaluate(() => (window as never as { __slice3d: { playSkilledShot(): boolean } }).__slice3d.playSkilledShot());
+  await page.waitForTimeout(300);
+  await expect(card).toBeHidden();
+});
+
+test('the round controls stack down the top right, and the HUD names the course', async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await startRound(page);
+
+  // A labelled button, not a bare glyph.
+  const menu = page.locator('#pauseBtn');
+  await expect(menu).toBeVisible();
+  expect((await menu.innerText()).toLowerCase()).toContain('menu');
+
+  const menuBox = (await menu.boundingBox())!;
+  expect(menuBox.x + menuBox.width, 'Menu is not in the top right').toBeGreaterThan(390 - 90);
+  expect(menuBox.y, 'Menu is not at the top').toBeLessThan(80);
+
+  // Course and hole live in the HUD now, not in a separate badge.
+  const hud = await page.locator('#hud').innerText();
+  expect(hud, hud).toMatch(/par \d/i);
+  await expect(page.locator('#badge')).toBeHidden();
+});
