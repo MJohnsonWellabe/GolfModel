@@ -15,7 +15,7 @@ import {
   TransformNode,
   Vector3,
   Viewport
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { FLIGHT, LEADERBOARD_URL, PHYSICS, PUTT_VIEW, PX_PER_YARD, RULES, SWING } from '../config';
 import { activeBedKind, BedKind, COURSE_BEDS, startBed } from '../core/audio/beds';
 import { setAmbienceMasterVolume } from '../core/audio/engine';
@@ -41,6 +41,11 @@ import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import { withWildwoodPerf } from '../systems/wildwoodPerf';
 import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
+import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
+import { ReplayOptions } from '../systems/RoundReplay';
+import { GhostRun } from '../systems/GhostRun';
+import { verifyRecording } from '../systems/RoundVerify';
+import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
@@ -781,6 +786,15 @@ class HoleScene {
   /** Current ball-mesh size multiplier (1 off the green, PUTT_BALL_SCALE on it)
    *  so the ball rests on the surface at either size. */
   private ballScale = 1;
+  /** Translucent stand-in flying the ghost's recorded shot alongside the
+   *  player's (`ghostRace`). Created lazily on the first ghost shot and
+   *  disposed with the scene. */
+  private ghostBall: Mesh | null = null;
+  /** The ghost's flight currently in the air, advanced by the same tick that
+   *  advances the player's so both balls read as one moment. */
+  private ghostFlight: { path: TrajectoryPoint[]; progress: number } | null = null;
+  /** How many shots the ghost has played on this hole so far. */
+  private ghostShotIdx = 0;
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     markPerf(round.course.name, this.hole.number, 'hole-constructor-start');
@@ -961,6 +975,7 @@ class HoleScene {
       scores: this.curPart().scores
     };
 
+    this.ghostShotIdx = 0; // the ghost's shot index is per HOLE, not per round
     this.wireInput();
     this.scene.onBeforeRenderObservable.add(() => this.tick());
     // Compile the address-time shaders DURING the flyover so the first shot is
@@ -2334,7 +2349,8 @@ class HoleScene {
       `<span class="chip">H${this.hole.number} · S${this.state.strokes}</span><span class="chip score">${scoreToPar(this.curPart())}</span></div>` +
       (round.mode !== 'solo'
         ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
-        : '');
+        : '') +
+      (activeGhost ? this.ghostHudRow() : '');
     if (html !== this.lastHudHtml) {
       this.lastHudHtml = html;
       hudEl.innerHTML = html;
@@ -2458,6 +2474,26 @@ class HoleScene {
       outcome = tvReveal.outcome;
     }
     this.strike.resetDot();
+    // Record the HUMAN's inputs for this stroke (`roundRecording`). Everything
+    // else about the shot — where the ball was, the lie, the wind, the stroke
+    // count — is a consequence of the seed and the shots before it, so it is
+    // deliberately NOT stored. Pure array push; nothing here touches storage or
+    // the network, so it is safe on the shot path.
+    if (!this.ai) {
+      roundRecorder.add({
+        h: round.holeIdx,
+        a: this.aim.yaw,
+        c: club.id,
+        p: converted.power,
+        pq: converted.powerQuality,
+        ac: converted.accuracy,
+        aq: converted.accuracyQuality,
+        ss: shape.side,
+        st: shape.top,
+        lm: launchMult,
+        rm: shaping && !this.ai ? this.strike.riskMult : 1
+      });
+    }
     // Feed the streak AFTER the shot resolves with the pre-shot boost
     if (fire.recordSwing(converted)) {
       if (!this.ai && flag('delight')) {
@@ -2518,6 +2554,7 @@ class HoleScene {
         tmat.alpha = onFire ? 0.62 : 0.55;
         trail.material = tmat;
       }
+      this.launchGhostShot();
       this.flight = {
         outcome,
         progress: 0,
@@ -3009,6 +3046,75 @@ class HoleScene {
   }
 
   /** Mid-flight swipe: accumulate spin and re-shape the resolved launch. */
+  /**
+   * Send the ghost's corresponding shot into the air at the same moment the
+   * player's leaves the club. Same hole, same shot number — so on a par 4 your
+   * drive races their drive, not their putt. When the ghost has already holed
+   * out there is simply nothing left to fly, which reads exactly as it should.
+   */
+  private launchGhostShot(): void {
+    const ghost = activeGhost;
+    if (!ghost || this.ai) return;
+    const shot = ghost.shot(round.holeIdx, this.ghostShotIdx);
+    this.ghostShotIdx += 1;
+    if (!shot || !shot.path.length) return;
+    if (!this.ghostBall) {
+      const g = MeshBuilder.CreateSphere('ghostBall', { diameter: 1.0, segments: 10 }, this.scene);
+      const gm = new StandardMaterial('ghostBallMat', this.scene);
+      gm.diffuseColor = new Color3(0.55, 0.85, 1);
+      gm.emissiveColor = new Color3(0.2, 0.42, 0.6);
+      gm.specularColor = new Color3(0.2, 0.2, 0.2);
+      // Translucent so it never hides the player's own ball or the pin, and
+      // unpickable/shadowless so a second ball adds no gameplay ambiguity and
+      // no per-frame cost beyond its own draw.
+      gm.alpha = 0.55;
+      g.material = gm;
+      g.isPickable = false;
+      g.receiveShadows = false;
+      this.ghostBall = g;
+    }
+    this.ghostBall.scaling.setAll(this.ballScale);
+    this.ghostBall.setEnabled(true);
+    this.ghostFlight = { path: shot.path, progress: 0 };
+  }
+
+  /** The running head-to-head line. Like-for-like: the ghost's strokes on the
+   *  hole in progress only count as far as the player has played it, so the
+   *  readout never says you are behind on a hole you have not started. */
+  private ghostHudRow(): string {
+    const ghost = activeGhost;
+    if (!ghost) return '';
+    const st = ghost.standing(this.curPart().scores, round.holeIdx, this.state.strokes, round.holeIdx);
+    const cls = st.diff > 0 ? 'ghostAhead' : st.diff < 0 ? 'ghostBehind' : '';
+    return (
+      `<div class="row"><span class="chip ghost ${cls}">👻 ${escapeHtml(ghost.name)} ${st.ghost}` +
+      ` · you ${st.you} — ${st.label}</span></div>`
+    );
+  }
+
+  /** Advance the ghost's ball along its recorded path. Driven by the same tick
+   *  and the same timescale as the player's flight, so the two shots stay in
+   *  step; when it runs out of path the ball rests where the ghost's did. */
+  private tickGhost(dt: number): void {
+    const gf = this.ghostFlight;
+    if (!gf || !this.ghostBall) return;
+    gf.progress += dt * 60 * this.flightTimescale();
+    const i = Math.floor(gf.progress);
+    if (i >= gf.path.length - 1) {
+      const last = gf.path[gf.path.length - 1];
+      this.ghostBall.position = w2b(last.x, last.y, last.z + this.ballRestH() + this.gh(last.x, last.y));
+      this.ghostFlight = null;
+      return;
+    }
+    const p = gf.path[i];
+    const pn = gf.path[i + 1];
+    const f = gf.progress - i;
+    const bx = p.x + (pn.x - p.x) * f;
+    const by = p.y + (pn.y - p.y) * f;
+    const bz = p.z + (pn.z - p.z) * f;
+    this.ghostBall.position = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
+  }
+
   private applySwipeSpin(e: PointerEvent): void {
     const fl = this.flight;
     if (!fl || !fl.launch || fl.landed || fl.isPutt || !this.swipeLast) {
@@ -3046,6 +3152,10 @@ class HoleScene {
       }
     }
     fl.landIdx = landIdx;
+    // The recording keeps the LAST swipe and the step it was applied from —
+    // replaying with the spin applied from step 0 would land the ball somewhere
+    // the player never hit it (systems/RoundRecording.ts).
+    if (!this.ai) roundRecorder.setFlightSpin(ns.side, ns.top, cur);
     promptEl.textContent = `✨ spin ${ns.side >= 0 ? '→' : '←'}${Math.abs(ns.side).toFixed(1)} ${ns.top >= 0 ? '↟' : '↡'}${Math.abs(ns.top).toFixed(1)}`;
   }
 
@@ -3102,6 +3212,8 @@ class HoleScene {
         aimReadoutEl.style.display = 'none';
       }
     }
+
+    this.tickGhost(dt);
 
     if (this.flight) {
       this.flight.progress += dt * 60 * this.flightTimescale();
@@ -3578,6 +3690,7 @@ function replayAnim(el: HTMLElement, cls: string): void {
 function showSummary(): void {
   current?.dispose();
   current = null;
+  sealRoundRecording();
   // Take the gameplay chrome down with the scene — the results card is the
   // whole screen's purpose now (leftover HUD/aim-readout/SWING read as noise
   // around the card). playHole() restores them for the next round.
@@ -3874,6 +3987,7 @@ function showSummary(): void {
         `<div class="btnRow"><button id="recBtn" class="ghostBtn">Records</button>` +
         `<button id="profBtn" class="ghostBtn">Profile</button>` +
         `<button id="shareChBtn" class="ghostBtn">⚔ Share</button>` +
+        (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
         `<button id="againBtn" class="ghostBtn">Menu</button></div>`);
   summaryEl.style.display = 'block';
   replayAnim(summaryEl, 'fadeIn'); // gentle entrance for the results screen
@@ -3945,6 +4059,7 @@ function showSummary(): void {
   // Challenges" in the profile can show who won. The share sheet opens a
   // ready-to-text message; clipboard/prompt fallbacks where share isn't
   // available.
+  document.getElementById('ghostBtn')?.addEventListener('pointerdown', () => startGhostRematch());
   document.getElementById('shareChBtn')?.addEventListener('pointerdown', () => {
     const cid = makeChallengeId();
     const def: AsyncChallengeDef = {
@@ -5271,6 +5386,9 @@ function startTournamentRound(meta: Tournament): void {
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
+  // A tournament round is not the plain solo round the recorder covers.
+  lastRecording = null;
+  roundRecorder.stop();
   // Persist the wizard's picks like a normal round so they stick next launch.
   persistProfile();
   const golfer = roundGolfer();
@@ -5346,6 +5464,9 @@ function startAiTourRound(): void {
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
+  // A tournament round is not the plain solo round the recorder covers.
+  lastRecording = null;
+  roundRecorder.stop();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   setupEl.style.display = 'none';
@@ -5749,6 +5870,87 @@ let forcedSeed: number | undefined;
 /** Set for the duration of ONE startRound call when the player chose Resume, so
  *  that call keeps the stored seed and scores instead of starting clean. */
 let resumingFrom: RoundCheckpoint | null = null;
+
+/**
+ * Records the human's shot INPUTS for the round in progress (`roundRecording`).
+ * The recording is what makes a score verifiable and a ghost possible — see
+ * systems/RoundRecording.ts. Solo rounds only: a versus round's scorecard is
+ * not the human's alone, and replaying it would need the AI's stream too.
+ */
+const roundRecorder = new RoundRecorder();
+
+/** The last completed round's recording, held for the results screen (share,
+ *  ghost challenge, verification) until the next round starts. */
+let lastRecording: RoundRecording | null = null;
+
+/**
+ * The opponent being raced this round, or null for an ordinary solo round
+ * (`ghostRace`). Read by the hole scene to fly the ghost's ball and by the HUD
+ * to show the standing; cleared when a round starts without one.
+ */
+let activeGhost: GhostRun | null = null;
+
+/** A recording armed to be raced by the NEXT startRound (the landing/results
+ *  entry points set this, then start the round). */
+let pendingGhost: RoundRecording | null = null;
+
+/**
+ * Seal the round recording at the end of the round and self-check it: replay
+ * the inputs through the same physics the round just ran on, and keep the
+ * recording only if it reproduces the score that was actually played.
+ *
+ * That check runs on the CLIENT deliberately. It is not a security measure —
+ * verification against a leaderboard belongs on the server
+ * (systems/RoundVerify.ts, functions/verifyRound). It is a CORRECTNESS measure:
+ * a recording that does not round-trip means the game and the replay engine
+ * have drifted apart, and shipping a ghost or a challenge built on it would
+ * show the player a round that never happened. Better to drop it silently.
+ */
+function sealRoundRecording(): void {
+  if (!roundRecorder.isRecording()) return;
+  const courseId = courseIdByName(round.course.name);
+  const me = round.players[0];
+  const rec = roundRecorder.finish({
+    courseId,
+    seed: round.seed ?? 0,
+    holes: holesThisRound(),
+    golfer: {
+      character: profile.character,
+      archetype: profile.archetype,
+      upgrades: { ...profile.clubUpgrades }
+    },
+    scores: me?.scores ?? [],
+    at: Date.now(),
+    name: profile.name || 'Player'
+  });
+  if (!rec) return;
+  const check = verifyRecording(rec, COURSES, replayOptions());
+  if (!check.ok) {
+    // Never surfaced to the player — there is nothing they did wrong and
+    // nothing they can do. Logged in dev so drift is caught in playtesting.
+    if (!ENV.isProd) {
+      console.warn(`[recording] dropped — ${check.status}: ${check.detail ?? ''}`, check);
+    }
+    analytics.track('recording_rejected', { result: check.status, course: courseId });
+    return;
+  }
+  lastRecording = rec;
+  saveRecording(rec);
+}
+
+/** The replay/verify options that mirror this build's feature flags. Kept in
+ *  one place so the client self-check, ghost playback and the server verifier
+ *  cannot disagree about how the round was played. */
+function replayOptions(): ReplayOptions {
+  const theme = resolveTheme(round.course);
+  return {
+    useAuthoredPins: flag('layouts'),
+    bounded: flag('boundedWorld'),
+    bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+    wasteDepthScale: theme.wasteDepthScale ?? 0,
+    edgeWobble: theme.edgeWobble ?? 1
+  };
+}
 
 /** The setup choices, prefilled from the profile so returning players jump
  *  straight to "Tee off". */
@@ -6351,6 +6553,63 @@ function refreshLandingCards(): void {
   updateLearnEntry(newPlayer);
   updateResumeCard();
   updateSetupEntry();
+  updateGhostCard();
+}
+
+/** True when the round just finished can be raced again as a ghost — i.e. it
+ *  was recorded and survived its own replay check. */
+function ghostRematchAvailable(): boolean {
+  return flag('ghostRace') && flag('roundRecording') && !!lastRecording;
+}
+
+/** Replay the round that just finished, against the round that just finished.
+ *  Same course, same seed, same pins and wind — the only variable is you. */
+function startGhostRematch(): void {
+  if (!lastRecording) return;
+  pendingGhost = lastRecording;
+  sel.mode = 'solo';
+  sel.courseId = lastRecording.courseId;
+  forcedSeed = lastRecording.seed;
+  summaryEl.style.display = 'none';
+  startRound(0);
+  forcedSeed = undefined;
+}
+
+/**
+ * "Race your best" (`ghostRace`). The player's own best recorded round on the
+ * course they would play next is the one opponent guaranteed to exist — no
+ * friends, no network, no matchmaking — and beating yourself is the oldest
+ * motivation in golf. Hidden until a recording exists, so a first-time player
+ * never sees an entry that cannot do anything.
+ */
+function updateGhostCard(): void {
+  const el = document.getElementById('ghostCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('ghostRace') || !flag('roundRecording')) return;
+  const courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  const course = COURSES[courseId];
+  const best = bestRecordingFor(courseId, Math.min(RULES.holesPerRound, course?.holes.length ?? 3));
+  if (!best || !course) return;
+  const total = best.scores.reduce((a, b) => a + b, 0);
+  const par = course.holes.slice(0, best.holes).reduce((a, h) => a + h.par, 0);
+  const toPar = total - par;
+  el.innerHTML =
+    `<span class="gcLabel">👻 RACE YOUR BEST</span>` +
+    `<div class="gcName">${escapeHtml(course.name)} · ${total} (${toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar})` +
+    ` — shot for shot, against the round you played</div>` +
+    `<button id="gcPlay" class="gcPlay">Race it</button>`;
+  document.getElementById('gcPlay')!.addEventListener('pointerdown', () => {
+    pendingGhost = best;
+    sel.mode = 'solo';
+    sel.courseId = courseId;
+    landingEl.classList.remove('on');
+    // The ghost's round used a specific seed; racing it on different wind and
+    // pins would not be the same race, so the rematch inherits the seed.
+    forcedSeed = best.seed;
+    startRound(0);
+    forcedSeed = undefined;
+  });
 }
 
 /**
@@ -6658,6 +6917,31 @@ function startRound(startHoleIdx = 0): void {
   }
   beginRoundTracking();
   grantRoundTrueVision();
+  // Record plain solo rounds only (see roundRecorder). A RESUMED round cannot
+  // be recorded: its earlier holes were played in a previous session and their
+  // inputs are gone, so a partial recording would verify as the wrong score.
+  lastRecording = null;
+  if (flag('roundRecording') && sel.mode === 'solo' && !resumingFrom && startHoleIdx === 0) {
+    roundRecorder.start();
+  } else {
+    roundRecorder.stop();
+  }
+  // Arm the ghost, if one was chosen. Replaying the whole opponent round up
+  // front (a few ms of the same physics the round runs on) means nothing but a
+  // lookup happens during play. A ghost that fails to replay — a stale
+  // recording, a course that has changed under it — is dropped rather than
+  // shown flying somewhere its owner never hit it.
+  activeGhost = null;
+  if (flag('ghostRace') && pendingGhost && sel.mode === 'solo' && startHoleIdx === 0) {
+    const candidate = new GhostRun(pendingGhost, round.course, replayOptions());
+    if (candidate.ok) {
+      activeGhost = candidate;
+      analytics.track('ghost_race_started', { course: courseIdByName(round.course.name) });
+    } else if (!ENV.isProd) {
+      console.warn(`[ghost] dropped — ${candidate.reason}`);
+    }
+  }
+  pendingGhost = null;
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
   if (resumingFrom) {
@@ -6866,6 +7150,16 @@ else {
 
 // Test hook: expose the live AI-tournament state so specs can assert the
 // rota/standings without scraping the DOM (read-only snapshot).
+// Test hook: the last completed round's recording, plus an in-page
+// verification of it. The e2e gate plays a real round and asserts the inputs
+// replay to the score that was actually played — the round-trip everything
+// else (verification, ghosts, replays) is built on.
+(window as unknown as { __lastRecording: unknown }).__lastRecording = () => lastRecording;
+(window as unknown as { __verifyLastRecording: unknown }).__verifyLastRecording = () =>
+  lastRecording ? verifyRecording(lastRecording, COURSES, replayOptions()) : null;
+(window as unknown as { __ghostStanding: unknown }).__ghostStanding = () =>
+  activeGhost ? { name: activeGhost.name, scores: activeGhost.scores } : null;
+
 (window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
 
 // Test hook: read the player's current True Vision charge count (owned +

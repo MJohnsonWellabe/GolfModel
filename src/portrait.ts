@@ -1,4 +1,4 @@
-import '@babylonjs/loaders/glTF';
+import './core/rendering/gltf';
 import {
   ArcRotateCamera,
   Color3,
@@ -9,7 +9,7 @@ import {
   Quaternion,
   Scene,
   Vector3
-} from '@babylonjs/core';
+} from './core/rendering/babylon';
 import { instantiateCharacter } from './slice3d/characterModels';
 
 /**

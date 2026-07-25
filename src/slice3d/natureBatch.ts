@@ -43,7 +43,7 @@
  * and it happens at most once every few frames when the fade set changes).
  */
 
-import { Color4, Matrix, Mesh, Quaternion, TransformNode, Vector3 } from '@babylonjs/core';
+import { Color4, Matrix, Mesh, Quaternion, TransformNode, Vector3 } from '../core/rendering/babylon';
 
 /**
  * One planted prop part, independent of how it is actually drawn. course3d's

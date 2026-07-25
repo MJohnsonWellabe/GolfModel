@@ -121,6 +121,12 @@ for (const { course, hole } of HOLES) {
     expect(fraction, `${(fraction * 100).toFixed(3)}% of pixels differ with batching on`).toBeLessThan(
       MAX_DIFF_FRACTION
     );
+    // A course with NO scatter renders identically on both paths and would
+    // sail through the pixel comparison — which is exactly what happened when a
+    // loader-registration change silently stopped every .glb from loading. Both
+    // sides must actually have planted something.
+    expect(off.nodes, 'the un-batched path must plant real props').toBeGreaterThan(200);
+    expect(on.nodes, 'the batched path must plant real props').toBeGreaterThan(0);
     // The change has to actually collapse the scene graph, or it is not doing
     // its job — batches must be a small fraction of the props they replace.
     expect(on.nodes, 'batched scatter must collapse the per-prop scene nodes').toBeLessThan(

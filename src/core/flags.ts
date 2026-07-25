@@ -170,6 +170,33 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'has soaked'
   },
   {
+    key: 'roundRecording',
+    description:
+      'Rounds are stored as the INPUTS that produced them (DEV-ONLY for now), ' +
+      'not just the score. The enabler for server-verified leaderboards, ghost ' +
+      'head-to-head and shareable replays — the physics is deterministic, so a ' +
+      'dozen numbers per round reproduce it exactly. Solo rounds only; each ' +
+      'recording is self-checked against a replay before it is kept. Off = no ' +
+      'recording is made, stored or read.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'PROMOTED to prod once ghosts + verified leaderboards ship on top of it'
+  },
+  {
+    key: 'ghostRace',
+    description:
+      'Ghost head-to-head (DEV-ONLY for now): an opponent round recorded as ' +
+      'inputs is re-flown shot for shot beside yours — a translucent ball in ' +
+      'the air at the same moment as yours and a running standing in the HUD. ' +
+      'Asynchronous, but it plays as though they were there. Currently raced ' +
+      'against your own best round on the course; the same machinery accepts a ' +
+      "friend's recording from a challenge link. Requires `roundRecording`.",
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
+  },
+  {
     key: 'quickPlay',
     description:
       'One-tap Play (DEV-ONLY for now): the landing\'s Play Now tees off ' +

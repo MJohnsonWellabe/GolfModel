@@ -1177,6 +1177,52 @@
         font-weight: 700;
         font-size: 12px;
       }
+      /* Ghost race card (`ghostRace`) — your own best round as an opponent. */
+      #ghostCard {
+        margin: 0 0 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        text-align: left;
+        background: linear-gradient(180deg, rgba(140, 190, 255, 0.15), rgba(140, 190, 255, 0.05));
+        border: 1px solid rgba(140, 190, 255, 0.32);
+      }
+      #ghostCard:empty {
+        display: none;
+      }
+      #ghostCard .gcLabel {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1px;
+        color: #a8ccff;
+      }
+      #ghostCard .gcName {
+        font-size: 13px;
+        font-weight: 700;
+        color: #eef5ea;
+        margin: 3px 0 7px;
+      }
+      #ghostCard .gcPlay {
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: none;
+        font-weight: 800;
+        font-size: 13px;
+        color: #06203a;
+        background: linear-gradient(180deg, #b6d8ff, #6aa8e8);
+      }
+      /* Ghost standing chip in the in-round HUD. */
+      #hud .chip.ghost {
+        background: rgba(140, 190, 255, 0.18);
+        color: #cfe4ff;
+      }
+      #hud .chip.ghost.ghostAhead {
+        background: rgba(126, 229, 130, 0.2);
+        color: #c6f2c8;
+      }
+      #hud .chip.ghost.ghostBehind {
+        background: rgba(255, 150, 150, 0.18);
+        color: #ffd2d2;
+      }
       /* Incoming async challenge banner (Part 9) */
       #challengeBanner {
         margin: 0 0 10px;
@@ -3232,6 +3278,7 @@
         </div>
         <div class="landingPanel">
           <div id="resumeCard"></div>
+          <div id="ghostCard"></div>
           <div id="challengeBanner"></div>
           <div id="dailyCard"></div>
           <div id="weeklyCard"></div>

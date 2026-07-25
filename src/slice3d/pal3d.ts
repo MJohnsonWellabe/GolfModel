@@ -1,4 +1,4 @@
-import '@babylonjs/loaders/glTF';
+import '../core/rendering/gltf';
 import {
   AssetContainer,
   Color3,
@@ -10,7 +10,7 @@ import {
   StandardMaterial,
   TransformNode,
   Vector3
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { PalDef } from '../data/pals';
 import { w2b } from './course3d';
 

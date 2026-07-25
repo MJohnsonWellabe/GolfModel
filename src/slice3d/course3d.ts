@@ -21,7 +21,7 @@ import {
   TransformNode,
   Vector3,
   VertexData
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { PHYSICS } from '../config';
 import { animTime, isFrozen } from '../core/debugFlags';
 import { flag as featureFlag } from '../core/flags';

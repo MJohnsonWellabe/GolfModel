@@ -1,4 +1,4 @@
-import '@babylonjs/loaders/glTF';
+import './core/rendering/gltf';
 import {
   ArcRotateCamera,
   Color3,
@@ -11,7 +11,7 @@ import {
   Scene,
   TransformNode,
   Vector3
-} from '@babylonjs/core';
+} from './core/rendering/babylon';
 import { palByKey } from './data/pals';
 
 /**

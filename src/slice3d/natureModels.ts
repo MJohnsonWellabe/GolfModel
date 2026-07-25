@@ -1,4 +1,4 @@
-import '@babylonjs/loaders/glTF';
+import '../core/rendering/gltf';
 import {
   Color3,
   LoadAssetContainerAsync,
@@ -9,7 +9,7 @@ import {
   Texture,
   VertexBuffer,
   VertexData
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 
 /**
  * Loader for the nature prop packs (FBX → glb offline; see

@@ -10,7 +10,7 @@ import {
   TransformNode,
   Vector3,
   VertexData
-} from '@babylonjs/core';
+} from '../core/rendering/babylon';
 import { GolferLook } from '../core/types';
 import { NEUTRAL_PERSONALITY, PersonalityParams } from '../data/characterPersonality';
 import { CharacterInstance, instantiateCharacter } from './characterModels';
