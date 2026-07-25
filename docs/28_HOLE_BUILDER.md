@@ -127,15 +127,61 @@ result needs looking at. Shipping models nobody has looked at, with hitboxes
 nobody has checked, would be exactly the trade this project's first working
 principle forbids. It is a session with the Tree Catalog open, not a script run.
 
+## The phone rebuild, and drawing from nothing
+
+The owner's report was blunt: "the hole builder doesn't work at all. I don't
+understand how to drag anything onto the plan." He was right, and it was my bug
+in two independent ways.
+
+**The layout.** `holebuilder.html` was a fixed
+`grid-template-columns: 232px 288px 1fr` with **zero** media queries. On a
+~390px phone the two panels consumed 520px and the plan — the thing you place
+onto — was pushed off the side entirely. There was nothing to drag *to*.
+
+**The gesture.** The library used HTML5 drag-and-drop (`draggable` +
+`dragstart`/`drop`), which **does not fire on touch devices at all**.
+
+Neither was visible to the gate I wrote: `playwright.config.ts` runs at 720×1280
+and the spec placed assets with `.click()`. There are now tests at 390×844 with
+touch enabled, and one of them asserts the canvas actually starts inside the
+viewport — the whole bug in a single assertion.
+
+### What it does now
+
+Below 900px the plan takes the whole screen and the two panels become bottom
+sheets, one at a time, raised from a tab bar. Placement is pointer-based, so tap
+and drag both work on touch and on a mouse.
+
+**Draw a hole from nothing**, in the order the owner asked for: New blank hole →
+tee → fairway → green → three pins → hazards and scenery. The data model already
+supported every step, which is why this is interaction code and not a new format:
+
+- a **fairway** is a `FairwayRibbon` — a centerline plus a per-point width,
+  compiled by the course loader. So it is a few taps down the route and a width
+  slider, not a hand-drawn outline. It is the same shape the shipped courses author.
+- a **green** is an ellipse: tap the centre, drag the grip on its edge to size it.
+  Moving the green takes the pin with it, because a pin left behind off its green
+  is the single most common structural error the critique finds.
+- **three pins** are `pins[]`, already read under the `layouts` flag.
+- **hazards** are closed rings: tap around the shape, Done to close.
+
+**Everything placed can be moved or deleted.** The old `handles()` returned four
+kinds — pin, tee, aiTargets, elevation — so anything dropped from the library was
+immovable the moment it landed. Every authored element now has a handle,
+including fairway control points (so a route can be bent after it is drawn) and
+hazards (which move from their centroid). Handles carry the array they live in,
+so one generic delete serves all of them.
+
+The loop closes: a hole drawn from a blank canvas compiles, passes the critique,
+and reaches the tee in the real game — asserted end to end.
+
 ## What else this needs — the honest list
 
 Asked and answered, in the order I would build them.
 
-1. **Polygon editing.** The biggest remaining gap by far. Fairway ribbons, green
-   ellipses and hazard outlines are still drawn for reference only; placement
-   gives you a *circle* of the right kind in the right place, and shaping it
-   means going back to the generator. Vertex drag on an existing polygon is the
-   single highest-value next feature.
+1. **Per-vertex hazard reshaping.** Hazards can now be drawn point by point and
+   moved as a whole, but an existing ring cannot be nudged vertex by vertex.
+   Fairway centerlines already can.
 2. **Write back to the generator.** The bundled courses are GENERATED from
    `scripts/courses/*.mjs` and must never be hand-edited, so today the loop ends
    with copying coordinates by hand. A round trip that emits generator source for
