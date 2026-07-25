@@ -7571,12 +7571,15 @@ function updateDestinations(newPlayer: boolean): void {
     if (sub) sub.textContent = flag('recordBoards') ? 'drives · aces · averages' : 'best rounds by course';
   }
 
-  // LOCKER — an unclaimed reward is the one thing here worth interrupting for.
+  // LOCKER — an unclaimed reward is the one thing here worth interrupting
+  // for; otherwise the sub says what the room actually IS (owner: "being able
+  // to select character and other things needs to be more clear") — the Season
+  // Pass and Store already have their own chips on the progression strip.
   const claimable = seasonClaimableCount();
   set(
     'locker',
     !newPlayer,
-    claimable > 0 ? `${claimable} reward${claimable > 1 ? 's' : ''} to claim` : `Season Pass · Store · 🪙 ${profile.coins}`,
+    claimable > 0 ? `${claimable} reward${claimable > 1 ? 's' : ''} to claim` : 'change golfer · clubs · gear',
     claimable > 0
   );
 

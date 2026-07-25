@@ -185,17 +185,24 @@ export class TutorialCoach {
           // the traced swing was being told to tap a button that is not on
           // their screen — which is worse than no tutorial, because it teaches
           // them the game is broken.
+          // ...and it has to SAY there is a second one (owner: "tutorial
+          // doesn't show the second way of hitting") — one line, so the choice
+          // is discoverable without teaching two controls at once.
           card: traceSwingActive()
             ? {
                 title: 'Take your swing',
-                body: 'Follow the dot straight down, then back up. Stay with its rhythm and on its line for a perfect strike.',
+                body:
+                  'Follow the dot down, then back up — match its rhythm and its line. ' +
+                  '(Settings → Swing offers a three-click meter too.)',
                 highlight: 'tracePad',
                 cta: 'Let me try',
                 step: 5
               }
             : {
                 title: 'Take your swing',
-                body: 'Tap SWING three times: start, lock power, lock strike. Hit the PERFECT band.',
+                body:
+                  'Tap SWING three times: start, lock power, lock strike. Hit PERFECT. ' +
+                  '(Settings → Swing offers a drag & trace swing too.)',
                 highlight: 'swingBtn',
                 cta: 'Let me try',
                 step: 5
