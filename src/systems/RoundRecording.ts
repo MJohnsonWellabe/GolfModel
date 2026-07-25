@@ -152,6 +152,7 @@ export class RoundRecorder {
     return this.shots.length;
   }
 
+
   /** Seal the recording. Returns null when nothing was recorded. */
   finish(meta: {
     courseId: string;

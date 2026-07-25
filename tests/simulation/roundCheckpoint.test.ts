@@ -120,3 +120,54 @@ describe('round checkpoint', () => {
     expect(toParLabel(sample({ scores: [3], parSoFar: 4 }))).toBe('-1');
   });
 });
+
+/**
+ * RESUMING MID-HOLE.
+ *
+ * The checkpoint used to store only the hole boundary, so "finish the round"
+ * re-teed the hole you were standing in the middle of. Defensible on paper and
+ * infuriating in practice: three good shots into a par 5 and you are sent back
+ * to the tee, which is a worse offer than starting a new round.
+ */
+describe('a half-played hole', () => {
+  const base = {
+    courseId: 'wildwood',
+    seed: 7,
+    holes: 3,
+    parSoFar: 0,
+    at: 1_000_000
+  };
+
+  it('is worth resuming even on the FIRST hole', () => {
+    // The old rule was "some hole must be complete", which is exactly why an
+    // exit on hole 1 lost everything.
+    const cp = checkpointFor({ ...base, holeIdx: 0, scores: [], ball: { x: 400, y: 900 }, strokes: 2 });
+    expect(isResumable(cp, base.at)).toBe(true);
+    expect(cp.strokes).toBe(2);
+    expect(cp.ball).toEqual({ x: 400, y: 900 });
+  });
+
+  it('is not recorded for a ball still on the tee', () => {
+    // "Resume, on the tee, having played none" is just starting the hole.
+    const cp = checkpointFor({ ...base, holeIdx: 0, scores: [], ball: { x: 400, y: 900 }, strokes: 0 });
+    expect(cp.ball).toBeUndefined();
+    expect(isResumable(cp, base.at)).toBe(false);
+  });
+
+  it('takes the position and the stroke count together or not at all', () => {
+    // A position without a stroke count would resume the lie and lose the
+    // score, which is a worse outcome than not resuming.
+    expect(isResumable({ ...checkpointFor({ ...base, holeIdx: 1, scores: [4] }), ball: { x: 1, y: 2 } }, base.at)).toBe(
+      false
+    );
+    expect(isResumable({ ...checkpointFor({ ...base, holeIdx: 1, scores: [4] }), strokes: 3 }, base.at)).toBe(false);
+  });
+
+  it('still resumes a checkpoint written before mid-hole existed', () => {
+    // Those have no ball and no strokes, and must keep meaning exactly what
+    // they always meant: start the in-progress hole from its tee.
+    const old = checkpointFor({ ...base, holeIdx: 1, scores: [4] });
+    expect(old.ball).toBeUndefined();
+    expect(isResumable(old, base.at)).toBe(true);
+  });
+});

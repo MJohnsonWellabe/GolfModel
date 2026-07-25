@@ -1481,6 +1481,20 @@ class HoleScene {
     promptEl.textContent = '';
   }
 
+  /**
+   * Resume this hole with the ball already in play.
+   *
+   * The stroke count is set BEFORE the drop so the HUD and the max-strokes rule
+   * both see the true number; `dropAt` then does everything else it normally
+   * does — surface lookup, club selection, camera, aim — because a resumed ball
+   * is an ordinary ball that happens not to have been hit in this session.
+   */
+  resumeAt(x: number, y: number, strokes: number): void {
+    this.state.strokes = strokes;
+    this.dropAt(x, y);
+    showMsg(`Back where you left it — ${strokes} played`, 2200);
+  }
+
   /** Test-only: current refresh rates of the two per-frame RTTs the perf pacing
    *  freezes while the meter is live (0 = frozen). Lets the perf spec assert the
    *  freeze mechanism engages/disengages with the meter deterministically. */
@@ -3152,6 +3166,11 @@ class HoleScene {
     // nothing at all when nothing was worth saying.
     showMsg(msg, 1600);
     showShotWhy(this.shotWhy(outcome));
+    // CHECKPOINT AT REST, not just at the hole boundary. This is the only
+    // moment the round is genuinely between decisions, and it is where a
+    // player who puts the phone down actually stops. Storage write, so it runs
+    // here — after the ball has settled — and never on the tap path.
+    checkpointRound();
   }
 
   /**
@@ -4086,7 +4105,14 @@ function checkpointRound(): void {
     return;
   }
   const holes = holesThisRound();
-  if (round.holeIdx <= 0 || round.holeIdx >= holes) return;
+  if (round.holeIdx < 0 || round.holeIdx >= holes) return;
+  // WHERE THE BALL IS, AND WHAT IT HAS COST. Without these "finish the round"
+  // sent a player who was three shots into a par 5 back to the tee, which is a
+  // worse offer than starting a new round.
+  const live = current;
+  const strokes = live?.state.strokes ?? 0;
+  const ball = live && strokes > 0 ? { x: live.state.ballPos.x, y: live.state.ballPos.y } : undefined;
+  if (round.holeIdx <= 0 && !ball) return;
   saveCheckpoint(
     checkpointFor({
       courseId: courseIdByName(round.course.name),
@@ -4095,7 +4121,9 @@ function checkpointRound(): void {
       holes,
       scores: round.players[0]?.scores ?? [],
       parSoFar: round.course.holes.slice(0, round.holeIdx).reduce((a, h) => a + h.par, 0),
-      at: Date.now()
+      at: Date.now(),
+      ball,
+      strokes
     })
   );
 }
@@ -8292,9 +8320,14 @@ function updateResumeCard(): void {
     clearCheckpoint();
     return;
   }
+  // Say where they actually are. "Hole 2" when the ball is on the 2nd green
+  // having played three is a different offer from "hole 2" on the tee.
+  const where = cp.strokes
+    ? `hole ${cp.holeIdx + 1}, ${cp.strokes} played`
+    : `hole ${cp.holeIdx + 1} of ${cp.holes}`;
   el.innerHTML =
     `<span class="rsLabel">↩ UNFINISHED ROUND</span>` +
-    `<div class="rsName">${escapeHtml(course.name)} · hole ${cp.holeIdx + 1} of ${cp.holes} · ${toParLabel(cp)}</div>` +
+    `<div class="rsName">${escapeHtml(course.name)} · ${where} · ${toParLabel(cp)}</div>` +
     `<div class="rsRow"><button id="rsPlay" class="rsPlay">Finish the round</button>` +
     `<button id="rsDrop" class="rsDrop">Start fresh</button></div>`;
   document.getElementById('rsPlay')!.addEventListener('pointerdown', () => resumeSavedRound(cp));
@@ -8314,6 +8347,11 @@ function resumeSavedRound(cp: RoundCheckpoint): void {
   sel.courseId = cp.courseId;
   landingEl.classList.remove('on');
   startRound(cp.holeIdx);
+  // MID-HOLE: put the ball back where it was resting, with the strokes it
+  // cost. `dropAt` re-reads the surface under the point, so the lie comes from
+  // the COURSE rather than from a file — a stored lie could disagree with the
+  // ground it names.
+  if (cp.ball && cp.strokes) current?.resumeAt(cp.ball.x, cp.ball.y, cp.strokes);
 }
 
 /** Place the opt-in "Learn to play" entry. It's hidden unless the tutorial flag

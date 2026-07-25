@@ -13,12 +13,25 @@
  *
  * WHAT IT STORES
  * --------------
- * A HOLE-BOUNDARY checkpoint, never a mid-shot one: the course, the round seed
- * (so wind and pins come back identical), which hole is next, and the scores
- * already in the book. Resuming re-tees the hole that was in progress from its
- * start — the honest, unambiguous behaviour, and the one that needs no snapshot
- * of ball position, lie, stroke count, camera or physics state. Nothing about
- * the swing is restored because nothing about the swing is saved.
+ * The course, the round seed (so wind and pins come back identical), which hole
+ * was in progress, the scores already in the book — and THE SHOTS PLAYED ON
+ * THAT HOLE.
+ *
+ * It used to store only the hole boundary, so "finish the round" re-teed the
+ * hole you were standing in the middle of. That is defensible on paper and
+ * infuriating in practice: three good shots into a par 5 you are sent back to
+ * the tee, which is a worse offer than starting a new round.
+ *
+ * What a half-played hole needs is small: where the ball is resting and how
+ * many strokes it took to get there. The LIE is not stored because it is not
+ * independent — the surface under a point is a property of the hole, so it is
+ * read back from the course rather than trusted from a file.
+ *
+ * Replaying the recorded shots was the other candidate and is worse here: the
+ * outcome of a shot depends on the golfer who hit it, and an unlocked loadout
+ * re-rolls a different golfer every round — so a replay-based resume would put
+ * the ball where a DIFFERENT player's shots would have finished. The resting
+ * position has no such coupling.
  *
  * WHAT IT DOES NOT COVER
  * ----------------------
@@ -56,6 +69,16 @@ export interface RoundCheckpoint {
   scores: number[];
   /** Par of the holes already completed, for the "+2" readout. */
   parSoFar: number;
+  /**
+   * Where the ball was resting on the IN-PROGRESS hole, and the strokes played
+   * to get there.
+   *
+   * Optional together: a checkpoint written before this existed resumes from
+   * the tee, which is what it always did. Both or neither — a position without
+   * a stroke count would resume the lie and lose the score.
+   */
+  ball?: { x: number; y: number };
+  strokes?: number;
   /** Epoch ms of the last checkpoint write. */
   at: number;
 }
@@ -84,8 +107,19 @@ export function isResumable(c: RoundCheckpoint | null, now: number): c is RoundC
   if (!Number.isInteger(c.holes) || c.holes <= 0 || c.holeIdx >= c.holes) return false;
   if (!Array.isArray(c.scores) || c.scores.some((s) => !Number.isFinite(s))) return false;
   if (c.scores.length !== c.holeIdx) return false;
+  if (!Number.isInteger(c.holes) || c.holeIdx > c.holes) return false;
   if (!Number.isFinite(c.at) || now - c.at > MAX_AGE_MS) return false;
-  return c.holeIdx > 0;
+  // A partial hole is all-or-nothing: a position without a stroke count would
+  // resume the lie and lose the score.
+  const partial = c.ball !== undefined || c.strokes !== undefined;
+  if (partial) {
+    if (!c.ball || !Number.isFinite(c.ball.x) || !Number.isFinite(c.ball.y)) return false;
+    if (!Number.isInteger(c.strokes) || (c.strokes ?? 0) <= 0) return false;
+  }
+  // Progress is now shots OR holes: standing on the 1st green having played
+  // three is progress worth returning to, and counting only completed holes is
+  // why a mid-hole exit lost everything.
+  return c.holeIdx > 0 || partial;
 }
 
 export function loadCheckpoint(
@@ -130,6 +164,8 @@ export function checkpointFor(input: {
   scores: number[];
   parSoFar: number;
   at: number;
+  ball?: { x: number; y: number };
+  strokes?: number;
 }): RoundCheckpoint {
   return {
     v: VERSION,
@@ -139,7 +175,12 @@ export function checkpointFor(input: {
     holes: input.holes,
     scores: input.scores.slice(0, input.holeIdx),
     parSoFar: input.parSoFar,
-    at: input.at
+    at: input.at,
+    // Both or neither, and only when there is genuinely a shot in the ground:
+    // resuming "on the tee having played 0" is just starting the hole.
+    ...(input.ball && (input.strokes ?? 0) > 0
+      ? { ball: { x: input.ball.x, y: input.ball.y }, strokes: input.strokes }
+      : {})
   };
 }
 
