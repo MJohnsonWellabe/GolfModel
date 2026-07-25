@@ -1,10 +1,15 @@
 import { expect, test } from '@playwright/test';
+import { openSetupWizard, seedReturningDevice } from './support/wizard';
 
 /** The online-tournaments overlay opens from the menu (Phase 8). With no
  *  Firebase configured it degrades to an honest "connect online" notice
  *  rather than erroring. */
 test('online tournaments overlay opens from the menu', async ({ page }) => {
+  await seedReturningDevice(page);
   await page.goto('/');
+  // #tournyLink lives inside the setup wizard, not on the landing — these
+  // specs predate the landing/wizard split.
+  await openSetupWizard(page);
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#tournaments .recInner');
@@ -16,6 +21,7 @@ test('AI tournament is a wizard mode that skips the course step', async ({ page 
   // The AI Tournament (which replaced the Ace Challenge) draws its own
   // three-course rota, so selecting it jumps the wizard straight from Mode to
   // Name — no Course step.
+  await seedReturningDevice(page);
   await page.goto('/');
   await page.waitForSelector('.modeCard[data-mode="aitour"]');
   await page.evaluate(() =>
@@ -42,6 +48,9 @@ test('create a tournament surfaces a shareable code', async ({ page }) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(store[path] ?? null) });
   });
   await page.goto('/?lb=https://rtdb.test');
+  // #tournyLink lives inside the setup wizard, not on the landing — these
+  // specs predate the landing/wizard split.
+  await openSetupWizard(page);
   await page.waitForSelector('#tournyLink');
   await page.evaluate(() => (document.getElementById('tournyLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('#tourCreate');

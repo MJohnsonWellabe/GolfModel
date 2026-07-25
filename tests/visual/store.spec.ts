@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { seedReturningDevice } from './support/wizard';
 
 /** A fresh profile (every isolated test context) shows a one-time "what's
  *  your name?" modal before the menu is usable — fill it in like a real
@@ -20,10 +21,11 @@ async function dismissNameModal(page: Page): Promise<void> {
 
 /** The store overlay renders sections with buyable items (Phase 7). */
 test('store overlay shows purchasable items', async ({ page }) => {
+  await seedReturningDevice(page);
   await page.goto('/');
-  await page.waitForSelector('#storeBanner');
+  await page.waitForSelector('#landingStore');
   await dismissNameModal(page);
-  await page.locator('#storeBanner').click();
+  await page.locator('#landingStore').click();
   await page.waitForSelector('.storeCard');
   const cards = await page.locator('.storeCard').count();
   expect(cards).toBeGreaterThanOrEqual(25);
@@ -33,15 +35,16 @@ test('store overlay shows purchasable items', async ({ page }) => {
 /** Buying asks "Spend X coins now?" first; cancel spends nothing, confirm
  *  deducts and unlocks. A broke player never even sees the popup. */
 test('purchases go through a spend confirmation', async ({ page }) => {
+  await seedReturningDevice(page);
   await page.goto('/');
-  await page.waitForSelector('#storeBanner');
+  await page.waitForSelector('#landingStore');
   await dismissNameModal(page);
   // Store cards use a scroll-safe tap gesture (onTap, main.ts) that only fires
   // on a real pointerdown+pointerup pair close together — a single synthetic
   // dispatchEvent('pointerdown') arms it but never fires. Locator.click()
   // drives a real input sequence (down+up at real coordinates), which is both
   // the Playwright-idiomatic approach and what the gesture actually needs.
-  await page.locator('#storeBanner').click();
+  await page.locator('#landingStore').click();
   await page.waitForSelector('.storeCard');
 
   // 0 coins (signed-out session): tapping a priced card must NOT open the
@@ -52,7 +55,7 @@ test('purchases go through a spend confirmation', async ({ page }) => {
   // With coins granted, the same tap arms the confirmation popup.
   await page.evaluate(() => (window as unknown as { __grantCoins: (n: number) => void }).__grantCoins(5000));
   await page.locator('#storeBack').click();
-  await page.locator('#storeBanner').click(); // reopen so cards re-render as affordable
+  await page.locator('#landingStore').click(); // reopen so cards re-render as affordable
   const firstCard = page.locator('.storeCard:not(.owned):not(.equipped)').first();
   const itemId = await firstCard.getAttribute('data-item');
   await firstCard.click();

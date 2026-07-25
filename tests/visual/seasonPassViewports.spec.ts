@@ -1,4 +1,5 @@
 import { Page, test } from '@playwright/test';
+import { seedReturningDevice } from './support/wizard';
 
 /**
  * Season-pass overlay + landing across the v1.0 viewport classes (D2 nav/
@@ -29,6 +30,7 @@ async function dismissNameModal(page: Page): Promise<void> {
 for (const s of SIZES) {
   test(`season pass + landing @ ${s.name}`, async ({ page }) => {
     await page.setViewportSize({ width: s.width, height: s.height });
+    await seedReturningDevice(page);
     await page.goto('/');
     await dismissNameModal(page);
     // Landing is the entry screen; #landingSeason opens the season-pass overlay.

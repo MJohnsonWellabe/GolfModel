@@ -14,6 +14,28 @@ import type { Page } from '@playwright/test';
  * entry the build actually offers keeps them testing what they mean to test on
  * either side of the flag.
  */
+/**
+ * Seed the device as one that has already finished a round.
+ *
+ * PROGRESSIVE DISCLOSURE hides the secondary systems — Records, Store, Season
+ * Pass, tournaments, the daily surfaces — until a device completes its first
+ * round, so a first-time player sees core golf and nothing else. Every spec that
+ * opens one of those surfaces has to say it is a returning device, or it waits
+ * forever on an element that is deliberately hidden and reports a timeout that
+ * looks like a broken overlay.
+ *
+ * Must run BEFORE `page.goto` — it is an init script, and the landing reads the
+ * flag as it paints.
+ */
+export async function seedReturningDevice(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'johnsons-golf-device-settings-v1',
+      JSON.stringify({ sound: 0.8, ambience: 0.2, reducedMotion: false, clipCapture: false, firstRoundDone: true })
+    );
+  });
+}
+
 export async function openSetupWizard(page: Page): Promise<void> {
   const wizard = page.locator('#landingSetup');
   if (await wizard.isVisible()) await wizard.dispatchEvent('pointerdown');

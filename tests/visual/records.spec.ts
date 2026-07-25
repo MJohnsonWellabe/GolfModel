@@ -1,8 +1,13 @@
 import { expect, test } from '@playwright/test';
+import { openSetupWizard, seedReturningDevice } from './support/wizard';
 
 /** Records covers every course via tabs — not just the last-played one. */
 test('records overlay offers a tab per course', async ({ page }) => {
+  await seedReturningDevice(page);
   await page.goto('/');
+  // #recordsLink lives inside the setup wizard, not on the landing — these
+  // specs predate the landing/wizard split.
+  await openSetupWizard(page);
   await page.waitForSelector('#recordsLink');
   await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.recTab');
