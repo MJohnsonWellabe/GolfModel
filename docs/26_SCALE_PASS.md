@@ -39,7 +39,9 @@ works for about ten sessions.
 | `shotAttribution` | off / on | One line naming what actually produced the shot |
 | `practiceRange` | off / on | No card, no cap, no end — holing out re-tees |
 | `easeIn` | off / on | Kindest pins for a device's first three casual rounds |
-| `dragSwing` | off / **off** | Drag-back-and-release swing (opt-in experiment) |
+| `dragSwing` | off / **off** | Traced swing — follow a guide dot (opt-in experiment) |
+| `focusedGame` | off / on | The STRIP-DOWN: solo golf, one social feature, a daily tournament |
+| `recordBoards` | off / on | Leaderboards per record — drive, aces, chip-ins, average |
 
 Plus two unflagged changes: the cold-start work (pure win, guarded by tests) and
 the Season Pass rescope.
@@ -486,6 +488,155 @@ which has existed in the landing markup for some time — both ran, found nothin
 and returned. And **Records and Online Tournaments hung off the bottom of the
 setup wizard**, so two whole destinations were reachable only by starting to
 choose a course and then not doing it.
+
+
+## 14. The strip-down (`focusedGame`, dev-only)
+
+The game had grown **four ways to play a round** (solo, 1v1, scramble, AI
+tournament), **three ways to race somebody** (ghost, rival, online tournament)
+and **two tournament cadences** — all aimed at a content library of 21 holes.
+
+On, the game is: solo golf, **one** social feature (a challenge link), the Hole
+of the Day, and a **daily** tournament in place of the weekly — a week is a very
+long time to leave one course featured in a game whose rounds take four minutes.
+
+The rival and the ghost are composed off in `flag()` itself rather than at each
+of their dozen call sites, so the removal **cannot be half-applied**: there is no
+path where the rival is off but its invite handler is still armed. One level deep
+by construction, since `focusedGame` is not itself in the superseded set.
+
+The wizard drops its Mode step entirely when there is one mode — asking a
+question that can only be answered one way is worse than not asking. And admin
+panel + admin dashboard + dev tools, three doors to three surfaces that all mean
+"the owner's controls", become one.
+
+**Rate the hole.** The Hole of the Day is GENERATED and vetted by a simulator
+that can measure whether a hole is playable and cannot tell whether it is any
+good. The generator's vocabulary widens from here, and the only honest signal
+about which holes are worth making more of comes from the people who played
+them. Asked once, on the results card, at the moment the opinion exists.
+
+## 15. Record boards (`recordBoards`, dev-only)
+
+Records showed one thing: the five lowest rounds on a course. That rewards a
+single hot afternoon and ignores a career of numbers the game already tracks —
+longest drive, aces, chip-ins, the average you actually play to — every one of
+which was visible only inside your own profile, which makes them a diary rather
+than a leaderboard.
+
+Most of it was **already on the wire and nobody had looked**: an ace is a `1` in
+`holes[]`, an average is the mean of `toPar`, putts have their own field. Longest
+drive and chip-ins only existed in the profile, so `RoundRecord` gained two
+optional fields — additive, so every round already stored keeps its meaning and
+simply does not appear on those two boards. It reads the same world-readable
+`/rounds` node the admin dashboard aggregates: **no new writes on any gameplay
+path**.
+
+Two rules the boards enforce, both about honesty:
+
+- a **guest is never ranked**. Their rounds are counted (constitution rule 18)
+  but the id is a device and it is re-rolled, so ranking one would put a
+  stranger on the board every visit;
+- an **average needs five rounds**. A board topped by somebody who played once
+  and shot −3 teaches everybody else that the board is meaningless.
+
+## 16. The traced swing
+
+The pull asked one question — how far back, how tidily — which a player answers
+correctly on their third attempt and then never thinks about again. A golf swing
+is not a distance. It is a **path** taken at a **tempo**.
+
+The pad shows a guide dot travelling the arc a club head takes, and the gesture
+is to follow it:
+
+| The gesture | The shot |
+| --- | --- |
+| how far along the route you got | the length of the backswing |
+| how close to the line you stayed | the strike, and the face |
+| how well you kept the dot's tempo | the timing |
+
+After the shot **both paths stay on the pad** until the next swing — the route
+and yours, drawn over each other. A control that says "miss" and nothing else is
+a slot machine; showing the shape of your own mistake is the only way tracing
+gets better, and it is what neither previous version had any answer for.
+
+Only the input changed: power, the bands and the accuracy curve still come from
+the shared `swingModel`.
+
+Three bugs recorded, because none would have announced itself:
+
+- deviation was measured to the nearest route **vertex**, which overstates the
+  distance to a curve by up to half the vertex spacing — and the sign of that
+  phantom error is arbitrary, so a gesture that followed the route exactly came
+  out with a small face on it. **The control would have had a permanent,
+  invisible push.** It projects onto the segments now.
+- the route began in the **middle** of the pad, so a stray touch near the bottom
+  landed close to its far end and registered as most of a backswing.
+- the guide dot must be **arc-length parameterised** or it hurries through the
+  curve's tight part, and a player who followed it faithfully would be told
+  their timing was poor.
+
+The tutorial teaches whichever swing is on screen. It taught the tap meter
+unconditionally, so a player on the gesture control was being told to tap a
+button that is not there — worse than no tutorial, because it teaches them the
+game is broken.
+
+## 17. Resuming from the last shot
+
+The checkpoint stored only the hole boundary, so "finish the round" re-teed the
+hole you were standing in the middle of.
+
+What a half-played hole needs turns out to be small — where the ball is resting
+and what it cost — so that is what it stores. The **lie is not stored**, because
+it is not independent: the surface under a point is a property of the hole, so it
+is read back from the course rather than trusted from a file.
+
+**Replaying the recorded shots** was the other candidate and is worse here,
+which is worth writing down because it is the more elegant-looking option: the
+outcome of a shot depends on the golfer who hit it, and an unlocked loadout
+re-rolls a different golfer every round — so a replay-based resume would put the
+ball where a DIFFERENT player's shots would have finished.
+
+Two consequences: the checkpoint is written **when the ball comes to rest** (the
+only moment a round is between decisions, and where somebody who puts the phone
+down actually stops — a storage write, so never on the tap path); and a partial
+**first** hole is now worth resuming, which is precisely where a first-time
+player is most likely to be interrupted.
+
+## 18. The hole builder, round three
+
+Seven reports from using the tool in anger, each looking like a different
+problem and all the same one: the builder knew things it never told you.
+
+- **Placements landed somewhere else.** Two independent bugs stacked. The
+  pointer arrives in CSS pixels relative to the viewport and `Unproject` wants
+  render-buffer pixels relative to the canvas — on any retina phone, browser
+  zoom or hardware scaling those differ, and the further from the top-left you
+  tap the worse it gets. And the ray was solved against the `y=0` plane, which is
+  SEA level, so on a raised green the asset landed short of or past the cursor.
+- **Tree species did nothing.** `treeKeys` on a trees hazard was written by the
+  builder and read by nobody: every tree came from the course theme. Blobs carry
+  the hazard's species now, authored species beat the theme, and the keys join
+  the prototype load list — without which the stand simply would not grow.
+- **Benches arrived upside down.** The renderer has two prop paths; UPRIGHT
+  keeps the model's Y-up, the other lays the longest axis flat. Right for a
+  bridge span, catastrophic for a bench, and `placementFor` set no flag.
+- **No preview, no eraser, no sculpting.** There is a ghost at true footprint
+  radius, an eraser that only removes YOUR placements (deleting a bunker
+  somebody drew deliberately would be a far worse bug), and Raise/Lower tools.
+  Sculpting is a **tool** rather than an asset because it is a verb: repeated
+  taps accumulate into one elevation point instead of a hundred overlapping
+  domes.
+- **"Par 4, 400 yards" every time.** Those were literals, so a 180-yard
+  one-shotter stayed mislabelled until somebody retyped both. Yardage is a
+  measurement — tee to the middle of the green — re-derived whenever either
+  moves; par follows the scoring ladder and stays overridable.
+- **No distances on the plan.** Golf is a game about distance and the plan was
+  drawn purely in world pixels. Range arcs off the tee, the hole's length on the
+  line it is measured along, and a yardage on everything placed.
+- **Only water and one bunker were drawable.** Waste sand, tree stands, out of
+  bounds and building footprints were all authorable in JSON with no tool.
+  Rough gets no tool on purpose — it is what a hole IS before anything is drawn.
 
 
 ## Known limitations
