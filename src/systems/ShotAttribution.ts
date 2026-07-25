@@ -45,6 +45,8 @@ export interface AttributionFactor {
   short: number;
   /** Yards this factor pushed the ball RIGHT of the aim line (+) or left (−). */
   right: number;
+  /** What did it, on its own: 'wind', 'strike', '11 ft downhill'. */
+  noun: string;
   /** Human-readable line, already phrased for display. */
   label: string;
 }
@@ -135,7 +137,7 @@ export function attributeShot(
     const bits: string[] = [];
     if (Math.abs(c.short) >= MIN_YARDS) bits.push(`${Math.round(Math.abs(c.short))} ${c.short > 0 ? 'short' : 'long'}`);
     if (Math.abs(c.right) >= MIN_YARDS) bits.push(`${Math.round(Math.abs(c.right))} ${c.right > 0 ? 'right' : 'left'}`);
-    factors.push({ kind, short: c.short, right: c.right, label: `${noun} ${bits.join(', ')}` });
+    factors.push({ kind, short: c.short, right: c.right, noun, label: `${noun} ${bits.join(', ')}` });
   };
 
   // WIND — the thing players most often fail to allow for.
@@ -157,19 +159,28 @@ export function attributeShot(
     Math.abs(params.spin?.top ?? 0) > 0.01;
   if (shaped) push('spin', did(flyTo({ spin: { side: 0, top: 0 } }, { side: 0, top: 0 })), 'spin');
 
-  // SLOPE — context rather than a counterfactual: the terrain cannot be lifted
-  // out from under a shot without rebuilding the engine, but the number the
-  // player wants is simply how much the ground moved. In FEET, because that is
-  // how golfers read elevation and the world's vertical unit is ~1.25 ft.
+  // SLOPE / GROUND — by RESIDUAL, not by counterfactual.
+  //
+  // The terrain cannot be lifted out from under a shot without rebuilding the
+  // engine. But the factors above are measured against a re-flown baseline of
+  // the same shot, so whatever is left over when they are subtracted from the
+  // total miss is exactly what the GROUND did — the elevation the ball flew
+  // into, and the run-out it got when it landed.
+  //
+  // This is also what makes the breakdown add up. It is presented as a table of
+  // contributions, and a table whose rows do not account for its header is a
+  // table that teaches the player the wrong lesson. (Rows under the noise floor
+  // are still dropped rather than shown, so the sum is exact only to within one
+  // such row — a player cannot feel three yards, and saying it is worse than
+  // silence.)
   const climbFt = (engine.groundAt(actualFinal.x, actualFinal.y) - engine.groundAt(origin.x, origin.y)) * 1.25;
-  if (Math.abs(climbFt) >= MIN_CLIMB_FT) {
-    factors.push({
-      kind: 'slope',
-      short: 0,
-      right: 0,
-      label: `${Math.round(Math.abs(climbFt))} ft ${climbFt > 0 ? 'uphill' : 'downhill'}`
-    });
-  }
+  const residual = {
+    short: shortYd - factors.reduce((s, f) => s + f.short, 0),
+    right: rightYd - factors.reduce((s, f) => s + f.right, 0)
+  };
+  const groundNoun =
+    Math.abs(climbFt) >= MIN_CLIMB_FT ? `${Math.round(Math.abs(climbFt))} ft ${climbFt > 0 ? 'uphill' : 'downhill'}` : 'ground';
+  push('slope', residual, groundNoun);
 
   const missBits: string[] = [];
   if (Math.abs(shortYd) >= MIN_MISS) missBits.push(`${Math.round(Math.abs(shortYd))} yd ${shortYd > 0 ? 'short' : 'long'}`);
@@ -183,5 +194,93 @@ export function attributeShot(
     missLabel,
     factors,
     summary: [missLabel, ...factors.map((f) => f.label)].filter(Boolean).join(' · ')
+  };
+}
+
+// ---------------------------------------------------------------------------
+// PRESENTATION
+//
+// The breakdown reads as a two-column table: what moved the ball UP AND DOWN
+// the aim line on the left, what moved it ACROSS on the right, each column
+// biggest-first, with the total miss as the header.
+//
+//     16 yards long        │  12 yards left
+//     +8 yds 11 ft downhill│  ← 6 yds mishit
+//     +8 yds wind          │  ← 8 yds wind
+//     −2 yds under-swing   │  → 2 yds spin
+//
+// The two columns are INDEPENDENT lists, not one row per factor: wind that cost
+// nothing in distance should not take up a line in the distance column. Pairing
+// them row-wise is just layout.
+//
+// Pure formatting, so the wording is testable and the renderer stays a renderer.
+// ---------------------------------------------------------------------------
+
+export interface AttributionEntry {
+  /** Signed yards. Distance column: + is PAST the aim, − is short of it.
+   *  Lateral column: + is RIGHT of the aim line, − is left. */
+  yards: number;
+  /** What did it: 'wind', 'spin', 'over-swing', '11 ft downhill'. */
+  cause: string;
+  /** The cell as it should read, e.g. '+8 yds wind' or '← 6 yds mishit'. */
+  text: string;
+}
+
+export interface AttributionTable {
+  /** The total miss, split the same two ways. Either may be ''. */
+  head: { dist: string; side: string };
+  dist: AttributionEntry[];
+  side: AttributionEntry[];
+}
+
+/** What the strike did, named by what the player would have felt. */
+function strikeCause(kind: AttributionFactor['kind'], yards: number, lateral: boolean): string {
+  if (kind !== 'strike') return kind === 'slope' ? '' : kind;
+  if (lateral) return 'mishit';
+  return yards < 0 ? 'over-swing' : 'under-swing';
+}
+
+export function attributionTable(a: ShotAttribution): AttributionTable {
+  const dist: AttributionEntry[] = [];
+  const side: AttributionEntry[] = [];
+
+  for (const f of a.factors) {
+    // `short` is yards SHORT; the column reads in yards gained, so it flips.
+    const gained = -f.short;
+    if (Math.abs(gained) >= MIN_YARDS) {
+      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false);
+      dist.push({
+        yards: gained,
+        cause,
+        text: `${gained > 0 ? '+' : '−'}${Math.round(Math.abs(gained))} yds ${cause}`.trim()
+      });
+    }
+    if (Math.abs(f.right) >= MIN_YARDS) {
+      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, f.right, true);
+      side.push({
+        yards: f.right,
+        cause,
+        text: `${f.right < 0 ? '←' : '→'} ${Math.round(Math.abs(f.right))} yds ${cause}`.trim()
+      });
+    }
+  }
+
+  // Biggest lesson first. A player scanning this on the tee reads the top line.
+  dist.sort((x, y) => Math.abs(y.yards) - Math.abs(x.yards));
+  side.sort((x, y) => Math.abs(y.yards) - Math.abs(x.yards));
+
+  return {
+    head: {
+      dist:
+        Math.abs(a.shortYd) >= MIN_MISS
+          ? `${Math.round(Math.abs(a.shortYd))} yards ${a.shortYd > 0 ? 'short' : 'long'}`
+          : '',
+      side:
+        Math.abs(a.rightYd) >= MIN_MISS
+          ? `${Math.round(Math.abs(a.rightYd))} yards ${a.rightYd > 0 ? 'right' : 'left'}`
+          : ''
+    },
+    dist,
+    side
   };
 }

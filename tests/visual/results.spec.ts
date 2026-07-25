@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { openDestination } from './support/wizard';
 
 /**
  * End-of-round results loop (retention Part 1): the results card must show
@@ -99,9 +100,14 @@ test('landing shows ONE concise daily card (returning device)', async ({ page })
     await page.locator('#nmSave').dispatchEvent('pointerdown');
     await page.waitForSelector('#nmInput', { state: 'hidden', timeout: 4000 }).catch(() => null);
   }
+  // The daily and weekly cards live under the TODAY destination now — the
+  // landing is one primary action and four doors, not a stack of cards.
+  await openDestination(page, 'today');
   await expect(page.locator('#dailyCard')).toBeVisible();
   await expect(page.locator('#weeklyCard')).toBeVisible();
   await expect(page.locator('#dailyCard .dcName')).toHaveCount(1);
+  // ...and the tile says so from the top level, so nothing became invisible.
+  expect(await page.locator('#destToday .dtSub').innerText()).not.toBe('');
   // No horizontal overflow at 360px (mobile acceptance).
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
@@ -112,11 +118,19 @@ test('brand-new device sees core golf only (progressive disclosure)', async ({ p
   await page.setViewportSize({ width: 360, height: 800 });
   await page.goto('/');
   await page.waitForFunction(() => !!(window as any).__startRound);
-  // No secondary systems before the first completed round.
+  // No secondary systems before the first completed round. Disclosure works a
+  // level up now: whole DESTINATIONS stay closed rather than individual cards
+  // going blank, so a newcomer is never looking at a gap where something was.
+  await expect(page.locator('#destToday')).toBeHidden();
+  await expect(page.locator('#destLocker')).toBeHidden();
   await expect(page.locator('#dailyCard')).toBeEmpty();
   await expect(page.locator('#weeklyCard')).toBeEmpty();
   await expect(page.locator('#landingSeason')).toBeHidden();
   await expect(page.locator('#landingStore')).toBeHidden();
+  await expect(page.locator('#progressStrip')).toBeEmpty();
   // The one primary action is right there.
   await expect(page.locator('#landingPlay')).toBeVisible();
+  // And so is core golf: choosing a course, and your account.
+  await expect(page.locator('#destCompete')).toBeVisible();
+  await expect(page.locator('#destMore')).toBeVisible();
 });

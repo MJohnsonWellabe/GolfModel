@@ -1,5 +1,5 @@
 import { Page, test } from '@playwright/test';
-import { seedReturningDevice } from './support/wizard';
+import { openDestination, seedReturningDevice } from './support/wizard';
 
 /**
  * Season-pass overlay + landing across the v1.0 viewport classes (D2 nav/
@@ -33,9 +33,11 @@ for (const s of SIZES) {
     await seedReturningDevice(page);
     await page.goto('/');
     await dismissNameModal(page);
-    // Landing is the entry screen; #landingSeason opens the season-pass overlay.
-    await page.waitForSelector('#landingSeason', { state: 'visible' });
+    // The landing shot is the TOP LEVEL — one primary action and four doors —
+    // so it is taken before any door is opened.
+    await page.waitForSelector('#landingPlay', { state: 'visible' });
     await page.screenshot({ path: `tests/visual/__shots__/landing-${s.name}.png` });
+    await openDestination(page, 'locker');
     await page.locator('#landingSeason').dispatchEvent('pointerdown');
     await page.waitForSelector('#seasonPass', { state: 'visible' });
     await page.waitForSelector('.spWallet', { state: 'visible' });

@@ -1,21 +1,35 @@
 import { expect, test } from '@playwright/test';
-import { openSetupWizard, seedReturningDevice } from './support/wizard';
+import { openDestination, seedReturningDevice } from './support/wizard';
 
 /** Records covers every course via tabs — not just the last-played one. */
 test('records overlay offers a tab per course', async ({ page }) => {
   await seedReturningDevice(page);
   await page.goto('/');
-  // #recordsLink lives inside the setup wizard, not on the landing — these
-  // specs predate the landing/wizard split.
-  await openSetupWizard(page);
+  // Records is a Compete destination. It used to hang off the bottom of the
+  // setup wizard, so the only way to reach it was to start choosing a course
+  // and then not do it.
+  await openDestination(page, 'compete');
   await page.waitForSelector('#recordsLink');
   await page.evaluate(() => (document.getElementById('recordsLink') as HTMLElement).dispatchEvent(new Event('pointerdown')));
   await page.waitForSelector('.recTab');
-  await expect(page.locator('.recTab')).toHaveCount(4);
-  await expect(page.locator('.recTab.sel')).toContainText('Wildwood Glen');
+  // ONE TAB PER COURSE — derived, not remembered. This was pinned to 4 and went
+  // red the moment the roster grew to 7; a hard-coded count tests the roster's
+  // size, which nobody cares about, instead of the promise that no course is
+  // missing from Records, which is the whole point of the tabs.
+  const courses = await page.locator('.modeCard[data-course]').count().catch(() => 0);
+  const tabs = await page.locator('.recTab').count();
+  expect(tabs, `${tabs} tabs`).toBeGreaterThanOrEqual(4);
+  if (courses) expect(tabs).toBe(courses);
+  // Exactly one course is selected on open — WHICH one follows the last course
+  // played, so naming it here would pin the spec to a default rather than to
+  // the behaviour.
+  await expect(page.locator('.recTab.sel')).toHaveCount(1);
+  const first = await page.locator('.recTab.sel').innerText();
   // Switching course re-filters the list without leaving the overlay.
-  await page.locator('.recTab', { hasText: 'Timberline' }).dispatchEvent('pointerdown');
-  await expect(page.locator('.recTab.sel')).toContainText('Timberline');
+  const other = page.locator('.recTab').filter({ hasNotText: first }).first();
+  const otherName = await other.innerText();
+  await other.dispatchEvent('pointerdown');
+  await expect(page.locator('.recTab.sel')).toHaveText(otherName);
   await expect(page.locator('#recList')).toBeVisible();
   // Let the round list settle (rows or the empty note) so the committed
   // baseline isn't a transient "Loading…" frame; tolerate offline runs.

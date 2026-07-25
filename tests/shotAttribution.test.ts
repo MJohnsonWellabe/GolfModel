@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attributeShot } from '../src/systems/ShotAttribution';
+import { attributeShot, attributionTable } from '../src/systems/ShotAttribution';
 import { PhysicsEngine, ShotParams } from '../src/systems/PhysicsEngine';
 import { buildHeightField } from '../src/systems/HeightField';
 import { mulberry32 } from '../src/utils/Random';
@@ -27,7 +27,11 @@ import type { HoleData, SpinState } from '../src/core/types';
 function shoot(
   hole: HoleData,
   over: Partial<ShotParams> = {},
-  spin: SpinState = { side: 0, top: 0 }
+  spin: SpinState = { side: 0, top: 0 },
+  /** Where the player pointed. Defaults to a clean strike in dead air on THIS
+   *  hole; pass one explicitly to model a player who aimed at a spot without
+   *  allowing for what the ground there would do. */
+  aimAt?: { x: number; y: number }
 ): ReturnType<typeof attributeShot> {
   const SEED = 0x5eed;
   let rng = mulberry32(SEED);
@@ -61,7 +65,7 @@ function shoot(
     swing: { ...params.swing, accuracy: 0, powerQuality: 'perfect', accuracyQuality: 'perfect' }
   });
   rng = mulberry32(SEED);
-  const aimPoint = engine.integrateLaunch(aimLaunch, { side: 0, top: 0 }, 0).finalPos;
+  const aimPoint = aimAt ?? engine.integrateLaunch(aimLaunch, { side: 0, top: 0 }, 0).finalPos;
   return attributeShot(engine, params, spin, out.finalPos, aimPoint, () => (rng = mulberry32(SEED)));
 }
 
@@ -148,7 +152,7 @@ describe('spin — the factor the player chose', () => {
   });
 });
 
-describe('slope — the factor the player could not see', () => {
+describe('slope — the ground, measured as what is left over', () => {
   /** The same open hole with the ground tilted, centred on where a drive from
    *  the tee actually finishes (~230 yd up the corridor) rather than on the
    *  green — a rise the ball never reaches is not a rise the player felt. */
@@ -158,22 +162,60 @@ describe('slope — the factor the player could not see', () => {
     });
   }
 
-  it('reports an uphill finish in feet', () => {
-    const a = shoot(hilly(1));
+  /**
+   * Where a player who did NOT allow for the slope would aim: the spot the
+   * same shot finishes on flat ground.
+   *
+   * This is the whole point of the feature. Aiming at the spot the ball reaches
+   * ON THIS terrain and then reporting the terrain would be reporting something
+   * the player already accounted for — the same mistake as blaming the lie.
+   */
+  const flatLanding = shoot(openHole()).factors.length >= 0 ? flatAim() : flatAim();
+  function flatAim(): { x: number; y: number } {
+    const SEED = 0x5eed;
+    let rng = mulberry32(SEED);
+    const hole = openHole();
+    const engine = new PhysicsEngine(hole, buildHeightField(hole), () => rng());
+    const params: ShotParams = {
+      origin: { ...hole.tee },
+      aimAngle: -Math.PI / 2,
+      swing: { power: 0.95, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
+      club: clubById('driver')!,
+      golfer: golferWith(85),
+      fireBoost: 0,
+      lie: 'tee',
+      wind: { angle: 0, speed: 0 },
+      hole,
+      spin: { side: 0, top: 0 },
+      launchMult: 1,
+      riskMult: 1,
+      stroke: 0
+    };
+    rng = mulberry32(SEED);
+    const launch = engine.resolveLaunch(params);
+    rng = mulberry32(SEED);
+    return engine.integrateLaunch(launch, { side: 0, top: 0 }, 0).finalPos;
+  }
+
+  it('names the elevation when the ground is what moved the ball', () => {
+    const a = shoot(hilly(1), {}, { side: 0, top: 0 }, flatLanding);
     const slope = a.factors.find((f) => f.kind === 'slope');
     expect(slope, `factors: ${a.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
-    expect(slope!.label).toMatch(/ft uphill/);
+    expect(slope!.noun).toMatch(/ft uphill/);
   });
 
   it('reports a downhill finish as downhill', () => {
-    const a = shoot(hilly(-1));
+    const a = shoot(hilly(-1), {}, { side: 0, top: 0 }, flatLanding);
     const slope = a.factors.find((f) => f.kind === 'slope');
     expect(slope, `factors: ${a.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
-    expect(slope!.label).toMatch(/ft downhill/);
+    expect(slope!.noun).toMatch(/ft downhill/);
   });
 
-  it('stays quiet on flat ground', () => {
-    expect(shoot(openHole()).factors.some((f) => f.kind === 'slope')).toBe(false);
+  it('uphill costs distance and downhill gains it', () => {
+    const up = shoot(hilly(1), {}, { side: 0, top: 0 }, flatLanding);
+    const down = shoot(hilly(-1), {}, { side: 0, top: 0 }, flatLanding);
+    expect(up.shortYd, `uphill ${up.shortYd.toFixed(1)}`).toBeGreaterThan(0);
+    expect(down.shortYd, `downhill ${down.shortYd.toFixed(1)}`).toBeLessThan(0);
   });
 
   it('reads elevation in FEET, not world units', () => {
@@ -181,9 +223,75 @@ describe('slope — the factor the player could not see', () => {
     // repeated mistake in this codebase (see the course field guide). A 90-unit
     // rise is ~112 ft, so a label reporting "90 ft" would mean the conversion
     // was dropped.
-    const a = shoot(hilly(1));
-    const label = a.factors.find((f) => f.kind === 'slope')!.label;
-    const feet = Number(label.match(/(\d+) ft/)![1]);
+    const a = shoot(hilly(1), {}, { side: 0, top: 0 }, flatLanding);
+    const noun = a.factors.find((f) => f.kind === 'slope')!.noun;
+    const feet = Number(noun.match(/(\d+) ft/)![1]);
     expect(feet).toBeGreaterThan(20);
+  });
+
+  it('says nothing when the ball finished where it was aimed', () => {
+    // Flat ground, dead air, pure strike: there is no residual, so there is
+    // nothing to report. Inventing a line here would be the worst outcome —
+    // the player would adjust for a problem that does not exist.
+    expect(shoot(openHole()).factors.some((f) => f.kind === 'slope')).toBe(false);
+  });
+});
+
+describe('the table the player actually reads', () => {
+  /** A miss with something in both columns: a hard strike miss in a crosswind. */
+  function messy(): ReturnType<typeof attributeShot> {
+    return shoot(openHole(), {
+      wind: { angle: 0, speed: 18 },
+      swing: { power: 0.95, powerQuality: 'miss', accuracy: 0.95, accuracyQuality: 'miss' }
+    });
+  }
+
+  it('splits into a distance column and a line column', () => {
+    const t = attributionTable(messy());
+    expect(t.dist.length + t.side.length, JSON.stringify(t)).toBeGreaterThan(0);
+    // Nothing under the noise floor gets a line in either column.
+    for (const e of [...t.dist, ...t.side]) expect(Math.abs(e.yards)).toBeGreaterThanOrEqual(4);
+  });
+
+  it('the rows account for the header, to within the noise floor', () => {
+    // A table whose rows do not add up to its total teaches the wrong lesson,
+    // and it is why the ground is measured as a RESIDUAL rather than skipped.
+    //
+    // Exact equality is the wrong bar: anything under a few yards is dropped
+    // rather than shown, deliberately, because a player cannot feel it. So the
+    // rows must account for the total to within that floor — a gap wider than
+    // one dropped row means a real contribution went missing.
+    const a = messy();
+    const t = attributionTable(a);
+    const sumShort = a.factors.reduce((s, f) => s + f.short, 0);
+    const sumRight = a.factors.reduce((s, f) => s + f.right, 0);
+    expect(Math.abs(sumShort - a.shortYd), `${sumShort.toFixed(2)} vs ${a.shortYd.toFixed(2)}`).toBeLessThan(4);
+    expect(Math.abs(sumRight - a.rightYd), `${sumRight.toFixed(2)} vs ${a.rightYd.toFixed(2)}`).toBeLessThan(4);
+    expect(t.head.dist || t.head.side).toBeTruthy();
+  });
+
+  it('reads the way a golfer would say it', () => {
+    const t = attributionTable(messy());
+    for (const e of t.dist) expect(e.text, e.text).toMatch(/^[+−]\d+ yds \S/);
+    for (const e of t.side) expect(e.text, e.text).toMatch(/^[←→] \d+ yds \S/);
+    if (t.head.dist) expect(t.head.dist).toMatch(/^\d+ yards (short|long)$/);
+    if (t.head.side) expect(t.head.side).toMatch(/^\d+ yards (right|left)$/);
+  });
+
+  it('names a strike miss by what the player felt', () => {
+    const t = attributionTable(messy());
+    const causes = [...t.dist, ...t.side].map((e) => e.cause);
+    // Never the bare word "strike": a golfer knows it as an over-swing, an
+    // under-swing or a mishit.
+    expect(causes).not.toContain('strike');
+  });
+
+  it('leads with the biggest number in each column', () => {
+    const t = attributionTable(messy());
+    for (const col of [t.dist, t.side]) {
+      for (let i = 1; i < col.length; i++) {
+        expect(Math.abs(col[i - 1].yards)).toBeGreaterThanOrEqual(Math.abs(col[i].yards));
+      }
+    }
   });
 });

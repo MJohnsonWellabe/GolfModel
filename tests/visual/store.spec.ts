@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { seedReturningDevice } from './support/wizard';
+import { openDestination, seedReturningDevice } from './support/wizard';
 
 /** A fresh profile (every isolated test context) shows a one-time "what's
  *  your name?" modal before the menu is usable — fill it in like a real
@@ -23,8 +23,10 @@ async function dismissNameModal(page: Page): Promise<void> {
 test('store overlay shows purchasable items', async ({ page }) => {
   await seedReturningDevice(page);
   await page.goto('/');
-  await page.waitForSelector('#landingStore');
   await dismissNameModal(page);
+  // The Store lives behind the Locker destination now, alongside the Season
+  // Pass — the two places a player spends, in one place.
+  await openDestination(page, 'locker');
   await page.locator('#landingStore').click();
   await page.waitForSelector('.storeCard');
   const cards = await page.locator('.storeCard').count();
@@ -37,8 +39,8 @@ test('store overlay shows purchasable items', async ({ page }) => {
 test('purchases go through a spend confirmation', async ({ page }) => {
   await seedReturningDevice(page);
   await page.goto('/');
-  await page.waitForSelector('#landingStore');
   await dismissNameModal(page);
+  await openDestination(page, 'locker');
   // Store cards use a scroll-safe tap gesture (onTap, main.ts) that only fires
   // on a real pointerdown+pointerup pair close together — a single synthetic
   // dispatchEvent('pointerdown') arms it but never fires. Locator.click()
@@ -55,6 +57,8 @@ test('purchases go through a spend confirmation', async ({ page }) => {
   // With coins granted, the same tap arms the confirmation popup.
   await page.evaluate(() => (window as unknown as { __grantCoins: (n: number) => void }).__grantCoins(5000));
   await page.locator('#storeBack').click();
+  // Back lands on the landing, not inside the door that was open.
+  await openDestination(page, 'locker');
   await page.locator('#landingStore').click(); // reopen so cards re-render as affordable
   const firstCard = page.locator('.storeCard:not(.owned):not(.equipped)').first();
   const itemId = await firstCard.getAttribute('data-item');

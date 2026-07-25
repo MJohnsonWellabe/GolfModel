@@ -245,8 +245,9 @@ candidate accepted.
 
 - **Post-shot attribution** (`shotAttribution`) — not estimates,
   **counterfactuals**: the same resolved shot re-flown with the wind removed,
-  with a clean strike, from a clean lie. The differences are exact. Runs at
-  rest, never on the tap path, silent when there is nothing to say.
+  with a clean strike, without the spin. The differences are exact. Runs at
+  rest, never on the tap path, silent when there is nothing to say. Details in
+  §12 below.
 - **Practice ground** (`practiceRange`) — every golf game has one; this never
   did. No card, no stroke cap, no end. It is where the swing is learned and the
   only entry point that fits a 90-second session. Explicitly excluded from
@@ -355,6 +356,95 @@ same thing.
   bunker dead-stop sampled `Math.random` for a distance assertion (now seeded),
   and `menu.spec.ts` still opened the wizard via "Play Now", which `quickPlay`
   had turned into an immediate tee-off.
+
+## 12. The post-shot breakdown, as a table
+
+The card answers one question — **why didn't it go where I aimed?** — and every
+number is measured against the AIM POINT rather than against an idealised shot.
+Reporting "sand cost 20 yd" is noise, because the club and the power were chosen
+FOR the sand; the aim already accounts for it. Reporting "wind 14 short, 9
+right" is a lesson, because next time the player can aim into it. The lie was
+removed from the breakdown entirely for exactly this reason.
+
+It reads as a two-column table: what moved the ball up and down the aim line on
+the left, what moved it across on the right, each column biggest-first, with the
+total miss as the header.
+
+```
+16 yards long        │  12 yards left
++8 yds 11 ft downhill│  ← 6 yds mishit
++8 yds wind          │  ← 8 yds wind
+−2 yds under-swing   │  → 2 yds spin
+```
+
+The two columns are **independent lists**, not one row per factor — a wind that
+cost nothing in distance should not take up a line in the distance column.
+Pairing them row-wise is only layout.
+
+**Wind, strike and spin are counterfactuals**: the same resolved shot re-flown
+with that one variable removed, against a re-flown baseline, with the random
+stream re-seeded before every flight. (Without the re-seed the difference
+measures a fresh roll of the dice as well as the factor, which is how a
+dead-calm shot once reported "wind took 6 yd".)
+
+**The ground is a residual.** Terrain cannot be lifted out from under a shot
+without rebuilding the engine, so what the ground did is whatever is left when
+the measured factors are subtracted from the total miss — the elevation the ball
+flew into, plus the run-out it got when it landed. That is also what makes the
+table add up, which a table has to do: rows that do not account for the header
+teach the player the wrong lesson. Rows under the noise floor (4 yd) are still
+dropped rather than shown, so the sum is exact to within one such row.
+
+A strike miss is named by what the player would have felt — over-swing,
+under-swing, mishit — never by the bare word "strike".
+
+`tests/shotAttribution.test.ts` holds all of it: the counterfactual correctness,
+the residual, the wording, the ordering and the arithmetic.
+
+## 13. The landing's information architecture
+
+The panel had grown to ten stacked cards, so the screen answered "what can this
+game do" rather than "what shall I do now", and on a phone the one thing a
+player came for was below the fold. Design constitution rule 5 makes that a hard
+requirement, not a preference: **every primary action reachable without
+scrolling**.
+
+The shape is now **one primary action and four doors**:
+
+| | |
+| --- | --- |
+| **Play** | the action. Tees off on the last course played, and names the course and golfer on the button. |
+| **Today** | hole of the day, the rival race, the daily challenge, the weekly |
+| **Compete** | course & mode, online tournaments, records, the practice ground |
+| **Locker** | season pass, store, locker room |
+| **More** | profile, about, and the dev/admin tools when they apply |
+
+Above them sits a single quiet **progression strip** — level · streak · coins —
+replacing three separate banners that each argued for attention against Play.
+The unfinished-round card and an inbound challenge stay on the top level,
+because both name the thing the player was already doing.
+
+Nothing was deleted and nothing became harder to find: **each tile carries a
+one-line headline of what is behind it** ("Hole of the Day is up", "2 rewards to
+claim", "🔥 4-day streak safe"), so the retention layer still advertises itself
+from the top level. A door with nothing written on it would be worse than the
+stack it replaced. `tests/visual/landingIA.spec.ts` asserts every one of these:
+the fold at 360×800, that all four doors open and close, that each tile has a
+headline, and — item by item — that nothing the ten-card stack used to offer
+became unreachable.
+
+Progressive disclosure survives the rebuild, one level up: a brand-new device is
+offered Play, Compete and More, while Today and Locker stay closed until a first
+round is in the books. Previously the same rule blanked individual cards, which
+left a newcomer looking at gaps.
+
+Two things were found dead while doing this and removed: `updateSeasonLink` and
+`updateStoreBanner` rendered `#seasonBanner` and `#storeBanner`, neither of
+which has existed in the landing markup for some time — both ran, found nothing
+and returned. And **Records and Online Tournaments hung off the bottom of the
+setup wizard**, so two whole destinations were reachable only by starting to
+choose a course and then not doing it.
+
 
 ## Known limitations
 

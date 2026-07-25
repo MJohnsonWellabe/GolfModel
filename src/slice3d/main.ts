@@ -45,7 +45,7 @@ import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
 import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
-import { attributeShot, ShotAttribution } from '../systems/ShotAttribution';
+import { attributeShot, attributionTable, ShotAttribution } from '../systems/ShotAttribution';
 import { dailyHole, shareText } from '../systems/DailyHoleService';
 import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
@@ -297,18 +297,24 @@ function showShotWhy(a: ShotAttribution | null): void {
     shotWhyEl.innerHTML = '';
     return;
   }
-  // Head line: the miss itself. If it finished on the aim, say so — that is
-  // information too, and it is the shot the player is trying to repeat.
-  const head = a.missLabel || 'on your aim';
-  const rows = a.factors.map((f) => {
-    // Slope is context, not blame — it gets no colour.
-    const cls = f.kind === 'slope' ? '' : ' cost';
-    return `<span class="swRow${cls}">${escapeHtml(f.label)}</span>`;
-  });
+  // A TABLE, not a paragraph.
+  //
+  // Distance down the left, line across the right, each column biggest-first,
+  // the total miss as the header. A golfer reads a scorecard in columns; the
+  // question "did I lose that long or left" is answered by looking at ONE
+  // column rather than by parsing prose.
+  const t = attributionTable(a);
+  const rows = Math.max(t.dist.length, t.side.length);
+  const cell = (e: { text: string } | undefined): string =>
+    e ? escapeHtml(e.text) : '';
+  const body = Array.from({ length: rows }, (_, i) =>
+    `<span class="swCell">${cell(t.dist[i])}</span><span class="swCell">${cell(t.side[i])}</span>`
+  ).join('');
   shotWhyEl.innerHTML =
-    `<span class="swHead">${escapeHtml(head)}</span>` +
-    `<span class="swDist">${Math.round(a.distanceYd)} yd</span>` +
-    rows.join('');
+    `<span class="swCell swHead">${escapeHtml(t.head.dist || 'on distance')}</span>` +
+    `<span class="swCell swHead">${escapeHtml(t.head.side || 'on line')}</span>` +
+    body +
+    `<span class="swCell swDist" style="grid-column:1/-1">${Math.round(a.distanceYd)} yd</span>`;
   shotWhyEl.style.opacity = '1';
 }
 
@@ -4252,7 +4258,7 @@ function showSummary(): void {
   const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp');
   if (roundXp) {
     addSeasonXp(profile, SEASON_1, roundXp.amount, Date.now());
-    updateSeasonLink();
+    refreshProgressSurfaces();
   }
   // Burn one charge of the equipped perk (it applied to this round); unequip it
   // once spent. Runs once per completed round (all modes flow through here).
@@ -5044,7 +5050,7 @@ function refreshEntitlements(): void {
       showCloudStatus(res.status, true);
     });
     showMsg(`Purchase applied: ${applied.join(', ')} ✅`, 2600);
-    updateSeasonLink();
+    refreshProgressSurfaces();
     if (storeEl.style.display === 'flex') renderStore();
     if (seasonEl.style.display === 'flex') renderSeasonPass();
   });
@@ -5265,35 +5271,11 @@ function roundGolfer(): Golfer {
  *  reason the loadout is: a replay without it assembles a different golfer. */
 let roundPerkId: string | null = null;
 
-function updateSeasonLink(): void {
-  const btn = document.getElementById('seasonBanner');
-  if (!btn) return;
-  const { level: lvl, intoLevel: into, levelCost } = levelProgress(SEASON_1, profile.season.xp);
-  if (profile.season.owned) {
-    const pct = lvl >= SEASON_1.levels ? 100 : Math.round((into / levelCost) * 100);
-    btn.innerHTML =
-      `<span class="sbIcon">🎫</span>` +
-      `<span class="sbMain"><span class="sbTitle">Season Pass · Level ${lvl}</span>` +
-      `<span class="sbBar"><i style="width:${pct}%"></i></span></span>` +
-      `<span class="sbGo">Track ›</span>`;
-  } else {
-    btn.innerHTML =
-      `<span class="sbIcon">🎫</span>` +
-      `<span class="sbMain"><span class="sbTitle">Season Pass — 50 Rewards</span>` +
-      `<span class="sbSub">See the rewards · you're Level ${lvl}/${SEASON_1.levels}</span></span>` +
-      `<span class="sbGo">See ›</span>`;
-  }
-}
-
-function updateStoreBanner(): void {
-  const btn = document.getElementById('storeBanner');
-  if (!btn) return;
-  btn.innerHTML =
-    `<span class="sbIcon">🛍️</span>` +
-    `<span class="sbMain"><span class="sbTitle">The Store</span>` +
-    `<span class="sbSub">Balls, trails, characters &amp; more</span></span>` +
-    `<span class="sbGo">Shop ›</span>`;
-}
+// `updateSeasonLink`/`updateStoreBanner` used to render #seasonBanner and
+// #storeBanner here. Neither element has existed in the landing markup for some
+// time, so both functions ran, found nothing and returned — dead code that read
+// as live. The level and the unclaimed-reward count they were meant to surface
+// now live on the progression strip and the Locker tile.
 
 /** Season-pass overlay: 10 pages × 5 reward levels, progress bar, claim
  *  buttons, and the purchase footer. Modeled on renderStore/renderRecords. */
@@ -5410,7 +5392,7 @@ function renderSeasonPass(): void {
           applyCloudMerge(p, res.profile);
           showCloudStatus(res.status, true);
         });
-      updateSeasonLink();
+      refreshProgressSurfaces();
       renderSeasonPass();
     })
   );
@@ -5446,7 +5428,7 @@ function renderSeasonPass(): void {
           showCloudStatus(r.status, true);
         });
       showMsg(`🎫 Season Pass unlocked for ${def.priceCoins} 🪙!`, 2000);
-      updateSeasonLink();
+      refreshProgressSurfaces();
       renderSeasonPass();
     });
   // Claim All: sweep every currently-claimable level in one tap, one persist,
@@ -5466,7 +5448,7 @@ function renderSeasonPass(): void {
           applyCloudMerge(p, res.profile);
           showCloudStatus(res.status, true);
         });
-      updateSeasonLink();
+      refreshProgressSurfaces();
       showMsg(`🎫 Claimed ${claimed} reward${claimed > 1 ? 's' : ''}!`, 1600);
       renderSeasonPass();
     });
@@ -6252,7 +6234,7 @@ function syncSelFromProfile(): void {
   sel.name = profile.name;
   sel.character = (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey);
   sel.archetype = (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId);
-  updateSeasonLink();
+  refreshProgressSurfaces();
 }
 
 /** Re-render the visible setup wizard so a sign-in/sign-out actually clears (or
@@ -6856,7 +6838,7 @@ function renderLockerRoom(): void {
       p.equippedPerk = id || null;
       persistProfile();
       if (signedIn) void cloudSyncProfile(p).then((res) => { applyCloudMerge(p, res.profile); showCloudStatus(res.status, true); });
-      updateSeasonLink();
+      refreshProgressSurfaces();
       renderLockerRoom();
     })
   );
@@ -7007,6 +6989,9 @@ function showLanding(): void {
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
+  // Coming home always lands on the top level, never inside whichever door was
+  // last opened.
+  closeDest();
   refreshLandingCards(); // owns the "Learn to play" entry (incl. its new-player hero)
   updateLandingProfileButton();
 }
@@ -7023,7 +7008,7 @@ function refreshLandingCards(): void {
   // Progressive disclosure (Part 11): a brand-new player sees core golf and
   // one big Play action — the daily/weekly cards and Season Pass/Store
   // entries reveal after the first completed round on this device.
-  const newPlayer = !deviceSettings.firstRoundDone && profile.stats.rounds === 0;
+  const newPlayer = isNewPlayer();
   const dailyCardEl = document.getElementById('dailyCard');
   const weeklyCardEl = document.getElementById('weeklyCard');
   const seasonBtn = document.getElementById('landingSeason');
@@ -7046,6 +7031,166 @@ function refreshLandingCards(): void {
   updateDailyHoleCard();
   const practice = document.getElementById('landingPractice');
   if (practice) practice.style.display = flag('practiceRange') ? '' : 'none';
+  // The destinations are painted LAST: each tile's headline is read off the
+  // cards above, so it has to run after they exist.
+  refreshProgressSurfaces();
+}
+
+/**
+ * Progressive disclosure (Part 11): a device that has never finished a round is
+ * shown core golf and nothing else.
+ */
+function isNewPlayer(): boolean {
+  return !deviceSettings.firstRoundDone && profile.stats.rounds === 0;
+}
+
+/**
+ * Repaint the landing's progression surfaces after XP, coins or a claim moved.
+ *
+ * Cheap — arithmetic over the profile and a handful of DOM writes, no card
+ * regeneration — so purchase, claim and end-of-round handlers can call it
+ * directly. This is what the dead `updateSeasonLink`/`updateStoreBanner` pair
+ * were reaching for.
+ */
+function refreshProgressSurfaces(): void {
+  const newPlayer = isNewPlayer();
+  updateProgressStrip(newPlayer);
+  updateDestinations(newPlayer);
+}
+
+// ---------------------------------------------------------------------------
+// THE LANDING'S INFORMATION ARCHITECTURE
+//
+// The panel had grown to ten stacked cards — resume, hole of the day, ghost,
+// challenge, daily, weekly, play, learn, course & mode, practice, then a nav
+// grid — so the screen answered "what can this game do" instead of "what shall
+// I do now", and on a phone the primary action was below the fold. The vision
+// doc asks for "a clear primary action rather than a dashboard of competing
+// demands"; the design constitution (rule 5) makes reachability without
+// scrolling a hard requirement.
+//
+// The shape is now ONE PRIMARY ACTION and FOUR DOORS:
+//
+//   Play      the action. Tees off on the last course played.
+//   Today     hole of the day, the rival race, the daily challenge, the weekly
+//   Compete   course & mode, tournaments, records, the practice ground
+//   Locker    season pass, store, locker room
+//   More      profile, about, and the dev/admin tools when they apply
+//
+// Nothing was deleted and nothing became harder to find: each tile carries a
+// one-line headline of what is behind it, so the daily hole and the streak
+// still advertise themselves from the top level. A door with nothing written on
+// it would be worse than the stack it replaced.
+// ---------------------------------------------------------------------------
+
+type DestId = 'today' | 'compete' | 'locker' | 'more';
+
+const DEST_TITLES: Record<DestId, string> = {
+  today: 'Today',
+  compete: 'Compete',
+  locker: 'Locker',
+  more: 'More'
+};
+
+/** Level · streak · coins, in one quiet row. Replaces three separate banners
+ *  that each argued for attention against the Play button. */
+function updateProgressStrip(newPlayer: boolean): void {
+  const el = document.getElementById('progressStrip');
+  if (!el) return;
+  // A player with no rounds has no progression to report, and an empty ladder
+  // is a worse first impression than no ladder.
+  if (newPlayer) {
+    el.innerHTML = '';
+    return;
+  }
+  const { level } = levelProgress(SEASON_1, profile.season.xp);
+  const streak = profile.retention.streak.current;
+  el.innerHTML =
+    `<span>Level ${level}</span>` +
+    `<span>${streak > 0 ? `🔥 ${streak} day${streak > 1 ? 's' : ''}` : 'No streak yet'}</span>` +
+    `<span>🪙 ${profile.coins}</span>`;
+}
+
+/**
+ * Paint the four tiles: which are offered, and what each one says.
+ *
+ * Progressive disclosure (Part 11) survives the rebuild, one level up: a
+ * brand-new player is offered Play, Compete and More — core golf and their
+ * account — while Today and Locker stay closed until a first round is in the
+ * books. Previously the same rule blanked individual cards, which left the
+ * player looking at gaps.
+ */
+function updateDestinations(newPlayer: boolean): void {
+  const tile = (id: DestId): HTMLElement | null => document.getElementById(`dest${id[0].toUpperCase()}${id.slice(1)}`);
+  const set = (id: DestId, shown: boolean, sub: string, news = false): void => {
+    const el = tile(id);
+    if (!el) return;
+    el.style.display = shown ? '' : 'none';
+    const s = el.querySelector('.dtSub');
+    if (s) s.textContent = sub;
+    el.classList.toggle('hasNews', shown && news);
+  };
+
+  // TODAY — lead with whatever is genuinely undone, because that is the only
+  // part of this game with a deadline on it.
+  const dailyHoleOpen = flag('dailyHole') && !loadDailyPlay(todayKey());
+  const challengeDone = profile.daily.date === todayKey() && profile.daily.done;
+  const streak = profile.retention.streak.current;
+  const todaySub = dailyHoleOpen
+    ? 'Hole of the Day is up'
+    : !challengeDone
+      ? "Today's challenge is open"
+      : streak > 0
+        ? `🔥 ${streak}-day streak safe`
+        : 'All done — back tomorrow';
+  set('today', !newPlayer, todaySub, dailyHoleOpen || !challengeDone);
+
+  // COMPETE — name the course you would actually be picking between.
+  const courseCount = Object.keys(COURSES).length;
+  set('compete', true, `${courseCount} courses · records · tournaments`);
+
+  // LOCKER — an unclaimed reward is the one thing here worth interrupting for.
+  const claimable = seasonClaimableCount();
+  set(
+    'locker',
+    !newPlayer,
+    claimable > 0 ? `${claimable} reward${claimable > 1 ? 's' : ''} to claim` : `Season Pass · Store · 🪙 ${profile.coins}`,
+    claimable > 0
+  );
+
+  // MORE — the account, and the tools when they apply.
+  set('more', true, signedIn ? profile.name || 'Your account' : 'Sign in to sync');
+
+  const builder = document.getElementById('landingBuilder');
+  if (builder) builder.style.display = devToolsActive() ? '' : 'none';
+  const admin = document.getElementById('landingAdmin');
+  if (admin) admin.style.display = devToolsActive() ? '' : 'none';
+}
+
+/** How many season-pass levels are sitting unclaimed. Cheap arithmetic over the
+ *  profile — no I/O — so it is safe on a landing paint. */
+function seasonClaimableCount(): number {
+  let n = 0;
+  for (let level = 1; level <= SEASON_1.levels; level++) {
+    if (claimState(profile, SEASON_1, level) === 'claimable') n++;
+  }
+  return n;
+}
+
+function openDest(id: DestId): void {
+  const sheet = document.getElementById('destSheet');
+  const title = document.getElementById('destSheetTitle');
+  if (!sheet || !title) return;
+  title.textContent = DEST_TITLES[id];
+  for (const pane of Array.from(document.querySelectorAll('.destPane'))) {
+    pane.classList.toggle('on', pane.id === `pane${id[0].toUpperCase()}${id.slice(1)}`);
+  }
+  sheet.classList.add('on');
+  document.getElementById('destSheetBody')!.scrollTop = 0;
+}
+
+function closeDest(): void {
+  document.getElementById('destSheet')?.classList.remove('on');
 }
 
 /**
@@ -8155,13 +8300,20 @@ document.getElementById('landingPractice')?.addEventListener('pointerdown', () =
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
 document.getElementById('landingProfile')!.addEventListener('pointerdown', () => renderProfile());
+document.getElementById('landingLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
 document.getElementById('recordsLink')!.addEventListener('pointerdown', () => renderRecords());
-document.getElementById('storeBanner')?.addEventListener('pointerdown', () => renderStore());
-document.getElementById('seasonBanner')?.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('tournyLink')!.addEventListener('pointerdown', () => renderTournaments());
-updateSeasonLink();
-updateStoreBanner();
+// The four doors. Delegated off each tile rather than bound by id so adding a
+// destination is a markup change.
+for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile'))) {
+  tile.addEventListener('pointerdown', () => openDest(tile.dataset.dest as DestId));
+}
+document.getElementById('destSheetClose')!.addEventListener('pointerdown', () => closeDest());
+// Tapping the scrim closes it; tapping the sheet itself must not.
+document.getElementById('destSheet')!.addEventListener('pointerdown', (e) => {
+  if (e.target === e.currentTarget) closeDest();
+});
 updateLandingProfileButton();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
