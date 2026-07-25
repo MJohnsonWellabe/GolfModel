@@ -289,6 +289,23 @@
         opacity: 0;
         transition: opacity 0.25s;
       }
+      /* Post-shot breakdown (`shotAttribution`) — deliberately much quieter
+         than #msg above it: the result is the headline, the cause is a note. */
+      #shotWhy {
+        position: fixed;
+        top: calc(34% + 42px);
+        left: 0;
+        right: 0;
+        text-align: center;
+        font-size: 15px;
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        color: #dbe8d6;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.7);
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.25s;
+      }
       #prompt {
         position: fixed;
         bottom: 158px;
@@ -3287,6 +3304,7 @@
     <div id="badge" class="panel">Bite-Sized Golf<br />Wildwood Glen</div>
     <div id="prompt"></div>
     <div id="msg"></div>
+    <div id="shotWhy"></div>
     <div id="cineBanner" aria-live="polite"></div>
     <div id="banner"></div>
     <div id="summary" class="panel"></div>
@@ -3325,6 +3343,7 @@
           <button id="landingPlay" class="landingPlay">Play Now</button>
           <button id="landingLearn" style="display:none">🎓 New? Learn to play</button>
           <button id="landingSetup" class="landingSetup" style="display:none">⛳ Course &amp; mode</button>
+          <button id="landingPractice" class="landingSetup" style="display:none">🏌️ Practice ground — no card, no pressure</button>
           <div class="landingNav">
             <button id="landingSeason">Season Pass</button>
             <button id="landingStore">Store</button>

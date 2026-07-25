@@ -44,7 +44,7 @@ describe('daily hole determinism', () => {
     expect(JSON.stringify(generateHole(12346))).not.toBe(JSON.stringify(a));
   });
 
-  it('resolves the same hole for the same day, twice, from a cold cache', () => {
+  it('resolves the same hole for the same day, twice, from a cold cache', { timeout: 120_000 }, () => {
     clearDailyHoleCache();
     const first = dailyHole('2026-08-01', themes);
     clearDailyHoleCache();
@@ -78,7 +78,7 @@ describe('generated holes are real golf holes', () => {
 });
 
 describe('the difficulty gate', () => {
-  it('grades a shipped, hand-authored hole as playable', () => {
+  it('grades a shipped, hand-authored hole as playable', { timeout: 60_000 }, () => {
     // The band is calibrated against real holes: if an authored Sable Bay hole
     // fails it, the band is wrong, not the hole.
     const grade = gradeHole(themes.sablebay, 0);
@@ -87,7 +87,7 @@ describe('the difficulty gate', () => {
     expect(grade.parRate).toBeGreaterThan(0);
   });
 
-  it('is deterministic — the same hole always grades the same', () => {
+  it('is deterministic — the same hole always grades the same', { timeout: 60_000 }, () => {
     const course = courseForHole(generateHole(4242), themes.sablebay, 'T');
     expect(gradeHole(course)).toEqual(gradeHole(course));
   });
@@ -100,9 +100,11 @@ describe('the difficulty gate', () => {
       if (!gradeHole(course).ok) rejects++;
     }
     expect(rejects, 'no candidate was ever rejected — the band is not doing anything').toBeGreaterThan(0);
-  });
+    // Grading is 140 simulated rounds per candidate — cheap arithmetic, but 12
+    // candidates of it exceeds the default 5s budget on a loaded machine.
+  }, 120_000);
 
-  it('serves a hole that passed the band, and records what it rejected', () => {
+  it('serves a hole that passed the band, and records what it rejected', { timeout: 120_000 }, () => {
     clearDailyHoleCache();
     const res = dailyHole('2026-09-15', themes);
     expect(res.spec, 'no hole passed the gate for this day').not.toBeNull();

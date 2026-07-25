@@ -6,14 +6,16 @@ import { replayRound, ReplayOptions } from '../../src/systems/RoundReplay';
 import { verifyRecording } from '../../src/systems/RoundVerify';
 import { GhostRun, standingLabel } from '../../src/systems/GhostRun';
 import { clearRecordings, loadRecordings, saveRecording, bestRecordingFor } from '../../src/systems/RecordingStore';
-import { conditionsForRound, windForSeed } from '../../src/systems/RoundConditions';
+import { conditionsForRound, shotRngSeed, windForSeed } from '../../src/systems/RoundConditions';
 import { PHYSICS, PX_PER_YARD, RULES } from '../../src/config';
 import { AIController } from '../../src/systems/AIController';
 import { FireSystem } from '../../src/systems/FireSystem';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { buildHeightField } from '../../src/systems/HeightField';
 import { withPlayableBoundary } from '../../src/systems/PlayableBoundary';
+import { applyTeeVariants } from '../../src/systems/Layouts';
 import { assembleGolfer } from '../../src/data/golfers';
+import { mulberry32 } from '../../src/utils/Random';
 import type { Surface } from '../../src/core/types';
 
 /**
@@ -58,7 +60,11 @@ function playRecording(seed: number, holes = 1): RoundRecording {
   const recorder = new RoundRecorder();
   recorder.start();
   const golfer = assembleGolfer('Tester', 'chip', 'bigHitter');
-  const conditions = conditionsForRound(course, seed, holes, {
+  // The live round materialises this seed's alternate tees before playing
+  // (playHole → applyTeeVariants), and so does the replay — so a fixture that
+  // skipped it would tee off somewhere the replay never looks.
+  const teed = applyTeeVariants(course, seed);
+  const conditions = conditionsForRound(teed, seed, holes, {
     useAuthoredPins: OPTS.useAuthoredPins,
     maxWind: PHYSICS.maxWind
   });
@@ -66,8 +72,12 @@ function playRecording(seed: number, holes = 1): RoundRecording {
   const fire = new FireSystem();
 
   for (let h = 0; h < holes; h++) {
-    const hole = withPlayableBoundary({ ...course.holes[h], pin: conditions.pins[h] }, OPTS.bounded);
-    const engine = new PhysicsEngine(hole, buildHeightField(hole, 1, 0), () => 0.5);
+    const hole = withPlayableBoundary({ ...teed.holes[h], pin: conditions.pins[h] }, OPTS.bounded);
+    // Seed the engine's one random branch (a putt lipping out) exactly as the
+    // live round and the replay do, or a fixture containing one would not
+    // reproduce — and the test would be measuring the fixture, not the replay.
+    let shotRng: () => number = mulberry32(shotRngSeed(seed, h, 0));
+    const engine = new PhysicsEngine(hole, buildHeightField(hole, 1, 0), () => shotRng(), OPTS.treeSpecies);
     const ai = new AIController(golfer, fire, engine, () => 0.5);
     const wind = conditions.winds[h];
     let ball = { ...hole.tee };
@@ -80,6 +90,7 @@ function playRecording(seed: number, holes = 1): RoundRecording {
         strokes += 1;
         break;
       }
+      shotRng = mulberry32(shotRngSeed(seed, h, strokes));
       const d = ai.decide(ball, lie, wind, hole);
       recorder.add({
         h,

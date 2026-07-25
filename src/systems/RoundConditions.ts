@@ -26,7 +26,7 @@
  */
 
 import { buildHeightField } from './HeightField';
-import { pickAuthoredPin } from './Layouts';
+import { gentlestAuthoredPin, pickAuthoredPin } from './Layouts';
 import { drawWind } from './RoundSimulator';
 import { randomPinForGreen } from '../utils/Geometry';
 import { mulberry32 } from '../utils/Random';
@@ -56,10 +56,21 @@ export function pinForSeed(
   seed: number | undefined,
   holeIdx: number,
   hole: HoleData,
-  opts: { useAuthoredPins: boolean; bunkerDepthScale?: number; wasteDepthScale?: number }
+  opts: {
+    useAuthoredPins: boolean;
+    bunkerDepthScale?: number;
+    wasteDepthScale?: number;
+    /** Ease-in (`easeIn`): draw the kindest authored pin instead of a seeded
+     *  one. ONLY ever set for a device's first casual rounds — never for a
+     *  shared-seed round (weekly, challenge, daily, ghost race), where every
+     *  player must face identical conditions. */
+    gentlePins?: boolean;
+  }
 ): Point {
   const rng = seed !== undefined ? mulberry32(seed * 2003 + holeIdx * 97 + 7) : Math.random;
-  const authored = opts.useAuthoredPins ? pickAuthoredPin(hole, rng) : null;
+  const authored = opts.useAuthoredPins
+    ? (opts.gentlePins ? gentlestAuthoredPin(hole) : null) ?? pickAuthoredPin(hole, rng)
+    : null;
   const hf = buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0);
   const gradMag = hf
     ? (x: number, y: number): number => {
@@ -80,7 +91,13 @@ export function conditionsForRound(
   course: CourseData,
   seed: number | undefined,
   holeCount: number,
-  opts: { useAuthoredPins: boolean; bunkerDepthScale?: number; wasteDepthScale?: number; maxWind: number }
+  opts: {
+    useAuthoredPins: boolean;
+    bunkerDepthScale?: number;
+    wasteDepthScale?: number;
+    gentlePins?: boolean;
+    maxWind: number;
+  }
 ): RoundConditions {
   const winds: Wind[] = [];
   const pins: Point[] = [];
@@ -91,4 +108,17 @@ export function conditionsForRound(
     pins.push(pinForSeed(seed, i, hole, opts));
   }
   return { winds, pins };
+}
+
+/**
+ * Seed for the physics engine's per-shot randomness.
+ *
+ * The engine consults randomness in exactly one place — the deflection angle of
+ * a putt that lips out. Deriving it from the round seed, the hole and the
+ * stroke number makes a round fully reproducible from its inputs, which is what
+ * verification and ghost playback require. The live game and the replay MUST
+ * derive it identically; that is why it lives here rather than in either one.
+ */
+export function shotRngSeed(seed: number, holeIdx: number, strokes: number): number {
+  return ((seed >>> 0) * 7919 + holeIdx * 131 + strokes * 17 + 3) >>> 0;
 }

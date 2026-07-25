@@ -34,9 +34,11 @@ import { buildHeightField } from './HeightField';
 import { FireSystem } from './FireSystem';
 import { PhysicsEngine } from './PhysicsEngine';
 import { withPlayableBoundary } from './PlayableBoundary';
-import { conditionsForRound } from './RoundConditions';
+import { applyTeeVariants } from './Layouts';
+import { conditionsForRound, shotRngSeed } from './RoundConditions';
 import { isValidRecording, RoundRecording } from './RoundRecording';
 import { PHYSICS, PX_PER_YARD, RULES } from '../config';
+import { mulberry32 } from '../utils/Random';
 import type { CharacterKey } from '../data/characters';
 import type { ArchetypeId } from '../data/archetypes';
 import type { ClubSpec, CourseData, Point, Surface, TrajectoryPoint } from '../core/types';
@@ -63,6 +65,10 @@ export interface ReplayedHole {
   holed: boolean;
   /** True when the hole ended by concession rather than by holing out. */
   conceded: boolean;
+  /** True when the hole ended at the stroke cap — the live round's "Pick up —
+   *  max N" (RULES.maxStrokes). A picked-up hole is FINISHED; treating it as
+   *  unfinished would reject every honest round that contained a disaster. */
+  pickedUp: boolean;
   shots: ReplayedShot[];
 }
 
@@ -103,8 +109,14 @@ export function replayRound(
   if (!isValidRecording(rec)) {
     return { ok: false, reason: 'malformed recording', holes: [], total: 0, scores: [] };
   }
-  const holeCount = Math.min(rec.holes, course.holes.length);
-  const conditions = conditionsForRound(course, rec.seed, holeCount, {
+  // TEE VARIANTS: the live round materialises this seed's alternate tees before
+  // playing (`playHole` → applyTeeVariants, under the `layouts` flag). Skipping
+  // that here made every replayed round start from the AUTHORED tee — so the
+  // very first shot landed somewhere the player never hit it, and no honest
+  // round could ever verify. Same flag, same seed, same function.
+  const teed = opts.useAuthoredPins ? applyTeeVariants(course, rec.seed) : course;
+  const holeCount = Math.min(rec.holes, teed.holes.length);
+  const conditions = conditionsForRound(teed, rec.seed, holeCount, {
     useAuthoredPins: opts.useAuthoredPins,
     bunkerDepthScale: opts.bunkerDepthScale,
     wasteDepthScale: opts.wasteDepthScale,
@@ -123,17 +135,19 @@ export function replayRound(
   const fire = new FireSystem();
 
   for (let h = 0; h < holeCount; h++) {
-    const base = course.holes[h];
+    const base = teed.holes[h];
     // The pin is seeded per round, so the hole the ball is played into is the
     // authored hole with this round's cup — not the authored cup.
     const hole = withPlayableBoundary({ ...base, pin: conditions.pins[h] }, opts.bounded);
+    // The engine's one random branch (a putt lipping out) is seeded per shot
+    // from the round seed, hole and stroke number — exactly as the live round
+    // seeds it (RoundConditions.shotRngSeed). Without this, an honest round
+    // containing a lip-out would replay differently and fail verification.
+    let shotRng: () => number = mulberry32(shotRngSeed(rec.seed, h, 0));
     const engine = new PhysicsEngine(
       hole,
       buildHeightField(hole, opts.bunkerDepthScale ?? 1, opts.wasteDepthScale ?? 0),
-      // Replay must be deterministic; the engine's rng is only consulted for
-      // effects that a recorded shot does not depend on, and a fixed source
-      // keeps two replays of the same recording identical.
-      () => 0.5,
+      () => shotRng(),
       opts.treeSpecies,
       opts.edgeWobble ?? 1
     );
@@ -145,6 +159,7 @@ export function replayRound(
     let strokes = 0;
     let holed = false;
     let conceded = false;
+    let pickedUp = false;
     const played: ReplayedShot[] = [];
 
     for (const shot of shots) {
@@ -160,6 +175,7 @@ export function replayRound(
       const club = clubById(shot.c);
       if (!club) return fail(`hole ${h + 1}: unknown club "${shot.c}"`);
 
+      shotRng = mulberry32(shotRngSeed(rec.seed, h, strokes));
       const fireBoost = fire.statBoost;
       const launch = engine.resolveLaunch({
         origin: ball,
@@ -220,7 +236,12 @@ export function replayRound(
       holed = true;
       conceded = true;
     }
-    holes.push({ holeIdx: h, strokes, holed, conceded, shots: played });
+    // The live round makes the player pick up at the stroke cap
+    // (HoleScene.afterShot, "Pick up — max N"). That hole is over and its score
+    // stands, so the replay has to end it the same way — otherwise any round
+    // containing a blow-up hole fails verification.
+    if (!holed && strokes >= RULES.maxStrokes) pickedUp = true;
+    holes.push({ holeIdx: h, strokes, holed, conceded, pickedUp, shots: played });
     scores.push(strokes);
   }
 

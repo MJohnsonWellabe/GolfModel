@@ -27,6 +27,15 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
+/** Root HTML pages are Vite ENTRY POINTS with inline module scripts, and their
+ *  imports land in the SAME shared chunks as the game's. Two of the authoring
+ *  tools imported the Babylon barrel inline, which quietly restored the entire
+ *  engine to the shared vendor chunk the moment they joined the build inputs —
+ *  a 800 KB regression that no test scanning only `src/` could ever see. */
+function htmlEntryPoints(): string[] {
+  return readdirSync('.').filter((f) => f.endsWith('.html'));
+}
+
 const FACADE = 'src/core/rendering/babylon.ts';
 const GLTF_FACADE = 'src/core/rendering/gltf.ts';
 
@@ -50,6 +59,18 @@ describe('engine import discipline', () => {
     expect(
       offenders,
       `these register the full glTF loader instead of importing ${GLTF_FACADE} (glTF 1.0 + ~30 unused extensions)`
+    ).toEqual([]);
+  });
+
+  it('no HTML entry point imports the barrel inline', () => {
+    const offenders = htmlEntryPoints().filter((f) => {
+      const src = readFileSync(f, 'utf8');
+      return /from ['"]@babylonjs\/core['"]/.test(src) || /@babylonjs\/loaders\/glTF['"]/.test(src);
+    });
+    expect(
+      offenders,
+      'these HTML pages import Babylon directly — they share the vendor chunk with the game, ' +
+        `so the whole engine comes back. Import ${FACADE} instead.`
     ).toEqual([]);
   });
 

@@ -52,7 +52,16 @@ export default defineConfig({
         // Owner-only stats dashboard (Google sign-in gated in-page)
         admin: resolve(__dirname, 'admin.html'),
         // Owner-reached press/marketing kit (linked from the admin dashboard)
-        marketing: resolve(__dirname, 'marketing.html')
+        marketing: resolve(__dirname, 'marketing.html'),
+        // Authoring tools, reached from the admin dashboard's Design Studio.
+        // They were previously dev-server-only, which is why the Hole Builder
+        // had never actually been seen. They are static pages behind the admin
+        // gate; including them costs the player nothing (nothing links to them
+        // from the game, and they are separate entry points, so no game chunk
+        // grows) and makes the links resolve on the deployed site.
+        holebuilder: resolve(__dirname, 'holebuilder.html'),
+        grasspicker: resolve(__dirname, 'grasspicker.html'),
+        treecatalog: resolve(__dirname, 'treecatalog.html')
       },
       output: {
         // Initial-load fix: the game shipped as ONE ~7 MB chunk, so every

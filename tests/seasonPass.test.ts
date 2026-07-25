@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultProfile } from '../src/profile/Profile';
-import { SEASON_1 } from '../src/data/seasonPass';
+import { SEASON_1, SEASON_XP_PER_LEVEL } from '../src/data/seasonPass';
 import { STORE_BY_ID } from '../src/data/storeCatalog';
 import {
   addSeasonXp,
@@ -42,19 +42,25 @@ describe('season definition', () => {
     expect(palLevels).toEqual([30, 35, 40, 45, 50]);
   });
 
-  it('paces to ~500 rounds at ~120 XP per round', () => {
-    const total = totalSeasonXp(SEASON_1);
-    expect(total / 120).toBeGreaterThan(400);
-    expect(total / 120).toBeLessThan(600);
+  it('paces to a season a real player can finish (~165 rounds at ~120 XP)', () => {
+    // RESCOPED (docs/26_SCALE_PASS.md). The original target was ~500 rounds,
+    // set for a game with far more content than the 21 authored holes that
+    // exist — it meant replaying every hole in the game about 70 times. An
+    // unfinishable pass is worse than no pass: it teaches the player the reward
+    // is not for them. Raise this again when the content library justifies it.
+    const rounds = totalSeasonXp(SEASON_1) / 120;
+    expect(rounds).toBeGreaterThan(120);
+    expect(rounds).toBeLessThan(220);
   });
 
-  it('per-level XP cost is progressive: each level costs more than the last, total unchanged from the flat baseline', () => {
+  it('per-level XP cost is progressive: each level costs more than the last', () => {
     expect(SEASON_1.xpPerLevel).toHaveLength(50);
     for (let i = 1; i < SEASON_1.xpPerLevel.length; i++) {
       expect(SEASON_1.xpPerLevel[i]).toBeGreaterThan(SEASON_1.xpPerLevel[i - 1]);
     }
-    // Same total grind as the flat 1200 × 50 design — only the distribution changed.
-    expect(totalSeasonXp(SEASON_1)).toBe(1200 * 50);
+    // The progressive curve redistributes the grind; it never changes the total,
+    // which stays levels × the flat per-level target.
+    expect(totalSeasonXp(SEASON_1)).toBe(SEASON_XP_PER_LEVEL * SEASON_1.levels);
   });
 });
 

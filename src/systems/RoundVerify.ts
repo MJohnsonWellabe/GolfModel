@@ -92,9 +92,10 @@ export function verifyRecording(
     };
   }
 
-  // Every hole must have actually finished. A recording that simply stops
-  // short would otherwise "verify" at a flattering score.
-  const unfinished = replay.holes.find((h) => !h.holed);
+  // Every hole must have actually finished — either holed out, conceded inside
+  // the gimme radius, or picked up at the stroke cap. A recording that simply
+  // stops short would otherwise "verify" at a flattering score.
+  const unfinished = replay.holes.find((h) => !h.holed && !h.pickedUp);
   if (unfinished) {
     return {
       status: 'unfinished',

@@ -412,7 +412,64 @@ async function fillLandingStatus(): Promise<void> {
   await fillDraftStatus('liveops', 'retentionLiveOps');
 }
 
-/** The admin landing: four workspace destinations. Auth is enforced here — the
+/**
+ * The authoring tools. These have existed in the repo for a long time and were
+ * reachable only by typing a URL into a dev server, which is why the owner had
+ * never seen the Hole Builder. They are now a workspace on the admin home
+ * alongside the other tools, and they are in the Vite build inputs so the links
+ * resolve on the deployed site rather than 404ing.
+ *
+ * They stay behind the admin gate — these edit COURSE GEOMETRY, and a player
+ * has no reason to be in here — but "admin-gated" and "impossible to find" are
+ * not the same thing.
+ */
+const STUDIO_TOOLS: Array<{ href: string; icon: string; title: string; blurb: string }> = [
+  {
+    href: 'holebuilder.html',
+    icon: '📐',
+    title: 'Hole Builder',
+    blurb:
+      'Plan-view editor for any course: drag tees, pins, greens, fairway centerlines, ' +
+      'hazards and elevation points, then download the course JSON. Load a shipped course ' +
+      'from the picker or drop a .json onto the canvas.'
+  },
+  {
+    href: 'grasspicker.html',
+    icon: '🌱',
+    title: 'Grass Picker',
+    blurb: 'Compare the ground-scatter species side by side and audition a course’s turf mix.'
+  },
+  {
+    href: 'treecatalog.html',
+    icon: '🌳',
+    title: 'Tree Catalog',
+    blurb: 'Every tree, bush and prop in the nature packs, rendered at true scale with its key.'
+  }
+];
+
+function showStudio(): void {
+  $('app').innerHTML = `<button id="backHome" class="btn back">← Admin home</button>
+    <h1>📐 Design Studio</h1>
+    <p class="sub">Course authoring tools. Changes here produce JSON you commit — nothing writes to a live course.</p>
+    <div class="adminGrid">
+      ${STUDIO_TOOLS.map(
+        (t) => `<a class="adminCard" href="${t.href}" style="text-decoration:none;display:block">
+          <div class="acIcon">${t.icon}</div>
+          <div class="acTitle">${esc(t.title)}</div>
+          <div class="acDesc">${esc(t.blurb)}</div>
+          <div class="acMeta"><span class="acStatus live">Open →</span></div>
+        </a>`
+      ).join('')}
+    </div>
+    <p class="sub" style="margin-top:18px;opacity:0.7;font-size:12px">
+      Generated courses (Red Hollow, Wild Prairie, the v2 rebuilds) are emitted by
+      <code>scripts/gen-new-courses.mjs</code> — edit the generator module, not the JSON.
+      Use the Hole Builder for the hand-authored courses, or to prototype before writing a generator.
+    </p>`;
+  document.getElementById('backHome')!.addEventListener('click', () => void showLanding());
+}
+
+/** The admin landing: the workspace destinations. Auth is enforced here — the
  *  destinations themselves assume an allow-listed admin (as before). */
 async function showLanding(): Promise<void> {
   const email = adminEmail;
@@ -433,6 +490,7 @@ async function showLanding(): Promise<void> {
       ${destCardHtml('season', '🏆', 'Next Season Pass Staging', 'Draft the next season pass — theme, dates, levels and rewards. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('liveops', '🔁', 'Retention / Live Ops', 'Daily Challenge and Weekly Featured overrides — stage, validate, publish. Reward math stays code-defined.', 'Loading…', '')}
+      ${destCardHtml('studio', '📐', 'Design Studio', 'Hole Builder (plan-view course editor), Grass Picker and Tree Catalog — the authoring tools.', `${STUDIO_TOOLS.length} tools`, 'live')}
     </div>
     <p class="sub" style="margin-top:22px">
       <a id="openDev" href="index.html?env=dev" style="color:#ffcf33;font-weight:600;text-decoration:none">
@@ -460,6 +518,9 @@ async function showLanding(): Promise<void> {
         break;
       case 'store':
         void renderStoreStaging($('app'), back);
+        break;
+      case 'studio':
+        showStudio();
         break;
       case 'liveops':
         void renderLiveOps($('app'), back);
