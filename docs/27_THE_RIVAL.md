@@ -165,6 +165,32 @@ was a recording being dropped, which looks from the outside like nothing at all.
 - `tests/visual/roundRecording.spec.ts` (3): now includes the unlocked-loadout
   round that bug 1 above made impossible.
 
+## Career mode and create-a-golfer — considered, not built
+
+Both were on the table and both were set aside for the same reason, which is
+worth writing down so the decision is not re-litigated from scratch.
+
+**Create-a-golfer** works in PGA 2K because identity investment raises the cost
+of walking away. This game already has that axis: characters, archetypes,
+cosmetics, a Locker Room and a Season Pass. A parallel character creator would
+be a second identity system competing with the first — the exact thing
+constitution rule 10 says to avoid. The cheaper version of the same win is to
+make the EXISTING loadout matter more, and the rival does that for free: your
+archetype is now something a named opponent is measured against.
+
+**Career mode** is the stronger of the two, and the reason it was not built
+tonight is that it is a spine, not a feature — a season structure that the
+existing systems (pass, mastery, records, weekly) hang off, and doing it as a
+bolt-on would produce a fifth parallel progression rather than a frame for the
+four that exist. It also wants somewhere to go, and the roster is 21 authored
+holes plus one generated hole a day. **A rivalry is the smallest honest version
+of a career** — a season-long record against a named opponent — and it is now
+the thing a career could be built around: a tour is a schedule of fixtures, and
+the fixture now exists.
+
+The order matters. Build the reason to come back, watch whether people do, then
+build the structure around what they came back for.
+
 ## Known limitations
 
 - **A friend rivalry needs both sides to play.** A day where one of them never

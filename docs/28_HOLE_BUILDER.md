@@ -105,6 +105,28 @@ accepts the full envelope, a bare hole, or a fenced code block — all three are
 what a chat interface actually hands back — and refuses prose, half a hole, or an
 implausible par rather than passing them to the renderer.
 
+## Sourcing NEW assets — deliberately not done
+
+The library was asked to be filled out, including by going and getting more
+assets. It is now complete with respect to everything that **ships** — every
+tree, rock, stone, landform and prop in `assets/models/` is catalogued, and a
+test fails if that stops being true. Importing *new* models was not done, and
+that is a decision rather than an omission.
+
+There is real material to draw on, already in the repo and already licensed:
+`asset-packs/nature-kit-glb` (Kenney — `DeadTree_1-3`, `Rock_Medium_1-3`,
+`RockPath_*`, pebbles) and `asset-packs/meadow-fbx` (reeds, sticks, mushrooms,
+lake reeds) are unconverted, and `scripts/convert-poly.mjs` /
+`scripts/convert-nature.mjs` are the established pipeline.
+
+What stops it being a mechanical job is the bar. A converted tree needs its
+`treeHitbox` profile **measured from the model** (aspect, canopy bottom
+fraction, cone or not) or the ball collides with a shape the player cannot see;
+its materials need routing through `pickMat` or it renders untinted; and the
+result needs looking at. Shipping models nobody has looked at, with hitboxes
+nobody has checked, would be exactly the trade this project's first working
+principle forbids. It is a session with the Tree Catalog open, not a script run.
+
 ## What else this needs — the honest list
 
 Asked and answered, in the order I would build them.
