@@ -7138,6 +7138,51 @@ let rivalRoundCache: { key: string; rec: RoundRecording | null } | null = null;
  *  cache so both kinds of rival read through one path. */
 let friendRivalToday: { key: string; entry: RivalEntry | null } | null = null;
 
+/**
+ * A rival round on ANY course — the opponent that always exists.
+ *
+ * "Race your best" needs you to have already recorded a good round, so on a
+ * course you have not played it shows nothing. The rival has no such problem:
+ * their round is played headlessly through the real physics at a standard
+ * calibrated just above you, and it verifies against the same replay engine a
+ * human's round does. Memoised per (course, rival, standard) — synthesis is a
+ * few ms of arithmetic, but it belongs on the landing paint, never in play.
+ */
+const rivalByCourse = new Map<string, RoundRecording | null>();
+
+function rivalRoundFor(courseId: string, course: CourseData, holes: number): RoundRecording | null {
+  if (!flag('rival') || !flag('roundRecording') || !flag('ghostRace')) return null;
+  ensureRival();
+  const r = profile.retention.rival;
+  // A friend's rounds are theirs to play; only a house rival can be synthesised
+  // for an arbitrary course.
+  if (!hasRival(r) || r.kind !== 'house') return null;
+  const key = `${courseId}|${r.id}|${r.skill}|${holes}`;
+  const hit = rivalByCourse.get(key);
+  if (hit !== undefined) return hit;
+  const theme = resolveTheme(course);
+  const rec = synthesiseRivalRound({
+    courseId,
+    course,
+    holes,
+    name: r.name,
+    seed: r.seed,
+    skill: r.skill,
+    // Stable per course rather than per day: this is a standing challenge on
+    // that course, not today's fixture.
+    dateKey: `course:${courseId}`,
+    at: Date.now(),
+    useAuthoredPins: flag('layouts'),
+    bounded: flag('boundedWorld'),
+    bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+    wasteDepthScale: theme.wasteDepthScale ?? 0,
+    edgeWobble: theme.edgeWobble ?? 1,
+    treeSpecies: { trees: theme.treeKeys ?? DEFAULT_TREE_MIX, accents: theme.accentTreeKeys ?? [] }
+  });
+  rivalByCourse.set(key, rec);
+  return rec;
+}
+
 function todaysRivalRound(dateKey: string, courseId: string, course: CourseData): RoundRecording | null {
   if (!flag('rival') || !flag('roundRecording') || !flag('ghostRace')) return null;
   ensureRival();
@@ -7551,15 +7596,28 @@ function updateGhostCard(): void {
   if (!flag('ghostRace') || !flag('roundRecording')) return;
   const courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
   const course = COURSES[courseId];
-  const best = bestRecordingFor(courseId, Math.min(RULES.holesPerRound, course?.holes.length ?? 3));
-  if (!best || !course) return;
+  if (!course) return;
+  const holes = Math.min(RULES.holesPerRound, course.holes.length);
+  // Your own best round is the ideal opponent — but it only exists once you have
+  // recorded one, so the card was invisible on any course you had not already
+  // played well. The RIVAL fills that gap: their round is synthesised for
+  // whatever course this is, at a standard calibrated just above you, and it
+  // verifies against the same replay engine a human's does. So there is always
+  // somebody to race, on every course, from the first visit.
+  const best = bestRecordingFor(courseId, holes) ?? rivalRoundFor(courseId, course, holes);
+  if (!best) return;
+  const isRival = !bestRecordingFor(courseId, holes);
   const total = best.scores.reduce((a, b) => a + b, 0);
   const par = course.holes.slice(0, best.holes).reduce((a, h) => a + h.par, 0);
   const toPar = total - par;
+  const label = isRival ? `👻 RACE ${escapeHtml((best.name || 'YOUR RIVAL').toUpperCase())}` : '👻 RACE YOUR BEST';
+  const blurb = isRival
+    ? `shot for shot, against the round they played`
+    : `shot for shot, against the round you played`;
   el.innerHTML =
-    `<span class="gcLabel">👻 RACE YOUR BEST</span>` +
+    `<span class="gcLabel">${label}</span>` +
     `<div class="gcName">${escapeHtml(course.name)} · ${total} (${toPar === 0 ? 'E' : toPar > 0 ? `+${toPar}` : toPar})` +
-    ` — shot for shot, against the round you played</div>` +
+    ` — ${blurb}</div>` +
     `<button id="gcPlay" class="gcPlay">Race it</button>`;
   document.getElementById('gcPlay')!.addEventListener('pointerdown', () => {
     pendingGhost = best;

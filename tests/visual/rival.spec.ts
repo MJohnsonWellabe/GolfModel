@@ -129,3 +129,47 @@ test("the rival's ball flies beside yours, and the day settles", async ({ page }
   console.log(`RIVAL settled: ${JSON.stringify(after)}`);
   expect(errors, errors.join('\n')).toEqual([]);
 });
+
+/**
+ * A ghost you can race on any course, from the first visit.
+ *
+ * "Race your best" needed a recording of your own, so on a course you had not
+ * already played well the card simply was not there — which is also why the
+ * ghost was hard to test at all. The rival has no such requirement: their round
+ * is synthesised for whatever course this is and verifies against the same
+ * replay engine a human's does.
+ */
+test('every course offers a rival to race, with no prior round of your own', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await seedReturningDevice(page);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
+
+  const card = page.locator('#ghostCard');
+  await card.waitFor({ state: 'visible', timeout: 60_000 });
+  const text = await card.innerText();
+  // A fresh device has recorded nothing, so this can only be the rival.
+  expect(text, text).toMatch(/RACE .+/);
+  expect(text, text).toMatch(/against the round they played/);
+  // And it names a real score on a real course.
+  expect(text, text).toMatch(/\d+ \((E|\+\d+|-\d+)\)/);
+
+  // Racing it arms them as the ghost for the round.
+  await page.locator('#gcPlay').dispatchEvent('pointerdown');
+  await page.waitForFunction(
+    () => {
+      const w = window as never as { __slice3d?: unknown; __ghostStanding(): unknown };
+      return !!w.__slice3d && !!w.__ghostStanding();
+    },
+    undefined,
+    { timeout: 90_000 }
+  );
+  const standing = await page.evaluate(() =>
+    (window as never as { __ghostStanding(): { name: string; scores: number[] } | null }).__ghostStanding()
+  );
+  expect(standing, 'the rival was not armed as the ghost').toBeTruthy();
+  expect(standing!.scores.length).toBeGreaterThan(0);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
