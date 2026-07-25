@@ -10,6 +10,8 @@ import { withPlayableBoundary } from './PlayableBoundary';
 import { TreeSpecies } from './treeField';
 import { DEFAULT_TREE_MIX } from './treeHitbox';
 import { ACCURACY_TARGET, resolveUserSwing, SwingCtx, targetBar } from './swingModel';
+import { upgradePerfectZoneMult } from '../data/storeCatalog';
+import { perkPerfectZoneMult } from '../data/perks';
 
 /**
  * A modeled USER's timing execution: gaussian σ (in bar-fraction units) for the
@@ -174,7 +176,20 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
         stat: statsForClub(d.club, golfer, fireBoost).zone,
         powerTarget: d.powerTarget,
         isPutt,
-        perfectMult: fire.perfectZoneMultiplier,
+        // The SAME product the live meter arms with (main.ts, `swingCtx`):
+        // fire, purchased club upgrades and the equipped perk all widen the
+        // perfect band, and they MULTIPLY.
+        //
+        // This used to be fire alone, which meant the difficulty simulator
+        // modelled every player as owning nothing — so it could not reproduce a
+        // player with upgrades and a perk, and every calibration made with it
+        // was calibrated to a bare golfer. That is the same class of bug as a
+        // replay that assembles a different golfer than the one that played:
+        // two paths that must agree, quietly drifting.
+        perfectMult:
+          fire.perfectZoneMultiplier *
+          upgradePerfectZoneMult(d.club.id, golfer.clubUpgrades ?? {}) *
+          perkPerfectZoneMult(d.club.id, golfer.perk),
         difficultyMult: swingDifficultyFor(lie, d.club.id, isPutt)
       };
       const powerCursor = targetBar(ctx) + gaussianOf(rng, 0, opts.userModel.sigmaPower);

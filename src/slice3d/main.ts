@@ -67,7 +67,7 @@ import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
-import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
+import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
@@ -4635,6 +4635,11 @@ function refreshProfileDevZone(): void {
     .join('');
   zone.innerHTML =
     `<div class="profAdminSection"><div class="profAdminTitle">🛠 Dev Tools (${ENV.name} only)</div>` +
+    `<button id="devVeteran" class="ghostBtn">🏌️ Match my production profile</button>` +
+    `<div class="acctHint">Max club upgrades, the best perk equipped, and a locked ` +
+    `Big Hitter loadout — the golfer a long-time production player is actually ` +
+    `swinging. A fresh dev profile is a DIFFERENT, weaker golfer, which is why ` +
+    `dev plays harder than prod.</div>` +
     `<button id="devGrantCoins" class="ghostBtn">🪙 Grant 1,000 coins</button>` +
     `<button id="devResetMastery" class="ghostBtn">⭐ Reset mastery + achievements</button>` +
     `<button id="devResetStreak" class="ghostBtn">🔥 Reset streak</button>` +
@@ -4646,6 +4651,35 @@ function refreshProfileDevZone(): void {
     `<div class="profAdminTitle">Feature flags (sticky overrides, reload applies)</div>` +
     flagRows +
     `</div>`;
+  /**
+   * Make this dev profile the golfer a production veteran is actually swinging.
+   *
+   * `?env=dev` and production run the SAME BUILD (config/env.ts) — same physics,
+   * same courses. What differs is the profile, because dev lives in its own
+   * Firebase namespace and therefore starts empty. Three things follow from
+   * that, and together they are why dev plays so much harder:
+   *
+   *   1. no club upgrades — each tier is +3 to the family's stats AND, on the
+   *      short clubs, up to a 1.4x WIDER perfect band (upgradePerfectZoneMult);
+   *   2. no perk — which layers another 1.4x on that band, or +6 driving;
+   *   3. an unlocked loadout, so `roundGolfer` re-rolls a RANDOM archetype every
+   *      round. `statsForClub` reads drivingPower as the distance for EVERY
+   *      club, and archetypes span 79..100 — so a random golfer is up to 21%
+   *      shorter off every club in the bag.
+   *
+   * Nothing here changes the game. It changes who is playing it.
+   */
+  document.getElementById('devVeteran')!.addEventListener('pointerdown', () => {
+    profile.clubUpgrades = { driver: 2, irons: 2, wedges: 2, putter: 2 };
+    grantPerk(profile, 'perk_iron_t2_r3', 99);
+    profile.equippedPerk = 'perk_iron_t2_r3';
+    profile.character = 'chip';
+    profile.archetype = 'bigHitter';
+    profile.loadoutLocked = true;
+    persistProfile();
+    showMsg('🛠 Veteran profile: max upgrades, perk equipped, Big Hitter locked', 2600);
+    renderProfile();
+  });
   document.getElementById('devGrantCoins')!.addEventListener('pointerdown', () => {
     profile.coins += 1000;
     profile.coinsEarned += 1000;
@@ -7577,10 +7611,27 @@ function quickPlay(): void {
  *  the one-tap action (with `quickPlay` off, Play Now IS the wizard). */
 function updateSetupEntry(): void {
   const btn = document.getElementById('landingSetup');
-  if (!btn) return;
-  btn.style.display = flag('quickPlay') ? '' : 'none';
   const course = COURSES[courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES)];
-  btn.textContent = `⛳ Course & mode · ${course?.name ?? 'choose'}`;
+  if (btn) {
+    btn.style.display = flag('quickPlay') ? '' : 'none';
+    btn.textContent = `⛳ Course & mode · ${course?.name ?? 'choose'}`;
+  }
+  // NAME THE COURSE AND THE GOLFER ON THE PLAY BUTTON.
+  //
+  // One-tap Play tees off on whatever this device played last, and the golfer is
+  // re-rolled every round until a loadout is locked — so the two variables that
+  // move a score most were both invisible at the moment of committing to a
+  // round. Simulation puts the course at up to ~2 strokes across the roster and
+  // a random archetype at ~0.55 (tests/simulation/difficultyAnchors.test.ts),
+  // which is most of what "the game got harder" turns out to mean.
+  const play = document.getElementById('landingPlay');
+  if (!play || !flag('quickPlay')) return;
+  const g = profile.loadoutLocked
+    ? archetypeById(profile.archetype).name
+    : 'random golfer';
+  play.innerHTML =
+    `<span class="lpMain">Play Now</span>` +
+    `<span class="lpSub">${escapeHtml(course?.name ?? 'choose a course')} · ${escapeHtml(g)}</span>`;
 }
 
 function showSetup(): void {
