@@ -61,6 +61,18 @@ describe('feature flags', () => {
     }
   });
 
+  it('this pass ships DEV-ONLY: batching, resume, deeper tutorial, one-tap play', () => {
+    // Every one of these changes how a live round looks or flows, so they soak
+    // in dev until the device matrix has had them. A flag flipped to prod here
+    // by accident would ship an unplaytested change to live players.
+    for (const key of ['natureBatching', 'resumeRound', 'tutorialDepth', 'quickPlay']) {
+      const def = FLAG_DEFS.find((d) => d.key === key);
+      expect(def, key).toBeTruthy();
+      expect(def!.defaults.dev, `${key} dev`).toBe(true);
+      expect(def!.defaults.prod, `${key} prod`).toBe(false);
+    }
+  });
+
   it('allFlags snapshots every registered flag with a resolved value', () => {
     const snap = allFlags();
     expect(snap.map((s) => s.def.key)).toEqual(FLAG_DEFS.map((d) => d.key));

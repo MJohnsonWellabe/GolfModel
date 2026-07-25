@@ -170,6 +170,58 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'has soaked'
   },
   {
+    key: 'quickPlay',
+    description:
+      'One-tap Play (DEV-ONLY for now): the landing\'s Play Now tees off ' +
+      'immediately as a solo round on the course this device last played ' +
+      '(default course on a first launch), and the mode/course wizard moves to ' +
+      'an explicit "Course & mode" entry beneath it. Off = Play Now opens the ' +
+      'wizard exactly as it does today and the extra entry is hidden.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
+  },
+  {
+    key: 'tutorialDepth',
+    description:
+      'Extended "Learn to play" lesson (DEV-ONLY for now): adds the wind and ' +
+      'club-selection cards the shipped lesson never covered, a contextual ' +
+      'card the first time the player plays from rough/sand, a recovery card ' +
+      'after a penalty, a step counter, and a one-time coin reward for ' +
+      'finishing. Off = the shipped card set, unchanged.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest-approved) — fold the extra cards in and remove the flag'
+  },
+  {
+    key: 'resumeRound',
+    description:
+      'Unfinished-round resume (DEV-ONLY for now): a plain solo round is ' +
+      'checkpointed at each hole boundary (course, seed, hole, scores) and the ' +
+      'landing offers "Finish the round" until it is completed, discarded, or ' +
+      'goes stale. Aimed squarely at the interrupted first round — the one ' +
+      'that gates every progressive-disclosure reward. Off = no checkpoint is ' +
+      'ever written or read.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
+  },
+  {
+    key: 'natureBatching',
+    description:
+      'Static-scatter batching (DEV-ONLY for now): trees, tufts, blooms and ' +
+      'bushes are drawn as thin instances grouped into spatial cells instead of ' +
+      'one InstancedMesh scene node per prop. Same geometry, materials, ' +
+      'positions and tints — the image is identical — but the per-frame ' +
+      'world-matrix upload and the active-mesh walk over thousands of nodes ' +
+      'both go away. Off = the classic per-prop instancing, byte-identical.',
+    owner: 'matt',
+    defaults: { prod: false, dev: true },
+    removeWhen:
+      'PROMOTED to prod (playtest-approved on the device matrix) — make ' +
+      'batching the sole planting path and remove the flag'
+  },
+  {
     key: 'driverOverswingNerf',
     description:
       'Tee-shot overpower fix (DEV-ONLY for now): removes the overswing distance ' +

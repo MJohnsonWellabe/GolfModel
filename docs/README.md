@@ -111,6 +111,8 @@ Implementation records (evidence, not governing guidance):
 - `21_RETENTION_AND_PERFORMANCE_PASS.md`
 - `22_V2_DELIGHT_AUDIT.md` (V2 Prompts 4–6 + 13)
 - `23_V2_AUDIO_IDENTITY.md` (V2 Prompts 11–12)
+- `25_SMOOTHNESS_AND_FIRST_ROUND_PASS.md` (static scatter batching, unfinished-round
+  resume, the extended tutorial, one-tap Play — all dev-gated pending a device pass)
 - `03B_REFERENCE_GUIDE.md` (creative reference)
 
 Proposals awaiting approval (not building yet):

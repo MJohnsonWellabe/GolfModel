@@ -39,7 +39,8 @@ import { CHARACTERS, CharacterKey } from '../data/characters';
 import { personalityFor } from '../data/characterPersonality';
 import { CourseAuthoring, loadCourse } from '../data/courseLoader';
 import { withWildwoodPerf } from '../systems/wildwoodPerf';
-import { courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
+import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
+import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
 import wildwood from '../data/courses/wildwood.json';
 import sablebay from '../data/courses/sablebay.json';
 import timberline from '../data/courses/timberline.json';
@@ -1896,7 +1897,11 @@ class HoleScene {
     // when putting, the opening aim/swing/shape lessons off the first tee, else
     // the aerial-view tip on an approach. Each concept shows exactly once.
     if (tutorialCoach.isActive()) {
-      tutorialCoach.onAiming(this.aim.isPutting, this.state.strokes === 0 && !this.aim.isPutting);
+      tutorialCoach.onAiming({
+        isPutting: this.aim.isPutting,
+        firstTee: this.state.strokes === 0 && !this.aim.isPutting,
+        lie: this.state.lie
+      });
     }
   }
 
@@ -2617,9 +2622,11 @@ class HoleScene {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
       this.golfer.react('deject');
+      if (!c.isAI && tutorialCoach.isActive()) tutorialCoach.onPenalty('water');
     } else if (outcome.obPenalty) {
       showMsg('OUT OF BOUNDS! +1 penalty', 1500);
       this.golfer.react('deject');
+      if (!c.isAI && tutorialCoach.isActive()) tutorialCoach.onPenalty('ob');
     } else if (outcome.hitRock) {
       // Stone knock: the existing 'hit' buffer, rate-shifted brighter than a
       // turf thump so the carom reads as rock, not ground.
@@ -3448,7 +3455,43 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
   });
 }
 
+/**
+ * Checkpoint the round at a hole boundary so an interrupted player can come
+ * back and finish it (`resumeRound` flag). Deliberately narrow: plain solo
+ * rounds only — see systems/RoundCheckpoint.ts for why versus / AI-tournament /
+ * weekly / tournament / challenge rounds are excluded — and never during the
+ * tutorial, which is its own guided thing with its own entry point.
+ */
+function checkpointRound(): void {
+  if (!flag('resumeRound')) return;
+  if (
+    round.mode !== 'solo' ||
+    aiTour ||
+    round.tournament ||
+    round.weeklyEventId ||
+    round.challenge ||
+    tutorialCoach.isActive() ||
+    round.seed === undefined
+  ) {
+    return;
+  }
+  const holes = holesThisRound();
+  if (round.holeIdx <= 0 || round.holeIdx >= holes) return;
+  saveCheckpoint(
+    checkpointFor({
+      courseId: courseIdByName(round.course.name),
+      seed: round.seed,
+      holeIdx: round.holeIdx,
+      holes,
+      scores: round.players[0]?.scores ?? [],
+      parSoFar: round.course.holes.slice(0, round.holeIdx).reduce((a, h) => a + h.par, 0),
+      at: Date.now()
+    })
+  );
+}
+
 function playHole(): void {
+  checkpointRound();
   current?.dispose();
   // Layouts (flag-gated): materialize this seed's tee variants onto the round
   // course. Idempotent + deterministic (same seed → same tees), so calling it
@@ -3460,7 +3503,7 @@ function playHole(): void {
   hudEl.style.display = '';
   current = new HoleScene((scores) => {
     // Tutorial: the first hole is the lesson — wrap up once it's done.
-    if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone();
+    if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone(completeTutorial());
     round.players.forEach((p, i) => {
       p.scores[round.holeIdx] = scores[i] ?? 0;
     });
@@ -3694,6 +3737,8 @@ function showSummary(): void {
   // First completed round on this device → the landing's secondary systems
   // (daily/weekly/season/store) reveal from now on (Part 11).
   if (!deviceSettings.firstRoundDone) updateDeviceSettings({ firstRoundDone: true });
+  // The round is in the book — there is nothing left to resume.
+  clearCheckpoint();
 
   const record: RoundRecord = {
     id: makeRoundId(),
@@ -5165,8 +5210,35 @@ function startTutorial(): void {
   sel.courseId = 'sablebay';
   landingEl.classList.remove('on');
   analytics.track('tutorial_started', { course: 'sablebay' });
-  tutorialCoach.start(() => undefined);
+  tutorialCoach.start(() => undefined, flag('tutorialDepth'));
   startRound(0);
+}
+
+/**
+ * The lesson hole is done. Mark it complete on this device (so the landing's
+ * lesson hero steps aside — the lesson stays available, it just stops
+ * competing with Play) and pay the one-time completion reward.
+ *
+ * Idempotent by construction: the payout is gated on the same device flag it
+ * sets, so replaying the lesson never pays twice. Returns what was actually
+ * granted so the closing card can name it, or undefined when nothing was.
+ */
+function completeTutorial(): { coins: number } | undefined {
+  const first = !deviceSettings.tutorialDone;
+  if (first) updateDeviceSettings({ tutorialDone: true });
+  refreshLandingCards();
+  analytics.track('tutorial_completed', { course: 'sablebay', result: first ? 'first' : 'replay' });
+  if (!first || !flag('tutorialDepth')) return undefined;
+  profile.coins += COINS.tutorial;
+  profile.coinsEarned += COINS.tutorial;
+  persistProfile();
+  if (signedIn) {
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
+  }
+  return { coins: COINS.tutorial };
 }
 
 /** Enter a tournament: lock the mode + course, then send the player through the
@@ -5455,7 +5527,9 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   ambience: profile.settings.ambience,
   reducedMotion: profile.settings.reducedMotion,
   clipCapture: false,
-  firstRoundDone: legacyLocal.stats.rounds > 0 // returning devices skip the intro reveal
+  firstRoundDone: legacyLocal.stats.rounds > 0, // returning devices skip the intro reveal
+  tutorialDone: false,
+  lastCourseId: ''
 };
 
 /** Push the device preferences into the live profile + live audio. Call after
@@ -5667,6 +5741,14 @@ void (async () => {
   const automated = typeof navigator !== 'undefined' && navigator.webdriver;
   if (!profile.name.trim() && !SHOT.hole && !automated) promptName(false);
 })();
+
+/** Capture-harness seed override (set only by the __startRound test hook for
+ *  the one call it wraps, so two page loads can render the identical round). */
+let forcedSeed: number | undefined;
+
+/** Set for the duration of ONE startRound call when the player chose Resume, so
+ *  that call keeps the stored seed and scores instead of starting clean. */
+let resumingFrom: RoundCheckpoint | null = null;
 
 /** The setup choices, prefilled from the profile so returning players jump
  *  straight to "Tee off". */
@@ -6267,6 +6349,56 @@ function refreshLandingCards(): void {
     updateWeeklyCard();
   }
   updateLearnEntry(newPlayer);
+  updateResumeCard();
+  updateSetupEntry();
+}
+
+/**
+ * The unfinished-round card (`resumeRound`). Shown only when a checkpoint that
+ * is still worth finishing exists — see systems/RoundCheckpoint.isResumable,
+ * which rejects stale, structurally broken, and no-progress records. It sits
+ * above the daily/weekly cards on purpose: the best next action for someone
+ * mid-round is the round they are already mid-way through.
+ *
+ * "Start fresh" is offered beside it because a player who has moved on should
+ * not have to finish an old round to clear the shelf.
+ */
+function updateResumeCard(): void {
+  const el = document.getElementById('resumeCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('resumeRound')) return;
+  const cp = loadCheckpoint();
+  if (!cp) return;
+  const course = COURSES[cp.courseId];
+  if (!course) {
+    // The course is no longer in the roster (flag change, renamed id) — the
+    // round can never be resumed, so retire the record rather than show a
+    // button that cannot work.
+    clearCheckpoint();
+    return;
+  }
+  el.innerHTML =
+    `<span class="rsLabel">↩ UNFINISHED ROUND</span>` +
+    `<div class="rsName">${escapeHtml(course.name)} · hole ${cp.holeIdx + 1} of ${cp.holes} · ${toParLabel(cp)}</div>` +
+    `<div class="rsRow"><button id="rsPlay" class="rsPlay">Finish the round</button>` +
+    `<button id="rsDrop" class="rsDrop">Start fresh</button></div>`;
+  document.getElementById('rsPlay')!.addEventListener('pointerdown', () => resumeSavedRound(cp));
+  document.getElementById('rsDrop')!.addEventListener('pointerdown', () => {
+    clearCheckpoint();
+    updateResumeCard();
+  });
+}
+
+/** Re-enter a checkpointed round on the hole that was in progress, with the
+ *  same seed (identical wind and pins) and the completed holes back on the
+ *  card. The hole itself restarts from its tee — nothing mid-shot is stored. */
+function resumeSavedRound(cp: RoundCheckpoint): void {
+  resumingFrom = cp;
+  sel.mode = 'solo';
+  sel.courseId = cp.courseId;
+  landingEl.classList.remove('on');
+  startRound(cp.holeIdx);
 }
 
 /** Place the opt-in "Learn to play" entry. It's hidden unless the tutorial flag
@@ -6285,13 +6417,44 @@ function updateLearnEntry(newPlayer: boolean): void {
     return;
   }
   learn.style.display = 'block';
-  const hero = newPlayer || !signedIn; // "first device login or guest"
+  // Someone who has already been through the lesson is not the audience for a
+  // hero-sized invitation to take it again — it stays, quietly, below Play.
+  const hero = (newPlayer || !signedIn) && !deviceSettings.tutorialDone;
   learn.classList.toggle('heroLearn', hero);
   play.classList.toggle('demoted', hero);
   learn.textContent = hero ? '🎓 New here? Learn to play →' : '🎓 Learn to play';
   // Lead with the lesson for newcomers; otherwise keep it just below Play.
   if (hero) play.insertAdjacentElement('beforebegin', learn);
   else play.insertAdjacentElement('afterend', learn);
+}
+
+/**
+ * One-tap Play (`quickPlay`).
+ *
+ * The wizard asks two questions — mode and course — before a first-time player
+ * has any basis for answering either, and it charges every returning player two
+ * extra taps to say "the same as last time". The vision doc asks the landing to
+ * present "a clear primary action rather than a dashboard of competing
+ * demands", so Play Now now DOES the obvious thing (a solo round on the course
+ * this device last played, or the default course) and the wizard moves to an
+ * explicit "Course & mode" entry beneath it for anyone who wants to choose.
+ */
+function quickPlay(): void {
+  pendingTournament = null;
+  sel.mode = 'solo';
+  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  landingEl.classList.remove('on');
+  startRound(0);
+}
+
+/** Show/hide the explicit wizard entry, which only exists while Play Now is
+ *  the one-tap action (with `quickPlay` off, Play Now IS the wizard). */
+function updateSetupEntry(): void {
+  const btn = document.getElementById('landingSetup');
+  if (!btn) return;
+  btn.style.display = flag('quickPlay') ? '' : 'none';
+  const course = COURSES[courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES)];
+  btn.textContent = `⛳ Course & mode · ${course?.name ?? 'choose'}`;
 }
 
 function showSetup(): void {
@@ -6450,6 +6613,8 @@ function grantRoundTrueVision(): void {
 function startRound(startHoleIdx = 0): void {
   // A fresh start from the menu abandons any half-finished AI tournament.
   aiTour = null;
+  // ...and any unfinished-round checkpoint, unless THIS call is the resume.
+  if (!resumingFrom) clearCheckpoint();
   round.course = courseFallback(sel.courseId);
   round.mode = sel.mode;
   // Normal play always opens on hole 1; the perf/verification hooks can boot a
@@ -6462,8 +6627,14 @@ function startRound(startHoleIdx = 0): void {
   // used): casual rounds roll a fresh random one — identical distribution —
   // which makes ANY round shareable as an async challenge, and lets a weekly
   // or challenge entry pin the standardized seed instead.
-  round.seed = pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0;
+  round.seed =
+    forcedSeed ??
+    resumingFrom?.seed ??
+    (pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0);
   round.tournament = null;
+  // Remember where this device last teed off, so one-tap Play reopens there.
+  const startedCourseId = courseIdByName(round.course.name);
+  if (deviceSettings.lastCourseId !== startedCourseId) updateDeviceSettings({ lastCourseId: startedCourseId });
   round.weeklyEventId = pendingWeekly ? pendingWeekly.id : null;
   round.challenge = pendingChallenge;
   // weekly_round_started deprecated 2026-07-18: the weekly funnel is served by
@@ -6489,6 +6660,13 @@ function startRound(startHoleIdx = 0): void {
   grantRoundTrueVision();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
+  if (resumingFrom) {
+    // Put the completed holes back on the card so the scorecard, the running
+    // to-par and the end-of-round scoring all see the whole round.
+    round.players[0].scores = resumingFrom.scores.slice();
+    analytics.track('round_resumed', { course: courseIdByName(round.course.name), hole: resumingFrom.holeIdx + 1 });
+    resumingFrom = null;
+  }
   if (round.mode !== 'solo') {
     const opp = OPPONENTS.find((o) => o.id === sel.opponentId) ?? OPPONENTS[1];
     round.players.push({ golfer: opp, isAI: true, scores: [] });
@@ -6543,7 +6721,11 @@ function renderAcctMenu(): void {
   }
 }
 
-document.getElementById('landingPlay')!.addEventListener('pointerdown', () => showSetup());
+document.getElementById('landingPlay')!.addEventListener('pointerdown', () => {
+  if (flag('quickPlay')) quickPlay();
+  else showSetup();
+});
+document.getElementById('landingSetup')?.addEventListener('pointerdown', () => showSetup());
 document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
 document.getElementById('landingSeason')!.addEventListener('pointerdown', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('pointerdown', () => renderStore());
@@ -6634,6 +6816,9 @@ else {
   courseId?: string;
   /** 1-based hole to boot directly (perf spec: WW3/TL3 heavy first tee shots). */
   hole?: number;
+  /** Pin the round seed so a capture spec can render the SAME wind and pins
+   *  twice (the natureBatching pixel gate compares two page loads). */
+  seed?: number;
 }) => {
   if (opts?.name !== undefined) {
     sel.name = opts.name;
@@ -6641,13 +6826,23 @@ else {
   }
   if (opts?.character) sel.character = opts.character;
   if (opts?.archetype) sel.archetype = opts.archetype;
+  if (opts?.character || opts?.archetype) {
+    // roundGolfer() re-rolls a random owned loadout unless the profile has one
+    // locked in, which would silently discard the loadout the caller just asked
+    // for. A hook caller naming a golfer means it.
+    profile.character = opts.character ?? profile.character;
+    profile.archetype = opts.archetype ?? profile.archetype;
+    profile.loadoutLocked = true;
+  }
   if (opts?.mode) sel.mode = opts.mode;
   if (opts?.opponentId) sel.opponentId = opts.opponentId;
   if (opts?.courseId && COURSES[opts.courseId]) sel.courseId = opts.courseId;
   // Mirror the real Play flow: the landing overlay comes down before the
   // round starts (a hook-started round otherwise leaves it covering the game).
   landingEl.classList.remove('on');
+  forcedSeed = opts?.seed;
   startRound(opts?.hole ? opts.hole - 1 : 0);
+  forcedSeed = undefined;
 };
 
 // Test hook: complete the current round instantly with the given (or par)

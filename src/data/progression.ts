@@ -24,7 +24,12 @@ export const COINS = {
   perUnderPar: 5,
   tournamentWin: 25,
   daily: 25,
-  weekly: 100
+  weekly: 100,
+  /** One-time payout for finishing the "Learn to play" lesson (`tutorialDepth`).
+   *  Deliberately modest — about two rounds' worth, enough to make the lesson
+   *  feel like it counted without shortcutting the store economy the
+   *  reward-economy audit sized in docs/21_RETENTION_AND_PERFORMANCE_PASS.md. */
+  tutorial: 50
 } as const;
 
 export const LEVEL_CAP = 50;

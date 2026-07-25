@@ -216,6 +216,17 @@ export interface DeviceSettings {
    *  reveal of secondary systems (daily/weekly/season/store) on the landing
    *  (retention Part 11). Device-local so it works for guests. */
   firstRoundDone: boolean;
+  /** Last course teed off on this device, so the landing's one-tap Play
+   *  (`quickPlay`) reopens where the player left off instead of always
+   *  resetting to the default course. A preference about THIS device, like the
+   *  volumes — never gameplay progress. Empty until a round has been started;
+   *  validated against the live roster before use. */
+  lastCourseId: string;
+  /** True once the "Learn to play" lesson hole has been played to the end.
+   *  Demotes the landing's lesson hero (it stays available, just stops
+   *  shouting) and makes the completion reward pay exactly once. Device-local
+   *  for the same reason as firstRoundDone: guests must get it too. */
+  tutorialDone: boolean;
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -229,7 +240,9 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       ambience: typeof p.ambience === 'number' ? Math.max(0, Math.min(1, p.ambience)) : 0.2,
       reducedMotion: !!p.reducedMotion,
       clipCapture: !!p.clipCapture,
-      firstRoundDone: !!p.firstRoundDone
+      firstRoundDone: !!p.firstRoundDone,
+      tutorialDone: !!p.tutorialDone,
+      lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : ''
     };
   } catch {
     return null;
