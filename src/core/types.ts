@@ -96,6 +96,16 @@ export interface SwingResult {
   /** Signed accuracy offset, -1..1 (negative = hook/left, positive = slice/right). */
   accuracy: number;
   accuracyQuality: Band;
+  /**
+   * Whether the power cursor was locked PAST the club's target — what the
+   * player actually felt. Carried because delivered distance cannot recover
+   * it: the driver's overswing nerf makes a swing past the target fly SHORT,
+   * so an attribution inferring over/under from yardage alone called a
+   * distance-losing overswing an "under-swing" (owner report). Optional —
+   * absent on AI swings and old recordings, where the yardage heuristic
+   * remains the fallback.
+   */
+  overswung?: boolean;
 }
 
 export interface ClubSpec {

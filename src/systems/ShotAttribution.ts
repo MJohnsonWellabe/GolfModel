@@ -65,6 +65,12 @@ export interface ShotAttribution {
   factors: AttributionFactor[];
   /** One-line summary, or '' when nothing was worth saying. */
   summary: string;
+  /** Whether the power cursor was locked past the target (what the player
+   *  FELT), when the swing reported it. The table names the strike from this
+   *  rather than from yardage, because the driver's overswing nerf makes a
+   *  swing past the target fly SHORT — a distance-losing overswing otherwise
+   *  reads "under-swing" (owner report). */
+  strikeOverswung?: boolean;
 }
 
 /** Below this a factor is noise, and saying it would be worse than silence. */
@@ -130,7 +136,10 @@ export function attributeShot(
    * the "ground" residual and the table blamed the terrain for the player's
    * tempo (owner: the row said "ground" when the swing was the story).
    */
-  plannedPower?: number
+  plannedPower?: number,
+  /** Whether the power cursor was locked PAST the target — see
+   *  ShotAttribution.strikeOverswung. */
+  overswung?: boolean
 ): ShotAttribution {
   const origin = params.origin;
   // Everything below works in the shot's own unit, so one set of thresholds
@@ -265,7 +274,8 @@ export function attributeShot(
     rightYd,
     missLabel,
     factors,
-    summary: [missLabel, ...factors.map((f) => f.label)].filter(Boolean).join(' · ')
+    summary: [missLabel, ...factors.map((f) => f.label)].filter(Boolean).join(' · '),
+    strikeOverswung: overswung
   };
 }
 
@@ -306,13 +316,20 @@ export interface AttributionTable {
 }
 
 /** What the strike did, named by what the player would have felt. */
-function strikeCause(kind: AttributionFactor['kind'], yards: number, lateral: boolean): string {
+function strikeCause(
+  kind: AttributionFactor['kind'],
+  yards: number,
+  lateral: boolean,
+  overswung?: boolean
+): string {
   if (kind !== 'strike') return kind === 'slope' ? '' : kind;
   if (lateral) return 'mishit';
-  // `yards` here is yards GAINED by the strike: a strike that ADDED distance
-  // is an over-swing, one that came up short is an under-swing. This read
-  // backwards before, so the table printed "+8 yds under-swing" — an
-  // underswing that appeared to add distance (owner report, verbatim).
+  // The FELT direction wins when the swing reported it: the driver's
+  // overswing nerf makes a swing past the target LOSE distance, so yardage
+  // alone calls that an "under-swing" (owner report). The yardage sign
+  // remains the fallback for swings that never said (AI, old recordings) —
+  // `yards` is yards GAINED, so gaining distance reads over-swing there.
+  if (overswung !== undefined) return overswung ? 'over-swing' : 'under-swing';
   return yards > 0 ? 'over-swing' : 'under-swing';
 }
 
@@ -331,7 +348,7 @@ export function attributionTable(a: ShotAttribution): AttributionTable {
     // `short` is yards SHORT; the column reads in yards gained, so it flips.
     const gained = -f.short;
     if (Math.abs(gained) >= kindFloor) {
-      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false);
+      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false, a.strikeOverswung);
       dist.push({
         yards: gained,
         cause,

@@ -884,6 +884,10 @@ class HoleScene {
    *  previewed — so the breakdown charges an under/over-swing to the STRIKE
    *  instead of leaking it into the ground residual. */
   private lastPlannedPower: number | null = null;
+  /** Whether the power cursor was locked PAST the target — the felt direction
+   *  the attribution names the strike from (a nerfed driver overswing flies
+   *  SHORT, so yardage alone misnames it). */
+  private lastOverswung: boolean | null = null;
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
   private swingCtx: MeterContext | null = null;
@@ -2794,6 +2798,7 @@ class HoleScene {
     // old strike counterfactual there.
     this.lastPlannedPower =
       !powerIsPhysics && this.swingCtx ? this.aim.barToPhysicsPower(this.swingCtx.powerTarget, this.ctx()) : null;
+    this.lastOverswung = converted.overswung ?? null;
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
     // hit perfect perfect, I shouldn't miss"): a PERFECT-PERFECT stroke on the
@@ -3245,7 +3250,8 @@ class HoleScene {
         this.lastAimPoint,
         () => (this.shotRng = mulberry32(seed)),
         this.lastShotParams.club.id === 'putter',
-        this.lastPlannedPower ?? undefined
+        this.lastPlannedPower ?? undefined,
+        this.lastOverswung ?? undefined
       );
     } catch {
       // A breakdown is a nicety; it must never be able to break a shot.

@@ -136,6 +136,7 @@ export function resolveUserSwing(
     power,
     powerQuality: powerBand,
     accuracy: accuracyOffsetSigned(accuracyCursor, accBand),
-    accuracyQuality: accBand
+    accuracyQuality: accBand,
+    overswung: powerCursor > targetBar(ctx)
   };
 }

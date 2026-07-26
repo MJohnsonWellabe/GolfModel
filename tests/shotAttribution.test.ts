@@ -36,7 +36,9 @@ function shoot(
   isPutt = false,
   /** The physics power a perfect strike would have delivered (see
    *  attributeShot's plannedPower). */
-  plannedPower?: number
+  plannedPower?: number,
+  /** The felt direction of the power miss (see strikeOverswung). */
+  overswung?: boolean
 ): ReturnType<typeof attributeShot> {
   const SEED = 0x5eed;
   let rng = mulberry32(SEED);
@@ -79,7 +81,8 @@ function shoot(
     aimPoint,
     () => (rng = mulberry32(SEED)),
     isPutt,
-    plannedPower
+    plannedPower,
+    overswung
   );
 }
 
@@ -382,6 +385,29 @@ describe('direction and cause read the way the player saw them (owner pass 6)', 
     const strike = t.dist.find((e) => /swing/.test(e.cause));
     expect(strike, `dist: ${t.dist.map((e) => e.text).join(' | ')}`).toBeTruthy();
     expect(strike!.cause).toBe('under-swing');
+    expect(strike!.yards).toBeLessThan(0);
+    expect(strike!.text.startsWith('−'), strike!.text).toBe(true);
+  });
+
+  it('a swing PAST the power that flew short still reads over-swing — the felt direction wins', () => {
+    // The driver's overswing nerf: a cursor locked past the target DELIVERS
+    // less than a flush strike, so from yardage alone this shot is
+    // indistinguishable from an under-pull — and read "under-swing" (owner
+    // report, twice). The swing now says which side of the target it was on.
+    const a = shoot(
+      openHole(),
+      { swing: { power: 0.8, powerQuality: 'miss', accuracy: 0, accuracyQuality: 'perfect', overswung: true } },
+      { side: 0, top: 0 },
+      undefined,
+      false,
+      0.95,
+      true
+    );
+    const t = attributionTable(a);
+    const strike = t.dist.find((e) => /swing/.test(e.cause));
+    expect(strike, `dist: ${t.dist.map((e) => e.text).join(' | ')}`).toBeTruthy();
+    expect(strike!.cause).toBe('over-swing');
+    // ...and it still honestly lost yards.
     expect(strike!.yards).toBeLessThan(0);
     expect(strike!.text.startsWith('−'), strike!.text).toBe(true);
   });

@@ -185,6 +185,9 @@ export function resolveTraceSwing(state: TraceState, ctx: swing.SwingCtx): Swing
   const powerCursor = clamp(effectivePower(state), 0, 1);
   const powerQuality: Band = swing.bandFor(powerCursor, target, pHalf, gHalf);
   const power = swing.deliveredPower(ctx, powerCursor, powerQuality);
+  // The felt direction of the pull: past the rabbit's turnaround is an
+  // overswing, whatever the tempo discount later delivers.
+  const overswung = state.progress > target;
 
   // The face is ALREADY a signed, normalised −1..1 miss — exactly what the
   // meter's locked accuracy cursor produces — so it is banded and shaped
@@ -198,5 +201,5 @@ export function resolveTraceSwing(state: TraceState, ctx: swing.SwingCtx): Swing
   // Player-meter convention: a face released RIGHT starts the ball LEFT.
   const accuracy = accuracyQuality === 'perfect' ? 0 : swing.shapeAccuracyOffset(-state.face);
 
-  return { power, powerQuality, accuracy, accuracyQuality };
+  return { power, powerQuality, accuracy, accuracyQuality, overswung };
 }

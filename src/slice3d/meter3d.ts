@@ -311,7 +311,11 @@ export class DomMeter {
       power,
       powerQuality: this.lockedPowerBand,
       accuracy: offset,
-      accuracyQuality: band
+      accuracyQuality: band,
+      // The felt direction of the power miss — the attribution names the
+      // strike from this, since delivered yardage can't tell a nerfed driver
+      // overswing from an under-pull.
+      overswung: this.lockedPower > swing.targetBar(this.ctx)
     });
   }
 
