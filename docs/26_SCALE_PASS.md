@@ -907,3 +907,60 @@ results, standings, schedule and play next event".
   (`TourSeasonState.results`: your finish, the points it paid, and the
   winner's name when it wasn't you). Majors are flagged on their rows; the
   current event glows gold.
+
+## 26. Owner pass 8 — never stuck, honest fields, and sudden death
+
+Seven owner reports in one pass. The account/input items first, then the
+tour's competitive overhaul.
+
+- **Log out is findable; iPhone sign-in never sticks.** The Player tab
+  gained the account row (who you are + Log out); a signed-out Profile door
+  opens Settings, where the sign-in button lives. Sign-in itself: Firebase
+  pre-warms at boot (the iOS popup gesture window), the button races a 20 s
+  timeout and always re-enables with a retry message, cancels read as
+  cancels, and a redirect return is adopted live via `onAuthStateChanged`
+  (`docs/FIREBASE_SETUP.md` documents the `authDomain` same-origin fix that
+  completes the story on iOS Safari).
+- **⏩ skip the flight** (`#flightSkipBtn`): appears ~0.4 s into any
+  non-putt flight (wall-clock, so throttled tabs still show it), jumps the
+  ball to rest through the normal tick so the landing beat still plays. A
+  DOM button beside the canvas — swipe-spin on the canvas can never hit it.
+- **The attribution box is gone** (owner: "I don't find it helpful") —
+  surface, flag, and spec deleted; the pure `ShotAttribution` module stays
+  shelved with its tests.
+- **White-screen resilience**: an inline boot watchdog (index.html) shows a
+  reload panel (with the captured boot error) if nothing paints within 10 s,
+  and the round checkpoint carries a crash-loop breaker — two failed builds
+  of the same resume retire it (`RoundCheckpoint.attempts`, the
+  `jg-building` breadcrumb converts an unclean death into a strike).
+- **The tour field got honest** (owner: "multiple people have shot 4 under…
+  winnable at 3-4 under"): `simulateEntrantRound` now applies
+  FORM_SHIFT − per-course easing + a gaussian form draw with negative-safe
+  rounding. `src/data/courseDifficulty.ts` holds the per-course table —
+  derived from expert-human anchors so winning takes −3 where the PLAYER
+  finds the course hard, −4 where they score freely; re-measure with
+  `node scripts/calibrate-tour-field.mjs`. Measured: E[win] −3.0..−4.0 on
+  every course, 4+-way lead ties 2–7%, Legends beat Easys by 2.6+/round.
+  Pinned by `tests/simulation/tourFieldCalibration.test.ts`.
+- **Majors escalate per round** (`src/systems/TourMajorSetup.ts`): round 1
+  forward tees and kind pins, round 2 the authored card, round 3 back tees
+  and tucked pins — tee length and pin severity never decrease, severity is
+  judged against the NEAREST green lobe (two-lobe greens), and both the
+  live round and the rival field play the same materialized course, pure in
+  (course, round).
+- **Sudden death settles a tie** (owner: "If the user is involved in a tie…
+  see where it lands before we hit"): a player tied for the lead holds the
+  event open — `TourActiveEvent.playoff` — and plays extra holes cut from
+  the venue against the tied rivals' BALLS AT REST: each rival's hole is
+  simulated up front (raw physics, `SimulateHoleOpts.onShot` captures every
+  rest), amber `poBall*` meshes advance by "before your Nth stroke you see
+  their Nth shot", a HUD line reads their progress, a toast marks a
+  hole-out. Outright best wins; re-ties continue with the survivors; after
+  five extra holes the player takes it. The winner takes 1st's points
+  alone, the rest of the tie shares 2nd's. The playoff hole itself pays
+  nothing — no records, CP, coins, or recording; the EVENT pays on
+  resolution.
+- **After an event, the tour page** (owner, verbatim): a finished event's
+  summary primary is "Tour Season →" — the hub, where the result just
+  landed — and ☰ Menu goes there too. Mid-major rounds keep their direct
+  "Round N of 3 →" button.

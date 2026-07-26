@@ -135,20 +135,20 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   const summary = page.locator('#summary');
   await expect(summary).toContainText('season points');
   await expect(summary).toContainText('Rex Calloway'); // a rival, by name
-  await expect(summary.locator('#tourNextBtn')).toContainText(/next event/i);
+  // The primary action returns to the TOUR PAGE (owner pass 8: "after a tour
+  // event, make it go back to the tour page") — the hub, where the result
+  // just landed.
+  await expect(summary.locator('#tourHubBtn')).toContainText(/tour season/i);
+  await summary.locator('#tourHubBtn').dispatchEvent('pointerdown');
 
-  // Back at the hub, event 1 reads as a PAST RESULT: a finish and its points.
-  // (☰ Menu opens the course wizard; its Back at step 0 is the landing. No
-  // reload — a guest profile is in-memory only, and the tour would be lost.)
-  await page.locator('#summary #againBtn').dispatchEvent('pointerdown'); // ☰ Menu
-  await page.locator('#setup').waitFor({ state: 'visible', timeout: 30_000 });
-  await page.locator('#backBtn').dispatchEvent('click');
-  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 30_000 });
-  await page.locator('#destTour').dispatchEvent('click');
+  // Straight onto the hub: event 1 reads as a PAST RESULT — a finish and its
+  // points — with event 2 up next, and the landing standing behind it.
   const hubAfter = page.locator('#tourHub');
+  await expect(hubAfter).toBeVisible();
   await expect(hubAfter.locator('.thEv.done')).toHaveCount(1);
   await expect(hubAfter.locator('.thEv.done')).toContainText(/pts/);
   await expect(hubAfter.locator('.thEv.cur')).toContainText('E2');
+  await expect(page.locator('#landing')).toHaveClass(/on/);
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
 

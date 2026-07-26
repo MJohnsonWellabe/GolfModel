@@ -4640,6 +4640,7 @@ function showSummary(): void {
   let tourSeasonBlock = '';
   let tourSeasonPrimary = '';
   let tourCpLine = '';
+  let tourEventJustDone = false;
   if (tourRoundLive && profile.tour) {
     tourRoundLive = false;
     const ids = tourCourseIds();
@@ -4667,11 +4668,12 @@ function showSummary(): void {
           `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)} · MAJOR — after round ${nextRound - 1}/${def.rounds}</div>${evRows}</div>`;
         tourSeasonPrimary = `<button id="tourNextBtn">Round ${nextRound} of ${def.rounds} →</button>`;
       } else {
-        const ui = tourEventOutcomeUi(t, def, outcome, ids);
+        const ui = tourEventOutcomeUi(t, def, outcome);
         headline = ui.headline;
         tourSeasonBlock = ui.block;
         tourCpLine = ui.cpLine;
         tourSeasonPrimary = ui.primary;
+        tourEventJustDone = true;
       }
       persistProfile();
       if (signedIn)
@@ -4831,10 +4833,19 @@ function showSummary(): void {
     summaryEl.style.display = 'none';
     startTourPlayoffHole();
   });
+  // A finished tour event's primary: back to the Tour page the result lives on.
+  document.getElementById('tourHubBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    returnToTourHub();
+  });
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
     if (midTour) {
       startAiTourRound();
+    } else if (tourEventJustDone) {
+      // ☰ Menu off a finished tour event also lands on the tour page — the
+      // course wizard is the wrong "menu" for a season in progress.
+      returnToTourHub();
     } else {
       aiTour = null; // a finished tournament is done — Menu starts fresh
       showSetup();
@@ -6818,8 +6829,7 @@ function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string 
 function tourEventOutcomeUi(
   t: NonNullable<PlayerProfile['tour']>,
   def: TourEventDef,
-  outcome: TourRoundOutcome,
-  ids: string[]
+  outcome: TourRoundOutcome
 ): { headline: string; block: string; cpLine: string; primary: string } {
   const evName = tourEventName(def);
   const evRows = tourStandingRowsHtml(outcome.standings);
@@ -6840,7 +6850,6 @@ function tourEventOutcomeUi(
   }
   cpLine += `<div class="rwLine level">🏅 +${myPts} season points${def.major ? ' (major — double)' : ''}</div>`;
   let block = `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)}${def.major ? ' · MAJOR' : ''} — final</div>${evRows}</div>`;
-  let primary = '';
   if (outcome.seasonEnded) {
     // The season is over: crown, purse, roll into the next one. The
     // rivals persist; the schedule and points start fresh.
@@ -6870,12 +6879,22 @@ function tourEventOutcomeUi(
     profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
   } else {
     block += tourSeasonTableHtml();
-    const nextDef = currentEvent(t, ids);
-    if (nextDef) {
-      primary = `<button id="tourNextBtn">Next event: ${escapeHtml(tourEventName(nextDef))} →</button>`;
-    }
   }
+  // After an event, back to the TOUR PAGE (owner pass 8): the hub is where
+  // the result just landed — standings moved, the schedule row filled in —
+  // and its play-next button sits right on top. The season finale returns
+  // there too, showing the fresh season. (Mid-major rounds keep their direct
+  // "Round N of 3" button — that's not this path.)
+  const primary = `<button id="tourHubBtn">Tour Season →</button>`;
   return { headline, block, cpLine, primary };
+}
+
+/** Leave a summary card for the Tour hub — the landing behind it, the hub on
+ *  top (the same stack the gold tile builds). */
+function returnToTourHub(): void {
+  summaryEl.style.display = 'none';
+  showLanding();
+  renderTourHub();
 }
 
 /**
@@ -6925,7 +6944,7 @@ function renderPlayoffSummary(): void {
       block += `<div class="rwLine level">⚔ ${escapeHtml(names)} matched you. Next hole settles it — and after hole ${MAX_PLAYOFF_HOLES} the trophy is yours.</div>`;
       primary = `<button id="tourPlayoffBtn">Next playoff hole →</button>`;
     } else {
-      const ui = tourEventOutcomeUi(t, def, outcome, ids);
+      const ui = tourEventOutcomeUi(t, def, outcome);
       headline =
         outcome.playoffWinnerId === 'player'
           ? `🏆 ${tourEventName(def)} — playoff won!`
@@ -6955,14 +6974,18 @@ function renderPlayoffSummary(): void {
     summaryEl.style.display = 'none';
     startTourPlayoffHole();
   });
-  document.getElementById('tourNextBtn')?.addEventListener('pointerdown', () => {
+  document.getElementById('tourHubBtn')?.addEventListener('pointerdown', () => {
     if (flag('audio')) play('ui');
-    summaryEl.style.display = 'none';
-    startTourRound();
+    returnToTourHub();
   });
+  const resolved = !!outcome?.eventDone;
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
-    showSetup();
+    // A resolved event's Menu lands on the tour page (same as the primary);
+    // an unresolved tie leaves through the ordinary menu — the pending
+    // playoff survives on the profile and the hub offers it back.
+    if (resolved) returnToTourHub();
+    else showSetup();
   });
 }
 
