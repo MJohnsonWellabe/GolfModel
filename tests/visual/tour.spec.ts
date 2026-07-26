@@ -61,15 +61,15 @@ async function playRoundToSummary(page: import('@playwright/test').Page): Promis
   throw new Error('the tour round never reached the summary');
 }
 
-test('no career, no tour: the card sends you to the Locker instead', async ({ page }) => {
+test('no career, no tour: the tile sends you to the Locker instead', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize(PHONE);
   await seedReturningDevice(page);
   await page.goto('/?freeze=1');
-  await openDestination(page, 'today');
-  const card = page.locator('#tourCard');
-  await expect(card).toContainText(/start a career/i);
-  await card.locator('#tourLocker').dispatchEvent('click');
+  const tile = page.locator('#destTour');
+  await tile.waitFor({ state: 'visible', timeout: 60_000 });
+  await expect(tile).toContainText(/start a career/i);
+  await tile.dispatchEvent('click');
   await expect(page.locator('#lockerRoom')).toBeVisible();
   // …and the Style tab is already up, one tap from a rookie.
   await expect(page.locator('.careerNew')).toBeVisible();
@@ -93,11 +93,22 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
   await page.locator('#lkBack').dispatchEvent('click');
 
-  // The Today card now offers event 1/16 — enter it.
-  await openDestination(page, 'today');
-  const card = page.locator('#tourCard');
-  await expect(card).toContainText('Event 1/16');
-  await card.locator('#tourPlay').dispatchEvent('click');
+  // The Tour tile opens the HUB (owner: "you should be able to go to all
+  // past results, standings, schedule and play next event").
+  const tile = page.locator('#destTour');
+  await expect(tile).toContainText('Event 1/16');
+  await tile.dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  // Standings: all 11 entrants; schedule: all 16 events, E1 marked current,
+  // the four majors flagged.
+  await expect(hub.locator('.tourResult .recRow')).toHaveCount(11);
+  await expect(hub.locator('.thEv')).toHaveCount(16);
+  await expect(hub.locator('.thEv.cur')).toContainText('E1');
+  await expect(hub.locator('.thEv.major')).toHaveCount(4);
+  await expect(hub).toContainText('The Grand Championship');
+  // Play from the hub.
+  await hub.locator('#thPlay').dispatchEvent('pointerdown');
 
   // A tour round is live, played AS the career Pro (force-selected).
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, { timeout: 60_000 });
@@ -120,6 +131,19 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await expect(summary).toContainText('season points');
   await expect(summary).toContainText('Rex Calloway'); // a rival, by name
   await expect(summary.locator('#tourNextBtn')).toContainText(/next event/i);
+
+  // Back at the hub, event 1 reads as a PAST RESULT: a finish and its points.
+  // (☰ Menu opens the course wizard; its Back at step 0 is the landing. No
+  // reload — a guest profile is in-memory only, and the tour would be lost.)
+  await page.locator('#summary #againBtn').dispatchEvent('pointerdown'); // ☰ Menu
+  await page.locator('#setup').waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('#backBtn').dispatchEvent('click');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('#destTour').dispatchEvent('click');
+  const hubAfter = page.locator('#tourHub');
+  await expect(hubAfter.locator('.thEv.done')).toHaveCount(1);
+  await expect(hubAfter.locator('.thEv.done')).toContainText(/pts/);
+  await expect(hubAfter.locator('.thEv.cur')).toContainText('E2');
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
 

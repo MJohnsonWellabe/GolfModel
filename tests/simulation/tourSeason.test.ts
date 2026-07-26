@@ -106,6 +106,27 @@ describe('a regular event', () => {
     expect(Object.keys(s.points)).toHaveLength(TOUR_RIVALS.length + 1);
     const table = seasonStandings(s);
     expect(table[0].isPlayer).toBe(true);
+    // The event went into the season's results log — the hub's "past
+    // results" page reads exactly this.
+    expect(s.results).toHaveLength(1);
+    expect(s.results[0]).toMatchObject({ idx: 0, playerRank: 1, points: TOUR_POINTS[0], winnerId: 'player' });
+    expect(s.results[0].toPar).toBe(-8);
+    // And it survives a storage round-trip.
+    const revived = migrateTour(JSON.parse(JSON.stringify(s)))!;
+    expect(revived.results).toEqual(s.results);
+  });
+
+  it('the results log accumulates one line per finished event', () => {
+    const s = newSeason(4242);
+    completeTourRound(s, COURSES, 11, 0, IDS);
+    completeTourRound(s, COURSES, 12, 1, IDS);
+    expect(s.results.map((r) => r.idx)).toEqual([0, 1]);
+    for (const r of s.results) {
+      expect(r.playerRank).toBeGreaterThanOrEqual(1);
+      expect(r.playerRank).toBeLessThanOrEqual(TOUR_RIVALS.length + 1);
+      expect(r.points).toBeGreaterThan(0); // all 11 finishers score
+      expect(r.winnerId.length).toBeGreaterThan(0);
+    }
   });
 
   it('the field is fixed by the season seed (no rerolls across devices)', () => {

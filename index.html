@@ -1214,6 +1214,10 @@
       #dailyPopup.on { display: flex; }
       #dailyPopupInner {
         width: min(400px, calc(100% - 32px));
+        /* All of today lives here now (challenge + hole of the day + ghost +
+           weekly) — cap and scroll so a phone never clips the buttons. */
+        max-height: calc(100dvh - 48px);
+        overflow-y: auto;
         padding: 16px;
         border-radius: 20px;
         background: linear-gradient(180deg, rgba(9, 34, 22, 0.98), rgba(5, 18, 13, 0.98));
@@ -1809,45 +1813,15 @@
         font-weight: 700;
         font-size: 12px;
       }
-      /* TOUR SEASON (career round 2) — the Pro's season: next event, standing,
-         one Play action. Gold like the career card: it is YOURS. */
-      #tourCard {
-        margin: 0 0 10px;
-        padding: 10px 12px;
-        border-radius: 14px;
-        text-align: left;
+      /* TOUR SEASON (career round 2b) — a gold destination tile that acts
+         directly: tap to play the next event. Gold like the career card: it
+         is YOURS. */
+      #destTour {
+        border-color: rgba(217, 164, 65, 0.5);
         background: linear-gradient(180deg, rgba(217, 164, 65, 0.16), rgba(217, 164, 65, 0.05));
-        border: 1px solid rgba(217, 164, 65, 0.4);
       }
-      #tourCard:empty {
-        display: none;
-      }
-      #tourCard .tcLabel {
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 1px;
+      #destTour .dtName {
         color: #ffd54f;
-      }
-      #tourCard .tcName {
-        font-size: 13px;
-        font-weight: 700;
-        color: #eef5ea;
-        margin: 3px 0 2px;
-      }
-      #tourCard .tcStand {
-        font-size: 12px;
-        color: #d9c9a0;
-        font-weight: 700;
-        margin: 0 0 7px;
-      }
-      #tourCard .tcPlay {
-        padding: 8px 14px;
-        border-radius: 10px;
-        border: none;
-        font-weight: 800;
-        font-size: 13px;
-        color: #33260a;
-        background: linear-gradient(180deg, #ffe28a, #e8b93a);
       }
       /* Hole of the Day (`dailyHole`) — one generated hole, same for everyone. */
       #dailyHoleCard {
@@ -3068,7 +3042,8 @@
       #seasonPass,
       #lockerRoom,
       #nameModal,
-      #tournaments {
+      #tournaments,
+      #tourHub {
         position: fixed;
         inset: 0;
         background: linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
@@ -3188,6 +3163,63 @@
       .recRow.you {
         background: rgba(255, 226, 138, 0.14);
         border-radius: 8px;
+      }
+      /* TOUR SEASON hub: the schedule list — every event, its state, and how
+         a finished one went. Gold marks the majors; the current event glows. */
+      .thSched {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 4px 0 10px;
+        text-align: left;
+      }
+      .thEv {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        border-radius: 9px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(255, 255, 255, 0.04);
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #d9e6d4;
+      }
+      .thEv .thNo {
+        flex: none;
+        width: 30px;
+        color: #8fb598;
+        font-weight: 800;
+      }
+      .thEv .thName {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .thEv .thRes {
+        flex: none;
+        font-weight: 800;
+        color: #a9c9b0;
+      }
+      .thEv.done {
+        opacity: 0.85;
+      }
+      .thEv.done .thRes {
+        color: #8ae2a4;
+      }
+      .thEv.cur {
+        border-color: rgba(217, 164, 65, 0.65);
+        background: rgba(217, 164, 65, 0.12);
+        color: #ffe1a1;
+      }
+      .thEv.major .thName::after {
+        content: ' · MAJOR';
+        color: #ffd54f;
+        font-size: 10.5px;
+        font-weight: 900;
+        letter-spacing: 0.6px;
       }
       /* Full-width footer CTA into the public marketing/about page (press kit,
          course gallery, roster, gameplay clips) — a real link, not a ghost
@@ -4285,8 +4317,11 @@
           <button id="landingPlay" class="landingPlay">Quick Start</button>
           <button id="landingChoose" class="landingChoose">⛳ Choose your course</button>
           <div class="landingDest">
-            <button id="destToday" class="destTile" data-dest="today">
-              <span class="dtName">Today</span><span class="dtSub"></span>
+            <!-- The Tour Season took the Today slot (owner, career round 2b):
+                 the daily surfaces all live under the 🔥 chip's popup now, and
+                 this tile acts directly — tap to play the next event. -->
+            <button id="destTour" class="destTile">
+              <span class="dtName">⛳ Tour Season</span><span class="dtSub"></span>
             </button>
             <button id="destBoards" class="destTile">
               <span class="dtName">Leaderboards</span><span class="dtSub"></span>
@@ -4301,13 +4336,19 @@
         </div>
       </div>
 
-      <!-- The daily-challenge popup (the 🔥 chip's destination). The challenge
-           was a passive card buried in a pane; it is the reason to come back
-           today, so it gets the front door. #dailyCard lives here now — the
-           same element updateDailyBanner always wrote. -->
+      <!-- The daily popup (the 🔥 chip's destination) — ALL of today's
+           surfaces in one place (owner, career round 2b: "you already have
+           access to see the daily stuff by clicking the fire at the top. just
+           put all the daily parts under there"): the challenge, the Hole of
+           the Day with the rival's score, the ghost race, and the weekly.
+           The cards keep their ids — the same renderers keep writing to the
+           same elements they always did. -->
       <div id="dailyPopup">
         <div id="dailyPopupInner">
           <div id="dailyCard"></div>
+          <div id="dailyHoleCard"></div>
+          <div id="ghostCard"></div>
+          <div id="weeklyCard"></div>
           <div class="dpRow">
             <button id="dpPlay">Play a round</button>
             <button id="dpClose" class="ghostBtn">Close</button>
@@ -4325,17 +4366,6 @@
             <button id="destSheetClose" aria-label="Close">Done</button>
           </div>
           <div id="destSheetBody">
-            <div class="destPane" id="paneToday">
-              <div id="tourCard"></div>
-              <div id="dailyHoleCard"></div>
-              <div id="ghostCard"></div>
-              <div id="weeklyCard"></div>
-              <!-- The practice entry moved to the course chooser's "Go to the
-                   range" bar (owner pass 6) — one practice surface, not two. -->
-              <!-- Online tournaments survives only outside the strip-down; it
-                   needs a home now that the Compete pane is gone. -->
-              <button id="tournyLink" class="destLink" style="display:none">🌐 Online tournaments</button>
-            </div>
             <div class="destPane" id="paneLocker">
               <button id="landingSeason" class="destArt">Season Pass</button>
               <button id="landingStore" class="destArt">Store</button>
@@ -4344,6 +4374,9 @@
             <div class="destPane" id="paneMore">
               <button id="landingProfile" class="destLink">Log In / Profile</button>
               <button id="landingSettings" class="destLink">⚙️ Settings</button>
+              <!-- Online tournaments survives only outside the strip-down; it
+                   moved here when the Today pane retired (career round 2b). -->
+              <button id="tournyLink" class="destLink" style="display:none">🌐 Online tournaments</button>
               <!-- About the game moved into the profile's Settings tab — the
                    sheet is for the player's own things, not marketing. -->
               <!-- The tools. Admin follows the signed-in ACCOUNT; Dev follows
@@ -4392,6 +4425,9 @@
     <div id="lockerRoom"></div>
     <div id="nameModal"></div>
     <div id="tournaments"></div>
+    <!-- TOUR SEASON hub (career round 2b): standings, the schedule with past
+         results, and the play-next-event action, behind the gold tile. -->
+    <div id="tourHub"></div>
     <script type="module" src="/src/slice3d/main.ts"></script>
   </body>
 </html>

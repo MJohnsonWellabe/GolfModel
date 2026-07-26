@@ -64,7 +64,8 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSeason, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TOUR_EVENTS } from '../systems/TourSeason';
+import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSeason, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, tourSchedule, TOUR_EVENTS } from '../systems/TourSeason';
+import { TOUR_RIVALS } from '../data/tourRivals';
 import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
@@ -6606,6 +6607,108 @@ function tourSeasonTableHtml(): string {
   );
 }
 
+/** An entrant's display name on tour surfaces ('player' is always You). */
+function tourEntrantName(id: string): string {
+  return id === 'player' ? 'You' : (TOUR_RIVALS.find((r) => r.id === id)?.name ?? id);
+}
+
+/**
+ * THE TOUR HUB (owner: "when you click into the tour season you should be
+ * able to go to all past results, standings, schedule and play next event").
+ * The gold tile opens this; playing the next event is the button on top,
+ * the season points table and the full schedule — past finishes included —
+ * read beneath it.
+ */
+function renderTourHub(): void {
+  const el = document.getElementById('tourHub');
+  if (!el) return;
+  el.style.display = 'flex';
+  // Belt and braces: the tile routes a career-less player to the Locker, but
+  // the hub can still be reached with a career that a merge later lost.
+  if (!flag('careerMode') || !careerStarted(profile.career)) {
+    el.innerHTML =
+      `<div class="recInner"><h2>⛳ Tour Season</h2>` +
+      `<div class="recSub">Sixteen events, four majors, ten rivals — your Pro's season. Start a career to join the tour.</div>` +
+      `<button id="thLocker" class="tourAction">Open the Locker</button>` +
+      `<button id="thBack" class="ghostBtn">Back</button></div>`;
+    el.querySelector('#thBack')?.addEventListener('click', () => {
+      el.style.display = 'none';
+    });
+    el.querySelector('#thLocker')?.addEventListener('click', () => {
+      el.style.display = 'none';
+      lkTab = 'style';
+      renderLockerRoom();
+    });
+    return;
+  }
+  // First visit: the season is born HERE, so the schedule has a seed to show.
+  if (!profile.tour) {
+    profile.tour = newSeason(Math.floor(Math.random() * 1e9));
+    persistProfile();
+  }
+  const t = profile.tour;
+  const ids = tourCourseIds();
+  const sched = tourSchedule(t.seed, ids);
+  const def = currentEvent(t, ids);
+  const roundsIn = eventRoundsPlayed(t);
+  const table = seasonStandings(t);
+  const myRank = table.findIndex((r) => r.isPlayer) + 1;
+  const myPts = t.points['player'] ?? 0;
+  const status = Object.keys(t.points).length
+    ? `${t.played}/${TOUR_EVENTS} events played · you're ${ordinal(myRank)} in points (${myPts} pts)`
+    : `Season ${t.seasonNo} tees off — the field is waiting.`;
+  const playLabel = def
+    ? roundsIn > 0
+      ? `⛳ ${tourEventName(def)} — round ${roundsIn + 1} of ${def.rounds} →`
+      : `⛳ Play Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)} →`
+    : '';
+  // The schedule IS the results page: a finished row says where you landed,
+  // what it paid, and who took the trophy when it wasn't you.
+  const schedRows = sched
+    .map((e) => {
+      const res = t.results.find((r) => r.idx === e.idx);
+      const cur = def && e.idx === def.idx;
+      const cls = `thEv${res ? ' done' : ''}${cur ? ' cur' : ''}${e.major ? ' major' : ''}`;
+      const name =
+        escapeHtml(tourEventName(e)) +
+        (res && res.playerRank !== 1 && res.winnerId ? ` — 🏆 ${escapeHtml(tourEntrantName(res.winnerId))}` : '');
+      const right = res
+        ? `${res.playerRank === 1 ? '🏆 won' : ordinal(res.playerRank)} · +${res.points} pts`
+        : cur
+          ? roundsIn > 0
+            ? `round ${roundsIn + 1}/${e.rounds}`
+            : 'up next'
+          : e.major
+            ? '3 rounds'
+            : '';
+      return (
+        `<div class="${cls}"><span class="thNo">E${e.idx + 1}</span>` +
+        `<span class="thName">${name}</span>` +
+        `<span class="thRes">${right}</span></div>`
+      );
+    })
+    .join('');
+  el.innerHTML =
+    `<div class="recInner"><h2>⛳ Tour Season ${t.seasonNo}</h2>` +
+    `<div class="recSub">${status}</div>` +
+    (playLabel ? `<button id="thPlay" class="tourAction">${escapeHtml(playLabel)}</button>` : '') +
+    tourSeasonTableHtml() +
+    `<div class="tourHeadRow">Schedule &amp; results</div>` +
+    `<div class="thSched">${schedRows}</div>` +
+    `<button id="thBack" class="ghostBtn">Back</button></div>`;
+  // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
+  // Play is fine: the round scene replaces everything under the finger.
+  el.querySelector('#thBack')?.addEventListener('click', () => {
+    el.style.display = 'none';
+    refreshProgressSurfaces();
+  });
+  el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    el.style.display = 'none';
+    startTourEvent();
+  });
+}
+
 /** Mid-round board for a tour round (the 🏆 HUD button): where the event
  *  stands through the rounds banked so far, and the season table. */
 function showTourBoard(): void {
@@ -7940,7 +8043,6 @@ function refreshLandingCards(): void {
   updateSetupEntry();
   updateGhostCard();
   updateDailyHoleCard();
-  updateTourCard();
   // Practice lives on the course chooser now (the "Go to the range" bar), so
   // the Today pane no longer carries an entry for it.
   const rangeBar = document.getElementById('rangeBar');
@@ -7969,11 +8071,9 @@ function isNewPlayer(): boolean {
 function refreshProgressSurfaces(): void {
   const newPlayer = isNewPlayer();
   updateProgressStrip(newPlayer);
+  // The Tour tile is painted inside updateDestinations, so a career start or
+  // a finished event refreshes it on the same call.
   updateDestinations(newPlayer);
-  // The tour card reads career + tour state, both of which move at the same
-  // moments the strip does (career started, event finished) — repaint with it
-  // so the Today pane never advertises a stale gate.
-  updateTourCard();
 }
 
 // ---------------------------------------------------------------------------
@@ -7989,11 +8089,12 @@ function refreshProgressSurfaces(): void {
 //
 // The shape is now ONE PRIMARY ACTION and FOUR DOORS:
 //
-//   Play      the action. Tees off on the last course played.
-//   Today     hole of the day, the rival race, the daily challenge, the weekly
-//   Compete   course & mode, tournaments, records, the practice ground
-//   Locker    season pass, store, locker room
-//   More      profile, about, and the dev/admin tools when they apply
+//   Play         the action. Tees off on the rotation's next course.
+//   Tour Season  the Pro's season — acts directly, no sheet (career 2b; the
+//                daily surfaces that lived here as "Today" are all under the
+//                🔥 chip's popup now, per the owner)
+//   Locker       season pass, store, locker room
+//   More         profile, about, and the dev/admin tools when they apply
 //
 // Nothing was deleted and nothing became harder to find: each tile carries a
 // one-line headline of what is behind it, so the daily hole and the streak
@@ -8001,10 +8102,11 @@ function refreshProgressSurfaces(): void {
 // it would be worse than the stack it replaced.
 // ---------------------------------------------------------------------------
 
-type DestId = 'today' | 'locker' | 'more';
+// 'today' retired (career round 2b): the Tour Season tile took its slot, and
+// the daily surfaces all live under the 🔥 chip's popup.
+type DestId = 'locker' | 'more';
 
 const DEST_TITLES: Record<DestId, string> = {
-  today: 'Today',
   locker: 'Locker',
   // The id stays 'more' (it is baked into markup, specs and muscle memory);
   // only what the player reads changed.
@@ -8047,7 +8149,13 @@ function updateProgressStrip(newPlayer: boolean): void {
  * done, what the streak is worth, and one button that starts a round.
  */
 function openDailyPopup(): void {
-  updateDailyBanner(); // repaint #dailyCard (it lives inside the popup now)
+  // ALL of today's surfaces live in this popup now (career round 2b): the
+  // challenge, the Hole of the Day, the ghost race and the weekly — repaint
+  // each so the popup always opens fresh.
+  updateDailyBanner();
+  updateDailyHoleCard();
+  updateGhostCard();
+  updateWeeklyCard();
   document.getElementById('dailyPopup')?.classList.add('on');
 }
 
@@ -8075,19 +8183,36 @@ function updateDestinations(newPlayer: boolean): void {
     el.classList.toggle('hasNews', shown && news);
   };
 
-  // TODAY — lead with whatever is genuinely undone, because that is the only
-  // part of this game with a deadline on it.
-  const dailyHoleOpen = flag('dailyHole') && !loadDailyPlay(todayKey());
-  const challengeDone = profile.daily.date === todayKey() && profile.daily.done;
-  const streak = profile.retention.streak.current;
-  const todaySub = dailyHoleOpen
-    ? 'Hole of the Day is up'
-    : !challengeDone
-      ? "Today's challenge is open"
-      : streak > 0
-        ? `🔥 ${streak}-day streak safe`
-        : 'All done — back tomorrow';
-  set('today', !newPlayer, todaySub, dailyHoleOpen || !challengeDone);
+  // TOUR SEASON — the tile that took Today's slot (the daily surfaces all
+  // live under the 🔥 chip now). It acts directly: tap to play the next
+  // event, or to open the Locker when no career has started.
+  const tourTile = document.getElementById('destTour');
+  if (tourTile) {
+    const showTour = flag('careerMode') && !newPlayer;
+    tourTile.style.display = showTour ? '' : 'none';
+    const sub = tourTile.querySelector('.dtSub');
+    if (sub) {
+      if (!careerStarted(profile.career)) {
+        sub.textContent = 'start a career to join';
+      } else {
+        const t = profile.tour;
+        const def = t ? currentEvent(t, tourCourseIds()) : null;
+        if (!t) {
+          sub.textContent = `16 events · 4 majors · Event 1/${TOUR_EVENTS}`;
+        } else if (def) {
+          const roundsIn = eventRoundsPlayed(t);
+          const stage = def.major && roundsIn > 0 ? ` · round ${roundsIn + 1}/${def.rounds}` : def.major ? ' · MAJOR' : '';
+          sub.textContent = `Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)}${stage}`;
+        } else {
+          sub.textContent = 'season complete';
+        }
+      }
+    }
+    // A major mid-play is the one thing here worth a glow.
+    const t = profile.tour;
+    const majorLive = !!t && !!currentEvent(t, tourCourseIds())?.major;
+    tourTile.classList.toggle('hasNews', showTour && majorLive);
+  }
 
   // LEADERBOARDS — the Compete door collapsed into the one thing behind it
   // once tournaments were stripped: a door with one thing behind it IS that
@@ -8140,7 +8265,7 @@ function updateDestinations(newPlayer: boolean): void {
   show('landingBuilder', devToolsActive());
   const tourny = document.getElementById('tournyLink');
   // Online tournaments: a whole matchmaking surface for a game whose social
-  // feature is now a link you send a friend. Lives in Today when it lives.
+  // feature is now a link you send a friend. Lives under Profile when it lives.
   if (tourny) tourny.style.display = focused ? 'none' : '';
 }
 
@@ -8509,51 +8634,6 @@ function settleRivalFixture(dateKey: string, yourStrokes: number, rec: RoundReco
  * of pure arithmetic: generate, simulate ~140 rounds, retry until one lands in
  * the playable band) and memoised for the session. Never on a gameplay path.
  */
-/** The Tour Season card on the Today pane: the next event (or the major's
- *  next round), where the Pro sits in points, one Play action. Career-only —
- *  without a started career it deep-links to the Locker instead. */
-function updateTourCard(): void {
-  const el = document.getElementById('tourCard');
-  if (!el) return;
-  el.innerHTML = '';
-  if (!flag('careerMode')) return;
-  if (!careerStarted(profile.career)) {
-    el.innerHTML =
-      `<div class="tcLabel">⛳ TOUR SEASON</div>` +
-      `<div class="tcName">Sixteen events, four majors, ten rivals — your Pro's season.</div>` +
-      `<div class="tcStand">Start a career in the Locker to join the tour.</div>` +
-      `<button class="tcPlay" id="tourLocker">Open the Locker</button>`;
-    el.querySelector('#tourLocker')?.addEventListener('click', () => {
-      closeDest();
-      lkTab = 'style';
-      renderLockerRoom();
-    });
-    return;
-  }
-  const t = profile.tour;
-  const ids = tourCourseIds();
-  const def = t ? currentEvent(t, ids) : null;
-  if (t && !def) return; // between rollovers — one render away from fresh
-  const evNo = (def?.idx ?? 0) + 1;
-  const name = def ? tourEventName(def) : '';
-  const roundsIn = t ? eventRoundsPlayed(t) : 0;
-  const standing = ((): string => {
-    if (!t || Object.keys(t.points).length === 0) return `Season ${t?.seasonNo ?? 1} tees off — the field is waiting.`;
-    const rank = seasonStandings(t).findIndex((r) => r.isPlayer) + 1;
-    return `Season ${t.seasonNo} · you're ${ordinal(rank)} in points (${t.points['player'] ?? 0} pts)`;
-  })();
-  const playLabel = def && roundsIn > 0 ? `Round ${roundsIn + 1} of ${def.rounds} →` : 'Play the event →';
-  el.innerHTML =
-    `<div class="tcLabel">⛳ TOUR SEASON${def?.major ? ' · MAJOR' : ''}</div>` +
-    `<div class="tcName">Event ${evNo}/${TOUR_EVENTS} · ${escapeHtml(name)}</div>` +
-    `<div class="tcStand">${standing}</div>` +
-    `<button class="tcPlay" id="tourPlay">${playLabel}</button>`;
-  el.querySelector('#tourPlay')?.addEventListener('click', () => {
-    closeDest();
-    startTourEvent();
-  });
-}
-
 function updateDailyHoleCard(): void {
   const el = document.getElementById('dailyHoleCard');
   if (!el) return;
@@ -8843,6 +8923,7 @@ function startDailyHole(): void {
   pendingGhost = rival;
   sel.mode = 'solo';
   sel.courseId = DAILY_COURSE_ID;
+  closeDailyPopup(); // the card lives in the 🔥 popup — don't leave it over the round
   landingEl.classList.remove('on');
   analytics.track('daily_hole_started', { course: res.spec.themeId });
   // Seeded off the DATE so every player faces the same wind and the same cup.
@@ -9006,6 +9087,7 @@ function updateGhostCard(): void {
     pendingGhost = best;
     sel.mode = 'solo';
     sel.courseId = courseId;
+    closeDailyPopup(); // the card lives in the 🔥 popup — don't leave it over the round
     landingEl.classList.remove('on');
     // The ghost's round used a specific seed; racing it on different wind and
     // pins would not be the same race, so the rematch inherits the seed.
@@ -9217,6 +9299,7 @@ function updateWeeklyCard(): void {
     pendingWeekly = ev;
     sel.mode = 'solo';
     sel.courseId = ev.courseId;
+    closeDailyPopup(); // the card lives in the 🔥 popup — don't leave it over the round
     landingEl.classList.remove('on');
     startRound(0);
   });
@@ -9573,6 +9656,17 @@ document.getElementById('tournyLink')!.addEventListener('click', () => renderTou
 for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile[data-dest]'))) {
   tile.addEventListener('click', () => openDest(tile.dataset.dest as DestId));
 }
+// The Tour Season tile opens the TOUR HUB (owner: past results, standings,
+// schedule and play, all behind the click) — or the Locker's Style tab when
+// no career has started yet. 'click' for the tap-through rule above.
+document.getElementById('destTour')?.addEventListener('click', () => {
+  if (careerStarted(profile.career)) {
+    renderTourHub();
+  } else {
+    lkTab = 'style';
+    renderLockerRoom();
+  }
+});
 // 'click' for the CLOSE too, and for the same reason in reverse: closing on
 // the down-stroke re-exposes the landing under a still-falling finger, and on
 // touch the browser synthesizes the tap's click against whatever the release

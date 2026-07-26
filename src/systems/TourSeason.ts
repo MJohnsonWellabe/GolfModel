@@ -74,7 +74,21 @@ export interface TourSeasonState {
   played: number;
   /** Season points by entrant: 'player', or a rival id. */
   points: Record<string, number>;
+  /** One line per finished event — the season's story, shown in the hub's
+   *  schedule ("E3 · Timberline Open — 2nd, +300 pts"). */
+  results: TourEventResult[];
   activeEvent: TourActiveEvent | null;
+}
+
+/** How a finished event went for the player, plus who took it. */
+export interface TourEventResult {
+  idx: number;
+  playerRank: number;
+  /** Points the player banked (majors already doubled). */
+  points: number;
+  /** The player's event to-par (cumulative across a major's rounds). */
+  toPar: number;
+  winnerId: string;
 }
 
 export interface TourStandingRow {
@@ -87,7 +101,7 @@ export interface TourStandingRow {
 }
 
 export function newSeason(seed: number, seasonNo = 1): TourSeasonState {
-  return { seasonNo, seed, played: 0, points: {}, activeEvent: null };
+  return { seasonNo, seed, played: 0, points: {}, results: [], activeEvent: null };
 }
 
 /**
@@ -195,6 +209,13 @@ export function completeTourRound(
   }
   const me = standings.findIndex((r) => r.isPlayer);
   if (me >= 0) playerRank = competitionRank(standings, me) + 1;
+  s.results.push({
+    idx: def.idx,
+    playerRank,
+    points: pointsAwarded['player'] ?? 0,
+    toPar: standings[me >= 0 ? me : 0].toPar,
+    winnerId: standings[0].id
+  });
   s.played++;
   s.activeEvent = null;
   return { eventDone: true, standings, playerRank, pointsAwarded, seasonEnded: seasonDone(s) };
@@ -288,6 +309,12 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
   for (const [k, v] of Object.entries(t.points ?? {})) {
     if (typeof v === 'number' && v >= 0) points[k] = v;
   }
+  const results = (Array.isArray(t.results) ? t.results : [])
+    .filter(
+      (r): r is TourEventResult =>
+        !!r && typeof r.idx === 'number' && typeof r.playerRank === 'number' && typeof r.points === 'number'
+    )
+    .map((r) => ({ idx: r.idx, playerRank: r.playerRank, points: r.points, toPar: r.toPar ?? 0, winnerId: r.winnerId ?? '' }));
   const ae = t.activeEvent;
   const activeEvent: TourActiveEvent | null =
     ae &&
@@ -303,7 +330,7 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
           fieldToPars: TOUR_RIVALS.map((_, i) => [...(ae.fieldToPars?.[i] ?? [])])
         }
       : null;
-  return { seasonNo: t.seasonNo, seed: t.seed, played, points, activeEvent };
+  return { seasonNo: t.seasonNo, seed: t.seed, played, points, results, activeEvent };
 }
 
 /**

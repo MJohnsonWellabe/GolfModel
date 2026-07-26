@@ -48,7 +48,7 @@ export async function seedReturningDevice(page: Page): Promise<void> {
  */
 export async function openDestination(
   page: Page,
-  dest: 'today' | 'locker' | 'more'
+  dest: 'locker' | 'more'
 ): Promise<void> {
   const tile = page.locator(`.destTile[data-dest="${dest}"]`);
   await tile.waitFor({ state: 'visible', timeout: 30_000 });

@@ -27,12 +27,16 @@ test('a rival is waiting on the daily card with a score to beat', async ({ page 
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await seedReturningDevice(page);
-  await page.goto('/');
+  // The rival is one of the systems the strip-down removes — a spec ABOUT the
+  // rival asks for the un-stripped game (same as the ghost spec).
+  await page.goto('/?ff.focusedGame=off');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
 
   // The card is built lazily (generate the hole, vet it by simulation, then
   // play the rival's round through the same physics) — all of it on the landing
-  // paint, none of it during play.
+  // paint, none of it during play. The daily surfaces live in the 🔥 chip's
+  // popup now (career round 2b), so open it to see them.
+  await page.locator('#psStreak').dispatchEvent('click');
   const rival = page.locator('#dailyHoleCard .dhRival');
   await rival.waitFor({ state: 'visible', timeout: 60_000 });
   const line = await rival.innerText();
@@ -56,8 +60,9 @@ test("the rival's ball flies beside yours, and the day settles", async ({ page }
     if (t.includes('[ghost]') || t.includes('[recording]') || t.includes('[probe]')) console.log('PAGE ' + t);
   });
   await seedReturningDevice(page);
-  await page.goto('/?freeze=1');
+  await page.goto('/?freeze=1&ff.focusedGame=off');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
+  await page.locator('#psStreak').dispatchEvent('click'); // the daily popup carries the cards now
   await page.locator('#dailyHoleCard .dhRival').waitFor({ state: 'visible', timeout: 60_000 });
 
   const before = await page.evaluate(() => (window as never as { __rival(): unknown }).__rival());
@@ -144,9 +149,10 @@ test('every course offers a rival to race, with no prior round of your own', asy
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   await seedReturningDevice(page);
-  await page.goto('/');
+  await page.goto('/?ff.focusedGame=off');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
 
+  await page.locator('#psStreak').dispatchEvent('click'); // the daily popup carries the cards now
   const card = page.locator('#ghostCard');
   await card.waitFor({ state: 'visible', timeout: 60_000 });
   const text = await card.innerText();

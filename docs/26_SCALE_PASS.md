@@ -883,3 +883,27 @@ the majors can be 3 round tournaments").
 - **Quick Start rotates** (owner): `quickPlay()` opens the rotation's course
   AFTER the one this device played last (`quickPlayCourseId`), and the
   button names the course it will actually open.
+
+## 25. Career round 2b — the Tour tile, the daily popup, and the hub
+
+Two follow-ups, owner verbatim: "fit this in the menus by getting rid of the
+daily button… just put all the daily parts under there [the 🔥 chip]" and
+"when you click into the tour season you should be able to go to all past
+results, standings, schedule and play next event".
+
+- **The Today tile retired.** The Tour Season took its slot as a gold
+  destination tile (`#destTour`) whose sub-line names the next event (or the
+  career gate); a mid-play major gives it the news glow. The Today pane is
+  gone — `tournyLink` moved to the Profile pane.
+- **Everything daily lives under the 🔥 chip.** `#dailyPopup` now carries
+  the challenge card, the Hole of the Day (with the rival), the ghost race
+  and the weekly card — the same elements, the same renderers, one home.
+  `openDailyPopup` repaints all four; the three play buttons close the
+  popup before starting their round.
+- **The Tour hub** (`renderTourHub`, `#tourHub` overlay): tap the tile and
+  the season is one screen — play-next-event on top (event N/16, or the
+  major's "round R of 3"), the full 11-entrant points standings, and the
+  16-row schedule where finished events read as PAST RESULTS
+  (`TourSeasonState.results`: your finish, the points it paid, and the
+  winner's name when it wasn't you). Majors are flagged on their rows; the
+  current event glows gold.

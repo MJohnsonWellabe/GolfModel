@@ -1,5 +1,4 @@
 import { expect, test } from '@playwright/test';
-import { openDestination } from './support/wizard';
 
 /**
  * End-of-round results loop (retention Part 1): the results card must show
@@ -100,17 +99,16 @@ test('landing shows ONE concise daily card (returning device)', async ({ page })
     await page.locator('#nmSave').dispatchEvent('pointerdown');
     await page.waitForSelector('#nmInput', { state: 'hidden', timeout: 4000 }).catch(() => null);
   }
-  // The daily challenge lives in the 🔥 chip's popup now; the weekly/daily
-  // tournament card stays under Today.
+  // EVERYTHING daily lives in the 🔥 chip's popup now (career round 2b) —
+  // the challenge, and the weekly/daily tournament card beside it.
   await page.locator('#psStreak').dispatchEvent('click');
   await expect(page.locator('#dailyPopup')).toHaveClass(/on/);
   await expect(page.locator('#dailyCard')).toBeVisible();
   await expect(page.locator('#dailyCard .dcName')).toHaveCount(1);
-  await page.locator('#dpClose').dispatchEvent('click');
-  await openDestination(page, 'today');
   await expect(page.locator('#weeklyCard')).toBeVisible();
-  // ...and the tile says so from the top level, so nothing became invisible.
-  expect(await page.locator('#destToday .dtSub').innerText()).not.toBe('');
+  await page.locator('#dpClose').dispatchEvent('click');
+  // ...and the chip advertises it from the top level, so nothing went invisible.
+  expect(await page.locator('#psStreak').innerText()).not.toBe('');
   // No horizontal overflow at 360px (mobile acceptance).
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);
@@ -124,7 +122,7 @@ test('brand-new device sees core golf only (progressive disclosure)', async ({ p
   // No secondary systems before the first completed round. Disclosure works a
   // level up now: whole DESTINATIONS stay closed rather than individual cards
   // going blank, so a newcomer is never looking at a gap where something was.
-  await expect(page.locator('#destToday')).toBeHidden();
+  await expect(page.locator('#destTour')).toBeHidden();
   await expect(page.locator('#destLocker')).toBeHidden();
   await expect(page.locator('#dailyCard')).toBeEmpty();
   await expect(page.locator('#weeklyCard')).toBeEmpty();
