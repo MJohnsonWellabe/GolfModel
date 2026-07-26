@@ -65,6 +65,7 @@ import {
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSeason, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, tourSchedule, TOUR_EVENTS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
+import { majorCourseForRound } from '../systems/TourMajorSetup';
 import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, onAccountAppeared, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
@@ -6550,11 +6551,30 @@ function startTourRound(): void {
   round.holeWinds = [];
   round.holePins = [];
   round.seed = (Math.random() * 0xffffffff) >>> 0;
+  // A MAJOR escalates per round — forward tees/kind pins, the authored card,
+  // then back tees/tucked pins (owner pass 8). The course is materialized for
+  // the round about to be played, and the pins are prefilled from it so the
+  // lazy seeded draw (pinForSeed) never overrides the championship setup. The
+  // FIELD is handed the identical materialized course in completeTourRound —
+  // majorCourseForRound is pure in (course, roundNo), so they cannot drift.
+  if (def.major) {
+    round.course = majorCourseForRound(round.course, eventRoundsPlayed(t));
+    round.holePins = round.course.holes.map((h) => ({ ...h.pin }));
+  }
   round.tournament = null;
   round.weeklyEventId = null;
   round.challenge = null;
   aiTour = null;
   tourRoundLive = true;
+  // Tour rounds enter from the HUB, not startRound's wizard path — so the
+  // round-state resets startRound performs must happen HERE too or the last
+  // mode's state leaks in: an ease-in device's gentle pins softening a tour
+  // cup, an armed ghost/daily/practice session riding into the event.
+  roundGentlePins = false;
+  activeGhost = null;
+  pendingGhost = null;
+  dailyRound = null;
+  endPractice();
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();

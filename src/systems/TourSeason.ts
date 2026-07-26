@@ -1,6 +1,7 @@
 import { CourseData } from '../core/types';
 import { TOUR_RIVALS, TourRival } from '../data/tourRivals';
 import { simulateEntrantRound } from './AiTournament';
+import { majorCourseForRound } from './TourMajorSetup';
 
 /**
  * THE TOUR SEASON — the career Pro's competitive spine (owner, career round
@@ -185,9 +186,14 @@ export function completeTourRound(
   const roundNo = ev.playerTotals.length;
   ev.playerTotals.push(playerTotal);
   ev.playerToPars.push(playerToPar);
+  // A major escalates its setup per round (forward tees/kind pins → the
+  // authored card → back tees/tucked pins). The FIELD plays the identical
+  // materialized course the player just did — majorCourseForRound is pure
+  // in (course, roundNo), so both sides agree by construction.
+  const playedCourse = def.major ? majorCourseForRound(course, roundNo) : course;
   rivals.forEach((r, i) => {
     const res = simulateEntrantRound(
-      course,
+      playedCourse,
       def.courseId,
       r,
       r.difficulty,
