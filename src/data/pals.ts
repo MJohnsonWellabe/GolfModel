@@ -71,13 +71,14 @@ export const PALS: PalDef[] = [
   def('geckoorange', 'Mango', 2.6, '🦎'),
   // Season 1 pass marquee companions (levels 30/35/40/45/50, pass-exclusive).
   // Uploaded models converted by convert-pals; sized like the other critters
-  // (low-slung dino, taller humanoids). Thanos is the level-50 finale — the
-  // only rigged/skinned upload of the batch, tallest pal in the roster to
-  // read as the imposing closer.
+  // (low-slung dino, taller humanoids). The two humanoids are deliberately
+  // LARGER than life (owner pass 6: "Thanos is way too small — triple his
+  // size"; "Deadpool needs to be twice as large"): Deadpool towers at ~1.8×
+  // the golfer and Thanos at ~3× — the level-50 finale should loom.
   def('trice', 'Triceratops', 3.4, '🦕'),
   def('toothless', 'Toothless', 4.5, '🐉'),
-  def('deadpool', 'Deadpool', 4.6, '🗡️'),
-  def('thanos', 'Thanos', 5.4, '🧤')
+  def('deadpool', 'Deadpool', 9.2, '🗡️'),
+  def('thanos', 'Thanos', 16.2, '🧤')
 ];
 
 export function palByKey(key: string | undefined): PalDef | undefined {

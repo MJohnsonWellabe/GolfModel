@@ -33,7 +33,10 @@ function shoot(
    *  allowing for what the ground there would do. */
   aimAt?: { x: number; y: number },
   /** Read the shot in FEET, as a putt is. */
-  isPutt = false
+  isPutt = false,
+  /** The physics power a perfect strike would have delivered (see
+   *  attributeShot's plannedPower). */
+  plannedPower?: number
 ): ReturnType<typeof attributeShot> {
   const SEED = 0x5eed;
   let rng = mulberry32(SEED);
@@ -68,7 +71,16 @@ function shoot(
   });
   rng = mulberry32(SEED);
   const aimPoint = aimAt ?? engine.integrateLaunch(aimLaunch, { side: 0, top: 0 }, 0).finalPos;
-  return attributeShot(engine, params, spin, out.finalPos, aimPoint, () => (rng = mulberry32(SEED)), isPutt);
+  return attributeShot(
+    engine,
+    params,
+    spin,
+    out.finalPos,
+    aimPoint,
+    () => (rng = mulberry32(SEED)),
+    isPutt,
+    plannedPower
+  );
 }
 
 describe('what the breakdown reports', () => {
@@ -326,5 +338,68 @@ describe('the table the player actually reads', () => {
         expect(Math.abs(col[i - 1].yards)).toBeGreaterThanOrEqual(Math.abs(col[i].yards));
       }
     }
+  });
+});
+
+describe('direction and cause read the way the player saw them (owner pass 6)', () => {
+  it('a push to the RIGHT reads right, with a right-pointing arrow', () => {
+    // The physics rotates a positive accuracy error by a POSITIVE angle
+    // (dir = aimAngle + error), and a positive rotation lands screen-right at
+    // every yaw — so a hard positive-accuracy miss must read RIGHT. The
+    // original cross product was backwards and mirrored every arrow (owner:
+    // "it is getting directional misses wrong").
+    const a = shoot(openHole(), {
+      swing: { power: 0.95, powerQuality: 'perfect', accuracy: 0.95, accuracyQuality: 'miss' }
+    });
+    expect(a.rightYd, `total lateral ${a.rightYd.toFixed(1)}`).toBeGreaterThan(0);
+    expect(a.missLabel).toMatch(/right/);
+    const t = attributionTable(a);
+    const mishit = t.side.find((e) => e.cause === 'mishit');
+    expect(mishit, `side: ${t.side.map((e) => e.text).join(' | ')}`).toBeTruthy();
+    expect(mishit!.text.startsWith('→'), mishit!.text).toBe(true);
+    // ...and the mirror image reads left.
+    const b = shoot(openHole(), {
+      swing: { power: 0.95, powerQuality: 'perfect', accuracy: -0.95, accuracyQuality: 'miss' }
+    });
+    expect(b.rightYd).toBeLessThan(0);
+    expect(b.missLabel).toMatch(/left/);
+  });
+
+  it('an under-hit strike is an UNDER-swing that LOST yards — never a gain', () => {
+    // The player delivered 0.7 where a perfect strike would have delivered
+    // 0.95: the strike row must say under-swing with a minus sign. This read
+    // "+N yd under-swing" before — an underswing that appeared to ADD distance
+    // (owner report, verbatim).
+    const a = shoot(
+      openHole(),
+      { swing: { power: 0.7, powerQuality: 'miss', accuracy: 0, accuracyQuality: 'perfect' } },
+      { side: 0, top: 0 },
+      undefined,
+      false,
+      0.95
+    );
+    const t = attributionTable(a);
+    const strike = t.dist.find((e) => /swing/.test(e.cause));
+    expect(strike, `dist: ${t.dist.map((e) => e.text).join(' | ')}`).toBeTruthy();
+    expect(strike!.cause).toBe('under-swing');
+    expect(strike!.yards).toBeLessThan(0);
+    expect(strike!.text.startsWith('−'), strike!.text).toBe(true);
+  });
+
+  it("the planned power keeps an under-swing OUT of the ground's residual", () => {
+    // Same shot, with and without the planned power: with it, the strike
+    // carries the shortfall and the ground residual shrinks to noise.
+    const with_ = shoot(
+      openHole(),
+      { swing: { power: 0.7, powerQuality: 'miss', accuracy: 0, accuracyQuality: 'perfect' } },
+      { side: 0, top: 0 },
+      undefined,
+      false,
+      0.95
+    );
+    const strike = with_.factors.find((f) => f.kind === 'strike');
+    const ground = with_.factors.find((f) => f.kind === 'slope');
+    expect(strike, `factors: ${with_.factors.map((f) => f.label).join(', ')}`).toBeTruthy();
+    expect(Math.abs(strike!.short)).toBeGreaterThan(Math.abs(ground?.short ?? 0));
   });
 });

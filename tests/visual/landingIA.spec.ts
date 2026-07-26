@@ -69,7 +69,7 @@ test('every destination opens, names itself, and closes', async ({ page }) => {
     // Exactly one pane is showing — panes that leak into each other are the
     // usual way a sheet-based menu rots.
     await expect(page.locator('.destPane.on')).toHaveCount(1);
-    await page.locator('#destSheetClose').dispatchEvent('pointerdown');
+    await page.locator('#destSheetClose').dispatchEvent('click');
     await expect(page.locator('#destSheet')).not.toHaveClass(/on/);
   }
 });
@@ -97,7 +97,7 @@ test('nothing that used to be on the landing became unreachable', async ({ page 
   for (const [dest, sel] of behind) {
     await openDestination(page, dest);
     await expect(page.locator(sel), `${sel} is not reachable under ${dest}`).toBeVisible();
-    await page.locator('#destSheetClose').dispatchEvent('pointerdown');
+    await page.locator('#destSheetClose').dispatchEvent('click');
   }
 
   // The rest moved to direct surfaces rather than panes:

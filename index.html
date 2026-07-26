@@ -1083,7 +1083,7 @@
         background:
           linear-gradient(90deg, rgba(2, 12, 8, 0.86), rgba(2, 12, 8, 0.32) 54%, rgba(2, 12, 8, 0.76)),
           radial-gradient(70% 55% at 75% 12%, rgba(255, 226, 138, 0.18), transparent 66%),
-          url('assets/marketing/img/wildwood-green.png?v=2') center / cover no-repeat,
+          url('assets/marketing/img/wildwood-green.png?v=3') center / cover no-repeat,
           #071d12;
         overflow: auto;
       }
@@ -1438,7 +1438,7 @@
           align-items: flex-end;
           background:
             linear-gradient(180deg, rgba(2, 12, 8, 0.16) 0%, rgba(2, 12, 8, 0.4) 46%, rgba(2, 12, 8, 0.88) 76%),
-            url('assets/marketing/img/wildwood-green.png?v=2') center 92% / auto 150% no-repeat,
+            url('assets/marketing/img/wildwood-green.png?v=3') center 92% / auto 150% no-repeat,
             #071d12;
         }
         .landingInner {
@@ -1603,6 +1603,37 @@
       #steps,
       #navRow {
         flex: 0 0 auto;
+      }
+      /* "Go to the range" — a THIN, full-width bar across the top of the
+         course chooser, and the one-question row it unfolds. */
+      #rangeBar {
+        flex: 0 0 auto;
+        width: 100%;
+        padding: 9px 12px;
+        margin: 0 0 8px;
+        border-radius: 11px;
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        background: linear-gradient(90deg, rgba(20, 70, 34, 0.85), rgba(12, 44, 20, 0.85));
+        color: #eaf3e6;
+        font-size: 13.5px;
+        font-weight: 800;
+        letter-spacing: 0.3px;
+        cursor: pointer;
+      }
+      #rangeRow {
+        display: flex;
+        gap: 8px;
+        margin: 0 0 8px;
+      }
+      #rangeRow .rangeOpt {
+        flex: 1 1 0;
+        padding: 10px 6px;
+        border-radius: 11px;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        background: rgba(255, 255, 255, 0.08);
+        color: #eaf3e6;
+        font-size: 13px;
+        font-weight: 800;
       }
       /* Daily challenge banner (Phase 6) */
       #dailyBanner {
@@ -4164,7 +4195,8 @@
               <div id="dailyHoleCard"></div>
               <div id="ghostCard"></div>
               <div id="weeklyCard"></div>
-              <button id="landingPractice" class="destLink" style="display:none">🏌️ Practice ground — no card, no pressure</button>
+              <!-- The practice entry moved to the course chooser's "Go to the
+                   range" bar (owner pass 6) — one practice surface, not two. -->
               <!-- Online tournaments survives only outside the strip-down; it
                    needs a home now that the Compete pane is gone. -->
               <button id="tournyLink" class="destLink" style="display:none">🌐 Online tournaments</button>
@@ -4194,6 +4226,15 @@
     </div>
     <div id="setup">
       <div id="setupInner">
+        <!-- THE RANGE (owner pass 6): a thin full-width bar across the top of
+             the course chooser. It unfolds a one-question row — which shot? —
+             and the range deals endless random stations for it. -->
+        <button id="rangeBar">🏌️ Go to the range</button>
+        <div id="rangeRow" style="display: none">
+          <button id="rangeDrive" class="rangeOpt">🚀 Driving</button>
+          <button id="rangeChip" class="rangeOpt">🎯 Chipping</button>
+          <button id="rangePutt" class="rangeOpt">⛳ Putting</button>
+        </div>
         <div id="title">Bite-Sized Golf</div>
         <div id="subtitle">Three holes. Anytime.</div>
         <div id="dailyBanner"></div>

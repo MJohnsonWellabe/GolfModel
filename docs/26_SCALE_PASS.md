@@ -755,3 +755,47 @@ The fifth owner pass, from playing the deploy:
   natureBatching, dragSwing (as the settings option; the default control is
   the three-click meter). `rival`/`ghostRace` stay off everywhere — the
   strip-down superseded them — and `devTools` stays non-prod.
+
+## 21. Owner pass 6 — the range, real previews, and the mirrored arrow
+
+The sixth owner pass, from playing the production deploy:
+
+- **The attribution was MIRRORED**: `resolve().right` had its cross product
+  backwards, so every arrow and every left/right word described the opposite
+  side at every yaw (the physics rotates a positive accuracy error by a
+  positive angle, which lands screen-right). Fixed at the primitive, so
+  totals, factors, arrows and words all flipped together. The under/over-swing
+  cause label was ALSO inverted ("+8 yds under-swing" — an underswing that
+  appeared to add distance), and the strike counterfactual now restores the
+  PLANNED power (`plannedPower` threaded from the aim), so an under-swing's
+  yardage is charged to the strike instead of leaking into the "ground"
+  residual. Deliberate spin reports at its own lower floor (1.5 yd) so "did my
+  spin do anything?" always gets its answer. New direction gates in
+  tests/shotAttribution.test.ts pin all of it. (The underswing itself never
+  added distance — deliveredPower is strictly below target for a short cursor;
+  what the owner saw was the mislabeled table.)
+- **THE RANGE** (`range.spec.ts`): a thin full-width "Go to the range" bar
+  across the top of the course chooser → driving / chipping / putting → endless
+  random stations (random hole, random legal spot for that shot, a few reps
+  per hole then a fresh one, flyovers skipped). Rides the practice chassis: no
+  card, no recording, no rewards; the menu leaves WITHOUT a confirm (nothing
+  is at stake). The Today pane's practice entry is gone — one practice
+  surface, not two.
+- **Builder previews are the real assets**: the fly-mode ghost clones the
+  actual nature prototype (course palette, placement size, half-visible) via
+  `ensureNatureProtos`, and a committed placement stands the full-visibility
+  model on its footprint ring until the next Render — the yellow post survives
+  only for placements with no model (elevation, hazards). Placed trees plant
+  EXACTLY the picked species: the specimen threshold now covers the builder's
+  52×52 footprint (was 48), and the centroid fallback no longer drops
+  `treeKeys`.
+- **The aerial editor saves**: holebuilder gains "💾 Save hole to device"
+  writing the same `bsg.builderSaves.v1` list fly mode uses, and the saved
+  list refreshes live on the `storage` event.
+- **Menus**: the landing background is a wide shot of Wildwood's first green
+  (full green, garden, blossom — was a putting close-up); Back on the course
+  chooser and the sheet's Close moved to 'click' (hiding on the down-stroke
+  let the synthesized tap click land on whatever appeared beneath — the
+  "over-reads clicks" bug); the Locker tile says what it is; the tutorial's
+  hit card names the OTHER swing control in one line.
+- **Pals**: Deadpool 4.6 → 9.2, Thanos 5.4 → 16.2 (owner-spec ×2 / ×3).

@@ -245,6 +245,29 @@ export function loadNaturePrototypes(
   return p;
 }
 
+/**
+ * Make sure specific prototypes exist in this scene's cache, loading any the
+ * course itself never placed. The fly-mode builder previews arbitrary catalog
+ * assets on courses whose themes download only their own species — without
+ * this, a preview of (say) a palm on Wildwood had nothing to clone. Keys the
+ * nature pipeline doesn't know resolve to nothing, and callers fall back to
+ * their proxy previews. Loaded extras are merged into the per-scene cache so a
+ * later Render finds them warm.
+ */
+export async function ensureNatureProtos(
+  scene: Scene,
+  palette: NaturePalette,
+  keys: readonly string[]
+): Promise<Map<string, NatureProto>> {
+  const map = await loadNaturePrototypes(scene, palette, keys);
+  const missing = keys.filter((k) => (ALL_KEYS as readonly string[]).includes(k) && !map.has(k));
+  if (missing.length) {
+    const extra = await build(scene, palette, missing);
+    for (const [k, v] of extra) if (!map.has(k)) map.set(k, v);
+  }
+  return map;
+}
+
 async function build(scene: Scene, palette: NaturePalette, keys: readonly string[]): Promise<Map<string, NatureProto>> {
   const barkMat = flat(scene, 'natBark', palette.bark);
   // Trunks/branches are the one prop surface players study up close (the

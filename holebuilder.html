@@ -475,6 +475,11 @@
         <button id="copyHole">Copy hole</button>
       </div>
       <div class="btnrow" style="margin-top:6px">
+        <!-- Same device list fly mode's 💾 Save writes — the aerial editor
+             must be able to save too, not just download a file. -->
+        <button class="primary" id="saveDevice">💾 Save hole to device</button>
+      </div>
+      <div class="btnrow" style="margin-top:6px">
         <button class="primary" id="download">Download course JSON</button>
       </div>
       <div class="btnrow" style="margin-top:6px">
@@ -1451,10 +1456,36 @@
         );
       }
       function escapeHtml(x) { return x.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]); }
+      // Save the hole being edited HERE, in the aerial editor — the same
+      // device list fly mode writes, same shape, same-name overwrite. Before
+      // this the only Save lived in fly mode, so a hole drawn on the plan
+      // looked like it never saved (owner report).
+      document.getElementById('saveDevice').addEventListener('click', () => {
+        const h = course?.holes?.[hi];
+        if (!h) { toast('no hole to save'); return; }
+        let saves = [];
+        try { saves = JSON.parse(localStorage.getItem(SAVES_KEY) || '[]'); } catch { saves = []; }
+        if (!Array.isArray(saves)) saves = [];
+        const name = h.name || `Hole ${h.number ?? hi + 1}`;
+        const entry = { name, at: Date.now(), hole: JSON.parse(JSON.stringify(h)) };
+        const i = saves.findIndex((s2) => s2.name === name);
+        if (i >= 0) saves[i] = entry; else saves.push(entry);
+        try {
+          localStorage.setItem(SAVES_KEY, JSON.stringify(saves.slice(-30)));
+          toast(`saved "${name}"`);
+          renderSavedHoles();
+        } catch {
+          toast('could not save (storage unavailable)');
+        }
+      });
       renderSavedHoles();
       // Fly mode saves land while the preview tab is focused; refresh when the
-      // builder tab comes back.
+      // builder tab comes back — and LIVE via the storage event, so a save
+      // made in the preview tab appears without a focus cycle.
       window.addEventListener('focus', renderSavedHoles);
+      window.addEventListener('storage', (e) => {
+        if (e.key === SAVES_KEY) renderSavedHoles();
+      });
 
       const fileInput = document.getElementById('file');
       const dz = document.getElementById('drop');

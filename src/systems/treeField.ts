@@ -186,7 +186,12 @@ export function collectTreeBlobs(
     // mesh (playtest: a center-fairway tree "didn't seem to have a hitbox" — the
     // ball passed through the trunk you could see because its collision trunk had
     // landed a dozen px away). Bigger stands keep the statistical grid.
-    if (maxX - minX <= 48 && maxY - minY <= 48) {
+    // ≤ 56, not 48: the builder's single-tree placement writes a 12-gon of
+    // radius 26 — a 52×52 bounding box — and at the old threshold it took the
+    // statistical GRID path, planting more than one jittered trunk of the
+    // hazard's species mix (owner: "the trees are just placing random trees").
+    // A hazard this small is a specimen whichever tool authored it.
+    if (maxX - minX <= 56 && maxY - minY <= 56) {
       const sx = xs.reduce((a, b) => a + b, 0) / xs.length;
       const sy = ys.reduce((a, b) => a + b, 0) / ys.length;
       if (hz.accent || !inWater(sx + offX, sy + offY)) {
@@ -297,6 +302,10 @@ export function collectTreeBlobs(
         blossom: hz.blossom,
         accent: hz.accent,
         accentChance: hz.accentChance,
+        // The authored species travels here too — this was the one push site
+        // that dropped `treeKeys`, so a centroid-fallback tree silently grew
+        // the THEME species instead of the one the designer picked.
+        keys: hz.treeKeys,
         isPalm: resolveIsPalm(hz, cx + offX, cy + offY)
       });
     }

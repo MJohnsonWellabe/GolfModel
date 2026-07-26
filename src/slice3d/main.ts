@@ -880,6 +880,10 @@ class HoleScene {
   private lastShotStrokes = 0;
   private lastAimPoint: { x: number; y: number } = { x: 0, y: 0 };
   private lastShotSpin: SpinState = { side: 0, top: 0 };
+  /** The physics power a PERFECT strike would have delivered — what the aim
+   *  previewed — so the breakdown charges an under/over-swing to the STRIKE
+   *  instead of leaking it into the ground residual. */
+  private lastPlannedPower: number | null = null;
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
   private swingCtx: MeterContext | null = null;
@@ -1418,6 +1422,16 @@ class HoleScene {
       {
         scene: this.scene,
         hole: this.hole,
+        // The course's own nature palette (mirrors course3d's natPalette), so
+        // a previewed tree is cloned in this course's colors.
+        palette: {
+          bark: this.theme.treeTrunk,
+          foliage: this.theme.treeCanopy,
+          foliageLight: this.theme.treeCanopyLight,
+          grass: this.theme.rough,
+          stone: this.theme.stoneTint ?? 0x7e7c72,
+          grassLit: this.theme.lushGrass
+        },
         setCam: (pos, look) => {
           this.camTarget.pos = pos;
           this.camTarget.look = look;
@@ -2774,6 +2788,12 @@ class HoleScene {
     this.lastShotStrokes = this.state.strokes;
     this.lastAimPoint = this.aim.aimPoint(this.state.ballPos);
     this.lastShotSpin = { ...spin };
+    // What a perfect strike would have delivered: the aim's power target run
+    // through the same bar→physics conversion the real swing used. Unknowable
+    // for an AI swing that arrives already in physics units — null keeps the
+    // old strike counterfactual there.
+    this.lastPlannedPower =
+      !powerIsPhysics && this.swingCtx ? this.aim.barToPhysicsPower(this.swingCtx.powerTarget, this.ctx()) : null;
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
     // hit perfect perfect, I shouldn't miss"): a PERFECT-PERFECT stroke on the
@@ -3003,6 +3023,15 @@ class HoleScene {
     }
     if (practiceMode) {
       practiceShots += 1;
+      // RANGE DRILL: every swing is its own rep — the ball never plays out
+      // from where it finished; the next station is already being dealt.
+      if (practiceDrill && !c.holed) {
+        showMsg('Next ball', 800);
+        setTimeout(() => {
+          if (!this.disposed) nextDrillRep();
+        }, 900);
+        return;
+      }
       // A practice ball that has wandered a long way from the hole has stopped
       // teaching anything; re-tee rather than making the player walk it back.
       if (this.state.strokes >= PRACTICE_MAX_SHOTS && !c.holed) {
@@ -3215,7 +3244,8 @@ class HoleScene {
         // moved on to the next shot by the time the ball rests.
         this.lastAimPoint,
         () => (this.shotRng = mulberry32(seed)),
-        this.lastShotParams.club.id === 'putter'
+        this.lastShotParams.club.id === 'putter',
+        this.lastPlannedPower ?? undefined
       );
     } catch {
       // A breakdown is a nicety; it must never be able to break a shot.
@@ -3263,13 +3293,15 @@ class HoleScene {
   private finishHole(): void {
     // PRACTICE (`practiceRange`): no card, no round, no end. Holing out just
     // re-tees — the point of a practice ground is that nothing is at stake and
-    // the next ball is always right there.
+    // the next ball is always right there. A drill deals its next station
+    // instead of re-teeing this one.
     if (practiceMode) {
       practiceShots = 0;
-      showMsg('Nice — another ball', 1100);
+      showMsg(practiceDrill ? 'In! Next ball' : 'Nice — another ball', 1100);
       setTimeout(() => {
         if (this.disposed) return;
-        this.resetToTee();
+        if (practiceDrill) nextDrillRep();
+        else this.resetToTee();
       }, 900);
       return;
     }
@@ -3919,6 +3951,44 @@ class HoleScene {
     this.beginTurn();
   }
 
+  /** RANGE DRILLS: deal the next chipping/putting station — a random legal
+   *  spot for that shot around this hole's green. Tries a handful of draws so
+   *  a chip never starts from water and a putt always starts ON the green,
+   *  with a safe fallback near the pin. */
+  drillDrop(kind: 'chip' | 'putt'): void {
+    const pin = this.hole.pin;
+    const g = this.hole.green;
+    for (let i = 0; i < 10; i++) {
+      let x: number;
+      let y: number;
+      if (kind === 'putt') {
+        const a = Math.random() * Math.PI * 2;
+        const k = 0.3 + Math.random() * 0.45;
+        x = g.cx + Math.cos(a) * g.rx * k;
+        y = g.cy + Math.sin(a) * g.ry * k;
+      } else {
+        // 15–40 yd out on the tee side — the direction an approach actually
+        // missed from — with a little lateral scatter.
+        const dx = this.hole.tee.x - pin.x;
+        const dy = this.hole.tee.y - pin.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const d = 30 + Math.random() * 50;
+        const lat = (Math.random() - 0.5) * 44;
+        x = pin.x + (dx / len) * d + (-dy / len) * lat;
+        y = pin.y + (dy / len) * d + (dx / len) * lat;
+      }
+      const s = this.engine2d.surfaceAt(x, y);
+      const ok = kind === 'putt' ? s === 'green' : s !== 'water' && s !== 'green';
+      if (ok) {
+        this.dropAt(x, y);
+        return;
+      }
+    }
+    const ang = Math.random() * Math.PI * 2;
+    const r = kind === 'putt' ? 20 : 90;
+    this.dropAt(pin.x + Math.cos(ang) * r, pin.y + Math.sin(ang) * r);
+  }
+
   /** Test hook: feed two synthetic all-perfect swings into the current
    *  competitor's streak so the "on fire" ignite message fires deterministically
    *  (real timed input can't be scripted precisely enough for capture tooling). */
@@ -4182,6 +4252,13 @@ function playHole(): void {
     current.toggleDesign(true, cam);
   } else {
     pendingFlyResume = null;
+  }
+  // RANGE DRILLS: a fresh station just built. Skip the flyover — the drill's
+  // rhythm is ball after ball, not tour after tour — and put the ball where
+  // this drill wants it (a drive already stands on the tee).
+  if (practiceMode && practiceDrill && current) {
+    current.skipIntro();
+    if (practiceDrill !== 'drive') current.drillDrop(practiceDrill);
   }
 }
 
@@ -6689,6 +6766,18 @@ let practiceMode = false;
 let practiceShots = 0;
 /** Strokes after which a wandering practice ball is re-teed. */
 const PRACTICE_MAX_SHOTS = 12;
+/**
+ * RANGE DRILLS (owner pass 6): "Go to the range" on the course chooser picks
+ * ONE shot to practice — driving, chipping or putting — and the range deals
+ * stations endlessly: a random spot for that shot on a random hole, another
+ * ball the moment the last one stops rolling, a fresh random hole every few
+ * reps. Backing out to the menu is the only way a drill ends. Rides the whole
+ * practice chassis (no card, no recording, no rewards).
+ */
+type DrillKind = 'drive' | 'chip' | 'putt';
+let practiceDrill: DrillKind | null = null;
+/** Reps left before the drill rotates to a fresh random hole. */
+let drillRepsOnHole = 0;
 
 /** Set while a Hole of the Day round is in progress, so the results card knows
  *  to record the attempt and offer the share. */
@@ -7420,8 +7509,10 @@ function refreshLandingCards(): void {
   updateSetupEntry();
   updateGhostCard();
   updateDailyHoleCard();
-  const practice = document.getElementById('landingPractice');
-  if (practice) practice.style.display = flag('practiceRange') ? '' : 'none';
+  // Practice lives on the course chooser now (the "Go to the range" bar), so
+  // the Today pane no longer carries an entry for it.
+  const rangeBar = document.getElementById('rangeBar');
+  if (rangeBar) rangeBar.style.display = flag('practiceRange') ? '' : 'none';
   // The destinations are painted LAST: each tile's headline is read off the
   // cards above, so it has to run after they exist.
   refreshProgressSurfaces();
@@ -8277,18 +8368,50 @@ function startDailyHole(): void {
  * round, infinite balls. Nothing that happens here is recorded, scored,
  * rewarded, or counted toward a streak — that is what makes it practice.
  */
-function startPractice(): void {
+function startPractice(drill: DrillKind | null = null): void {
   if (!flag('practiceRange')) return;
   practiceMode = true;
   practiceShots = 0;
+  practiceDrill = drill;
   pendingTournament = null;
   pendingGhost = null;
   dailyRound = null;
   sel.mode = 'solo';
-  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
   landingEl.classList.remove('on');
+  if (drill) {
+    analytics.track('practice_started', { drill });
+    startDrillHole();
+    return;
+  }
+  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
   analytics.track('practice_started', { course: sel.courseId });
   startRound(0);
+}
+
+/** Deal the drill's next STATION: a random hole on a random course, with a
+ *  few reps on it before the next rotation (a rebuild per swing would spend
+ *  more time behind the veil than over the ball). */
+function startDrillHole(): void {
+  // Real roster only — never the builder preview or the generated daily
+  // (their '__' ids are registration plumbing, not places to practice).
+  const ids = Object.keys(COURSES).filter((id) => !id.startsWith('__'));
+  sel.courseId = ids[Math.floor(Math.random() * ids.length)] ?? sel.courseId;
+  const holeCount = COURSES[sel.courseId]?.holes.length ?? 1;
+  drillRepsOnHole = practiceDrill === 'drive' ? 2 : 4;
+  startRound(Math.floor(Math.random() * holeCount));
+}
+
+/** The next rep of the running drill: same hole while reps remain (a fresh
+ *  random spot each ball), then a fresh random hole. */
+function nextDrillRep(): void {
+  if (!current || !practiceDrill) return;
+  drillRepsOnHole -= 1;
+  if (drillRepsOnHole <= 0) {
+    startDrillHole();
+    return;
+  }
+  if (practiceDrill === 'drive') current.resetToTee();
+  else current.drillDrop(practiceDrill);
 }
 
 /** Leave practice. Called whenever any other flow starts a round, so practice
@@ -8296,6 +8419,8 @@ function startPractice(): void {
 function endPractice(): void {
   practiceMode = false;
   practiceShots = 0;
+  practiceDrill = null;
+  drillRepsOnHole = 0;
 }
 
 /** Copy the spoiler-free result, falling back to a visible message when the
@@ -8845,13 +8970,17 @@ function renderAcctMenu(): void {
  */
 function leaveRound(): void {
   if (!current) return;
-  const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound && !round.tournament;
-  const message = resumable
-    ? 'Leave this round? Your card is saved — you can finish it from the menu.'
-    : "Leave this round? This one can't be resumed, so the card is lost.";
-  if (!window.confirm(message)) return;
-  if (resumable) checkpointRound();
-  else clearCheckpoint();
+  // PRACTICE / THE RANGE: nothing is at stake — no card, no record — so there
+  // is nothing to confirm losing. The menu button just leaves.
+  if (!practiceMode) {
+    const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound && !round.tournament;
+    const message = resumable
+      ? 'Leave this round? Your card is saved — you can finish it from the menu.'
+      : "Leave this round? This one can't be resumed, so the card is lost.";
+    if (!window.confirm(message)) return;
+    if (resumable) checkpointRound();
+    else clearCheckpoint();
+  }
   // Tear the scene down the same way a finished round does, so nothing is left
   // holding the engine (observers, RTTs, audio) between rounds.
   current.dispose();
@@ -8866,7 +8995,7 @@ function leaveRound(): void {
   promptEl.textContent = '';
   aimReadoutEl.style.display = 'none';
   summaryEl.style.display = 'none';
-  analytics.track('round_abandoned', { hole: round.holeIdx + 1, resumable });
+  analytics.track(practiceMode ? 'practice_left' : 'round_abandoned', { hole: round.holeIdx + 1 });
   showLanding();
 }
 pauseBtn.addEventListener('pointerdown', () => leaveRound());
@@ -8888,7 +9017,15 @@ document.getElementById('dailyPopup')?.addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeDailyPopup();
 });
 document.getElementById('landingLearn')!.addEventListener('pointerdown', () => startTutorial());
-document.getElementById('landingPractice')?.addEventListener('pointerdown', () => startPractice());
+// THE RANGE: the bar unfolds the one question (which shot?), the answer starts
+// the drill. 'click' — these live on a screen that survives the tap.
+document.getElementById('rangeBar')?.addEventListener('click', () => {
+  const row = document.getElementById('rangeRow');
+  if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
+});
+document.getElementById('rangeDrive')?.addEventListener('click', () => startPractice('drive'));
+document.getElementById('rangeChip')?.addEventListener('click', () => startPractice('chip'));
+document.getElementById('rangePutt')?.addEventListener('click', () => startPractice('putt'));
 document.getElementById('landingSeason')!.addEventListener('click', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('click', () => renderStore());
 document.getElementById('landingProfile')!.addEventListener('click', () => renderProfile('player'));
@@ -8914,15 +9051,24 @@ document.getElementById('tournyLink')!.addEventListener('click', () => renderTou
 for (const tile of Array.from(document.querySelectorAll<HTMLElement>('.destTile[data-dest]'))) {
   tile.addEventListener('click', () => openDest(tile.dataset.dest as DestId));
 }
-document.getElementById('destSheetClose')!.addEventListener('pointerdown', () => closeDest());
+// 'click' for the CLOSE too, and for the same reason in reverse: closing on
+// the down-stroke re-exposes the landing under a still-falling finger, and on
+// touch the browser synthesizes the tap's click against whatever the release
+// finds there — which "over-reads" one tap as two (owner: "back from choosing
+// a course goes into the today menu").
+document.getElementById('destSheetClose')!.addEventListener('click', () => closeDest());
 // Tapping the scrim closes it; tapping the sheet itself must not.
-document.getElementById('destSheet')!.addEventListener('pointerdown', (e) => {
+document.getElementById('destSheet')!.addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeDest();
 });
 updateLandingProfileButton();
 tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
 renderAcctMenu();
-backBtn.addEventListener('pointerdown', () => {
+// 'click', NOT 'pointerdown' — Back HIDES the setup screen, and hiding on the
+// press put the landing's destination tiles under the release: the tap's
+// synthesized click then hit-tested onto the Today tile and opened the sheet
+// the player never asked for. Same rule as the destTiles above and #lkBack.
+backBtn.addEventListener('click', () => {
   if (sel.step <= 0) showLanding();
   else goStep(sel.step - 1);
 });

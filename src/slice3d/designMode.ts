@@ -43,12 +43,16 @@ import { Color3, Matrix, Mesh, MeshBuilder, Scene, StandardMaterial, Vector3 } f
 import { ASSET_LIBRARY, placementFor, type AssetDef } from '../data/assetLibrary';
 import type { HoleData } from '../core/types';
 import { w2b } from './course3d';
+import { ensureNatureProtos, type NaturePalette, type NatureProto } from './natureModels';
 
 /** Everything fly mode needs from the scene that owns it. */
 export interface DesignHost {
   scene: Scene;
   /** The hole being edited — mutated in place. */
   hole: HoleData;
+  /** The course's nature palette, so previews clone REAL prototypes in the
+   *  course's own colors instead of abstract proxies. */
+  palette: NaturePalette;
   /** Point the camera. The host keeps its own smoothing. */
   setCam(pos: Vector3, look: Vector3): void;
   /** Cosmetic ground height at a world point, so markers sit on the surface. */
@@ -105,7 +109,10 @@ export class DesignMode {
   private markers: Mesh[] = [];
   /** Placements made in THIS session (erase only ever targets these — a stray
    *  tap must not delete a bunker somebody authored on the plan). */
-  private placed: Array<{ field: string; value: unknown; marker: Mesh }> = [];
+  private placed: Array<{ field: string; value: unknown; marker: Mesh; key?: string }> = [];
+  /** Real nature prototypes for previews, by asset key. `null` = load in
+   *  flight (or unknown key) — the proxy shows meanwhile. */
+  private readonly protos = new Map<string, NatureProto | null>();
   /** ONE stack of inverses, whatever kind of edit made them. */
   private ops: Array<{ undo(): void }> = [];
   /** The in-progress draw: tapped points and their preview markers. */
@@ -582,21 +589,26 @@ export class DesignMode {
   // ---------------------------------------------------------------- placement
 
   /**
-   * Show what is about to be placed, where it is about to go, at its real
-   * size AND ROUGH SHAPE. A flat disc under a tree chip answered "where" but
-   * not "what" — the proxy is still an honest marker (it never pretends to be
-   * the tree), but a tree ghost now stands tree-height, a rock ghost has bulk,
-   * and a hazard ghost stays a footprint.
+   * Show what is about to be placed, where it is about to go — THE ASSET
+   * ITSELF wherever the nature pipeline knows it (owner: "I want to see the
+   * asset as I put it down, not a yellow circle"): the real prototype is
+   * cloned semi-transparent at placement size, in the course's own palette.
+   * The primitive proxies remain only as the fallback while a prototype is
+   * still downloading, and for the kinds that aren't nature props at all
+   * (elevation discs, hazard footprints).
    */
   private showGhost(x: number, y: number): void {
     if (this.tool !== 'place' || !this.armed) return this.clearGhost();
     const a = this.armed;
     const r = Math.max(2, a.radius ?? 30);
     const g = this.host.groundAt(x, y);
-    const key = `${a.kind}:${r}`;
+    const proto = a.key ? this.protoFor(a.key) : null;
+    const key = `${a.kind}:${a.key ?? ''}:${r}:${proto ? 'real' : 'proxy'}`;
     if (!this.ghost || this.ghost.metadata !== key) {
       this.clearGhost();
-      if (a.kind === 'trees') {
+      if (proto) {
+        this.ghost = this.clonePreview(proto, a, 0.55, 'dmGhost');
+      } else if (a.kind === 'trees') {
         // A stand reads as a trunk-and-canopy column at plausible height.
         this.ghost = MeshBuilder.CreateCylinder(
           'dmGhost',
@@ -609,15 +621,53 @@ export class DesignMode {
         this.ghost = MeshBuilder.CreateDisc('dmGhost', { radius: r, tessellation: 24 }, this.host.scene);
         this.ghost.rotation.x = Math.PI / 2;
       }
-      this.ghost.material = this.ghostMat;
+      if (!proto) this.ghost.material = this.ghostMat;
       this.ghost.isPickable = false;
       this.ghost.metadata = key;
     }
-    const lift = a.kind === 'trees' ? r * 1.2 : a.kind === 'rock' || a.kind === 'landform' || a.kind === 'prop' ? r * 0.5 : 0.4;
+    const lift = proto
+      ? 0
+      : a.kind === 'trees'
+        ? r * 1.2
+        : a.kind === 'rock' || a.kind === 'landform' || a.kind === 'prop'
+          ? r * 0.5
+          : 0.4;
     this.ghost.position = w2b(x, y, g + lift);
   }
 
+  /** The real prototype for a key, or null while it downloads (the ghost
+   *  swaps from proxy to real on the next hover once the load lands). */
+  private protoFor(key: string): NatureProto | null {
+    if (this.protos.has(key)) return this.protos.get(key) ?? null;
+    this.protos.set(key, null);
+    void ensureNatureProtos(this.host.scene, this.host.palette, [key]).then((map) => {
+      this.protos.set(key, map.get(key) ?? null);
+    });
+    return null;
+  }
+
+  /** Clone a prototype's parts under one root, scaled to placement size. The
+   *  same sizing the renderer uses for a placed specimen (targetH ≈ 2r). */
+  private clonePreview(proto: NatureProto, a: AssetDef, visibility: number, name: string): Mesh {
+    const root = new Mesh(name, this.host.scene);
+    const targetH = a.kind === 'trees' ? Math.max(24, (a.radius ?? 26) * 2.0) : Math.max(8, (a.radius ?? 30) * 1.6);
+    const s = proto.height > 0 ? targetH / proto.height : 1;
+    for (const part of proto.parts) {
+      const cl = part.clone(`${name}-part`, root) as Mesh;
+      cl.setEnabled(true);
+      cl.position.setAll(0);
+      cl.rotation.setAll(0);
+      cl.scaling.setAll(1);
+      cl.visibility = visibility;
+      cl.isPickable = false;
+    }
+    root.scaling.setAll(s);
+    root.isPickable = false;
+    return root;
+  }
+
   private clearGhost(): void {
+    this.ghost?.getChildMeshes().forEach((m) => m.dispose());
     this.ghost?.dispose();
     this.ghost = null;
   }
@@ -644,12 +694,19 @@ export class DesignMode {
     }
     const entry = this.placed[best];
     this.removeEntry(entry);
-    // Undo of an erase puts the value back and re-marks it.
+    // Undo of an erase puts the value back and re-marks it — with its real
+    // model, when the placement had one.
     const hole = this.host.hole as unknown as Record<string, unknown[] | undefined>;
+    const asset = entry.key ? ASSET_LIBRARY.find((a) => a.key === entry.key) : undefined;
     this.pushOp(() => {
       (hole[entry.field] ??= []).push(entry.value);
       const m = entry.marker.position;
-      this.placed.push({ field: entry.field, value: entry.value, marker: this.marker(m.x, -m.z, (entry.marker.metadata as number) ?? 30) });
+      this.placed.push({
+        field: entry.field,
+        value: entry.value,
+        marker: this.marker(m.x, -m.z, (entry.marker.metadata as number) ?? 30, asset),
+        key: entry.key
+      });
     });
     this.refreshCount();
   }
@@ -697,15 +754,23 @@ export class DesignMode {
     const hole = this.host.hole as unknown as Record<string, unknown[]>;
     const list = (hole[p.field] ??= []);
     list.push(p.value);
-    const entry = { field: p.field, value: p.value as unknown, marker: this.marker(x, y, asset.radius ?? 30) };
+    const entry = {
+      field: p.field,
+      value: p.value as unknown,
+      marker: this.marker(x, y, asset.radius ?? 30, asset),
+      key: asset.key
+    };
     this.placed.push(entry);
     this.pushOp(() => this.removeEntry(entry));
     this.refreshCount();
   }
 
-  /** A ring at true footprint radius plus a post, so the placement reads as a
-   *  real size on the ground rather than a dot. */
-  private marker(x: number, y: number, radius: number): Mesh {
+  /** What a placement looks like on screen until the next Render: the REAL
+   *  asset at full size wherever the prototype is loaded (it usually is — the
+   *  ghost pulled it in during hover), standing on a quiet footprint ring so
+   *  "mine, erasable" still reads. The old yellow post remains only as the
+   *  fallback for placements with no real model (elevation, hazards). */
+  private marker(x: number, y: number, radius: number, asset?: AssetDef): Mesh {
     const g = this.host.groundAt(x, y);
     const r = Math.max(2, radius);
     const disc = MeshBuilder.CreateDisc('dmMark', { radius: r, tessellation: 24 }, this.host.scene);
@@ -713,11 +778,21 @@ export class DesignMode {
     disc.position = w2b(x, y, g + 0.35);
     disc.material = this.markerMat;
     disc.isPickable = false;
-    const post = MeshBuilder.CreateCylinder('dmPost', { height: r * 2.2, diameter: Math.max(0.8, r * 0.18) }, this.host.scene);
-    post.material = this.markerMat;
-    post.isPickable = false;
-    post.parent = disc;
-    post.position = new Vector3(0, 0, -r * 1.1); // disc is rotated, so its local -z is up
+    const proto = asset?.key ? this.protoFor(asset.key) : null;
+    if (proto && asset) {
+      const real = this.clonePreview(proto, asset, 1, 'dmMarkReal');
+      real.parent = disc;
+      // The disc is rotated flat, so the child's local frame is too: undo the
+      // rotation and stand the model up its local -z (the disc's world up).
+      real.rotation.x = -Math.PI / 2;
+      real.position = new Vector3(0, 0, -0.2);
+    } else {
+      const post = MeshBuilder.CreateCylinder('dmPost', { height: r * 2.2, diameter: Math.max(0.8, r * 0.18) }, this.host.scene);
+      post.material = this.markerMat;
+      post.isPickable = false;
+      post.parent = disc;
+      post.position = new Vector3(0, 0, -r * 1.1); // disc is rotated, so its local -z is up
+    }
     disc.metadata = r;
     this.markers.push(disc);
     return disc;

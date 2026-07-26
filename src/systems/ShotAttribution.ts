@@ -69,6 +69,12 @@ export interface ShotAttribution {
 
 /** Below this a factor is noise, and saying it would be worse than silence. */
 const MIN_YARDS = 4;
+/** SPIN gets a lower floor: the player CHOSE the shape, so even a couple of
+ *  yards of it is the answer to "did my spin do anything?" — a question the
+ *  other factors never get asked (owner: "still not showing your spin
+ *  effect"). */
+export const MIN_SPIN_YARDS = 1.5;
+const MIN_SPIN_PUTT_FT = 0.8;
 /** Below this the ball effectively finished where it was aimed. */
 const MIN_MISS = 5;
 /** Below this the ground is flat enough that mentioning it is noise. */
@@ -116,7 +122,15 @@ export function attributeShot(
    */
   reseed?: () => void,
   /** A putt is the same measurement in feet, with a much finer floor. */
-  isPutt = false
+  isPutt = false,
+  /**
+   * The power a PERFECT strike would have delivered (physics units) — what the
+   * aim previewed. Without it the strike counterfactual can only restore the
+   * quality and the line, so an under- or over-swing's yardage fell through to
+   * the "ground" residual and the table blamed the terrain for the player's
+   * tempo (owner: the row said "ground" when the swing was the story).
+   */
+  plannedPower?: number
 ): ShotAttribution {
   const origin = params.origin;
   // Everything below works in the shot's own unit, so one set of thresholds
@@ -127,11 +141,20 @@ export function attributeShot(
   const minMiss = isPutt ? MIN_PUTT_MISS_FT : MIN_MISS;
 
   // The aim line: `along` runs down the shot, `right` across it.
+  //
+  // RIGHT means the PLAYER'S right — the camera stands behind the ball looking
+  // down the aim, so it is the cross product of the aim direction with the
+  // offset, in that order. The physics rotates a positive accuracy error by a
+  // POSITIVE angle (dir = aimAngle + error), and a positive rotation lands
+  // screen-right at every yaw (fwd3 maps world (cos, sin) onto the camera's
+  // forward) — the original expression had the cross product backwards, so
+  // every arrow and every "left/right" word in the table was MIRRORED (owner:
+  // "it is getting directional misses wrong").
   const ax = Math.cos(params.aimAngle);
   const ay = Math.sin(params.aimAngle);
   const resolve = (p: Point): { along: number; right: number } => ({
     along: yd((p.x - origin.x) * ax + (p.y - origin.y) * ay),
-    right: yd((p.x - origin.x) * ay - (p.y - origin.y) * ax)
+    right: yd((p.y - origin.y) * ax - (p.x - origin.x) * ay)
   });
 
   const flyTo = (over: Partial<ShotParams>, withSpin: SpinState = spin): Point => {
@@ -162,10 +185,11 @@ export function attributeShot(
     return { short: (w.along - baseline.along) * conv, right: (baseline.right - w.right) * conv };
   };
   const push = (kind: AttributionFactor['kind'], c: { short: number; right: number }, noun: string): void => {
-    if (Math.abs(c.short) < minFactor && Math.abs(c.right) < minFactor) return;
+    const floor = kind === 'spin' ? (isPutt ? MIN_SPIN_PUTT_FT : MIN_SPIN_YARDS) : minFactor;
+    if (Math.abs(c.short) < floor && Math.abs(c.right) < floor) return;
     const bits: string[] = [];
-    if (Math.abs(c.short) >= minFactor) bits.push(`${Math.round(Math.abs(c.short))} ${c.short > 0 ? 'short' : 'long'}`);
-    if (Math.abs(c.right) >= minFactor) bits.push(`${Math.round(Math.abs(c.right))} ${c.right > 0 ? 'right' : 'left'}`);
+    if (Math.abs(c.short) >= floor) bits.push(`${Math.round(Math.abs(c.short))} ${c.short > 0 ? 'short' : 'long'}`);
+    if (Math.abs(c.right) >= floor) bits.push(`${Math.round(Math.abs(c.right))} ${c.right > 0 ? 'right' : 'left'}`);
     factors.push({ kind, short: c.short, right: c.right, noun, label: `${noun} ${bits.join(', ')}` });
   };
 
@@ -173,10 +197,23 @@ export function attributeShot(
   push('wind', did(flyTo({ wind: { ...params.wind, speed: 0 } })), 'wind');
 
   // STRIKE — their own execution. Same club, same power target, same lie: this
-  // isolates the TIMING, not the quality of the decision.
+  // isolates the TIMING, not the quality of the decision. The counterfactual
+  // restores the PLANNED power too (when the caller knows it), so an under- or
+  // over-swing's distance is charged to the strike rather than leaking into
+  // the ground residual.
   push(
     'strike',
-    did(flyTo({ swing: { ...params.swing, accuracy: 0, powerQuality: 'perfect', accuracyQuality: 'perfect' } })),
+    did(
+      flyTo({
+        swing: {
+          ...params.swing,
+          power: plannedPower ?? params.swing.power,
+          accuracy: 0,
+          powerQuality: 'perfect',
+          accuracyQuality: 'perfect'
+        }
+      })
+    ),
     'strike'
   );
 
@@ -272,7 +309,11 @@ export interface AttributionTable {
 function strikeCause(kind: AttributionFactor['kind'], yards: number, lateral: boolean): string {
   if (kind !== 'strike') return kind === 'slope' ? '' : kind;
   if (lateral) return 'mishit';
-  return yards < 0 ? 'over-swing' : 'under-swing';
+  // `yards` here is yards GAINED by the strike: a strike that ADDED distance
+  // is an over-swing, one that came up short is an under-swing. This read
+  // backwards before, so the table printed "+8 yds under-swing" — an
+  // underswing that appeared to add distance (owner report, verbatim).
+  return yards > 0 ? 'over-swing' : 'under-swing';
 }
 
 export function attributionTable(a: ShotAttribution): AttributionTable {
@@ -285,9 +326,11 @@ export function attributionTable(a: ShotAttribution): AttributionTable {
   const missFloor = unit === 'ft' ? MIN_PUTT_MISS_FT : MIN_MISS;
 
   for (const f of a.factors) {
+    // The chosen shape reports at its own lower floor — see MIN_SPIN_YARDS.
+    const kindFloor = f.kind === 'spin' ? (unit === 'ft' ? floor * 0.7 : MIN_SPIN_YARDS) : floor;
     // `short` is yards SHORT; the column reads in yards gained, so it flips.
     const gained = -f.short;
-    if (Math.abs(gained) >= floor) {
+    if (Math.abs(gained) >= kindFloor) {
       const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false);
       dist.push({
         yards: gained,
@@ -295,7 +338,7 @@ export function attributionTable(a: ShotAttribution): AttributionTable {
         text: `${gained > 0 ? '+' : '−'}${Math.round(Math.abs(gained))} ${unit} ${cause}`.trim()
       });
     }
-    if (Math.abs(f.right) >= floor) {
+    if (Math.abs(f.right) >= kindFloor) {
       const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, f.right, true);
       side.push({
         yards: f.right,
