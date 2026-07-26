@@ -292,6 +292,19 @@ export function applyClubUpgrades(stats: GolferStats, clubUpgrades: Record<strin
   return out;
 }
 
+/** What the owned club upgrades add to ONE attribute's effective value (the
+ *  driver's +3/tier on power and accuracy; 0 for everything else). The
+ *  career spend UI subtracts this headroom from the 100 ceiling so a CP
+ *  point is never sold once base + bonus can't move the effective stat
+ *  (career.raiseAttr takes it as `upgradeBonus`). */
+export function upgradeStatBonus(key: keyof GolferStats, clubUpgrades: Record<string, number>): number {
+  let bonus = 0;
+  for (const [family, tier] of Object.entries(clubUpgrades)) {
+    if (FAMILY_STATS[family as UpgradeFamily]?.includes(key)) bonus += tier * 3;
+  }
+  return bonus;
+}
+
 /** Which upgrade family governs a club — mirrors the stat mapping in
  *  PhysicsEngine.statsForClub (woods↔driver, wedges↔wedges, putter↔putter,
  *  everything else↔irons). One source of truth for both the carry bonus

@@ -138,6 +138,23 @@ describe('spending', () => {
     };
     expect(raiseAttr(capped, 'putting')).toBeNull();
   });
+
+  it('refuses a point the effective stat cannot use (upgrade bonus at the 100 ceiling)', () => {
+    // Owner, with a screenshot: PWR read 100 (base 94 + a tier-2 driver's +6),
+    // the button still sold points, and nothing changed — the engine and the
+    // card both clamp at 100. A buy must refuse the moment base + bonus hits
+    // the ceiling, and resume mattering when the bonus is smaller.
+    const at = (v: number): ReturnType<typeof start> => {
+      const c = start(grantCp(emptyCareer(), 10_000), 'sniper');
+      return { ...c, pros: c.pros.map((p) => ({ ...p, attrs: { ...p.attrs, drivingPower: v } })) };
+    };
+    expect(raiseAttr(at(94), 'drivingPower', 6)).toBeNull(); // 94+6 = 100: dead point
+    expect(raiseAttr(at(97), 'drivingPower', 3)).toBeNull(); // 97+3 = 100: dead point
+    const useful = raiseAttr(at(93), 'drivingPower', 6); // 93+6 = 99: still moves
+    expect(activePro(useful!)!.attrs.drivingPower).toBe(94);
+    // No bonus: the plain 99 base cap is the only ceiling, exactly as before.
+    expect(raiseAttr(at(98), 'drivingPower')).not.toBeNull();
+  });
 });
 
 describe('the stable', () => {

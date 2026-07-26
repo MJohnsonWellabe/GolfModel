@@ -172,13 +172,25 @@ export function careerOvr(attrs: GolferStats): number {
   return Math.round(s / 5);
 }
 
-/** Spend CP on +1 to one attribute of the ACTIVE Pro. Returns the new state,
- *  or null when there is no active Pro, the attribute is capped, or the CP
- *  falls short (the UI disables, this guards). */
-export function raiseAttr(c: CareerState, key: StatKey): CareerState | null {
+/**
+ * Spend CP on +1 to one attribute of the ACTIVE Pro. Returns the new state,
+ * or null when there is no active Pro, the attribute is capped, or the CP
+ * falls short (the UI disables, this guards).
+ *
+ * `upgradeBonus` is what club upgrades already add to this attribute's
+ * EFFECTIVE value (storeCatalog.upgradeStatBonus — the driver's +3/tier on
+ * power and accuracy). The engine clamps every stat at 100 when it swings
+ * (PhysicsEngine.statsForClub), and the card displays the same clamp — so a
+ * point that lifts base+bonus past 100 changes NOTHING the player can see
+ * or feel. Selling it anyway is taking CP for nothing (owner, with a
+ * screenshot: "it shouldn't let me buy if the stat isn't going to go up"),
+ * so the buy refuses once base + bonus reaches 100.
+ */
+export function raiseAttr(c: CareerState, key: StatKey, upgradeBonus = 0): CareerState | null {
   const pro = activePro(c);
   if (!pro) return null;
   const cur = pro.attrs[key];
+  if (cur + upgradeBonus >= 100) return null;
   const cost = pointCost(cur);
   if (!Number.isFinite(cost) || c.cp < cost) return null;
   return {

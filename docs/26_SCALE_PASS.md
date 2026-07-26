@@ -964,6 +964,13 @@ tour's competitive overhaul.
   summary primary is "Tour Season →" — the hub, where the result just
   landed — and ☰ Menu goes there too. Mid-major rounds keep their direct
   "Round N of 3 →" button.
+- **No dead CP points** (owner, with a screenshot: PWR read 100 and the
+  button still sold +1s that changed nothing): the engine clamps every
+  stat at 100 when it swings and the card clamps the display the same, so
+  a Pro whose base + driver-upgrade bonus reaches 100 was paying 10 CP for
+  literally nothing. `raiseAttr` now refuses once base + bonus hits the
+  ceiling (storeCatalog.upgradeStatBonus feeds it) and the spend chip
+  reads MAX. The 99 base cap is unchanged for un-upgraded attributes.
 - **The record book** (owner: "past results by golfer… career wins, major
   wins and season placements, for any golfer I've used"): the hub's
   "🏅 Golfer records" door lists every Pro — the current stable and Pros

@@ -125,7 +125,7 @@ import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/Store
 import { addSeasonXp, buyPassWithCoins, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
-import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult } from '../data/storeCatalog';
+import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult, upgradeStatBonus } from '../data/storeCatalog';
 import { palByKey, PalDef } from '../data/pals';
 import { PerkDef, perkById, perkEffectLabel, perkPerfectZoneMult } from '../data/perks';
 import { TRUE_VISION } from '../data/consumables';
@@ -8075,8 +8075,13 @@ function renderLockerRoom(): void {
         const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
           .map((k) => {
             const cost = pointCost(pro.attrs[k]);
-            const can = Number.isFinite(cost) && c.cp >= cost;
-            const label = Number.isFinite(cost) ? `+1 · ${cost} CP` : 'MAX';
+            // MAX at the EFFECTIVE ceiling, not just the 99 base cap: with a
+            // driver upgrade the engine and the card both clamp at 100, so a
+            // point past base+bonus=100 buys literally nothing (owner, with a
+            // screenshot of PWR 100 still selling points for 10 CP).
+            const maxed = !Number.isFinite(cost) || pro.attrs[k] + upgradeStatBonus(k, p.clubUpgrades) >= 100;
+            const can = !maxed && c.cp >= cost;
+            const label = maxed ? 'MAX' : `+1 · ${cost} CP`;
             return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
           })
           .join('');
@@ -8304,7 +8309,8 @@ function renderLockerRoom(): void {
   lockerEl.querySelectorAll('.cpSpend[data-cspend]').forEach((el) =>
     el.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      const next = raiseAttr(profile.career, (el as HTMLElement).dataset.cspend as keyof GolferStats);
+      const key = (el as HTMLElement).dataset.cspend as keyof GolferStats;
+      const next = raiseAttr(profile.career, key, upgradeStatBonus(key, profile.clubUpgrades));
       if (!next) return;
       profile.career = next;
       persistProfile();
