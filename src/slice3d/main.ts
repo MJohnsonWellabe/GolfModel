@@ -6581,6 +6581,12 @@ function startTourRound(): void {
   roundRecorder.stop();
   const golfer = roundGolfer();
   round.players = [{ golfer, isAI: false, scores: [] }];
+  // The tour is entered from the HUB over the landing — not from the wizard
+  // like the AI tournament — so the landing must come down too, or the round
+  // builds underneath it and "Play event" appears to bounce back to the menu
+  // (owner report, verbatim). The wizard/setup path is a no-op here.
+  landingEl.classList.remove('on');
+  closeDest();
   setupEl.style.display = 'none';
   playHole();
 }

@@ -110,8 +110,13 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   // Play from the hub.
   await hub.locator('#thPlay').dispatchEvent('pointerdown');
 
-  // A tour round is live, played AS the career Pro (force-selected).
+  // A tour round is live, played AS the career Pro (force-selected) — and
+  // the ROUND is what's on screen: the landing came down with the hub
+  // (owner bug: "when I click play event it goes back to the main screen" —
+  // the round was building underneath a landing nobody dismissed).
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, { timeout: 60_000 });
+  await expect(page.locator('#landing')).not.toHaveClass(/on/);
+  await expect(page.locator('#tourHub')).toBeHidden();
   const mid = await tourProbe(page);
   expect(mid.started).toBe(true);
   expect(mid.roundLive).toBe(true);
