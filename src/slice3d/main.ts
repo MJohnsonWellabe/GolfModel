@@ -70,7 +70,7 @@ import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfil
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
-import { careerOvr, grantCp, pointCost, raiseAttr, startCareer } from '../data/career';
+import { activePro, careerOvr, careerStarted, grantCp, pointCost, raiseAttr, setActivePro, setProLook, startPro } from '../data/career';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
 import { TutorialCoach } from './tutorial';
@@ -4843,7 +4843,7 @@ function rewardStripHtml(events: RewardEvent[]): string {
   let html =
     `<div class="rewardStrip"><span class="rw xp">+${sum('cp')} CP</span>` +
     `<span class="rw coin">+${sum('coins')} 🪙</span></div>`;
-  if (flag('careerMode') && profile.career.styleId && profile.career.cp > 0) {
+  if (flag('careerMode') && careerStarted(profile.career) && profile.career.cp > 0) {
     html += `<div class="rwLine level">📈 ${profile.career.cp} CP to spend — grow your Pro in the Locker</div>`;
   }
   const daily = events.find((e) => e.kind === 'daily') as { name: string; streak: number } | undefined;
@@ -4951,9 +4951,10 @@ function renderProfile(tab?: ProfileTab): void {
   recordsEl.style.display = 'flex';
   recordsEl.innerHTML =
     `<div class="recInner"><h2>${escapeHtml(p.name || 'Golfer')}</h2>` +
-    `<div class="profLvl">${
-      flag('careerMode') && p.career.styleId ? `Pro OVR ${careerOvr(p.career.attrs)} · ` : ''
-    }Pass level ${lp.level} · ${p.coins} 🪙 · ${p.career.cp} CP</div>` +
+    `<div class="profLvl">${(() => {
+      const pro = flag('careerMode') ? activePro(p.career) : null;
+      return pro ? `${escapeHtml(pro.name)} OVR ${careerOvr(pro.attrs)} · ` : '';
+    })()}Pass level ${lp.level} · ${p.coins} 🪙 · ${p.career.cp} CP</div>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<div class="profTabs">` +
     tabs
@@ -5670,7 +5671,9 @@ let roundCareerStats: GolferStats | null = null;
 /** What the chosen style is called, the career Pro included — archetypeById
  *  throws on 'career', which is not a preset. */
 function styleName(a: ArchetypeId | 'career'): string {
-  return a === 'career' ? `Your Pro · ${careerOvr(profile.career.attrs)} OVR` : archetypeById(a).name;
+  if (a !== 'career') return archetypeById(a).name;
+  const pro = activePro(profile.career);
+  return pro ? `${pro.name} · ${careerOvr(pro.attrs)} OVR` : 'Your Pro';
 }
 
 function roundGolfer(): Golfer {
@@ -5685,12 +5688,18 @@ function roundGolfer(): Golfer {
     const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(profile, i));
     if (ownedPals.length) equip(profile, randomOf(ownedPals).id); // a random companion for the round
   }
+  // A career round is played AS the Pro: their dedicated look and their name,
+  // locked loadout or not — a merge that lost the active Pro falls back to a
+  // preset so the round always has a real golfer.
+  const pro = archetype === 'career' ? activePro(profile.career) : null;
+  if (archetype === 'career' && !pro) archetype = 'bigHitter';
+  if (pro) character = pro.character;
   roundLoadout = { character, archetype };
   const perk = equippedPerkDef();
   roundPerkId = perk?.id ?? null;
-  roundCareerStats = archetype === 'career' ? { ...profile.career.attrs } : null;
+  roundCareerStats = pro ? { ...pro.attrs } : null;
   return assembleGolfer(
-    profile.name || 'Player',
+    pro ? pro.name : profile.name || 'Player',
     character,
     archetype,
     profile.clubUpgrades,
@@ -7222,41 +7231,61 @@ function renderLockerRoom(): void {
     chipping: 'CHP',
     putting: 'PUT'
   };
-  const careerCard = ((): string => {
+  const careerCards = ((): string => {
     if (!flag('careerMode')) return '';
     const c = p.career;
-    if (!c.styleId) {
-      const opts = ARCHETYPES.map(
-        (a) => `<button class="careerStart" data-cstart="${a.id}">${a.name}</button>`
-      ).join('');
-      return (
-        `<div class="archCard careerCard" style="--accent:#d9a441">` +
-        `<div class="ahead"><span class="an">🎓 Your Pro — start a career</span>` +
-        `<span class="atag">a rookie at 65 overall who grows every round YOU play. Pick a starting style:</span></div>` +
-        `<div class="careerStartRow">${opts}</div></div>`
-      );
-    }
-    const upgraded = applyClubUpgrades(c.attrs, p.clubUpgrades);
-    const sig = archetypeById(c.styleId).signature;
-    const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
-      .map((k) => {
-        const cost = pointCost(c.attrs[k]);
-        const can = Number.isFinite(cost) && c.cp >= cost;
-        const label = Number.isFinite(cost) ? `+1 · ${cost} CP` : 'MAX';
-        return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
-      })
-      .join('');
-    return (
-      `<div class="archCard careerCard${sel.archetype === 'career' ? ' sel' : ''}" data-arch="career" style="--accent:#d9a441">` +
-      `<div class="ahead"><span class="an">🎓 Your Pro</span>` +
-      `<span class="atag">grows as you play · ${c.cp} CP to spend</span>` +
-      `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
-      statBars(upgraded, sig, p.clubUpgrades) +
-      `<div class="careerSpendRow">${spendRow}</div></div>`
-    );
+    // One card per Pro in the stable. The ACTIVE Pro carries the spend chips
+    // and the Look row (their dedicated character); the others are a tap away
+    // from being active again — retirement is soft.
+    const proCard = (pro: (typeof c.pros)[number]): string => {
+      const isActive = pro.id === c.activeProId;
+      const selected = isActive && sel.archetype === 'career';
+      const upgraded = applyClubUpgrades(pro.attrs, p.clubUpgrades);
+      const sig = archetypeById(pro.styleId).signature;
+      let inner =
+        `<div class="ahead"><span class="an">🎓 ${escapeHtml(pro.name)}</span>` +
+        `<span class="atag">${isActive ? `grows as you play · ${c.cp} CP to spend` : 'in the stable — tap to play as them'}</span>` +
+        `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
+        statBars(upgraded, sig, p.clubUpgrades);
+      if (isActive) {
+        const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
+          .map((k) => {
+            const cost = pointCost(pro.attrs[k]);
+            const can = Number.isFinite(cost) && c.cp >= cost;
+            const label = Number.isFinite(cost) ? `+1 · ${cost} CP` : 'MAX';
+            return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
+          })
+          .join('');
+        const lookRow = ownedChars
+          .map(
+            (ch) =>
+              `<button class="proLook${pro.character === ch.key ? ' sel' : ''}" data-look="${ch.key}">` +
+              `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" loading="lazy" /></button>`
+          )
+          .join('');
+        inner +=
+          `<div class="careerSpendRow">${spendRow}</div>` +
+          `<div class="proLookRow"><span class="plLabel">LOOK</span>${lookRow}</div>`;
+      }
+      return `<div class="archCard careerCard${selected ? ' sel' : ''}" data-pro="${pro.id}" style="--accent:#d9a441">${inner}</div>`;
+    };
+    // The New Pro card: name them, pick a style. Doubles as the start-a-career
+    // card when the stable is empty.
+    const opts = ARCHETYPES.map((a) => `<button class="careerStart" data-cstart="${a.id}">${a.name}</button>`).join('');
+    const head = c.pros.length
+      ? `<span class="an">➕ New Pro</span>` +
+        `<span class="atag">a fresh rookie at 65 — unspent CP carries over, and your current Pro stays in the stable. Name them, pick a style:</span>`
+      : `<span class="an">🎓 Your Pro — start a career</span>` +
+        `<span class="atag">a rookie at 65 overall who grows every round YOU play. Name them, pick a starting style:</span>`;
+    const newCard =
+      `<div class="archCard careerNew" style="--accent:#d9a441">` +
+      `<div class="ahead">${head}</div>` +
+      `<input id="proName" class="proNameInput" type="text" maxlength="18" placeholder="Pro name" autocomplete="off" />` +
+      `<div class="careerStartRow">${opts}</div></div>`;
+    return c.pros.map(proCard).join('') + newCard;
   })();
   const archCards =
-    careerCard +
+    careerCards +
     ARCHETYPES.map((a) => {
       const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
       const upgraded = applyClubUpgrades(a.stats, p.clubUpgrades);
@@ -7417,12 +7446,29 @@ function renderLockerRoom(): void {
       renderLockerRoom();
     })
   );
-  // Career: begin (pick a starting style) and grow (spend CP on a stat).
-  // stopPropagation on both — these live INSIDE the selectable card.
+  // Career: a tap on a Pro's card makes them active AND selects the career
+  // style — the stable is one tap from "play as them".
+  lockerEl.querySelectorAll('.careerCard[data-pro]').forEach((el) =>
+    el.addEventListener('pointerdown', () => {
+      profile.career = setActivePro(profile.career, (el as HTMLElement).dataset.pro!);
+      sel.archetype = 'career';
+      syncLoadout();
+      renderLockerRoom();
+      refreshProgressSurfaces();
+    })
+  );
+  // Begin a Pro (name + starting style) and grow the active one (spend CP).
+  // stopPropagation — these rows live INSIDE selectable cards.
   lockerEl.querySelectorAll('.careerStart[data-cstart]').forEach((el) =>
     el.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
-      profile.career = startCareer(profile.career, (el as HTMLElement).dataset.cstart as ArchetypeId, Date.now());
+      const nameEl = lockerEl.querySelector('#proName') as HTMLInputElement | null;
+      profile.career = startPro(profile.career, {
+        name: nameEl?.value ?? '',
+        styleId: (el as HTMLElement).dataset.cstart as ArchetypeId,
+        character: sel.character,
+        now: Date.now()
+      });
       sel.archetype = 'career';
       syncLoadout();
       renderLockerRoom();
@@ -7446,6 +7492,21 @@ function renderLockerRoom(): void {
       refreshProgressSurfaces();
     })
   );
+  // The active Pro's dedicated look — what they wear EVERY round, shuffle or
+  // not (the owner's "dedicate a skin and a look").
+  lockerEl.querySelectorAll('.proLook[data-look]').forEach((el) =>
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const c = profile.career;
+      if (!c.activeProId) return;
+      profile.career = setProLook(c, c.activeProId, (el as HTMLElement).dataset.look as CharacterKey);
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(profile).then((res) => { applyCloudMerge(profile, res.profile); showCloudStatus(res.status, true); });
+      renderLockerRoom();
+    })
+  );
+  // Typing a rookie's name must not bubble into card selection.
+  lockerEl.querySelector('#proName')?.addEventListener('pointerdown', (e) => e.stopPropagation());
   lockerEl.querySelectorAll('.palPick[data-pal]').forEach((el) =>
     onTap(el, () => {
       const id = (el as HTMLElement).dataset.pal!;
@@ -7813,7 +7874,7 @@ function updateDestinations(newPlayer: boolean): void {
   const claimable = seasonClaimableCount();
   // Unspent CP is the second thing worth interrupting for: growth waiting to
   // be taken (career mode).
-  const cpWaiting = flag('careerMode') && profile.career.styleId ? profile.career.cp : 0;
+  const cpWaiting = flag('careerMode') && careerStarted(profile.career) ? profile.career.cp : 0;
   set(
     'locker',
     !newPlayer,

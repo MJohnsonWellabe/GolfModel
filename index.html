@@ -2676,6 +2676,61 @@
         border-color: rgba(255, 255, 255, 0.18);
         color: #b8c4b8;
       }
+      /* CAREER round 2: the stable — the New Pro card's name field, and the
+         active Pro's Look row (dedicated character thumbnails). */
+      .careerNew {
+        border-color: rgba(217, 164, 65, 0.55);
+      }
+      .proNameInput {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin-top: 10px;
+        padding: 9px 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(217, 164, 65, 0.55);
+        background: rgba(0, 0, 0, 0.25);
+        color: #ffe1a1;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .proNameInput::placeholder {
+        color: rgba(255, 225, 161, 0.45);
+      }
+      .proLookRow {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .proLookRow .plLabel {
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        color: #ffe1a1;
+        margin-right: 2px;
+      }
+      .proLook {
+        width: 44px;
+        height: 44px;
+        padding: 2px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+      }
+      .proLook img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 8px;
+        display: block;
+      }
+      .proLook.sel {
+        border-color: rgba(217, 164, 65, 0.9);
+        box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.35);
+      }
       .courseCard {
         min-height: 104px;
         /* Bottom-weighted scrim: the course art reads clearly up top, text stays

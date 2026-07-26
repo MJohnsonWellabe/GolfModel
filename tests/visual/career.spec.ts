@@ -2,10 +2,11 @@ import { expect, test } from '@playwright/test';
 import { openDestination, seedReturningDevice } from './support/wizard';
 
 /**
- * CAREER MODE, end to end on the real UI: the Style tab leads with Your Pro,
- * starting a career adopts a 65-overall shape, CP spends into real attribute
- * points with the OVR rising on screen, and the Pro is selectable exactly
- * like a preset.
+ * CAREER MODE, end to end on the real UI: the Style tab leads with the stable,
+ * starting a NAMED Pro adopts a 65-overall shape, CP spends into real
+ * attribute points with the OVR rising on screen, the Pro wears a dedicated
+ * look, and starting a second Pro keeps the wallet while the first stays in
+ * the stable, selectable.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -25,7 +26,7 @@ async function openStyleTab(page: import('@playwright/test').Page): Promise<void
   await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown');
 }
 
-test('start a career, spend CP, watch the Pro grow, select it', async ({ page }) => {
+test('name a Pro, spend CP, watch them grow, then start a rookie — the stable keeps both', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
   await seedReturningDevice(page);
@@ -34,16 +35,24 @@ test('start a career, spend CP, watch the Pro grow, select it', async ({ page })
   await grantCp(page, 20); // CP banked before the career starts is kept
   await openStyleTab(page);
 
-  // Unstarted: the career card offers the five starting styles.
-  const card = page.locator('.careerCard');
-  await expect(card).toBeVisible();
-  await expect(card).toContainText(/start a career/i);
+  // Unstarted: the New Pro card offers a name field and the five styles.
+  const newCard = page.locator('.careerNew');
+  await expect(newCard).toBeVisible();
+  await expect(newCard).toContainText(/start a career/i);
+  await newCard.locator('#proName').fill('Lefty');
   await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
 
-  // Started: a 65-overall rookie with the banked 20 CP waiting, wearing the
-  // Big Hitter starting shape (power-forward).
+  // Started: a NAMED 65-overall rookie with the banked 20 CP waiting, wearing
+  // the Big Hitter starting shape (power-forward), selected on creation.
+  const card = page.locator('.careerCard[data-pro]');
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('Lefty');
   await expect(card).toContainText('OVR 65');
   await expect(card).toContainText('20 CP');
+  await expect(page.locator('.careerCard.sel')).toBeVisible();
+  // The dedicated look row rides on the active card.
+  await expect(card.locator('.proLookRow')).toBeVisible();
+  await expect(card.locator('.proLook.sel')).toHaveCount(1);
 
   // Spending: each press costs the bracket price (2 CP below 80) and the CP
   // line falls with it — the readout and the economy cannot disagree.
@@ -52,12 +61,22 @@ test('start a career, spend CP, watch the Pro grow, select it', async ({ page })
   await page.locator('.cpSpend[data-cspend="drivingPower"]').dispatchEvent('pointerdown');
   await expect(card).toContainText('16 CP');
 
-  // The card is SELECTED (starting a career selects the Pro).
-  await expect(page.locator('.careerCard.sel')).toBeVisible();
+  // Start a ROOKIE: the wallet carries (16 CP), the vet stays in the stable.
+  await page.locator('#proName').fill('Rookie Two');
+  await page.locator('.careerStart[data-cstart="puttKing"]').dispatchEvent('pointerdown');
+  const cards = page.locator('.careerCard[data-pro]');
+  await expect(cards).toHaveCount(2);
+  const active = page.locator('.careerCard.sel');
+  await expect(active).toContainText('Rookie Two');
+  await expect(active).toContainText('16 CP'); // unspent CP carried over
+  await expect(cards.first()).toContainText('Lefty'); // the vet, still here
 
-  // And the LANDING behind the overlay repainted with the spend (owner bug:
-  // "the CP to spend on your Pro didn't reset after I spent it") — the Locker
-  // tile's line must read the live balance the moment the locker closes.
+  // Tap the vet: active again, points intact (OVR above the rookie's 65).
+  await cards.first().dispatchEvent('pointerdown');
+  await expect(page.locator('.careerCard.sel')).toContainText('Lefty');
+
+  // And the LANDING behind the overlay repainted with the live balance (owner
+  // bug: "the CP to spend on your Pro didn't reset after I spent it").
   await page.locator('#lkBack').dispatchEvent('click');
   await expect(page.locator('#destLocker .dtSub')).toContainText('16 CP');
 });
@@ -69,7 +88,9 @@ test('a rookie without CP sees honest, disabled spend buttons', async ({ page })
   await page.goto('/?freeze=1');
   await openStyleTab(page);
   await page.locator('.careerStart[data-cstart="puttKing"]').dispatchEvent('pointerdown');
-  await expect(page.locator('.careerCard')).toContainText('OVR 65');
+  await expect(page.locator('.careerCard[data-pro]')).toContainText('OVR 65');
+  // A nameless start still gets a name.
+  await expect(page.locator('.careerCard[data-pro]')).toContainText('My Pro');
   // Broke: every spend chip is disabled, none of them lies.
   const chips = page.locator('.cpSpend');
   const n = await chips.count();

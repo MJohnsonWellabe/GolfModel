@@ -1,5 +1,5 @@
 import { ArchetypeId } from '../data/archetypes';
-import { CareerState, emptyCareer, mergeCareers } from '../data/career';
+import { CareerState, emptyCareer, mergeCareers, migrateCareer } from '../data/career';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
@@ -71,7 +71,7 @@ export interface PlayerProfile {
   name: string;
   character: CharacterKey;
   /** The chosen style: a preset archetype, or 'career' — the player's own
-   *  Pro (career mode), whose stats live in `career.attrs` below. */
+   *  Pro (career mode), whose stats live on the active Pro in `career`. */
   archetype: ArchetypeId | 'career';
   /** Spendable balance. Invariant: coins === coinsEarned − coinsSpent. */
   coins: number;
@@ -120,10 +120,11 @@ export interface PlayerProfile {
    *  cross-device sync and offline reconciliation can never lose a best,
    *  resurrect a claim, or double-award a star. */
   retention: RetentionState;
-  /** CAREER MODE: your Pro's attributes and the CP economy that grows them
-   *  (data/career.ts). CP replaces XP as the progression currency — the
-   *  legacy xp/level fields above are frozen. Merges via mergeCareers
-   *  (grow-only cpEarned/cpSpent pair, per-stat max attrs). */
+  /** CAREER MODE: your stable of named Pros and the shared CP wallet that
+   *  grows them (data/career.ts). CP replaces XP as the progression currency
+   *  — the legacy xp/level fields above are frozen. Merges via mergeCareers
+   *  (grow-only cpEarned/cpSpent pair, pros union by id, per-stat max
+   *  attrs). */
   career: CareerState;
   updatedAt: number;
 }
@@ -441,13 +442,14 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     // Pre-retention profiles (and RTDB copies with the sub-trees dropped)
     // backfill to safe empty states — no loss of existing profiles.
     retention: migrateRetention(parsed.retention),
-    // Pre-career saves start a fresh (unstarted) career; partial RTDB copies
-    // coalesce field-by-field so a dropped counter can't zero the pair.
-    career: {
-      ...emptyCareer(),
-      ...(parsed.career ?? {}),
-      attrs: { ...emptyCareer().attrs, ...(parsed.career?.attrs ?? {}) }
-    }
+    // Any stored career shape (the legacy single-Pro one included) upgrades
+    // to the stable; partial RTDB copies coalesce field-by-field so a dropped
+    // counter can't zero the grow-only pair. The legacy Pro inherits the
+    // profile's name and character as its own.
+    career: migrateCareer(parsed.career, {
+      name: typeof parsed.name === 'string' ? parsed.name : '',
+      character: (parsed.character as PlayerProfile['character']) ?? 'chip'
+    })
   };
 }
 

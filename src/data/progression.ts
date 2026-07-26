@@ -1,5 +1,5 @@
 import { CareerStats, PlayerProfile } from '../profile/Profile';
-import { careerOvr } from './career';
+import { bestProOvr, emptyCareer } from './career';
 import { starCount } from '../systems/Mastery';
 
 /**
@@ -104,9 +104,9 @@ export const ACHIEVEMENTS: Achievement[] = [
   // Daily Challenge (also the day-7 streak badge)
   { id: 'streak_7', name: 'Committed', desc: 'Reach a 7-day streak', xp: 100, coins: 50, test: (_s, p) => Math.max(p.dailyStreak, p.retention?.streak?.best ?? 0) >= 7 },
   // Career (the level_10 badge retired with the XP levels it read)
-  { id: 'career_80', name: 'Rising Star', desc: 'Raise your Pro to 80 overall', xp: 150, coins: 75, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 80 },
-  { id: 'career_90', name: 'World Class', desc: 'Raise your Pro to 90 overall', xp: 250, coins: 100, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 90 },
-  { id: 'career_99', name: 'The Zenith', desc: 'Max your Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 99 },
+  { id: 'career_80', name: 'Rising Star', desc: 'Raise a Pro to 80 overall', xp: 150, coins: 75, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 80 },
+  { id: 'career_90', name: 'World Class', desc: 'Raise a Pro to 90 overall', xp: 250, coins: 100, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 90 },
+  { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 99 },
   { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
   { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 }
 ];

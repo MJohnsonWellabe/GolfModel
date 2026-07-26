@@ -1,11 +1,18 @@
 /**
- * CAREER MODE — your Pro, and the CP economy.
+ * CAREER MODE — your stable of Pros, and the CP economy.
  *
  * WHY THIS EXISTS (owner, pass 7): "the game feels flat … nothing you do today
  * changes tomorrow's round." The career golfer is the answer chosen over more
  * systems: you start a rookie at overall 65 who grows because YOU played —
  * every round pays CP (career points), CP buys attribute points, and the
  * golfer you built is the one you enter in the daily tournament.
+ *
+ * THE STABLE (owner, career round 2): a Pro has a NAME and a dedicated look
+ * (a character that survives the unlocked-loadout shuffle), and you can start
+ * a new Pro whenever you like. The CP wallet is SHARED across the stable —
+ * unspent CP carries to the rookie, spent CP stays invested in the old Pro,
+ * who remains playable forever (retirement is soft: any Pro can be made
+ * active again from the Locker).
  *
  * THE ECONOMY DECISION (owner Q&A): CP REPLACES XP — two currencies, not
  * three. CP earned is progression (and paces the season pass); coins remain
@@ -23,9 +30,10 @@
  */
 import type { GolferStats } from '../core/types';
 import type { ArchetypeId, StatKey } from './archetypes';
+import type { CharacterKey } from './characters';
 
 /** The archetype-slot id the career golfer occupies in the Locker's Style
- *  tab. Never a preset: golfers.ts resolves it from CareerState.attrs. */
+ *  tab. Never a preset: golfers.ts resolves it from the active Pro's attrs. */
 export const CAREER_ARCHETYPE_ID = 'career';
 
 /** Per-attribute ceiling. 99, deliberately short of the presets' signature
@@ -33,19 +41,37 @@ export const CAREER_ARCHETYPE_ID = 'career';
  *  finish, which keeps the presets meaningful. */
 export const ATTR_CAP = 99;
 
-export interface CareerState {
-  /** Which starting shape the career began from; null = not started yet. */
-  styleId: ArchetypeId | null;
+/** One golfer in the stable: named at creation, wearing a dedicated look,
+ *  carrying every attribute point ever bought for them. */
+export interface CareerPro {
+  /** Stable unique id — the merge key across devices. */
+  id: string;
+  /** The name the owner gave this Pro at creation. */
+  name: string;
+  /** Which starting shape the Pro began from. */
+  styleId: ArchetypeId;
   /** The Pro's CURRENT attributes (starting shape + every point bought). */
   attrs: GolferStats;
-  /** Unspent CP. Always cpEarned − cpSpent; stored for cheap reads. */
+  /** The Pro's dedicated look — this character is what the Pro wears every
+   *  round, shuffle or not. */
+  character: CharacterKey;
+  createdAt: number;
+}
+
+export interface CareerState {
+  /** Every Pro ever started, oldest first. Old Pros stay playable. */
+  pros: CareerPro[];
+  /** The Pro currently being grown and played; null = career not started. */
+  activeProId: string | null;
+  /** Unspent CP. Always cpEarned − cpSpent; stored for cheap reads. The
+   *  wallet is SHARED across the stable — spending applies to the ACTIVE
+   *  Pro, but the balance belongs to the player. */
   cp: number;
   /** Lifetime CP earned — GROW-ONLY, the merge anchor and the season-pass
    *  pace. Spending never reduces it. */
   cpEarned: number;
   /** Lifetime CP spent — grow-only, the other half of the merge pair. */
   cpSpent: number;
-  createdAt: number;
 }
 
 /**
@@ -61,23 +87,67 @@ export const CAREER_STARTS: Record<ArchetypeId, GolferStats> = {
   puttKing: { drivingPower: 59, drivingAccuracy: 62, approach: 64, chipping: 65, putting: 75 }
 };
 
-/** A career that has not been started: flat 65s as a harmless placeholder
- *  (physics never sees them until styleId is set and the card is selected). */
+/** A career that has not been started: an empty stable, an empty wallet. */
 export function emptyCareer(): CareerState {
-  return {
-    styleId: null,
-    attrs: { drivingPower: 65, drivingAccuracy: 65, approach: 65, chipping: 65, putting: 65 },
-    cp: 0,
-    cpEarned: 0,
-    cpSpent: 0,
-    createdAt: 0
-  };
+  return { pros: [], activeProId: null, cp: 0, cpEarned: 0, cpSpent: 0 };
 }
 
-/** Begin the career from a starting shape. CP already earned (rounds played
- *  before starting) is kept — the rookie arrives with savings. */
-export function startCareer(c: CareerState, styleId: ArchetypeId, now: number): CareerState {
-  return { ...c, styleId, attrs: { ...CAREER_STARTS[styleId] }, createdAt: now };
+/** True once at least one Pro exists — the "has a career" gate everywhere. */
+export function careerStarted(c: CareerState): boolean {
+  return c.pros.length > 0;
+}
+
+/** The Pro currently active, or null (career not started / merge oddity). */
+export function activePro(c: CareerState): CareerPro | null {
+  return c.pros.find((p) => p.id === c.activeProId) ?? null;
+}
+
+/** Highest overall across the stable — what the career achievements test
+ *  ("Raise your Pro to 80" is earned by ANY Pro reaching it). */
+export function bestProOvr(c: CareerState): number {
+  return c.pros.reduce((best, p) => Math.max(best, careerOvr(p.attrs)), 0);
+}
+
+/**
+ * Start a new Pro: a rookie at overall 65 in the chosen shape, named and
+ * dressed at creation, immediately active. CP already in the wallet is kept —
+ * the rookie arrives with the stable's savings (owner: "unspent cp should
+ * carry over, spent shouldn't"). Old Pros keep their points and stay
+ * selectable.
+ */
+export function startPro(
+  c: CareerState,
+  opts: { name: string; styleId: ArchetypeId; character: CharacterKey; now: number; id?: string }
+): CareerState {
+  const id = opts.id ?? newProId(opts.now);
+  const pro: CareerPro = {
+    id,
+    name: opts.name.trim() || 'My Pro',
+    styleId: opts.styleId,
+    attrs: { ...CAREER_STARTS[opts.styleId] },
+    character: opts.character,
+    createdAt: opts.now
+  };
+  return { ...c, pros: [...c.pros, pro], activeProId: id };
+}
+
+function newProId(now: number): string {
+  const rnd =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID().slice(0, 8)
+      : Math.floor(Math.random() * 1e9).toString(36);
+  return `pro-${now.toString(36)}-${rnd}`;
+}
+
+/** Make another Pro from the stable the active one. Unknown id is a no-op. */
+export function setActivePro(c: CareerState, id: string): CareerState {
+  return c.pros.some((p) => p.id === id) ? { ...c, activeProId: id } : c;
+}
+
+/** Change a Pro's dedicated look. Unknown id is a no-op. */
+export function setProLook(c: CareerState, id: string, character: CharacterKey): CareerState {
+  if (!c.pros.some((p) => p.id === id)) return c;
+  return { ...c, pros: c.pros.map((p) => (p.id === id ? { ...p, character } : p)) };
 }
 
 /**
@@ -102,15 +172,18 @@ export function careerOvr(attrs: GolferStats): number {
   return Math.round(s / 5);
 }
 
-/** Spend CP on +1 to one attribute. Returns the new state, or null when the
- *  attribute is capped or the CP falls short (the UI disables, this guards). */
+/** Spend CP on +1 to one attribute of the ACTIVE Pro. Returns the new state,
+ *  or null when there is no active Pro, the attribute is capped, or the CP
+ *  falls short (the UI disables, this guards). */
 export function raiseAttr(c: CareerState, key: StatKey): CareerState | null {
-  const cur = c.attrs[key];
+  const pro = activePro(c);
+  if (!pro) return null;
+  const cur = pro.attrs[key];
   const cost = pointCost(cur);
   if (!Number.isFinite(cost) || c.cp < cost) return null;
   return {
     ...c,
-    attrs: { ...c.attrs, [key]: cur + 1 },
+    pros: c.pros.map((p) => (p.id === pro.id ? { ...p, attrs: { ...p.attrs, [key]: cur + 1 } } : p)),
     cp: c.cp - cost,
     cpSpent: c.cpSpent + cost
   };
@@ -158,31 +231,110 @@ export function cpForRound(r: RoundCpInput): number {
   );
 }
 
+/** The single-Pro CareerState that shipped first — recognized and upgraded
+ *  by migrateCareer so no owner loses the Pro they already grew. */
+interface LegacyCareerState {
+  styleId?: ArchetypeId | null;
+  attrs?: Partial<GolferStats>;
+  cp?: number;
+  cpEarned?: number;
+  cpSpent?: number;
+  createdAt?: number;
+}
+
+const FLAT_65: GolferStats = { drivingPower: 65, drivingAccuracy: 65, approach: 65, chipping: 65, putting: 65 };
+
+function migratePro(raw: unknown, fallbackCharacter: CharacterKey): CareerPro | null {
+  const p = (raw ?? {}) as Partial<CareerPro>;
+  if (typeof p.id !== 'string' || !p.id) return null;
+  return {
+    id: p.id,
+    name: typeof p.name === 'string' && p.name.trim() ? p.name : 'My Pro',
+    styleId: p.styleId && p.styleId in CAREER_STARTS ? p.styleId : 'bigHitter',
+    attrs: { ...FLAT_65, ...(p.attrs ?? {}) },
+    character: typeof p.character === 'string' && p.character ? p.character : fallbackCharacter,
+    createdAt: typeof p.createdAt === 'number' ? p.createdAt : 0
+  };
+}
+
+/**
+ * Any stored career shape → the current one. Three cases:
+ * - the stable shape (possibly a partial RTDB copy: empty arrays dropped);
+ * - the LEGACY single-Pro shape → its Pro becomes `pros[0]`, named after the
+ *   profile (or 'My Pro'), wearing the profile's character, with the id
+ *   derived from createdAt so the SAME legacy Pro migrated on two devices
+ *   merges as one;
+ * - nothing → an empty career.
+ * The wallet coalesces field-by-field so a dropped counter can't zero the
+ * grow-only pair.
+ */
+export function migrateCareer(
+  raw: unknown,
+  fallback: { name: string; character: CharacterKey }
+): CareerState {
+  const r = (raw ?? {}) as Partial<CareerState> & LegacyCareerState;
+  const cpEarned = Math.max(0, r.cpEarned ?? 0);
+  const cpSpent = Math.max(0, r.cpSpent ?? 0);
+  const wallet = { cp: Math.max(0, cpEarned - cpSpent), cpEarned, cpSpent };
+  if (Array.isArray(r.pros)) {
+    const pros = r.pros
+      .map((p) => migratePro(p, fallback.character))
+      .filter((p): p is CareerPro => p !== null);
+    const activeProId = r.activeProId && pros.some((p) => p.id === r.activeProId)
+      ? r.activeProId
+      : (pros[pros.length - 1]?.id ?? null);
+    return { pros, activeProId, ...wallet };
+  }
+  if (r.styleId && r.styleId in CAREER_STARTS) {
+    const pro: CareerPro = {
+      id: `legacy-${r.createdAt ?? 0}`,
+      name: fallback.name.trim() || 'My Pro',
+      styleId: r.styleId,
+      attrs: { ...FLAT_65, ...(r.attrs ?? {}) },
+      character: fallback.character,
+      createdAt: r.createdAt ?? 0
+    };
+    return { pros: [pro], activeProId: pro.id, ...wallet };
+  }
+  return { pros: [], activeProId: null, ...wallet };
+}
+
 /**
  * Merge two careers from different devices (Profile.mergeProfiles calls
- * this). Same discipline as coins: the grow-only pair is the truth — earned
- * and spent each take the max across devices, cp is DERIVED, so spending on
- * one device can never resurrect CP on another. Attributes take the per-stat
- * max (points bought anywhere are kept); the style follows whichever career
- * actually started (or the newer profile on a conflict, chosen by caller
- * order).
+ * this, NEWER FIRST). Same discipline as coins: the grow-only pair is the
+ * truth — earned and spent each take the max across devices, cp is DERIVED,
+ * so spending on one device can never resurrect CP on another. Pros union by
+ * id; a Pro known to both sides keeps the newer side's name/look and takes
+ * the per-stat max attrs (points bought anywhere are kept). The active
+ * choice follows the newer profile.
  */
 export function mergeCareers(a: CareerState, b: CareerState): CareerState {
-  const attrs: GolferStats = {
-    drivingPower: Math.max(a.attrs.drivingPower, b.attrs.drivingPower),
-    drivingAccuracy: Math.max(a.attrs.drivingAccuracy, b.attrs.drivingAccuracy),
-    approach: Math.max(a.attrs.approach, b.attrs.approach),
-    chipping: Math.max(a.attrs.chipping, b.attrs.chipping),
-    putting: Math.max(a.attrs.putting, b.attrs.putting)
-  };
+  const byId = new Map<string, CareerPro>();
+  for (const p of b.pros) byId.set(p.id, p);
+  for (const p of a.pros) {
+    const other = byId.get(p.id);
+    if (!other) {
+      byId.set(p.id, p);
+      continue;
+    }
+    byId.set(p.id, {
+      ...p,
+      attrs: {
+        drivingPower: Math.max(p.attrs.drivingPower, other.attrs.drivingPower),
+        drivingAccuracy: Math.max(p.attrs.drivingAccuracy, other.attrs.drivingAccuracy),
+        approach: Math.max(p.attrs.approach, other.attrs.approach),
+        chipping: Math.max(p.attrs.chipping, other.attrs.chipping),
+        putting: Math.max(p.attrs.putting, other.attrs.putting)
+      },
+      createdAt: p.createdAt || other.createdAt
+    });
+  }
+  const pros = [...byId.values()].sort((x, y) => x.createdAt - y.createdAt);
   const cpEarned = Math.max(a.cpEarned, b.cpEarned);
   const cpSpent = Math.max(a.cpSpent, b.cpSpent);
-  return {
-    styleId: a.styleId ?? b.styleId,
-    attrs,
-    cp: Math.max(0, cpEarned - cpSpent),
-    cpEarned,
-    cpSpent,
-    createdAt: a.createdAt || b.createdAt
-  };
+  const activeProId =
+    (a.activeProId && byId.has(a.activeProId) ? a.activeProId : null) ??
+    (b.activeProId && byId.has(b.activeProId) ? b.activeProId : null) ??
+    (pros[pros.length - 1]?.id ?? null);
+  return { pros, activeProId, cp: Math.max(0, cpEarned - cpSpent), cpEarned, cpSpent };
 }
