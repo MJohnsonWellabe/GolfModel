@@ -1725,6 +1725,18 @@
         overflow: hidden;
         text-overflow: ellipsis;
       }
+      /* The top of today's board, ratings beside names (career mode). */
+      #weeklyCard .wkBoard {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+        font-size: 11px;
+        color: #b9c9b9;
+        font-weight: 700;
+      }
+      #weeklyCard .wkRow.you {
+        color: #8ae2a4;
+      }
       #weeklyCard .wkPlay {
         flex: none;
         padding: 8px 14px;
@@ -2636,6 +2648,33 @@
         border-color: var(--accent, #ffd54f);
         background: linear-gradient(180deg, rgba(255, 213, 79, 0.22), rgba(255, 255, 255, 0.055));
         box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+      }
+      /* CAREER: your Pro's card — the start row (pick a style) and the CP
+         spend chips. Gold-accented so it reads as YOURS among the presets. */
+      .careerCard {
+        border-color: rgba(217, 164, 65, 0.55);
+      }
+      .careerStartRow,
+      .careerSpendRow {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      .careerStart,
+      .cpSpend {
+        padding: 8px 10px;
+        border-radius: 10px;
+        border: 1px solid rgba(217, 164, 65, 0.55);
+        background: rgba(217, 164, 65, 0.14);
+        color: #ffe1a1;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .cpSpend:disabled {
+        opacity: 0.4;
+        border-color: rgba(255, 255, 255, 0.18);
+        color: #b8c4b8;
       }
       .courseCard {
         min-height: 104px;

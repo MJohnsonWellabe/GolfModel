@@ -13,10 +13,17 @@ import { isPlausibleWeeklyEntry, WeeklyEntry } from '../systems/WeeklyFeatured';
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
+/** Event id shapes this board accepts: the weekly `w2026-31` AND the DAILY
+ *  `w2026-d20659` (the focusedGame daily tournament — WeeklyFeatured
+ *  dailyEventFor). The original weekly-only pattern silently dropped every
+ *  daily entry before the network, so the daily tournament had no board at
+ *  all. */
+const EVENT_ID = /^w\d{4}-d?\d{1,6}$/;
+
 /** Submit a weekly entry (first write per player stands, server-side). Returns
  *  false when skipped (implausible, bad ids, offline). */
 export async function submitWeeklyEntry(eventId: string, entry: WeeklyEntry): Promise<boolean> {
-  if (!/^w\d{4}-\d{2}$/.test(eventId) || !SAFE_ID.test(entry.playerId)) return false;
+  if (!EVENT_ID.test(eventId) || !SAFE_ID.test(entry.playerId)) return false;
   if (!isPlausibleWeeklyEntry(entry)) return false;
   try {
     const res = await fetch(
@@ -31,7 +38,7 @@ export async function submitWeeklyEntry(eventId: string, entry: WeeklyEntry): Pr
 
 /** Fetch an event's entries (6s abort; [] on absent/offline). */
 export async function fetchWeeklyEntries(eventId: string): Promise<WeeklyEntry[]> {
-  if (!/^w\d{4}-\d{2}$/.test(eventId)) return [];
+  if (!EVENT_ID.test(eventId)) return [];
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);

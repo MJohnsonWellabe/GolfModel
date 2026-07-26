@@ -813,3 +813,34 @@ The sixth owner pass, from playing the production deploy:
   black-green) read as more ground. Re-tinted to a cold lake blue
   (#3f96cc / #1f5c8e deep) — still darker and colder than Sable Bay's sea,
   but unmistakably water. JSON regenerated; gates green.
+
+## 23. Career mode — your Pro, CP, and two economies instead of three
+
+The owner's chosen answer to "the game feels flat": a career golfer.
+
+- **Your Pro** (`data/career.ts`, flag `careerMode`): a rookie starting at
+  overall EXACTLY 65 in one of five starting shapes (the archetype identities
+  scaled down, signature bias kept). A sixth card on the Locker's Style tab —
+  start the career, spend CP on attributes (+1 chips with live costs), select
+  the Pro like any preset. The card is gold; the presets are untouched.
+- **CP replaced XP** (owner: "we don't need 3 economies"): rounds pay CP
+  (base 4 + 1/birdie + 3/eagle + 8/ace + 1 per stroke under + 5 win +
+  2 daily), CP buys attribute points (2 CP below 80, 4 in the 80s, 10 in the
+  90s, cap 99 — bracket totals 150/200/450 land the owner's verbatim
+  ~27/~28/~55-round arc), and total CP earned paces the season pass
+  (15 CP/level, flat — `season.xp` now stores CP, old saves re-denominated
+  ÷25 once via `cpDenominated`). Legacy `profile.xp/level` are FROZEN; the
+  streak/pass/achievement XP bounties re-denominate to CP at ÷25. Coins are
+  untouched — the one spend currency.
+- **The Pro is verifiable**: `RecordedGolfer.career` snapshots the attributes
+  AS PLAYED, the replay reassembles from the snapshot, and a "grown" profile
+  cannot verify an old round (gated in tests/simulation/roundRecording).
+  `assembleGolfer` gained the `careerStats` seam; the unlocked-loadout random
+  shuffle keeps the Pro (cosmetics only) when career is selected.
+- **The daily tournament takes the Pro**: entries carry `rating` (shown beside
+  names on the card's new top-3 board), and the Weekly id regex now ACCEPTS
+  daily event ids — the pre-existing bug meant daily entries never reached the
+  network at all.
+- Merging follows the coins discipline: grow-only `cpEarned/cpSpent`, derived
+  balance, per-stat max attributes (`mergeCareers`; two devices spending
+  offline can neither duplicate nor resurrect CP — gated in tests/career).

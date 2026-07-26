@@ -3,7 +3,8 @@ import { SeasonDef, SeasonReward } from '../data/seasonPass';
 import { STORE_BY_ID } from '../data/storeCatalog';
 import { perkById } from '../data/perks';
 import { TRUE_VISION } from '../data/consumables';
-import { levelForXp } from '../data/progression';
+import { achievementCp } from '../data/progression';
+import { grantCp } from '../data/career';
 import { BuyResult } from './StoreEngine';
 
 /**
@@ -133,15 +134,16 @@ function grantReward(profile: PlayerProfile, reward: SeasonReward): void {
   } else if ('trueVision' in reward) {
     grantConsumable(profile, TRUE_VISION.id, reward.trueVision);
   } else {
-    profile.xp += reward.xp;
-    profile.level = levelForXp(profile.xp);
+    // Legacy XP rewards pay out as CP now (career mode) — same ÷25
+    // re-denomination the achievements use, credited to the career pair.
+    profile.career = grantCp(profile.career, achievementCp(reward.xp));
   }
 }
 
 /** Display label + emoji for a reward card. */
 export function rewardLabel(reward: SeasonReward): { icon: string; name: string } {
   if ('coins' in reward) return { icon: '🪙', name: `${reward.coins} J-Coins` };
-  if ('xp' in reward) return { icon: '✨', name: `${reward.xp} XP` };
+  if ('xp' in reward) return { icon: '✨', name: `${achievementCp(reward.xp)} CP` };
   if ('perk' in reward) return { icon: '⚡', name: perkById(reward.perk)?.name ?? 'Perk' };
   if ('trueVision' in reward) return { icon: TRUE_VISION.icon, name: `${reward.trueVision}× True Vision` };
   const item = STORE_BY_ID.get(reward.item);

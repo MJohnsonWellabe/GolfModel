@@ -386,6 +386,20 @@ export const FLAG_DEFS: readonly FlagDef[] = [
       'them. It must not linger as a permanent fork.'
   },
   {
+    key: 'careerMode',
+    description:
+      'CAREER MODE: your Pro — a rookie golfer starting at overall 65 who ' +
+      'grows because you played. Rounds pay CP (which replaced XP outright, ' +
+      'and paces the season pass); CP buys attribute points in the Locker; ' +
+      'the Pro is a sixth choice beside the five preset archetypes and the ' +
+      'golfer you enter in the daily tournament. Off = no career card and no ' +
+      'spend UI; CP still accrues silently (grow-only, so nothing is lost ' +
+      'while the switch is thrown).',
+    owner: 'matt',
+    defaults: { prod: true, dev: true },
+    removeWhen: 'PROMOTED and soaked — remove once the career is the settled centre of progression'
+  },
+  {
     key: 'recordBoards',
     description:
       'LEADERBOARDS PER RECORD (promoted to prod, owner pass 5): longest drive, most holes-in-one, ' +

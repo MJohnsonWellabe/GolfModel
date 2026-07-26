@@ -1,39 +1,34 @@
 import { describe, expect, it } from 'vitest';
 import { defaultProfile, mergeProfiles } from '../src/profile/Profile';
-import {
-  ACHIEVEMENTS,
-  COINS,
-  dailyChallengeFor,
-  emptyRoundStats,
-  levelForXp,
-  xpForLevel,
-  XP
-} from '../src/data/progression';
+import { ACHIEVEMENTS, COINS, dailyChallengeFor, emptyRoundStats, levelForXp, xpForLevel } from '../src/data/progression';
+import { CP } from '../src/data/career';
 import { applyRound, RewardEvent } from '../src/systems/ProgressionEngine';
 
 function roundOf(overrides: Partial<ReturnType<typeof emptyRoundStats>>) {
   return { ...emptyRoundStats(), ...overrides };
 }
 
-describe('level curve', () => {
+describe('legacy level curve (frozen, kept for old saves)', () => {
   it('is monotonic and starts at level 1', () => {
     expect(levelForXp(0)).toBe(1);
     for (let n = 2; n <= 20; n++) expect(xpForLevel(n)).toBeGreaterThan(xpForLevel(n - 1));
   });
-  it('levelForXp matches the thresholds', () => {
-    expect(levelForXp(xpForLevel(5))).toBe(5);
-    expect(levelForXp(xpForLevel(5) - 1)).toBe(4);
-  });
 });
 
 describe('applyRound reward math', () => {
-  it('a −2 round with a birdie and an eagle pays the documented XP/coins', () => {
+  it('a −2 round with a birdie and an eagle pays the documented CP/coins', () => {
     const p = defaultProfile();
     const r = roundOf({ toPar: -2, strokes: 10, birdies: 1, eagles: 1 });
     const events = applyRound(p, r);
-    // XP = round 100 + birdie 25 + eagle 75 = 200
-    expect(p.xp).toBe(XP.round + XP.birdie + XP.eagle + (achievementXp(events)));
-    // coins = round 20 + 2 under par * 10 = 40 (+ achievement coins)
+    // CP = round 4 + birdie 1 + eagle 3 + 2-under 2 = 10, plus the two
+    // first-time achievements (First Birdie 2, First Eagle 4) on the career.
+    const roundCp = events.find((e): e is Extract<RewardEvent, { kind: 'cp' }> => e.kind === 'cp')!;
+    expect(roundCp.amount).toBe(CP.round + CP.birdie + CP.eagle + 2 * CP.perUnderPar);
+    expect(p.career.cpEarned).toBe(roundCp.amount + achievementCpPaid(events));
+    // The legacy currency is FROZEN: no round grants xp or moves the level.
+    expect(p.xp).toBe(0);
+    expect(p.level).toBe(1);
+    // coins = round 10 + 2 under par * 5 = 20 (+ achievement coins)
     const baseCoins = COINS.round + 2 * COINS.perUnderPar;
     expect(p.coins).toBeGreaterThanOrEqual(baseCoins);
     expect(p.stats.rounds).toBe(1);
@@ -59,13 +54,14 @@ describe('applyRound reward math', () => {
     expect(p.achievements.filter((a) => a === 'first_birdie')).toHaveLength(1);
   });
 
-  it('emits a levelUp event when the XP total crosses a threshold', () => {
+  it('CP is grow-only: earned rises with every round, spent never moves here', () => {
     const p = defaultProfile();
-    p.xp = xpForLevel(2) - 10;
-    p.level = 1;
-    const events = applyRound(p, roundOf({ toPar: 0, strokes: 12 }));
-    expect(events.some((e) => e.kind === 'levelUp')).toBe(true);
-    expect(p.level).toBeGreaterThanOrEqual(2);
+    applyRound(p, roundOf({ toPar: 0, strokes: 12 }));
+    const after = p.career.cpEarned;
+    expect(after).toBeGreaterThan(0);
+    expect(p.career.cpSpent).toBe(0);
+    applyRound(p, roundOf({ toPar: 0, strokes: 12 }));
+    expect(p.career.cpEarned).toBeGreaterThan(after);
   });
 });
 
@@ -154,12 +150,13 @@ describe('daily challenges', () => {
     expect(merged.daily.done).toBe(true);
 
     // A second completing round on the same day must NOT pay the daily again.
-    const xpBefore = merged.xp;
+    const cpBefore = merged.career.cpEarned;
     const events = applyRound(merged, roundOf({ toPar: -1, strokes: 11 }), day);
     expect(events.some((e) => e.kind === 'daily')).toBe(false);
-    const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp')!;
-    // XP grew only by the plain round reward — no daily bonus folded in.
-    expect(merged.xp - xpBefore).toBe(roundXp.amount);
+    const roundCp = events.find((e): e is Extract<RewardEvent, { kind: 'cp' }> => e.kind === 'cp')!;
+    // CP grew only by the plain round reward — no daily bonus folded in.
+    expect(roundCp.amount).toBe(CP.round + 1 * CP.perUnderPar);
+    expect(merged.career.cpEarned - cpBefore).toBe(roundCp.amount);
   });
 
   it('a genuine new day (later date key) still resets the challenge to un-done', () => {
@@ -190,9 +187,9 @@ describe('fairness', () => {
   });
 });
 
-function achievementXp(events: RewardEvent[]): number {
-  // First Birdie (50) + First Eagle (100) fire on this round
+function achievementCpPaid(events: RewardEvent[]): number {
+  // First Birdie (xp 50 → 2 CP) + First Eagle (xp 100 → 4 CP) fire on this round
   return events
     .filter((e): e is Extract<RewardEvent, { kind: 'achievement' }> => e.kind === 'achievement')
-    .reduce((sum, e) => sum + (e.name === 'First Birdie' ? 50 : e.name === 'First Eagle' ? 100 : 0), 0);
+    .reduce((sum, e) => sum + (e.name === 'First Birdie' ? 2 : e.name === 'First Eagle' ? 4 : 0), 0);
 }

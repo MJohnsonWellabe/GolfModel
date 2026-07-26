@@ -34,7 +34,7 @@
  * repurpose them, and bump `v` when the meaning of an existing field changes.
  */
 
-import type { Band } from '../core/types';
+import type { Band, GolferStats } from '../core/types';
 
 /** One human shot: everything the player decided, nothing that was derived. */
 export interface ShotInput {
@@ -76,6 +76,12 @@ export interface RecordedGolfer {
   archetype: string;
   /** Club upgrade tiers by family, so a shot resolves with the same clubs. */
   upgrades?: Record<string, number>;
+  /** CAREER MODE: the Pro's attributes AS PLAYED, present exactly when
+   *  archetype === 'career'. The career golfer's stats live on the profile
+   *  and keep growing, so a replay that read the live profile would assemble
+   *  a STRONGER golfer than the round was played with and reject an honest
+   *  score — the same failure the recorded upgrades/perk exist to prevent. */
+  career?: GolferStats;
 }
 
 export interface RoundRecording {

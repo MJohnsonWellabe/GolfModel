@@ -67,11 +67,18 @@ export interface SeasonDef {
  * flatCost got small enough that the remainder reached d), breaking the
  * "every level costs strictly more" invariant.
  */
-/** XP per pass level, averaged across the progressive curve. See the note at
- *  the SEASON_1 definition for why this is 400 and not the original 1200. */
-export const SEASON_XP_PER_LEVEL = 400;
+/** CP per pass level, averaged across the curve. CAREER MODE re-denominated
+ *  the pass from XP to CP (owner: two economies, not three): a round pays
+ *  ~6–8 CP, so 15/level keeps the same ~2-rounds-per-level pacing the 400-XP
+ *  version had at ~150 XP/round. The field profile.season.xp now stores CP —
+ *  the name is kept so migration/merge stay trivial. */
+export const SEASON_XP_PER_LEVEL = 15;
 
 function progressiveXpCosts(levels: number, flatCost: number): number[] {
+  // At CP scale a progressive integer curve is impossible: any step ≥1 over
+  // 50 levels swings the total by 1225+, dwarfing a 750-CP season. Flat is
+  // the honest curve down here — progression lives in the CP economy itself.
+  if (flatCost < 100) return Array.from({ length: levels }, () => flatCost);
   // Step per level: ~2% of the flat cost, rounded to a clean number. The
   // rounding GRANULARITY has to scale with the cost — quantising to 25 was fine
   // at 1200 XP/level (step 25) but collapses to ZERO below ~600, which silently

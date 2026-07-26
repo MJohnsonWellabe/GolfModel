@@ -281,13 +281,17 @@ describe('resetProfileRecords', () => {
 describe('season-pass state on the profile', () => {
   it('migrateProfile backfills season for old saves and RTDB-sparse copies', () => {
     const old = migrateProfile({ coins: 40 });
-    expect(old.season).toEqual({ id: 's1', xp: 0, claimed: [], owned: false });
-    // RTDB drops the empty claimed array — must coalesce, not throw
+    expect(old.season).toEqual({ id: 's1', xp: 0, claimed: [], owned: false, cpDenominated: true });
+    // RTDB drops the empty claimed array — must coalesce, not throw. A
+    // pre-career save carries XP-scale season progress: re-denominated to CP
+    // (÷25) exactly once, marked so a second migrate can't divide again.
     const sparse = migrateProfile({
       season: { id: 's1', xp: 4800, owned: true } as unknown as PlayerProfile['season']
     });
     expect(sparse.season.claimed).toEqual([]);
-    expect(sparse.season.xp).toBe(4800);
+    expect(sparse.season.xp).toBe(192); // 4800 XP ÷ 25 = 192 CP
+    expect(sparse.season.cpDenominated).toBe(true);
+    expect(migrateProfile(sparse).season.xp).toBe(192); // idempotent
     expect(sparse.season.owned).toBe(true);
   });
 

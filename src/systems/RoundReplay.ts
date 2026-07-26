@@ -135,7 +135,10 @@ export function replayRound(
     rec.golfer.upgrades ?? {},
     // A perk raises stats and widens the perfect zone. Omitting it assembles a
     // weaker golfer than the one that played, so the round does not reproduce.
-    perkById(rec.pk)
+    perkById(rec.pk),
+    // A career round replays with the Pro's attributes AS PLAYED — the live
+    // profile keeps growing, so reading it would assemble a different golfer.
+    rec.golfer.career
   );
 
   const holes: ReplayedHole[] = [];

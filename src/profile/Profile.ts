@@ -1,4 +1,5 @@
 import { ArchetypeId } from '../data/archetypes';
+import { CareerState, emptyCareer, mergeCareers } from '../data/career';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
@@ -29,13 +30,18 @@ export interface PerkState {
 export interface SeasonState {
   /** Which season this progress belongs to ('s1'…). */
   id: string;
-  /** Pass XP accrued this season — grow-only, merges by max. */
+  /** Pass progress accrued this season — grow-only, merges by max. CAREER
+   *  MODE: this now stores CP (the pass paces on CP earned); the field name
+   *  is kept so stored profiles and the merge stay untouched. */
   xp: number;
   /** Reward levels already claimed — merges by union. */
   claimed: number[];
   /** True once the pass is purchased — merges by OR. */
   owned: boolean;
   purchasedAt?: number;
+  /** True once xp has been re-denominated from the legacy XP scale to CP
+   *  (÷25, one time). Absent = a pre-career save that still needs it. */
+  cpDenominated?: boolean;
 }
 
 export interface CareerStats {
@@ -64,7 +70,9 @@ export interface PlayerProfile {
   id: string;
   name: string;
   character: CharacterKey;
-  archetype: ArchetypeId;
+  /** The chosen style: a preset archetype, or 'career' — the player's own
+   *  Pro (career mode), whose stats live in `career.attrs` below. */
+  archetype: ArchetypeId | 'career';
   /** Spendable balance. Invariant: coins === coinsEarned − coinsSpent. */
   coins: number;
   /** Lifetime coins ever earned — grow-only, so it merges by max. */
@@ -112,6 +120,11 @@ export interface PlayerProfile {
    *  cross-device sync and offline reconciliation can never lose a best,
    *  resurrect a claim, or double-award a star. */
   retention: RetentionState;
+  /** CAREER MODE: your Pro's attributes and the CP economy that grows them
+   *  (data/career.ts). CP replaces XP as the progression currency — the
+   *  legacy xp/level fields above are frozen. Merges via mergeCareers
+   *  (grow-only cpEarned/cpSpent pair, per-stat max attrs). */
+  career: CareerState;
   updatedAt: number;
 }
 
@@ -322,12 +335,13 @@ export function defaultProfile(now = 0): PlayerProfile {
     lastDailyDate: '',
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
     tournaments: [],
-    season: { id: 's1', xp: 0, claimed: [], owned: false },
+    season: { id: 's1', xp: 0, claimed: [], owned: false, cpDenominated: true },
     perks: [],
     equippedPerk: null,
     consumables: [],
     loadoutLocked: false,
     retention: emptyRetention(),
+    career: emptyCareer(),
     updatedAt: now
   };
 }
@@ -410,10 +424,14 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     settings: { ...base.settings, ...(parsed.settings ?? {}) },
     tournaments: [...(parsed.tournaments ?? [])],
     // RTDB drops the empty claimed array — coalesce it back (like achievements).
+    // Pre-career saves carry season progress on the old XP scale (~25× CP):
+    // re-denominate ONCE, marked so a migrated copy never divides twice.
     season: {
       ...base.season,
       ...(parsed.season ?? {}),
-      claimed: [...(parsed.season?.claimed ?? [])]
+      claimed: [...(parsed.season?.claimed ?? [])],
+      xp: parsed.season?.cpDenominated ? (parsed.season.xp ?? 0) : Math.round((parsed.season?.xp ?? 0) / 25),
+      cpDenominated: true
     },
     // RTDB drops empty arrays/null — backfill perks + equipped like the rest.
     perks: [...(parsed.perks ?? [])],
@@ -422,7 +440,14 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     loadoutLocked: parsed.loadoutLocked ?? false,
     // Pre-retention profiles (and RTDB copies with the sub-trees dropped)
     // backfill to safe empty states — no loss of existing profiles.
-    retention: migrateRetention(parsed.retention)
+    retention: migrateRetention(parsed.retention),
+    // Pre-career saves start a fresh (unstarted) career; partial RTDB copies
+    // coalesce field-by-field so a dropped counter can't zero the pair.
+    career: {
+      ...emptyCareer(),
+      ...(parsed.career ?? {}),
+      attrs: { ...emptyCareer().attrs, ...(parsed.career?.attrs ?? {}) }
+    }
   };
 }
 
@@ -544,6 +569,13 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     perks: mergePerks(a.perks, b.perks),
     consumables: mergePerks(a.consumables, b.consumables),
     retention: mergeRetention(a.retention, b.retention),
+    // The career merges like the coins: grow-only earned/spent pair, derived
+    // balance, per-stat max attributes — the NEWER career goes first so its
+    // style choice wins a conflict.
+    career: mergeCareers(
+      newer.career ?? emptyCareer(),
+      (newer === a ? b.career : a.career) ?? emptyCareer()
+    ),
     // Equip choice is transient per-round state — the most recent copy wins.
     equippedPerk: newer.equippedPerk ?? null,
     updatedAt: Math.max(a.updatedAt ?? 0, b.updatedAt ?? 0)
@@ -600,6 +632,9 @@ function mergeSeason(a?: SeasonState, b?: SeasonState): SeasonState {
     xp: Math.max(sa.xp ?? 0, sb.xp ?? 0),
     claimed: [...new Set([...(sa.claimed ?? []), ...(sb.claimed ?? [])])],
     owned: (sa.owned ?? false) || (sb.owned ?? false),
+    // Both sides pass through migrateProfile before a merge, so by here the
+    // scale is CP on both — the flag just has to survive.
+    cpDenominated: (sa.cpDenominated ?? false) || (sb.cpDenominated ?? false),
     ...(purchased.length ? { purchasedAt: Math.min(...purchased) } : {})
   };
 }

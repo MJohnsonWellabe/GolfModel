@@ -1,27 +1,25 @@
 import { PlayerProfile } from '../profile/Profile';
-import {
-  ACHIEVEMENTS,
-  COINS,
-  DailyChallenge,
-  dailyChallengeFor,
-  levelForXp,
-  RoundStats,
-  XP
-} from '../data/progression';
+import { achievementCp, ACHIEVEMENTS, COINS, DailyChallenge, dailyChallengeFor, RoundStats } from '../data/progression';
+import { cpForRound, grantCp } from '../data/career';
 
 /**
- * Pure progression: turn a completed round into XP, coins, daily-challenge
+ * Pure progression: turn a completed round into CP, coins, daily-challenge
  * credit, achievements and career-stat updates. Mutates the passed profile
- * and returns the reward events for the summary UI. NEVER touched by physics
- * or the AI (XP/level must not affect gameplay — docs 08).
+ * and returns the reward events for the summary UI.
+ *
+ * CP REPLACED XP (career mode, owner decision: two economies, not three).
+ * The legacy xp/level fields are FROZEN — never granted again, kept only so
+ * old profiles merge cleanly. CP is credited to profile.career (grow-only
+ * earned/spent pair) and the same amount paces the season pass. Career
+ * ATTRIBUTES affect gameplay by design now — but only ever through the
+ * player's own explicit spending, never through anything in this engine.
  */
 
 export type RewardEvent =
-  | { kind: 'xp'; amount: number }
+  | { kind: 'cp'; amount: number }
   | { kind: 'coins'; amount: number }
   | { kind: 'daily'; name: string; streak: number }
-  | { kind: 'achievement'; id: string; name: string; desc: string }
-  | { kind: 'levelUp'; level: number };
+  | { kind: 'achievement'; id: string; name: string; desc: string };
 
 /** Yesterday's YYYY-MM-DD, for the streak-continuity check. Uses LOCAL calendar
  *  time to match todayKey() in slice3d/main.ts — mixing UTC here with a local
@@ -44,15 +42,11 @@ export function applyRound(
   challengeOverride?: DailyChallenge
 ): RewardEvent[] {
   const events: RewardEvent[] = [];
-  const startLevel = profile.level;
 
-  // XP + coins for the round
-  let xp = XP.round + r.birdies * XP.birdie + r.eagles * XP.eagle + r.holeInOnes * XP.holeInOne;
+  // Coins for the round; the CP is computed once the daily outcome is known.
   let coins = COINS.round + Math.max(0, -r.toPar) * COINS.perUnderPar;
-  if (r.won) {
-    xp += XP.tournamentWin;
-    coins += COINS.tournamentWin;
-  }
+  if (r.won) coins += COINS.tournamentWin;
+  let dailyDone = false;
 
   // Daily streak — consecutive days with at least one COMPLETED ROUND. The
   // streak used to extend only when the daily challenge succeeded, so a single
@@ -70,16 +64,25 @@ export function applyRound(
     profile.daily = { date: dateKey, challengeId: challenge.id, done: false };
     if (challenge.test(r)) {
       profile.daily.done = true;
-      xp += XP.daily;
+      dailyDone = true;
       coins += COINS.daily;
       events.push({ kind: 'daily', name: challenge.name, streak: profile.dailyStreak });
     }
   }
 
-  profile.xp += xp;
+  // CP — the career currency the round pays (data/career.ts owns the table).
+  const cp = cpForRound({
+    toPar: r.toPar,
+    birdies: r.birdies,
+    eagles: r.eagles,
+    holeInOnes: r.holeInOnes,
+    won: r.won ?? false,
+    dailyDone
+  });
+  profile.career = grantCp(profile.career, cp);
   profile.coins += coins;
   profile.coinsEarned += coins; // grow-only lifetime tally (drives cloud merge)
-  events.push({ kind: 'xp', amount: xp });
+  events.push({ kind: 'cp', amount: cp });
   events.push({ kind: 'coins', amount: coins });
 
   // Career statistics (accumulate; bests take the extreme)
@@ -101,24 +104,17 @@ export function applyRound(
   s.longestPuttFt = Math.max(s.longestPuttFt, r.longestPuttMadeFt);
   s.bestRoundToPar = s.bestRoundToPar === null ? r.toPar : Math.min(s.bestRoundToPar, r.toPar);
 
-  // Level up from the new XP total
-  profile.level = levelForXp(profile.xp);
-
-  // Achievements (checked after stats + level so level_10 etc. can fire)
+  // Achievements (checked after stats so counters can fire; their legacy xp
+  // rewards pay out re-denominated in CP — achievementCp).
   for (const a of ACHIEVEMENTS) {
     if (profile.achievements.includes(a.id)) continue;
     if (a.test(s, profile)) {
       profile.achievements.push(a.id);
-      profile.xp += a.xp;
+      profile.career = grantCp(profile.career, achievementCp(a.xp));
       profile.coins += a.coins;
       profile.coinsEarned += a.coins; // grow-only lifetime tally
       events.push({ kind: 'achievement', id: a.id, name: a.name, desc: a.desc });
     }
-  }
-  // A late achievement XP bump can cross another level threshold
-  profile.level = levelForXp(profile.xp);
-  for (let lvl = startLevel + 1; lvl <= profile.level; lvl++) {
-    events.push({ kind: 'levelUp', level: lvl });
   }
   return events;
 }

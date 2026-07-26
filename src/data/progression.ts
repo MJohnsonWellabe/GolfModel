@@ -1,4 +1,5 @@
 import { CareerStats, PlayerProfile } from '../profile/Profile';
+import { careerOvr } from './career';
 import { starCount } from '../systems/Mastery';
 
 /**
@@ -8,6 +9,9 @@ import { starCount } from '../systems/Mastery';
  * gameplay (docs 08) — nothing here is read by physics or the AI.
  */
 
+/** LEGACY XP table — frozen with the xp/level fields it fed (career mode: CP
+ *  replaced XP as the progression currency, data/career.ts). Kept only so an
+ *  old profile's numbers still mean what they meant; nothing grants from it. */
 export const XP = {
   round: 100,
   birdie: 25,
@@ -16,6 +20,12 @@ export const XP = {
   tournamentWin: 200,
   daily: 50
 } as const;
+
+/** An achievement's legacy `xp` reward re-denominated in CP (the tables were
+ *  authored at ~25 XP : 1 CP). Floor of 2 so no badge pays zero. */
+export function achievementCp(xp: number): number {
+  return Math.max(2, Math.round(xp / 25));
+}
 
 export const COINS = {
   // Per-round earnings halved (owner) to slow the coin economy so the coin
@@ -93,8 +103,10 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'fire_5', name: 'Blazing', desc: 'Reach a 5-swing Fire streak', xp: 150, coins: 75, test: (_s, p) => (p.retention?.records?.longestFireStreak ?? 0) >= 5 },
   // Daily Challenge (also the day-7 streak badge)
   { id: 'streak_7', name: 'Committed', desc: 'Reach a 7-day streak', xp: 100, coins: 50, test: (_s, p) => Math.max(p.dailyStreak, p.retention?.streak?.best ?? 0) >= 7 },
-  // Competitive
-  { id: 'level_10', name: 'Seasoned', desc: 'Reach level 10', xp: 150, coins: 75, test: (_s, p) => p.level >= 10 },
+  // Career (the level_10 badge retired with the XP levels it read)
+  { id: 'career_80', name: 'Rising Star', desc: 'Raise your Pro to 80 overall', xp: 150, coins: 75, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 80 },
+  { id: 'career_90', name: 'World Class', desc: 'Raise your Pro to 90 overall', xp: 250, coins: 100, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 90 },
+  { id: 'career_99', name: 'The Zenith', desc: 'Max your Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => p.career?.styleId != null && careerOvr(p.career.attrs) >= 99 },
   { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
   { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 }
 ];

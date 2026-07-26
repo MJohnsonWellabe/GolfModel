@@ -69,7 +69,8 @@ import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
-import { ACHIEVEMENTS, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, levelForXp, RoundStats, XP, xpForLevel, dailyChallengeFor } from '../data/progression';
+import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
+import { careerOvr, grantCp, pointCost, raiseAttr, startCareer } from '../data/career';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
 import { TutorialCoach } from './tutorial';
@@ -4438,7 +4439,9 @@ function showSummary(): void {
         total: totals[0],
         toPar: totals[0] - totalPar,
         holes: me.scores.slice(0, holes.length),
-        submittedAt: Date.now()
+        submittedAt: Date.now(),
+        // The rating that PLAYED — the board shows it beside the name.
+        rating: ovr(me.golfer.stats)
       });
       weeklyLine = `<div class="rwLine ach">🏆 Weekly entry posted: ${totals[0]} (${parLabel(totals[0])})</div>`;
     } else if (isBest) {
@@ -4494,13 +4497,14 @@ function showSummary(): void {
     if (claim.reward) {
       profile.coins += claim.reward.coins;
       profile.coinsEarned += claim.reward.coins;
-      profile.xp += claim.reward.xp;
-      profile.level = levelForXp(profile.xp);
+      // Streak XP bounties pay as CP now (career mode's ÷25 re-denomination).
+      const streakCp = claim.reward.xp ? achievementCp(claim.reward.xp) : 0;
+      if (streakCp) profile.career = grantCp(profile.career, streakCp);
       const day = cycleDay(adv.state.current);
       streakRewardLine =
         `<div class="rwLine daily">🔥 Streak day ${day}: ` +
         `${claim.reward.coins ? `+${claim.reward.coins} 🪙 ` : ''}` +
-        `${claim.reward.xp ? `+${claim.reward.xp} XP` : ''}` +
+        `${streakCp ? `+${streakCp} CP` : ''}` +
         `${claim.reward.milestone ? ' · week complete! 🏆' : ''}</div>`;
     }
   }
@@ -4546,11 +4550,11 @@ function showSummary(): void {
   // play (Constitution rule 18). Guest rounds are flagged and never appear on
   // the player-facing leaderboard or as an account (see aggregate/bestRounds).
   saveRound(record);
-  // Season pass: the round's XP also advances the pass track (accrues for
+  // Season pass: the round's CP also advances the pass track (accrues for
   // everyone while the season runs; claiming needs the pass).
-  const roundXp = events.find((e): e is Extract<RewardEvent, { kind: 'xp' }> => e.kind === 'xp');
-  if (roundXp) {
-    addSeasonXp(profile, SEASON_1, roundXp.amount, Date.now());
+  const roundCp = events.find((e): e is Extract<RewardEvent, { kind: 'cp' }> => e.kind === 'cp');
+  if (roundCp) {
+    addSeasonXp(profile, SEASON_1, roundCp.amount, Date.now());
     refreshProgressSurfaces();
   }
   // Burn one charge of the equipped perk (it applied to this round); unequip it
@@ -4832,13 +4836,16 @@ function buildRoundStats(holes: HoleData[], scores: number[], totals: number[], 
 
 /** The XP/coins/daily/achievement/level rewards strip for the summary. */
 function rewardStripHtml(events: RewardEvent[]): string {
-  const sum = (k: 'xp' | 'coins'): number =>
-    events.filter((e): e is Extract<RewardEvent, { kind: 'xp' | 'coins' }> => e.kind === k).reduce((a, e) => a + e.amount, 0);
+  const sum = (k: 'cp' | 'coins'): number =>
+    events.filter((e): e is Extract<RewardEvent, { kind: 'cp' | 'coins' }> => e.kind === k).reduce((a, e) => a + e.amount, 0);
+  // CP leads the strip (career mode: CP is THE progression currency), and the
+  // line under it says what CP is FOR — spendable growth, one tap away.
   let html =
-    `<div class="rewardStrip"><span class="rw xp">+${sum('xp')} XP</span>` +
+    `<div class="rewardStrip"><span class="rw xp">+${sum('cp')} CP</span>` +
     `<span class="rw coin">+${sum('coins')} 🪙</span></div>`;
-  const levels = events.filter((e) => e.kind === 'levelUp');
-  if (levels.length) html += `<div class="rwLine level">⭐ Level ${(levels[levels.length - 1] as { level: number }).level}!</div>`;
+  if (flag('careerMode') && profile.career.styleId && profile.career.cp > 0) {
+    html += `<div class="rwLine level">📈 ${profile.career.cp} CP to spend — grow your Pro in the Locker</div>`;
+  }
   const daily = events.find((e) => e.kind === 'daily') as { name: string; streak: number } | undefined;
   // The daily's coin bounty is inside the round's coin total; call it out so
   // completing the challenge visibly PAYS (playtest: "they should give you
@@ -4930,9 +4937,11 @@ function profileTabs(): ProfileTab[] {
 function renderProfile(tab?: ProfileTab): void {
   const p = profile;
   const s = p.stats;
-  const cur = xpForLevel(p.level);
-  const next = xpForLevel(p.level + 1);
-  const pct = next > cur ? Math.round(((p.xp - cur) / (next - cur)) * 100) : 100;
+  // The header reads in career terms now: the Pro's rating and the CP behind
+  // it, with the bar showing progress into the current season-pass level
+  // (which CP also paces). Legacy xp/level are frozen and no longer shown.
+  const lp = levelProgress(SEASON_1, p.season.xp);
+  const pct = lp.levelCost > 0 ? Math.round((lp.intoLevel / lp.levelCost) * 100) : 100;
   const tabs = profileTabs();
   if (tab && tabs.includes(tab)) profileTab = tab;
   if (!tabs.includes(profileTab)) profileTab = 'player';
@@ -4942,7 +4951,9 @@ function renderProfile(tab?: ProfileTab): void {
   recordsEl.style.display = 'flex';
   recordsEl.innerHTML =
     `<div class="recInner"><h2>${escapeHtml(p.name || 'Golfer')}</h2>` +
-    `<div class="profLvl">Level ${p.level} · ${p.coins} 🪙 · ${p.xp} XP</div>` +
+    `<div class="profLvl">${
+      flag('careerMode') && p.career.styleId ? `Pro OVR ${careerOvr(p.career.attrs)} · ` : ''
+    }Pass level ${lp.level} · ${p.coins} 🪙 · ${p.career.cp} CP</div>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<div class="profTabs">` +
     tabs
@@ -5646,25 +5657,46 @@ function equippedPerkDef(): PerkDef | undefined {
  * reproduce, and the recording was silently dropped. For any player who has not
  * locked a loadout, that was every round.
  */
-let roundLoadout: { character: CharacterKey; archetype: ArchetypeId } = {
+let roundLoadout: { character: CharacterKey; archetype: ArchetypeId | 'career' } = {
   character: 'chip',
   archetype: 'bigHitter'
 };
 
+/** The Pro's attributes AS PLAYED this round (career style only) — snapshot
+ *  at tee-off so mid-round CP spending can't change the golfer in hand, and
+ *  stamped into the recording so the replay assembles the same one. */
+let roundCareerStats: GolferStats | null = null;
+
+/** What the chosen style is called, the career Pro included — archetypeById
+ *  throws on 'career', which is not a preset. */
+function styleName(a: ArchetypeId | 'career'): string {
+  return a === 'career' ? `Your Pro · ${careerOvr(profile.career.attrs)} OVR` : archetypeById(a).name;
+}
+
 function roundGolfer(): Golfer {
   let character = profile.character as CharacterKey;
-  let archetype = profile.archetype as ArchetypeId;
+  let archetype: ArchetypeId | 'career' = profile.archetype;
   if (!profile.loadoutLocked) {
     const owned = CHARACTERS.filter((c) => profile.cosmetics.owned.includes(`char_${c.key}`));
     character = (owned.length ? randomOf(owned) : CHARACTERS[0]).key as CharacterKey;
-    archetype = randomOf(ARCHETYPES).id as ArchetypeId;
+    // The Pro SURVIVES the shuffle: with the career style selected, random
+    // dress-up changes the look, never the golfer you built.
+    if (archetype !== 'career') archetype = randomOf(ARCHETYPES).id as ArchetypeId;
     const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(profile, i));
     if (ownedPals.length) equip(profile, randomOf(ownedPals).id); // a random companion for the round
   }
   roundLoadout = { character, archetype };
   const perk = equippedPerkDef();
   roundPerkId = perk?.id ?? null;
-  return assembleGolfer(profile.name || 'Player', character, archetype, profile.clubUpgrades, perk);
+  roundCareerStats = archetype === 'career' ? { ...profile.career.attrs } : null;
+  return assembleGolfer(
+    profile.name || 'Player',
+    character,
+    archetype,
+    profile.clubUpgrades,
+    perk,
+    roundCareerStats ?? undefined
+  );
 }
 
 /** The perk the CURRENT round is being played with — recorded for the same
@@ -6844,7 +6876,10 @@ function sealRoundRecording(): void {
       // They differ on every round an unlocked profile re-rolls (roundGolfer).
       character: roundLoadout.character,
       archetype: roundLoadout.archetype,
-      upgrades: { ...profile.clubUpgrades }
+      upgrades: { ...profile.clubUpgrades },
+      // The Pro's attributes as played (career style only) — the live profile
+      // keeps growing, so the replay needs this snapshot, not the profile.
+      ...(roundCareerStats ? { career: { ...roundCareerStats } } : {})
     },
     scores: me?.scores ?? [],
     at: Date.now(),
@@ -6907,7 +6942,7 @@ const sel = {
   courseId: DEFAULT_COURSE_ID,
   name: profile.name,
   character: (profile.character as CharacterKey) || (CHARACTERS[0].key as CharacterKey),
-  archetype: (profile.archetype as ArchetypeId) || (ARCHETYPES[0].id as ArchetypeId),
+  archetype: (profile.archetype as ArchetypeId | 'career') || (ARCHETYPES[0].id as ArchetypeId),
   opponentId: OPPONENTS[1].id
 };
 
@@ -7178,18 +7213,62 @@ function renderLockerRoom(): void {
         `<div class="cn">${ch.name}</div></div>`
     )
     .join('');
-  const archCards = ARCHETYPES.map((a) => {
-    const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
-    const upgraded = applyClubUpgrades(a.stats, p.clubUpgrades);
+  // CAREER MODE: your Pro leads the Style tab — a rookie you start once and
+  // grow with CP, selectable exactly like the five presets beneath it.
+  const STAT_SHORT: Record<keyof GolferStats, string> = {
+    drivingPower: 'PWR',
+    drivingAccuracy: 'ACC',
+    approach: 'APP',
+    chipping: 'CHP',
+    putting: 'PUT'
+  };
+  const careerCard = ((): string => {
+    if (!flag('careerMode')) return '';
+    const c = p.career;
+    if (!c.styleId) {
+      const opts = ARCHETYPES.map(
+        (a) => `<button class="careerStart" data-cstart="${a.id}">${a.name}</button>`
+      ).join('');
+      return (
+        `<div class="archCard careerCard" style="--accent:#d9a441">` +
+        `<div class="ahead"><span class="an">🎓 Your Pro — start a career</span>` +
+        `<span class="atag">a rookie at 65 overall who grows every round YOU play. Pick a starting style:</span></div>` +
+        `<div class="careerStartRow">${opts}</div></div>`
+      );
+    }
+    const upgraded = applyClubUpgrades(c.attrs, p.clubUpgrades);
+    const sig = archetypeById(c.styleId).signature;
+    const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
+      .map((k) => {
+        const cost = pointCost(c.attrs[k]);
+        const can = Number.isFinite(cost) && c.cp >= cost;
+        const label = Number.isFinite(cost) ? `+1 · ${cost} CP` : 'MAX';
+        return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
+      })
+      .join('');
     return (
-      `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
-      `<div class="ahead"><span class="an">${a.name}</span>` +
-      `<span class="atag">${a.tagline}</span>` +
+      `<div class="archCard careerCard${sel.archetype === 'career' ? ' sel' : ''}" data-arch="career" style="--accent:#d9a441">` +
+      `<div class="ahead"><span class="an">🎓 Your Pro</span>` +
+      `<span class="atag">grows as you play · ${c.cp} CP to spend</span>` +
       `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
-      statBars(upgraded, a.signature, p.clubUpgrades) +
-      `</div>`
+      statBars(upgraded, sig, p.clubUpgrades) +
+      `<div class="careerSpendRow">${spendRow}</div></div>`
     );
-  }).join('');
+  })();
+  const archCards =
+    careerCard +
+    ARCHETYPES.map((a) => {
+      const hx = `#${(a.color & 0xffffff).toString(16).padStart(6, '0')}`;
+      const upgraded = applyClubUpgrades(a.stats, p.clubUpgrades);
+      return (
+        `<div class="archCard${sel.archetype === a.id ? ' sel' : ''}" data-arch="${a.id}" style="--accent:${hx}">` +
+        `<div class="ahead"><span class="an">${a.name}</span>` +
+        `<span class="atag">${a.tagline}</span>` +
+        `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
+        statBars(upgraded, a.signature, p.clubUpgrades) +
+        `</div>`
+      );
+    }).join('');
   const ownedPals = STORE_CATALOG.filter((i) => i.kind === 'pal' && isOwned(p, i));
   const palCard = (id: string | null, name: string, icon: string): string => {
     const selected = id === null ? !p.cosmetics.equipped.pal : p.cosmetics.equipped.pal === id;
@@ -7333,8 +7412,30 @@ function renderLockerRoom(): void {
   );
   lockerEl.querySelectorAll('.archCard[data-arch]').forEach((el) =>
     el.addEventListener('pointerdown', () => {
-      sel.archetype = (el as HTMLElement).dataset.arch as ArchetypeId;
+      sel.archetype = (el as HTMLElement).dataset.arch as ArchetypeId | 'career';
       syncLoadout();
+      renderLockerRoom();
+    })
+  );
+  // Career: begin (pick a starting style) and grow (spend CP on a stat).
+  // stopPropagation on both — these live INSIDE the selectable card.
+  lockerEl.querySelectorAll('.careerStart[data-cstart]').forEach((el) =>
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      profile.career = startCareer(profile.career, (el as HTMLElement).dataset.cstart as ArchetypeId, Date.now());
+      sel.archetype = 'career';
+      syncLoadout();
+      renderLockerRoom();
+    })
+  );
+  lockerEl.querySelectorAll('.cpSpend[data-cspend]').forEach((el) =>
+    el.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      const next = raiseAttr(profile.career, (el as HTMLElement).dataset.cspend as keyof GolferStats);
+      if (!next) return;
+      profile.career = next;
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(profile).then((res) => { applyCloudMerge(profile, res.profile); showCloudStatus(res.status, true); });
       renderLockerRoom();
     })
   );
@@ -7489,7 +7590,7 @@ function renderTournamentReady(): void {
     `<div class="stepTitle">Ready to play</div>` +
     `<div class="stepHint">🏁 ${escapeHtml(name)} — same wind & pins for everyone. Tee off when ready.</div>` +
     `<div class="stepHint" style="margin-top:10px">Your golfer: <b>${escapeHtml(profile.name || 'Player')}</b> · ` +
-    `${escapeHtml(archetypeById(profile.archetype).name)}. Change your loadout in the Locker Room.</div>`;
+    `${escapeHtml(styleName(profile.archetype))}. Change your loadout in the Locker Room.</div>`;
 }
 
 function goStep(n: number): void {
@@ -7703,11 +7804,18 @@ function updateDestinations(newPlayer: boolean): void {
   // to select character and other things needs to be more clear") — the Season
   // Pass and Store already have their own chips on the progression strip.
   const claimable = seasonClaimableCount();
+  // Unspent CP is the second thing worth interrupting for: growth waiting to
+  // be taken (career mode).
+  const cpWaiting = flag('careerMode') && profile.career.styleId ? profile.career.cp : 0;
   set(
     'locker',
     !newPlayer,
-    claimable > 0 ? `${claimable} reward${claimable > 1 ? 's' : ''} to claim` : 'change golfer · clubs · gear',
     claimable > 0
+      ? `${claimable} reward${claimable > 1 ? 's' : ''} to claim`
+      : cpWaiting >= 2
+        ? `📈 ${cpWaiting} CP to spend on your Pro`
+        : 'change golfer · clubs · gear',
+    claimable > 0 || cpWaiting >= 2
   );
 
   // MORE — the account, and the tools when they apply.
@@ -8688,8 +8796,10 @@ function updateSetupEntry(): void {
   const play = document.getElementById('landingPlay');
   if (!play || !flag('quickPlay')) return;
   const g = profile.loadoutLocked
-    ? archetypeById(profile.archetype).name
-    : 'random golfer';
+    ? styleName(profile.archetype)
+    : profile.archetype === 'career'
+      ? styleName('career') // the Pro survives the shuffle — say so
+      : 'random golfer';
   play.innerHTML =
     `<span class="lpMain">▶ Quick Start</span>` +
     `<span class="lpSub">${escapeHtml(course?.name ?? 'choose a course')} · ${escapeHtml(g)}</span>`;
@@ -8744,7 +8854,8 @@ function updateWeeklyCard(): void {
   const bestBit = best ? `Best ${best.total} (${best.toPar === 0 ? 'E' : best.toPar > 0 ? `+${best.toPar}` : best.toPar})` : 'Not played yet';
   el.innerHTML =
     `<div class="wkInfo"><span class="wkLabel">${flag('focusedGame') ? 'TODAY\'S TOURNAMENT' : 'WEEKLY FEATURED'} · ${weeklyTimeLeft(ev, Date.now())} left</span>` +
-    `<div class="wkLine">${escapeHtml(course.name)} · <span id="wkStanding">${bestBit}</span></div></div>` +
+    `<div class="wkLine">${escapeHtml(course.name)} · <span id="wkStanding">${bestBit}</span></div>` +
+    `<div id="wkBoard" class="wkBoard"></div></div>` +
     `<button id="wkPlay" class="wkPlay">Play</button>`;
   document.getElementById('wkPlay')!.addEventListener('pointerdown', () => {
     pendingWeekly = ev;
@@ -8753,13 +8864,26 @@ function updateWeeklyCard(): void {
     landingEl.classList.remove('on');
     startRound(0);
   });
-  // Rank/percentile, best-effort (world-readable /weekly node).
+  // Rank/percentile + the top of the ONE open board, best-effort
+  // (world-readable /weekly node). Ratings ride beside names (career mode) so
+  // the board is honest about who is a rookie and who is a 95-rated veteran.
   if (best) {
     void fetchWeeklyEntries(ev.id).then((entries) => {
       const standing = weeklyStanding(entries, profile.id);
       const slot = document.getElementById('wkStanding');
       if (slot && standing) {
         slot.textContent = `${bestBit} · ${ordinal(standing.rank)} of ${standing.of}${standing.of > 3 ? ` · top ${100 - standing.percentile || 1}%` : ''}`;
+      }
+      const board = document.getElementById('wkBoard');
+      if (board && entries.length) {
+        const top = [...entries].sort((x, y) => x.total - y.total || x.submittedAt - y.submittedAt).slice(0, 3);
+        board.innerHTML = top
+          .map(
+            (e, i) =>
+              `<span class="wkRow${e.playerId === profile.id ? ' you' : ''}">${i + 1}. ${escapeHtml(e.name)}` +
+              `${typeof e.rating === 'number' ? ` · ${e.rating}` : ''} — ${e.toPar === 0 ? 'E' : e.toPar > 0 ? `+${e.toPar}` : e.toPar}</span>`
+          )
+          .join('');
       }
     });
   }
@@ -9290,6 +9414,12 @@ else {
 // (signed-out play is ephemeral — nothing here persists or reaches the cloud).
 (window as unknown as { __grantCoins: unknown }).__grantCoins = (n: number) => {
   profile.coins += n;
+};
+
+// Test hook: bank CP directly (career mode), so specs can exercise the spend
+// UI without simulating the rounds that would earn it.
+(window as unknown as { __grantCp: unknown }).__grantCp = (n: number) => {
+  profile.career = grantCp(profile.career, n);
 };
 
 // Test hook: grant owned consumable charges (e.g. True Vision) directly, so

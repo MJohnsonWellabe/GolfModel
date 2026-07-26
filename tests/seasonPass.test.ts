@@ -42,21 +42,21 @@ describe('season definition', () => {
     expect(palLevels).toEqual([30, 35, 40, 45, 50]);
   });
 
-  it('paces to a season a real player can finish (~165 rounds at ~120 XP)', () => {
-    // RESCOPED (docs/26_SCALE_PASS.md). The original target was ~500 rounds,
-    // set for a game with far more content than the 21 authored holes that
-    // exist — it meant replaying every hole in the game about 70 times. An
-    // unfinishable pass is worse than no pass: it teaches the player the reward
-    // is not for them. Raise this again when the content library justifies it.
-    const rounds = totalSeasonXp(SEASON_1) / 120;
-    expect(rounds).toBeGreaterThan(120);
-    expect(rounds).toBeLessThan(220);
+  it('paces to a season a real player can finish (~115 rounds at ~6.5 CP)', () => {
+    // CAREER MODE re-denominated the pass to CP: a round pays ~6-8 CP
+    // (data/career.ts), so 50 levels x 15 CP is a season in the same
+    // rounds-count band the 400-XP version targeted.
+    const rounds = totalSeasonXp(SEASON_1) / 6.5;
+    expect(rounds).toBeGreaterThan(90);
+    expect(rounds).toBeLessThan(140);
   });
 
-  it('per-level XP cost is progressive: each level costs more than the last', () => {
+  it('per-level cost is FLAT at the CP scale — progression lives in the CP economy', () => {
+    // At 15 CP/level a progressive integer curve is impossible (any step >= 1
+    // over 50 levels swings the total by 1225+ against a 750-CP season).
     expect(SEASON_1.xpPerLevel).toHaveLength(50);
-    for (let i = 1; i < SEASON_1.xpPerLevel.length; i++) {
-      expect(SEASON_1.xpPerLevel[i]).toBeGreaterThan(SEASON_1.xpPerLevel[i - 1]);
+    for (const cost of SEASON_1.xpPerLevel) {
+      expect(cost).toBe(SEASON_XP_PER_LEVEL);
     }
     // The progressive curve redistributes the grind; it never changes the total,
     // which stays levels × the flat per-level target.
@@ -122,7 +122,7 @@ describe('claims', () => {
     expect(p.coins).toBe(p.coinsEarned - p.coinsSpent);
   });
 
-  it('item claims grant ownership; XP claims raise profile XP but not pass XP', () => {
+  it('item claims grant ownership; legacy XP claims pay career CP, never pass progress', () => {
     const p = defaultProfile();
     p.season.owned = true;
     p.season.xp = totalSeasonXp(SEASON_1);
@@ -130,9 +130,11 @@ describe('claims', () => {
     expect(p.cosmetics.owned).toContain('s1_ball_lagoon');
     const passXpBefore = p.season.xp;
     const xpLevel = SEASON_1.rewards.findIndex((r) => 'xp' in r) + 1;
-    const profXpBefore = p.xp;
+    const cpBefore = p.career.cpEarned;
     expect(claimReward(p, SEASON_1, xpLevel).ok).toBe(true);
-    expect(p.xp).toBeGreaterThan(profXpBefore);
+    // The reward re-denominates to CP (career mode); frozen profile.xp never moves.
+    expect(p.career.cpEarned).toBeGreaterThan(cpBefore);
+    expect(p.xp).toBe(0);
     expect(p.season.xp).toBe(passXpBefore); // no feedback loop
   });
 

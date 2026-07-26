@@ -131,6 +131,10 @@ export interface WeeklyEntry {
   toPar: number;
   holes: number[];
   submittedAt: number;
+  /** The golfer's overall rating at submit (career mode) — shown beside the
+   *  name so the one open board is honest about who is a 68-rated rookie and
+   *  who is a 95-rated veteran. Optional: pre-career entries don't have it. */
+  rating?: number;
 }
 
 /** Client-side sanity gate (mirrors Tournaments.isPlausibleEntry — the RTDB is

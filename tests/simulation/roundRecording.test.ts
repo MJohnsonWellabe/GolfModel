@@ -56,10 +56,18 @@ function shot(over: Partial<ShotInput> = {}): ShotInput {
  * hand-written numbers — it produces a round that genuinely holes out, and it
  * proves the recording format can express real play rather than just parse.
  */
-function playRecording(seed: number, holes = 1, gentlePins = false): RoundRecording {
+function playRecording(
+  seed: number,
+  holes = 1,
+  gentlePins = false,
+  /** Play as the career Pro with these attributes (career mode). */
+  careerStats?: import('../../src/core/types').GolferStats
+): RoundRecording {
   const recorder = new RoundRecorder();
   recorder.start();
-  const golfer = assembleGolfer('Tester', 'chip', 'bigHitter');
+  const golfer = careerStats
+    ? assembleGolfer('Tester', 'chip', 'career', {}, undefined, careerStats)
+    : assembleGolfer('Tester', 'chip', 'bigHitter');
   // The live round materialises this seed's alternate tees before playing
   // (playHole → applyTeeVariants), and so does the replay — so a fixture that
   // skipped it would tee off somewhere the replay never looks.
@@ -136,7 +144,9 @@ function playRecording(seed: number, holes = 1, gentlePins = false): RoundRecord
     courseId: 'sablebay',
     seed,
     holes,
-    golfer: { character: 'chip', archetype: 'bigHitter' },
+    golfer: careerStats
+      ? { character: 'chip', archetype: 'career', career: { ...careerStats } }
+      : { character: 'chip', archetype: 'bigHitter' },
     scores,
     at: 1_700_000_000_000,
     name: 'Tester',
@@ -378,5 +388,30 @@ describe('round conditions', () => {
     const c = conditionsForRound(course, 42, 3, { useAuthoredPins: true, maxWind: PHYSICS.maxWind });
     expect(c.winds).toHaveLength(3);
     expect(c.pins).toHaveLength(3);
+  });
+});
+
+describe('career rounds (the Pro is a moving target — the recording pins it)', () => {
+  const attrs = { drivingPower: 71, drivingAccuracy: 68, approach: 66, chipping: 63, putting: 70 };
+
+  it('replays with the attributes AS PLAYED and verifies', () => {
+    const rec = playRecording(777, 1, false, attrs);
+    expect(rec.golfer.archetype).toBe('career');
+    expect(rec.golfer.career).toEqual(attrs);
+    const check = verifyRecording(rec, courses, OPTS);
+    expect(check.ok, `${check.status}: ${check.detail ?? ''}`).toBe(true);
+  });
+
+  it('a GROWN profile cannot verify an old round — the snapshot is the truth', () => {
+    // The live profile keeps improving after the round is recorded. A verify
+    // that read the live stats would replay a stronger golfer than the one
+    // that actually played; substituting grown attributes must therefore
+    // change the round and fail the check.
+    const rec = playRecording(777, 1, false, attrs);
+    const grown: RoundRecording = {
+      ...rec,
+      golfer: { ...rec.golfer, career: { ...attrs, drivingPower: 95, drivingAccuracy: 92 } }
+    };
+    expect(verifyRecording(grown, courses, OPTS).ok).toBe(false);
   });
 });
