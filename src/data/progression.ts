@@ -108,7 +108,8 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'career_90', name: 'World Class', desc: 'Raise a Pro to 90 overall', xp: 250, coins: 100, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 90 },
   { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 99 },
   { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
-  { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 }
+  { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 },
+  { id: 'season_champion', name: 'Season Champion', desc: 'Top the Tour Season points table', xp: 300, coins: 150, test: (s) => (s.seasonChampionships ?? 0) >= 1 }
 ];
 
 /**

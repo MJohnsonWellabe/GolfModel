@@ -1,5 +1,6 @@
 import { ArchetypeId } from '../data/archetypes';
 import { CareerState, emptyCareer, mergeCareers, migrateCareer } from '../data/career';
+import { mergeTour, migrateTour, TourSeasonState } from '../systems/TourSeason';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
@@ -59,6 +60,8 @@ export interface CareerStats {
   chipIns: number;
   tournamentWins: number;
   wins: number;
+  /** Tour Seasons finished top of the points table (career round 2). */
+  seasonChampionships: number;
   bestRoundToPar: number | null;
   longestDriveYds: number;
   longestPuttFt: number;
@@ -126,6 +129,10 @@ export interface PlayerProfile {
    *  (grow-only cpEarned/cpSpent pair, pros union by id, per-stat max
    *  attrs). */
   career: CareerState;
+  /** TOUR SEASON (career round 2): the Pro's season against the named rival
+   *  field (systems/TourSeason.ts). Null until the first event is entered.
+   *  Merges whole — the further-progressed copy wins (mergeTour). */
+  tour: TourSeasonState | null;
   updatedAt: number;
 }
 
@@ -305,6 +312,7 @@ export function emptyCareerStats(): CareerStats {
     chipIns: 0,
     tournamentWins: 0,
     wins: 0,
+    seasonChampionships: 0,
     bestRoundToPar: null,
     longestDriveYds: 0,
     longestPuttFt: 0
@@ -343,6 +351,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     loadoutLocked: false,
     retention: emptyRetention(),
     career: emptyCareer(),
+    tour: null,
     updatedAt: now
   };
 }
@@ -449,7 +458,8 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     career: migrateCareer(parsed.career, {
       name: typeof parsed.name === 'string' ? parsed.name : '',
       character: (parsed.character as PlayerProfile['character']) ?? 'chip'
-    })
+    }),
+    tour: migrateTour(parsed.tour)
   };
 }
 
@@ -577,6 +587,12 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     career: mergeCareers(
       newer.career ?? emptyCareer(),
       (newer === a ? b.career : a.career) ?? emptyCareer()
+    ),
+    // The tour merges whole: the further-progressed season wins (newer first
+    // breaks exact ties toward the most recent copy).
+    tour: mergeTour(
+      migrateTour(newer.tour),
+      migrateTour(newer === a ? b.tour : a.tour)
     ),
     // Equip choice is transient per-round state — the most recent copy wins.
     equippedPerk: newer.equippedPerk ?? null,

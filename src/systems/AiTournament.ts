@@ -89,6 +89,30 @@ export function createAiTournament(
 const FORM_SHIFT: Record<string, number> = { Easy: 2.0, Medium: 2.4, Hard: 2.6, Legend: 2.7 };
 
 /**
+ * One AI entrant's round on a course: the REAL round simulator plus the
+ * calibrated tournament-form shift for their difficulty tier. Exported so the
+ * Tour Season fields its rivals with exactly this math — one calibration,
+ * every AI leaderboard. `simSeed` drives the physics round, `shiftSeed` the
+ * stochastic whole-stroke rounding of the form shift.
+ */
+export function simulateEntrantRound(
+  course: CourseData,
+  golfer: Golfer,
+  difficulty: string,
+  simSeed: number,
+  shiftSeed: number
+): { total: number; toPar: number } {
+  const res = simulateRound(course, golfer, simSeed, RULES.holesPerRound);
+  const base = FORM_SHIFT[difficulty] ?? 1;
+  const rng = mulberry32(shiftSeed);
+  const shift = Math.floor(base) + (rng() < base % 1 ? 1 : 0);
+  // Never shift a round below one stroke per hole (absurd floor, unreachable
+  // in practice — pure belt-and-braces for tiny custom courses).
+  const total = Math.max(RULES.holesPerRound, res.total - shift);
+  return { total, toPar: res.toPar - (res.total - total) };
+}
+
+/**
  * Record the player's just-finished round and produce the field's scores for
  * the same course. Per-entrant seeds mix the tournament seed with the round
  * and entrant indices (large primes keep the simulator's mulberry streams
@@ -101,15 +125,15 @@ export function completeRound(t: AiTournamentState, courses: Record<string, Cour
   t.player.rounds.push(playerTotal);
   t.player.toPars.push(playerToPar);
   t.field.forEach((e, i) => {
-    const res = simulateRound(course, e.golfer, t.seed + t.played * 7919 + i * 104729, RULES.holesPerRound);
-    const base = FORM_SHIFT[e.difficulty] ?? 1;
-    const rng = mulberry32((t.seed ^ 0x9e3779b9) + t.played * 6151 + i * 3079);
-    const shift = Math.floor(base) + (rng() < base % 1 ? 1 : 0);
-    // Never shift a round below one stroke per hole (absurd floor, unreachable
-    // in practice — pure belt-and-braces for tiny custom courses).
-    const total = Math.max(RULES.holesPerRound, res.total - shift);
-    e.rounds.push(total);
-    e.toPars.push(res.toPar - (res.total - total));
+    const res = simulateEntrantRound(
+      course,
+      e.golfer,
+      e.difficulty,
+      t.seed + t.played * 7919 + i * 104729,
+      (t.seed ^ 0x9e3779b9) + t.played * 6151 + i * 3079
+    );
+    e.rounds.push(res.total);
+    e.toPars.push(res.toPar);
   });
   t.played++;
 }

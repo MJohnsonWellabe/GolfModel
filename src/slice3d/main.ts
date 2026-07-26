@@ -64,13 +64,14 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
+import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSeason, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TOUR_EVENTS } from '../systems/TourSeason';
 import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
-import { activePro, careerOvr, careerStarted, grantCp, pointCost, raiseAttr, setActivePro, setProLook, startPro } from '../data/career';
+import { activePro, careerOvr, careerStarted, CP, grantCp, pointCost, raiseAttr, setActivePro, setProLook, startPro } from '../data/career';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
 import { TutorialCoach } from './tutorial';
@@ -2173,8 +2174,8 @@ class HoleScene {
     this.armMeter();
     clubBar.style.display = 'flex';
     aerialBtn.style.display = 'block';
-    // Tournament rounds keep the live leaderboard one tap away (🏆).
-    tourBoardBtn.style.display = aiTour ? 'block' : 'none';
+    // Tournament and tour rounds keep the live leaderboard one tap away (🏆).
+    tourBoardBtn.style.display = aiTour || tourRoundLive ? 'block' : 'none';
     this.refreshTrueVisionBtn();
     this.updateStrikeUI();
     this.refreshClubBar();
@@ -4217,6 +4218,7 @@ function checkpointRound(): void {
   if (
     round.mode !== 'solo' ||
     aiTour ||
+    tourRoundLive ||
     round.tournament ||
     round.weeklyEventId ||
     round.challenge ||
@@ -4598,6 +4600,101 @@ function showSummary(): void {
       headline = `Round ${aiTour.played}/${aiTour.courseIds.length} complete`;
     }
   }
+
+  // TOUR SEASON round: fold this score into the current event, field the
+  // rivals' rounds, and show where the event and the season stand. Majors
+  // resolve over three rounds; the finale major closes the season — champion,
+  // purse, rollover.
+  let tourSeasonBlock = '';
+  let tourSeasonPrimary = '';
+  let tourCpLine = '';
+  if (tourRoundLive && profile.tour) {
+    tourRoundLive = false;
+    const ids = tourCourseIds();
+    const t = profile.tour;
+    const def = currentEvent(t, ids);
+    const outcome = def ? completeTourRound(t, COURSES, totals[0], totals[0] - totalPar, ids) : null;
+    if (def && outcome) {
+      const evName = tourEventName(def);
+      const evRows = outcome.standings
+        .map((r, i) => {
+          const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
+          const rank = i === 0 ? '🏆' : `${i + 1}.`;
+          return (
+            `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
+            `<span class="recNm">${escapeHtml(r.name)}</span>` +
+            `<span class="recTot">${r.total} (${sign})</span></div>`
+          );
+        })
+        .join('');
+      if (!outcome.eventDone) {
+        // A major between rounds: the event's banked rounds are already on the
+        // profile, so this is the resumable state, not a fragile one.
+        const nextRound = eventRoundsPlayed(t) + 1;
+        headline = `${evName} — round ${nextRound - 1} of ${def.rounds} complete`;
+        tourSeasonBlock =
+          `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)} · MAJOR — after round ${nextRound - 1}/${def.rounds}</div>${evRows}</div>`;
+        tourSeasonPrimary = `<button id="tourNextBtn">Round ${nextRound} of ${def.rounds} →</button>`;
+      } else {
+        const won = outcome.playerRank === 1;
+        const myPts = outcome.pointsAwarded?.['player'] ?? 0;
+        if (won) {
+          headline = def.major ? `🏆 ${evName} — champion!` : `🏆 ${evName} — won!`;
+          // A tour win is a tournament win: the stat counts it and the career
+          // pays it (majors double — they're the season's spine).
+          profile.stats.tournamentWins += 1;
+          const winCp = CP.tournamentWin * (def.major ? 2 : 1);
+          profile.career = grantCp(profile.career, winCp);
+          tourCpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
+        } else {
+          headline = `${evName}: ${ordinal(outcome.playerRank ?? outcome.standings.length)} place`;
+        }
+        tourCpLine += `<div class="rwLine level">🏅 +${myPts} season points${def.major ? ' (major — double)' : ''}</div>`;
+        tourSeasonBlock =
+          `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)}${def.major ? ' · MAJOR' : ''} — final</div>${evRows}</div>`;
+        if (outcome.seasonEnded) {
+          // The season is over: crown, purse, roll into the next one. The
+          // rivals persist; the schedule and points start fresh.
+          const fin = finishSeason(t);
+          profile.coins += fin.coins;
+          profile.coinsEarned += fin.coins;
+          profile.career = grantCp(profile.career, fin.cp);
+          tourCpLine += `<div class="rwLine ach">💰 Season purse: +${fin.coins} 🪙 · +${fin.cp} CP (${ordinal(fin.playerRank)} in points)</div>`;
+          if (fin.playerRank === 1) {
+            profile.stats.seasonChampionships += 1;
+            if (!profile.achievements.includes('season_champion')) {
+              profile.achievements.push('season_champion');
+              const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
+              if (champ) {
+                profile.career = grantCp(profile.career, achievementCp(champ.xp));
+                profile.coins += champ.coins;
+                profile.coinsEarned += champ.coins;
+                tourCpLine += `<div class="rwLine ach">🏅 ${champ.name} — ${champ.desc}</div>`;
+              }
+            }
+            showCineBanner('SEASON CHAMPION', `Season ${t.seasonNo} · ${t.points['player'] ?? 0} points`, 'epic', 5200);
+          } else {
+            const champName = escapeHtml(fin.championName);
+            tourCpLine += `<div class="rwLine level">👑 ${champName} takes the Season ${t.seasonNo} title</div>`;
+          }
+          tourSeasonBlock += tourSeasonTableHtml();
+          profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+        } else {
+          tourSeasonBlock += tourSeasonTableHtml();
+          const nextDef = currentEvent(t, ids);
+          if (nextDef) {
+            tourSeasonPrimary = `<button id="tourNextBtn">Next event: ${escapeHtml(tourEventName(nextDef))} →</button>`;
+          }
+        }
+      }
+      persistProfile();
+      if (signedIn)
+        void cloudSyncProfile(profile).then((res) => {
+          applyCloudMerge(profile, res.profile);
+          showCloudStatus(res.status, true);
+        });
+    }
+  }
   const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
   const signInNudge =
@@ -4646,6 +4743,7 @@ function showSummary(): void {
     streakRewardLine +
     protectionLine +
     purseLine +
+    tourCpLine +
     signInNudge +
     // WHAT IT MEANT — the competitive outcomes. A weekly entry, a challenge
     // settled and a tournament standing are the reason the round was played,
@@ -4653,23 +4751,29 @@ function showSummary(): void {
     weeklyLine +
     challengeLine +
     aiTourBlock +
+    tourSeasonBlock +
     tourBlock +
     `<div class="objLine">🎯 ${escapeHtml(objective)}</div>` +
     // THE TWO PRIMARY ACTIONS, directly under the objective — the card's whole
     // job is to start the next round, and on a phone anything below a details
     // expander and a five-button row is a scroll away.
-    (midTour
-      ? `<div class="primaryRow"><button id="againBtn">Next Round →</button></div>`
-      : `<div class="primaryRow"><button id="replayBtn">${replayLabel}</button>` +
-        `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>`) +
+    (tourSeasonPrimary
+      ? `<div class="primaryRow">${tourSeasonPrimary}</div>`
+      : midTour
+        ? `<div class="primaryRow"><button id="againBtn">Next Round →</button></div>`
+        : `<div class="primaryRow"><button id="replayBtn">${replayLabel}</button>` +
+          `<button id="playNextBtn">Play Next: ${escapeHtml(nextName)} →</button></div>`) +
     // The retention actions keep their own row — racing this round and
     // challenging somebody with it are the two things that bring a player
-    // back, so they are one tap, not two.
+    // back, so they are one tap, not two. A tour round keeps the card about
+    // the tour (no ghost/challenge: its rounds aren't recorded).
     (midTour
       ? `<div class="btnRow"><button id="quitTourBtn" class="ghostBtn">Quit tournament</button></div>`
-      : `<div class="btnRow">` +
-        (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
-        `<button id="shareChBtn" class="ghostBtn">⚔ Challenge a friend</button></div>`) +
+      : tourSeasonBlock
+        ? ''
+        : `<div class="btnRow">` +
+          (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
+          `<button id="shareChBtn" class="ghostBtn">⚔ Challenge a friend</button></div>`) +
     // Everything else — the scorecard, and the two destinations that are
     // always one tap from the menu anyway — folds away.
     `<details class="roundDetails"><summary>Scorecard &amp; more</summary>` +
@@ -4728,6 +4832,12 @@ function showSummary(): void {
     // next_course_started deprecated 2026-07-18: pure duplicate of
     // play_next_selected(destination_course) + the round_started that follows
     // (docs/technical/ANALYTICS_FRAMEWORK.md).
+  });
+  // Tour Season: the next round of a major, or straight into the next event.
+  document.getElementById('tourNextBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    summaryEl.style.display = 'none';
+    startTourRound();
   });
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
@@ -6406,6 +6516,122 @@ function showAiTourBoard(): void {
   modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
 }
 
+// ----- TOUR SEASON (career round 2): the Pro's own-pace season — sixteen
+// events against the ten named rivals, majors at 4/8/12/16, a PGA-style
+// points table. State lives on the PROFILE (profile.tour) so a major's
+// completed rounds survive closing the game; this flag only marks that the
+// round currently in play belongs to the tour.
+
+let tourRoundLive = false;
+
+/** The tour's course pool: the canonical Play Next rotation, availability-
+ *  filtered (an id missing from COURSES — expansion flag off — drops out). */
+function tourCourseIds(): string[] {
+  return PLAY_NEXT_ROTATION.filter((id) => COURSES[id]);
+}
+
+/** What an event is called on every surface: the major's name, or the stop's
+ *  course + "Open". */
+function tourEventName(def: TourEventDef): string {
+  return def.major ? (def.majorName ?? 'Major') : `${COURSES[def.courseId]?.name ?? def.courseId} Open`;
+}
+
+/** Enter the tour from the Today card: the career Pro's story, so a started
+ *  career is required (the card deep-links to the Locker instead) and the Pro
+ *  is force-selected for the round. Creates the season on first entry. */
+function startTourEvent(): void {
+  if (!flag('careerMode') || !careerStarted(profile.career)) return;
+  if (!profile.tour) {
+    profile.tour = newSeason(Math.floor(Math.random() * 1e9));
+    persistProfile();
+  }
+  // The tour is played AS the Pro — entering selects the career style.
+  if (sel.archetype !== 'career') {
+    sel.archetype = 'career';
+    syncLoadout();
+  }
+  startTourRound();
+}
+
+/** Play the current event's next round as a normal solo round — the aiTour
+ *  precedent: round.mode stays 'solo', the summary spots the live tour round
+ *  and swaps its footer for standings + the event's next step. */
+function startTourRound(): void {
+  const t = profile.tour;
+  const def = t ? currentEvent(t, tourCourseIds()) : null;
+  if (!t || !def) return;
+  round.course = courseFallback(def.courseId);
+  round.mode = 'solo';
+  round.holeIdx = 0;
+  round.activePlayer = 0;
+  round.holeWinds = [];
+  round.holePins = [];
+  round.seed = (Math.random() * 0xffffffff) >>> 0;
+  round.tournament = null;
+  round.weeklyEventId = null;
+  round.challenge = null;
+  aiTour = null;
+  tourRoundLive = true;
+  shotAcc = freshShotAcc();
+  beginRoundTracking();
+  grantRoundTrueVision();
+  // A tour round is not the plain solo round the recorder covers.
+  lastRecording = null;
+  roundRecorder.stop();
+  const golfer = roundGolfer();
+  round.players = [{ golfer, isAI: false, scores: [] }];
+  setupEl.style.display = 'none';
+  playHole();
+}
+
+/** The season points table (top rows + the player, same clamp discipline as
+ *  the record boards would use — 11 entrants fit whole, so all render). */
+function tourSeasonTableHtml(): string {
+  const t = profile.tour;
+  if (!t) return '';
+  const rows = seasonStandings(t)
+    .map((r, i) => {
+      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      return (
+        `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}</span>` +
+        `<span class="recTot">${r.total} pts</span></div>`
+      );
+    })
+    .join('');
+  return (
+    `<div class="tourResult"><div class="tourHeadRow">🏅 Season ${t.seasonNo} points — after ${Math.min(t.played, TOUR_EVENTS)}/${TOUR_EVENTS} events</div>` +
+    rows +
+    `</div>`
+  );
+}
+
+/** Mid-round board for a tour round (the 🏆 HUD button): where the event
+ *  stands through the rounds banked so far, and the season table. */
+function showTourBoard(): void {
+  const t = profile.tour;
+  if (!t) return;
+  const def = currentEvent(t, tourCourseIds());
+  const modal = document.createElement('div');
+  modal.className = 'storeConfirm';
+  modal.style.zIndex = '30';
+  const roundNo = Math.min(eventRoundsPlayed(t) + 1, def?.rounds ?? 1);
+  const head = def
+    ? `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(tourEventName(def))}${def.major ? ' · MAJOR' : ''}</div>` +
+      `<div class="recSub">You're playing round ${roundNo} of ${def.rounds} — scores post when the round ends.</div></div>`
+    : '';
+  modal.innerHTML =
+    `<div class="storeConfirmBox">` +
+    head +
+    tourSeasonTableHtml() +
+    `<div class="btnRow"><button id="tourBoardClose">Close</button></div></div>`;
+  modal.addEventListener('pointerdown', (e) => {
+    if (e.target === modal) modal.remove();
+  });
+  document.body.appendChild(modal);
+  modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
+}
+
 engine3d.runRenderLoop(() => current?.render());
 window.addEventListener('resize', () => engine3d.resize());
 
@@ -7714,6 +7940,7 @@ function refreshLandingCards(): void {
   updateSetupEntry();
   updateGhostCard();
   updateDailyHoleCard();
+  updateTourCard();
   // Practice lives on the course chooser now (the "Go to the range" bar), so
   // the Today pane no longer carries an entry for it.
   const rangeBar = document.getElementById('rangeBar');
@@ -7743,6 +7970,10 @@ function refreshProgressSurfaces(): void {
   const newPlayer = isNewPlayer();
   updateProgressStrip(newPlayer);
   updateDestinations(newPlayer);
+  // The tour card reads career + tour state, both of which move at the same
+  // moments the strip does (career started, event finished) — repaint with it
+  // so the Today pane never advertises a stale gate.
+  updateTourCard();
 }
 
 // ---------------------------------------------------------------------------
@@ -8278,6 +8509,51 @@ function settleRivalFixture(dateKey: string, yourStrokes: number, rec: RoundReco
  * of pure arithmetic: generate, simulate ~140 rounds, retry until one lands in
  * the playable band) and memoised for the session. Never on a gameplay path.
  */
+/** The Tour Season card on the Today pane: the next event (or the major's
+ *  next round), where the Pro sits in points, one Play action. Career-only —
+ *  without a started career it deep-links to the Locker instead. */
+function updateTourCard(): void {
+  const el = document.getElementById('tourCard');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!flag('careerMode')) return;
+  if (!careerStarted(profile.career)) {
+    el.innerHTML =
+      `<div class="tcLabel">⛳ TOUR SEASON</div>` +
+      `<div class="tcName">Sixteen events, four majors, ten rivals — your Pro's season.</div>` +
+      `<div class="tcStand">Start a career in the Locker to join the tour.</div>` +
+      `<button class="tcPlay" id="tourLocker">Open the Locker</button>`;
+    el.querySelector('#tourLocker')?.addEventListener('click', () => {
+      closeDest();
+      lkTab = 'style';
+      renderLockerRoom();
+    });
+    return;
+  }
+  const t = profile.tour;
+  const ids = tourCourseIds();
+  const def = t ? currentEvent(t, ids) : null;
+  if (t && !def) return; // between rollovers — one render away from fresh
+  const evNo = (def?.idx ?? 0) + 1;
+  const name = def ? tourEventName(def) : '';
+  const roundsIn = t ? eventRoundsPlayed(t) : 0;
+  const standing = ((): string => {
+    if (!t || Object.keys(t.points).length === 0) return `Season ${t?.seasonNo ?? 1} tees off — the field is waiting.`;
+    const rank = seasonStandings(t).findIndex((r) => r.isPlayer) + 1;
+    return `Season ${t.seasonNo} · you're ${ordinal(rank)} in points (${t.points['player'] ?? 0} pts)`;
+  })();
+  const playLabel = def && roundsIn > 0 ? `Round ${roundsIn + 1} of ${def.rounds} →` : 'Play the event →';
+  el.innerHTML =
+    `<div class="tcLabel">⛳ TOUR SEASON${def?.major ? ' · MAJOR' : ''}</div>` +
+    `<div class="tcName">Event ${evNo}/${TOUR_EVENTS} · ${escapeHtml(name)}</div>` +
+    `<div class="tcStand">${standing}</div>` +
+    `<button class="tcPlay" id="tourPlay">${playLabel}</button>`;
+  el.querySelector('#tourPlay')?.addEventListener('click', () => {
+    closeDest();
+    startTourEvent();
+  });
+}
+
 function updateDailyHoleCard(): void {
   const el = document.getElementById('dailyHoleCard');
   if (!el) return;
@@ -8837,11 +9113,21 @@ function updateLearnEntry(newPlayer: boolean): void {
  * this device last played, or the default course) and the wizard moves to an
  * explicit "Course & mode" entry beneath it for anyone who wants to choose.
  */
+/** Where Quick Start goes NEXT: the rotation's course after the one this
+ *  device played last (owner, career round 2: "the quick start button should
+ *  rotate courses" — replaying the same course every tap made one course the
+ *  whole game). First tap ever still opens the default course. */
+function quickPlayCourseId(): string {
+  const last = deviceSettings.lastCourseId;
+  if (!last) return courseIdOrDefault(sel.courseId, COURSES);
+  return nextCourseIdAfter(courseIdOrDefault(last, COURSES));
+}
+
 function quickPlay(): void {
   endPractice();
   pendingTournament = null;
   sel.mode = 'solo';
-  sel.courseId = courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES);
+  sel.courseId = quickPlayCourseId();
   landingEl.classList.remove('on');
   startRound(0);
 }
@@ -8851,7 +9137,9 @@ function quickPlay(): void {
  *  (with the flag off, the primary button IS the wizard). */
 function updateSetupEntry(): void {
   const btn = document.getElementById('landingChoose');
-  const course = COURSES[courseIdOrDefault(deviceSettings.lastCourseId || sel.courseId, COURSES)];
+  // The button names the course Quick Start will ACTUALLY open (the rotation's
+  // next), not the one just played.
+  const course = COURSES[quickPlayCourseId()];
   if (btn) btn.style.display = flag('quickPlay') ? '' : 'none';
   // NAME THE COURSE AND THE GOLFER ON THE BUTTON.
   //
@@ -9044,8 +9332,11 @@ function grantRoundTrueVision(): void {
 }
 
 function startRound(startHoleIdx = 0): void {
-  // A fresh start from the menu abandons any half-finished AI tournament.
+  // A fresh start from the menu abandons any half-finished AI tournament, and
+  // any tour ROUND in play (the tour EVENT's banked rounds live on the
+  // profile and survive — that's what makes majors resumable).
   aiTour = null;
+  tourRoundLive = false;
   // ...and any unfinished-round checkpoint, unless THIS call is the resume.
   if (!resumingFrom) clearCheckpoint();
   round.course = courseFallback(sel.courseId);
@@ -9217,6 +9508,9 @@ function leaveRound(): void {
   roundRecorder.stop();
   dailyRound = null;
   activeGhost = null;
+  // Abandoning a tour round forfeits only THAT round's progress — the event's
+  // completed rounds are already banked on the profile.
+  tourRoundLive = false;
   swingBtn.style.display = 'none';
   hudEl.style.display = 'none';
   pauseBtn.style.display = 'none';
@@ -9290,7 +9584,7 @@ document.getElementById('destSheet')!.addEventListener('click', (e) => {
   if (e.target === e.currentTarget) closeDest();
 });
 updateLandingProfileButton();
-tourBoardBtn.addEventListener('pointerdown', () => showAiTourBoard());
+tourBoardBtn.addEventListener('pointerdown', () => (aiTour ? showAiTourBoard() : showTourBoard()));
 renderAcctMenu();
 // 'click', NOT 'pointerdown' — Back HIDES the setup screen, and hiding on the
 // press put the landing's destination tiles under the release: the tap's
@@ -9464,6 +9758,25 @@ else {
   activeGhost ? { name: activeGhost.name, scores: activeGhost.scores } : null;
 
 (window as unknown as { __aiTour: unknown }).__aiTour = () => (aiTour ? { courseIds: [...aiTour.courseIds], played: aiTour.played } : null);
+
+// Test hook: the Tour Season's live state (tests/visual/tour.spec.ts) — which
+// event is up, whether the round in play belongs to the tour, and that
+// entering really did force-select the career Pro.
+(window as unknown as { __tour: unknown }).__tour = () => {
+  const t = profile.tour;
+  const def = t ? currentEvent(t, tourCourseIds()) : null;
+  return {
+    started: !!t,
+    seasonNo: t?.seasonNo ?? 0,
+    played: t?.played ?? 0,
+    eventIdx: def?.idx ?? null,
+    major: def?.major ?? false,
+    roundsIn: t ? eventRoundsPlayed(t) : 0,
+    roundLive: tourRoundLive,
+    archetype: roundLoadout.archetype,
+    points: t ? { ...t.points } : {}
+  };
+};
 
 // Test hook: read the player's current True Vision charge count (owned +
 // this round's ephemeral bonus, matching what the in-round button shows), so

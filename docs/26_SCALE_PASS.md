@@ -844,3 +844,42 @@ The owner's chosen answer to "the game feels flat": a career golfer.
 - Merging follows the coins discipline: grow-only `cpEarned/cpSpent`, derived
   balance, per-stat max attributes (`mergeCareers`; two devices spending
   offline can neither duplicate nor resurrect CP — gated in tests/career).
+
+## 24. Career round 2 — the stable, the Tour Season, and majors
+
+The career grew from one implicit Pro into a career (owner: "name your pro,
+dedicate a skin and a look, start a new pro when you want… add a Tour Season…
+the majors can be 3 round tournaments").
+
+- **The stable** (`data/career.ts` reshaped): `CareerState` is now
+  `{ pros: CareerPro[], activeProId, cp, cpEarned, cpSpent }` — each Pro is
+  NAMED at creation, wears a dedicated look (their `character` survives the
+  unlocked-loadout shuffle; the Look row on the active card changes it), and
+  starting a rookie keeps the shared CP wallet while the old Pro keeps every
+  point bought and stays selectable (soft retirement). Legacy single-Pro
+  saves migrate to `pros[0]` with the deterministic id `legacy-<createdAt>`
+  so two devices migrating the same career merge to ONE Pro; merges union
+  the stable by id (per-stat max attrs). A career round is played AS the
+  Pro — their name and look ride the recording.
+- **Tour Season** (`systems/TourSeason.ts`, `data/tourRivals.ts`,
+  `profile.tour`): sixteen own-pace events against ten named persistent
+  rivals (~78–97 OVR, tagged with the existing FORM_SHIFT tiers — the
+  calibrated `simulateEntrantRound` is now exported from AiTournament and
+  shared). The schedule is deterministic from the season seed (the Play Next
+  rotation entered at a seed offset); majors at events 4/8/12/16 are
+  three-round tournaments at one course (Spring Invitational, Summer Open,
+  Autumn Classic, Grand Championship — the finale ends the season). Points
+  are PGA-style `[500,300,190,…,30]`, majors ×2, ties sharing the higher
+  points. A major's completed rounds persist on the PROFILE
+  (`tour.activeEvent`), so it resumes across sessions; abandoning mid-round
+  forfeits only that round. Event wins pay `CP.tournamentWin` (majors ×2)
+  and count as tournament wins; the season end pays a purse (coins + CP by
+  final rank), crowns the champion (epic cine banner + the
+  `season_champion` achievement via `stats.seasonChampionships`), and rolls
+  into season N+1 with a fresh schedule — same rivals. Entry is the gold
+  TOUR SEASON card on the Today pane (career-gated; deep-links to the
+  Locker otherwise) and force-selects the Pro. Tour merges whole: the
+  further-progressed copy wins (`mergeTour`).
+- **Quick Start rotates** (owner): `quickPlay()` opens the rotation's course
+  AFTER the one this device played last (`quickPlayCourseId`), and the
+  button names the course it will actually open.
