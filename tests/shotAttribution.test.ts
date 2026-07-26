@@ -429,3 +429,47 @@ describe('direction and cause read the way the player saw them (owner pass 6)', 
     expect(Math.abs(strike!.short)).toBeGreaterThan(Math.abs(ground?.short ?? 0));
   });
 });
+
+describe('the strike row is earned, never invented (owner pass 8)', () => {
+  it('a PERFECT strike on a windy, tilted hole charges the strike NOTHING', () => {
+    // The owner's exact complaint: "+26 yd under-swing when it's really just
+    // downhill or wind". A flush swing at the planned power must leave the
+    // whole miss to the wind and the ground rows — any strike row here would
+    // be an invented number.
+    const a = shoot(
+      openHole(),
+      { wind: { angle: Math.PI / 4, speed: 16 } },
+      { side: 0, top: 0 },
+      undefined,
+      false,
+      0.95 // planned power == delivered power: the swing WAS the plan
+    );
+    const strike = a.factors.find((f) => f.kind === 'strike');
+    expect(strike, `strike: ${strike?.label ?? ''}`).toBeUndefined();
+    // ...while the conditions are still allowed to speak.
+    expect(a.factors.length).toBeGreaterThan(0);
+  });
+
+  it("a blown ACCURACY click's power bleed reads MISHIT, not under-swing", () => {
+    // The meter cuts delivered power 6–18% on an accuracy miss. That loss
+    // came off the FACE — a player who nailed the power lock must not be told
+    // his backswing was short.
+    const a = shoot(
+      openHole(),
+      { swing: { power: 0.83, powerQuality: 'perfect', accuracy: 0.95, accuracyQuality: 'miss', overswung: false } },
+      { side: 0, top: 0 },
+      undefined,
+      false,
+      0.95
+    );
+    const t = attributionTable(a);
+    const dist = t.dist.find((e) => e.cause !== '' && !/wind|spin/.test(e.cause));
+    if (dist && !/ft|ground/.test(dist.cause)) {
+      expect(dist.cause).toBe('mishit');
+      expect(dist.cause).not.toMatch(/swing/);
+    }
+    // Whatever the floors kept, no row may claim an under/over-swing.
+    expect([...t.dist, ...t.side].map((e) => e.cause)).not.toContain('under-swing');
+    expect([...t.dist, ...t.side].map((e) => e.cause)).not.toContain('over-swing');
+  });
+});

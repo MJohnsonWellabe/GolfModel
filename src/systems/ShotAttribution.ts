@@ -71,6 +71,12 @@ export interface ShotAttribution {
    *  swing past the target fly SHORT — a distance-losing overswing otherwise
    *  reads "under-swing" (owner report). */
   strikeOverswung?: boolean;
+  /** True when the ACCURACY click was a miss. A mishit costs 6–18% of the
+   *  delivered power on top of the sideways error, so its distance loss must
+   *  read "mishit" — a player who nailed the power lock and blew the third
+   *  click was being told "+26 yd under-swing", which reads as made-up
+   *  numbers (owner report, pass 8). */
+  strikeMishit?: boolean;
 }
 
 /** Below this a factor is noise, and saying it would be worse than silence. */
@@ -275,7 +281,8 @@ export function attributeShot(
     missLabel,
     factors,
     summary: [missLabel, ...factors.map((f) => f.label)].filter(Boolean).join(' · '),
-    strikeOverswung: overswung
+    strikeOverswung: overswung,
+    strikeMishit: params.swing.accuracyQuality === 'miss'
   };
 }
 
@@ -320,10 +327,16 @@ function strikeCause(
   kind: AttributionFactor['kind'],
   yards: number,
   lateral: boolean,
-  overswung?: boolean
+  overswung?: boolean,
+  mishit?: boolean
 ): string {
   if (kind !== 'strike') return kind === 'slope' ? '' : kind;
   if (lateral) return 'mishit';
+  // A blown ACCURACY click bleeds power too (the meter's 0.82–0.94 mishit
+  // multiplier) — that distance loss came off the FACE, so calling it an
+  // under-swing told a player who nailed the power lock that his backswing
+  // was short (owner: "clearly just made up random numbers").
+  if (mishit) return 'mishit';
   // The FELT direction wins when the swing reported it: the driver's
   // overswing nerf makes a swing past the target LOSE distance, so yardage
   // alone calls that an "under-swing" (owner report). The yardage sign
@@ -348,7 +361,7 @@ export function attributionTable(a: ShotAttribution): AttributionTable {
     // `short` is yards SHORT; the column reads in yards gained, so it flips.
     const gained = -f.short;
     if (Math.abs(gained) >= kindFloor) {
-      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false, a.strikeOverswung);
+      const cause = f.kind === 'slope' ? f.noun : strikeCause(f.kind, gained, false, a.strikeOverswung, a.strikeMishit);
       dist.push({
         yards: gained,
         cause,
