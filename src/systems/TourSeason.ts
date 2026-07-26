@@ -24,6 +24,10 @@ export const TOUR_EVENTS = 16;
 /** 0-based indices of the majors: events 4, 8, 12, and the finale 16. */
 export const TOUR_MAJOR_IDXS = [3, 7, 11, 15] as const;
 export const MAJOR_ROUNDS = 3;
+/** Sudden death is capped: still all square after five extra holes and the
+ *  player takes the trophy — the punishing outcome (grinding five perfect
+ *  holes and then LOSING on a technicality) is never the game's pick. */
+export const MAX_PLAYOFF_HOLES = 5;
 export const MAJOR_NAMES = [
   'The Spring Invitational',
   'The Summer Open',
@@ -66,6 +70,19 @@ export interface TourActiveEvent {
   /** Parallel to TOUR_RIVALS: each rival's per-round totals/toPars. */
   fieldTotals: number[][];
   fieldToPars: number[][];
+  /** Set when regulation ended with the player tied for the lead: the event
+   *  holds un-finalized while sudden death runs (owner pass 8 — "If the user
+   *  is involved in a tie, it should go into a playoff hole"). One entry per
+   *  playoff hole played; survivors re-derived from the record, so the state
+   *  is self-describing across devices and reloads. */
+  playoff?: TourPlayoff;
+}
+
+export interface TourPlayoff {
+  /** The rivals in the tie, leaderboard order at the end of regulation. */
+  tiedRivalIds: string[];
+  /** Strokes per playoff hole: the player's, and each SURVIVING rival's. */
+  holes: Array<{ player: number; rivals: Record<string, number> }>;
 }
 
 export interface TourSeasonState {
@@ -153,6 +170,12 @@ export interface TourRoundOutcome {
   pointsAwarded?: Record<string, number>;
   /** Set when eventDone on the finale: the season just ended. */
   seasonEnded?: boolean;
+  /** Set while eventDone is false because SUDDEN DEATH is on: regulation
+   *  ended with the player tied for the lead (or a playoff hole re-tied).
+   *  The event holds un-finalized until the playoff resolves. */
+  playoff?: { tiedRivalIds: string[] };
+  /** Set when eventDone via a playoff: who took it ('player' or a rival). */
+  playoffWinnerId?: string;
 }
 
 /**
@@ -207,25 +230,141 @@ export function completeTourRound(
   if (ev.playerTotals.length < def.rounds) {
     return { eventDone: false, standings };
   }
-  // The event is over: competition-ranked points, majors double, ties share
-  // the higher points (a two-way tie for 1st pays two 500s — or 1000s).
-  const pointsAwarded = pointsForStandings(standings, def.major);
+  // Regulation is over. A player tied for the LEAD goes to sudden death
+  // instead of sharing the trophy (owner pass 8): the event holds
+  // un-finalized — no points, no result line, the schedule does not advance —
+  // until the playoff produces an outright winner. AI–AI ties (player not
+  // involved) still share points, competition style: nobody watches a
+  // playoff they're not in.
+  const tied = leadTiedRivalIds(standings);
+  if (tied) {
+    ev.playoff = { tiedRivalIds: tied, holes: [] };
+    return { eventDone: false, standings, playoff: { tiedRivalIds: tied } };
+  }
+  return finalizeTourEvent(s, def, standings);
+}
+
+/** The rival ids tied with a LEADING player (leaderboard order), or null when
+ *  regulation produced an outright result. Ties elsewhere don't playoff. */
+function leadTiedRivalIds(standings: readonly TourStandingRow[]): string[] | null {
+  const me = standings.findIndex((r) => r.isPlayer);
+  if (me < 0 || competitionRank(standings, me) !== 0) return null;
+  const top = standings[me];
+  const tied = standings
+    .filter((r) => !r.isPlayer && r.toPar === top.toPar && r.total === top.total)
+    .map((r) => r.id);
+  return tied.length > 0 ? tied : null;
+}
+
+/** Award points, log the result line, advance the schedule. `playoffWinnerId`
+ *  overrides a tied-lead finish: the winner takes 1st alone, the rest of the
+ *  playoff group shares 2nd. */
+function finalizeTourEvent(
+  s: TourSeasonState,
+  def: TourEventDef,
+  standings: TourStandingRow[],
+  playoffWinnerId?: string
+): TourRoundOutcome {
+  const pointsAwarded = pointsForStandings(standings, def.major, playoffWinnerId);
   let playerRank = standings.length;
   for (const row of standings) {
     s.points[row.id] = (s.points[row.id] ?? 0) + (pointsAwarded[row.id] ?? 0);
   }
   const me = standings.findIndex((r) => r.isPlayer);
   if (me >= 0) playerRank = competitionRank(standings, me) + 1;
+  // A playoff decides 1st and 2nd outright, whatever regulation said.
+  if (playoffWinnerId && me >= 0 && competitionRank(standings, me) === 0) {
+    playerRank = playoffWinnerId === 'player' ? 1 : 2;
+  }
   s.results.push({
     idx: def.idx,
     playerRank,
     points: pointsAwarded['player'] ?? 0,
     toPar: standings[me >= 0 ? me : 0].toPar,
-    winnerId: standings[0].id
+    winnerId: playoffWinnerId ?? standings[0].id
   });
   s.played++;
   s.activeEvent = null;
-  return { eventDone: true, standings, playerRank, pointsAwarded, seasonEnded: seasonDone(s) };
+  return {
+    eventDone: true,
+    standings,
+    playerRank,
+    pointsAwarded,
+    seasonEnded: seasonDone(s),
+    ...(playoffWinnerId ? { playoffWinnerId } : {})
+  };
+}
+
+/**
+ * The playoff a season is currently holding on, or null. SELF-HEALING: the
+ * pending state is re-derived from the banked rounds (all regulation rounds
+ * in, player tied for the lead, no result logged), so a partial cloud copy
+ * that dropped the `playoff` field — RTDB prunes empty arrays — re-arms
+ * cleanly instead of stranding the event.
+ */
+export function playoffPending(
+  s: TourSeasonState,
+  courseIds: readonly string[],
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): { def: TourEventDef; tiedRivalIds: string[]; holesPlayed: number } | null {
+  const def = currentEvent(s, courseIds);
+  const ev = s.activeEvent;
+  if (!def || !ev || ev.idx !== s.played) return null;
+  if (ev.playerTotals.length < def.rounds) return null;
+  const tied = leadTiedRivalIds(eventStandings(ev, rivals));
+  if (!tied) return null;
+  if (!ev.playoff) ev.playoff = { tiedRivalIds: tied, holes: [] };
+  return { def, tiedRivalIds: playoffSurvivors(ev.playoff), holesPlayed: ev.playoff.holes.length };
+}
+
+/** The rivals still standing after the playoff holes on record: a rival
+ *  drops out the first hole it scores worse than the player. (A rival that
+ *  scored BETTER ended the playoff — no further holes exist to filter.) */
+function playoffSurvivors(po: TourPlayoff): string[] {
+  let alive = [...po.tiedRivalIds];
+  for (const h of po.holes) {
+    alive = alive.filter((id) => (h.rivals[id] ?? Infinity) <= h.player);
+  }
+  return alive;
+}
+
+/**
+ * Fold one sudden-death hole into the playoff. `rivalStrokes` carries every
+ * SURVIVING rival's strokes on the hole (the caller simulates them raw — no
+ * tournament-form shift on a single hole).
+ *
+ * Resolution, in order: the player alone at the low score wins; any rival
+ * strictly below the player wins (the lowest such, leaderboard order on a
+ * tie — the AI side of an AI–AI split needs no drama); otherwise the
+ * re-tied survivors go again, until the MAX_PLAYOFF_HOLES cap hands the
+ * trophy to the player.
+ */
+export function completeTourPlayoffHole(
+  s: TourSeasonState,
+  courseIds: readonly string[],
+  playerStrokes: number,
+  rivalStrokes: Record<string, number>,
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): TourRoundOutcome | null {
+  const pending = playoffPending(s, courseIds, rivals);
+  const ev = s.activeEvent;
+  if (!pending || !ev?.playoff) return null;
+  const def = pending.def;
+  const po = ev.playoff;
+  po.holes.push({ player: playerStrokes, rivals: { ...rivalStrokes } });
+  const standings = eventStandings(ev, rivals);
+  const alive = pending.tiedRivalIds.filter((id) => (rivalStrokes[id] ?? Infinity) <= playerStrokes);
+  const beatMe = pending.tiedRivalIds.filter((id) => (rivalStrokes[id] ?? Infinity) < playerStrokes);
+  if (beatMe.length > 0) {
+    const winner = beatMe.sort(
+      (x, y) => rivalStrokes[x]! - rivalStrokes[y]! || po.tiedRivalIds.indexOf(x) - po.tiedRivalIds.indexOf(y)
+    )[0];
+    return finalizeTourEvent(s, def, standings, winner);
+  }
+  if (alive.length === 0 || po.holes.length >= MAX_PLAYOFF_HOLES) {
+    return finalizeTourEvent(s, def, standings, 'player');
+  }
+  return { eventDone: false, standings, playoff: { tiedRivalIds: alive } };
 }
 
 /** Competition rank of row i: the first index carrying the same score —
@@ -239,12 +378,20 @@ function competitionRank(standings: readonly TourStandingRow[], i: number): numb
 }
 
 /** Points each finisher earns from a final standings order: TOUR_POINTS by
- *  competition rank, doubled at a major, ties sharing the higher points. */
-export function pointsForStandings(standings: readonly TourStandingRow[], major: boolean): Record<string, number> {
+ *  competition rank, doubled at a major, ties sharing the higher points.
+ *  A playoff overrides the shared lead: the winner takes 1st's points
+ *  alone and the rest of the tied group shares 2nd's. */
+export function pointsForStandings(
+  standings: readonly TourStandingRow[],
+  major: boolean,
+  playoffWinnerId?: string
+): Record<string, number> {
   const mult = major ? 2 : 1;
   const out: Record<string, number> = {};
   for (let i = 0; i < standings.length; i++) {
-    out[standings[i].id] = (TOUR_POINTS[competitionRank(standings, i)] ?? 0) * mult;
+    const rank = competitionRank(standings, i);
+    const playoffLoser = playoffWinnerId !== undefined && rank === 0 && standings[i].id !== playoffWinnerId;
+    out[standings[i].id] = (TOUR_POINTS[playoffLoser ? 1 : rank] ?? 0) * mult;
   }
   return out;
 }
@@ -334,10 +481,33 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
           playerTotals: [...ae.playerTotals],
           playerToPars: [...ae.playerToPars],
           fieldTotals: TOUR_RIVALS.map((_, i) => [...(ae.fieldTotals?.[i] ?? [])]),
-          fieldToPars: TOUR_RIVALS.map((_, i) => [...(ae.fieldToPars?.[i] ?? [])])
+          fieldToPars: TOUR_RIVALS.map((_, i) => [...(ae.fieldToPars?.[i] ?? [])]),
+          ...(migratePlayoff(ae.playoff) ?? {})
         }
       : null;
   return { seasonNo: t.seasonNo, seed: t.seed, played, points, results, activeEvent };
+}
+
+/** A stored playoff → a valid one (as a spreadable fragment) or nothing.
+ *  Damage degrades safely: playoffPending re-derives the tie from the
+ *  banked rounds, so dropping a corrupt record restarts sudden death at
+ *  hole 1 rather than stranding or mis-scoring the event. */
+function migratePlayoff(raw: unknown): { playoff: TourPlayoff } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const po = raw as Partial<TourPlayoff>;
+  if (!Array.isArray(po.tiedRivalIds) || !po.tiedRivalIds.every((id) => typeof id === 'string')) return null;
+  if (po.tiedRivalIds.length === 0) return null;
+  const holes: TourPlayoff['holes'] = [];
+  for (const h of Array.isArray(po.holes) ? po.holes : []) {
+    if (!h || typeof h.player !== 'number') return null;
+    const rivals: Record<string, number> = {};
+    for (const [k, v] of Object.entries(h.rivals ?? {})) {
+      if (typeof v !== 'number') return null;
+      rivals[k] = v;
+    }
+    holes.push({ player: h.player, rivals });
+  }
+  return { playoff: { tiedRivalIds: [...po.tiedRivalIds], holes } };
 }
 
 /**
@@ -354,5 +524,9 @@ export function mergeTour(a: TourSeasonState | null, b: TourSeasonState | null):
   if (a.played !== b.played) return a.played > b.played ? a : b;
   const aRounds = a.activeEvent?.playerTotals.length ?? 0;
   const bRounds = b.activeEvent?.playerTotals.length ?? 0;
-  return bRounds > aRounds ? b : a;
+  if (aRounds !== bRounds) return aRounds > bRounds ? a : b;
+  // Same regulation progress: a copy deeper into sudden death is newer.
+  const aPo = a.activeEvent?.playoff?.holes.length ?? 0;
+  const bPo = b.activeEvent?.playoff?.holes.length ?? 0;
+  return bPo > aPo ? b : a;
 }

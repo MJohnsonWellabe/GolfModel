@@ -32,7 +32,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, TrajectoryPoint, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, Surface, SwingResult, TrajectoryPoint, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -63,7 +63,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSeason, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, tourSchedule, TOUR_EVENTS } from '../systems/TourSeason';
+import { completeTourPlayoffHole, completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, MAX_PLAYOFF_HOLES, newSeason, playoffPending, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
 import { applyTeeVariants } from '../systems/Layouts';
@@ -135,7 +135,7 @@ import { AIController, BALANCED_PERSONALITY } from '../systems/AIController';
 import { FireSystem } from '../systems/FireSystem';
 import { buildHeightField } from '../systems/HeightField';
 import { TurnManager } from '../systems/TurnManager';
-import { drawWind } from '../systems/RoundSimulator';
+import { drawWind, simulateHole } from '../systems/RoundSimulator';
 import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
 import { dist } from '../utils/Geometry';
@@ -832,6 +832,10 @@ class HoleScene {
    *  player's (`ghostRace`). Created lazily on the first ghost shot and
    *  disposed with the scene. */
   private ghostBall: Mesh | null = null;
+  /** Sudden-death playoff: one parked ball per tied rival (keyed by rival id),
+   *  and which rivals' hole-out toast has already fired. */
+  private poBalls = new Map<string, Mesh>();
+  private poToasted = new Set<string>();
   /** The ghost's flight currently in the air, advanced by the same tick that
    *  advances the player's so both balls read as one moment. */
   private ghostFlight: { path: TrajectoryPoint[]; progress: number } | null = null;
@@ -2080,6 +2084,9 @@ class HoleScene {
       return;
     }
     this.state.phase = 'aiming';
+    // Playoff: advance the tied rivals' parked balls to the sync rule's spot
+    // BEFORE this turn is played — "see where it lands before we hit".
+    this.syncPlayoffBalls();
     // Anything inside gimme range is conceded before we ever arm the meter.
     if (this.tryGimme()) return;
     if (round.mode === '1v1') {
@@ -2122,7 +2129,7 @@ class HoleScene {
     clubBar.style.display = 'flex';
     aerialBtn.style.display = 'block';
     // Tournament and tour rounds keep the live leaderboard one tap away (🏆).
-    tourBoardBtn.style.display = aiTour || tourRoundLive ? 'block' : 'none';
+    tourBoardBtn.style.display = aiTour || tourRoundLive || tourPlayoff ? 'block' : 'none';
     this.refreshTrueVisionBtn();
     this.updateStrikeUI();
     this.refreshClubBar();
@@ -2617,7 +2624,8 @@ class HoleScene {
       (round.mode !== 'solo'
         ? `<div class="row"><span class="chip player">${this.curPart().golfer.name}${this.curPart().isAI ? ' (to play)' : ' (you)'}</span></div>`
         : '') +
-      (activeGhost ? this.ghostHudRow() : '');
+      (activeGhost ? this.ghostHudRow() : '') +
+      (tourPlayoff ? this.playoffHudRow() : '');
     if (html !== this.lastHudHtml) {
       this.lastHudHtml = html;
       hudEl.innerHTML = html;
@@ -3494,6 +3502,81 @@ class HoleScene {
     this.ghostFlight = { path: shot.path, progress: 0 };
   }
 
+  /**
+   * PLAYOFF BALLS AT REST (owner pass 8: "Instead of seeing the ai ghost
+   * shot fly through the air, we should just see where it lands before we
+   * hit"): one parked ball per tied rival, standing at that rival's Nth
+   * shot's resting place where N = min(your strokes + 1, their shots) — so
+   * from the tee you see their drive down the fairway, after your approach
+   * you see theirs, and when their record runs out (they holed) the ball
+   * disappears with a toast. Named poBall* deliberately: the perf/occlusion
+   * specs count ghost* meshes and these are not ghosts.
+   */
+  private syncPlayoffBalls(): void {
+    const po = tourPlayoff;
+    if (!po) return;
+    po.rivals.forEach((r, i) => {
+      if (!r.rests.length) return;
+      const shown = Math.min(this.state.strokes + 1, r.rests.length);
+      const rest = r.rests[shown - 1];
+      let ball = this.poBalls.get(r.id) ?? null;
+      if (rest.holed) {
+        ball?.setEnabled(false);
+        if (!this.poToasted.has(r.id)) {
+          this.poToasted.add(r.id);
+          showMsg(`⚔ ${r.name} holed out in ${rest.strokes}`, 2600);
+        }
+        return;
+      }
+      if (!ball) {
+        ball = MeshBuilder.CreateSphere(`poBall${i}`, { diameter: 1.0, segments: 10 }, this.scene);
+        const m = new StandardMaterial(`poBallMat${i}`, this.scene);
+        // Amber, translucent: readable as "a rival's ball", never mistakable
+        // for the player's own white ball or the ghost race's blue.
+        m.diffuseColor = new Color3(1, 0.78, 0.35);
+        m.emissiveColor = new Color3(0.5, 0.33, 0.08);
+        m.specularColor = new Color3(0.2, 0.2, 0.2);
+        m.alpha = 0.8;
+        ball.material = m;
+        ball.isPickable = false;
+        ball.receiveShadows = false;
+        this.poBalls.set(r.id, ball);
+      }
+      ball.scaling.setAll(this.ballScale);
+      ball.setEnabled(true);
+      ball.position = w2b(rest.x, rest.y, this.ballRestH() + this.gh(rest.x, rest.y));
+    });
+  }
+
+  /** The playoff status line: each tied rival's visible progress on the hole
+   *  ("Rex: green after 2 · Mei: holed in 3"), advancing with the sync rule. */
+  private playoffHudRow(): string {
+    const po = tourPlayoff;
+    if (!po) return '';
+    const bits = po.rivals.map((r) => {
+      const shown = Math.min(this.state.strokes + 1, r.rests.length);
+      const rest = r.rests[shown - 1];
+      if (!rest) return `${r.name}: on the tee`;
+      return rest.holed ? `${r.name}: holed in ${rest.strokes}` : `${r.name}: ${rest.surface} after ${rest.strokes}`;
+    });
+    return `<div class="row"><span id="playoffStatus" class="chip ghost">⚔ ${escapeHtml(bits.join(' · '))}</span></div>`;
+  }
+
+  /** Test hook: the parked rival balls and what the sync rule is showing
+   *  (tests/visual/tourPlayoff.spec.ts) — a parked ball that never appears
+   *  looks exactly like no playoff at all from the outside. */
+  playoffDebug(): { balls: number; shown: Record<string, number>; status: string } | null {
+    const po = tourPlayoff;
+    if (!po) return null;
+    const shown: Record<string, number> = {};
+    po.rivals.forEach((r) => (shown[r.id] = Math.min(this.state.strokes + 1, r.rests.length)));
+    return {
+      balls: [...this.poBalls.values()].filter((b) => b.isEnabled()).length,
+      shown,
+      status: document.getElementById('playoffStatus')?.textContent ?? ''
+    };
+  }
+
   /** The running head-to-head line. Like-for-like: the ghost's strokes on the
    *  hole in progress only count as far as the player has played it, so the
    *  readout never says you are behind on a hole you have not started. */
@@ -4146,6 +4229,7 @@ function checkpointRound(): void {
     round.mode !== 'solo' ||
     aiTour ||
     tourRoundLive ||
+    tourPlayoff ||
     round.tournament ||
     round.weeklyEventId ||
     round.challenge ||
@@ -4297,6 +4381,12 @@ function replayAnim(el: HTMLElement, cls: string): void {
 }
 
 function showSummary(): void {
+  // A sudden-death playoff hole is not a round: no records, no rewards, no
+  // recording — it gets its own card and resolves the pending tie.
+  if (tourPlayoff) {
+    renderPlayoffSummary();
+    return;
+  }
   current?.dispose();
   current = null;
   sealRoundRecording();
@@ -4558,18 +4648,17 @@ function showSummary(): void {
     const outcome = def ? completeTourRound(t, COURSES, totals[0], totals[0] - totalPar, ids) : null;
     if (def && outcome) {
       const evName = tourEventName(def);
-      const evRows = outcome.standings
-        .map((r, i) => {
-          const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
-          const rank = i === 0 ? '🏆' : `${i + 1}.`;
-          return (
-            `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
-            `<span class="recNm">${escapeHtml(r.name)}</span>` +
-            `<span class="recTot">${r.total} (${sign})</span></div>`
-          );
-        })
-        .join('');
-      if (!outcome.eventDone) {
+      const evRows = tourStandingRowsHtml(outcome.standings);
+      if (!outcome.eventDone && outcome.playoff) {
+        // Regulation ended with the player TIED FOR THE LEAD: the event holds
+        // un-finalized — no points yet — until sudden death settles it.
+        const names = outcome.playoff.tiedRivalIds.map(tourEntrantName).join(' & ');
+        headline = `${evName} — tied at the top`;
+        tourSeasonBlock =
+          `<div class="tourResult"><div class="tourHeadRow">⚔ ${escapeHtml(evName)} — you and ${escapeHtml(names)} finished level</div>${evRows}` +
+          `<div class="recSub">Sudden death: their ball waits at rest each shot — beat them outright to take the trophy.</div></div>`;
+        tourSeasonPrimary = `<button id="tourPlayoffBtn">⚔ Playoff — settle the tie →</button>`;
+      } else if (!outcome.eventDone) {
         // A major between rounds: the event's banked rounds are already on the
         // profile, so this is the resumable state, not a fragile one.
         const nextRound = eventRoundsPlayed(t) + 1;
@@ -4578,56 +4667,11 @@ function showSummary(): void {
           `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)} · MAJOR — after round ${nextRound - 1}/${def.rounds}</div>${evRows}</div>`;
         tourSeasonPrimary = `<button id="tourNextBtn">Round ${nextRound} of ${def.rounds} →</button>`;
       } else {
-        const won = outcome.playerRank === 1;
-        const myPts = outcome.pointsAwarded?.['player'] ?? 0;
-        if (won) {
-          headline = def.major ? `🏆 ${evName} — champion!` : `🏆 ${evName} — won!`;
-          // A tour win is a tournament win: the stat counts it and the career
-          // pays it (majors double — they're the season's spine).
-          profile.stats.tournamentWins += 1;
-          const winCp = CP.tournamentWin * (def.major ? 2 : 1);
-          profile.career = grantCp(profile.career, winCp);
-          tourCpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
-        } else {
-          headline = `${evName}: ${ordinal(outcome.playerRank ?? outcome.standings.length)} place`;
-        }
-        tourCpLine += `<div class="rwLine level">🏅 +${myPts} season points${def.major ? ' (major — double)' : ''}</div>`;
-        tourSeasonBlock =
-          `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)}${def.major ? ' · MAJOR' : ''} — final</div>${evRows}</div>`;
-        if (outcome.seasonEnded) {
-          // The season is over: crown, purse, roll into the next one. The
-          // rivals persist; the schedule and points start fresh.
-          const fin = finishSeason(t);
-          profile.coins += fin.coins;
-          profile.coinsEarned += fin.coins;
-          profile.career = grantCp(profile.career, fin.cp);
-          tourCpLine += `<div class="rwLine ach">💰 Season purse: +${fin.coins} 🪙 · +${fin.cp} CP (${ordinal(fin.playerRank)} in points)</div>`;
-          if (fin.playerRank === 1) {
-            profile.stats.seasonChampionships += 1;
-            if (!profile.achievements.includes('season_champion')) {
-              profile.achievements.push('season_champion');
-              const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
-              if (champ) {
-                profile.career = grantCp(profile.career, achievementCp(champ.xp));
-                profile.coins += champ.coins;
-                profile.coinsEarned += champ.coins;
-                tourCpLine += `<div class="rwLine ach">🏅 ${champ.name} — ${champ.desc}</div>`;
-              }
-            }
-            showCineBanner('SEASON CHAMPION', `Season ${t.seasonNo} · ${t.points['player'] ?? 0} points`, 'epic', 5200);
-          } else {
-            const champName = escapeHtml(fin.championName);
-            tourCpLine += `<div class="rwLine level">👑 ${champName} takes the Season ${t.seasonNo} title</div>`;
-          }
-          tourSeasonBlock += tourSeasonTableHtml();
-          profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
-        } else {
-          tourSeasonBlock += tourSeasonTableHtml();
-          const nextDef = currentEvent(t, ids);
-          if (nextDef) {
-            tourSeasonPrimary = `<button id="tourNextBtn">Next event: ${escapeHtml(tourEventName(nextDef))} →</button>`;
-          }
-        }
+        const ui = tourEventOutcomeUi(t, def, outcome, ids);
+        headline = ui.headline;
+        tourSeasonBlock = ui.block;
+        tourCpLine = ui.cpLine;
+        tourSeasonPrimary = ui.primary;
       }
       persistProfile();
       if (signedIn)
@@ -4780,6 +4824,12 @@ function showSummary(): void {
     if (flag('audio')) play('ui');
     summaryEl.style.display = 'none';
     startTourRound();
+  });
+  // A tie at the top: into sudden death.
+  document.getElementById('tourPlayoffBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    summaryEl.style.display = 'none';
+    startTourPlayoffHole();
   });
   document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
     summaryEl.style.display = 'none';
@@ -6508,6 +6558,31 @@ function showAiTourBoard(): void {
 
 let tourRoundLive = false;
 
+// ----- SUDDEN DEATH (owner pass 8): a player tied for an event's lead plays
+// extra holes against the tied rivals' BALLS AT REST — each rival's hole is
+// simulated up front (raw physics, no tournament-form shift on one hole) and
+// their shots appear parked where they finished, advancing with the player's
+// stroke count: before your Nth stroke you see their Nth shot at rest.
+
+const PLAYOFF_COURSE_ID = '__playoff';
+
+interface TourPlayoffLive {
+  rivals: Array<{
+    id: string;
+    name: string;
+    /** The rival's finished hole: total strokes and whether they holed out. */
+    strokes: number;
+    holed: boolean;
+    /** Every shot's resting place, in play order (penalties included in the
+     *  running stroke count). */
+    rests: Array<{ x: number; y: number; surface: Surface; strokes: number; holed: boolean }>;
+  }>;
+}
+
+/** Set while a playoff HOLE is being played live; null otherwise. The
+ *  pending-playoff state itself lives on profile.tour (reload-safe). */
+let tourPlayoff: TourPlayoffLive | null = null;
+
 /** The tour's course pool: the canonical Play Next rotation, availability-
  *  filtered (an id missing from COURSES — expansion flag off — drops out). */
 function tourCourseIds(): string[] {
@@ -6533,6 +6608,12 @@ function startTourEvent(): void {
   if (sel.archetype !== 'career') {
     sel.archetype = 'career';
     syncLoadout();
+  }
+  // A tie waiting on sudden death resumes THERE, not into a fresh round —
+  // the regulation rounds are banked and the event can only end via playoff.
+  if (playoffPending(profile.tour, tourCourseIds())) {
+    startTourPlayoffHole();
+    return;
   }
   startTourRound();
 }
@@ -6566,6 +6647,7 @@ function startTourRound(): void {
   round.challenge = null;
   aiTour = null;
   tourRoundLive = true;
+  tourPlayoff = null;
   // Tour rounds enter from the HUB, not startRound's wizard path — so the
   // round-state resets startRound performs must happen HERE too or the last
   // mode's state leaks in: an ease-in device's gentle pins softening a tour
@@ -6593,8 +6675,98 @@ function startTourRound(): void {
   playHole();
 }
 
-/** The season points table (top rows + the player, same clamp discipline as
- *  the record boards would use — 11 entrants fit whole, so all render). */
+/**
+ * One sudden-death hole (owner pass 8): a 1-hole course cut from the event's
+ * venue — the hole rotates with each extra hole played — under a
+ * deterministic playoff seed, injected under a reserved id exactly like the
+ * Hole of the Day. The tied rivals' holes are simulated up front (RAW
+ * simulateHole — the tournament-form shift is a per-round correction and has
+ * no business on a single hole) with every shot's rest captured; the scene
+ * parks their balls and advances them with the player's stroke count.
+ */
+function startTourPlayoffHole(): void {
+  const t = profile.tour;
+  const ids = tourCourseIds();
+  const pending = t ? playoffPending(t, ids) : null;
+  if (!t || !pending) return;
+  const def = pending.def;
+  const src = COURSES[def.courseId];
+  if (!src) return;
+  const holeNo = (def.idx + pending.holesPlayed) % src.holes.length;
+  const base = src.holes[holeNo];
+  // Deterministic per (season, event, playoff hole) — reloading mid-playoff
+  // rebuilds the identical hole, wind, pin, and rival scores. Distinct salt
+  // from every other seed stream in the game.
+  const seed = (((t.seed ^ 0x5bf03635) >>> 0) + def.idx * 15013 + pending.holesPlayed * 7919) >>> 0;
+  const theme = resolveTheme(src);
+  const wind = drawWind(mulberry32(seed * 1000), src.minWind ?? 2, src.maxWind ?? PHYSICS.maxWind);
+  const pin = pinForSeed(seed, 0, base, {
+    useAuthoredPins: flag('layouts'),
+    bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+    wasteDepthScale: theme.wasteDepthScale ?? 0
+  });
+  // ONE materialized hole both sides play: the pin baked in, tee/pin variants
+  // stripped so no seeded draw can move the setup between the field's sim and
+  // the player's live round.
+  const { tees: _tees, pins: _pins, ...bare } = base;
+  const hole: HoleData = { ...bare, pin: { ...pin } };
+  const poCourse: CourseData = { ...src, name: `${src.name} — Playoff`, holes: [hole] };
+  COURSES[PLAYOFF_COURSE_ID] = poCourse;
+  const treeSpecies: TreeSpecies = {
+    trees: theme.treeKeys ?? DEFAULT_TREE_MIX,
+    accents: theme.accentTreeKeys ?? []
+  };
+  const rivals: TourPlayoffLive['rivals'] = pending.tiedRivalIds.map((id, i) => {
+    const rival = TOUR_RIVALS.find((x) => x.id === id);
+    const golfer: Golfer = rival ?? TOUR_RIVALS[0];
+    const rests: TourPlayoffLive['rivals'][number]['rests'] = [];
+    const res = simulateHole(hole, golfer, {
+      rng: mulberry32((seed + 7013 + i * 104729) >>> 0),
+      wind,
+      bunkerDepthScale: theme.bunkerDepthScale ?? 1,
+      wasteDepthScale: theme.wasteDepthScale ?? 0,
+      edgeWobble: theme.edgeWobble ?? 1,
+      treeSpecies,
+      onShot: (s) =>
+        rests.push({ x: s.finalPos.x, y: s.finalPos.y, surface: s.surface, strokes: s.strokes, holed: s.holed })
+    });
+    return { id, name: rival?.name ?? id, strokes: res.strokes, holed: res.holed, rests };
+  });
+  tourPlayoff = { rivals };
+  round.course = poCourse;
+  round.mode = 'solo';
+  round.holeIdx = 0;
+  round.activePlayer = 0;
+  // Prefilled so the lazy per-hole draws can never disagree with the field's
+  // simulated conditions.
+  round.holeWinds = [{ ...wind }];
+  round.holePins = [{ ...pin }];
+  round.seed = seed;
+  round.tournament = null;
+  round.weeklyEventId = null;
+  round.challenge = null;
+  aiTour = null;
+  tourRoundLive = false; // not a scored tour ROUND — the event pays at resolution
+  roundGentlePins = false;
+  activeGhost = null;
+  pendingGhost = null;
+  dailyRound = null;
+  endPractice();
+  shotAcc = freshShotAcc();
+  // Sudden death is one extra hole, not a round: nothing is recorded, no
+  // round tracking/rewards run — showSummary routes to the playoff card.
+  lastRecording = null;
+  roundRecorder.stop();
+  grantRoundTrueVision();
+  const golfer = roundGolfer();
+  round.players = [{ golfer, isAI: false, scores: [] }];
+  landingEl.classList.remove('on');
+  closeDest();
+  setupEl.style.display = 'none';
+  playHole();
+  const names = rivals.map((r) => r.name).join(' & ');
+  showMsg(`⚔ Sudden death, hole ${pending.holesPlayed + 1} — beat ${names} outright`, 3200);
+}
 function tourSeasonTableHtml(): string {
   const t = profile.tour;
   if (!t) return '';
@@ -6618,6 +6790,180 @@ function tourSeasonTableHtml(): string {
 /** An entrant's display name on tour surfaces ('player' is always You). */
 function tourEntrantName(id: string): string {
   return id === 'player' ? 'You' : (TOUR_RIVALS.find((r) => r.id === id)?.name ?? id);
+}
+
+/** Event standings as board rows (shared by the round summary, the playoff
+ *  card, and the tied-at-the-top card). */
+function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string {
+  return standings
+    .map((r, i) => {
+      const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
+      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      return (
+        `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}</span>` +
+        `<span class="recTot">${r.total} (${sign})</span></div>`
+      );
+    })
+    .join('');
+}
+
+/**
+ * A FINISHED tour event's summary pieces — headline, standings block, reward
+ * lines, and the primary action — plus the profile mutations the finish pays
+ * (win CP, season purse/rollover, achievements). One implementation because
+ * an event now ends on two different cards: the normal round summary and the
+ * playoff card, and the payout drifting between them would be a real bug.
+ */
+function tourEventOutcomeUi(
+  t: NonNullable<PlayerProfile['tour']>,
+  def: TourEventDef,
+  outcome: TourRoundOutcome,
+  ids: string[]
+): { headline: string; block: string; cpLine: string; primary: string } {
+  const evName = tourEventName(def);
+  const evRows = tourStandingRowsHtml(outcome.standings);
+  const won = outcome.playerRank === 1;
+  const myPts = outcome.pointsAwarded?.['player'] ?? 0;
+  let headline: string;
+  let cpLine = '';
+  if (won) {
+    headline = def.major ? `🏆 ${evName} — champion!` : `🏆 ${evName} — won!`;
+    // A tour win is a tournament win: the stat counts it and the career
+    // pays it (majors double — they're the season's spine).
+    profile.stats.tournamentWins += 1;
+    const winCp = CP.tournamentWin * (def.major ? 2 : 1);
+    profile.career = grantCp(profile.career, winCp);
+    cpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
+  } else {
+    headline = `${evName}: ${ordinal(outcome.playerRank ?? outcome.standings.length)} place`;
+  }
+  cpLine += `<div class="rwLine level">🏅 +${myPts} season points${def.major ? ' (major — double)' : ''}</div>`;
+  let block = `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)}${def.major ? ' · MAJOR' : ''} — final</div>${evRows}</div>`;
+  let primary = '';
+  if (outcome.seasonEnded) {
+    // The season is over: crown, purse, roll into the next one. The
+    // rivals persist; the schedule and points start fresh.
+    const fin = finishSeason(t);
+    profile.coins += fin.coins;
+    profile.coinsEarned += fin.coins;
+    profile.career = grantCp(profile.career, fin.cp);
+    cpLine += `<div class="rwLine ach">💰 Season purse: +${fin.coins} 🪙 · +${fin.cp} CP (${ordinal(fin.playerRank)} in points)</div>`;
+    if (fin.playerRank === 1) {
+      profile.stats.seasonChampionships += 1;
+      if (!profile.achievements.includes('season_champion')) {
+        profile.achievements.push('season_champion');
+        const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
+        if (champ) {
+          profile.career = grantCp(profile.career, achievementCp(champ.xp));
+          profile.coins += champ.coins;
+          profile.coinsEarned += champ.coins;
+          cpLine += `<div class="rwLine ach">🏅 ${champ.name} — ${champ.desc}</div>`;
+        }
+      }
+      showCineBanner('SEASON CHAMPION', `Season ${t.seasonNo} · ${t.points['player'] ?? 0} points`, 'epic', 5200);
+    } else {
+      const champName = escapeHtml(fin.championName);
+      cpLine += `<div class="rwLine level">👑 ${champName} takes the Season ${t.seasonNo} title</div>`;
+    }
+    block += tourSeasonTableHtml();
+    profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+  } else {
+    block += tourSeasonTableHtml();
+    const nextDef = currentEvent(t, ids);
+    if (nextDef) {
+      primary = `<button id="tourNextBtn">Next event: ${escapeHtml(tourEventName(nextDef))} →</button>`;
+    }
+  }
+  return { headline, block, cpLine, primary };
+}
+
+/**
+ * The card after a sudden-death hole. Deliberately NOT showSummary: a playoff
+ * hole earns no records, coins, CP, streaks, or recordings — the EVENT pays
+ * when the tie resolves — so none of the round machinery runs. Either the
+ * playoff continues (next hole) or the event finalizes here with the same
+ * payout code the normal summary uses.
+ */
+function renderPlayoffSummary(): void {
+  const po = tourPlayoff;
+  tourPlayoff = null;
+  current?.dispose();
+  current = null;
+  roundRecorder.stop();
+  swingBtn.style.display = 'none';
+  hudEl.style.display = 'none';
+  pauseBtn.style.display = 'none';
+  promptEl.textContent = '';
+  aimReadoutEl.style.display = 'none';
+  const t = profile.tour;
+  const ids = tourCourseIds();
+  const def = t ? currentEvent(t, ids) : null;
+  const playerStrokes = round.players[0]?.scores[0] ?? 0;
+  const rivalStrokes: Record<string, number> = {};
+  for (const r of po?.rivals ?? []) rivalStrokes[r.id] = r.strokes;
+  const outcome = t && def && po ? completeTourPlayoffHole(t, ids, playerStrokes, rivalStrokes) : null;
+  const holePar = round.course.holes[0]?.par ?? 4;
+  const holeRows =
+    `<div class="tourResult"><div class="tourHeadRow">⚔ Sudden death — par ${holePar}</div>` +
+    `<div class="recRow you"><span class="recRk">•</span><span class="recNm">You</span><span class="recTot">${playerStrokes}</span></div>` +
+    (po?.rivals ?? [])
+      .map(
+        (r) =>
+          `<div class="recRow"><span class="recRk">•</span><span class="recNm">${escapeHtml(r.name)}</span><span class="recTot">${r.strokes}</span></div>`
+      )
+      .join('') +
+    `</div>`;
+  let headline = 'Sudden death';
+  let block = holeRows;
+  let cpLine = '';
+  let primary = '';
+  if (t && def && outcome) {
+    if (!outcome.eventDone) {
+      const names = (outcome.playoff?.tiedRivalIds ?? []).map(tourEntrantName).join(' & ');
+      headline = 'Still tied — sudden death continues';
+      block += `<div class="rwLine level">⚔ ${escapeHtml(names)} matched you. Next hole settles it — and after hole ${MAX_PLAYOFF_HOLES} the trophy is yours.</div>`;
+      primary = `<button id="tourPlayoffBtn">Next playoff hole →</button>`;
+    } else {
+      const ui = tourEventOutcomeUi(t, def, outcome, ids);
+      headline =
+        outcome.playoffWinnerId === 'player'
+          ? `🏆 ${tourEventName(def)} — playoff won!`
+          : `${tourEventName(def)} — ${escapeHtml(tourEntrantName(outcome.playoffWinnerId ?? ''))} takes the playoff`;
+      block += ui.block;
+      cpLine = ui.cpLine;
+      primary = ui.primary;
+    }
+    persistProfile();
+    if (signedIn)
+      void cloudSyncProfile(profile).then((res) => {
+        applyCloudMerge(profile, res.profile);
+        showCloudStatus(res.status, true);
+      });
+  }
+  summaryEl.innerHTML =
+    `<h2>${headline}</h2>` +
+    cpLine +
+    block +
+    (primary ? `<div class="primaryRow">${primary}</div>` : '') +
+    `<button id="againBtn" class="ghostBtn summaryMenu">☰ Menu</button>`;
+  summaryEl.style.display = 'block';
+  replayAnim(summaryEl, 'fadeIn');
+  summaryEl.classList.add('cascade');
+  document.getElementById('tourPlayoffBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    summaryEl.style.display = 'none';
+    startTourPlayoffHole();
+  });
+  document.getElementById('tourNextBtn')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    summaryEl.style.display = 'none';
+    startTourRound();
+  });
+  document.getElementById('againBtn')!.addEventListener('pointerdown', () => {
+    summaryEl.style.display = 'none';
+    showSetup();
+  });
 }
 
 /**
@@ -6665,10 +7011,13 @@ function renderTourHub(): void {
   const status = Object.keys(t.points).length
     ? `${t.played}/${TOUR_EVENTS} events played · you're ${ordinal(myRank)} in points (${myPts} pts)`
     : `Season ${t.seasonNo} tees off — the field is waiting.`;
+  const poPending = playoffPending(t, ids);
   const playLabel = def
-    ? roundsIn > 0
-      ? `⛳ ${tourEventName(def)} — round ${roundsIn + 1} of ${def.rounds} →`
-      : `⛳ Play Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)} →`
+    ? poPending
+      ? `⚔ ${tourEventName(def)} — playoff! Settle the tie →`
+      : roundsIn > 0
+        ? `⛳ ${tourEventName(def)} — round ${roundsIn + 1} of ${def.rounds} →`
+        : `⛳ Play Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)} →`
     : '';
   // The schedule IS the results page: a finished row says where you landed,
   // what it paid, and who took the trophy when it wasn't you.
@@ -6683,9 +7032,11 @@ function renderTourHub(): void {
       const right = res
         ? `${res.playerRank === 1 ? '🏆 won' : ordinal(res.playerRank)} · +${res.points} pts`
         : cur
-          ? roundsIn > 0
-            ? `round ${roundsIn + 1}/${e.rounds}`
-            : 'up next'
+          ? poPending
+            ? '⚔ playoff'
+            : roundsIn > 0
+              ? `round ${roundsIn + 1}/${e.rounds}`
+              : 'up next'
           : e.major
             ? '3 rounds'
             : '';
@@ -8241,7 +8592,13 @@ function updateDestinations(newPlayer: boolean): void {
           sub.textContent = `16 events · 4 majors · Event 1/${TOUR_EVENTS}`;
         } else if (def) {
           const roundsIn = eventRoundsPlayed(t);
-          const stage = def.major && roundsIn > 0 ? ` · round ${roundsIn + 1}/${def.rounds}` : def.major ? ' · MAJOR' : '';
+          const stage = playoffPending(t, tourCourseIds())
+            ? ' · ⚔ playoff — settle the tie'
+            : def.major && roundsIn > 0
+              ? ` · round ${roundsIn + 1}/${def.rounds}`
+              : def.major
+                ? ' · MAJOR'
+                : '';
           sub.textContent = `Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)}${stage}`;
         } else {
           sub.textContent = 'season complete';
@@ -9291,6 +9648,7 @@ function updateSetupEntry(): void {
 function showSetup(): void {
   endPractice();
   pendingTournament = null; // a normal Play Now open is not a tournament entry
+  tourPlayoff = null; // a live playoff hole is abandoned (the pending tie survives on the profile)
   landingEl.classList.remove('on');
   setupEl.style.display = 'flex';
   updateDailyBanner();
@@ -9462,9 +9820,11 @@ function grantRoundTrueVision(): void {
 function startRound(startHoleIdx = 0): void {
   // A fresh start from the menu abandons any half-finished AI tournament, and
   // any tour ROUND in play (the tour EVENT's banked rounds live on the
-  // profile and survive — that's what makes majors resumable).
+  // profile and survive — that's what makes majors resumable; a pending
+  // playoff likewise survives on the profile, only the LIVE hole is dropped).
   aiTour = null;
   tourRoundLive = false;
+  tourPlayoff = null;
   // ...and any unfinished-round checkpoint, unless THIS call is the resume.
   if (!resumingFrom) clearCheckpoint();
   round.course = courseFallback(sel.courseId);
@@ -9917,6 +10277,40 @@ else {
     roundLive: tourRoundLive,
     archetype: roundLoadout.archetype,
     points: t ? { ...t.points } : {}
+  };
+};
+
+// Test hooks for the sudden-death playoff (tests/visual/tourPlayoff.spec.ts).
+// __stagePlayoff forges a regulation-complete event with the player and the
+// first `tied` rivals level on top — the only practical way a spec reaches a
+// tie deterministically; __playoffProbe reads the pending state, the live
+// hole's simulated rivals, and the scene's parked balls.
+(window as unknown as { __stagePlayoff: unknown }).__stagePlayoff = (tied = 2) => {
+  if (!flag('careerMode') || !careerStarted(profile.career)) return false;
+  if (!profile.tour) profile.tour = newSeason(555001);
+  const t = profile.tour;
+  const def = currentEvent(t, tourCourseIds());
+  if (!def) return false;
+  const fill = (v: number): number[] => Array.from({ length: def.rounds }, () => v);
+  t.activeEvent = {
+    idx: t.played,
+    playerTotals: fill(11),
+    playerToPars: fill(-1),
+    fieldTotals: TOUR_RIVALS.map((_, i) => (i < tied ? fill(11) : fill(15))),
+    fieldToPars: TOUR_RIVALS.map((_, i) => (i < tied ? fill(-1) : fill(3)))
+  };
+  persistProfile();
+  return true;
+};
+(window as unknown as { __playoffProbe: unknown }).__playoffProbe = () => {
+  const t = profile.tour;
+  const pend = t ? playoffPending(t, tourCourseIds()) : null;
+  return {
+    pending: pend ? { tied: [...pend.tiedRivalIds], holesPlayed: pend.holesPlayed } : null,
+    live: tourPlayoff
+      ? tourPlayoff.rivals.map((r) => ({ id: r.id, strokes: r.strokes, holed: r.holed, rests: r.rests.length }))
+      : null,
+    scene: current?.playoffDebug() ?? null
   };
 };
 

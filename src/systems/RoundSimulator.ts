@@ -1,5 +1,5 @@
 import { PX_PER_YARD, RULES } from '../config';
-import { CourseData, Golfer, HoleData, Surface, SwingResult, Wind } from '../core/types';
+import { CourseData, Golfer, HoleData, Point, Surface, SwingResult, Wind } from '../core/types';
 import { resolveTheme } from '../core/rendering/Theme';
 import { gaussianOf, mulberry32, Rng } from '../utils/Random';
 import { AIController } from './AIController';
@@ -102,6 +102,12 @@ export interface SimulateHoleOpts {
    *  difficulty simulator tallies the realized perfect/good/miss mix per tier).
    *  Off the critical path for the live game (only the sim passes it). */
   onSwing?: (info: { isPutt: boolean; powerQuality: string; accuracyQuality: string }) => void;
+  /** Observer of each shot's RESULT: where the ball came to rest, on what,
+   *  the running stroke count (penalties included), and whether it holed.
+   *  The gimme tap-in reports too (at the pin). This is how the tour playoff
+   *  captures a rival's hole as parked ball positions without animating
+   *  anything — the `onSwing` precedent, result-side. */
+  onShot?: (info: { finalPos: Point; surface: Surface; strokes: number; holed: boolean; penalty: boolean }) => void;
 }
 
 /**
@@ -157,6 +163,7 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
       strokes += 1;
       putts += 1;
       holed = true;
+      opts.onShot?.({ finalPos: { ...hole.pin }, surface: 'green', strokes, holed: true, penalty: false });
       break;
     }
     const d = ai.decide(ball, lie, wind, hole);
@@ -215,10 +222,12 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     });
     fire.recordSwing(swing);
     if (d.club.id === 'putter') putts++;
-    strokes += 1 + (out.waterPenalty ? 1 : 0) + (out.obPenalty ? 1 : 0);
+    const penalty = !!(out.waterPenalty || out.obPenalty);
+    strokes += 1 + (penalty ? 1 : 0);
     ball = { ...out.finalPos };
     lie = out.surface;
     holed = out.holed;
+    opts.onShot?.({ finalPos: { ...ball }, surface: lie, strokes, holed, penalty });
     if (strokes === 1 && hole.par >= 4) {
       fairwayHit = out.surface === 'fairway' || out.surface === 'green' || out.surface === 'fringe';
     }
