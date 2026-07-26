@@ -3,6 +3,6 @@
   "armedMirrorRefresh": 0,
   "releasedShadowRefresh": 2,
   "releasedMirrorRefresh": 2,
-  "frozenAvgMs": 3.2,
-  "frozenMaxMs": 17.4
+  "frozenAvgMs": 6.55,
+  "frozenMaxMs": 142.3
 }
