@@ -108,8 +108,11 @@ test('the Claude brief carries the hole, the evidence and the rules', async ({ p
   expect(parsed.hole.tee).toBeTruthy();
   expect(parsed.critique.tiers).toHaveLength(3);
   expect(parsed.intent).toContain('decision');
-  // The unit rule is the one that has actually bitten this project.
-  expect(JSON.stringify(parsed.constraints)).toMatch(/1\.25 ft/);
+  // The unit rule is the one that has actually bitten this project — and the
+  // brief must quote the SHIPPING conversions: 1.5 ft/unit (field guide §2)
+  // and the real 2 px/yd, both of which it used to state wrongly.
+  expect(JSON.stringify(parsed.constraints)).toMatch(/1\.5 ft/);
+  expect(JSON.stringify(parsed.constraints)).toContain('1 yd = 2 px');
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
