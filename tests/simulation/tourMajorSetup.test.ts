@@ -123,7 +123,6 @@ describe('major setup escalation', () => {
             majorCourseForRound(COURSES.wildvalley, r),
             'wildvalley',
             riv,
-            riv.difficulty,
             s.seed + TOUR_MAJOR_IDXS[0] * 15013 + r * 7919 + i * 104729,
             (s.seed ^ 0x9e3779b9) + TOUR_MAJOR_IDXS[0] * 8191 + r * 6151 + i * 3079
           ).total

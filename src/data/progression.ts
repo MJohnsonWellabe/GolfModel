@@ -1,6 +1,7 @@
 import { CareerStats, PlayerProfile } from '../profile/Profile';
 import { bestProOvr, emptyCareer } from './career';
 import { starCount } from '../systems/Mastery';
+import { hasGrandSlam, SEASON_LIMIT, TourProRecord } from '../systems/TourSeason';
 
 /**
  * Progression tuning — XP, coins, levels, achievements and daily challenges,
@@ -83,13 +84,10 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'birdies_25', name: 'Birdie Machine', desc: 'Make 25 birdies', xp: 100, coins: 50, test: (s) => s.birdies >= 25 },
   { id: 'deep_red', name: 'Deep Red', desc: 'Finish a round 3+ under par', xp: 150, coins: 75, test: (s) => s.bestRoundToPar !== null && s.bestRoundToPar <= -3 },
   // Putting
-  { id: 'putts_50', name: 'Putting Ace', desc: 'Make 50 putts', xp: 75, coins: 40, test: (s) => s.puttsMade >= 50 },
   { id: 'bomb_putt', name: 'Bomb Dropper', desc: 'Hole a putt of 30+ feet', xp: 100, coins: 50, test: (s) => s.longestPuttFt >= 30 },
   // Driving
   { id: 'big_stick', name: 'Big Stick', desc: 'Drive one 320+ yards', xp: 100, coins: 50, test: (s) => s.longestDriveYds >= 320 },
   // Accuracy
-  { id: 'fairways_100', name: 'Straight Shooter', desc: 'Hit 100 fairways', xp: 100, coins: 50, test: (s) => s.fairwaysHit >= 100 },
-  { id: 'gir_100', name: 'Dialed In', desc: 'Hit 100 greens in regulation', xp: 100, coins: 50, test: (s) => s.greensInRegulation >= 100 },
   // Recovery
   { id: 'chip_ins_10', name: 'Short-Game Wizard', desc: 'Hole out 10 chip-ins', xp: 150, coins: 75, test: (s) => s.chipIns >= 10 },
   // Course mastery (retention Part 5 stars)
@@ -97,8 +95,6 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'stars_18', name: 'Constellation', desc: 'Earn 18 mastery stars', xp: 200, coins: 100, test: (_s, p) => starCount(p.retention?.mastery ?? { v: 1, stars: {} }) >= 18 },
   // Consistency
   { id: 'rounds_25', name: 'Regular', desc: 'Play 25 rounds', xp: 100, coins: 50, test: (s) => s.rounds >= 25 },
-  { id: 'rounds_100', name: 'Century Club', desc: 'Play 100 rounds', xp: 250, coins: 150, test: (s) => s.rounds >= 100 },
-  { id: 'pars_100', name: 'Steady Hand', desc: 'Make 100 pars', xp: 100, coins: 50, test: (s) => s.pars >= 100 },
   // Fire Mode
   { id: 'fire_5', name: 'Blazing', desc: 'Reach a 5-swing Fire streak', xp: 150, coins: 75, test: (_s, p) => (p.retention?.records?.longestFireStreak ?? 0) >= 5 },
   // Daily Challenge (also the day-7 streak badge)
@@ -109,8 +105,25 @@ export const ACHIEVEMENTS: Achievement[] = [
   { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 99 },
   { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
   { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 },
-  { id: 'season_champion', name: 'Season Champion', desc: 'Top the Tour Season points table', xp: 300, coins: 150, test: (s) => (s.seasonChampionships ?? 0) >= 1 }
+  { id: 'season_champion', name: 'Season Champion', desc: 'Top the Tour Season points table', xp: 300, coins: 150, test: (s) => (s.seasonChampionships ?? 0) >= 1 },
+  // THE TOUR CAREER (owner pass 9). These read the per-golfer record book
+  // (profile.tourHistory) rather than CareerStats, because that is where a
+  // Pro's majors and season placements actually live — and it survives the
+  // season rollover that discards the season state itself.
+  { id: 'first_major', name: 'Major Winner', desc: 'Win your first major championship', xp: 300, coins: 150, test: (_s, p) => bestTourStat(p, (r) => r.majorWins) >= 1 },
+  { id: 'majors_4', name: 'Major Force', desc: 'Win 4 majors with one Pro', xp: 600, coins: 300, test: (_s, p) => bestTourStat(p, (r) => r.majorWins) >= 4 },
+  { id: 'tour_wins_10', name: 'Tour Veteran', desc: 'Win 10 tour events with one Pro', xp: 500, coins: 250, test: (_s, p) => bestTourStat(p, (r) => r.wins) >= 10 },
+  { id: 'grand_slam', name: 'Career Grand Slam', desc: 'Win all four majors with one Pro', xp: 1000, coins: 500, test: (_s, p) => Object.values(p.tourHistory ?? {}).some(hasGrandSlam) },
+  { id: 'hall_of_fame', name: 'Hall of Fame', desc: `Play out all ${SEASON_LIMIT} seasons with one Pro`, xp: 800, coins: 400, test: (_s, p) => bestTourStat(p, (r) => r.seasons.length) >= SEASON_LIMIT }
 ];
+
+/** The best any single Pro has done on one record-book counter. Career
+ *  achievements are per-GOLFER ("4 majors with one Pro"), never a lifetime
+ *  total across a stable of them. */
+function bestTourStat(p: PlayerProfile, pick: (r: TourProRecord) => number): number {
+  const recs = Object.values(p.tourHistory ?? {});
+  return recs.length ? Math.max(...recs.map(pick)) : 0;
+}
 
 /**
  * Round-level results the daily challenges and reward math read. Built by the

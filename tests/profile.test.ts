@@ -138,7 +138,7 @@ describe('cloud round-trip — RTDB drops empty collections', () => {
     expect(filled.coinsEarned).toBe(500); // back-filled from coins
     expect(filled.clubUpgrades).toEqual({});
     expect(filled.achievements).toEqual([]);
-    expect(filled.tournaments).toEqual([]);
+    expect(filled.tourHistory).toEqual({});
     expect(filled.stats.bestRoundToPar).toBeNull();
     expect(filled.cosmetics.owned.length).toBeGreaterThan(0);
     // A normalized copy then merges cleanly (the cloudSyncProfile path).

@@ -16,7 +16,8 @@
  * and a function of (hole, roundNo) alone cannot drift between them.
  */
 
-import { CourseData, EllipseArea, HoleData, Point } from '../core/types';
+import { CourseData, HoleData, Point } from '../core/types';
+import { pinTuck } from '../utils/Geometry';
 
 /**
  * How hard a pin position plays, as its normalized distance from the center
@@ -32,16 +33,7 @@ import { CourseData, EllipseArea, HoleData, Point } from '../core/types';
  * lobe alone and 0.2 against its own).
  */
 export function pinSeverity(hole: HoleData, p: Point): number {
-  const lobeDist = (g: EllipseArea): number => {
-    const dx = p.x - g.cx;
-    const dy = p.y - g.cy;
-    const rot = g.rot ?? 0;
-    const lx = dx * Math.cos(-rot) - dy * Math.sin(-rot);
-    const ly = dx * Math.sin(-rot) + dy * Math.cos(-rot);
-    return Math.hypot(lx / (g.rx || 1), ly / (g.ry || 1));
-  };
-  const d = lobeDist(hole.green);
-  return hole.green2 ? Math.min(d, lobeDist(hole.green2)) : d;
+  return pinTuck(hole.green, hole.green2, p);
 }
 
 /** The hole's authored pins ranked kind → severe WITHIN its own set (a
@@ -100,9 +92,30 @@ export function majorHoleForRound(hole: HoleData, r: number): HoleData {
   return { ...rest, tee: majorTeeForRound(hole, r), pin: majorPinForRound(hole, r) };
 }
 
+/**
+ * CHAMPIONSHIP CONDITIONS: the extra wind each major round plays in (mph on
+ * top of the course's own band). The authored tee and pin ladders escalate a
+ * hole against ITSELF, which varies wildly by course — some holes have one
+ * forward tee and three pins two paces apart. The breeze is the even hand
+ * that makes Sunday harder than Thursday everywhere, and it reaches BOTH
+ * sides identically: the field through simulateRound's wind band, the player
+ * through windForHole reading the same materialized course.
+ *
+ * Kept DELIBERATELY small. At +0/+2/+4 a links course already near its wind
+ * ceiling (Timberline West) turned Sunday into a six-stroke cliff; +0/+1/+2
+ * tilts the week without deciding it.
+ */
+export const MAJOR_WIND_RAMP = [0, 1, 2] as const;
+
 /** The whole course a major round plays. `r` is the 0-based round number,
  *  clamped so a stray value degrades to the nearest real setup. */
 export function majorCourseForRound(course: CourseData, r: number): CourseData {
   const rr = Math.min(Math.max(0, r), 2);
-  return { ...course, holes: course.holes.map((h) => majorHoleForRound(h, rr)) };
+  const gust = MAJOR_WIND_RAMP[rr];
+  return {
+    ...course,
+    minWind: (course.minWind ?? 2) + gust,
+    maxWind: (course.maxWind ?? 20) + gust,
+    holes: course.holes.map((h) => majorHoleForRound(h, rr))
+  };
 }

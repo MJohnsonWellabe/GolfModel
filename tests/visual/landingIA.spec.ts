@@ -89,9 +89,7 @@ test('nothing that used to be on the landing became unreachable', async ({ page 
     ['locker', '#landingStore'],
     ['locker', '#landingLocker'],
     ['more', '#landingProfile'],
-    ['more', '#landingSettings'],
-    // Online tournaments moved here when the Today pane retired (career 2b).
-    ['more', '#tournyLink']
+    ['more', '#landingSettings']
   ];
   for (const [dest, sel] of behind) {
     await openDestination(page, dest);
@@ -172,11 +170,7 @@ test('the strip-down removes systems rather than burying them', async ({ page })
   await expect(page.locator('#landingChoose')).toBeVisible();
   await expect(page.locator('#destBoards')).toBeVisible();
 
-  // The ghost race is one of three opponent systems; the daily hole carries
-  // it. Tournaments are gone from the Profile pane under the strip-down.
-  await openDestination(page, 'more');
-  await expect(page.locator('#tournyLink'), 'online tournaments survived the strip-down').toBeHidden();
-  await page.locator('#destSheetClose').dispatchEvent('click');
+  // The ghost race is one of three opponent systems; the daily hole carries it.
   await page.locator('#psStreak').dispatchEvent('click');
   await expect(page.locator('#dailyPopup')).toHaveClass(/on/);
   await expect(page.locator('#ghostCard')).toBeEmpty();

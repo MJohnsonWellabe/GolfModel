@@ -129,7 +129,16 @@ export class AIController {
     // conservative player only when comfortably in range.
     const reachBonus = -14 + this.personality.aggression * 48;
     if (remainingYds <= maxCarry + reachBonus) {
-      // Pin hunters fire at the flag; others play toward the green center
+      // Pin hunters fire at the flag; others play toward the green center.
+      //
+      // TRIED AND REVERTED (pass 9): scaling this by how TUCKED the pin is,
+      // to stop the field blowing up on flags cut near water. It measured
+      // WORSE overall — a pin's distance from the middle says nothing about
+      // whether trouble sits beside it, so the AI gave up a stroke a round
+      // aiming off perfectly safe cups to fix one genuinely dangerous hole.
+      // The dangerous hole was fixed in the course instead (Wildwood h2's
+      // cups moved off the water-side front edge). A real fix here needs
+      // hazard proximity, not geometry — see layBackToSafe's probe.
       const safety = Math.max(0, 0.5 - this.personality.pinHunting) * 1.4;
       return {
         x: pin.x + (hole.green.cx - pin.x) * safety,

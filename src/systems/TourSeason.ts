@@ -28,6 +28,15 @@ export const MAJOR_ROUNDS = 3;
  *  player takes the trophy — the punishing outcome (grinding five perfect
  *  holes and then LOSING on a technicality) is never the game's pick. */
 export const MAX_PLAYOFF_HOLES = 5;
+/**
+ * A CAREER IS FINITE (owner pass 9: "Make the season limits 10 seasons before
+ * you have to start a new golfer and that golfer can't play in career
+ * anymore"). Ten completed seasons and the Pro retires to the Hall of Fame:
+ * no more tour events, no more CP. They stay selectable for casual rounds and
+ * keep their page in the record book forever — the career is the thing that
+ * ends, not the golfer.
+ */
+export const SEASON_LIMIT = 10;
 export const MAJOR_NAMES = [
   'The Spring Invitational',
   'The Summer Open',
@@ -85,6 +94,24 @@ export interface TourPlayoff {
   holes: Array<{ player: number; rivals: Record<string, number> }>;
 }
 
+/** A partner in a SHARED season: their name and whichever events they have
+ *  posted so far, cached locally so standings render offline. */
+export interface TourCoopPartner {
+  playerId: string;
+  name: string;
+  /** Event index → their score for that event. */
+  results: Record<number, { total: number; toPar: number }>;
+}
+
+/** The shared-season link on a local season (owner pass 9). Absent = solo. */
+export interface TourCoopState {
+  /** The shared doc's id — also what the invite link carries. */
+  id: string;
+  /** This device's player id within the doc. */
+  playerId: string;
+  partners: TourCoopPartner[];
+}
+
 export interface TourSeasonState {
   seasonNo: number;
   seed: number;
@@ -96,6 +123,8 @@ export interface TourSeasonState {
    *  schedule ("E3 · Timberline Open — 2nd, +300 pts"). */
   results: TourEventResult[];
   activeEvent: TourActiveEvent | null;
+  /** SHARED SEASON: set when this season is being played with a friend. */
+  coop?: TourCoopState;
 }
 
 /** How a finished event went for the player, plus who took it. */
@@ -107,6 +136,13 @@ export interface TourEventResult {
   /** The player's event to-par (cumulative across a major's rounds). */
   toPar: number;
   winnerId: string;
+  /** The player's cumulative strokes — needed to re-rank the event when a
+   *  shared-season partner posts their score later. */
+  total?: number;
+  /** Every rival's event score, parallel to TOUR_RIVALS. Stored so a shared
+   *  season can RE-SETTLE an event's points without re-simulating the field
+   *  (ten numbers beat ten physics rounds). */
+  field?: Array<{ total: number; toPar: number }>;
 }
 
 export interface TourStandingRow {
@@ -219,7 +255,6 @@ export function completeTourRound(
       playedCourse,
       def.courseId,
       r,
-      r.difficulty,
       s.seed + def.idx * 15013 + roundNo * 7919 + i * 104729,
       (s.seed ^ 0x9e3779b9) + def.idx * 8191 + roundNo * 6151 + i * 3079
     );
@@ -276,12 +311,17 @@ function finalizeTourEvent(
   if (playoffWinnerId && me >= 0 && competitionRank(standings, me) === 0) {
     playerRank = playoffWinnerId === 'player' ? 1 : 2;
   }
+  const meRow = standings[me >= 0 ? me : 0];
   s.results.push({
     idx: def.idx,
     playerRank,
     points: pointsAwarded['player'] ?? 0,
-    toPar: standings[me >= 0 ? me : 0].toPar,
-    winnerId: playoffWinnerId ?? standings[0].id
+    toPar: meRow.toPar,
+    winnerId: playoffWinnerId ?? standings[0].id,
+    total: meRow.total,
+    // The field's scores ride along so a SHARED season can re-rank this event
+    // when the partner posts, without re-simulating ten physics rounds.
+    field: standings.filter((r) => !r.isPlayer).map((r) => ({ total: r.total, toPar: r.toPar }))
   });
   s.played++;
   s.activeEvent = null;
@@ -396,6 +436,83 @@ export function pointsForStandings(
   return out;
 }
 
+/**
+ * SHARED SEASON POINTS, recomputed from scratch (owner pass 9: "Points will be
+ * calculated on current placements and update when the second user finishes").
+ *
+ * For a solo season `s.points` is a simple accumulator, but a shared one has
+ * to RE-SETTLE: you finish event 3 ranked against the AI field alone, your
+ * partner posts theirs a day later, and both of your point totals must move to
+ * reflect the completed leaderboard. So points become a pure function of every
+ * result on record — each event ranks the AI field, you, and whichever
+ * partners have posted THAT event — which is idempotent no matter what order
+ * the two of you play in.
+ */
+export function recomputeSeasonPoints(
+  s: TourSeasonState,
+  courseIds: readonly string[],
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): Record<string, number> {
+  const sched = tourSchedule(s.seed, courseIds);
+  const points: Record<string, number> = {};
+  for (const res of s.results) {
+    if (!res.field || res.total === undefined) {
+      // A result banked before shared seasons existed carries no field — keep
+      // the player's stored points rather than inventing a leaderboard.
+      points['player'] = (points['player'] ?? 0) + res.points;
+      continue;
+    }
+    const rows: TourStandingRow[] = [
+      { id: 'player', name: 'You', isPlayer: true, total: res.total, toPar: res.toPar },
+      ...res.field.map((f, i) => ({
+        id: rivals[i]?.id ?? `rival${i}`,
+        name: rivals[i]?.name ?? `Rival ${i + 1}`,
+        isPlayer: false,
+        total: f.total,
+        toPar: f.toPar
+      })),
+      ...(s.coop?.partners ?? []).flatMap((p) => {
+        const r = p.results[res.idx];
+        return r
+          ? [{ id: p.playerId, name: p.name, isPlayer: false, total: r.total, toPar: r.toPar }]
+          : [];
+      })
+    ].sort((a, b) => a.toPar - b.toPar || a.total - b.total || Number(b.isPlayer) - Number(a.isPlayer));
+    const awarded = pointsForStandings(rows, sched[res.idx]?.major ?? false);
+    for (const [id, pts] of Object.entries(awarded)) points[id] = (points[id] ?? 0) + pts;
+  }
+  return points;
+}
+
+/** Fold a fetched shared-season doc into the local season: the partner's
+ *  posted results (everyone who is not this device) replace the cache, and
+ *  the points table re-settles. Returns true when anything changed. */
+export function applyCoopSnapshot(
+  s: TourSeasonState,
+  partners: TourCoopPartner[],
+  courseIds: readonly string[],
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): boolean {
+  if (!s.coop) return false;
+  const before = JSON.stringify(s.coop.partners);
+  s.coop.partners = partners.filter((p) => p.playerId !== s.coop!.playerId);
+  const changed = JSON.stringify(s.coop.partners) !== before;
+  s.points = recomputeSeasonPoints(s, courseIds, rivals);
+  return changed;
+}
+
+/** Season standings including any shared-season partners. */
+export function coopSeasonStandings(
+  s: TourSeasonState,
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): TourStandingRow[] {
+  const rows = seasonStandings(s, rivals);
+  for (const p of s.coop?.partners ?? []) {
+    rows.push({ id: p.playerId, name: p.name, isPlayer: false, total: s.points[p.playerId] ?? 0, toPar: 0 });
+  }
+  return rows.sort((a, b) => b.total - a.total || Number(b.isPlayer) - Number(a.isPlayer));
+}
+
 /** Cumulative event standings, lowest to-par first (ties: lower raw total,
  *  then the player — a tied player never reads below an AI with the same
  *  score; same discipline as the AI tournament board). */
@@ -473,24 +590,51 @@ export interface TourProRecord {
   wins: number;
   /** Major championships among those wins. */
   majorWins: number;
+  /** WHICH majors this Pro has won, by name, deduped — the career grand slam
+   *  is all four (MAJOR_NAMES), and a repeat win of the same major does not
+   *  bring it closer. */
+  majors: string[];
   /** One line per FINISHED season, in seasonNo order. */
   seasons: TourProSeasonFinish[];
+}
+
+/** How many seasons this Pro has played out. The record book's season list
+ *  IS the counter — idempotent per seasonNo and merged across devices, so it
+ *  can neither double-count nor be lost. */
+export function seasonsCompleted(h: TourHistory, proId: string): number {
+  return h[proId]?.seasons.length ?? 0;
+}
+
+/** Has this Pro reached the career limit? A retired Pro cannot enter the tour
+ *  or earn CP; casual rounds are still theirs to play. */
+export function proRetired(h: TourHistory, proId: string): boolean {
+  return seasonsCompleted(h, proId) >= SEASON_LIMIT;
+}
+
+/** Has this Pro won all four majors? (The career grand slam.) */
+export function hasGrandSlam(rec: TourProRecord | undefined): boolean {
+  if (!rec) return false;
+  return MAJOR_NAMES.every((m) => rec.majors.includes(m));
 }
 
 export type TourHistory = Record<string, TourProRecord>;
 
 function proRecord(h: TourHistory, proId: string, name: string): TourProRecord {
-  const rec = h[proId] ?? (h[proId] = { name, wins: 0, majorWins: 0, seasons: [] });
+  const rec = h[proId] ?? (h[proId] = { name, wins: 0, majorWins: 0, majors: [], seasons: [] });
   rec.name = name;
   return rec;
 }
 
 /** Stamp an event win onto the Pro who earned it (call when an event
- *  finalizes with the player ranked 1st — playoff wins included). */
-export function recordTourEventWin(h: TourHistory, proId: string, name: string, major: boolean): void {
+ *  finalizes with the player ranked 1st — playoff wins included).
+ *  `majorName` is the major's title when the event was one, else undefined. */
+export function recordTourEventWin(h: TourHistory, proId: string, name: string, majorName?: string): void {
   const rec = proRecord(h, proId, name);
   rec.wins += 1;
-  if (major) rec.majorWins += 1;
+  if (majorName) {
+    rec.majorWins += 1;
+    if (!rec.majors.includes(majorName)) rec.majors.push(majorName);
+  }
 }
 
 /** Stamp a finished season's placement onto the Pro who closed it out.
@@ -532,7 +676,14 @@ export function migrateTourHistory(raw: unknown): TourHistory {
     // Floor, never round up — a corrupted fraction must not inflate a tally.
     const clean = (v: number): number => Math.max(0, Math.floor(v));
     seasons.sort((a, b) => a.seasonNo - b.seasonNo);
-    out[id] = { name: r.name, wins: clean(r.wins), majorWins: clean(r.majorWins), seasons };
+    const majors = (Array.isArray(r.majors) ? r.majors : []).filter((m): m is string => typeof m === 'string');
+    out[id] = {
+      name: r.name,
+      wins: clean(r.wins),
+      majorWins: clean(r.majorWins),
+      majors: [...new Set(majors)],
+      seasons
+    };
   }
   return out;
 }
@@ -550,7 +701,7 @@ export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
     const y = b[id];
     if (!x || !y) {
       const only = (x ?? y)!;
-      out[id] = { ...only, seasons: only.seasons.map((s) => ({ ...s })) };
+      out[id] = { ...only, majors: [...only.majors], seasons: only.seasons.map((s) => ({ ...s })) };
       continue;
     }
     const bySeason = new Map<number, TourProSeasonFinish>();
@@ -560,6 +711,7 @@ export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
       name: x.wins + x.seasons.length >= y.wins + y.seasons.length ? x.name : y.name,
       wins: Math.max(x.wins, y.wins),
       majorWins: Math.max(x.majorWins, y.majorWins),
+      majors: [...new Set([...x.majors, ...y.majors])],
       seasons: [...bySeason.values()].sort((s1, s2) => s1.seasonNo - s2.seasonNo)
     };
   }
@@ -599,7 +751,29 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
           ...(migratePlayoff(ae.playoff) ?? {})
         }
       : null;
-  return { seasonNo: t.seasonNo, seed: t.seed, played, points, results, activeEvent };
+  const coop = migrateCoop(t.coop);
+  return { seasonNo: t.seasonNo, seed: t.seed, played, points, results, activeEvent, ...(coop ? { coop } : {}) };
+}
+
+/** A stored shared-season link → a valid one, or nothing. A damaged block
+ *  drops the season back to solo rather than corrupting the points table. */
+function migrateCoop(raw: unknown): TourCoopState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Partial<TourCoopState>;
+  if (typeof c.id !== 'string' || typeof c.playerId !== 'string') return null;
+  const partners: TourCoopPartner[] = [];
+  for (const p of Array.isArray(c.partners) ? c.partners : []) {
+    if (!p || typeof p.playerId !== 'string' || typeof p.name !== 'string') continue;
+    const results: TourCoopPartner['results'] = {};
+    for (const [k, r] of Object.entries(p.results ?? {})) {
+      const idx = Number(k);
+      if (!Number.isInteger(idx) || idx < 0) continue;
+      if (!r || typeof r.total !== 'number' || typeof r.toPar !== 'number') continue;
+      results[idx] = { total: r.total, toPar: r.toPar };
+    }
+    partners.push({ playerId: p.playerId, name: p.name, results });
+  }
+  return { id: c.id, playerId: c.playerId, partners };
 }
 
 /** A stored playoff → a valid one (as a spreadable fragment) or nothing.
@@ -642,5 +816,10 @@ export function mergeTour(a: TourSeasonState | null, b: TourSeasonState | null):
   // Same regulation progress: a copy deeper into sudden death is newer.
   const aPo = a.activeEvent?.playoff?.holes.length ?? 0;
   const bPo = b.activeEvent?.playoff?.holes.length ?? 0;
-  return bPo > aPo ? b : a;
+  if (aPo !== bPo) return aPo > bPo ? a : b;
+  // Still tied: prefer whichever copy has heard about more partner results —
+  // the shared doc is the authority, but the fuller cache is the better start.
+  const known = (x: TourSeasonState): number =>
+    (x.coop?.partners ?? []).reduce((n, p) => n + Object.keys(p.results).length, 0);
+  return known(b) > known(a) ? b : a;
 }

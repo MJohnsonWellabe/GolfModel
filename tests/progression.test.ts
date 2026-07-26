@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { defaultProfile, mergeProfiles } from '../src/profile/Profile';
+import { MAJOR_NAMES, SEASON_LIMIT, TourProRecord } from '../src/systems/TourSeason';
+import { defaultProfile, mergeProfiles, PlayerProfile } from '../src/profile/Profile';
 import { ACHIEVEMENTS, COINS, dailyChallengeFor, emptyRoundStats, levelForXp, xpForLevel } from '../src/data/progression';
 import { CP } from '../src/data/career';
 import { applyRound, RewardEvent } from '../src/systems/ProgressionEngine';
@@ -193,3 +194,59 @@ function achievementCpPaid(events: RewardEvent[]): number {
     .filter((e): e is Extract<RewardEvent, { kind: 'achievement' }> => e.kind === 'achievement')
     .reduce((sum, e) => sum + (e.name === 'First Birdie' ? 2 : e.name === 'First Eagle' ? 4 : 0), 0);
 }
+
+describe('career achievements (owner pass 9)', () => {
+  const withHistory = (rec: Partial<TourProRecord>): PlayerProfile => {
+    const p = defaultProfile();
+    p.tourHistory = {
+      pro1: { name: 'Ace', wins: 0, majorWins: 0, majors: [], seasons: [], ...rec } as TourProRecord
+    };
+    return p;
+  };
+  const fires = (id: string, p: PlayerProfile): boolean => {
+    const a = ACHIEVEMENTS.find((x) => x.id === id);
+    expect(a, `${id} is missing from ACHIEVEMENTS`).toBeTruthy();
+    return a!.test(p.stats, p);
+  };
+
+  it('the tour badges read the per-golfer record book', () => {
+    expect(fires('first_major', withHistory({ majorWins: 1 }))).toBe(true);
+    expect(fires('first_major', withHistory({ wins: 9 }))).toBe(false); // wins aren't majors
+    expect(fires('majors_4', withHistory({ majorWins: 3 }))).toBe(false);
+    expect(fires('majors_4', withHistory({ majorWins: 4 }))).toBe(true);
+    expect(fires('tour_wins_10', withHistory({ wins: 10 }))).toBe(true);
+    expect(fires('grand_slam', withHistory({ majors: [...MAJOR_NAMES].slice(0, 3) }))).toBe(false);
+    expect(fires('grand_slam', withHistory({ majors: [...MAJOR_NAMES] }))).toBe(true);
+  });
+
+  it('they are per-GOLFER, never a total across the stable', () => {
+    const p = defaultProfile();
+    p.tourHistory = {
+      a: { name: 'A', wins: 6, majorWins: 2, majors: [], seasons: [] },
+      b: { name: 'B', wins: 6, majorWins: 2, majors: [], seasons: [] }
+    };
+    // 12 wins and 4 majors between them is not 10 wins or 4 majors with ONE.
+    expect(fires('tour_wins_10', p)).toBe(false);
+    expect(fires('majors_4', p)).toBe(false);
+  });
+
+  it('the Hall of Fame badge lands exactly at the season limit', () => {
+    const seasons = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({ seasonNo: i + 1, rank: 1, points: 100 }));
+    expect(fires('hall_of_fame', withHistory({ seasons: seasons(SEASON_LIMIT - 1) }))).toBe(false);
+    expect(fires('hall_of_fame', withHistory({ seasons: seasons(SEASON_LIMIT) }))).toBe(true);
+  });
+
+  it('an empty record book fires nothing and never throws', () => {
+    const p = defaultProfile();
+    for (const id of ['first_major', 'majors_4', 'tour_wins_10', 'grand_slam', 'hall_of_fame']) {
+      expect(fires(id, p), id).toBe(false);
+    }
+  });
+
+  it('the retired grind counters are gone', () => {
+    for (const id of ['putts_50', 'fairways_100', 'gir_100', 'pars_100', 'rounds_100']) {
+      expect(ACHIEVEMENTS.find((a) => a.id === id), `${id} should have been retired`).toBeUndefined();
+    }
+  });
+});

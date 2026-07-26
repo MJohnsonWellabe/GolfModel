@@ -982,3 +982,71 @@ tour's competitive overhaul.
   in the shared payout path, cross-device merges take per-Pro maxima and
   union seasons (never summing — that would double-count), and a one-time
   backfill credits the current season's pre-feature wins.
+
+## 27. Owner pass 9 — a tour worth losing, and a career that ends
+
+Six asks, two of them the same root cause.
+
+- **Rivals keep their identity.** Owner: "the same ai should generally be good
+  most tourneys… if they're a 95 ai, they should shoot a good score almost
+  every round. if they're 85 they should be consistently middle of the
+  leaderboard." Skill used to enter through four coarse difficulty TIERS, so
+  Rex (95.2 OVR) and Mei (94.4) shared a mean and the whole field spanned 2.9
+  strokes against a per-round sd of 1.6 — the order scrambled every event.
+  `simulateEntrantRound` now derives form from the rival's own rating
+  (`entrantForm`, a line in OVR), averages TWO simulated rounds to cut the
+  physics noise, and scales the form spread by rating (`entrantSigma` — the
+  better the steadier). Measured: P(top rival finishes top-3) 0.94–1.00,
+  P(an 85 lands mid-board) 0.72–0.86, an Easy tier NEVER wins, and the
+  rating↔finish rank correlation is 0.77–0.91. The `difficulty` tier is now
+  flavour text only.
+- **Majors are hard to win.** Owner: "I won a major at 10 under with the next
+  best at 5 under… some others consistently shooting 2-4 under each round,
+  closer to 4 in the first round and 2 in the last," and then: the leader
+  should average about −10 over a major. Pass 8 calibrated the winning score
+  for ONE round, but per-round luck does not accumulate — over three rounds
+  each rival regresses to their own mean, so the winning total sat near
+  3 × (top mean). The gate is now the MAJOR total, and the per-course easing
+  is re-derived against it.
+- **The AI stopped firing at sucker pins.** Chasing the major arc turned up
+  the real reason the field collapsed on championship Sundays: `chooseTarget`
+  blended toward the green centre by TEMPERAMENT alone, so a balanced AI
+  aimed dead at every flag. On Wildwood's par 3 — a shallow two-lobe green
+  with water two yards off the front — that produced a 60–85% blow-up rate
+  the moment a major moved the pin. Caution now scales with how TUCKED the
+  pin is (`AI_STRATEGY.pinTuckCaution` × the pin's normalized distance from
+  centre, shared with the major setup as `Geometry.pinTuck`), and Wildwood
+  hole 2's two water-adjacent cups moved onto the back half of the green
+  where a good shot can actually hold them (1% / 9% / 21% blow-ups, a clean
+  +0.9-stroke ladder). A **championship wind ramp** (`MAJOR_WIND_RAMP`,
+  +0/+2/+4 mph) gives every course the same Thursday-to-Sunday escalation,
+  and reaches both sides identically through the materialized course.
+- **Online tournaments are gone** (owner: "We can remove online tournaments
+  all together from the menus"): the shared-code create/join/standings
+  surface, its Firebase module, its RTDB rules node and `profile.tournaments`
+  all deleted. The AI Tournament mode and the Tour Season are untouched, and
+  `stats.tournamentWins` survives — the Tour Season feeds it.
+- **Career achievements.** Five grind counters retired (100 fairways, 100
+  greens, 100 pars, 50 putts, 100 rounds); five career badges added, all
+  reading the per-golfer record book: First Major, Major Force (4 majors),
+  Tour Veteran (10 wins), **Career Grand Slam** (all four majors with ONE
+  Pro — `TourProRecord.majors` tracks which), and Hall of Fame (all ten
+  seasons). They are per-GOLFER, never a total across the stable.
+- **Ten seasons, then the Hall of Fame** (owner: "Make the season limits 10
+  seasons before you have to start a new golfer and that golfer can't play in
+  career anymore"). `SEASON_LIMIT = 10`, counted off the record book's own
+  season list (idempotent per season, merged across devices). A retired Pro
+  can't enter the tour and grows no further; their Locker card becomes a 🏛
+  Hall of Fame card and their record page is their career. They stay
+  selectable for casual rounds — the career ends, not the golfer.
+- **Shared seasons** (owner: "Allow a user to start a season with another
+  user… invite them via a text link… points calculated on current placements
+  and update when the second user finishes"). Because the AI field is
+  deterministic from the season seed, the shared doc holds only each human's
+  per-event score (`firebase/CoopSeason.ts`, `/coopSeasons/{sid}`, invite via
+  `?coop=`). Season points became a PURE function of the results log
+  (`recomputeSeasonPoints`) rather than an accumulator: each event ranks the
+  field, you, and whoever has posted THAT event — so finishing first is never
+  penalised and never final, and both players' totals move the moment the
+  second one posts. Each event line now carries the field's scores so a
+  re-settle costs ten numbers instead of ten physics rounds.

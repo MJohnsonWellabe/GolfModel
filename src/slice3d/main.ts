@@ -51,20 +51,10 @@ import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
-import {
-  createTournament,
-  fetchTournament,
-  submitEntry,
-  makeTournamentCode,
-  tournamentStandings,
-  isEnded,
-  isPlausibleEntry,
-  Tournament,
-  TournamentEntry
-} from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { completeTourPlayoffHole, completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, MAX_PLAYOFF_HOLES, newSeason, playoffPending, recordTourEventWin, recordTourSeasonFinish, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonStandings, currentEvent, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
+import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
 import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
@@ -435,8 +425,6 @@ interface RoundState {
   /** Shared RNG seed for tournament rounds → identical conditions for every
    *  entrant (undefined for casual rounds, which roll fresh wind). */
   seed?: number;
-  /** Active tournament this round counts toward (submits an entry at the end). */
-  tournament?: { code: string; name: string } | null;
   /** Weekly Featured event this round counts toward (Part 8), or null. */
   weeklyEventId?: string | null;
   /** Async challenge being answered this round (Part 9), or null. */
@@ -637,7 +625,7 @@ function pinForHole(idx: number): Point {
  */
 function easeInActive(): boolean {
   if (!flag('easeIn')) return false;
-  if (round.tournament || round.weeklyEventId || round.challenge || activeGhost || dailyRound) return false;
+  if (round.weeklyEventId || round.challenge || activeGhost || dailyRound) return false;
   if (round.mode !== 'solo') return false;
   return profile.stats.rounds < EASE_IN_ROUNDS;
 }
@@ -4230,7 +4218,6 @@ function checkpointRound(): void {
     aiTour ||
     tourRoundLive ||
     tourPlayoff ||
-    round.tournament ||
     round.weeklyEventId ||
     round.challenge ||
     tutorialCoach.isActive() ||
@@ -4668,7 +4655,7 @@ function showSummary(): void {
           `<div class="tourResult"><div class="tourHeadRow">⛳ ${escapeHtml(evName)} · MAJOR — after round ${nextRound - 1}/${def.rounds}</div>${evRows}</div>`;
         tourSeasonPrimary = `<button id="tourNextBtn">Round ${nextRound} of ${def.rounds} →</button>`;
       } else {
-        const ui = tourEventOutcomeUi(t, def, outcome);
+        const ui = tourEventOutcomeUi(t, def, outcome, ids);
         headline = ui.headline;
         tourSeasonBlock = ui.block;
         tourCpLine = ui.cpLine;
@@ -4683,7 +4670,6 @@ function showSummary(): void {
         });
     }
   }
-  const tourBlock = round.tournament ? `<div id="tourResult" class="tourResult">Submitting to ${escapeHtml(round.tournament.name)}…</div>` : '';
   // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
   const signInNudge =
     !signedIn && authConfigured()
@@ -4740,7 +4726,6 @@ function showSummary(): void {
     challengeLine +
     aiTourBlock +
     tourSeasonBlock +
-    tourBlock +
     `<div class="objLine">🎯 ${escapeHtml(objective)}</div>` +
     // THE TWO PRIMARY ACTIONS, directly under the objective — the card's whole
     // job is to start the next round, and on a phone anything below a details
@@ -4794,9 +4779,6 @@ function showSummary(): void {
     bigEl.textContent = '0';
     requestAnimationFrame(step);
   }
-  // Tournament: submit this round as the player's entry (first score stands)
-  // and show the live standings (Phase 8).
-  if (round.tournament) void submitTournamentRound(round.tournament.code, record, holes.length);
   document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
   // Replay: the SAME setup (course/mode/character/pal/perk all ride sel +
   // profile), back to the first tee with one tap. Play Next: the rotation's
@@ -6165,188 +6147,14 @@ async function renderRecords(): Promise<void> {
 
 // ------------------------------------------------ Phase 8: tournaments + aces
 
-function tournamentsEl(): HTMLElement {
-  return document.getElementById('tournaments')!;
-}
-function closeOverlay(el: HTMLElement): void {
-  el.style.display = 'none';
-}
 
-/** Tournament hub: create a new one or join by code. `preCode` boots straight
- *  into a shared `?t=CODE` link. */
-/** Record a tournament in the player's history (newest first, deduped). */
-function rememberTournament(code: string, name: string): void {
-  profile.tournaments = [{ code, name }, ...profile.tournaments.filter((t) => t.code !== code)].slice(0, 30);
-  persistProfile();
-  if (signedIn)
-    void cloudSyncProfile(profile).then((res) => {
-      applyCloudMerge(profile, res.profile);
-      showCloudStatus(res.status, true);
-    });
-}
 
-/** "My Tournaments" list: the events this player created or played, tap to reopen. */
-function myTournamentsHtml(): string {
-  if (!profile.tournaments.length) return '';
-  const rows = profile.tournaments
-    .slice(0, 8)
-    .map(
-      (t) =>
-        `<button class="tourMineRow" data-code="${escapeHtml(t.code)}">` +
-        `<span class="tourMineNm">🏁 ${escapeHtml(t.name)}</span>` +
-        `<span class="tourMineCode">${escapeHtml(t.code)}</span></button>`
-    )
-    .join('');
-  return `<div class="tourHeadRow">My Tournaments</div><div class="tourMineList">${rows}</div>`;
-}
 
-function renderTournaments(preCode?: string): void {
-  const el = tournamentsEl();
-  el.style.display = 'flex';
-  if (!isShared()) {
-    el.innerHTML =
-      `<div class="recInner"><h2>Online Tournaments</h2>` +
-      `<div class="recEmpty">Online tournaments play over the shared leaderboard, which isn't configured on this build yet. ` +
-      `See docs/FIREBASE_SETUP.md to connect one.</div>` +
-      `<button id="tourBack">Back</button></div>`;
-    // 'click' — see the #lkLock comment in renderLockerRoom.
-    document.getElementById('tourBack')!.addEventListener('click', () => closeOverlay(el));
-    return;
-  }
-  el.innerHTML =
-    `<div class="recInner"><h2>🌐 Online Tournaments</h2>` +
-    `<div class="recSub">Challenge real players: everyone plays identical wind &amp; pins. Lowest total wins.</div>` +
-    `<button id="tourCreate" class="tourAction">➕ Create a tournament</button>` +
-    `<div class="tourJoin"><input id="tourCode" type="text" maxlength="9" placeholder="JG-XXXXXX" ` +
-    `autocomplete="off" autocapitalize="characters" value="${preCode ? escapeHtml(preCode) : ''}" />` +
-    `<button id="tourJoinBtn">Join</button></div>` +
-    myTournamentsHtml() +
-    `<div id="tourBody" class="tourBody"></div>` +
-    `<button id="tourBack">Back</button></div>`;
-  // 'click' — see the #lkLock comment in renderLockerRoom.
-  document.getElementById('tourBack')!.addEventListener('click', () => closeOverlay(el));
-  document.getElementById('tourCreate')!.addEventListener('pointerdown', () => createTournamentFlow());
-  const codeInput = document.getElementById('tourCode') as HTMLInputElement;
-  const join = (): void => {
-    const code = codeInput.value.trim().toUpperCase();
-    if (code) void openTournament(code);
-  };
-  document.getElementById('tourJoinBtn')!.addEventListener('pointerdown', join);
-  el.querySelectorAll('.tourMineRow').forEach((row) =>
-    row.addEventListener('pointerdown', () => {
-      const code = (row as HTMLElement).dataset.code;
-      if (code) void openTournament(code);
-    })
-  );
-  codeInput.addEventListener('keydown', (e) => {
-    if ((e as KeyboardEvent).key === 'Enter') join();
-  });
-  if (preCode) void openTournament(preCode.toUpperCase());
-}
 
-/** Step 1 of creating a tournament: let the creator pick the course everyone
- *  will play (it's fixed for all entrants), then hand off to the PUT. */
-function createTournamentFlow(): void {
-  const body = document.getElementById('tourBody');
-  if (!body) return;
-  const cards = COURSE_LIST.map(
-    (c) =>
-      `<div class="archCard modeCard" data-course="${c.id}">` +
-      `<span class="modeIcon">${c.icon}</span><span class="modeName">${escapeHtml(c.name)}</span>` +
-      `<span class="modeTag">${escapeHtml(c.tag)}</span></div>`
-  ).join('');
-  body.innerHTML = `<div class="recSub">Pick the course — everyone who joins plays it.</div><div class="modeGrid">${cards}</div>`;
-  body.querySelectorAll('.modeCard').forEach((el) =>
-    el.addEventListener('pointerdown', () => void createTournamentWithCourse((el as HTMLElement).dataset.course!))
-  );
-}
 
-/** Step 2: PUT the 7-day tournament on the chosen course and surface the code. */
-async function createTournamentWithCourse(courseId: string): Promise<void> {
-  const body = document.getElementById('tourBody');
-  if (body) body.innerHTML = `<div class="recEmpty">Creating…</div>`;
-  const now = Date.now();
-  const course = courseFallback(courseId);
-  const meta: Tournament = {
-    code: makeTournamentCode(),
-    name: `${(profile.name || 'Player')}'s Cup`,
-    course: course.name,
-    holes: Math.min(RULES.holesPerRound, course.holes.length),
-    createdBy: { id: profile.id, name: profile.name || 'Player' },
-    createdAt: now,
-    endsAt: now + 7 * 24 * 60 * 60 * 1000,
-    seed: Math.floor(Math.random() * 1e9)
-  };
-  const ok = await createTournament(meta);
-  if (!body) return;
-  if (!ok) {
-    body.innerHTML = `<div class="recEmpty">Couldn't create the tournament — check your connection.</div>`;
-    return;
-  }
-  rememberTournament(meta.code, meta.name);
-  const shareUrl = `${location.origin}${location.pathname}?t=${meta.code}`;
-  body.innerHTML =
-    `<div class="tourCode">${meta.code}</div>` +
-    `<div class="recSub">Share this link — friends who open it join automatically.</div>` +
-    `<div class="tourShare">${escapeHtml(shareUrl)}</div>` +
-    `<button id="tourPlay" class="tourAction">Play my round →</button>`;
-  document.getElementById('tourPlay')!.addEventListener('pointerdown', () => playTournament(meta));
-}
 
-/** Fetch a tournament and show its standings + a Play button. */
-async function openTournament(code: string): Promise<void> {
-  const body = document.getElementById('tourBody');
-  if (body) body.innerHTML = `<div class="recEmpty">Loading ${escapeHtml(code)}…</div>`;
-  const data = await fetchTournament(code);
-  if (!body) return;
-  if (!data) {
-    body.innerHTML = `<div class="recEmpty">No tournament found for ${escapeHtml(code)}.</div>`;
-    return;
-  }
-  const standings = tournamentStandings(data.entries);
-  const alreadyEntered = data.entries.some((e) => e.playerId === profile.id);
-  const ended = isEnded(data.meta, Date.now());
-  const myRank = standings.findIndex((e) => e.playerId === profile.id) + 1;
-  const playBtn = !ended && !alreadyEntered ? `<button id="tourPlay" class="tourAction">Play my round →</button>` : '';
-  const note = ended ? `<div class="recSub">This tournament has ended.</div>` : alreadyEntered ? `<div class="recSub">You've already posted a score.</div>` : '';
-  body.innerHTML = renderStandingsHtml(data.meta, standings, myRank) + note + playBtn;
-  const pb = document.getElementById('tourPlay');
-  if (pb) pb.addEventListener('pointerdown', () => playTournament(data.meta));
-}
 
-function renderStandingsHtml(meta: Tournament, standings: TournamentEntry[], myRank: number): string {
-  const rows = standings.length
-    ? standings
-        .slice(0, 10)
-        .map((e, i) => {
-          const sign = e.toPar === 0 ? 'E' : e.toPar > 0 ? `+${e.toPar}` : `${e.toPar}`;
-          const you = e.playerId === profile.id ? ' you' : '';
-          const rank = i === 0 ? '🏆' : `${i + 1}.`;
-          return (
-            `<div class="recRow${you}"><span class="recRk">${rank}</span>` +
-            `<span class="recNm">${escapeHtml(e.name)}</span>` +
-            `<span class="recTot">${e.total} (${sign})</span></div>`
-          );
-        })
-        .join('')
-    : `<div class="recEmpty">No scores yet — be the first!</div>`;
-  const ended = isEnded(meta, Date.now());
-  const status = ended ? 'Final' : 'In progress';
-  const rank = myRank > 0 ? ` · You: ${myRank}/${standings.length}` : '';
-  // Surface the fixed facts every entrant plays under: which course (the
-  // creator's pick — everyone plays it), and when it locks. Lowest total wins,
-  // one entry each, first score stands (see the lifecycle note in the header).
-  const endTxt = new Date(meta.endsAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  const meta2 = `<div class="recSub tourMeta">⛳ ${escapeHtml(meta.course)} · ${meta.holes} holes · ` +
-    `${ended ? 'ended' : 'ends'} ${endTxt} · lowest total wins · one entry each</div>`;
-  return `<div class="tourHeadRow">🏁 ${escapeHtml(meta.name)} — ${status}${rank}</div>${meta2}${rows}`;
-}
 
-/** A tournament the player has chosen to enter, held while they go through the
- *  setup wizard (Name/Character/Pals/Style). Mode + course are locked to the
- *  tournament; on "Tee off" the wizard starts the round for this meta with the
- *  freshly-picked golfer, style, and equipped pal (not the last-used ones). */
-let pendingTournament: Tournament | null = null;
 /** Weekly Featured entry armed by the landing card — the next startRound runs
  *  under the event's standardized seed and submits to its leaderboard. */
 let pendingWeekly: WeeklyEvent | null = null;
@@ -6400,79 +6208,8 @@ function completeTutorial(): { coins: number } | undefined {
   return { coins: COINS.tutorial };
 }
 
-/** Enter a tournament: lock the mode + course, then send the player through the
- *  setup wizard so they pick their own golfer, pal, and style before teeing off
- *  (the round itself still runs under the tournament's shared seed). */
-function playTournament(meta: Tournament): void {
-  pendingTournament = meta;
-  sel.mode = 'solo';
-  sel.courseId = courseIdByName(meta.course);
-  closeOverlay(tournamentsEl());
-  setupEl.style.display = 'flex';
-  updateDailyBanner();
-  goStep(0);
-}
 
-/** Start a solo round under a tournament's shared seed (Phase 8), with the
- *  golfer/style picked in the wizard just now. */
-function startTournamentRound(meta: Tournament): void {
-  rememberTournament(meta.code, meta.name);
-  round.course = COURSES[courseIdByName(meta.course)];
-  round.mode = 'solo';
-  round.holeIdx = 0;
-  round.activePlayer = 0;
-  round.holeWinds = [];
-  round.holePins = [];
-  round.seed = meta.seed;
-  round.tournament = { code: meta.code, name: meta.name };
-  round.weeklyEventId = null;
-  round.challenge = null;
-  shotAcc = freshShotAcc();
-  beginRoundTracking();
-  grantRoundTrueVision();
-  // A tournament round is not the plain solo round the recorder covers.
-  lastRecording = null;
-  roundRecorder.stop();
-  // Persist the wizard's picks like a normal round so they stick next launch.
-  persistProfile();
-  const golfer = roundGolfer();
-  round.players = [{ golfer, isAI: false, scores: [] }];
-  closeOverlay(tournamentsEl());
-  setupEl.style.display = 'none';
-  playHole();
-}
 
-/** Submit the finished round as a tournament entry and show live standings. */
-async function submitTournamentRound(code: string, record: RoundRecord, holeCount: number): Promise<void> {
-  const el = document.getElementById('tourResult');
-  const entry: TournamentEntry = {
-    playerId: profile.id,
-    name: profile.name || 'Player',
-    golferId: record.golferId,
-    total: record.total,
-    toPar: record.toPar,
-    holes: record.holes.slice(0, holeCount),
-    submittedAt: Date.now()
-  };
-  if (!isShared()) {
-    if (el) el.textContent = 'Tournament scores need an online connection.';
-    return;
-  }
-  if (!isPlausibleEntry(entry, holeCount, RULES.maxStrokes)) {
-    if (el) el.textContent = 'Score could not be submitted.';
-    return;
-  }
-  await submitEntry(code, entry);
-  const data = await fetchTournament(code);
-  if (!el) return;
-  if (!data) {
-    el.textContent = 'Standings unavailable right now.';
-    return;
-  }
-  const standings = tournamentStandings(data.entries);
-  const myRank = standings.findIndex((e) => e.playerId === profile.id) + 1;
-  el.innerHTML = renderStandingsHtml(data.meta, standings, myRank);
-}
 
 // ----- AI Tournament: three rounds, three courses, an AI field you only ever
 // meet on the leaderboard (replaced the Ace Challenge). The player plays
@@ -6502,7 +6239,6 @@ function startAiTourRound(): void {
   round.holeWinds = [];
   round.holePins = [];
   round.seed = (Math.random() * 0xffffffff) >>> 0;
-  round.tournament = null;
   round.weeklyEventId = null;
   round.challenge = null;
   shotAcc = freshShotAcc();
@@ -6611,6 +6347,13 @@ function tourEventName(def: TourEventDef): string {
  *  is force-selected for the round. Creates the season on first entry. */
 function startTourEvent(): void {
   if (!flag('careerMode') || !careerStarted(profile.career)) return;
+  const pro = activePro(profile.career);
+  if (pro && proRetired(profile.tourHistory, pro.id)) {
+    showMsg(`🏛 ${pro.name} has retired after ${SEASON_LIMIT} seasons — start a new Pro to tour again`, 3400);
+    lkTab = 'style';
+    renderLockerRoom();
+    return;
+  }
   if (!profile.tour) {
     profile.tour = newSeason(Math.floor(Math.random() * 1e9));
     persistProfile();
@@ -6627,6 +6370,125 @@ function startTourEvent(): void {
     return;
   }
   startTourRound();
+}
+
+// ----- SHARED SEASONS (owner pass 9): two players, one schedule. The AI
+// field is deterministic from the season seed, so only each human's per-event
+// score travels — see firebase/CoopSeason.ts.
+
+/** Who you are on a shared season's board: the Pro you tour as, since that is
+ *  the name your friend sees on every leaderboard beside the rivals. */
+function coopDisplayName(): string {
+  return activePro(profile.career)?.name || profile.name || 'A golfer';
+}
+
+/** Turn the doc's players into the local partner cache (everyone but me). */
+function coopPartnersFrom(doc: CoopSeasonDoc, myId: string): TourCoopPartner[] {
+  return Object.values(doc.players ?? {})
+    .filter((p) => p.playerId !== myId)
+    .map((p) => ({
+      playerId: p.playerId,
+      name: p.name,
+      results: Object.fromEntries(
+        Object.entries(p.results ?? {}).map(([k, r]) => [Number(k), { total: r.total, toPar: r.toPar }])
+      )
+    }));
+}
+
+/** Pull the shared doc and re-settle the points table. Safe to call on any
+ *  hub paint: bounded, failure-tolerant, and a no-op for a solo season. */
+async function syncCoopSeason(repaint = false): Promise<void> {
+  const t = profile.tour;
+  if (!t?.coop) return;
+  const doc = await fetchCoopSeason(t.coop.id);
+  if (!doc || profile.tour !== t) return;
+  applyCoopSnapshot(t, coopPartnersFrom(doc, t.coop.playerId), tourCourseIds());
+  persistProfile();
+  if (repaint && document.getElementById('tourHub')?.style.display === 'flex') renderTourHub();
+}
+
+/** Start a shared season and hand the player a link to text. Uses the season
+ *  already in progress when it is untouched, so "invite a friend" on a fresh
+ *  season keeps its schedule. */
+async function startCoopSeason(): Promise<void> {
+  if (!careerStarted(profile.career)) return;
+  const myId = challengePlayerId();
+  const existing = profile.tour;
+  const seasonNo = existing?.seasonNo ?? 1;
+  // A season with events already banked can't be shared retroactively — the
+  // partner would be joining a race already run — so that case starts fresh.
+  const base = existing && existing.played === 0 ? existing : newSeason(Math.floor(Math.random() * 1e9), seasonNo);
+  const sid = makeCoopId();
+  const doc: CoopSeasonDoc = {
+    v: 1,
+    sid,
+    seed: base.seed,
+    seasonNo: base.seasonNo,
+    createdAt: Date.now(),
+    players: { [myId]: { playerId: myId, name: coopDisplayName(), results: {} } }
+  };
+  const ok = await createCoopSeason(doc);
+  if (!ok) {
+    showMsg('Shared seasons need an online connection', 2600);
+    return;
+  }
+  base.coop = { id: sid, playerId: myId, partners: [] };
+  profile.tour = base;
+  persistProfile();
+  const url = coopUrl(sid, `${location.origin}${location.pathname}`);
+  await shareOrCopy(`Play a golf season with me — same schedule, same rivals. Join: `, url);
+  renderTourHub();
+}
+
+/** A ?coop= link: show who invited you and offer to join their season. */
+async function receiveCoopInvite(raw: string): Promise<void> {
+  const sid = parseCoopParam(raw);
+  const el = document.getElementById('challengeBanner');
+  if (!el) return;
+  if (!sid) {
+    el.innerHTML = `<span class="chLabel">SEASON</span><div class="chName">That season link isn't valid.</div>`;
+    return;
+  }
+  const doc = await fetchCoopSeason(sid);
+  if (!doc) {
+    el.innerHTML = `<span class="chLabel">SEASON</span><div class="chName">That season couldn't be found.</div>`;
+    return;
+  }
+  const myId = challengePlayerId();
+  const host = Object.values(doc.players).find((p) => p.playerId !== myId);
+  el.innerHTML =
+    `<span class="chLabel">👥 SHARED SEASON</span>` +
+    `<div class="chName">${escapeHtml(host?.name ?? 'A friend')} invited you to Season ${doc.seasonNo} — ` +
+    `same schedule, same rivals, play at your own pace.</div>` +
+    `<button id="coopJoin" class="chPlay">Join the season</button>`;
+  document.getElementById('coopJoin')!.addEventListener('pointerdown', () => {
+    void (async () => {
+      el.innerHTML = '';
+      if (!careerStarted(profile.career)) {
+        showMsg('Start a career Pro first — the tour is their story', 3000);
+        lkTab = 'style';
+        renderLockerRoom();
+        return;
+      }
+      await joinCoopSeason(sid, myId, coopDisplayName());
+      const fresh = (await fetchCoopSeason(sid)) ?? doc;
+      const season = newSeason(fresh.seed, fresh.seasonNo);
+      season.coop = { id: sid, playerId: myId, partners: coopPartnersFrom(fresh, myId) };
+      profile.tour = season;
+      persistProfile();
+      renderTourHub();
+    })();
+  });
+}
+
+/** Post a finished event to the shared doc, then re-settle both sides. */
+function publishCoopResult(t: TourSeasonState, res: TourEventResult): void {
+  if (!t.coop || res.total === undefined) return;
+  void postCoopResult(t.coop.id, t.coop.playerId, res.idx, {
+    total: res.total,
+    toPar: res.toPar,
+    at: Date.now()
+  }).then(() => syncCoopSeason());
 }
 
 /** Play the current event's next round as a normal solo round — the aiTour
@@ -6653,7 +6515,6 @@ function startTourRound(): void {
     round.course = majorCourseForRound(round.course, eventRoundsPlayed(t));
     round.holePins = round.course.holes.map((h) => ({ ...h.pin }));
   }
-  round.tournament = null;
   round.weeklyEventId = null;
   round.challenge = null;
   aiTour = null;
@@ -6753,7 +6614,6 @@ function startTourPlayoffHole(): void {
   round.holeWinds = [{ ...wind }];
   round.holePins = [{ ...pin }];
   round.seed = seed;
-  round.tournament = null;
   round.weeklyEventId = null;
   round.challenge = null;
   aiTour = null;
@@ -6781,7 +6641,7 @@ function startTourPlayoffHole(): void {
 function tourSeasonTableHtml(): string {
   const t = profile.tour;
   if (!t) return '';
-  const rows = seasonStandings(t)
+  const rows = coopSeasonStandings(t)
     .map((r, i) => {
       const rank = i === 0 ? '🏆' : `${i + 1}.`;
       return (
@@ -6829,7 +6689,8 @@ function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string 
 function tourEventOutcomeUi(
   t: NonNullable<PlayerProfile['tour']>,
   def: TourEventDef,
-  outcome: TourRoundOutcome
+  outcome: TourRoundOutcome,
+  ids: string[]
 ): { headline: string; block: string; cpLine: string; primary: string } {
   const evName = tourEventName(def);
   const evRows = tourStandingRowsHtml(outcome.standings);
@@ -6848,7 +6709,7 @@ function tourEventOutcomeUi(
     const winCp = CP.tournamentWin * (def.major ? 2 : 1);
     profile.career = grantCp(profile.career, winCp);
     cpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
-    if (recordPro) recordTourEventWin(profile.tourHistory, recordPro.id, recordPro.name, def.major);
+    if (recordPro) recordTourEventWin(profile.tourHistory, recordPro.id, recordPro.name, def.majorName);
   } else {
     headline = `${evName}: ${ordinal(outcome.playerRank ?? outcome.standings.length)} place`;
   }
@@ -6884,7 +6745,19 @@ function tourEventOutcomeUi(
       cpLine += `<div class="rwLine level">👑 ${champName} takes the Season ${t.seasonNo} title</div>`;
     }
     block += tourSeasonTableHtml();
-    profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+    // TEN SEASONS AND THE CAREER IS OVER (owner pass 9). The Pro retires to
+    // the Hall of Fame — no eleventh season rolls out under them; the player
+    // starts a new Pro, and this one's record book page stands as their
+    // career. Their look and stats stay playable in casual rounds.
+    if (recordPro && proRetired(profile.tourHistory, recordPro.id)) {
+      profile.tour = null;
+      cpLine +=
+        `<div class="rwLine ach">🏛 ${escapeHtml(recordPro.name)} retires to the Hall of Fame — ` +
+        `${SEASON_LIMIT} seasons, ${profile.tourHistory[recordPro.id]?.wins ?? 0} wins, ` +
+        `${profile.tourHistory[recordPro.id]?.majorWins ?? 0} majors. Start a new Pro to tour again.</div>`;
+    } else {
+      profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+    }
   } else {
     block += tourSeasonTableHtml();
   }
@@ -6893,6 +6766,13 @@ function tourEventOutcomeUi(
   // and its play-next button sits right on top. The season finale returns
   // there too, showing the fresh season. (Mid-major rounds keep their direct
   // "Round N of 3" button — that's not this path.)
+  // SHARED SEASON: post this event and re-settle the table. Your partner's
+  // points move the moment they post theirs, and yours move again with them.
+  const justPlayed = t.results[t.results.length - 1];
+  if (t.coop && justPlayed) {
+    t.points = recomputeSeasonPoints(t, ids, TOUR_RIVALS);
+    publishCoopResult(t, justPlayed);
+  }
   const primary = `<button id="tourHubBtn">Tour Season →</button>`;
   return { headline, block, cpLine, primary };
 }
@@ -6952,7 +6832,7 @@ function renderPlayoffSummary(): void {
       block += `<div class="rwLine level">⚔ ${escapeHtml(names)} matched you. Next hole settles it — and after hole ${MAX_PLAYOFF_HOLES} the trophy is yours.</div>`;
       primary = `<button id="tourPlayoffBtn">Next playoff hole →</button>`;
     } else {
-      const ui = tourEventOutcomeUi(t, def, outcome);
+      const ui = tourEventOutcomeUi(t, def, outcome, ids);
       headline =
         outcome.playoffWinnerId === 'player'
           ? `🏆 ${tourEventName(def)} — playoff won!`
@@ -7042,8 +6922,12 @@ function renderTourHub(): void {
   const status = Object.keys(t.points).length
     ? `${t.played}/${TOUR_EVENTS} events played · you're ${ordinal(myRank)} in points (${myPts} pts)`
     : `Season ${t.seasonNo} tees off — the field is waiting.`;
+  const hubPro = activePro(profile.career);
+  const hubRetired = !!hubPro && proRetired(profile.tourHistory, hubPro.id);
   const poPending = playoffPending(t, ids);
-  const playLabel = def
+  const playLabel = hubRetired
+    ? ''
+    : def
     ? poPending
       ? `⚔ ${tourEventName(def)} — playoff! Settle the tie →`
       : roundsIn > 0
@@ -7082,6 +6966,11 @@ function renderTourHub(): void {
     `<div class="recInner"><h2>⛳ Tour Season ${t.seasonNo}</h2>` +
     `<div class="recSub">${status}</div>` +
     (playLabel ? `<button id="thPlay" class="tourAction">${escapeHtml(playLabel)}</button>` : '') +
+    (hubRetired
+      ? `<div class="recSub">🏛 ${escapeHtml(hubPro!.name)} retired after ${SEASON_LIMIT} seasons — ` +
+        `their career is in the records. Start a new Pro in the Locker to tour again.</div>`
+      : '') +
+    coopHubHtml(t) +
     tourSeasonTableHtml() +
     `<div class="tourHeadRow">Schedule &amp; results</div>` +
     `<div class="thSched">${schedRows}</div>` +
@@ -7094,6 +6983,13 @@ function renderTourHub(): void {
     refreshProgressSurfaces();
   });
   el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+  el.querySelector('#thCoop')?.addEventListener('click', () => void startCoopSeason());
+  el.querySelector('#thCoopShare')?.addEventListener('click', () => {
+    const id = profile.tour?.coop?.id;
+    if (id) void shareOrCopy('Play a golf season with me — same schedule, same rivals. Join: ', coopUrl(id, `${location.origin}${location.pathname}`));
+  });
+  // A partner may have posted since the last paint; refresh in the background.
+  void syncCoopSeason(true);
   el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
     if (flag('audio')) play('ui');
     el.style.display = 'none';
@@ -7129,10 +7025,12 @@ function renderTourGolferRecords(): void {
       const rec = hist[id];
       const name = pro?.name ?? rec?.name ?? id;
       const style = pro ? (ARCHETYPES.find((a) => a.id === pro.styleId)?.name ?? '') : '';
-      const tag = pro ? (style ? ` · ${style}` : '') : ' · retired';
+      const tag = !pro ? ' · retired' : proRetired(hist, id) ? ' · 🏛 Hall of Fame' : style ? ` · ${style}` : '';
       const wins = rec?.wins ?? 0;
       const majors = rec?.majorWins ?? 0;
       const seasons = rec?.seasons ?? [];
+      const slam = hasGrandSlam(rec);
+      const majorNames = rec?.majors ?? [];
       const seasonRows = seasons.length
         ? seasons
             .map(
@@ -7146,7 +7044,9 @@ function renderTourGolferRecords(): void {
       return (
         `<div class="tourResult thProCard"><div class="tourHeadRow">🏌 ${escapeHtml(name)}${escapeHtml(tag)}</div>` +
         `<div class="recRow"><span class="recRk">🏆</span><span class="recNm">Tour wins</span><span class="recTot">${wins}</span></div>` +
-        `<div class="recRow"><span class="recRk">👑</span><span class="recNm">Majors</span><span class="recTot">${majors}</span></div>` +
+        `<div class="recRow"><span class="recRk">👑</span><span class="recNm">Majors${slam ? ' — GRAND SLAM' : ''}</span><span class="recTot">${majors}</span></div>` +
+        (majorNames.length ? `<div class="recSub">${escapeHtml(majorNames.join(' · '))}</div>` : '') +
+        `<div class="recRow"><span class="recRk">📅</span><span class="recNm">Seasons played</span><span class="recTot">${seasons.length}/${SEASON_LIMIT}</span></div>` +
         seasonRows +
         `</div>`
       );
@@ -7158,6 +7058,40 @@ function renderTourGolferRecords(): void {
     liveNote +
     `<button id="thRecBack" class="ghostBtn">Back</button></div>`;
   el.querySelector('#thRecBack')?.addEventListener('click', () => renderTourHub());
+}
+
+/** The shared-season row on the hub: an invite when the season is solo, or
+ *  where your partner has got to when it isn't. */
+function coopHubHtml(t: TourSeasonState): string {
+  if (!t.coop) {
+    return (
+      `<button id="thCoop" class="ghostBtn">👥 Play this season with a friend</button>` +
+      `<div class="recSub">Same schedule, same rivals — you each play at your own pace and the ` +
+      `points settle as you both finish each event.</div>`
+    );
+  }
+  const rows = t.coop.partners
+    .map((p) => {
+      const done = Object.keys(p.results).length;
+      const mine = t.results.length;
+      const status =
+        done >= mine
+          ? done > mine
+            ? `${done} events in — ahead of you`
+            : 'level with you'
+          : `${done}/${mine} of your events posted`;
+      return (
+        `<div class="recRow"><span class="recRk">👥</span>` +
+        `<span class="recNm">${escapeHtml(p.name)}</span>` +
+        `<span class="recTot">${escapeHtml(status)}</span></div>`
+      );
+    })
+    .join('');
+  return (
+    `<div class="tourResult"><div class="tourHeadRow">👥 Shared season</div>` +
+    (rows || `<div class="recSub">Waiting for your friend to join — send them the link again if it got lost.</div>`) +
+    `</div><button id="thCoopShare" class="ghostBtn">🔗 Copy the invite link</button>`
+  );
 }
 
 /** Mid-round board for a tour round (the 🏆 HUD button): where the event
@@ -7328,13 +7262,19 @@ function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
  * it has entries, and with no wins there is nothing to record — so a cloud
  * copy that merges in later can never double-count.
  */
+/** The major's title for a schedule index, or undefined for a regular stop. */
+function majorNameForIdx(idx: number): string | undefined {
+  const n = (TOUR_MAJOR_IDXS as readonly number[]).indexOf(idx);
+  return n >= 0 ? MAJOR_NAMES[n] : undefined;
+}
+
 function backfillTourHistory(p: PlayerProfile): void {
   const t = p.tour;
   const pro = activePro(p.career);
   if (!t || !pro || Object.keys(p.tourHistory).length > 0) return;
   for (const r of t.results) {
     if (r.playerRank !== 1) continue;
-    recordTourEventWin(p.tourHistory, pro.id, pro.name, (TOUR_MAJOR_IDXS as readonly number[]).includes(r.idx));
+    recordTourEventWin(p.tourHistory, pro.id, pro.name, majorNameForIdx(r.idx));
   }
 }
 
@@ -7786,7 +7726,6 @@ function stepLabels(): string[] {
   // Loadout (character/style/pal/perk) lives in the Locker Room now, so the
   // round flow is just the per-round choices.
   // Entering an online tournament: mode + course are locked, so just confirm.
-  if (pendingTournament) return ['Ready'];
   if (sel.mode === 'aitour') return ['Mode'];
   // With the modes stripped there is exactly one, so asking which is a step
   // that can only be answered one way.
@@ -8066,12 +8005,27 @@ function renderLockerRoom(): void {
       const selected = isActive && sel.archetype === 'career';
       const upgraded = applyClubUpgrades(pro.attrs, p.clubUpgrades);
       const sig = archetypeById(pro.styleId).signature;
+      // A Pro who has played out all SEASON_LIMIT seasons is retired: no more
+      // tour, no more attribute growth. Their record stands and they stay
+      // playable in casual rounds (owner pass 9).
+      const retired = proRetired(p.tourHistory, pro.id);
+      const rec = p.tourHistory[pro.id];
+      const tag = retired
+        ? `🏛 Hall of Fame · ${rec?.wins ?? 0} wins · ${rec?.majorWins ?? 0} majors`
+        : isActive
+          ? `grows as you play · ${c.cp} CP to spend`
+          : 'in the stable — tap to play as them';
       let inner =
-        `<div class="ahead"><span class="an">🎓 ${escapeHtml(pro.name)}</span>` +
-        `<span class="atag">${isActive ? `grows as you play · ${c.cp} CP to spend` : 'in the stable — tap to play as them'}</span>` +
+        `<div class="ahead"><span class="an">${retired ? '🏛' : '🎓'} ${escapeHtml(pro.name)}</span>` +
+        `<span class="atag">${tag}</span>` +
         `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
         statBars(upgraded, sig, p.clubUpgrades);
-      if (isActive) {
+      if (isActive && retired) {
+        inner +=
+          `<div class="recSub">${escapeHtml(pro.name)} has played out all ${SEASON_LIMIT} seasons. ` +
+          `Start a new Pro to tour again — this career is in the books.</div>`;
+      }
+      if (isActive && !retired) {
         const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
           .map((k) => {
             const cost = pointCost(pro.attrs[k]);
@@ -8463,7 +8417,6 @@ function renderStepBody(): void {
   const label = stepLabels()[sel.step];
   if (label === 'Mode') renderMode();
   else if (label === 'Course') renderCourse();
-  else if (label === 'Ready') renderTournamentReady();
   else renderOpponent();
   replayAnim(stepBodyEl, 'animIn'); // each wizard step slides gently into place
 }
@@ -8480,16 +8433,6 @@ function updateNav(): void {
   nextBtn.disabled = false;
 }
 
-/** Tournament entry: mode + course are fixed by the tournament and the loadout
- *  comes from the Locker Room, so this is a one-tap confirmation. */
-function renderTournamentReady(): void {
-  const name = pendingTournament?.name ?? 'Tournament';
-  stepBodyEl.innerHTML =
-    `<div class="stepTitle">Ready to play</div>` +
-    `<div class="stepHint">🏁 ${escapeHtml(name)} — same wind & pins for everyone. Tee off when ready.</div>` +
-    `<div class="stepHint" style="margin-top:10px">Your golfer: <b>${escapeHtml(profile.name || 'Player')}</b> · ` +
-    `${escapeHtml(styleName(profile.archetype))}. Change your loadout in the Locker Room.</div>`;
-}
 
 function goStep(n: number): void {
   sel.step = Math.max(0, Math.min(stepLabels().length - 1, n));
@@ -8503,7 +8446,6 @@ function showLanding(): void {
   // the menus being up is the definition of a healthy boot.
   (window as unknown as { __booted?: boolean }).__booted = true;
   endPractice();
-  pendingTournament = null;
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';
   landingEl.classList.add('on');
@@ -8700,8 +8642,11 @@ function updateDestinations(newPlayer: boolean): void {
     tourTile.style.display = showTour ? '' : 'none';
     const sub = tourTile.querySelector('.dtSub');
     if (sub) {
+      const tilePro = activePro(profile.career);
       if (!careerStarted(profile.career)) {
         sub.textContent = 'start a career to join';
+      } else if (tilePro && proRetired(profile.tourHistory, tilePro.id)) {
+        sub.textContent = `🏛 ${tilePro.name} retired — start a new Pro`;
       } else {
         const t = profile.tour;
         const def = t ? currentEvent(t, tourCourseIds()) : null;
@@ -8777,10 +8722,6 @@ function updateDestinations(newPlayer: boolean): void {
   show('landingAdminSite', adminUnlocked() || (focused && devToolsActive()));
   show('landingDev', devToolsActive() && !focused);
   show('landingBuilder', devToolsActive());
-  const tourny = document.getElementById('tournyLink');
-  // Online tournaments: a whole matchmaking surface for a game whose social
-  // feature is now a link you send a friend. Lives under Profile when it lives.
-  if (tourny) tourny.style.display = focused ? 'none' : '';
 }
 
 /** How many season-pass levels are sitting unclaimed. Cheap arithmetic over the
@@ -9393,8 +9334,7 @@ function startBuilderHole(): boolean {
     COURSES[BUILDER_COURSE_ID] = course;
     endPractice();
     dailyRound = null;
-    pendingTournament = null;
-    pendingGhost = null;
+      pendingGhost = null;
     sel.mode = 'solo';
     sel.courseId = BUILDER_COURSE_ID;
     landingEl.classList.remove('on');
@@ -9433,7 +9373,6 @@ function startDailyHole(): void {
   // yours, and the result settles the head-to-head when the attempt is booked.
   const rival = todaysRivalRound(key, DAILY_COURSE_ID, res.spec.course);
   dailyRound = { dateKey: key, par: res.spec.par, rival, seed: res.spec.seed };
-  pendingTournament = null;
   pendingGhost = rival;
   sel.mode = 'solo';
   sel.courseId = DAILY_COURSE_ID;
@@ -9456,7 +9395,6 @@ function startPractice(drill: DrillKind | null = null): void {
   practiceMode = true;
   practiceShots = 0;
   practiceDrill = drill;
-  pendingTournament = null;
   pendingGhost = null;
   dailyRound = null;
   sel.mode = 'solo';
@@ -9726,7 +9664,6 @@ function quickPlayCourseId(): string {
 
 function quickPlay(): void {
   endPractice();
-  pendingTournament = null;
   sel.mode = 'solo';
   sel.courseId = quickPlayCourseId();
   landingEl.classList.remove('on');
@@ -9764,7 +9701,6 @@ function updateSetupEntry(): void {
 
 function showSetup(): void {
   endPractice();
-  pendingTournament = null; // a normal Play Now open is not a tournament entry
   tourPlayoff = null; // a live playoff hole is abandoned (the pending tie survives on the profile)
   landingEl.classList.remove('on');
   setupEl.style.display = 'flex';
@@ -9960,7 +9896,6 @@ function startRound(startHoleIdx = 0): void {
     forcedSeed ??
     resumingFrom?.seed ??
     (pendingWeekly ? pendingWeekly.seed : pendingChallenge ? pendingChallenge.seed : (Math.random() * 0xffffffff) >>> 0);
-  round.tournament = null;
   // Remember where this device last teed off, so one-tap Play reopens there.
   const startedCourseId = courseIdByName(round.course.name);
   if (deviceSettings.lastCourseId !== startedCourseId) updateDeviceSettings({ lastCourseId: startedCourseId });
@@ -10097,7 +10032,7 @@ function leaveRound(): void {
   // PRACTICE / THE RANGE: nothing is at stake — no card, no record — so there
   // is nothing to confirm losing. The menu button just leaves.
   if (!practiceMode) {
-    const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound && !round.tournament;
+    const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound;
     const message = resumable
       ? 'Leave this round? Your card is saved — you can finish it from the menu.'
       : "Leave this round? This one can't be resumed, so the card is lost.";
@@ -10165,7 +10100,6 @@ document.getElementById('landingAdmin')!.addEventListener('click', () => renderP
 document.getElementById('landingDev')!.addEventListener('click', () => renderProfile('dev'));
 document.getElementById('landingLocker')!.addEventListener('click', () => renderLockerRoom());
 document.getElementById('navLocker')!.addEventListener('pointerdown', () => renderLockerRoom());
-document.getElementById('tournyLink')!.addEventListener('click', () => renderTournaments());
 // The four doors. Delegated off each tile rather than bound by id so adding a
 // destination is a markup change.
 // 'click', NOT 'pointerdown'.
@@ -10215,11 +10149,7 @@ backBtn.addEventListener('click', () => {
 });
 nextBtn.addEventListener('pointerdown', () => {
   if (sel.step < stepLabels().length - 1) goStep(sel.step + 1);
-  else if (pendingTournament) {
-    const t = pendingTournament;
-    pendingTournament = null;
-    startTournamentRound(t);
-  } else startRound();
+  else startRound();
 });
 
 /**
@@ -10282,10 +10212,11 @@ else {
   // a shared ?c=CODE link (async challenge, Part 9) arms the challenge banner.
   try {
     const params = new URLSearchParams(window.location.search);
-    const tcode = params.get('t');
-    if (tcode) renderTournaments(tcode.toUpperCase());
     const ccode = params.get('c');
     if (ccode) receiveChallenge(ccode);
+    // A ?coop=ID link invites you into a friend's season (owner pass 9).
+    const coopId = params.get('coop');
+    if (coopId) void receiveCoopInvite(coopId);
     // A ?rival=CODE link makes the sender your rival (and you theirs).
     const rcode = params.get('rival');
     if (rcode && flag('rival')) void receiveRivalInvite(rcode);
@@ -10434,7 +10365,7 @@ else {
   const pro = activePro(profile.career);
   if (!pro) return false;
   if (kind === 'season') recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, seasonNo, rank, points);
-  else recordTourEventWin(profile.tourHistory, pro.id, pro.name, kind === 'major');
+  else recordTourEventWin(profile.tourHistory, pro.id, pro.name, kind === 'major' ? MAJOR_NAMES[0] : undefined);
   persistProfile();
   return true;
 };

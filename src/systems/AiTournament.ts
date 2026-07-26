@@ -78,54 +78,86 @@ export function createAiTournament(
 }
 
 /**
- * "Tournament form": the mean shift each difficulty tier subtracts from the
- * raw simulator round.
+ * "TOURNAMENT FORM" — how much better than the raw simulator an entrant
+ * plays, as a CONTINUOUS function of their own overall rating.
  *
- * RE-CALIBRATED (owner pass 8: "multiple people have shot 4 under" every
- * tour event — the old {2.0..2.7} values dated from before the honest-woods
- * physics easings and had drifted ~2 strokes generous). The shift is now
- * tier MINUS a per-course easing (data/courseDifficulty.ts — the sim's
- * difficulty ordering for AIs disagrees with a human's, so one number can't
- * land the winning score everywhere) PLUS a gaussian per-round form draw
- * (FORM_SIGMA) that spreads the field so ten entrants stop stacking on one
- * total. Bootstrap-measured result: the 10-rival tour field's best score
- * lands at −3 (player-tough courses) to −4 (player-mild), Legends beat
- * Easys by ≥1.4/round, and a lead tie is a ~1-in-3 event, mostly 2-way —
- * which is what the playoff is for.
+ * RE-BUILT (owner pass 9: "the same ai should generally be good most
+ * tourneys… if they're a 95 ai, they should shoot a good score almost every
+ * round. if they're 85 they should be consistently middle of the
+ * leaderboard"). The old version bucketed everyone into four difficulty
+ * TIERS, so a 95.2 and a 94.4 shared one mean and the whole field spanned
+ * 2.9 strokes against a per-round sd of 1.6 — a Medium out-scored a Legend
+ * ~22% of rounds and the finishing order scrambled every event.
+ *
+ * Now the rating IS the identity: form is a line in OVR, so every rival owns
+ * a distinct mean, and the spread widens to ~4.2 strokes top-to-bottom.
  */
-const FORM_SHIFT: Record<string, number> = { Easy: 0.0, Medium: 0.6, Hard: 1.1, Legend: 1.6 };
-/** Per-round form spread. sd(round) ≈ √(sim ~1.35² + 0.9²) ≈ 1.6. */
-const FORM_SIGMA = 0.9;
+const FORM_AT_90 = 1.1;
+const FORM_PER_OVR = 0.28;
+
+/**
+ * Per-round form spread, tightened AND rating-scaled: the better the player,
+ * the steadier the week (0.35 at 95+, 0.80 at 80). Combined with the
+ * two-sim average below this puts a Legend at sd ≈ 1.0 per round and an Easy
+ * at ≈ 1.25 — consistent at the top, still lively at the bottom.
+ */
+const SIGMA_BEST = 0.35;
+const SIGMA_SPAN = 0.45;
+
+/** Overall rating of an entrant — the same mean-of-five as
+ *  types.overallRating / career.careerOvr, kept unrounded so neighbouring
+ *  rivals (95.2 vs 94.4) keep their separation. */
+export function entrantOvr(golfer: Golfer): number {
+  const s = golfer.stats;
+  return (s.drivingPower + s.drivingAccuracy + s.approach + s.chipping + s.putting) / 5;
+}
+
+/** Strokes per round this rating plays BETTER than the raw simulator, before
+ *  the per-course easing. */
+export function entrantForm(ovr: number): number {
+  return FORM_AT_90 + FORM_PER_OVR * (ovr - 90);
+}
+
+/** This rating's week-to-week form spread (strokes). */
+export function entrantSigma(ovr: number): number {
+  return SIGMA_BEST + SIGMA_SPAN * Math.min(1, Math.max(0, (95 - ovr) / 15));
+}
 
 /**
  * One AI entrant's round on a course: the REAL round simulator plus the
- * calibrated tournament-form shift for their difficulty tier. Exported so the
- * Tour Season fields its rivals with exactly this math — one calibration,
- * every AI leaderboard. `simSeed` drives the physics round; `shiftSeed` is a
- * TWO-DRAW stream (gaussian form first, then the rounding uniform — the
- * order is part of the seed contract).
+ * calibrated tournament form for their RATING. Exported so the Tour Season
+ * fields its rivals with exactly this math — one calibration, every AI
+ * leaderboard.
+ *
+ * TWO simulated rounds are averaged (sim sd 1.35 → 0.95): a single physics
+ * draw is noisy enough to bury the rating differences this function exists
+ * to express. The second seed is derived here so the caller's seed contract
+ * is unchanged. `shiftSeed` remains a TWO-DRAW stream (gaussian form first,
+ * then the rounding uniform — the order is part of the contract).
  */
 export function simulateEntrantRound(
   course: CourseData,
   courseId: string,
   golfer: Golfer,
-  difficulty: string,
   simSeed: number,
   shiftSeed: number
 ): { total: number; toPar: number } {
-  const res = simulateRound(course, golfer, simSeed, RULES.holesPerRound);
+  const a = simulateRound(course, golfer, simSeed, RULES.holesPerRound);
+  const b = simulateRound(course, golfer, (simSeed ^ 0x85ebca6b) >>> 0, RULES.holesPerRound);
+  const par = a.total - a.toPar;
+  const ovr = entrantOvr(golfer);
   const rng = mulberry32(shiftSeed);
-  const s = (FORM_SHIFT[difficulty] ?? 0) - fieldEasingFor(courseId) + gaussianOf(rng, 0, FORM_SIGMA);
-  // NEGATIVE-SAFE stochastic rounding: `s % 1` flips sign for negative s (a
-  // −1.4 would round to −2 with certainty), so round via floor + fraction.
-  // The shift may legitimately be negative — on courses the sim underrates
-  // (Maple Vale) the field hands strokes BACK.
-  const fl = Math.floor(s);
-  const shift = fl + (rng() < s - fl ? 1 : 0);
-  // Never shift a round below one stroke per hole (absurd floor, unreachable
-  // in practice — pure belt-and-braces for tiny custom courses).
-  const total = Math.max(RULES.holesPerRound, res.total - shift);
-  return { total, toPar: res.toPar - (res.total - total) };
+  const form = entrantForm(ovr) - fieldEasingFor(courseId) + gaussianOf(rng, 0, entrantSigma(ovr));
+  // The averaged total is a half-integer and the form is real, so round the
+  // RESULT once — stochastically, and via floor + fraction so it stays
+  // correct for negative values (`% 1` flips sign, which silently biased the
+  // courses whose easing exceeds the tier form).
+  const shifted = (a.total + b.total) / 2 - form;
+  const fl = Math.floor(shifted);
+  // Never below one stroke per hole (absurd floor, unreachable in practice —
+  // belt-and-braces for tiny custom courses).
+  const total = Math.max(RULES.holesPerRound, fl + (rng() < shifted - fl ? 1 : 0));
+  return { total, toPar: total - par };
 }
 
 /**
@@ -145,7 +177,6 @@ export function completeRound(t: AiTournamentState, courses: Record<string, Cour
       course,
       t.courseIds[t.played],
       e.golfer,
-      e.difficulty,
       t.seed + t.played * 7919 + i * 104729,
       (t.seed ^ 0x9e3779b9) + t.played * 6151 + i * 3079
     );

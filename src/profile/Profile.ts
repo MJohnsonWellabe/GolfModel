@@ -103,9 +103,6 @@ export interface PlayerProfile {
   /** YYYY-MM-DD of the last completed round — the streak's continuity anchor. */
   lastDailyDate: string;
   settings: { sound: number; ambience: number; reducedMotion: boolean };
-  /** Codes of tournaments the player created or played, newest first — the
-   *  "My Tournaments" history (Phase 8 gap). */
-  tournaments: Array<{ code: string; name: string }>;
   season: SeasonState;
   /** Owned consumable perks (season-pass rewards). */
   perks: PerkState[];
@@ -348,7 +345,6 @@ export function defaultProfile(now = 0): PlayerProfile {
     dailyStreak: 0,
     lastDailyDate: '',
     settings: { sound: 0.8, ambience: 0.2, reducedMotion: false },
-    tournaments: [],
     season: { id: 's1', xp: 0, claimed: [], owned: false, cpDenominated: true },
     perks: [],
     equippedPerk: null,
@@ -412,7 +408,7 @@ export function resetProfileRecords(profile: PlayerProfile, now = 0): PlayerProf
  * Fill a partial/sparse profile into a complete PlayerProfile, backfilling every
  * missing field from the defaults. Critical for the CLOUD copy: Firebase RTDB
  * does not store empty arrays/objects/null, so a saved profile reads back with
- * `clubUpgrades`/`achievements`/`tournaments` absent (undefined) and
+ * `clubUpgrades`/`achievements` absent (undefined) and
  * `stats.bestRoundToPar` absent — feeding that raw into mergeProfiles would throw
  * (`Object.keys(undefined)`). Normalizing through here first guarantees all
  * collections are present. Shared by loadProfile and cloudSyncProfile.
@@ -438,7 +434,6 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     stats: { ...base.stats, ...(parsed.stats ?? {}) },
     daily: { ...base.daily, ...(parsed.daily ?? {}) },
     settings: { ...base.settings, ...(parsed.settings ?? {}) },
-    tournaments: [...(parsed.tournaments ?? [])],
     // RTDB drops the empty claimed array — coalesce it back (like achievements).
     // Pre-career saves carry season progress on the old XP scale (~25× CP):
     // re-denominate ONCE, marked so a migrated copy never divides twice.
@@ -510,20 +505,6 @@ export function clearLocalProfile(storage: KVStorage | null = defaultStorage()):
   }
 }
 
-/** Union two tournament histories by code, newest (a) first, capped at 30. */
-function mergeTournaments(
-  a: PlayerProfile['tournaments'],
-  b: PlayerProfile['tournaments']
-): PlayerProfile['tournaments'] {
-  const seen = new Set<string>();
-  const out: PlayerProfile['tournaments'] = [];
-  for (const t of [...a, ...b]) {
-    if (seen.has(t.code)) continue;
-    seen.add(t.code);
-    out.push(t);
-  }
-  return out.slice(0, 30);
-}
 
 /**
  * Merge a local and a cloud copy of the same player. Progress is never lost:
@@ -583,7 +564,6 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     achievements: [...new Set([...(a.achievements ?? []), ...(b.achievements ?? [])])],
     stats,
     daily: mergeDaily(a.daily, b.daily),
-    tournaments: mergeTournaments(a.tournaments ?? [], b.tournaments ?? []),
     season: mergeSeason(a.season, b.season),
     perks: mergePerks(a.perks, b.perks),
     consumables: mergePerks(a.consumables, b.consumables),

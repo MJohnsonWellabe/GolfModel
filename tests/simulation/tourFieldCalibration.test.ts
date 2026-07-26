@@ -54,7 +54,6 @@ function runEvent(courseId: string, ev: number): EventStats {
       course,
       courseId,
       r,
-      r.difficulty,
       1000 + ev * 15013 + i * 104729,
       (2000 ^ 0x9e3779b9) + ev * 8191 + i * 3079
     );

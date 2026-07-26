@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  hasGrandSlam,
+  MAJOR_NAMES,
   mergeTourHistory,
+  proRetired,
+  SEASON_LIMIT,
+  seasonsCompleted,
   migrateTourHistory,
   recordTourEventWin,
   recordTourSeasonFinish,
@@ -19,20 +24,21 @@ import {
 describe('recording', () => {
   it('event wins accumulate; majors count both tallies', () => {
     const h: TourHistory = {};
-    recordTourEventWin(h, 'pro1', 'Ace', false);
-    recordTourEventWin(h, 'pro1', 'Ace', false);
-    recordTourEventWin(h, 'pro1', 'Ace', true);
+    recordTourEventWin(h, 'pro1', 'Ace');
+    recordTourEventWin(h, 'pro1', 'Ace');
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[0]);
     expect(h.pro1.wins).toBe(3);
     expect(h.pro1.majorWins).toBe(1);
     expect(h.pro1.name).toBe('Ace');
     expect(h.pro1.seasons).toEqual([]);
+    expect(h.pro1.majors).toEqual([MAJOR_NAMES[0]]);
   });
 
   it('records stay per-golfer, and a rename sticks on the next record', () => {
     const h: TourHistory = {};
-    recordTourEventWin(h, 'pro1', 'Ace', false);
-    recordTourEventWin(h, 'pro2', 'Deuce', true);
-    recordTourEventWin(h, 'pro1', 'Ace II', false);
+    recordTourEventWin(h, 'pro1', 'Ace');
+    recordTourEventWin(h, 'pro2', 'Deuce', MAJOR_NAMES[0]);
+    recordTourEventWin(h, 'pro1', 'Ace II');
     expect(h.pro1.wins).toBe(2);
     expect(h.pro1.name).toBe('Ace II');
     expect(h.pro2.wins).toBe(1);
@@ -57,7 +63,7 @@ describe('recording', () => {
 describe('persistence', () => {
   it('round-trips through JSON', () => {
     const h: TourHistory = {};
-    recordTourEventWin(h, 'pro1', 'Ace', true);
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[0]);
     recordTourSeasonFinish(h, 'pro1', 'Ace', 1, 2, 2000);
     expect(migrateTourHistory(JSON.parse(JSON.stringify(h)))).toEqual(h);
   });
@@ -69,11 +75,12 @@ describe('persistence', () => {
     expect(migrateTourHistory({ pro1: { name: 5, wins: 'many' } })).toEqual({});
     // A valid record survives beside a corrupt one.
     const mixed = migrateTourHistory({
-      good: { name: 'Ace', wins: 2, majorWins: 1, seasons: [{ seasonNo: 1, rank: 1, points: 900 }] },
+      good: { name: 'Ace', wins: 2, majorWins: 1, seasons: [{ seasonNo: 1, rank: 1, points: 900 }] }, // pre-`majors` save
       bad: { name: 'X', wins: 1, majorWins: 0, seasons: [{ seasonNo: 'one' }] }
     });
     expect(Object.keys(mixed)).toEqual(['good']);
     expect(mixed.good.wins).toBe(2);
+    expect(mixed.good.majors).toEqual([]); // a pre-`majors` save backfills empty
   });
 
   it('negative or fractional tallies are cleaned, not trusted', () => {
@@ -88,10 +95,10 @@ describe('persistence', () => {
 describe('cross-device merge', () => {
   it('per golfer: the larger tallies win (one copy is the other plus progress)', () => {
     const a: TourHistory = {};
-    recordTourEventWin(a, 'pro1', 'Ace', false);
-    recordTourEventWin(a, 'pro1', 'Ace', true);
+    recordTourEventWin(a, 'pro1', 'Ace');
+    recordTourEventWin(a, 'pro1', 'Ace', MAJOR_NAMES[0]);
     const b = migrateTourHistory(JSON.parse(JSON.stringify(a)));
-    recordTourEventWin(b, 'pro1', 'Ace', false); // b progressed further
+    recordTourEventWin(b, 'pro1', 'Ace'); // b progressed further
     const merged = mergeTourHistory(a, b);
     expect(merged.pro1.wins).toBe(3);
     expect(merged.pro1.majorWins).toBe(1);
@@ -110,9 +117,9 @@ describe('cross-device merge', () => {
 
   it('golfers only on one side survive whole', () => {
     const a: TourHistory = {};
-    recordTourEventWin(a, 'pro1', 'Ace', false);
+    recordTourEventWin(a, 'pro1', 'Ace');
     const b: TourHistory = {};
-    recordTourEventWin(b, 'pro2', 'Deuce', true);
+    recordTourEventWin(b, 'pro2', 'Deuce', MAJOR_NAMES[0]);
     const merged = mergeTourHistory(a, b);
     expect(Object.keys(merged).sort()).toEqual(['pro1', 'pro2']);
     expect(merged.pro1.wins).toBe(1);
@@ -121,14 +128,63 @@ describe('cross-device merge', () => {
 
   it('does not mutate its inputs', () => {
     const a: TourHistory = {};
-    recordTourEventWin(a, 'pro1', 'Ace', false);
+    recordTourEventWin(a, 'pro1', 'Ace');
     const b: TourHistory = {};
-    recordTourEventWin(b, 'pro1', 'Ace', false);
-    recordTourEventWin(b, 'pro1', 'Ace', false);
+    recordTourEventWin(b, 'pro1', 'Ace');
+    recordTourEventWin(b, 'pro1', 'Ace');
     const aCopy = JSON.parse(JSON.stringify(a));
     const bCopy = JSON.parse(JSON.stringify(b));
     mergeTourHistory(a, b);
     expect(a).toEqual(aCopy);
     expect(b).toEqual(bCopy);
+  });
+});
+
+describe('the career limit', () => {
+  it('a Pro retires after SEASON_LIMIT seasons, and not before', () => {
+    const h: TourHistory = {};
+    for (let n = 1; n < SEASON_LIMIT; n++) {
+      recordTourSeasonFinish(h, 'pro1', 'Ace', n, 2, 1000);
+      expect(seasonsCompleted(h, 'pro1')).toBe(n);
+      expect(proRetired(h, 'pro1')).toBe(false);
+    }
+    recordTourSeasonFinish(h, 'pro1', 'Ace', SEASON_LIMIT, 1, 3000);
+    expect(proRetired(h, 'pro1')).toBe(true);
+    // Retirement is per-golfer: the next Pro starts a fresh career.
+    expect(proRetired(h, 'pro2')).toBe(false);
+    expect(seasonsCompleted(h, 'pro2')).toBe(0);
+  });
+
+  it('a re-recorded season cannot inflate the counter toward retirement', () => {
+    const h: TourHistory = {};
+    for (let i = 0; i < SEASON_LIMIT * 2; i++) recordTourSeasonFinish(h, 'pro1', 'Ace', 1, 1, 100);
+    expect(seasonsCompleted(h, 'pro1')).toBe(1);
+    expect(proRetired(h, 'pro1')).toBe(false);
+  });
+});
+
+describe('the career grand slam', () => {
+  it('needs all four majors — repeats of one do not count twice', () => {
+    const h: TourHistory = {};
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[0]);
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[0]);
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[1]);
+    expect(h.pro1.majorWins).toBe(3);
+    expect(h.pro1.majors).toEqual([MAJOR_NAMES[0], MAJOR_NAMES[1]]);
+    expect(hasGrandSlam(h.pro1)).toBe(false);
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[2]);
+    recordTourEventWin(h, 'pro1', 'Ace', MAJOR_NAMES[3]);
+    expect(hasGrandSlam(h.pro1)).toBe(true);
+    expect(hasGrandSlam(undefined)).toBe(false);
+  });
+
+  it('the slam survives a cross-device merge that splits the four wins', () => {
+    const a: TourHistory = {};
+    recordTourEventWin(a, 'pro1', 'Ace', MAJOR_NAMES[0]);
+    recordTourEventWin(a, 'pro1', 'Ace', MAJOR_NAMES[1]);
+    const b: TourHistory = {};
+    recordTourEventWin(b, 'pro1', 'Ace', MAJOR_NAMES[2]);
+    recordTourEventWin(b, 'pro1', 'Ace', MAJOR_NAMES[3]);
+    expect(hasGrandSlam(mergeTourHistory(a, b).pro1)).toBe(true);
   });
 });

@@ -13,15 +13,6 @@
         ".validate": "newData.hasChildren(['d','course','mode','names','total','toPar','holes'])"
       }
     },
-    "tournaments": {
-      ".read": true,
-      "$code": {
-        ".write": true,
-        "entries": {
-          "$player": { ".write": "!data.exists()" }
-        }
-      }
-    },
     "aces": {
       ".read": true,
       "$player": { ".write": true }
@@ -72,6 +63,20 @@
         "entries": {
           "$player": {
             ".write": "!data.exists() || newData.child('total').val() < data.child('total').val()"
+          }
+        }
+      }
+    },
+    "coopSeasons": {
+      ".read": true,
+      "$sid": {
+        ".write": "!data.exists()",
+        "players": {
+          "$player": {
+            ".write": true,
+            "results": {
+              "$event": { ".write": "!data.exists()" }
+            }
           }
         }
       }

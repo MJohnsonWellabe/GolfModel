@@ -468,3 +468,28 @@ export function triangulatePolygonWithDepth(poly: Polygon): DepthTriangulation {
   const flat = points.flatMap((p) => p);
   return { points, triangles: earcut(flat), deepIndex };
 }
+
+/**
+ * How TUCKED a pin is: its distance from the centre of the nearest green lobe,
+ * normalized by that lobe's own radii (0 = dead centre, 1 = on the edge).
+ * Rotated ovals are un-rotated first so the radii apply on the right axes, and
+ * a two-lobe green takes the MINIMUM — a pin centred in the back lobe of an
+ * L-shaped green is a fair pin, not a severe one.
+ *
+ * Two very different systems need exactly this number, which is why it lives
+ * here rather than in either: the major-championship setup ranks a hole's
+ * authored pins by it, and the AI reads it to decide how much of the green to
+ * play away from a dangerous flag.
+ */
+export function pinTuck(green: EllipseArea, green2: EllipseArea | undefined, p: Point): number {
+  const lobe = (g: EllipseArea): number => {
+    const dx = p.x - g.cx;
+    const dy = p.y - g.cy;
+    const rot = g.rot ?? 0;
+    const lx = dx * Math.cos(-rot) - dy * Math.sin(-rot);
+    const ly = dx * Math.sin(-rot) + dy * Math.cos(-rot);
+    return Math.hypot(lx / (g.rx || 1), ly / (g.ry || 1));
+  };
+  const d = lobe(green);
+  return green2 ? Math.min(d, lobe(green2)) : d;
+}
