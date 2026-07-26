@@ -7426,6 +7426,9 @@ function renderLockerRoom(): void {
       sel.archetype = 'career';
       syncLoadout();
       renderLockerRoom();
+      // The landing underneath reads career state (the Locker tile's "CP to
+      // spend" line) — repaint it NOW, not when something else happens to.
+      refreshProgressSurfaces();
     })
   );
   lockerEl.querySelectorAll('.cpSpend[data-cspend]').forEach((el) =>
@@ -7437,6 +7440,10 @@ function renderLockerRoom(): void {
       persistProfile();
       if (signedIn) void cloudSyncProfile(profile).then((res) => { applyCloudMerge(profile, res.profile); showCloudStatus(res.status, true); });
       renderLockerRoom();
+      // Owner report, verbatim: "the CP to spend on your Pro didn't reset
+      // after I spent it" — the Locker tile behind this overlay kept its old
+      // line because nothing repainted the landing after a spend.
+      refreshProgressSurfaces();
     })
   );
   lockerEl.querySelectorAll('.palPick[data-pal]').forEach((el) =>

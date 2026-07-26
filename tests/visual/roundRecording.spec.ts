@@ -210,7 +210,12 @@ test('a recorded round can be raced as a ghost, and the ghost actually flies', a
   // NOT offered as ghosts (a race uses the seeded pins, so it would be a race
   // against a score set on an easier course). With it on, this spec would be
   // exercising that rejection rather than the racing path.
-  await page.goto('/?freeze=1&ff.easeIn=off');
+  //
+  // focusedGame OFF: the strip-down retires the ghost race wholesale (flag()
+  // composes ghostRace to false while it's on — no override can win), and it
+  // now defaults ON everywhere. This spec guards the MOTHBALLED machinery the
+  // strip-down kept reversible, so it opts back into the pre-strip world.
+  await page.goto('/?freeze=1&ff.easeIn=off&ff.focusedGame=off&ff.ghostRace=on');
   await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__startRound);
   await page.evaluate(() =>
     (window as never as { __startRound: (o: unknown) => void }).__startRound({

@@ -54,6 +54,12 @@ test('start a career, spend CP, watch the Pro grow, select it', async ({ page })
 
   // The card is SELECTED (starting a career selects the Pro).
   await expect(page.locator('.careerCard.sel')).toBeVisible();
+
+  // And the LANDING behind the overlay repainted with the spend (owner bug:
+  // "the CP to spend on your Pro didn't reset after I spent it") — the Locker
+  // tile's line must read the live balance the moment the locker closes.
+  await page.locator('#lkBack').dispatchEvent('click');
+  await expect(page.locator('#destLocker .dtSub')).toContainText('16 CP');
 });
 
 test('a rookie without CP sees honest, disabled spend buttons', async ({ page }) => {
