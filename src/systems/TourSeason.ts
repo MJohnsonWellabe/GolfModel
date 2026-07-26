@@ -188,6 +188,7 @@ export function completeTourRound(
   rivals.forEach((r, i) => {
     const res = simulateEntrantRound(
       course,
+      def.courseId,
       r,
       r.difficulty,
       s.seed + def.idx * 15013 + roundNo * 7919 + i * 104729,

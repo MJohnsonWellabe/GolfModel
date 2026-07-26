@@ -1,6 +1,7 @@
 import { RULES } from '../config';
 import { CourseData, Golfer } from '../core/types';
-import { mulberry32 } from '../utils/Random';
+import { gaussianOf, mulberry32 } from '../utils/Random';
+import { fieldEasingFor } from '../data/courseDifficulty';
 import { simulateRound } from './RoundSimulator';
 
 
@@ -77,35 +78,50 @@ export function createAiTournament(
 }
 
 /**
- * "Tournament form": the raw simulator plays the AI conservatively (no spin
- * control, no green-reading), so its per-round means sit around E to +0.6 —
- * far behind a decent human's ~-1.5. Each difficulty tier gets a mean shift
- * (stochastically rounded to whole strokes with the tournament's own seeded
- * rng, so the DISTRIBUTION keeps the sim's natural variance) that lands the
- * field in the calibrated band: JD ≈ -0.3, Sergio ≈ -0.8, Phil ≈ -1.4,
- * Tiger ≈ -2.0 per round — Tiger usually leads, but sd ~1.3-1.6 means
- * usually, not always.
+ * "Tournament form": the mean shift each difficulty tier subtracts from the
+ * raw simulator round.
+ *
+ * RE-CALIBRATED (owner pass 8: "multiple people have shot 4 under" every
+ * tour event — the old {2.0..2.7} values dated from before the honest-woods
+ * physics easings and had drifted ~2 strokes generous). The shift is now
+ * tier MINUS a per-course easing (data/courseDifficulty.ts — the sim's
+ * difficulty ordering for AIs disagrees with a human's, so one number can't
+ * land the winning score everywhere) PLUS a gaussian per-round form draw
+ * (FORM_SIGMA) that spreads the field so ten entrants stop stacking on one
+ * total. Bootstrap-measured result: the 10-rival tour field's best score
+ * lands at −3 (player-tough courses) to −4 (player-mild), Legends beat
+ * Easys by ≥1.4/round, and a lead tie is a ~1-in-3 event, mostly 2-way —
+ * which is what the playoff is for.
  */
-const FORM_SHIFT: Record<string, number> = { Easy: 2.0, Medium: 2.4, Hard: 2.6, Legend: 2.7 };
+const FORM_SHIFT: Record<string, number> = { Easy: 0.0, Medium: 0.6, Hard: 1.1, Legend: 1.6 };
+/** Per-round form spread. sd(round) ≈ √(sim ~1.35² + 0.9²) ≈ 1.6. */
+const FORM_SIGMA = 0.9;
 
 /**
  * One AI entrant's round on a course: the REAL round simulator plus the
  * calibrated tournament-form shift for their difficulty tier. Exported so the
  * Tour Season fields its rivals with exactly this math — one calibration,
- * every AI leaderboard. `simSeed` drives the physics round, `shiftSeed` the
- * stochastic whole-stroke rounding of the form shift.
+ * every AI leaderboard. `simSeed` drives the physics round; `shiftSeed` is a
+ * TWO-DRAW stream (gaussian form first, then the rounding uniform — the
+ * order is part of the seed contract).
  */
 export function simulateEntrantRound(
   course: CourseData,
+  courseId: string,
   golfer: Golfer,
   difficulty: string,
   simSeed: number,
   shiftSeed: number
 ): { total: number; toPar: number } {
   const res = simulateRound(course, golfer, simSeed, RULES.holesPerRound);
-  const base = FORM_SHIFT[difficulty] ?? 1;
   const rng = mulberry32(shiftSeed);
-  const shift = Math.floor(base) + (rng() < base % 1 ? 1 : 0);
+  const s = (FORM_SHIFT[difficulty] ?? 0) - fieldEasingFor(courseId) + gaussianOf(rng, 0, FORM_SIGMA);
+  // NEGATIVE-SAFE stochastic rounding: `s % 1` flips sign for negative s (a
+  // −1.4 would round to −2 with certainty), so round via floor + fraction.
+  // The shift may legitimately be negative — on courses the sim underrates
+  // (Maple Vale) the field hands strokes BACK.
+  const fl = Math.floor(s);
+  const shift = fl + (rng() < s - fl ? 1 : 0);
   // Never shift a round below one stroke per hole (absurd floor, unreachable
   // in practice — pure belt-and-braces for tiny custom courses).
   const total = Math.max(RULES.holesPerRound, res.total - shift);
@@ -127,6 +143,7 @@ export function completeRound(t: AiTournamentState, courses: Record<string, Cour
   t.field.forEach((e, i) => {
     const res = simulateEntrantRound(
       course,
+      t.courseIds[t.played],
       e.golfer,
       e.difficulty,
       t.seed + t.played * 7919 + i * 104729,

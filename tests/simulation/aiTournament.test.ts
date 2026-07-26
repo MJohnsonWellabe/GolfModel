@@ -106,26 +106,24 @@ describe('AI tournament', () => {
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
     const jd = mean(perOpp.sunny); // JD's persisted id
     const tiger = mean(perOpp.tiger);
-    // Band re-calibrated as the tree physics became REAL: (1) drag+lift flight
-    // with fair wind, then (2) per-asset hitboxes MEASURED from each model —
-    // most canopies (esp. narrow conifers) are far slimmer than the old uniform
-    // cylinder that matched the oversized SHADOW, so honest woods let more shots
-    // through and the field scores a stroke or so lower. This is correct physics,
-    // not a regression; making the DEV courses harder again is a course-design
-    // lever (tighter/denser woods) handled in the course rebuilds, not a hitbox
-    // knob. The per-opponent floors + skill ordering still guard the shape.
-    // JD (the field's weakest) averages ~-2.5.
-    expect(jd).toBeGreaterThan(-3.0);
-    expect(jd).toBeLessThan(0.3);
-    // Tiger (the best) averages ~-3.9.
-    expect(tiger).toBeGreaterThan(-4.3);
-    expect(tiger).toBeLessThan(-1.4);
+    // Band re-pinned in owner pass 8: the tournament-form shift was recalibrated
+    // (FORM_SHIFT tiers + per-course COURSE_FIELD_EASING + a gaussian form draw,
+    // see AiTournament.simulateEntrantRound) so the TOUR field wins at −3..−4
+    // instead of five AIs stacking on −4. The same math fields this mode, so
+    // every opponent moved up ~2 strokes and gained per-round spread. Measured
+    // over this exact 40-tournament loop: JD +0.66, Tiger −1.78, in-band 0.78.
+    // JD (the field's weakest) centers a touch over par.
+    expect(jd).toBeGreaterThan(-0.4);
+    expect(jd).toBeLessThan(1.4);
+    // Tiger (the best) averages ~-1.8.
+    expect(tiger).toBeGreaterThan(-2.8);
+    expect(tiger).toBeLessThan(-0.9);
     expect(tiger).toBeLessThan(jd); // skill ordering holds on average
     const all = Object.values(perOpp).flat();
     const inBand = all.filter((v) => v <= 1 && v >= -3).length / all.length;
-    // Coarse "mostly +1..-3" backstop (measured ~0.63 after the honest-woods
-    // easing); the per-opponent mean floors above are the tighter guard.
-    expect(inBand).toBeGreaterThan(0.58);
+    // Coarse "mostly +1..-3" backstop (measured ~0.78 after the pass-8
+    // recalibration); the per-opponent mean bands above are the tighter guard.
+    expect(inBand).toBeGreaterThan(0.65);
   });
 
   it('ties on to-par break toward the player, and the purse pays the podium', () => {
