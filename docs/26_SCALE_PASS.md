@@ -799,3 +799,17 @@ The sixth owner pass, from playing the production deploy:
   "over-reads clicks" bug); the Locker tile says what it is; the tutorial's
   hit card names the OTHER swing control in one line.
 - **Pals**: Deadpool 4.6 → 9.2, Thanos 5.4 → 16.2 (owner-spec ×2 / ×3).
+
+## 22. Owner pass 7 — the ace gets its sky, and the tarns turn blue
+
+- **Hole-in-one fireworks finally land**: celebrateHoleOut was being called
+  TWICE per special hole-out (double-launched shells washed into one flash),
+  and the hole advanced after 2.4 s — before the show. Now: one call, the
+  epic show paces nine shells across ~4 s, the camera pans up from the golfer
+  to the bursts (~1 s in, delight + full-motion only), and the hole-end delay
+  holds 5.6 s for an ace/eagle (3.2 s for a long putt/chip-in) before moving
+  on.
+- **Maple Vale's water says water**: the peat tarns (#33544d, nearly
+  black-green) read as more ground. Re-tinted to a cold lake blue
+  (#3f96cc / #1f5c8e deep) — still darker and colder than Sable Bay's sea,
+  but unmistakably water. JSON regenerated; gates green.

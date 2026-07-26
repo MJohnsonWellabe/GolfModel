@@ -37,8 +37,12 @@ const maplevale = {
     rough: '#cfa055', roughDark: '#b08544',
     fringe: '#93a848', green: '#65a447', greenLight: '#83c058',
     sand: '#e2d3ae', sandDark: '#c4b184',
-    // Dark peat tarns — still, cold, nearly black-green.
-    water: '#33544d', waterDeep: '#1e3a35',
+    // Dark COLD-BLUE tarns. The first pass went full peat (#33544d — nearly
+    // black-green) and read as more ground, not water (owner: "does Maple
+    // Vale have water? It doesn't look like water"). Water has to say WATER
+    // first and moody second: still dark and cold against the autumn fire,
+    // but unmistakably blue.
+    water: '#3f96cc', waterDeep: '#1f5c8e',
     // Fire in the canopies. The broadleaf models are palette-driven, so these
     // two colors ARE the autumn.
     treeCanopy: '#b0562e', treeCanopyLight: '#d98038', treeTrunk: '#6b5546',

@@ -888,6 +888,10 @@ class HoleScene {
    *  the attribution names the strike from (a nerfed driver overswing flies
    *  SHORT, so yardage alone misnames it). */
   private lastOverswung: boolean | null = null;
+  /** The tier of the celebration the LAST hole-out earned (null = ordinary),
+   *  so the hole-end delay can hold for the fireworks (owner: aces rushed to
+   *  the next hole before the show finished). */
+  private lastHoleOutTier: 'epic' | 'great' | null = null;
   /** The swing context this turn was armed with, shared by the tap meter and
    *  the drag swing so a perfect strike means the same thing on both. */
   private swingCtx: MeterContext | null = null;
@@ -1250,10 +1254,12 @@ class HoleScene {
       [1, 0.55, 0.9] // pink
     ];
     const reduced = profile.settings.reducedMotion;
-    const bursts = reduced ? 1 : epic ? 7 : 4;
+    const bursts = reduced ? 1 : epic ? 9 : 4;
     const perBurst = reduced ? 120 : 220;
     for (let i = 0; i < bursts; i++) {
-      const delayMs = i * (reduced ? 0 : 320);
+      // The epic show paces itself across the 5-second hold the hole-end
+      // delay now grants it, instead of dumping every shell in two seconds.
+      const delayMs = i * (reduced ? 0 : epic ? 460 : 320);
       const col = palette[i % palette.length];
       // Scatter the shells across the sky above the golfer — never dead-centre.
       const jx = i === 0 ? 0 : (((i * 37) % 11) - 5) * 5;
@@ -2961,6 +2967,7 @@ class HoleScene {
       // Surprise & delight: a golden burst + cinematic banner for the special
       // skill moments (ace/eagle/long putt/chip-in). When one is coming, the
       // base score toast is SKIPPED — one celebration, not a toast pile-up.
+      this.lastHoleOutTier = null;
       const celebrated = !c.isAI && this.celebrateHoleOut(origin, preLie, club, outcome);
       if (!celebrated) {
         if (!c.isAI && flag('delight') && this.state.strokes <= this.hole.par - 1) {
@@ -2995,10 +3002,8 @@ class HoleScene {
         this.camTarget.look = g.add(new Vector3(0, 2.1, 0));
         this.camTarget.k = 1.1;
       }
-      // Surprise & delight (Part 10): a tasteful golden burst + one-line
-      // celebration for the genuinely special skill moments only — never for
-      // ordinary shots, no modals, no perf cost (reuses the landing puff).
-      if (!c.isAI) this.celebrateHoleOut(origin, preLie, club, outcome);
+      // (celebrateHoleOut already ran above — a second call here double-fired
+      // the whole show, which washed the fireworks into one muddled flash.)
     } else if (outcome.waterPenalty) {
       play('splash');
       showMsg('SPLASH! +1 penalty', 1400);
@@ -3049,9 +3054,17 @@ class HoleScene {
     }
 
     // Hole over when every competitor has holed / picked up; otherwise the
-    // away player plays next (which alternates naturally in a 1v1).
+    // away player plays next (which alternates naturally in a 1v1). A special
+    // hole-out HOLDS here (owner: "it goes to the next hole too fast — pan to
+    // the fireworks and hold ~5 seconds"): the epic show gets its whole sky.
     const allDone = this.comps.every((cc) => this.compDone(cc));
-    const delay = outcome.holed ? 2400 : 700;
+    const delay = outcome.holed
+      ? this.lastHoleOutTier === 'epic'
+        ? 5600
+        : this.lastHoleOutTier === 'great'
+          ? 3200
+          : 2400
+      : 700;
     this.state.phase = allDone ? 'done' : this.state.phase;
     setTimeout(() => {
       if (this.disposed) return;
@@ -3092,11 +3105,28 @@ class HoleScene {
       line = `🪄 Chip-in from ${Math.round(chipInYd)} yards!`;
     }
     if (!cine) return false;
+    this.lastHoleOutTier = cine.tier;
     // Fireworks above the GOLFER for every special hole-out (owner) — a bigger
     // show for the epic tier (hole-in-one / eagle) than a great one. Anchored to
     // the shot origin (where the golfer stands + the celebration camera looks),
     // not the distant cup, so a tee-shot ace still shows them.
     this.launchFireworks(cine.tier === 'epic', origin.x, origin.y);
+    // THE PAN (owner): once the push-in has settled, tilt up and pull back so
+    // the shells bursting 20–40u overhead own the frame — the hole-end delay
+    // holds here for the whole show before the next hole loads.
+    if (cine.tier === 'epic' && flag('delight') && !profile.settings.reducedMotion) {
+      setTimeout(() => {
+        if (this.disposed) return;
+        const g = this.golfer.root.getAbsolutePosition();
+        const back = this.camera.position.subtract(g);
+        back.y = 0;
+        const len = back.length();
+        if (len > 1e-3) back.scaleInPlace(1 / len);
+        this.camTarget.pos = g.add(back.scale(30)).add(new Vector3(0, 12, 0));
+        this.camTarget.look = g.add(new Vector3(0, 24, 0));
+        this.camTarget.k = 1.2;
+      }, 1000);
+    }
     // Golden burst at the cup — three staggered emits read as a shower.
     const pin = this.hole.pin;
     (this.puff.emitter as Vector3).copyFrom(w2b(pin.x, pin.y, 1 + this.gh(pin.x, pin.y)));
