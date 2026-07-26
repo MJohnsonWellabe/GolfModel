@@ -279,17 +279,34 @@ function accountName(u: { displayName: string | null; email: string | null }): s
   return u.displayName ?? u.email ?? 'your account';
 }
 
+/** What a sign-in attempt actually did — the UI reads the status, never a
+ *  bare null, so "you cancelled" and "something broke" stop sharing one
+ *  message (owner: "iPhone logins seem stuck"). */
+export type SignInResult =
+  | { status: 'ok'; name: string }
+  | { status: 'redirect' }
+  | { status: 'cancelled' }
+  | { status: 'error'; code: string };
+
 /**
  * Sign in with Google (account-gated model — there is no anonymous user to
  * "link", so this is a plain sign-in that works for both new and existing
  * accounts). Uses a SINGLE popup; falls back to a redirect only where popups
- * genuinely can't be used (iOS Safari) — a user-closed popup just cancels.
- * Returns the account's display name (or email), null if dismissed/failed, or
- * 'redirect' on the iOS fallback. After a successful sign-in the caller merges
- * the local profile up via cloudSyncProfile so current progress is kept.
+ * genuinely can't be used — a user-closed popup just cancels. After a
+ * successful sign-in the caller merges the local profile up via
+ * cloudSyncProfile so current progress is kept.
+ *
+ * iOS notes (the "stuck login" report): the popup MUST open inside the tap's
+ * user-gesture window, so main.ts pre-warms ensureFirebase() at boot — by the
+ * time the player taps, the awaits here are cache hits and the popup opens
+ * synchronously enough for Safari. The redirect fallback is best-effort ONLY:
+ * with authDomain on a different origin than the site, Safari's storage
+ * partitioning can drop the pending-redirect state (Firebase v9.15+ known
+ * limitation) — the durable fix is serving the auth helper from the site's
+ * own domain (see docs/FIREBASE_SETUP.md).
  */
-export async function signInWithGoogle(): Promise<string | null> {
-  if (!authConfigured()) return null;
+export async function signInWithGoogle(): Promise<SignInResult> {
+  if (!authConfigured()) return { status: 'error', code: 'auth-unconfigured' };
   try {
     const { auth } = await ensureFirebase();
     const { GoogleAuthProvider, signInWithPopup, signInWithRedirect } = await import('firebase/auth');
@@ -303,18 +320,42 @@ export async function signInWithGoogle(): Promise<string | null> {
     try {
       const res = await signInWithPopup(auth, provider);
       await res.user.reload().catch(() => undefined);
-      return accountName(auth.currentUser ?? res.user);
+      return { status: 'ok', name: accountName(auth.currentUser ?? res.user) };
     } catch (e) {
       const code = (e as { code?: string }).code ?? '';
       if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-environment') {
         await signInWithRedirect(auth, provider);
-        return 'redirect';
+        return { status: 'redirect' };
       }
-      return null; // popup closed / cancelled / unusable
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request' || code === 'auth/user-cancelled') {
+        return { status: 'cancelled' };
+      }
+      return { status: 'error', code: code || 'unknown' };
     }
   } catch {
-    return null;
+    return { status: 'error', code: 'init-failed' };
   }
+}
+
+/** Callback fired when a signed-in user APPEARS outside a signInWithGoogle
+ *  promise chain — a completed redirect return, or a session Firebase
+ *  restores late. Without this the app only noticed such sign-ins on the
+ *  next full page load (there was no onAuthStateChanged listener at all). */
+let accountAppearedCb: ((name: string) => void) | null = null;
+export function onAccountAppeared(cb: (name: string) => void): void {
+  accountAppearedCb = cb;
+  if (!authConfigured()) return;
+  void (async () => {
+    try {
+      const { auth } = await ensureFirebase();
+      const { onAuthStateChanged } = await import('firebase/auth');
+      onAuthStateChanged(auth, (user) => {
+        if (user && accountAppearedCb) accountAppearedCb(accountName(user));
+      });
+    } catch {
+      /* auth unavailable — the boot-time authState() path already degraded */
+    }
+  })();
 }
 
 /**

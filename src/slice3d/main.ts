@@ -40,7 +40,7 @@ import { personalityFor } from '../data/characterPersonality';
 import { courseIdOrDefault, courseOrDefault, DEFAULT_COURSE_ID } from '../data/courseDefaults';
 import { coursesFor, rosterFor } from '../data/courseRoster';
 import { loadCourse } from '../data/courseLoader';
-import { checkpointFor, clearCheckpoint, loadCheckpoint, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
+import { checkpointFor, clearCheckpoint, loadCheckpoint, markResumeAttempt, RoundCheckpoint, saveCheckpoint, toParLabel } from '../systems/RoundCheckpoint';
 import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
@@ -67,7 +67,7 @@ import { completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, newSe
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
-import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
+import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, onAccountAppeared, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
@@ -4189,6 +4189,14 @@ function playHole(): void {
   swingBtn.style.display = '';
   hudEl.style.display = '';
   pauseBtn.style.display = 'block';
+  // TAB-CRASH BREADCRUMB (owner: repeated white screens on one hole). A scene
+  // build that kills the tab — iOS WebKit reclaiming a heavy page dies without
+  // any JS error — leaves this key behind; the next boot reads it, strikes the
+  // checkpoint (two strikes retire it), and clears it. Set before the build,
+  // cleared right after: the window where a death implicates this hole.
+  try {
+    sessionStorage.setItem('jg-building', `${courseIdByName(round.course.name)}:${round.holeIdx}`);
+  } catch { /* storage unavailable — the breadcrumb is best-effort */ }
   current = new HoleScene((scores) => {
     // Tutorial: the first hole is the lesson — wrap up once it's done.
     if (tutorialCoach.isActive() && round.holeIdx === 0) tutorialCoach.onHoleDone(completeTutorial());
@@ -4207,6 +4215,13 @@ function playHole(): void {
       showSummary();
     }
   });
+  // The build survived — the breadcrumb has done its job for this hole.
+  try {
+    sessionStorage.removeItem('jg-building');
+  } catch { /* best-effort */ }
+  // A capture/spec boot (?hole=) never shows the landing — a built scene is
+  // the other definition of a healthy boot for the watchdog.
+  (window as unknown as { __booted?: boolean }).__booted = true;
   exposeDebug();
   // A builder-preview rebuild triggered from fly mode comes straight back to
   // fly mode, camera and all — the rebuild is a render step in the drawing
@@ -5002,7 +5017,16 @@ function renderProfile(tab?: ProfileTab): void {
     `</div>` +
     pane(
       'player',
-      `<div class="profStats">` +
+      // WHO YOU ARE, first (owner pass 8: "need to give a log out option") —
+      // the door is labeled Profile, so the account and its Log out button
+      // live at the top of the Player tab, not only buried in Settings.
+      // Distinct ids from the Settings row: both panes exist in the DOM at
+      // once, and duplicate ids would leave one row dead.
+      (authConfigured()
+        ? `<div class="acctRow"><span id="acctStatusP" class="acctStatus">Checking account…</span>` +
+          `<button id="linkGoogleP" class="ghostBtn">Sign in with Google</button></div>`
+        : '') +
+        `<div class="profStats">` +
         statCell(s.rounds, 'Rounds') +
         statCell(s.birdies, 'Birdies') +
         statCell(s.eagles, 'Eagles') +
@@ -5396,9 +5420,11 @@ function confirmResetRecords(): void {
 
 /** Cloud-account status + sign-in/out on the Profile overlay (account-gated).
  *  Only present when Firebase is configured; degrades quietly otherwise. */
-function wireAccountRow(): void {
-  const status = document.getElementById('acctStatus');
-  const btn = document.getElementById('linkGoogle') as HTMLButtonElement | null;
+/** Wire ONE account row (the Settings tab's and the Player tab's — both
+ *  panes are in the DOM at once, so they carry distinct ids). */
+function wireOneAccountRow(statusId: string, btnId: string): void {
+  const status = document.getElementById(statusId);
+  const btn = document.getElementById(btnId) as HTMLButtonElement | null;
   if (!status || !btn) return;
   if (signedIn) {
     void linkedAccountName().then((name) => {
@@ -5423,23 +5449,51 @@ function wireAccountRow(): void {
   btn.onclick = () => {
     btn.disabled = true;
     status.textContent = 'Opening Google sign-in…';
-    void signInWithGoogle().then((name) => {
-      if (!name) {
-        status.textContent = 'Sign-in was cancelled or unavailable.';
-        btn.disabled = false;
-        return;
+    // NEVER-STUCK RULE (owner: "iPhone logins seem stuck"): every path out of
+    // this promise — including no path at all — re-enables the button. The
+    // 20s race covers a hung Firebase init/chunk download; the sign-in
+    // itself, once the popup is up, resolves on the popup's own terms.
+    let settled = false;
+    const fail = (msg: string): void => {
+      if (settled) return;
+      settled = true;
+      status.textContent = msg;
+      btn.disabled = false;
+    };
+    const timer = window.setTimeout(() => fail("Sign-in didn't complete — tap to try again."), 20_000);
+    void signInWithGoogle().then((res) => {
+      window.clearTimeout(timer);
+      if (settled && res.status !== 'ok') return; // timed out already; leave the retry text
+      switch (res.status) {
+        case 'ok':
+          settled = true;
+          void adoptCloudAccount().then(() => {
+            renderAcctMenu();
+            refreshWizardIfVisible();
+            renderProfile(); // re-render with the account's coins/records now loaded
+          });
+          break;
+        case 'redirect':
+          // The page should be navigating away. If it still exists in 8s the
+          // redirect never happened (iOS storage partitioning can drop it) —
+          // hand the button back so the player can retry.
+          status.textContent = 'Redirecting to Google…';
+          window.setTimeout(() => fail("The redirect didn't go through — tap to try again."), 8_000);
+          break;
+        case 'cancelled':
+          fail('Sign-in cancelled.');
+          break;
+        case 'error':
+          fail(`Sign-in failed (${res.code}) — tap to try again.`);
+          break;
       }
-      if (name === 'redirect') {
-        status.textContent = 'Redirecting to Google…';
-        return;
-      }
-      void adoptCloudAccount().then(() => {
-        renderAcctMenu();
-        refreshWizardIfVisible();
-        renderProfile(); // re-render with the account's coins/records now loaded
-      });
     });
   };
+}
+
+function wireAccountRow(): void {
+  wireOneAccountRow('acctStatus', 'linkGoogle');
+  wireOneAccountRow('acctStatusP', 'linkGoogleP');
 }
 
 function statCell(value: number | string, label: string): string {
@@ -7010,6 +7064,20 @@ function refreshWizardIfVisible(): void {
   if (setupEl.style.display !== 'none') goStep(sel.step);
 }
 
+// A leftover build breadcrumb means the previous page DIED building a hole —
+// an iOS tab crash leaves no error, just this corpse. The checkpoint (written
+// during that same round) describes exactly the round that killed the tab, so
+// it takes a strike; two strikes retire it (owner: "white screened … three
+// times in a row and can't resume").
+try {
+  if (sessionStorage.getItem('jg-building')) {
+    markResumeAttempt();
+    sessionStorage.removeItem('jg-building');
+  }
+} catch {
+  /* storage unavailable — nothing to heal */
+}
+
 // On boot, adopt the account only if a real Google session persists; otherwise
 // stay on the empty guest view and prompt the player to sign in.
 void (async () => {
@@ -7040,6 +7108,17 @@ void (async () => {
     // and the next good connection reconciles.
     resetToSignedOut();
   }
+  // A user who APPEARS outside the flows above — a completed redirect return
+  // (the iOS fallback), or a session Firebase restores late — used to go
+  // unnoticed until the next full reload. Adopt them the moment they land.
+  onAccountAppeared(() => {
+    if (signedIn) return;
+    void adoptCloudAccount().then(() => {
+      renderAcctMenu();
+      refreshWizardIfVisible();
+      refreshLandingCards();
+    });
+  });
   renderAcctMenu();
   // First visit / fresh guest with no name yet — ask once (editable later in
   // the Locker Room / Profile). Gated on the account check above resolving
@@ -7932,6 +8011,9 @@ function goStep(n: number): void {
 }
 
 function showLanding(): void {
+  // The boot watchdog (index.html) shows a reload panel if NOTHING paints —
+  // the menus being up is the definition of a healthy boot.
+  (window as unknown as { __booted?: boolean }).__booted = true;
   endPractice();
   pendingTournament = null;
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
@@ -9082,6 +9164,11 @@ function updateResumeCard(): void {
  *  card. The hole itself restarts from its tee — nothing mid-shot is stored. */
 function resumeSavedRound(cp: RoundCheckpoint): void {
   endPractice();
+  // Strike the record BEFORE the build it is about to trigger: if that build
+  // white-screens the device, the strike is already on disk, and two strikes
+  // retire the record instead of trapping the player in a crash loop. The
+  // first checkpoint write of the resumed round (at rest) resets the count.
+  markResumeAttempt();
   resumingFrom = cp;
   sel.mode = 'solo';
   sel.courseId = cp.courseId;
@@ -9571,7 +9658,10 @@ document.getElementById('rangeChip')?.addEventListener('click', () => startPract
 document.getElementById('rangePutt')?.addEventListener('click', () => startPractice('putt'));
 document.getElementById('landingSeason')!.addEventListener('click', () => renderSeasonPass());
 document.getElementById('landingStore')!.addEventListener('click', () => renderStore());
-document.getElementById('landingProfile')!.addEventListener('click', () => renderProfile('player'));
+// Signed out, the "Log In / Profile" door opens straight onto the sign-in
+// row (Settings); signed in, the Player tab now carries the account + Log
+// out at its top (owner pass 8).
+document.getElementById('landingProfile')!.addEventListener('click', () => renderProfile(signedIn ? 'player' : 'settings'));
 document.getElementById('landingSettings')!.addEventListener('click', () => renderProfile('settings'));
 // Straight to the tab, not to the top of a scroll.
 document.getElementById('landingAdmin')!.addEventListener('click', () => renderProfile('admin'));

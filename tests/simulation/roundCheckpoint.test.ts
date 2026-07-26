@@ -4,6 +4,7 @@ import {
   clearCheckpoint,
   isResumable,
   loadCheckpoint,
+  markResumeAttempt,
   MAX_AGE_MS,
   RoundCheckpoint,
   saveCheckpoint,
@@ -169,5 +170,40 @@ describe('a half-played hole', () => {
     const old = checkpointFor({ ...base, holeIdx: 1, scores: [4] });
     expect(old.ball).toBeUndefined();
     expect(isResumable(old, base.at)).toBe(true);
+  });
+});
+
+describe('the crash-loop breaker', () => {
+  // Owner report, verbatim: "White screened on wild prairie hole 3 three
+  // times in a row and can't resume with the resume button." A checkpoint
+  // whose round keeps killing the tab must retire itself after two strikes —
+  // losing one card beats a device trapped in a crash loop.
+  it('two strikes retire the record; one leaves it offered', () => {
+    const s = memStorage();
+    saveCheckpoint(sample(), s);
+    markResumeAttempt(s);
+    expect(loadCheckpoint(NOW, s), 'one strike must still offer the resume').not.toBeNull();
+    markResumeAttempt(s);
+    expect(loadCheckpoint(NOW, s), 'two strikes must retire it').toBeNull();
+  });
+
+  it('a fresh checkpoint write resets the count (the round settled again)', () => {
+    const s = memStorage();
+    saveCheckpoint(sample(), s);
+    markResumeAttempt(s);
+    // The resumed round reached rest — checkpointRound writes a fresh record
+    // (checkpointFor never sets `attempts`), and the slate is clean.
+    saveCheckpoint(sample(), s);
+    markResumeAttempt(s);
+    expect(loadCheckpoint(NOW, s)).not.toBeNull();
+  });
+
+  it('striking with no record, or a corrupt one, is harmless', () => {
+    const s = memStorage();
+    markResumeAttempt(s); // nothing stored
+    expect(loadCheckpoint(NOW, s)).toBeNull();
+    s.setItem('bsg.roundCheckpoint.v1', '{corrupt');
+    markResumeAttempt(s);
+    expect(loadCheckpoint(NOW, s)).toBeNull();
   });
 });

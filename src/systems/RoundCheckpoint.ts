@@ -81,6 +81,13 @@ export interface RoundCheckpoint {
   strokes?: number;
   /** Epoch ms of the last checkpoint write. */
   at: number;
+  /** Times a resume of THIS record was attempted (or its round died mid-build
+   *  — an iOS tab crash leaves the build breadcrumb) without the round ever
+   *  settling again. A fresh checkpoint write resets it (the field is simply
+   *  absent). Two strikes retire the record: a checkpoint that white-screens
+   *  the device every time it is touched must stop being offered (owner:
+   *  "can't resume with the resume button", three crashes in a row). */
+  attempts?: number;
 }
 
 export interface KVStorage {
@@ -116,10 +123,28 @@ export function isResumable(c: RoundCheckpoint | null, now: number): c is RoundC
     if (!c.ball || !Number.isFinite(c.ball.x) || !Number.isFinite(c.ball.y)) return false;
     if (!Number.isInteger(c.strokes) || (c.strokes ?? 0) <= 0) return false;
   }
+  // A record that has crashed the game twice is a trap, not an offer.
+  if ((c.attempts ?? 0) >= 2) return false;
   // Progress is now shots OR holes: standing on the 1st green having played
   // three is progress worth returning to, and counting only completed holes is
   // why a mid-hole exit lost everything.
   return c.holeIdx > 0 || partial;
+}
+
+/** Strike the stored checkpoint: a resume is being attempted (or the last
+ *  page died mid-build). Reads/writes RAW — the record may already be past
+ *  isResumable's gates and still deserves the strike. */
+export function markResumeAttempt(storage: KVStorage | null = defaultStorage()): void {
+  if (!storage) return;
+  try {
+    const raw = storage.getItem(KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as RoundCheckpoint;
+    parsed.attempts = (parsed.attempts ?? 0) + 1;
+    storage.setItem(KEY, JSON.stringify(parsed));
+  } catch {
+    /* unreadable record — loadCheckpoint will drop it anyway */
+  }
 }
 
 export function loadCheckpoint(

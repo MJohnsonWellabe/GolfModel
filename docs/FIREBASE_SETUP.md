@@ -279,3 +279,25 @@ every step.
 - Cloud outages degrade silently to local (account-cached) play for a signed-in
   player; a permission-denied (rules not published) is logged to the console
   instead of failing silently.
+
+## iOS Safari sign-in (owner pass 8: "iPhone logins seem stuck")
+
+Three code-side fixes shipped: Firebase is pre-warmed at boot so the Google
+POPUP opens inside the tap's user-gesture window (iOS blocks late popups);
+the sign-in button can no longer stick disabled (20 s timeout + retry text
+on every failure path, including the redirect branch); and an
+`onAuthStateChanged` listener adopts an account that appears outside the
+normal flow (a completed redirect return used to go unnoticed until reload).
+
+**The remaining structural limitation:** `authDomain` is
+`golfgame-9c11e.firebaseapp.com` while the game is served from `bsgolf.fun`.
+Since Firebase v9.15, `signInWithRedirect` cannot complete on Safari/iOS
+when the auth helper is on a different origin — storage partitioning drops
+the pending-redirect state, and the user returns silently signed out. The
+popup path (the primary) is unaffected. The complete fix, when wanted:
+
+1. Firebase console → Authentication → Settings → Authorized domains: add
+   `bsgolf.fun`.
+2. Serve the auth helper same-origin (Firebase Hosting on the custom domain,
+   or the documented reverse-proxy of `/__/auth/*`), then set
+   `authDomain: 'bsgolf.fun'` in `src/config/env.ts`.
