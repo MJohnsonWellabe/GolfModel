@@ -5780,11 +5780,14 @@ let roundLoadout: { character: CharacterKey; archetype: ArchetypeId | 'career' }
 let roundCareerStats: GolferStats | null = null;
 
 /** What the chosen style is called, the career Pro included — archetypeById
- *  throws on 'career', which is not a preset. */
+ *  throws on 'career', which is not a preset. The Pro's OVR includes club
+ *  upgrades, the SAME number the locker card shows — two surfaces quoting
+ *  two different overalls for one golfer reads as a bug (owner: "I just
+ *  increased my guy to 75 but the menu button says 71"). */
 function styleName(a: ArchetypeId | 'career'): string {
   if (a !== 'career') return archetypeById(a).name;
   const pro = activePro(profile.career);
-  return pro ? `${pro.name} · ${careerOvr(pro.attrs)} OVR` : 'Your Pro';
+  return pro ? `${pro.name} · ${ovr(applyClubUpgrades(pro.attrs, profile.clubUpgrades))} OVR` : 'Your Pro';
 }
 
 function roundGolfer(): Golfer {
@@ -8080,6 +8083,10 @@ function refreshProgressSurfaces(): void {
   // The Tour tile is painted inside updateDestinations, so a career start or
   // a finished event refreshes it on the same call.
   updateDestinations(newPlayer);
+  // The Quick Start button quotes the Pro's name and OVR — a CP spend in the
+  // locker has to reach it NOW, not on the next full landing rebuild (owner:
+  // the button kept saying 71 after the Pro grew to 75).
+  updateSetupEntry();
 }
 
 // ---------------------------------------------------------------------------

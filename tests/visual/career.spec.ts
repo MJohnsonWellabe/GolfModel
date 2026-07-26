@@ -79,6 +79,11 @@ test('name a Pro, spend CP, watch them grow, then start a rookie — the stable 
   // bug: "the CP to spend on your Pro didn't reset after I spent it").
   await page.locator('#lkBack').dispatchEvent('click');
   await expect(page.locator('#destLocker .dtSub')).toContainText('16 CP');
+  // The Quick Start button quotes the ACTIVE Pro by name and current OVR —
+  // locker changes reach it immediately (owner: "I just increased my guy to
+  // 75 but the menu button says 71").
+  await expect(page.locator('#landingPlay')).toContainText('Lefty');
+  await expect(page.locator('#landingPlay')).toContainText('OVR');
 });
 
 test('a rookie without CP sees honest, disabled spend buttons', async ({ page }) => {
