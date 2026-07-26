@@ -14,7 +14,7 @@
       "beforeRenderObservers": 12,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 77
+      "heapMB": 62
     }
   },
   {
@@ -32,7 +32,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 201
+      "heapMB": 182
     }
   },
   {
@@ -50,7 +50,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 212
+      "heapMB": 219
     }
   },
   {
@@ -68,7 +68,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 159
+      "heapMB": 158
     }
   },
   {
@@ -86,7 +86,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 203
+      "heapMB": 208
     }
   },
   {
@@ -104,7 +104,7 @@
       "beforeRenderObservers": 9,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 163
+      "heapMB": 173
     }
   },
   {
@@ -116,13 +116,13 @@
       "natureSettled": true,
       "meshes": 189,
       "ghostMeshes": 0,
-      "materials": 74,
+      "materials": 71,
       "textures": 30,
       "particleSystems": 3,
       "beforeRenderObservers": 12,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 162
+      "heapMB": 165
     }
   },
   {
@@ -140,7 +140,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 276
+      "heapMB": 315
     }
   },
   {
@@ -151,14 +151,14 @@
       "course": "Timberline East",
       "natureSettled": true,
       "meshes": 317,
-      "ghostMeshes": 2,
-      "materials": 83,
+      "ghostMeshes": 0,
+      "materials": 81,
       "textures": 36,
       "particleSystems": 3,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 264
+      "heapMB": 252
     }
   },
   {
@@ -176,7 +176,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 214
+      "heapMB": 203
     }
   },
   {
@@ -194,7 +194,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 195
+      "heapMB": 209
     }
   },
   {
@@ -204,7 +204,7 @@
       "hasScene": true,
       "course": "Wild Prairie",
       "natureSettled": true,
-      "meshes": 232,
+      "meshes": 234,
       "ghostMeshes": 0,
       "materials": 59,
       "textures": 20,
@@ -212,7 +212,7 @@
       "beforeRenderObservers": 9,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 186
+      "heapMB": 200
     }
   }
 ]
