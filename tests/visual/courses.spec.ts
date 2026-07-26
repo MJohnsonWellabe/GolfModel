@@ -67,7 +67,8 @@ test('wizard course step lists every course', async ({ page }) => {
   const count = await page.locator('.modeCard[data-course]').count();
   // Tests run against the dev environment, so the wizard lists the full dev
   // roster: the original four (Wildwood, Sable Bay, Timberline East, Port
-  // Johnson), the two `newCourses` expansions (Red Hollow, Wild Prairie), and
-  // Timberline West from `courseRebuilds`.
-  expect(count).toBe(7);
+  // Johnson), the three `newCourses` expansions (Red Hollow, Wild Prairie,
+  // Maple Vale — the pass-4 autumn course this count missed when it joined),
+  // and Timberline West from `courseRebuilds`.
+  expect(count).toBe(8);
 });
