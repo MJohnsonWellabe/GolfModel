@@ -452,6 +452,120 @@ export function rolloverSeason(s: TourSeasonState, newSeed: number): TourSeasonS
   return newSeason(newSeed, s.seasonNo + 1);
 }
 
+// ----- PER-GOLFER TOUR RECORDS (owner pass 8 follow-up: "past results by
+// golfer… career wins, major wins and season placements, for any golfer I've
+// used"). The season state itself is DISCARDED at rollover, so this history
+// is the only durable record. Keyed by CareerPro id with a name snapshot, so
+// a Pro deleted from the stable keeps their page in the record book.
+
+export interface TourProSeasonFinish {
+  seasonNo: number;
+  /** Final points-table rank (1 = season champion). */
+  rank: number;
+  /** Season points the Pro finished with. */
+  points: number;
+}
+
+export interface TourProRecord {
+  /** Name snapshot — refreshed on every record, kept after deletion. */
+  name: string;
+  /** Tour event wins, majors included. */
+  wins: number;
+  /** Major championships among those wins. */
+  majorWins: number;
+  /** One line per FINISHED season, in seasonNo order. */
+  seasons: TourProSeasonFinish[];
+}
+
+export type TourHistory = Record<string, TourProRecord>;
+
+function proRecord(h: TourHistory, proId: string, name: string): TourProRecord {
+  const rec = h[proId] ?? (h[proId] = { name, wins: 0, majorWins: 0, seasons: [] });
+  rec.name = name;
+  return rec;
+}
+
+/** Stamp an event win onto the Pro who earned it (call when an event
+ *  finalizes with the player ranked 1st — playoff wins included). */
+export function recordTourEventWin(h: TourHistory, proId: string, name: string, major: boolean): void {
+  const rec = proRecord(h, proId, name);
+  rec.wins += 1;
+  if (major) rec.majorWins += 1;
+}
+
+/** Stamp a finished season's placement onto the Pro who closed it out.
+ *  Idempotent per seasonNo — a cloud replay or double-fire REPLACES the
+ *  line, never duplicates it. */
+export function recordTourSeasonFinish(
+  h: TourHistory,
+  proId: string,
+  name: string,
+  seasonNo: number,
+  rank: number,
+  points: number
+): void {
+  const rec = proRecord(h, proId, name);
+  rec.seasons = rec.seasons.filter((s) => s.seasonNo !== seasonNo);
+  rec.seasons.push({ seasonNo, rank, points });
+  rec.seasons.sort((a, b) => a.seasonNo - b.seasonNo);
+}
+
+/** Any stored shape → a valid history. A corrupt Pro record drops whole
+ *  (its tallies can't be trusted); valid neighbours survive. */
+export function migrateTourHistory(raw: unknown): TourHistory {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: TourHistory = {};
+  for (const [id, rec] of Object.entries(raw as Record<string, unknown>)) {
+    if (!rec || typeof rec !== 'object') continue;
+    const r = rec as Partial<TourProRecord>;
+    if (typeof r.name !== 'string' || typeof r.wins !== 'number' || typeof r.majorWins !== 'number') continue;
+    const seasons: TourProSeasonFinish[] = [];
+    let ok = true;
+    for (const s of Array.isArray(r.seasons) ? r.seasons : []) {
+      if (!s || typeof s.seasonNo !== 'number' || typeof s.rank !== 'number' || typeof s.points !== 'number') {
+        ok = false;
+        break;
+      }
+      seasons.push({ seasonNo: s.seasonNo, rank: s.rank, points: s.points });
+    }
+    if (!ok) continue;
+    // Floor, never round up — a corrupted fraction must not inflate a tally.
+    const clean = (v: number): number => Math.max(0, Math.floor(v));
+    seasons.sort((a, b) => a.seasonNo - b.seasonNo);
+    out[id] = { name: r.name, wins: clean(r.wins), majorWins: clean(r.majorWins), seasons };
+  }
+  return out;
+}
+
+/**
+ * Cross-device merge, per Pro: the larger tallies win (two copies of the
+ * same timeline — one is the other plus progress; summing would
+ * double-count every win) and seasons union by seasonNo. Pure — neither
+ * input is mutated.
+ */
+export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
+  const out: TourHistory = {};
+  for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const x = a[id];
+    const y = b[id];
+    if (!x || !y) {
+      const only = (x ?? y)!;
+      out[id] = { ...only, seasons: only.seasons.map((s) => ({ ...s })) };
+      continue;
+    }
+    const bySeason = new Map<number, TourProSeasonFinish>();
+    for (const s of [...y.seasons, ...x.seasons]) bySeason.set(s.seasonNo, { ...s });
+    out[id] = {
+      // The name from the copy with more to say (the further-progressed one).
+      name: x.wins + x.seasons.length >= y.wins + y.seasons.length ? x.name : y.name,
+      wins: Math.max(x.wins, y.wins),
+      majorWins: Math.max(x.majorWins, y.majorWins),
+      seasons: [...bySeason.values()].sort((s1, s2) => s1.seasonNo - s2.seasonNo)
+    };
+  }
+  return out;
+}
+
 /** Any stored tour shape → a valid state or null (never started). Partial
  *  RTDB copies (dropped empty objects/arrays) coalesce safely. */
 export function migrateTour(raw: unknown): TourSeasonState | null {

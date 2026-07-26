@@ -63,7 +63,7 @@ import {
   TournamentEntry
 } from '../firebase/Tournaments';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { completeTourPlayoffHole, completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, MAX_PLAYOFF_HOLES, newSeason, playoffPending, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS } from '../systems/TourSeason';
+import { completeTourPlayoffHole, completeTourRound, currentEvent, eventRoundsPlayed, finishSeason, MAX_PLAYOFF_HOLES, newSeason, playoffPending, recordTourEventWin, recordTourSeasonFinish, rolloverSeason as rolloverTourSeason, seasonStandings, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
 import { applyTeeVariants } from '../systems/Layouts';
@@ -6835,6 +6835,9 @@ function tourEventOutcomeUi(
   const evRows = tourStandingRowsHtml(outcome.standings);
   const won = outcome.playerRank === 1;
   const myPts = outcome.pointsAwarded?.['player'] ?? 0;
+  // The Pro this result belongs to in the record book (the tour force-selects
+  // the active Pro on entry, so this is who just played).
+  const recordPro = activePro(profile.career);
   let headline: string;
   let cpLine = '';
   if (won) {
@@ -6845,6 +6848,7 @@ function tourEventOutcomeUi(
     const winCp = CP.tournamentWin * (def.major ? 2 : 1);
     profile.career = grantCp(profile.career, winCp);
     cpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
+    if (recordPro) recordTourEventWin(profile.tourHistory, recordPro.id, recordPro.name, def.major);
   } else {
     headline = `${evName}: ${ordinal(outcome.playerRank ?? outcome.standings.length)} place`;
   }
@@ -6854,6 +6858,10 @@ function tourEventOutcomeUi(
     // The season is over: crown, purse, roll into the next one. The
     // rivals persist; the schedule and points start fresh.
     const fin = finishSeason(t);
+    // The record book keeps the placement BEFORE rollover discards the season.
+    if (recordPro) {
+      recordTourSeasonFinish(profile.tourHistory, recordPro.id, recordPro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);
+    }
     profile.coins += fin.coins;
     profile.coinsEarned += fin.coins;
     profile.career = grantCp(profile.career, fin.cp);
@@ -7077,6 +7085,7 @@ function renderTourHub(): void {
     tourSeasonTableHtml() +
     `<div class="tourHeadRow">Schedule &amp; results</div>` +
     `<div class="thSched">${schedRows}</div>` +
+    `<button id="thRecords" class="ghostBtn">🏅 Golfer records</button>` +
     `<button id="thBack" class="ghostBtn">Back</button></div>`;
   // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
   // Play is fine: the round scene replaces everything under the finger.
@@ -7084,11 +7093,71 @@ function renderTourHub(): void {
     el.style.display = 'none';
     refreshProgressSurfaces();
   });
+  el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
   el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
     if (flag('audio')) play('ui');
     el.style.display = 'none';
     startTourEvent();
   });
+}
+
+/**
+ * THE RECORD BOOK (owner: "inside the tour screen there should be a way to
+ * access past results by golfer. so I can see career wins, major wins and
+ * season placements. for any golfer I've used"): every Pro in the stable —
+ * and every Pro since deleted whose record survives on the profile — with
+ * their career wins, major wins, and season-by-season placements. Renders
+ * inside the tour hub overlay; Back returns to the hub.
+ */
+function renderTourGolferRecords(): void {
+  const el = document.getElementById('tourHub');
+  if (!el) return;
+  el.style.display = 'flex';
+  const hist = profile.tourHistory;
+  const pros = profile.career.pros;
+  // The stable in creation order, then record-book-only Pros (deleted from
+  // the stable, but their wins are still theirs).
+  const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
+  const t = profile.tour;
+  const liveNote =
+    t && Object.keys(t.points).length
+      ? `<div class="recSub">Season ${t.seasonNo} is in progress — its placement joins the book when it ends.</div>`
+      : '';
+  const cards = ids
+    .map((id) => {
+      const pro = pros.find((p) => p.id === id);
+      const rec = hist[id];
+      const name = pro?.name ?? rec?.name ?? id;
+      const style = pro ? (ARCHETYPES.find((a) => a.id === pro.styleId)?.name ?? '') : '';
+      const tag = pro ? (style ? ` · ${style}` : '') : ' · retired';
+      const wins = rec?.wins ?? 0;
+      const majors = rec?.majorWins ?? 0;
+      const seasons = rec?.seasons ?? [];
+      const seasonRows = seasons.length
+        ? seasons
+            .map(
+              (s) =>
+                `<div class="recRow"><span class="recRk">S${s.seasonNo}</span>` +
+                `<span class="recNm">${s.rank === 1 ? '🏆 Season champion' : `${ordinal(s.rank)} in points`}</span>` +
+                `<span class="recTot">${s.points} pts</span></div>`
+            )
+            .join('')
+        : `<div class="recSub">No season finished yet.</div>`;
+      return (
+        `<div class="tourResult thProCard"><div class="tourHeadRow">🏌 ${escapeHtml(name)}${escapeHtml(tag)}</div>` +
+        `<div class="recRow"><span class="recRk">🏆</span><span class="recNm">Tour wins</span><span class="recTot">${wins}</span></div>` +
+        `<div class="recRow"><span class="recRk">👑</span><span class="recNm">Majors</span><span class="recTot">${majors}</span></div>` +
+        seasonRows +
+        `</div>`
+      );
+    })
+    .join('');
+  el.innerHTML =
+    `<div class="recInner"><h2>🏅 Golfer records</h2>` +
+    (cards || `<div class="recSub">Start a career and play the tour — every Pro's wins land here.</div>`) +
+    liveNote +
+    `<button id="thRecBack" class="ghostBtn">Back</button></div>`;
+  el.querySelector('#thRecBack')?.addEventListener('click', () => renderTourHub());
 }
 
 /** Mid-round board for a tour round (the 🏆 HUD button): where the event
@@ -7247,7 +7316,26 @@ function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
   // The merge may have taken the other copy's settings (newer updatedAt) —
   // this device's audio/motion preferences always win locally.
   applyDeviceSettings();
+  backfillTourHistory(live);
   persistProfile();
+}
+
+/**
+ * ONE-TIME BACKFILL (pass 8b): tour wins earned before the per-golfer record
+ * book existed live only in the CURRENT season's results log — attribute them
+ * to the active Pro (the tour force-selects it on entry, so this is almost
+ * surely who won them). Runs only while the book is empty: after any backfill
+ * it has entries, and with no wins there is nothing to record — so a cloud
+ * copy that merges in later can never double-count.
+ */
+function backfillTourHistory(p: PlayerProfile): void {
+  const t = p.tour;
+  const pro = activePro(p.career);
+  if (!t || !pro || Object.keys(p.tourHistory).length > 0) return;
+  for (const r of t.results) {
+    if (r.playerRank !== 1) continue;
+    recordTourEventWin(p.tourHistory, pro.id, pro.name, (TOUR_MAJOR_IDXS as readonly number[]).includes(r.idx));
+  }
 }
 
 /** Persistent player profile — selections, currency, progression, stats. */
@@ -10322,6 +10410,25 @@ else {
     fieldTotals: TOUR_RIVALS.map((_, i) => (i < tied ? fill(11) : fill(15))),
     fieldToPars: TOUR_RIVALS.map((_, i) => (i < tied ? fill(-1) : fill(3)))
   };
+  persistProfile();
+  return true;
+};
+// Test hooks for the per-golfer record book (tests/visual/tourRecords.spec.ts):
+// a reader, and a forge that stamps results through the REAL recording
+// functions for the active Pro — the only deterministic way a spec fills the
+// book without winning simulated events.
+(window as unknown as { __tourRecords: unknown }).__tourRecords = () =>
+  JSON.parse(JSON.stringify(profile.tourHistory));
+(window as unknown as { __forgeTourResult: unknown }).__forgeTourResult = (
+  kind: 'win' | 'major' | 'season',
+  seasonNo = 1,
+  rank = 1,
+  points = 0
+) => {
+  const pro = activePro(profile.career);
+  if (!pro) return false;
+  if (kind === 'season') recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, seasonNo, rank, points);
+  else recordTourEventWin(profile.tourHistory, pro.id, pro.name, kind === 'major');
   persistProfile();
   return true;
 };

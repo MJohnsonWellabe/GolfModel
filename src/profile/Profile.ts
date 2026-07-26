@@ -1,6 +1,6 @@
 import { ArchetypeId } from '../data/archetypes';
 import { CareerState, emptyCareer, mergeCareers, migrateCareer } from '../data/career';
-import { mergeTour, migrateTour, TourSeasonState } from '../systems/TourSeason';
+import { mergeTour, mergeTourHistory, migrateTour, migrateTourHistory, TourHistory, TourSeasonState } from '../systems/TourSeason';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
@@ -133,6 +133,11 @@ export interface PlayerProfile {
    *  field (systems/TourSeason.ts). Null until the first event is entered.
    *  Merges whole — the further-progressed copy wins (mergeTour). */
   tour: TourSeasonState | null;
+  /** PER-GOLFER TOUR RECORDS (pass 8): every Pro's career wins, major wins
+   *  and season placements — the season state is discarded at rollover, so
+   *  this is the record book. Keyed by Pro id; survives Pro deletion.
+   *  Merges per Pro: larger tallies win, seasons union (mergeTourHistory). */
+  tourHistory: TourHistory;
   updatedAt: number;
 }
 
@@ -352,6 +357,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     retention: emptyRetention(),
     career: emptyCareer(),
     tour: null,
+    tourHistory: {},
     updatedAt: now
   };
 }
@@ -459,7 +465,8 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
       name: typeof parsed.name === 'string' ? parsed.name : '',
       character: (parsed.character as PlayerProfile['character']) ?? 'chip'
     }),
-    tour: migrateTour(parsed.tour)
+    tour: migrateTour(parsed.tour),
+    tourHistory: migrateTourHistory(parsed.tourHistory)
   };
 }
 
@@ -593,6 +600,12 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     tour: mergeTour(
       migrateTour(newer.tour),
       migrateTour(newer === a ? b.tour : a.tour)
+    ),
+    // The record book merges per Pro: larger tallies win (two copies of one
+    // timeline — summing would double-count), seasons union by seasonNo.
+    tourHistory: mergeTourHistory(
+      migrateTourHistory(a.tourHistory),
+      migrateTourHistory(b.tourHistory)
     ),
     // Equip choice is transient per-round state — the most recent copy wins.
     equippedPerk: newer.equippedPerk ?? null,

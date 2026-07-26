@@ -964,3 +964,14 @@ tour's competitive overhaul.
   summary primary is "Tour Season →" — the hub, where the result just
   landed — and ☰ Menu goes there too. Mid-major rounds keep their direct
   "Round N of 3 →" button.
+- **The record book** (owner: "past results by golfer… career wins, major
+  wins and season placements, for any golfer I've used"): the hub's
+  "🏅 Golfer records" door lists every Pro — the current stable and Pros
+  since deleted (their wins stay theirs) — with tour wins, major wins, and
+  one line per finished season ("S2 — 🏆 Season champion · 3105 pts").
+  The season state is discarded at rollover, so `profile.tourHistory`
+  (systems/TourSeason.ts: record/migrate/mergeTourHistory) is the durable
+  record: every event win and season finish is stamped onto the active Pro
+  in the shared payout path, cross-device merges take per-Pro maxima and
+  union seasons (never summing — that would double-count), and a one-time
+  backfill credits the current season's pre-feature wins.

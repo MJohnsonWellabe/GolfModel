@@ -138,6 +138,14 @@ test('a tie goes to sudden death: parked rival balls, then the event resolves', 
     expect(Object.keys(after.points)).toHaveLength(11);
     const probe = await playoffProbe(page);
     expect(probe.pending).toBeNull();
+    // The record book heard about it through the REAL payout path: a playoff
+    // win stamps exactly one tour win on the Pro; a loss stamps nothing.
+    const won = /playoff won/i.test((await summary.textContent()) ?? '');
+    const records = await page.evaluate(
+      () => (window as never as { __tourRecords: () => Record<string, { wins: number }> }).__tourRecords()
+    );
+    const totalWins = Object.values(records).reduce((a, r) => a + r.wins, 0);
+    expect(totalWins).toBe(won ? 1 : 0);
     expect(errors, errors.join('\n')).toHaveLength(0);
     return;
   }
