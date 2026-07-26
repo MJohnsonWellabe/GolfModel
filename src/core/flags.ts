@@ -229,19 +229,9 @@ export const FLAG_DEFS: readonly FlagDef[] = [
     defaults: { prod: true, dev: true },
     removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
   },
-  {
-    key: 'shotAttribution',
-    description:
-      'Post-shot breakdown (promoted to prod, owner pass 5): after the ball comes to rest, ' +
-      'one line naming what actually produced the result — strike, wind, lie, ' +
-      'and any sideways miss. Measured by re-flying the same resolved shot with ' +
-      'one factor removed, so the numbers are real rather than estimated. Runs ' +
-      'at rest, never on the tap path, and stays silent when there is nothing ' +
-      'worth saying. Off = the existing distance-only readout.',
-    owner: 'matt',
-    defaults: { prod: true, dev: true },
-    removeWhen: 'PROMOTED to prod (playtest-approved) — remove the flag once it has soaked'
-  },
+  // `shotAttribution` REMOVED (owner pass 8: "Get rid of the shot attribution
+  // box. I don't find it helpful."). The counterfactual engine survives in
+  // systems/ShotAttribution.ts, shelved, with its unit tests.
   {
     key: 'dailyHole',
     description:

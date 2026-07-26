@@ -73,7 +73,6 @@ describe('feature flags', () => {
       'roundRecording',
       'verifiedScores',
       'dailyHole',
-      'shotAttribution',
       'easeIn',
       'practiceRange',
       'focusedGame',

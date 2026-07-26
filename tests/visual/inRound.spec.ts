@@ -94,45 +94,38 @@ test('there is a way out of a round, and it lands back on the menu', async ({ pa
 });
 
 /**
- * The breakdown has to still be there when you look up.
- *
- * It was cleared when the swing meter ARMED — which happens the instant the ball
- * comes to rest, so the card appeared and vanished in the same breath. It is
- * input to the next decision, so it must survive the whole aiming phase and go
- * only when a new ball is struck.
+ * The flight-skip button (owner pass 8: "tap to fast forward to the end of
+ * any shot"): appears only while the ball is in the AIR, fast-forwards to
+ * rest through the real terminal path, and never exists while aiming — so
+ * it cannot collide with the swipe-spin gesture or the next swing.
+ * (The shot-attribution box's spec lived here until pass 8 removed the box.)
  */
-test('the shot breakdown persists through aiming and clears on the next strike', async ({ page }) => {
+test('the flight skip button fast-forwards the shot and hides while aiming', async ({ page }) => {
   test.setTimeout(300_000);
   await startRound(page);
-  const card = page.locator('#shotWhy');
+  const skip = page.locator('#flightSkipBtn');
+  await expect(skip).toBeHidden(); // never offered while aiming
 
-  // Play one shot and settle it.
   await page.evaluate(() => (window as never as { __slice3d: { playSkilledShot(): boolean } }).__slice3d.playSkilledShot());
   await page.waitForFunction(
     () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'flying',
     undefined,
     { timeout: 30_000 }
   );
-  await page.evaluate(() => (window as never as { __slice3d: { settleFlight(): boolean } }).__slice3d.settleFlight());
+  // Shown a beat into the flight (the delay is the double-tap guard).
+  await expect(skip).toBeVisible({ timeout: 10_000 });
+  await skip.dispatchEvent('pointerdown');
+  // The shot resolves through the REAL terminal path: back to aiming (or the
+  // hole ends), ball at its true rest — not a frozen flight.
   await page.waitForFunction(
-    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    () => {
+      const s = (window as never as { __slice3d: { state: { phase: string } } }).__slice3d;
+      return s.state.phase === 'aiming' || s.state.phase === 'done';
+    },
     undefined,
     { timeout: 60_000 }
   );
-
-  // It is up, and it STAYS up while the player takes their time over the next
-  // shot — which is exactly when it is useful.
-  await expect(card).toBeVisible();
-  const shown = await card.innerText();
-  expect(shown.length, 'the breakdown rendered empty').toBeGreaterThan(0);
-  await page.waitForTimeout(4000);
-  await expect(card, 'the breakdown vanished while the player was still aiming').toBeVisible();
-  expect(await card.innerText()).toBe(shown);
-
-  // And it goes when a new ball is struck.
-  await page.evaluate(() => (window as never as { __slice3d: { playSkilledShot(): boolean } }).__slice3d.playSkilledShot());
-  await page.waitForTimeout(300);
-  await expect(card).toBeHidden();
+  await expect(skip).toBeHidden();
 });
 
 test('the round controls stack down the top right, and the HUD names the course', async ({ page }) => {

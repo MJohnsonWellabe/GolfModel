@@ -32,7 +32,7 @@ import { AimControl, ShotContext } from '../core/input/AimControl';
 import { StrikeControl } from '../core/input/StrikeControl';
 import { grainPreloadsSettled, preloadGrassGrain } from '../core/rendering/grassTexture';
 import { resolveTheme } from '../core/rendering/Theme';
-import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SpinState, SwingResult, TrajectoryPoint, Wind } from '../core/types';
+import { ClubSpec, CourseData, GameMode, Golfer, GolferStats, HoleData, Point, ShotOutcome, SwingResult, TrajectoryPoint, Wind } from '../core/types';
 import { assembleGolfer } from '../data/golfers';
 import { ARCHETYPES, ArchetypeId, archetypeById, StatKey } from '../data/archetypes';
 import { CHARACTERS, CharacterKey } from '../data/characters';
@@ -45,7 +45,6 @@ import { RoundRecorder, RoundRecording } from '../systems/RoundRecording';
 import { ReplayOptions } from '../systems/RoundReplay';
 import { GhostRun } from '../systems/GhostRun';
 import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
-import { attributeShot, attributionTable, ShotAttribution } from '../systems/ShotAttribution';
 import { recordBoards } from '../systems/RecordBoards';
 import { dailyHole, shareText } from '../systems/DailyHoleService';
 import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
@@ -226,6 +225,7 @@ const tourBoardBtn = document.getElementById('tourBoardBtn')!;
 const pauseBtn = document.getElementById('pauseBtn')!;
 const trueVisionBtn = document.getElementById('trueVisionBtn')! as HTMLButtonElement;
 const skipBtn = document.getElementById('skipBtn')!;
+const flightSkipBtn = document.getElementById('flightSkipBtn')!;
 const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
 // Rolling ~5s canvas capture so a player can save a clip of a great shot to
 // their phone. OPT-IN: MediaRecorder encodes video frames continuously while
@@ -282,57 +282,10 @@ function showMsg(text: string, ms = 1200): void {
   setTimeout(() => (msgEl.style.opacity = '0'), ms);
 }
 
-/** The quiet "why that happened" line under the result (`shotAttribution`).
- *  Empty text hides it — a shot with nothing to explain says nothing. */
-const shotWhyEl = document.getElementById('shotWhy') as HTMLElement | null;
-
-/**
- * The post-shot breakdown.
- *
- * It used to be one long sentence across the middle of the screen that faded
- * after 2.6 seconds — too fast to read, and gone before the player could look at
- * where the ball actually finished. Now it is a compact stack in the top right
- * that STAYS UP until the next shot, so it is still there while they choose the
- * next one. That is the whole point of a breakdown: it is input to the next
- * decision, not a receipt for the last.
- */
-function showShotWhy(a: ShotAttribution | null): void {
-  if (!shotWhyEl) return;
-  if (!a || (!a.factors.length && !a.missLabel)) {
-    shotWhyEl.style.opacity = '0';
-    shotWhyEl.innerHTML = '';
-    return;
-  }
-  // A TABLE, not a paragraph.
-  //
-  // Distance down the left, line across the right, each column biggest-first,
-  // the total miss as the header. A golfer reads a scorecard in columns; the
-  // question "did I lose that long or left" is answered by looking at ONE
-  // column rather than by parsing prose.
-  const t = attributionTable(a);
-  const rows = Math.max(t.dist.length, t.side.length);
-  const cell = (e: { text: string } | undefined): string =>
-    e ? escapeHtml(e.text) : '';
-  const body = Array.from({ length: rows }, (_, i) =>
-    `<span class="swCell">${cell(t.dist[i])}</span><span class="swCell">${cell(t.side[i])}</span>`
-  ).join('');
-  shotWhyEl.innerHTML =
-    `<span class="swCell swHead">${escapeHtml(t.head.dist || 'on distance')}</span>` +
-    `<span class="swCell swHead">${escapeHtml(t.head.side || 'on line')}</span>` +
-    body +
-    `<span class="swCell swDist" style="grid-column:1/-1">${Math.round(a.distanceYd)} yd</span>`;
-  shotWhyEl.style.opacity = '1';
-}
-
-/** Clear the breakdown when the next shot is armed — the one moment it stops
- *  being about the shot in front of the player. */
-function clearShotWhy(): void {
-  if (!shotWhyEl) return;
-  shotWhyEl.style.opacity = '0';
-  // Empty it too: an opacity-0 card still occupies the corner and still counts
-  // as on screen. `#shotWhy:empty` takes it out of the layout entirely.
-  shotWhyEl.innerHTML = '';
-}
+// The post-shot attribution box (#shotWhy) lived here until owner pass 8:
+// "Get rid of the shot attribution box. I don't find it helpful." The pure
+// counterfactual engine (systems/ShotAttribution.ts) is kept, shelved, in
+// case a gentler surface ever earns its place.
 
 /** Last cloud-save outcome, so the account UI can flag a persistent failure. */
 let lastCloudStatus: CloudSaveStatus = 'skipped';
@@ -837,7 +790,13 @@ class HoleScene {
     /** Resolved launch + live spin so swipes can re-shape the flight. */
     launch: import('../systems/PhysicsEngine').ResolvedLaunch | null;
     spin: { side: number; top: number };
+    /** Wall-clock strike time — the ⏩ button appears on TIME, not samples,
+     *  because throttled headless/background frames advance samples slowly. */
+    startedAt: number;
   } | null = null;
+  /** Set by the ⏩ flight-skip button: after the landing beat plays, carry the
+   *  shot straight through the roll to rest (fastForwardFlight). */
+  private skipToRest = false;
   private disposed = false;
   /** Reused each frame for the tree-occlusion golfer-head point (no per-frame alloc). */
   private _golferHead = new Vector3();
@@ -877,20 +836,6 @@ class HoleScene {
   private ghostFlight: { path: TrajectoryPoint[]; progress: number } | null = null;
   /** How many shots the ghost has played on this hole so far. */
   private ghostShotIdx = 0;
-  /** The exact parameters + spin of the shot in the air, kept so the post-shot
-   *  breakdown can re-fly counterfactuals off them (`shotAttribution`). */
-  private lastShotParams: Parameters<PhysicsEngine['resolveLaunch']>[0] | null = null;
-  private lastShotStrokes = 0;
-  private lastAimPoint: { x: number; y: number } = { x: 0, y: 0 };
-  private lastShotSpin: SpinState = { side: 0, top: 0 };
-  /** The physics power a PERFECT strike would have delivered — what the aim
-   *  previewed — so the breakdown charges an under/over-swing to the STRIKE
-   *  instead of leaking it into the ground residual. */
-  private lastPlannedPower: number | null = null;
-  /** Whether the power cursor was locked PAST the target — the felt direction
-   *  the attribution names the strike from (a nerfed driver overswing flies
-   *  SHORT, so yardage alone misnames it). */
-  private lastOverswung: boolean | null = null;
   /** The tier of the celebration the LAST hole-out earned (null = ordinary),
    *  so the hole-end delay can hold for the fireworks (owner: aces rushed to
    *  the next hole before the show finished). */
@@ -2713,11 +2658,6 @@ class HoleScene {
 
   executeShot(swing: SwingResult, powerIsPhysics = false): void {
     markPerf(round.course.name, this.hole.number, 'shot-resolved');
-    // The previous shot's breakdown stays up through the whole aiming phase —
-    // that is when it is useful — and goes only when a new ball is struck.
-    // Clearing it when the METER ARMS (as this first did) wiped it instantly,
-    // because the next turn arms the moment the ball comes to rest.
-    clearShotWhy();
     // The trace pad is NOT hidden here: the path you just drew stays on it
     // through the flight and the next address, which is the whole point of
     // drawing it. The next `armMeter` resets it for the coming swing.
@@ -2792,22 +2732,6 @@ class HoleScene {
     // stroke number: the same three things the replay knows.
     this.shotRng = mulberry32(shotRngSeed(round.seed ?? 0, round.holeIdx, this.state.strokes));
     const launch = this.engine2d.resolveLaunch(shotParams);
-    // Keep the EXACT parameters this shot resolved from, so the post-shot
-    // breakdown can re-fly it with one factor removed and measure the real
-    // difference rather than estimating one (systems/ShotAttribution.ts).
-    this.lastShotParams = shotParams;
-    // The stroke count this shot resolved AT — the third input to its RNG seed,
-    // captured before the stroke is charged so the breakdown can reproduce it.
-    this.lastShotStrokes = this.state.strokes;
-    this.lastAimPoint = this.aim.aimPoint(this.state.ballPos);
-    this.lastShotSpin = { ...spin };
-    // What a perfect strike would have delivered: the aim's power target run
-    // through the same bar→physics conversion the real swing used. Unknowable
-    // for an AI swing that arrives already in physics units — null keeps the
-    // old strike counterfactual there.
-    this.lastPlannedPower =
-      !powerIsPhysics && this.swingCtx ? this.aim.barToPhysicsPower(this.swingCtx.powerTarget, this.ctx()) : null;
-    this.lastOverswung = converted.overswung ?? null;
     let outcome = this.engine2d.integrateLaunch(launch, spin, 0);
     // True Vision's promise (playtest: "if my yellow dot is in the hole and I
     // hit perfect perfect, I shouldn't miss"): a PERFECT-PERFECT stroke on the
@@ -2918,7 +2842,8 @@ class HoleScene {
         landPos: null,
         trail,
         launch: shaping ? launch : null,
-        spin
+        spin,
+        startedAt: performance.now()
       };
       this.state.phase = 'flying';
       if (club.id !== 'putter') {
@@ -3241,55 +3166,12 @@ class HoleScene {
     } else {
       msg = toPinYd < 30 ? `${Math.round(toPinYd * 3)} ft to the hole` : `${Math.round(toPinYd)} yd to the hole`;
     }
-    // WHY it finished there (`shotAttribution`). Counterfactual re-flights of
-    // the same resolved shot with one factor removed — see
-    // systems/ShotAttribution.ts. Runs at REST, never on the tap path, and says
-    // nothing at all when nothing was worth saying.
     showMsg(msg, 1600);
-    showShotWhy(this.shotWhy(outcome));
     // CHECKPOINT AT REST, not just at the hole boundary. This is the only
     // moment the round is genuinely between decisions, and it is where a
     // player who puts the phone down actually stops. Storage write, so it runs
     // here — after the ball has settled — and never on the tap path.
     checkpointRound();
-  }
-
-  /**
-   * "Here is what happened to that shot", or null when it was unremarkable.
-   *
-   * PUTTS INCLUDED. They were excluded on the grounds that a breakdown on every
-   * tap-in is noise — right instinct, wrong conclusion. How much break the
-   * player failed to play, and whether the pace was the culprit, is the most
-   * useful thing this feature can say, and it is the same counterfactual. What
-   * changes is scale: a putt is measured in FEET, with a one-foot floor instead
-   * of four yards, so a tap-in still says nothing.
-   */
-  private shotWhy(outcome: ShotOutcome): ShotAttribution | null {
-    if (!flag('shotAttribution') || !this.lastShotParams) return null;
-    try {
-      // Re-seed the shot's own random stream before each counterfactual, so a
-      // re-fly differs from the real shot ONLY by the factor being removed.
-      // Without this the breakdown reported several yards of fresh dice as
-      // "wind" or "lie" (tests/shotAttribution.test.ts).
-      const seed = shotRngSeed(round.seed ?? 0, round.holeIdx, this.lastShotStrokes);
-      return attributeShot(
-        this.engine2d,
-        this.lastShotParams,
-        this.lastShotSpin,
-        outcome.finalPos,
-        // WHERE THE PLAYER AIMED — the reference every number is measured
-        // against. Captured at address, because the aim control has already
-        // moved on to the next shot by the time the ball rests.
-        this.lastAimPoint,
-        () => (this.shotRng = mulberry32(seed)),
-        this.lastShotParams.club.id === 'putter',
-        this.lastPlannedPower ?? undefined,
-        this.lastOverswung ?? undefined
-      );
-    } catch {
-      // A breakdown is a nicety; it must never be able to break a shot.
-      return null;
-    }
   }
 
   /** Scramble: collect both teammates' attempts, keep the better ball. */
@@ -3515,11 +3397,16 @@ class HoleScene {
       e.preventDefault();
       this.skipIntro();
     };
+    this.onFlightSkip = (e) => {
+      e.preventDefault();
+      this.fastForwardFlight();
+    };
     document.getElementById('prevClub')!.addEventListener('pointerdown', this.onPrevClub);
     document.getElementById('nextClub')!.addEventListener('pointerdown', this.onNextClub);
     aerialBtn.addEventListener('pointerdown', this.onAerial);
     trueVisionBtn.addEventListener('pointerdown', this.onTrueVision);
     skipBtn.addEventListener('pointerdown', this.onSkip);
+    flightSkipBtn.addEventListener('pointerdown', this.onFlightSkip);
     // Roll the shot-capture buffer for the whole time this hole is on screen so
     // "save my last shot" always has the recent seconds ready — but ONLY when
     // the player has opted in (continuous MediaRecorder encode is real
@@ -3726,6 +3613,7 @@ class HoleScene {
   private onAerial!: () => void;
   private onTrueVision!: () => void;
   private onSkip!: (e: Event) => void;
+  private onFlightSkip!: (e: Event) => void;
   private onStrikeDown!: (e: PointerEvent) => void;
   private onStrikeMove!: (e: PointerEvent) => void;
   private onStrikeUp!: () => void;
@@ -3774,7 +3662,22 @@ class HoleScene {
     this.tickGhost(dt);
 
     if (this.flight) {
+      // ⏩ mid-skip: the landing beat has played (landed flipped on its
+      // discrete sample), so carry the shot straight through the roll.
+      if (this.skipToRest && this.flight.landed) {
+        this.flight.progress = this.flight.outcome.path.length;
+      }
       this.flight.progress += dt * 60 * this.flightTimescale();
+      // Offer the ⏩ a beat into the flight — never at the strike itself, so
+      // the swing's release can't double-tap it into existence-and-fire.
+      // Wall-clock, not samples: throttled frames must not delay the offer.
+      if (
+        !this.skipToRest &&
+        performance.now() - this.flight.startedAt > 400 &&
+        flightSkipBtn.style.display !== 'block'
+      ) {
+        flightSkipBtn.style.display = 'block';
+      }
       const i = Math.floor(this.flight.progress);
       const path = this.flight.outcome.path;
       if (i >= path.length) {
@@ -3784,6 +3687,8 @@ class HoleScene {
         // the scene until hole teardown (materials accumulated per shot).
         this.flight.trail?.dispose(false, true);
         this.flight = null;
+        this.skipToRest = false;
+        flightSkipBtn.style.display = 'none';
         this.afterShot(outcome);
       } else {
         const p = path[i];
@@ -3980,6 +3885,24 @@ class HoleScene {
     return true;
   }
 
+  /**
+   * The ⏩ button (owner pass 8: "tap to fast forward to the end of any
+   * shot"). NOT the instant jump settleFlight() does: a shot still in the
+   * air first jumps to just before touchdown so the landing crosses its
+   * discrete sample — puff, thump, camera cut and the hole-out drama all
+   * still fire — and then `skipToRest` carries it through the roll to rest
+   * on the next tick. A DOM button so it can never collide with the
+   * swipe-spin gesture: the canvas listeners never see a pointer that went
+   * down on a sibling button.
+   */
+  fastForwardFlight(): void {
+    const fl = this.flight;
+    if (!fl) return;
+    this.skipToRest = true;
+    if (!fl.landed) fl.progress = Math.max(fl.progress, fl.landIdx - 1);
+    else fl.progress = fl.outcome.path.length;
+  }
+
   /** Test hook: place the current competitor's ball anywhere and re-tee. */
   dropAt(x: number, y: number): void {
     const c = this.comps[this.turnIdx];
@@ -4070,6 +3993,8 @@ class HoleScene {
     aerialBtn.removeEventListener('pointerdown', this.onAerial);
     trueVisionBtn.removeEventListener('pointerdown', this.onTrueVision);
     skipBtn.removeEventListener('pointerdown', this.onSkip);
+    flightSkipBtn.removeEventListener('pointerdown', this.onFlightSkip);
+    flightSkipBtn.style.display = 'none'; // a scene torn down mid-flight must not leave it up
     skipBtn.style.display = 'none';
     strikePadEl.removeEventListener('pointerdown', this.onStrikeDown);
     window.removeEventListener('pointermove', this.onStrikeMove);

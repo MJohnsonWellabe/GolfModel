@@ -293,69 +293,6 @@
         opacity: 0;
         transition: opacity 0.25s;
       }
-      /* Post-shot breakdown (`shotAttribution`) — deliberately much quieter
-         than #msg above it: the result is the headline, the cause is a note. */
-      /* The post-shot breakdown. It used to sit across the middle of the screen
-         and fade after 2.6s — too fast to read, and gone before you could
-         compare it to where the ball actually was. Now it is a compact stack in
-         the top RIGHT (clear of the HUD, top-left) and it STAYS until the next
-         shot, so it is there while you think about the next one. */
-      #shotWhy {
-        position: fixed;
-        top: calc(max(10px, env(safe-area-inset-top)) + 88px);
-        right: 10px;
-        max-width: 48vw;
-        min-width: 132px;
-        display: grid;
-        /* Two columns that SHARE the card rather than each demanding their
-           natural width: `auto auto` let a long row ("+12 yds 14 ft downhill")
-           push the card past its max-width and clip. minmax(0, …) lets a cell
-           shrink, and the cells wrap instead of overflowing. */
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        column-gap: 10px;
-        row-gap: 2px;
-        max-width: min(76vw, 320px);
-        padding: 7px 10px;
-        border-radius: 12px;
-        background: rgba(8, 20, 12, 0.66);
-        border: 1px solid rgba(255, 255, 255, 0.14);
-        backdrop-filter: blur(3px);
-        text-align: right;
-        font-size: 12.5px;
-        font-weight: 700;
-        letter-spacing: 0.2px;
-        color: #dbe8d6;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.25s;
-        z-index: 5;
-      }
-      /* An emptied card must not leave a floating box behind — the same
-         :empty trick the landing cards use. */
-      #shotWhy:empty { display: none; }
-      /* Two columns: what moved the ball up and down the aim line, and what
-         moved it across. A golfer reads a card in columns. */
-      #shotWhy .swCell {
-        min-width: 0;
-        opacity: 0.86;
-        font-variant-numeric: tabular-nums;
-        overflow-wrap: anywhere;
-      }
-      #shotWhy .swHead {
-        font-size: 13px;
-        font-weight: 900;
-        color: #f2f7ef;
-        opacity: 1;
-        padding-bottom: 3px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.16);
-        margin-bottom: 2px;
-      }
-      #shotWhy .swDist {
-        font-size: 10.5px;
-        font-weight: 700;
-        opacity: 0.55;
-        margin-top: 3px;
-      }
       #prompt {
         position: fixed;
         bottom: 158px;
@@ -547,6 +484,24 @@
         letter-spacing: 0.5px;
         z-index: 5;
       }
+      /* ⏩ flight fast-forward (owner pass 8) — only while the ball is in the
+         air, between the tournament board (76px) and True Vision (168px) so
+         it never shares a slot with a button that could be visible with it. */
+      #flightSkipBtn {
+        position: fixed;
+        right: 10px;
+        bottom: 122px;
+        display: none;
+        padding: 9px 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        background: linear-gradient(180deg, rgba(12, 44, 20, 0.92), rgba(6, 28, 12, 0.88));
+        color: #eaf3e6;
+        font-size: 13px;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+        z-index: 5;
+      }
       /* Save-my-last-shot clip button — RELOCATED to the top-right, tucked
          under the score badge and well clear of the bottom thumb cluster
          (meter, shot-shape, True Vision) where it was being pressed by accident
@@ -656,9 +611,6 @@
          it. */
       html.builder-preview #captureBtn {
         top: calc(max(10px, env(safe-area-inset-top)) + 88px);
-      }
-      html.builder-preview #shotWhy {
-        top: calc(max(10px, env(safe-area-inset-top)) + 132px);
       }
       #designBtn {
         position: fixed;
@@ -883,7 +835,8 @@
          column instead, exactly like the old pull track's rule below. */
       html.trace-pad #trueVisionBtn,
       html.trace-pad #aerialBtn,
-      html.trace-pad #tourBoardBtn {
+      html.trace-pad #tourBoardBtn,
+      html.trace-pad #flightSkipBtn {
         right: calc(min(22vw, 84px) + 16px);
       }
       /* The right-edge button stack lives in the same column as the pull track,
@@ -892,7 +845,8 @@
          left of the track's 76px column while it is up. */
       html.drag-track #trueVisionBtn,
       html.drag-track #aerialBtn,
-      html.drag-track #tourBoardBtn {
+      html.drag-track #tourBoardBtn,
+      html.drag-track #flightSkipBtn {
         right: 92px;
       }
       #dragTrack {
@@ -4199,7 +4153,6 @@
     <div id="badge" class="panel">Bite-Sized Golf<br />Wildwood Glen</div>
     <div id="prompt"></div>
     <div id="msg"></div>
-    <div id="shotWhy"></div>
     <div id="cineBanner" aria-live="polite"></div>
     <div id="banner"></div>
     <div id="summary" class="panel"></div>
@@ -4265,6 +4218,7 @@
       <div id="designAssets"></div>
     </div>
     <button id="skipBtn">SKIP ▶</button>
+    <button id="flightSkipBtn">⏩</button>
     <button id="swingBtn">SWING</button>
 
     <!-- TRACED SWING (`dragSwing`): a rectangle with a guide dot to follow.
