@@ -734,7 +734,24 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
       (r): r is TourEventResult =>
         !!r && typeof r.idx === 'number' && typeof r.playerRank === 'number' && typeof r.points === 'number'
     )
-    .map((r) => ({ idx: r.idx, playerRank: r.playerRank, points: r.points, toPar: r.toPar ?? 0, winnerId: r.winnerId ?? '' }));
+    .map((r) => {
+      // `total` and `field` ride along so a SHARED season can re-settle an
+      // event's points after a reload without re-simulating the rivals.
+      // Dropping them here would silently strand a co-op season's history.
+      const field = (Array.isArray(r.field) ? r.field : []).filter(
+        (f): f is { total: number; toPar: number } =>
+          !!f && typeof f.total === 'number' && typeof f.toPar === 'number'
+      );
+      return {
+        idx: r.idx,
+        playerRank: r.playerRank,
+        points: r.points,
+        toPar: r.toPar ?? 0,
+        winnerId: r.winnerId ?? '',
+        ...(typeof r.total === 'number' ? { total: r.total } : {}),
+        ...(field.length ? { field: field.map((f) => ({ total: f.total, toPar: f.toPar })) } : {})
+      };
+    });
   const ae = t.activeEvent;
   const activeEvent: TourActiveEvent | null =
     ae &&

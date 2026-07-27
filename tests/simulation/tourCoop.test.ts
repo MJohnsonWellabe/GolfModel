@@ -172,3 +172,26 @@ describe('the invite link', () => {
     expect(migrateCoopDoc(null)).toBeNull();
   });
 });
+
+describe('a reload must not strand a shared season', () => {
+  it('keeps the field scores an event needs to re-settle', () => {
+    // Regression: migrateTour dropped `total`/`field` from result lines, so a
+    // co-op season that survived a reload could no longer re-rank its events
+    // when the partner posted — the points would freeze at the provisional
+    // value forever, silently.
+    const s = withPartner(seasonWith(2, -6, -2), {});
+    const revived = migrateTour(JSON.parse(JSON.stringify(s)))!;
+    expect(revived.results).toEqual(s.results);
+    revived.coop!.partners[0].results = { 0: { total: 28, toPar: -8 } };
+    expect(recomputeSeasonPoints(revived, IDS)['them']).toBe(TOUR_POINTS[0]);
+  });
+
+  it('a legacy result line without them still loads', () => {
+    const raw = JSON.parse(JSON.stringify(seasonWith(1, -6, -2)));
+    delete raw.results[0].field;
+    delete raw.results[0].total;
+    const revived = migrateTour(raw)!;
+    expect(revived.results[0].field).toBeUndefined();
+    expect(recomputeSeasonPoints(revived, IDS)['player']).toBe(TOUR_POINTS[0]);
+  });
+});

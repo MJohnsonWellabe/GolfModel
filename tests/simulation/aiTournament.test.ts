@@ -11,6 +11,7 @@ import {
   AI_TOUR_ROUNDS,
   completeRound,
   createAiTournament,
+  entrantOvr,
   isFinal,
   pickTournamentCourses,
   purseFor,
@@ -106,24 +107,44 @@ describe('AI tournament', () => {
     const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
     const jd = mean(perOpp.sunny); // JD's persisted id
     const tiger = mean(perOpp.tiger);
-    // Band re-pinned in owner pass 8: the tournament-form shift was recalibrated
-    // (FORM_SHIFT tiers + per-course COURSE_FIELD_EASING + a gaussian form draw,
-    // see AiTournament.simulateEntrantRound) so the TOUR field wins at −3..−4
-    // instead of five AIs stacking on −4. The same math fields this mode, so
-    // every opponent moved up ~2 strokes and gained per-round spread. Measured
-    // over this exact 40-tournament loop: JD +0.66, Tiger −1.78, in-band 0.78.
-    // JD (the field's weakest) centers a touch over par.
-    expect(jd).toBeGreaterThan(-0.4);
-    expect(jd).toBeLessThan(1.4);
-    // Tiger (the best) averages ~-1.8.
-    expect(tiger).toBeGreaterThan(-2.8);
-    expect(tiger).toBeLessThan(-0.9);
+    // Band re-pinned in owner pass 9. Form is no longer a difficulty TIER but
+    // a line in the opponent's own overall rating (AiTournament.entrantForm),
+    // with two simulated rounds averaged and the spread scaled by rating — so
+    // this mode inherited the Tour Season's identity fix: the gap between the
+    // weakest and strongest opponent widened from ~2 strokes to ~4.3, which is
+    // what makes a leaderboard hold its shape. Measured over this exact
+    // 40-tournament loop: JD +1.63, Tiger −2.67, in-band 0.65.
+    //
+    // The two bands below are the mode's FEEL, and they are the point: JD has
+    // to stay beatable by a casual player (mean at or above par) and Tiger has
+    // to stay a real challenge (comfortably under it).
+    expect(jd).toBeGreaterThan(0.6);
+    expect(jd).toBeLessThan(2.6);
+    expect(tiger).toBeGreaterThan(-3.7);
+    expect(tiger).toBeLessThan(-1.7);
     expect(tiger).toBeLessThan(jd); // skill ordering holds on average
+    // …and the field now sorts by RATING all the way down, which the coarse
+    // tiers could not deliver. (Note this is rating order, not the old
+    // difficulty labels: JD is tagged Easy but out-rates Sergio's Medium, and
+    // the scores follow the stats, which is the whole point of the change.)
+    // Only pairs separated by a REAL rating gap are asserted: 0.6 of a point
+    // is 0.17 strokes of form, which this sample cannot resolve, and pinning
+    // it would make the test a coin flip rather than a guard.
+    for (const a of OPPONENTS) {
+      for (const b of OPPONENTS) {
+        if (entrantOvr(a) - entrantOvr(b) < 2) continue;
+        expect(
+          mean(perOpp[a.id]),
+          `${a.id} (${entrantOvr(a).toFixed(1)}) should out-score ` +
+            `${b.id} (${entrantOvr(b).toFixed(1)})`
+        ).toBeLessThan(mean(perOpp[b.id]));
+      }
+    }
     const all = Object.values(perOpp).flat();
     const inBand = all.filter((v) => v <= 1 && v >= -3).length / all.length;
-    // Coarse "mostly +1..-3" backstop (measured ~0.78 after the pass-8
-    // recalibration); the per-opponent mean bands above are the tighter guard.
-    expect(inBand).toBeGreaterThan(0.65);
+    // Coarse "mostly +1..-3" backstop (measured ~0.65); the per-opponent mean
+    // bands above are the tighter guard.
+    expect(inBand).toBeGreaterThan(0.5);
   });
 
   it('ties on to-par break toward the player, and the purse pays the podium', () => {

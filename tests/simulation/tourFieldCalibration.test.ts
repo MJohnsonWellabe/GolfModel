@@ -24,16 +24,18 @@ import { simulateEntrantRound } from '../../src/systems/AiTournament';
  */
 const COURSES = coursesFor({ newCourses: true, courseRebuilds: true });
 
-/** 400-event measured E[win] per course (2026-07 calibration). */
+/** Measured E[win] per course, PLUS the pass-9 deepening (0.25/round, and
+ *  0.7 for Timberline West) that lifted the major winning total to the −10
+ *  the owner asked for. Re-measure with scripts/calibrate-tour-field.mjs. */
 const MEASURED_WIN: Record<string, number> = {
-  wildwood: -3.06,
-  sablebay: -3.29,
-  timberline: -3.23,
-  portjohnson: -3.59,
-  timberlinewest: -3.04,
-  redhollow: -4.03,
-  wildvalley: -3.05,
-  maplevale: -3.86
+  wildwood: -3.15,
+  sablebay: -3.57,
+  timberline: -3.52,
+  portjohnson: -3.92,
+  timberlinewest: -3.29,
+  redhollow: -4.19,
+  wildvalley: -3.27,
+  maplevale: -4.13,
 };
 
 const EVENTS = 25;
