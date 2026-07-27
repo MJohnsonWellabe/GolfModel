@@ -1039,6 +1039,22 @@ Six asks, two of them the same root cause.
   can't enter the tour and grows no further; their Locker card becomes a 🏛
   Hall of Fame card and their record page is their career. They stay
   selectable for casual rounds — the career ends, not the golfer.
+- **Quit a season whenever you want** (owner: "you should be able to quit a
+  season and start a new one whenever you want. the partial season counts for
+  the golfer"). `seasonDone()` was the only notion of "over", so a bad season
+  had to be played to its finale. The hub now carries an End-this-season door
+  (a destructive confirm on the reset-records pattern, arming window and all)
+  and `quitSeason()` does the rest: the part-played season is stamped onto the
+  Pro's record with the placement they held and the events they got through
+  (`TourProSeasonFinish.events` — absent still means a full season, so older
+  records need no migration), which also burns one of their ten, since
+  `SEASON_LIMIT` reads that very list. Leaving is never free: the season purse
+  is forfeited (`finishSeason` would happily pay a champion's coins off six
+  events). The one exception is a season with nothing played — no placement
+  exists to record, so it just rerolls the schedule under the same number and
+  a mistaken tap can't cost a career slot. Quitting on the tenth retires the
+  Pro exactly as the finale would. A shared season keeps the events you had
+  already posted for your partner; you simply stop appearing in new ones.
 - **Shared seasons** (owner: "Allow a user to start a season with another
   user… invite them via a text link… points calculated on current placements
   and update when the second user finishes"). Because the AI field is

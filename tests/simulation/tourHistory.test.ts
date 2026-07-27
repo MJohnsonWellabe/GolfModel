@@ -6,6 +6,7 @@ import {
   proRetired,
   SEASON_LIMIT,
   seasonsCompleted,
+  TOUR_EVENTS,
   migrateTourHistory,
   recordTourEventWin,
   recordTourSeasonFinish,
@@ -186,5 +187,58 @@ describe('the career grand slam', () => {
     recordTourEventWin(b, 'pro1', 'Ace', MAJOR_NAMES[2]);
     recordTourEventWin(b, 'pro1', 'Ace', MAJOR_NAMES[3]);
     expect(hasGrandSlam(mergeTourHistory(a, b).pro1)).toBe(true);
+  });
+});
+
+describe('a partial season on the record', () => {
+  it('round-trips its event count through storage', () => {
+    const h: TourHistory = {};
+    recordTourSeasonFinish(h, 'pro1', 'Ace', 1, 3, 1240, 6);
+    recordTourSeasonFinish(h, 'pro1', 'Ace', 2, 1, 3000); // played out in full
+    expect(h.pro1.seasons[0].events).toBe(6);
+    expect(h.pro1.seasons[1].events).toBeUndefined();
+    expect(migrateTourHistory(JSON.parse(JSON.stringify(h)))).toEqual(h);
+  });
+
+  it('a malformed event count degrades to "full" rather than dropping the Pro', () => {
+    // Losing one annotation is survivable; losing a whole career over a stray
+    // number is not — so this field is the one exception to the drop rule.
+    const h = migrateTourHistory({
+      pro1: {
+        name: 'Ace',
+        wins: 3,
+        majorWins: 1,
+        majors: [],
+        seasons: [
+          { seasonNo: 1, rank: 2, points: 900, events: 'lots' },
+          { seasonNo: 2, rank: 1, points: 2000, events: -4 }
+        ]
+      }
+    });
+    expect(h.pro1.wins).toBe(3); // the record survived
+    expect(h.pro1.seasons).toHaveLength(2);
+    expect(h.pro1.seasons[0].events).toBeUndefined();
+    expect(h.pro1.seasons[1].events).toBeUndefined();
+  });
+
+  it('an events count at or beyond a full season is not stored as partial', () => {
+    const h: TourHistory = {};
+    recordTourSeasonFinish(h, 'pro1', 'Ace', 1, 1, 3000, TOUR_EVENTS);
+    expect(h.pro1.seasons[0].events).toBeUndefined();
+  });
+
+  it('merging two devices keeps the DEEPER copy of the same season', () => {
+    const a: TourHistory = {};
+    recordTourSeasonFinish(a, 'pro1', 'Ace', 1, 5, 400, 4); // quit at 4 here
+    const b: TourHistory = {};
+    recordTourSeasonFinish(b, 'pro1', 'Ace', 1, 3, 900, 9); // played 9 there
+    expect(mergeTourHistory(a, b).pro1.seasons[0]).toEqual({ seasonNo: 1, rank: 3, points: 900, events: 9 });
+    expect(mergeTourHistory(b, a).pro1.seasons[0].events).toBe(9);
+    // …and a season played to the finale beats any partial copy of it.
+    const c: TourHistory = {};
+    recordTourSeasonFinish(c, 'pro1', 'Ace', 1, 1, 3000);
+    expect(mergeTourHistory(b, c).pro1.seasons[0].events).toBeUndefined();
+    // Either way it is still ONE season against the career limit.
+    expect(seasonsCompleted(mergeTourHistory(a, b), 'pro1')).toBe(1);
   });
 });

@@ -581,6 +581,12 @@ export interface TourProSeasonFinish {
   rank: number;
   /** Season points the Pro finished with. */
   points: number;
+  /** Events actually played, when the season was ABANDONED part-way (owner
+   *  pass 9b: "you should be able to quit a season and start a new one
+   *  whenever you want. the partial season counts for the golfer").
+   *  ABSENT MEANS A FULL SEASON — every record written before quitting
+   *  existed stays correct without a migration. */
+  events?: number;
 }
 
 export interface TourProRecord {
@@ -594,7 +600,9 @@ export interface TourProRecord {
    *  is all four (MAJOR_NAMES), and a repeat win of the same major does not
    *  bring it closer. */
   majors: string[];
-  /** One line per FINISHED season, in seasonNo order. */
+  /** One line per season CLOSED OUT — played to the finale or quit part-way
+   *  (a quit line carries `events`). This list's length is also the career
+   *  counter SEASON_LIMIT reads. */
   seasons: TourProSeasonFinish[];
 }
 
@@ -637,21 +645,69 @@ export function recordTourEventWin(h: TourHistory, proId: string, name: string, 
   }
 }
 
-/** Stamp a finished season's placement onto the Pro who closed it out.
- *  Idempotent per seasonNo — a cloud replay or double-fire REPLACES the
- *  line, never duplicates it. */
+/** Stamp a season's placement onto the Pro who closed it out. `events` is
+ *  passed only when the season was QUIT part-way — a full season stores
+ *  nothing, so old records and new ones read alike.
+ *
+ *  Idempotent per seasonNo: a cloud replay, a double-fire, or quitting a
+ *  season that was somehow already recorded REPLACES the line rather than
+ *  duplicating it — which is what stops the career counter inflating. */
 export function recordTourSeasonFinish(
   h: TourHistory,
   proId: string,
   name: string,
   seasonNo: number,
   rank: number,
-  points: number
+  points: number,
+  events?: number
 ): void {
   const rec = proRecord(h, proId, name);
   rec.seasons = rec.seasons.filter((s) => s.seasonNo !== seasonNo);
-  rec.seasons.push({ seasonNo, rank, points });
+  rec.seasons.push({
+    seasonNo,
+    rank,
+    points,
+    ...(typeof events === 'number' && events < TOUR_EVENTS ? { events } : {})
+  });
   rec.seasons.sort((a, b) => a.seasonNo - b.seasonNo);
+}
+
+/**
+ * QUIT THE SEASON IN PROGRESS (owner pass 9b, verbatim: "you should be able
+ * to quit a season and start a new one whenever you want. the partial season
+ * counts for the golfer").
+ *
+ * Walking away is allowed but never free: the part-played season is stamped
+ * onto the Pro's record with the placement they held, which also burns one of
+ * their ten (SEASON_LIMIT reads this very list). The season purse is NOT paid
+ * — `finishSeason` would hand a champion's coins to someone six events in.
+ *
+ * The one exception is a season with nothing played: there is no placement to
+ * record, so it simply rerolls the schedule under the SAME season number, and
+ * a mistaken tap can never cost a career slot.
+ *
+ * Pure: the caller persists `next` and the mutated history.
+ */
+export function quitSeason(
+  s: TourSeasonState,
+  history: TourHistory,
+  proId: string,
+  proName: string,
+  newSeed: number,
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): { recorded: TourProSeasonFinish | null; next: TourSeasonState | null; retired: boolean } {
+  if (s.played <= 0) {
+    return { recorded: null, next: newSeason(newSeed, s.seasonNo), retired: false };
+  }
+  // The rank the player actually SAW — coopSeasonStandings folds in a shared
+  // season's partner and falls through to the solo table when there is none.
+  const table = coopSeasonStandings(s, rivals);
+  const rank = table.findIndex((r) => r.isPlayer) + 1;
+  const points = s.points['player'] ?? 0;
+  recordTourSeasonFinish(history, proId, proName, s.seasonNo, rank || table.length, points, s.played);
+  const recorded = history[proId].seasons.find((x) => x.seasonNo === s.seasonNo) ?? null;
+  const retired = proRetired(history, proId);
+  return { recorded, next: retired ? null : rolloverSeason(s, newSeed), retired };
 }
 
 /** Any stored shape → a valid history. A corrupt Pro record drops whole
@@ -670,7 +726,13 @@ export function migrateTourHistory(raw: unknown): TourHistory {
         ok = false;
         break;
       }
-      seasons.push({ seasonNo: s.seasonNo, rank: s.rank, points: s.points });
+      // A malformed `events` is IGNORED rather than dropping the whole Pro:
+      // the line degrades to "a full season", which loses one annotation
+      // instead of a career.
+      const ev = typeof s.events === 'number' && s.events >= 0 && s.events < TOUR_EVENTS
+        ? Math.floor(s.events)
+        : undefined;
+      seasons.push({ seasonNo: s.seasonNo, rank: s.rank, points: s.points, ...(ev !== undefined ? { events: ev } : {}) });
     }
     if (!ok) continue;
     // Floor, never round up — a corrupted fraction must not inflate a tally.
@@ -705,7 +767,15 @@ export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
       continue;
     }
     const bySeason = new Map<number, TourProSeasonFinish>();
-    for (const s of [...y.seasons, ...x.seasons]) bySeason.set(s.seasonNo, { ...s });
+    for (const s of [...y.seasons, ...x.seasons]) {
+      // Two devices can hold the SAME season at different depths (one quit at
+      // six events, the other played nine before quitting). The further-
+      // progressed copy is the truth; a finished season (no `events`) beats
+      // any partial one.
+      const held = bySeason.get(s.seasonNo);
+      const depth = (f: TourProSeasonFinish): number => f.events ?? TOUR_EVENTS;
+      if (!held || depth(s) > depth(held)) bySeason.set(s.seasonNo, { ...s });
+    }
     out[id] = {
       // The name from the copy with more to say (the further-progressed one).
       name: x.wins + x.seasons.length >= y.wins + y.seasons.length ? x.name : y.name,

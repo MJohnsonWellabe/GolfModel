@@ -52,7 +52,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonStandings, currentEvent, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -6878,6 +6878,95 @@ function renderPlayoffSummary(): void {
 }
 
 /**
+ * QUIT THE SEASON (owner pass 9b: "you should be able to quit a season and
+ * start a new one whenever you want. the partial season counts for the
+ * golfer"). Destructive, so it asks first — and the question states the whole
+ * price: the placement that goes on the record, the career slot it spends,
+ * and the purse it forfeits.
+ */
+function confirmQuitSeason(): void {
+  const t = profile.tour;
+  const pro = activePro(profile.career);
+  if (!t || !pro) return;
+  const started = t.played > 0;
+  const table = coopSeasonStandings(t);
+  const rank = table.findIndex((r) => r.isPlayer) + 1;
+  const pts = t.points['player'] ?? 0;
+  const partner = t.coop?.partners[0]?.name;
+  const ask = started
+    ? `Season ${t.seasonNo} goes into ${escapeHtml(pro.name)}'s record as ` +
+      `${ordinal(rank || table.length)} with ${pts} points after ${t.played} of ${TOUR_EVENTS} events. ` +
+      `It counts as one of their ${SEASON_LIMIT} seasons, and the season purse is forfeited.`
+    : `This season hasn't started, so you'll just get a new schedule. ` +
+      `It won't count against ${escapeHtml(pro.name)}'s ${SEASON_LIMIT}.`;
+  const coopNote =
+    started && partner
+      ? ` <br>${escapeHtml(partner)} keeps the events you've already posted — you just stop appearing in new ones.`
+      : '';
+  const modal = document.createElement('div');
+  modal.className = 'storeConfirm';
+  // The tour hub is an overlay; .storeConfirm's own z-index only works inside
+  // the store's stacking context, so lift it (the reset-records precedent).
+  modal.style.zIndex = '30';
+  const close = (): void => modal.remove();
+  modal.innerHTML =
+    `<div class="storeConfirmBox"><div class="scTitle">${started ? 'End this season?' : 'New schedule?'}</div>` +
+    `<div class="scAsk">${ask}${coopNote}</div>` +
+    `<div class="btnRow"><button id="quitSeasonYes" class="dangerBtn">${started ? 'Yes, end it' : 'Yes, reroll'}</button>` +
+    `<button id="quitSeasonNo" class="ghostBtn">Cancel</button></div></div>`;
+  // Tapping the dimmed backdrop cancels; `click` so a drag that merely starts
+  // there doesn't dismiss it.
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+  document.body.appendChild(modal);
+  // The tap that OPENED this must not also confirm it if the finger lands
+  // where "Yes" renders — same arming window as confirmResetRecords.
+  const armedAt = Date.now();
+  const ARM_MS = 350;
+  modal.querySelector<HTMLButtonElement>('#quitSeasonNo')!.addEventListener('click', close);
+  modal.querySelector<HTMLButtonElement>('#quitSeasonYes')!.addEventListener('click', () => {
+    if (Date.now() - armedAt < ARM_MS) return;
+    close();
+    applyQuitSeason();
+  });
+}
+
+/** Apply the quit: record the partial season, replace the season (or retire
+ *  the Pro if that was their tenth), and drop the round-scoped tour state the
+ *  same way startRound does. */
+function applyQuitSeason(): void {
+  const t = profile.tour;
+  const pro = activePro(profile.career);
+  if (!t || !pro) return;
+  const out = quitSeason(t, profile.tourHistory, pro.id, pro.name, Math.floor(Math.random() * 1e9));
+  profile.tour = out.next;
+  // A season in progress can own a live round, a live playoff hole, and an
+  // AI-tournament left over from another mode — none of them survive it.
+  aiTour = null;
+  tourRoundLive = false;
+  tourPlayoff = null;
+  persistProfile();
+  if (signedIn)
+    void cloudSyncProfile(profile).then((res) => {
+      applyCloudMerge(profile, res.profile);
+      showCloudStatus(res.status, true);
+    });
+  if (out.retired) {
+    showMsg(
+      `🏛 ${pro.name} retires to the Hall of Fame after ${SEASON_LIMIT} seasons — start a new Pro to tour again`,
+      3600
+    );
+  } else if (out.recorded) {
+    showMsg(`Season ${out.recorded.seasonNo} closed — ${ordinal(out.recorded.rank)} in points. A fresh season is up.`, 3000);
+  } else {
+    showMsg('New schedule drawn.', 2000);
+  }
+  renderTourHub();
+  refreshProgressSurfaces();
+}
+
+/**
  * THE TOUR HUB (owner: "when you click into the tour season you should be
  * able to go to all past results, standings, schedule and play next event").
  * The gold tile opens this; playing the next event is the button on top,
@@ -6975,6 +7064,9 @@ function renderTourHub(): void {
     `<div class="tourHeadRow">Schedule &amp; results</div>` +
     `<div class="thSched">${schedRows}</div>` +
     `<button id="thRecords" class="ghostBtn">🏅 Golfer records</button>` +
+    (hubRetired
+      ? ''
+      : `<button id="thQuit" class="ghostBtn">${t.played > 0 ? '🚪 End this season' : '🎲 New schedule'}</button>`) +
     `<button id="thBack" class="ghostBtn">Back</button></div>`;
   // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
   // Play is fine: the round scene replaces everything under the finger.
@@ -6983,6 +7075,10 @@ function renderTourHub(): void {
     refreshProgressSurfaces();
   });
   el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+  // 'click', NOT 'pointerdown': this opens a modal that stays under the
+  // finger, so a pointerdown binding would risk the release landing on the
+  // confirm's Yes — the exact hazard its arming window exists for.
+  el.querySelector('#thQuit')?.addEventListener('click', () => confirmQuitSeason());
   el.querySelector('#thCoop')?.addEventListener('click', () => void startCoopSeason());
   el.querySelector('#thCoopShare')?.addEventListener('click', () => {
     const id = profile.tour?.coop?.id;
@@ -7036,7 +7132,8 @@ function renderTourGolferRecords(): void {
             .map(
               (s) =>
                 `<div class="recRow"><span class="recRk">S${s.seasonNo}</span>` +
-                `<span class="recNm">${s.rank === 1 ? '🏆 Season champion' : `${ordinal(s.rank)} in points`}</span>` +
+                `<span class="recNm">${s.rank === 1 ? '🏆 Season champion' : `${ordinal(s.rank)} in points`}` +
+                `${s.events !== undefined ? ` · left after ${s.events}` : ''}</span>` +
                 `<span class="recTot">${s.points} pts</span></div>`
             )
             .join('')
@@ -10366,6 +10463,33 @@ else {
   if (!pro) return false;
   if (kind === 'season') recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, seasonNo, rank, points);
   else recordTourEventWin(profile.tourHistory, pro.id, pro.name, kind === 'major' ? MAJOR_NAMES[0] : undefined);
+  persistProfile();
+  return true;
+};
+// Test hook: bank `n` finished events into the season in progress, so a spec
+// can reach a mid-season state (to quit it, to read the hub's schedule) without
+// playing every event shot by shot. Scores are plausible but synthetic — the
+// real scoring path has its own specs.
+(window as unknown as { __seasonProgress: unknown }).__seasonProgress = (n: number) => {
+  const t = profile.tour;
+  if (!t) return false;
+  const ids = tourCourseIds();
+  const sched = tourSchedule(t.seed, ids);
+  for (let i = t.played; i < Math.min(n, TOUR_EVENTS); i++) {
+    const major = sched[i]?.major ?? false;
+    t.results.push({
+      idx: i,
+      playerRank: 2,
+      points: TOUR_POINTS[1] * (major ? 2 : 1),
+      toPar: -3,
+      winnerId: TOUR_RIVALS[0].id,
+      total: 33,
+      field: TOUR_RIVALS.map((_, k) => ({ total: 32 + k, toPar: -4 + k }))
+    });
+  }
+  t.played = Math.min(n, TOUR_EVENTS);
+  t.points = recomputeSeasonPoints(t, ids, TOUR_RIVALS);
+  t.activeEvent = null;
   persistProfile();
   return true;
 };
