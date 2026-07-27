@@ -14,7 +14,7 @@
       "beforeRenderObservers": 12,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 62
+      "heapMB": 79
     }
   },
   {
@@ -32,7 +32,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 182
+      "heapMB": 201
     }
   },
   {
@@ -50,7 +50,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 219
+      "heapMB": 230
     }
   },
   {
@@ -60,15 +60,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 217,
+      "meshes": 214,
       "ghostMeshes": 0,
       "materials": 69,
-      "textures": 35,
+      "textures": 34,
       "particleSystems": 3,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 158
+      "heapMB": 177
     }
   },
   {
@@ -78,15 +78,15 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 390,
+      "meshes": 393,
       "ghostMeshes": 0,
       "materials": 132,
-      "textures": 98,
+      "textures": 99,
       "particleSystems": 3,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 208
+      "heapMB": 198
     }
   },
   {
@@ -104,7 +104,7 @@
       "beforeRenderObservers": 9,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 173
+      "heapMB": 191
     }
   },
   {
@@ -122,7 +122,7 @@
       "beforeRenderObservers": 12,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 165
+      "heapMB": 192
     }
   },
   {
@@ -140,7 +140,7 @@
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 315
+      "heapMB": 273
     }
   },
   {
@@ -151,14 +151,14 @@
       "course": "Timberline East",
       "natureSettled": true,
       "meshes": 317,
-      "ghostMeshes": 0,
-      "materials": 81,
+      "ghostMeshes": 2,
+      "materials": 83,
       "textures": 36,
       "particleSystems": 3,
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 252
+      "heapMB": 238
     }
   },
   {
@@ -168,15 +168,15 @@
       "hasScene": true,
       "course": "Port Johnson Links",
       "natureSettled": true,
-      "meshes": 212,
+      "meshes": 217,
       "ghostMeshes": 0,
       "materials": 69,
-      "textures": 34,
+      "textures": 35,
       "particleSystems": 3,
       "beforeRenderObservers": 11,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 203
+      "heapMB": 169
     }
   },
   {
@@ -186,7 +186,7 @@
       "hasScene": true,
       "course": "Red Hollow",
       "natureSettled": true,
-      "meshes": 388,
+      "meshes": 390,
       "ghostMeshes": 0,
       "materials": 132,
       "textures": 98,
@@ -194,7 +194,7 @@
       "beforeRenderObservers": 10,
       "engineScenes": 1,
       "sfxCacheSize": 0,
-      "heapMB": 209
+      "heapMB": 213
     }
   },
   {

@@ -100,6 +100,13 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await tile.dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
+  // The hub is a LANDING now (owner pass 11: "there should be a career
+  // landing, button to look at schedule, play the next event, see career
+  // records, improve your player"). Playing is on it; the season's reference
+  // material — standings and the sixteen events — is one tap away, so this
+  // walk goes and looks, then comes back to tee off exactly as a player would.
+  await expect(hub.locator('#thPlay')).toBeVisible();
+  await hub.locator('#thSched').dispatchEvent('click');
   // Standings: all 11 entrants; schedule: all 16 events, E1 marked current,
   // the four majors flagged.
   await expect(hub.locator('.tourResult .recRow')).toHaveCount(11);
@@ -107,7 +114,9 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await expect(hub.locator('.thEv.cur')).toContainText('E1');
   await expect(hub.locator('.thEv.major')).toHaveCount(4);
   await expect(hub).toContainText('The Grand Championship');
-  // Play from the hub.
+  await hub.locator('#thSchedBack').dispatchEvent('click');
+  // Play from the landing.
+  await expect(hub.locator('#thPlay')).toBeVisible();
   await hub.locator('#thPlay').dispatchEvent('pointerdown');
 
   // A tour round is live, played AS the career Pro (force-selected) — and
@@ -145,9 +154,15 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   // points — with event 2 up next, and the landing standing behind it.
   const hubAfter = page.locator('#tourHub');
   await expect(hubAfter).toBeVisible();
+  // The landing itself reports the season in one line and offers event 2…
+  await expect(hubAfter.locator('#thPlay')).toContainText('Event 2/16');
+  await expect(hubAfter.locator('#thSched')).toContainText('1/16 played');
+  // …and the schedule screen holds the result: event 1 done, with its points.
+  await hubAfter.locator('#thSched').dispatchEvent('click');
   await expect(hubAfter.locator('.thEv.done')).toHaveCount(1);
   await expect(hubAfter.locator('.thEv.done')).toContainText(/pts/);
   await expect(hubAfter.locator('.thEv.cur')).toContainText('E2');
+  await hubAfter.locator('#thSchedBack').dispatchEvent('click');
   await expect(page.locator('#landing')).toHaveClass(/on/);
   expect(errors, errors.join('\n')).toHaveLength(0);
 });

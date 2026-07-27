@@ -1048,12 +1048,20 @@ class HoleScene {
       const dot = MeshBuilder.CreateDisc(`aimDot${i}`, { radius: 0.55, tessellation: 12 }, this.scene);
       dot.rotation.x = Math.PI / 2;
       dot.material = aimMat;
+      // The guide is decoration lying ON the aiming surface, so it must never
+      // answer a pick. This matters most in the overhead view, where the dots
+      // are scaled up to 9x and sit flat under a top-down ray: a tap meant for
+      // the ground would land on the aim line instead and the aim would stop
+      // moving. (Edge-on in the play view it never bit, which is exactly why
+      // it went unnoticed until the aerial guide came back.)
+      dot.isPickable = false;
       dot.parent = this.aimRoot;
       this.aimDots.push(dot);
     }
     this.aimRing = MeshBuilder.CreateTorus('aimRing', { diameter: 6, thickness: 0.7, tessellation: 24 }, this.scene);
     this.aimRing.rotation.x = Math.PI / 2;
     this.aimRing.material = aimMat;
+    this.aimRing.isPickable = false;
     this.aimRing.parent = this.aimRoot;
     this.aimRoot.setEnabled(false);
 
@@ -1070,6 +1078,7 @@ class HoleScene {
       const dot = MeshBuilder.CreateDisc(`trueVisionDot${i}`, { radius: 0.45, tessellation: 10 }, this.scene);
       dot.rotation.x = Math.PI / 2;
       dot.material = trueVisionMat;
+      dot.isPickable = false; // decoration on the putting surface — same rule as the aim guide
       dot.parent = this.trueVisionRoot;
       this.trueVisionDots.push(dot);
     }
@@ -1082,6 +1091,7 @@ class HoleScene {
     const tvEnd = MeshBuilder.CreateDisc('trueVisionEnd', { radius: 0.45, tessellation: 24 }, this.scene);
     tvEnd.rotation.x = Math.PI / 2;
     tvEnd.material = tvEndMat;
+    tvEnd.isPickable = false;
     tvEnd.parent = this.trueVisionRoot;
     this.trueVisionEnd = tvEnd;
     this.trueVisionRoot.setEnabled(false);
