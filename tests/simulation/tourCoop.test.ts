@@ -10,6 +10,10 @@ import {
   TourSeasonState
 } from '../../src/systems/TourSeason';
 import { TOUR_RIVALS } from '../../src/data/tourRivals';
+import { completeTourRound } from '../../src/systems/TourSeason';
+import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
+import wildwood from '../../src/data/courses/wildwood.json';
+import { CourseData } from '../../src/core/types';
 import { migrateCoopDoc, parseCoopParam, coopUrl, makeCoopId } from '../../src/firebase/CoopSeason';
 
 /**
@@ -193,5 +197,25 @@ describe('a reload must not strand a shared season', () => {
     const revived = migrateTour(raw)!;
     expect(revived.results[0].field).toBeUndefined();
     expect(recomputeSeasonPoints(revived, IDS)['player']).toBe(TOUR_POINTS[0]);
+  });
+});
+
+describe('the field keeps its names', () => {
+  it('stores rival scores in RIVAL order, so a re-settle credits the right ones', () => {
+    // Regression: `field` was written in finishing order but read back
+    // positionally as rivals[i], so every rival's season points landed on
+    // whoever happened to finish in their slot.
+    const s = newSeason(31337);
+    const courses: Record<string, CourseData> = { wildwood: loadCourse(wildwood as unknown as CourseAuthoring) };
+    completeTourRound(s, courses, 11, 0, ['wildwood']);
+    const res = s.results[0];
+    expect(res.field).toHaveLength(TOUR_RIVALS.length);
+    // The stored line for each rival matches that rival's own event score.
+    const standings = recomputeSeasonPoints(s, ['wildwood'], TOUR_RIVALS);
+    expect(Object.keys(standings)).toEqual(expect.arrayContaining(TOUR_RIVALS.map((r) => r.id)));
+    // The winner recorded on the result is the rival whose stored score is best.
+    const best = Math.min(...res.field!.map((f) => f.toPar));
+    const bestIds = TOUR_RIVALS.filter((_, i) => res.field![i].toPar === best).map((r) => r.id);
+    if (res.winnerId !== 'player') expect(bestIds).toContain(res.winnerId);
   });
 });

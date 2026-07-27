@@ -1039,6 +1039,29 @@ Six asks, two of them the same root cause.
   can't enter the tour and grows no further; their Locker card becomes a 🏛
   Hall of Fame card and their record page is their career. They stay
   selectable for casual rounds — the career ends, not the golfer.
+- **When two real players tie** (owner: "what will happen when two real users
+  tie in a tournament. how will that resolve"). Tracing it found one case
+  right and two wrong. A tie INSIDE an event was already correct — both humans
+  share the winner's points, competition-style, computed identically on both
+  phones, and no playoff can run between two people who play days apart. But
+  the SEASON crown was broken: `finishSeason` ranked off `seasonStandings`,
+  which holds the local player and the AI rivals only, so both players were
+  crowned champion, both took the purse and both unlocked the achievement —
+  even if one had been beaten by 500 points. It now ranks off
+  `coopSeasonStandings`, and a points tie there breaks by COUNTBACK — most
+  event wins, then head-to-head over the events both played, then the
+  aggregate over those same events, then the player id as a backstop that
+  cannot tie. Every key is a fact both devices hold, and standings rows
+  resolve the local-only `'player'` id to that device's real one, so the two
+  phones cannot name different champions (`tourCoopTie.test.ts` pins exactly
+  that). Finishing first no longer wins by default either: your purse is paid
+  and never clawed back, but the title stays provisional — the hub reads
+  "waiting on Sam (12 of 16)" and the season sits complete until they finish,
+  a month of silence passes, or you tap Start next season, which freezes the
+  title where it stands. A third bug fell out of the same trace: event results
+  stored the field in FINISHING order and read it back positionally as
+  rival #1, #2…, so a shared season's re-settle credited rival points to the
+  wrong names; they are now stored in rival order, matched by id.
 - **Quit a season whenever you want** (owner: "you should be able to quit a
   season and start a new one whenever you want. the partial season counts for
   the golfer"). `seasonDone()` was the only notion of "over", so a bad season

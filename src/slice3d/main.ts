@@ -52,7 +52,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -6386,13 +6386,19 @@ function coopDisplayName(): string {
 function coopPartnersFrom(doc: CoopSeasonDoc, myId: string): TourCoopPartner[] {
   return Object.values(doc.players ?? {})
     .filter((p) => p.playerId !== myId)
-    .map((p) => ({
-      playerId: p.playerId,
-      name: p.name,
-      results: Object.fromEntries(
-        Object.entries(p.results ?? {}).map(([k, r]) => [Number(k), { total: r.total, toPar: r.toPar }])
-      )
-    }));
+    .map((p) => {
+      const posts = Object.values(p.results ?? {});
+      return {
+        playerId: p.playerId,
+        name: p.name,
+        results: Object.fromEntries(
+          Object.entries(p.results ?? {}).map(([k, r]) => [Number(k), { total: r.total, toPar: r.toPar }])
+        ),
+        // Newest post — the clock coopSeasonSettled runs down on a partner
+        // who walks away mid-season.
+        ...(posts.length ? { updatedAt: Math.max(...posts.map((r) => r.at || 0)) } : {})
+      };
+    });
 }
 
 /** Pull the shared doc and re-settle the points table. Safe to call on any
@@ -6403,8 +6409,34 @@ async function syncCoopSeason(repaint = false): Promise<void> {
   const doc = await fetchCoopSeason(t.coop.id);
   if (!doc || profile.tour !== t) return;
   applyCoopSnapshot(t, coopPartnersFrom(doc, t.coop.playerId), tourCourseIds());
+  settleFinishedCoopSeason(t);
   persistProfile();
   if (repaint && document.getElementById('tourHub')?.style.display === 'flex') renderTourHub();
+}
+
+/**
+ * A shared season the player has FINISHED sits waiting for their friend (the
+ * crown is not theirs until both are done). Every sync checks whether it can
+ * be settled now — because they finished, or because they went quiet long
+ * enough — and if so writes the final placing over the provisional one and
+ * pays the champion reward it was holding back.
+ */
+function settleFinishedCoopSeason(t: TourSeasonState): void {
+  const pro = activePro(profile.career);
+  if (!pro || t.played < TOUR_EVENTS || !t.coop) return;
+  if (!coopSeasonSettled(t, Date.now())) return;
+  const fin = finishSeason(t);
+  recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);
+  if (fin.playerRank === 1) {
+    awardSeasonChampion(t);
+    showMsg(`🏆 Season ${t.seasonNo} is yours — ${escapeHtml(pro.name)} takes the title.`, 3600);
+  } else {
+    showMsg(`Season ${t.seasonNo} settled: ${escapeHtml(fin.championName)} takes it.`, 3200);
+  }
+  // The season has done its job; the next one can roll now.
+  profile.tour = proRetired(profile.tourHistory, pro.id)
+    ? null
+    : rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
 }
 
 /** Start a shared season and hand the player a link to text. Uses the season
@@ -6719,27 +6751,35 @@ function tourEventOutcomeUi(
     // The season is over: crown, purse, roll into the next one. The
     // rivals persist; the schedule and points start fresh.
     const fin = finishSeason(t);
-    // The record book keeps the placement BEFORE rollover discards the season.
+    // SHARED SEASON: the title is not yours to claim until your friend has
+    // finished too — you have out-scored the AI field, not them (owner:
+    // settle when they finish). The purse below is still paid now and never
+    // clawed back; only the crown waits.
+    const settled = coopSeasonSettled(t, Date.now());
     if (recordPro) {
-      recordTourSeasonFinish(profile.tourHistory, recordPro.id, recordPro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);
+      recordTourSeasonFinish(
+        profile.tourHistory,
+        recordPro.id,
+        recordPro.name,
+        t.seasonNo,
+        fin.playerRank,
+        t.points['player'] ?? 0,
+        undefined,
+        !settled
+      );
     }
     profile.coins += fin.coins;
     profile.coinsEarned += fin.coins;
     profile.career = grantCp(profile.career, fin.cp);
     cpLine += `<div class="rwLine ach">💰 Season purse: +${fin.coins} 🪙 · +${fin.cp} CP (${ordinal(fin.playerRank)} in points)</div>`;
-    if (fin.playerRank === 1) {
-      profile.stats.seasonChampionships += 1;
-      if (!profile.achievements.includes('season_champion')) {
-        profile.achievements.push('season_champion');
-        const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
-        if (champ) {
-          profile.career = grantCp(profile.career, achievementCp(champ.xp));
-          profile.coins += champ.coins;
-          profile.coinsEarned += champ.coins;
-          cpLine += `<div class="rwLine ach">🏅 ${champ.name} — ${champ.desc}</div>`;
-        }
-      }
-      showCineBanner('SEASON CHAMPION', `Season ${t.seasonNo} · ${t.points['player'] ?? 0} points`, 'epic', 5200);
+    if (fin.playerRank === 1 && settled) {
+      awardSeasonChampion(t);
+      cpLine += `<div class="rwLine ach">🏅 Season Champion</div>`;
+    } else if (fin.playerRank === 1) {
+      const waiting = t.coop?.partners.map((p) => `${p.name} (${Object.keys(p.results).length}/${TOUR_EVENTS})`).join(', ');
+      cpLine +=
+        `<div class="rwLine level">🏅 Leading the season — not final until ` +
+        `${escapeHtml(waiting || 'your friend')} finishes.</div>`;
     } else {
       const champName = escapeHtml(fin.championName);
       cpLine += `<div class="rwLine level">👑 ${champName} takes the Season ${t.seasonNo} title</div>`;
@@ -6755,9 +6795,12 @@ function tourEventOutcomeUi(
         `<div class="rwLine ach">🏛 ${escapeHtml(recordPro.name)} retires to the Hall of Fame — ` +
         `${SEASON_LIMIT} seasons, ${profile.tourHistory[recordPro.id]?.wins ?? 0} wins, ` +
         `${profile.tourHistory[recordPro.id]?.majorWins ?? 0} majors. Start a new Pro to tour again.</div>`;
-    } else {
+    } else if (settled) {
       profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
     }
+    // …and when it ISN'T settled the season stays put: `played` is already 16
+    // so there is nothing left to play, the hub says who it is waiting on, and
+    // its button rolls the next season whenever the player wants it.
   } else {
     block += tourSeasonTableHtml();
   }
@@ -6775,6 +6818,23 @@ function tourEventOutcomeUi(
   }
   const primary = `<button id="tourHubBtn">Tour Season →</button>`;
   return { headline, block, cpLine, primary };
+}
+
+/** Pay the season-champion rewards. Extracted because a SHARED season can
+ *  crown you late — when your friend finally finishes — and the reward has to
+ *  be identical whether it lands at the finale or a week later. */
+function awardSeasonChampion(t: TourSeasonState): void {
+  profile.stats.seasonChampionships += 1;
+  if (!profile.achievements.includes('season_champion')) {
+    profile.achievements.push('season_champion');
+    const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
+    if (champ) {
+      profile.career = grantCp(profile.career, achievementCp(champ.xp));
+      profile.coins += champ.coins;
+      profile.coinsEarned += champ.coins;
+    }
+  }
+  showCineBanner('SEASON CHAMPION', `Season ${t.seasonNo} · ${t.points['player'] ?? 0} points`, 'epic', 5200);
 }
 
 /** Leave a summary card for the Tour hub — the landing behind it, the hub on
@@ -6889,18 +6949,28 @@ function confirmQuitSeason(): void {
   const pro = activePro(profile.career);
   if (!t || !pro) return;
   const started = t.played > 0;
+  const complete = t.played >= TOUR_EVENTS;
   const table = coopSeasonStandings(t);
   const rank = table.findIndex((r) => r.isPlayer) + 1;
   const pts = t.points['player'] ?? 0;
   const partner = t.coop?.partners[0]?.name;
-  const ask = started
+  // A COMPLETE shared season waiting on the friend is a different question:
+  // nothing is forfeited (the purse was paid at the finale) and no extra
+  // season is spent — moving on just freezes the title where it stands.
+  const ask = complete
+    ? `Season ${t.seasonNo} finishes as it stands — ` +
+      (rank === 1
+        ? `the title is yours.`
+        : `${escapeHtml(table[0].name)} takes it.`) +
+      ` Your purse is already banked. Start Season ${t.seasonNo + 1} now?`
+    : started
     ? `Season ${t.seasonNo} goes into ${escapeHtml(pro.name)}'s record as ` +
       `${ordinal(rank || table.length)} with ${pts} points after ${t.played} of ${TOUR_EVENTS} events. ` +
       `It counts as one of their ${SEASON_LIMIT} seasons, and the season purse is forfeited.`
     : `This season hasn't started, so you'll just get a new schedule. ` +
       `It won't count against ${escapeHtml(pro.name)}'s ${SEASON_LIMIT}.`;
   const coopNote =
-    started && partner
+    started && !complete && partner
       ? ` <br>${escapeHtml(partner)} keeps the events you've already posted — you just stop appearing in new ones.`
       : '';
   const modal = document.createElement('div');
@@ -6910,9 +6980,13 @@ function confirmQuitSeason(): void {
   modal.style.zIndex = '30';
   const close = (): void => modal.remove();
   modal.innerHTML =
-    `<div class="storeConfirmBox"><div class="scTitle">${started ? 'End this season?' : 'New schedule?'}</div>` +
+    `<div class="storeConfirmBox"><div class="scTitle">${
+      complete ? 'Start the next season?' : started ? 'End this season?' : 'New schedule?'
+    }</div>` +
     `<div class="scAsk">${ask}${coopNote}</div>` +
-    `<div class="btnRow"><button id="quitSeasonYes" class="dangerBtn">${started ? 'Yes, end it' : 'Yes, reroll'}</button>` +
+    `<div class="btnRow"><button id="quitSeasonYes" class="${complete ? 'ghostBtn' : 'dangerBtn'}">${
+      complete ? 'Start it' : started ? 'Yes, end it' : 'Yes, reroll'
+    }</button>` +
     `<button id="quitSeasonNo" class="ghostBtn">Cancel</button></div></div>`;
   // Tapping the dimmed backdrop cancels; `click` so a drag that merely starts
   // there doesn't dismiss it.
@@ -6939,8 +7013,15 @@ function applyQuitSeason(): void {
   const t = profile.tour;
   const pro = activePro(profile.career);
   if (!t || !pro) return;
+  // Moving on from a COMPLETE shared season freezes the title where it
+  // stands, so a player who is leading takes it rather than losing it by
+  // declining to wait. (The season is replaced below, so the deferred
+  // settle can never pay this a second time.)
+  const freezing = t.played >= TOUR_EVENTS && !!t.coop;
+  const champOnFreeze = freezing && coopSeasonStandings(t).findIndex((r) => r.isPlayer) === 0;
   const out = quitSeason(t, profile.tourHistory, pro.id, pro.name, Math.floor(Math.random() * 1e9));
   profile.tour = out.next;
+  if (champOnFreeze) awardSeasonChampion(t);
   // A season in progress can own a live round, a live playoff hole, and an
   // AI-tournament left over from another mode — none of them survive it.
   aiTour = null;
@@ -7013,6 +7094,9 @@ function renderTourHub(): void {
     : `Season ${t.seasonNo} tees off — the field is waiting.`;
   const hubPro = activePro(profile.career);
   const hubRetired = !!hubPro && proRetired(profile.tourHistory, hubPro.id);
+  // A finished shared season that is waiting on the friend: nothing left to
+  // play, and the title is not final yet.
+  const awaiting = t.played >= TOUR_EVENTS && !!t.coop && !coopSeasonSettled(t, Date.now());
   const poPending = playoffPending(t, ids);
   const playLabel = hubRetired
     ? ''
@@ -7059,6 +7143,15 @@ function renderTourHub(): void {
       ? `<div class="recSub">🏛 ${escapeHtml(hubPro!.name)} retired after ${SEASON_LIMIT} seasons — ` +
         `their career is in the records. Start a new Pro in the Locker to tour again.</div>`
       : '') +
+    (awaiting
+      ? `<div class="recSub">🏁 Season complete — waiting on ` +
+        escapeHtml(
+          t.coop!.partners
+            .map((p) => `${p.name} (${Object.keys(p.results).length} of ${TOUR_EVENTS})`)
+            .join(', ') || 'your friend'
+        ) +
+        `. The table below is provisional; start the next season whenever you like.</div>`
+      : '') +
     coopHubHtml(t) +
     tourSeasonTableHtml() +
     `<div class="tourHeadRow">Schedule &amp; results</div>` +
@@ -7066,7 +7159,9 @@ function renderTourHub(): void {
     `<button id="thRecords" class="ghostBtn">🏅 Golfer records</button>` +
     (hubRetired
       ? ''
-      : `<button id="thQuit" class="ghostBtn">${t.played > 0 ? '🚪 End this season' : '🎲 New schedule'}</button>`) +
+      : `<button id="thQuit" class="ghostBtn">${
+          awaiting ? 'Start next season →' : t.played > 0 ? '🚪 End this season' : '🎲 New schedule'
+        }</button>`) +
     `<button id="thBack" class="ghostBtn">Back</button></div>`;
   // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
   // Play is fine: the round scene replaces everything under the finger.

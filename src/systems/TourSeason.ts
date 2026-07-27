@@ -101,6 +101,10 @@ export interface TourCoopPartner {
   name: string;
   /** Event index → their score for that event. */
   results: Record<number, { total: number; toPar: number }>;
+  /** When they last posted anything (epoch ms, newest CoopResult.at). Absent
+   *  for a partner who has posted nothing. Used only to decide when a silent
+   *  partner has abandoned a shared season — see coopSeasonSettled. */
+  updatedAt?: number;
 }
 
 /** The shared-season link on a local season (owner pass 9). Absent = solo. */
@@ -276,7 +280,7 @@ export function completeTourRound(
     ev.playoff = { tiedRivalIds: tied, holes: [] };
     return { eventDone: false, standings, playoff: { tiedRivalIds: tied } };
   }
-  return finalizeTourEvent(s, def, standings);
+  return finalizeTourEvent(s, def, standings, undefined, rivals);
 }
 
 /** The rival ids tied with a LEADING player (leaderboard order), or null when
@@ -298,7 +302,8 @@ function finalizeTourEvent(
   s: TourSeasonState,
   def: TourEventDef,
   standings: TourStandingRow[],
-  playoffWinnerId?: string
+  playoffWinnerId?: string,
+  rivals: readonly TourRival[] = TOUR_RIVALS
 ): TourRoundOutcome {
   const pointsAwarded = pointsForStandings(standings, def.major, playoffWinnerId);
   let playerRank = standings.length;
@@ -321,7 +326,15 @@ function finalizeTourEvent(
     total: meRow.total,
     // The field's scores ride along so a SHARED season can re-rank this event
     // when the partner posts, without re-simulating ten physics rounds.
-    field: standings.filter((r) => !r.isPlayer).map((r) => ({ total: r.total, toPar: r.toPar }))
+    //
+    // Stored in RIVAL ORDER, matched by id — `standings` is sorted by score,
+    // and the re-settle reads this array positionally as rivals[i], so
+    // dumping it in finishing order silently attached each rival's season
+    // points to whoever happened to finish in their slot.
+    field: rivals.map((r) => {
+      const row = standings.find((x) => x.id === r.id);
+      return { total: row?.total ?? 0, toPar: row?.toPar ?? 0 };
+    })
   });
   s.played++;
   s.activeEvent = null;
@@ -399,10 +412,10 @@ export function completeTourPlayoffHole(
     const winner = beatMe.sort(
       (x, y) => rivalStrokes[x]! - rivalStrokes[y]! || po.tiedRivalIds.indexOf(x) - po.tiedRivalIds.indexOf(y)
     )[0];
-    return finalizeTourEvent(s, def, standings, winner);
+    return finalizeTourEvent(s, def, standings, winner, rivals);
   }
   if (alive.length === 0 || po.holes.length >= MAX_PLAYOFF_HOLES) {
-    return finalizeTourEvent(s, def, standings, 'player');
+    return finalizeTourEvent(s, def, standings, 'player', rivals);
   }
   return { eventDone: false, standings, playoff: { tiedRivalIds: alive } };
 }
@@ -462,26 +475,122 @@ export function recomputeSeasonPoints(
       points['player'] = (points['player'] ?? 0) + res.points;
       continue;
     }
-    const rows: TourStandingRow[] = [
-      { id: 'player', name: 'You', isPlayer: true, total: res.total, toPar: res.toPar },
-      ...res.field.map((f, i) => ({
-        id: rivals[i]?.id ?? `rival${i}`,
-        name: rivals[i]?.name ?? `Rival ${i + 1}`,
-        isPlayer: false,
-        total: f.total,
-        toPar: f.toPar
-      })),
-      ...(s.coop?.partners ?? []).flatMap((p) => {
-        const r = p.results[res.idx];
-        return r
-          ? [{ id: p.playerId, name: p.name, isPlayer: false, total: r.total, toPar: r.toPar }]
-          : [];
-      })
-    ].sort((a, b) => a.toPar - b.toPar || a.total - b.total || Number(b.isPlayer) - Number(a.isPlayer));
+    const rows = eventRowsFor(res, s, rivals);
     const awarded = pointsForStandings(rows, sched[res.idx]?.major ?? false);
     for (const [id, pts] of Object.entries(awarded)) points[id] = (points[id] ?? 0) + pts;
   }
   return points;
+}
+
+/**
+ * One finished event's leaderboard, rebuilt from the stored result: the local
+ * player, the ten AI scores, and every shared-season partner who has posted
+ * THAT event. Shared by the points math and the season countback so the two
+ * can never disagree about who finished where.
+ */
+function eventRowsFor(
+  res: TourEventResult,
+  s: TourSeasonState,
+  rivals: readonly TourRival[]
+): TourStandingRow[] {
+  return [
+    { id: 'player', name: 'You', isPlayer: true, total: res.total!, toPar: res.toPar },
+    ...(res.field ?? []).map((f, i) => ({
+      id: rivals[i]?.id ?? `rival${i}`,
+      name: rivals[i]?.name ?? `Rival ${i + 1}`,
+      isPlayer: false,
+      total: f.total,
+      toPar: f.toPar
+    })),
+    ...(s.coop?.partners ?? []).flatMap((p) => {
+      const r = p.results[res.idx];
+      return r ? [{ id: p.playerId, name: p.name, isPlayer: false, total: r.total, toPar: r.toPar }] : [];
+    })
+  ].sort((a, b) => a.toPar - b.toPar || a.total - b.total || Number(b.isPlayer) - Number(a.isPlayer));
+}
+
+/** What a season COUNTBACK needs about each entrant: how many events they
+ *  won outright-or-shared, their stroke total, and their score per event (for
+ *  the head-to-head step). */
+export interface SeasonCountback {
+  /** Events finished first, shared wins included. */
+  wins: number;
+  /** Raw strokes across every event on record — a display figure; the
+   *  comparator uses only the events both entrants played. */
+  strokes: number;
+  /** Event index → toPar, only for events this entrant actually posted. */
+  byEvent: Record<number, number>;
+}
+
+/**
+ * Season tallies beyond points, for breaking a tie between two REAL players
+ * (owner: "what will happen when two real users tie in a tournament").
+ *
+ * Points alone can leave two people dead level, and a shared season has to
+ * name the same champion on BOTH phones — so the tiebreak can only use facts
+ * both devices hold: the events on the local results log and whatever the
+ * partner has posted.
+ */
+export function seasonCountback(
+  s: TourSeasonState,
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): Record<string, SeasonCountback> {
+  const out: Record<string, SeasonCountback> = {};
+  const get = (id: string): SeasonCountback => (out[id] ??= { wins: 0, strokes: 0, byEvent: {} });
+  for (const res of s.results) {
+    if (!res.field || res.total === undefined) continue;
+    const rows = eventRowsFor(res, s, rivals);
+    rows.forEach((row, i) => {
+      // Keyed by the entrant's REAL id. The local player's row is the literal
+      // 'player' on every device, so keying by that would make the id
+      // tiebreak compare different strings on the two phones — and each would
+      // hand the title to the other.
+      const t = get(coopIdOf(row.id, s));
+      t.strokes += row.total;
+      t.byEvent[res.idx] = row.toPar;
+      if (competitionRank(rows, i) === 0) t.wins += 1;
+    });
+  }
+  return out;
+}
+
+/**
+ * Rank two entrants who are LEVEL ON POINTS. Negative = `a` ahead.
+ *
+ * Most event wins, then head-to-head over the events both played, then the
+ * fewest strokes across those same shared events (so simply having played
+ * more can neither help nor hurt), then the id — a deterministic backstop
+ * that guarantees both devices name the same champion and a dead heat is
+ * impossible.
+ */
+export function compareCountback(
+  aId: string,
+  bId: string,
+  cb: Record<string, SeasonCountback>
+): number {
+  const a = cb[aId];
+  const b = cb[bId];
+  if (!a || !b) return a ? -1 : b ? 1 : aId.localeCompare(bId);
+  if (a.wins !== b.wins) return b.wins - a.wins;
+  // Head-to-head, over the events BOTH posted — the only set where comparing
+  // them means anything.
+  const shared = Object.keys(a.byEvent)
+    .map(Number)
+    .filter((idx) => idx in b.byEvent);
+  let h2h = 0;
+  for (const idx of shared) {
+    if (a.byEvent[idx] < b.byEvent[idx]) h2h -= 1;
+    else if (a.byEvent[idx] > b.byEvent[idx]) h2h += 1;
+  }
+  if (h2h !== 0) return h2h;
+  // Then the aggregate over those same shared events, so having simply played
+  // more events can neither help nor hurt.
+  const agg = (t: SeasonCountback): number => shared.reduce((n, idx) => n + t.byEvent[idx], 0);
+  const byScore = agg(a) - agg(b);
+  if (byScore !== 0) return byScore;
+  // Nothing separates them: fall to the id, which is stable and identical on
+  // both devices, so the two phones can never name different champions.
+  return aId.localeCompare(bId);
 }
 
 /** Fold a fetched shared-season doc into the local season: the partner's
@@ -501,7 +610,16 @@ export function applyCoopSnapshot(
   return changed;
 }
 
-/** Season standings including any shared-season partners. */
+/**
+ * Season standings including any shared-season partners.
+ *
+ * The tiebreak is a COUNTBACK, not "whichever player this device belongs to".
+ * That was the bug: `Number(b.isPlayer) - Number(a.isPlayer)` put the local
+ * human on top of a level partner, so on a points tie each phone crowned
+ * itself and the two disagreed about who won. Every key below is computed
+ * from facts both devices hold, ending in an id comparison that cannot tie —
+ * so both name the same champion.
+ */
 export function coopSeasonStandings(
   s: TourSeasonState,
   rivals: readonly TourRival[] = TOUR_RIVALS
@@ -510,7 +628,46 @@ export function coopSeasonStandings(
   for (const p of s.coop?.partners ?? []) {
     rows.push({ id: p.playerId, name: p.name, isPlayer: false, total: s.points[p.playerId] ?? 0, toPar: 0 });
   }
-  return rows.sort((a, b) => b.total - a.total || Number(b.isPlayer) - Number(a.isPlayer));
+  if (!s.coop) return rows.sort((a, b) => b.total - a.total || Number(b.isPlayer) - Number(a.isPlayer));
+  const humans = new Set([s.coop.playerId, ...s.coop.partners.map((p) => p.playerId)]);
+  const cb = seasonCountback(s, rivals);
+  return rows.sort((a, b) => {
+    if (a.total !== b.total) return b.total - a.total;
+    // Two PEOPLE level on points go to the countback; an AI keeps the old
+    // display order (their ties are cosmetic — points already shared).
+    const ai = coopIdOf(a.id, s);
+    const bi = coopIdOf(b.id, s);
+    if (humans.has(ai) && humans.has(bi)) return compareCountback(ai, bi, cb);
+    return Number(b.isPlayer) - Number(a.isPlayer);
+  });
+}
+
+/** A standings row's id as BOTH devices know it: the local player's row is
+ *  always 'player', which is a different string on each phone, so a shared
+ *  season resolves it to that device's real player id. */
+function coopIdOf(rowId: string, s: TourSeasonState): string {
+  return rowId === 'player' && s.coop ? s.coop.playerId : rowId;
+}
+
+/** How long a partner can go silent before a shared season settles without
+ *  them (owner: "If they abandon, it settles to you"). */
+export const COOP_STALE_MS = 30 * 24 * 60 * 60 * 1000;
+
+/**
+ * Is a shared season's result FINAL? True for a solo season, for one where
+ * every partner has played all sixteen, and for one whose partner has gone
+ * quiet for a month. Until then the human title is provisional — the player
+ * who finished first has not beaten anyone yet.
+ */
+export function coopSeasonSettled(s: TourSeasonState, now: number): boolean {
+  const partners = s.coop?.partners ?? [];
+  if (partners.length === 0) return true;
+  return partners.every((p) => {
+    if (Object.keys(p.results).length >= TOUR_EVENTS) return true;
+    // A partner who never posted at all has no clock to run down — the season
+    // settles once the invite has been stale for the same month.
+    return now - (p.updatedAt ?? 0) > COOP_STALE_MS;
+  });
 }
 
 /** Cumulative event standings, lowest to-par first (ties: lower raw total,
@@ -552,7 +709,11 @@ export interface SeasonFinish {
 /** Close out a finished season: who took it, where the player landed, what
  *  the purse pays. The caller applies the rewards and then rolls over. */
 export function finishSeason(s: TourSeasonState, rivals: readonly TourRival[] = TOUR_RIVALS): SeasonFinish {
-  const table = seasonStandings(s, rivals);
+  // coopSeasonStandings, NOT seasonStandings: the partner has to be in the
+  // table or a shared season crowns BOTH players (each beat the AI field, so
+  // each was told they won). It falls through to the solo table when there is
+  // no partner, so nothing changes for a season played alone.
+  const table = coopSeasonStandings(s, rivals);
   const playerRank = table.findIndex((r) => r.isPlayer) + 1;
   return {
     championId: table[0].id,
@@ -581,6 +742,10 @@ export interface TourProSeasonFinish {
   rank: number;
   /** Season points the Pro finished with. */
   points: number;
+  /** Set while a SHARED season's result is not final — you finished all
+   *  sixteen but your friend has not, so the head-to-head placing here can
+   *  still move. Cleared when the season settles. */
+  provisional?: boolean;
   /** Events actually played, when the season was ABANDONED part-way (owner
    *  pass 9b: "you should be able to quit a season and start a new one
    *  whenever you want. the partial season counts for the golfer").
@@ -659,7 +824,8 @@ export function recordTourSeasonFinish(
   seasonNo: number,
   rank: number,
   points: number,
-  events?: number
+  events?: number,
+  provisional = false
 ): void {
   const rec = proRecord(h, proId, name);
   rec.seasons = rec.seasons.filter((s) => s.seasonNo !== seasonNo);
@@ -667,6 +833,7 @@ export function recordTourSeasonFinish(
     seasonNo,
     rank,
     points,
+    ...(provisional ? { provisional: true } : {}),
     ...(typeof events === 'number' && events < TOUR_EVENTS ? { events } : {})
   });
   rec.seasons.sort((a, b) => a.seasonNo - b.seasonNo);
@@ -732,7 +899,13 @@ export function migrateTourHistory(raw: unknown): TourHistory {
       const ev = typeof s.events === 'number' && s.events >= 0 && s.events < TOUR_EVENTS
         ? Math.floor(s.events)
         : undefined;
-      seasons.push({ seasonNo: s.seasonNo, rank: s.rank, points: s.points, ...(ev !== undefined ? { events: ev } : {}) });
+      seasons.push({
+        seasonNo: s.seasonNo,
+        rank: s.rank,
+        points: s.points,
+        ...(s.provisional === true ? { provisional: true } : {}),
+        ...(ev !== undefined ? { events: ev } : {})
+      });
     }
     if (!ok) continue;
     // Floor, never round up — a corrupted fraction must not inflate a tally.
@@ -858,7 +1031,12 @@ function migrateCoop(raw: unknown): TourCoopState | null {
       if (!r || typeof r.total !== 'number' || typeof r.toPar !== 'number') continue;
       results[idx] = { total: r.total, toPar: r.toPar };
     }
-    partners.push({ playerId: p.playerId, name: p.name, results });
+    partners.push({
+      playerId: p.playerId,
+      name: p.name,
+      results,
+      ...(typeof p.updatedAt === 'number' ? { updatedAt: p.updatedAt } : {})
+    });
   }
   return { id: c.id, playerId: c.playerId, partners };
 }
