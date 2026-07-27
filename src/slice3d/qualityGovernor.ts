@@ -30,9 +30,21 @@ const STORAGE_KEY = 'jg-quality';
 
 /** Frame samples kept for the promote window; demotion reads the tail of it. */
 const WINDOW = PROMOTE_FRAMES;
-/** Frames longer than this are a build stall or a backgrounded tab, not a
- *  rendering cost — sampling them would demote a device for a glTF load. */
-const OUTLIER_MS = 250;
+/**
+ * Ceiling a sample is CLAMPED to — not dropped at.
+ *
+ * This used to be a drop: any frame over 250ms was discarded so a one-off glTF
+ * stall could not demote a smooth device. That reasoning was wrong twice over.
+ * A single outlier cannot move a median or a stall-share anyway, so the filter
+ * protected nothing — and it silenced the governor exactly when it mattered: a
+ * device rendering at 4fps produces frames that are ALL over the cutoff, so it
+ * recorded zero samples and never demoted, no matter how bad things got.
+ *
+ * Clamping instead keeps the frame as evidence (it counts as a stall, and it
+ * counts toward a panic run) without letting one 8-second hitch distort the
+ * arithmetic.
+ */
+const CLAMP_MS = 2000;
 
 interface GovernorState {
   tier: QualityTier;
@@ -116,7 +128,9 @@ export function startQualityGovernor(
       remembered: storedTier(),
       dpr: typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1,
       cores: nav.hardwareConcurrency,
-      memoryGb: nav.deviceMemory
+      memoryGb: nav.deviceMemory,
+      coarsePointer:
+        typeof matchMedia === 'function' ? matchMedia('(pointer: coarse)').matches : (nav.maxTouchPoints ?? 0) > 0
     });
     state.floor = state.tier;
   }
@@ -143,8 +157,8 @@ const TRIM_SLACK = 60;
  * fifteen.
  */
 export function sampleFrame(deltaMs: number): void {
-  if (state.pinned || !(deltaMs > 0) || deltaMs > OUTLIER_MS) return;
-  state.samples.push(deltaMs);
+  if (state.pinned || !(deltaMs > 0)) return;
+  state.samples.push(Math.min(deltaMs, CLAMP_MS));
   if (state.samples.length > WINDOW + TRIM_SLACK) state.samples.splice(0, state.samples.length - WINDOW);
   if (++state.sinceDecision < DECIDE_EVERY) return;
   state.sinceDecision = 0;

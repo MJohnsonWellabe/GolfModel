@@ -153,6 +153,7 @@ import { readTrace, resolveTraceSwing, type TraceSample, type TraceState } from 
 import { TracePad } from './tracePad';
 import { DesignMode, type FlyCam } from './designMode';
 import { ShotCapture } from './shotCapture';
+import type { QualityProfile } from '../core/rendering/quality';
 import {
   demoteQuality,
   qualityStatus,
@@ -180,10 +181,51 @@ const canvas = document.getElementById('scene') as HTMLCanvasElement;
 // harness.
 const needsReadableBuffer =
   (typeof navigator !== 'undefined' && navigator.webdriver === true) || SHOT.hole !== undefined;
-const engine3d = new Engine(canvas, true, {
-  adaptToDeviceRatio: true,
-  preserveDrawingBuffer: needsReadableBuffer
-});
+//
+// GUARDED, because a failure here used to take the WHOLE APP down. This is a
+// module-top-level statement and every menu listener is registered hundreds of
+// lines below it, so when the constructor threw ("WebGL not supported", after
+// Chrome had given up on a page that lost its context too many times) the
+// module died and the browser was left painting `#setup`'s static markup with
+// empty slots and no handlers — the owner's "smaller version of the menus that
+// isn't functional".
+//
+// The menu layer needs no GPU at all (showLanding, the Locker, the Tour hub and
+// the destination sheet are DOM plus profile state), so a device that cannot
+// give us a context should still get a working game menu and an honest message,
+// not a dead page. `engine3d` is therefore nullable and the handful of uses at
+// module scope are guarded; a stand-in object pretending to be an Engine was
+// rejected as the more dangerous option — it would have failed later, somewhere
+// subtler.
+let engine3d: Engine | null = null;
+try {
+  engine3d = new Engine(canvas, true, {
+    adaptToDeviceRatio: true,
+    preserveDrawingBuffer: needsReadableBuffer
+  });
+} catch (err) {
+  // Keep going. Everything below this point is either GPU-free or guarded.
+  console.error('[boot] no WebGL context — menus only', err);
+}
+/** True when there is a GPU to draw a hole with. False means menus-only. */
+const gpuReady = engine3d !== null;
+/**
+ * Set once a lost context has failed to come back (see
+ * `abandonAfterContextLoss`), cleared if one ever does.
+ *
+ * `gpuReady` is decided once at boot and cannot answer this: the engine object
+ * still exists after its context dies, so without this flag the menus would
+ * cheerfully accept "resume the round" and build a scene against a dead
+ * engine — a black canvas, which is the outcome the refusal exists to prevent.
+ * Declared up here beside `gpuReady`, not beside the handler that sets it,
+ * because `gpuBlocked` reads it thousands of lines earlier and a `let` in
+ * temporal dead zone would throw.
+ */
+let contextGone = false;
+/** The engine, asserted present. Safe ONLY from code reachable inside a live
+ *  hole: `playHole` refuses to build one without a context, so anything running
+ *  under a HoleScene is guaranteed a GPU. Never call it at module scope. */
+const gpu = (): Engine => engine3d as Engine;
 
 // Cap the render resolution at 2x CSS pixels. `adaptToDeviceRatio` above backs
 // the canvas at the display's FULL pixel ratio (3x on many phones), and every
@@ -205,8 +247,24 @@ const renderDpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
 // says the device cannot hold 30 fps, and back up when it can. See
 // src/core/rendering/quality.ts for why that is the fix for the reported
 // lag-then-crash rather than thinning any one course.
+/**
+ * Set once the round machinery exists, to shed quality on a hole that is
+ * ALREADY BUILT (everything else in a profile is a build-time budget, which is
+ * no help to a player standing on a hole that is too expensive right now).
+ *
+ * Reached through this hook rather than by touching `current` directly:
+ * `startQualityGovernor` invokes its callback SYNCHRONOUSLY, here at module
+ * top level, and `current` is declared two thousand lines below — so naming it
+ * inside the callback threw a temporal-dead-zone ReferenceError during import
+ * and took the whole module down. Exactly the failure mode the engine guard
+ * above exists to prevent, arriving by a different door.
+ */
+let shedLiveQuality: ((q: QualityProfile) => void) | null = null;
 startQualityGovernor(
-  (q) => engine3d.setHardwareScalingLevel(1 / (renderDpr * q.renderScale)),
+  (q) => {
+    engine3d?.setHardwareScalingLevel(1 / (renderDpr * q.renderScale));
+    shedLiveQuality?.(q);
+  },
   // Read straight from storage: `deviceSettings` is assembled much further down
   // this module, and the governor has to be live before the first scene build.
   loadDeviceSettings()?.graphics ?? 'auto'
@@ -214,7 +272,7 @@ startQualityGovernor(
 // Nothing here uses Babylon's offline asset DB — the default `true` makes the
 // loader probe for a `.manifest` beside every glb/texture and touch IndexedDB
 // on load. Off removes that load-time XHR/DB churn (no visual change).
-engine3d.enableOfflineSupport = false;
+if (engine3d) engine3d.enableOfflineSupport = false;
 
 
 // `value` (optional) carries a numeric metric for the event — used by the input
@@ -971,7 +1029,7 @@ class HoleScene {
 
   constructor(private onHoleComplete: (scores: number[]) => void) {
     markPerf(round.course.name, this.hole.number, 'hole-constructor-start');
-    this.scene = new Scene(engine3d);
+    this.scene = new Scene(gpu());
     // All input is raw DOM listeners on the canvas — there are no Babylon
     // ActionManagers, onPointerObservable subscribers, or scene.pick calls — so
     // the default per-pointer-move mesh pick serves nothing. Skip it.
@@ -2019,9 +2077,20 @@ class HoleScene {
     this.camera.position.copyFrom(this.camTarget.pos);
     this.camera.setTarget(this.camTarget.look.clone());
     if (isFrozen()) {
-      // Hold character idle animation still for pixel-stable captures
+      // Hold character idle animation still for pixel-stable captures.
       void this.bodiesReady.then(() => {
-        this.scene.animationGroups.forEach((g) => g.pause());
+        this.scene.animationGroups.forEach((g) => {
+          // SEEK, then pause. Pausing alone stops each group wherever it
+          // happened to have reached, which depends on how long the body took
+          // to load — so two supposedly frozen captures held the golfer in
+          // different poses, and the club head alone accounted for half a
+          // percent of the frame in the batching gate. Seeking first makes
+          // "frozen" mean one specific pose rather than an arbitrary one.
+          // (`goToFrame` is a documented no-op on a group that never started,
+          // which is already a deterministic bind pose.)
+          g.goToFrame(g.from);
+          g.pause();
+        });
       });
     }
   }
@@ -3875,7 +3944,7 @@ class HoleScene {
     // report a multi-hundred-ms delta that snaps every exponential-lerp toward
     // its target in one frame — that's what made the flyover appear to start
     // mid-fairway and jolted the ball. Cap at ~3 frames' worth.
-    const dt = Math.min(0.05, engine3d.getDeltaTime() / 1000);
+    const dt = Math.min(0.05, gpu().getDeltaTime() / 1000);
 
     // Float the aim readout over its world anchor (projected each frame so it
     // tracks the smoothing camera). Scratch objects reused per frame — this
@@ -3883,16 +3952,16 @@ class HoleScene {
     // Matrix + Viewport each time (GC churn during the aim/idle window).
     if (this.aimReadoutWorld && this.state.phase === 'aiming' && !this.ai) {
       const wp = w2b(this.aimReadoutWorld.x, this.aimReadoutWorld.y, this.gh(this.aimReadoutWorld.x, this.aimReadoutWorld.y) + 4);
-      this._readoutViewport.width = engine3d.getRenderWidth();
-      this._readoutViewport.height = engine3d.getRenderHeight();
+      this._readoutViewport.width = gpu().getRenderWidth();
+      this._readoutViewport.height = gpu().getRenderHeight();
       const s = Vector3.Project(
         wp,
         this._identity,
         this.scene.getTransformMatrix(),
         this._readoutViewport
       );
-      const w = engine3d.getRenderWidth();
-      const h = engine3d.getRenderHeight();
+      const w = gpu().getRenderWidth();
+      const h = gpu().getRenderHeight();
       // Show the readout whenever the aim point is IN FRONT of the camera. When
       // it projects outside the viewport (common — the pin often sits above the
       // top edge in the shot view), clamp the label to a screen-edge margin
@@ -4225,6 +4294,17 @@ class HoleScene {
     }
   }
 
+  /**
+   * Shed what this hole is spending, without rebuilding it. The governor calls
+   * this when it demotes mid-hole; everything else in a quality profile is a
+   * build-time budget and only reaches the NEXT hole, which is no help to a
+   * player standing on this one.
+   */
+  applyQuality(q: QualityProfile): void {
+    if (this.disposed) return;
+    this.course3d.shedQuality(q);
+  }
+
   dispose(): void {
     this.disposed = true;
     document.documentElement.classList.remove('fire-vignette');
@@ -4274,12 +4354,27 @@ class HoleScene {
 // -------------------------------------------------------- round orchestration
 
 let current: HoleScene | null = null;
+// Now that `current` exists, let the quality governor reach the live hole.
+shedLiveQuality = (q) => current?.applyQuality(q);
 const holesThisRound = (): number => Math.min(RULES.holesPerRound, round.course.holes.length);
 
 /** Play one hole. Every competitor plays it in a single scene (alternating
  *  turns for 1v1/scramble); the callback returns each competitor's strokes. */
 const loadingEl = document.getElementById('loading');
+/**
+ * Bumped by every `showLoading`. A hide that was SCHEDULED against an earlier
+ * veil must not lower a later one.
+ *
+ * `buildWithLoading` arms two deferred lifts (ground-ready, and a 4 s safety
+ * cap). If the context is lost while a build is still resolving, the loss
+ * handler raises its own "Rebuilding the hole…" veil — and the dead build's
+ * safety cap would then fire and lower it, uncovering a hole that was never
+ * rebuilt, seconds before the abandon timer had its say. Only two functions
+ * raise the veil, and each owns lowering the one it raised.
+ */
+let veilGen = 0;
 function showLoading(msg = 'Loading course…'): void {
+  veilGen++;
   const txt = document.getElementById('loadingTxt');
   if (txt) txt.textContent = msg;
   loadingEl?.classList.add('on');
@@ -4307,6 +4402,8 @@ function hideLoading(): void {
  *  course paints first. Runs `build` exactly once. */
 function buildWithLoading(build: () => void, msg?: string): void {
   showLoading(msg);
+  // The veil THIS build owns. See `veilGen`.
+  const gen = veilGen;
   let ran = false;
   const go = (): void => {
     if (ran) return;
@@ -4323,7 +4420,13 @@ function buildWithLoading(build: () => void, msg?: string): void {
       const lift = (): void => {
         if (lifted) return;
         lifted = true;
-        requestAnimationFrame(() => hideLoading());
+        // Only lower the veil this build raised — a later one belongs to
+        // whoever raised it. Re-checked inside the frame callback because a
+        // loss can land in the gap.
+        if (gen !== veilGen) return;
+        requestAnimationFrame(() => {
+          if (gen === veilGen) hideLoading();
+        });
       };
       void (current?.groundReady ?? Promise.resolve()).then(lift);
       setTimeout(lift, 4000);
@@ -4436,7 +4539,35 @@ function checkpointRound(): void {
   );
 }
 
+/**
+ * Refuse to start a round when there is no GPU, and say why.
+ *
+ * Returns true when the caller must bail. Called at the three points that
+ * cover all thirteen ways into a hole: `startRound` (quick play, the wizard,
+ * the tutorial, the daily hole, the range and its drills, resume, the builder,
+ * and the test hook), `startTourEvent`, and `playHole` as the backstop for the
+ * tour/AI paths that reach it directly.
+ *
+ * Deliberately BEFORE `buildWithLoading` at every site: that raises the loading
+ * veil before it runs the build, so refusing later would leave the player
+ * staring at a veil for the four seconds its safety cap takes to lift.
+ */
+function gpuBlocked(): boolean {
+  if (gpuReady && !contextGone) return false;
+  // Put the player back where they can act. Several callers hide the landing
+  // (or the wizard) BEFORE they ask for a round, so refusing without this
+  // leaves them on a blank screen with nothing to press — the failure this
+  // whole change exists to remove. Restoring here covers every caller at once,
+  // rather than trusting thirteen entry points to each undo their own
+  // teardown.
+  hideLoading();
+  showLanding();
+  showMsg('This device can’t start a round right now — its graphics are unavailable.', 3600);
+  return true;
+}
+
 function playHole(): void {
+  if (gpuBlocked()) return;
   checkpointRound();
   current?.dispose();
   // The build stall, the glTF loads and the intro flyover are not steady play —
@@ -6596,6 +6727,7 @@ function tourEventName(def: TourEventDef): string {
  *  career is required (the card deep-links to the Locker instead) and the Pro
  *  is force-selected for the round. Creates the season on first entry. */
 function startTourEvent(): void {
+  if (gpuBlocked()) return;
   if (!flag('careerMode') || !careerStarted(profile.career)) return;
   const pro = activePro(profile.career);
   if (pro && proRetired(profile.tourHistory, pro.id)) {
@@ -7632,13 +7764,13 @@ function showTourBoard(): void {
   modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
 }
 
-engine3d.runRenderLoop(() => {
+engine3d?.runRenderLoop(() => {
   current?.render();
   // Only frames that actually drew a hole are evidence about rendering cost —
   // a menu frame is nearly free and would flatter a struggling device.
-  if (current) sampleFrame(engine3d.getDeltaTime());
+  if (current) sampleFrame(gpu().getDeltaTime());
 });
-window.addEventListener('resize', () => engine3d.resize());
+window.addEventListener('resize', () => engine3d?.resize());
 
 // WEBGL CONTEXT LOSS. On iOS the GPU process reclaims contexts under memory
 // pressure, and an unhandled loss leaves the canvas frozen on its last frame
@@ -7650,18 +7782,101 @@ window.addEventListener('resize', () => engine3d.resize());
 // Round state (course, seed, hole, card) is plain data that outlives the scene,
 // and the ball and stroke count are carried across below, so the player comes
 // back to the same lie. Only a shot already in flight is lost.
+/**
+ * The GPU is gone and is not coming back. Put the player somewhere they can
+ * act instead of leaving them under a veil.
+ *
+ * This cannot go through `leaveRound()`: that calls `current.dispose()`, and
+ * disposing a scene whose context has been destroyed throws. So it does the
+ * same chrome teardown by hand, drops the scene reference WITHOUT disposing
+ * (there is nothing left to free — the context took it), and saves the card
+ * first so the round can be picked up again from the menu.
+ */
+function abandonAfterContextLoss(): void {
+  // This runs BECAUSE the GPU already died, so treat every step before the
+  // chrome reset as able to fail. None of it may be allowed to stop the player
+  // reaching a menu — that is the entire purpose of the function, and a throw
+  // halfway through would recreate the trap it exists to open.
+  const hadRound = current !== null;
+  if (hadRound) {
+    // Save the card BEFORE dropping the scene — checkpointRound reads the ball
+    // and stroke count, which are plain state and safe to touch.
+    try {
+      checkpointRound();
+    } catch {
+      /* best-effort — a lost card is better than a stuck screen */
+    }
+  }
+  // Drop the scene WITHOUT disposing: disposing against a destroyed context
+  // throws, and there is nothing left to free — the context took it.
+  current = null;
+  // The GPU is not coming back for this page, so refuse further rounds until a
+  // restore says otherwise (see `contextGone`).
+  contextGone = true;
+  if (hadRound) {
+    try {
+      exposeDebug();
+      roundRecorder.stop();
+      tourRoundLive = false;
+    } catch {
+      /* best-effort */
+    }
+  }
+  // UNCONDITIONAL from here down.
+  hideLoading();
+  swingBtn.style.display = 'none';
+  hudEl.style.display = 'none';
+  pauseBtn.style.display = 'none';
+  promptEl.textContent = '';
+  aimReadoutEl.style.display = 'none';
+  summaryEl.style.display = 'none';
+  showLanding();
+  showMsg('The graphics ran out of memory. Your card is saved — finish the round from the menu.', 4200);
+}
+
+/** Fires if the context never comes back — see the handler below. */
+let contextLostTimer: ReturnType<typeof setTimeout> | null = null;
+/** How long to wait for a restore before assuming the GPU process is gone.
+ *  Chrome usually restores within a second or two when it is going to at all. */
+const CONTEXT_RESTORE_GRACE_MS = 8000;
+
 canvas.addEventListener('webglcontextlost', (e) => {
   e.preventDefault(); // without this the context is never eligible for restore
-  // The veil is raised here and lifted by buildWithLoading below (or by
-  // hideLoading when there was no hole to rebuild) — never by playHole itself.
+  // DEMOTE HERE, NOT ON RESTORE. A lost context is the GPU reporting it ran out
+  // of room, and `remember()` writes the tier to localStorage synchronously —
+  // so doing it now means the setting survives even if the tab is killed a
+  // moment later. Doing it in the restored handler (as this first shipped)
+  // meant the one path that actually happens — the GPU process dying, with no
+  // restore ever — left the device to relaunch at the budget that killed it.
+  demoteQuality('webgl context lost');
+  // The veil is raised here and lifted by the restore handler, or by the
+  // timeout below — never by playHole itself.
   showLoading('Rebuilding the hole…');
+  // A MODAL WITH NO EXIT IS NEVER ACCEPTABLE. This veil is opaque and swallows
+  // taps, and the only thing that lifted it was `webglcontextrestored`. When
+  // the GPU PROCESS dies rather than the context being recycled, that event
+  // never arrives — so the player sat behind "Rebuilding the hole…" forever
+  // (owner: "it went to a screen that said rebuilding hole but couldn't ever
+  // rebuild it"). Worse than the behaviour it replaced, where the picture
+  // froze but the pause button still worked.
+  if (contextLostTimer) clearTimeout(contextLostTimer);
+  contextLostTimer = setTimeout(() => {
+    contextLostTimer = null;
+    abandonAfterContextLoss();
+  }, CONTEXT_RESTORE_GRACE_MS);
 });
 canvas.addEventListener('webglcontextrestored', () => {
+  if (contextLostTimer) {
+    clearTimeout(contextLostTimer);
+    contextLostTimer = null;
+  }
+  // There is a context again, so rounds are allowed again — this matters when
+  // restore arrives LATE, after the grace period already gave up and sent the
+  // player back to the menu.
+  contextGone = false;
   // The lost context took every GPU resource with it; the JS-side scene is
-  // rubble. Drop to the cheapest budget the device has earned and rebuild —
-  // a context is lost because memory ran out, so coming back at the same price
-  // just loses it again.
-  demoteQuality('webgl context lost');
+  // rubble. The tier already sank in the lost handler above, so the rebuild
+  // below comes back cheaper than the scene that just died.
   if (!current) {
     hideLoading();
     return;
@@ -7687,7 +7902,7 @@ mountEnvBadge();
 document.documentElement.classList.toggle('ff-delight', flag('delight'));
 
 // Perf probe for the Playwright FPS baseline (Phase 9).
-(window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();
+(window as unknown as { __fps: () => number }).__fps = () => engine3d?.getFps() ?? 0;
 
 /** Adaptive-quality probe: what tier the device settled on, why, and what that
  *  tier is currently spending. Read by the perf spec and by support requests
@@ -7695,7 +7910,7 @@ document.documentElement.classList.toggle('ff-delight', flag('delight'));
 (window as unknown as { __quality: unknown }).__quality = () => ({
   ...qualityStatus(),
   profile: renderQuality(),
-  hardwareScaling: engine3d.getHardwareScalingLevel()
+  hardwareScaling: engine3d?.getHardwareScalingLevel() ?? 0
 });
 (window as unknown as { __resetQuality: unknown }).__resetQuality = () => {
   resetQualityMemory();
@@ -7724,7 +7939,7 @@ document.documentElement.classList.toggle('ff-delight', flag('delight'));
     textures: scene ? scene.textures.length : 0,
     particleSystems: scene ? scene.particleSystems.length : 0,
     beforeRenderObservers: scene ? scene.onBeforeRenderObservable.observers.length : 0,
-    engineScenes: engine3d.scenes.length,
+    engineScenes: engine3d?.scenes.length ?? 0,
     sfxCacheSize: sfxCache.size,
     heapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null
   };
@@ -10442,6 +10657,7 @@ function grantRoundTrueVision(): void {
 }
 
 function startRound(startHoleIdx = 0): void {
+  if (gpuBlocked()) return;
   // A fresh start from the menu abandons any half-finished AI tournament, and
   // any tour ROUND in play (the tour EVENT's banked rounds live on the
   // profile and survive — that's what makes majors resumable; a pending

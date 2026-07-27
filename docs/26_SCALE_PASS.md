@@ -1791,4 +1791,164 @@ The quality governor remains blind to this shape of stall (it demotes on a
 90-frame **median**, and drops frames over 250 ms entirely, so a device at 4 fps
 records no samples at all), `scatterScale` is 1.0 at tiers 0 **and** 1, and
 `bootTier` has no "this is a phone" signal. The `webglcontextlost` veil still
-has no escape when restore never fires. Those are the next pass.
+has no escape when restore never fires. Those are the next pass — §32.
+
+## 32. Surviving the stall: a governor that can see it, and a GPU that can die
+
+The stall in §31 was the cause. This section is about everything that happened
+*after* it — the part of the owner's report that the fix above does not touch:
+
+> "then it went to a screen that said rebuilding hole but couldn't ever rebuild
+> it. I refreshed and it couldn't build the menus. It builds a smaller version
+> of the menus that isn't functional then lands on the attached page."
+
+The attached page read **"The game didn't load — Uncaught Error: WebGL not
+supported."** Three distinct defects sit between the stall and that screenshot,
+and two of them were introduced by the previous pass.
+
+### The veil had no exit
+
+`webglcontextlost` raised the opaque, pointer-blocking `#loading` overlay, and
+only `webglcontextrestored` could lower it. When the GPU **process dies** rather
+than recycling, restore never fires — so the veil was permanent. That is the
+"couldn't ever rebuild it" screen: not a slow rebuild, a rebuild that was never
+going to come. Before that handler existed the canvas merely froze and the pause
+button still worked, so this was a regression that made the failure worse.
+
+`demoteQuality` was also wired to the **restored** handler only. On the path
+that actually happens the tier never sank and never persisted, so the device
+relaunched at exactly the budget that had just killed it.
+
+Now: the lost handler demotes (writing the tier to `localStorage` synchronously,
+so it survives a tab death), and starts an 8 s grace timer. If restore arrives,
+the timer is cleared and play resumes. If it does not, the round is checkpointed
+to the player's card, the veil drops, and they land on the menu with an
+explanation. The dead scene is deliberately **not** disposed — disposing against
+a lost context throws — so `current` is dropped instead.
+
+### Losing the GPU took the menus with it
+
+`new Engine(canvas, …)` was a module-top-level statement, and every menu
+listener is registered several thousand lines below it. When the constructor
+threw, the module died at line one and the browser painted `#setup`'s static
+markup — which is `display:flex` by default and only hidden by `showLanding()`
+— with empty slots and no handlers. That is precisely the owner's "smaller
+version of the menus that isn't functional".
+
+The menu layer needs no GPU: `showLanding`, `renderLockerRoom`, `renderProfile`,
+`renderTourHub` and the destination sheet are DOM plus profile state. So losing
+the context should cost the player the **round**, not the **game**. `engine3d`
+is now nullable and built in a try/catch, every top-level use is guarded, and
+the three entry points that can reach `new HoleScene` refuse with a message
+instead of a white screen. There is no fake engine stand-in — an object that
+lied about being an `Engine` would fail somewhere subtler and further away.
+
+The 10 s boot watchdog was making it worse by claiming a fresh version had been
+published, sending the player into a reload loop; it now branches on the
+captured error and says something true.
+
+### Why the governor watched this happen and did nothing
+
+Two independent reasons, both structural:
+
+1. **It judged on a 90-frame median.** The scatter drain's cost was a periodic
+   spike among cheap frames — 459 ms against a 1.5 ms median. A median cannot
+   see that *by construction*, however severe it gets.
+2. **The sampler dropped frames over 250 ms as outliers.** The intent was to
+   stop one glTF stall from demoting a smooth device. The effect was that a
+   device at 4 fps — where every frame exceeds the cutoff — recorded **zero**
+   samples, so the governor fell silent at the exact moment it was needed.
+
+The filter also protected nothing: a single outlier cannot move a median. It is
+now a **clamp** at 2 s rather than a drop, which keeps the frame as evidence
+without letting one 8 s hitch distort the arithmetic. Beside the median sit two
+new gates: a **stall share** (what fraction of the window exceeded 90 ms), which
+sees a recurring hitch a median cannot; and a **panic run** of consecutive
+severe frames, which demotes in six frames rather than ninety when a device is
+visibly dying.
+
+Two calibration bugs turned up alongside them. `scatterScale` was 1.0 at tiers 0
+*and* 1, so the first demotion shed no grass at all — nothing against the
+dominant cost on the only holes that struggle. And `bootTier` had no phone
+signal: a modern Android reports 8 cores and dpr 3, and sailed through every
+heuristic straight to full price. `matchMedia('(pointer: coarse)')` now costs a
+touch device its first tier, with the remembered-tier override still winning
+over it, so a phone that measured fine is not held back.
+
+### Shedding on the hole in progress
+
+Everything the governor controls was previously sized at **build** time, so a
+demotion mid-round did nothing until the next hole — which on a device already
+stalling is a hole it may not reach. `HoleScene.applyQuality` now forwards to
+`Course3D.shedQuality`, which disposes the water mirror (unwiring
+`reflectionTexture` from the materials first), lowers `shadows.mapSize`, forces
+`REFRESHRATE_RENDER_ONCE`, and thins the scatter.
+
+`NatureBatcher.thinTo(fraction)` zeroes a **stride** of matrix slots. Slots are
+appended in grid-scan order, so consecutive slots are adjacent ground positions
+and a stride is already a spatially uniform sample. Lowering `thinInstanceCount`
+would have been cheaper and wrong: it deletes the tail of the scan, which is a
+contiguous region — a bald stripe carved out of every cell. Thinning is one-way
+within a hole; restoring would mean keeping a second copy of every matrix, and
+the next hole rebuilds at the new tier anyway.
+
+### What is gated
+
+- `tests/simulation/renderQuality.test.ts` — the cases the old policy provably
+  failed: a periodic hitch that never moves the median demotes; a device whose
+  every frame exceeds the old 250 ms cutoff demotes; a single isolated stall
+  still does not; tier 1 sheds grass; a coarse-pointer device never boots at
+  tier 0.
+- `tests/simulation/natureBatch.test.ts` — `thinTo` spreads its removals across
+  every spatial slice rather than carving a band, keeps roughly the fraction
+  asked for, never removes everything, and is a strict no-op at tier 0.
+- `tests/visual/natureBatching.spec.ts` — unchanged in intent, but it now waits
+  for `bodiesReady` before capturing. See below.
+- `tests/visual/webglFallback.spec.ts` — the load-bearing one, because it is the
+  exact screenshot the owner sent. With context creation forced to fail: the
+  landing paints and its buttons work, the boot watchdog does not fire, starting
+  a round refuses with a message rather than a white screen, and a
+  `webglcontextlost` that never restores still lets the player out.
+
+### Two traps this pass fell into, both worth remembering
+
+**A stale veil-lift.** `buildWithLoading` arms two deferred `hideLoading` calls
+(ground-ready, and a 4 s safety cap). When the context died mid-build, the loss
+handler raised its own veil — and the dead build's safety cap then lowered it,
+uncovering a hole that was never rebuilt, seconds before the abandon timer had
+its say. `showLoading` now stamps a generation and a deferred lift only lowers
+the veil it raised. Any future code that raises the veil owns lowering it.
+
+**A pixel gate that was not measuring what it claimed.** `natureBatching`
+compares a whole frame with batching on against one with it off, to prove the
+batcher changes only HOW scatter is drawn. It began failing on Wildwood h1 at
+2.8% — and none of the differing pixels were scatter. They were the **golfer**:
+present in one capture, still loading in the other.
+
+The body is a separate async glTF that the game deliberately never blocks play
+on. The spec never waited for it either, and passed for a year by luck — the
+scatter drain ran until its queue emptied, which always took longer than the
+body took to arrive. Adding a time ceiling to the drain (§31) removed that
+accidental ordering, and the gate started reporting a batching regression that
+did not exist. It now awaits `bodiesReady` before capturing.
+
+The lesson is about the gate, not the drain: a whole-frame comparison used to
+isolate one subsystem is only sound if every *other* async thing in the frame
+is waited on explicitly. Confirmed against a `git worktree` at the pre-drain
+commit, which passes at 0.003% — the parity itself was never broken.
+
+`?freeze=1` was a second, smaller source of the same problem: it paused the
+character's animation groups wherever they had reached, which depends on load
+timing, so two "frozen" captures could hold different poses. It now seeks to a
+fixed frame before pausing.
+
+**Headroom to watch.** With both fixed, the gate passes on all three courses
+(Port Johnson 0.46%, Wildwood 0.79%, Timberline 0.26% against a 1% limit), but
+Wildwood used to sit at 0.003%. The residual is edge speckle on alpha foliage
+and the club head, not missing or displaced geometry. The likely mechanism is
+draw order: Babylon sorts transparent meshes by their bounding-sphere centre,
+and the analytic bounds in §31 deliberately moved each batch's centre from a
+tight fit to the middle of its cell — so overlapping leaves composite in a
+different order. Both orderings are legitimate, and nothing is misplaced, but
+the margin is now thin enough that this gate deserves a tighter look if it
+starts flaking rather than a raised threshold.

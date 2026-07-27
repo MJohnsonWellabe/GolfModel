@@ -5,10 +5,13 @@ import {
   DEMOTE_FRAMES,
   DEMOTE_MS,
   nextTier,
+  PANIC_MS,
+  PANIC_RUN,
   PROMOTE_FRAMES,
   PROMOTE_MS,
   QUALITY_TIERS,
   qualityProfile,
+  STALL_MS,
   type QualityTier
 } from '../../src/core/rendering/quality';
 
@@ -150,5 +153,90 @@ describe('where a cold boot starts', () => {
     // navigator.deviceMemory is Chrome-only, and Safari is where the reported
     // crashes happen — its absence must never itself cost a tier.
     expect(bootTier({ dpr: 2, cores: 8 })).toBe(bootTier({ dpr: 2, cores: 8, memoryGb: 8 }));
+  });
+});
+
+
+/**
+ * THE CASES THE FIRST POLICY PROVABLY FAILED.
+ *
+ * Owner: "I lagged out with the ball in the air on wild prairie number 3 again.
+ * the power meter on the drive was really choppy." The governor watched that
+ * happen and never demoted. Two reasons, both fixed here, both tested:
+ *
+ *   1. it judged on a 90-frame MEDIAN, and the scatter drain's cost was a
+ *      periodic spike among cheap frames — measured at 459ms against a 1.5ms
+ *      median, which a median cannot see by construction;
+ *   2. the wiring DROPPED frames over 250ms as outliers, so a device at 4fps
+ *      recorded nothing at all and the governor went silent precisely when it
+ *      was needed.
+ */
+describe('seeing a stall, not just slowness', () => {
+  const smooth = (n: number): number[] => Array.from({ length: n }, () => 8);
+
+  it('demotes on a periodic hitch that never moves the median', () => {
+    // One stall in every eight frames. The median stays at 8ms — comfortably
+    // inside budget — while the player sees a lurch several times a second.
+    const window = Array.from({ length: DEMOTE_FRAMES }, (_, i) => (i % 8 === 0 ? 300 : 8));
+    const sorted = [...window].sort((a, b) => a - b);
+    expect(sorted[sorted.length >> 1], 'the median really is fine').toBeLessThan(DEMOTE_MS);
+    expect(nextTier(0, window).changed, 'a visible hitch must still demote').toBe(true);
+  });
+
+  it('still ignores a single isolated stall', () => {
+    // The behaviour the old outlier filter was meant to protect, kept — a glTF
+    // resolving must not cost a smooth device a tier.
+    const window = smooth(DEMOTE_FRAMES - 1).concat([4000]);
+    expect(nextTier(0, window).changed).toBe(false);
+  });
+
+  it('demotes a device whose every frame exceeds the old outlier cutoff', () => {
+    // This is the 4fps case. Under the old wiring these frames were discarded
+    // as outliers and the sample window stayed EMPTY, so no amount of misery
+    // could move the tier.
+    const dying = Array.from({ length: PANIC_RUN }, () => PANIC_MS + 50);
+    expect(nextTier(0, dying).changed, 'a dying device must demote').toBe(true);
+  });
+
+  it('panics on a short run, without waiting for a full window', () => {
+    const run = Array.from({ length: PANIC_RUN }, () => 400);
+    expect(run.length, 'the panic gate must fire well before a 90-frame window').toBeLessThan(DEMOTE_FRAMES);
+    const d = nextTier(1, run);
+    expect(d.changed).toBe(true);
+    expect(d.tier).toBe(2);
+  });
+
+  it('does not panic on a run that is merely slow', () => {
+    const slow = Array.from({ length: PANIC_RUN }, () => STALL_MS + 5);
+    expect(nextTier(0, slow).changed, 'below the panic threshold, wait for evidence').toBe(false);
+  });
+
+  it('never demotes past the cheapest tier, however bad it gets', () => {
+    expect(nextTier(3, Array.from({ length: DEMOTE_FRAMES }, () => 5000)).changed).toBe(false);
+  });
+});
+
+describe('the first demotion actually sheds the dominant cost', () => {
+  it('tier 1 thins grass', () => {
+    // It was 1.0, which made tier 1 nearly a no-op on the holes that struggle:
+    // Port Johnson h3 plants ~40k grass cards, Wild Prairie h3 ~26k. Trimming
+    // pixels and the shadow map while leaving every blade missed the point.
+    expect(qualityProfile(1).scatterScale).toBeLessThan(1);
+  });
+});
+
+describe('a phone is a phone whatever it claims about its CPU', () => {
+  it('never boots a touch device at full price', () => {
+    // The reported crash device: a modern Android reporting 8 cores and dpr 3,
+    // which sailed through the core-count test straight to tier 0.
+    expect(bootTier({ dpr: 3, cores: 8, coarsePointer: true })).toBeGreaterThan(0);
+  });
+
+  it('leaves a mouse-driven desktop alone', () => {
+    expect(bootTier({ dpr: 2, cores: 8, coarsePointer: false })).toBe(0);
+  });
+
+  it('still honours what the device already proved', () => {
+    expect(bootTier({ dpr: 3, cores: 8, coarsePointer: true, remembered: 0 as QualityTier })).toBe(0);
   });
 });

@@ -207,6 +207,13 @@ export interface Course3D {
    *  re-rendering mirror+shadows at input frequency); `false` at drag end
    *  (one fresh capture, then hold frozen). No-op when pacing isn't frozen. */
   aimDragRTTs: (dragging: boolean) => void;
+  /** LIVE QUALITY SHEDDING. Drop what this hole is spending WITHOUT rebuilding
+   *  it — the scene is already standing, and a tier change that only takes
+   *  effect on the next hole is no help to a player stuck on this one. Cuts,
+   *  in order of how much they buy: the water mirror (a whole second render
+   *  pass), the shadow map's size and refresh cadence, and decorative scatter.
+   *  One-way within a hole: the next build starts from the new tier. */
+  shedQuality: (q: { shadowSize: number; staticShadows: boolean; waterReflectScale: number; scatterScale: number }) => void;
   /** Canopy occlusion candidates (world x,y + canopy radius). Exposed read-only
    *  for the Playwright fade guard — asserts trees register (a course with zero
    *  candidates can never fade, the Sable Bay palm regression). */
@@ -721,6 +728,10 @@ export function buildCourse(
   // scrolling wavelets and fresnel sheen, which is what carries the look.
   const mirrorRatio = (theme.waterReflectRatio ?? 0.35) * quality.waterReflectScale;
   let waterMirror: MirrorTexture | null = null;
+  /** The scatter batcher, hoisted out of the async planting closure so live
+   *  quality shedding can reach it. It is created only once the nature
+   *  prototypes resolve, so this stays null on a hole that never plants. */
+  let batcherRef: NatureBatcher | null = null;
   /** Set once a mirror exists: rebuild its render list from the scene as it
    *  stands now. The fill loop below latches after a few stable frames (it
    *  cannot run forever), so the scatter drain calls this once when planting
@@ -1874,6 +1885,7 @@ export function buildCourse(
   // Static-scatter batching (`natureBatching`). Off = the classic one-
   // InstancedMesh-per-prop path, byte-identical.
   const batcher = featureFlag('natureBatching') ? new NatureBatcher(treeRoot) : null;
+  batcherRef = batcher;
   // Resolves once every tree/bush/flower/grass instance has actually been
   // planted (the chunked plant/pop queue below has fully drained) — the
   // flyover waits on this so the sweep never outruns the scatter and shows
@@ -3682,6 +3694,31 @@ export function buildCourse(
     // loading veil and flyover wait on this so no blue frame is ever shown.
     groundReady,
     updateTreeOcclusion,
+    shedQuality: (q): void => {
+      // The mirror first — it is a second full render of the scene's
+      // silhouettes, so dropping it is the biggest single saving available
+      // without touching geometry. Unwire it from the water material before
+      // disposing, or the material keeps a dangling reflectionTexture.
+      if (q.waterReflectScale <= 0 && waterMirror) {
+        for (const m of scene.materials) {
+          const sm = m as StandardMaterial;
+          if (sm.reflectionTexture === waterMirror) sm.reflectionTexture = null;
+        }
+        waterMirror.dispose();
+        waterMirror = null;
+      }
+      const map = shadows.getShadowMap();
+      if (map) {
+        // `mapSize` is a real Babylon setter — it recreates the RTT at the new
+        // size, so this frees GPU memory rather than just drawing less.
+        if (q.shadowSize > 0 && q.shadowSize < shadows.mapSize) shadows.mapSize = q.shadowSize;
+        if (q.staticShadows) {
+          const fresh = shadows.getShadowMap();
+          if (fresh) fresh.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+        }
+      }
+      if (q.scatterScale < 1) batcherRef?.thinTo(q.scatterScale);
+    },
     refreshParkedRTTs: (): void => {
       // Only while parked/frozen — otherwise the freeze observer owns the cadence.
       if (!renderPacing.cameraParked && !renderPacing.meterActive && !renderPacing.overhead) return;

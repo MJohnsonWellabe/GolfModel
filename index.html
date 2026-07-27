@@ -4596,9 +4596,22 @@
             'position:fixed;inset:0;z-index:9999;background:#07200f;color:#eef5ea;display:flex;' +
             'flex-direction:column;align-items:center;justify-content:center;gap:14px;' +
             'font-family:system-ui,sans-serif;padding:24px;text-align:center';
+          // The copy has to match the FAILURE. "A fresh version was published"
+          // is right for a stale-chunk boot error and actively misleading for a
+          // GPU one — the player reloads, the GPU is still gone, and they loop.
+          // A WebGL failure is the browser refusing a context (Chrome stops
+          // handing them out to a page that has lost too many), so the useful
+          // advice is to free the GPU up, not to fetch the page again.
+          var gpuGone = /webgl|context lost|graphics/i.test(String(window.__bootErr || ''));
           d.innerHTML =
-            '<div style="font-size:18px;font-weight:800">The game didn’t load</div>' +
-            '<div style="font-size:13px;opacity:.75;max-width:440px">Usually a fresh version was just published — one reload picks it up.</div>' +
+            '<div style="font-size:18px;font-weight:800">' +
+            (gpuGone ? 'The graphics couldn’t start' : 'The game didn’t load') +
+            '</div>' +
+            '<div style="font-size:13px;opacity:.75;max-width:440px">' +
+            (gpuGone
+              ? 'Your browser ran out of graphics memory. Close a few other tabs, then reopen this one — your saved rounds are safe.'
+              : 'Usually a fresh version was just published — one reload picks it up.') +
+            '</div>' +
             (window.__bootErr
               ? '<div style="font-size:11px;opacity:.55;max-width:440px;word-break:break-word">' +
                 String(window.__bootErr).slice(0, 240) + '</div>'

@@ -291,6 +291,43 @@ export class NatureBatcher {
     for (const batch of this.batches.values()) this.applyBounds(batch);
   }
 
+  /**
+   * Thin the planted scatter in place, keeping roughly `fraction` of it.
+   *
+   * For a device that is struggling on a hole ALREADY BUILT. Every scatter
+   * budget is otherwise read once at build time, which is no use to a player
+   * standing on a hole that is too expensive for their phone right now.
+   *
+   * A STRIDE, not a truncation. Slots are appended in grid-scan order, so
+   * dropping every Nth slot removes an evenly spread sample across the whole
+   * cell — the thing you want. Lowering `thinInstanceCount` instead would be
+   * cheaper still, but it deletes the tail of the scan, which is a contiguous
+   * spatial band: a bald stripe carved out of every cell.
+   *
+   * Hidden props park at zero scale (the standard thin-instance hide — there is
+   * no per-instance visibility flag), so this frees no memory; it removes
+   * vertex and fill work, which is what a stalling device is short of.
+   *
+   * ONE-WAY within a hole. Restoring would mean keeping a second copy of every
+   * matrix — megabytes on exactly the device that has none to spare — and the
+   * next hole rebuilds at whatever tier the governor has settled on anyway.
+   */
+  thinTo(fraction: number): void {
+    const keep = Math.max(0.05, Math.min(1, fraction));
+    if (keep >= 1) return;
+    const stride = Math.max(2, Math.round(1 / (1 - keep)));
+    for (const batch of this.batches.values()) {
+      for (let i = 0; i < batch.count; i++) {
+        if (i % stride !== 0) continue;
+        ZERO.copyToArray(batch.matrices, i * 16);
+      }
+      // The extent is unchanged — hiding writes inside it — so only the matrix
+      // buffer needs re-uploading, not the bounds.
+      this.markDirty(batch);
+    }
+    this.flush();
+  }
+
   /** Every batch mesh currently in the scene (the water mirror's render list
    *  filter walks scene.meshes, so this is only used by diagnostics/tests). */
   meshes(): Mesh[] {

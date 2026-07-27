@@ -62,6 +62,17 @@ async function shoot(
   await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, {
     timeout: 60_000
   });
+  // WAIT FOR THE GOLFER'S BODY. It is a separate async glTF and nothing in the
+  // game blocks play on it (deliberately — a slow character fetch must never
+  // hold up a shot), so the capture has to wait on it explicitly.
+  //
+  // Nothing here used to, and it passed by luck: the scatter drain ran until
+  // its queue emptied, which took long enough that the body always arrived
+  // first. Once the drain gained a time ceiling, `natureSettled` could go true
+  // while the body was still in flight — and a frame with a golfer against a
+  // frame without one differs by ~2.8% of pixels, none of it scatter. The gate
+  // would have been reporting a batching regression that did not exist.
+  await page.evaluate(() => (window as any).__slice3d.bodiesReady);
   // Let the time-sliced planting drain fully — a capture mid-drain would
   // compare two different amounts of scatter, not two ways of drawing it.
   // Headless throttles rAF to ~1fps, so the drain (which rides the render loop)

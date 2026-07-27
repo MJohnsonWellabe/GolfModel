@@ -109,13 +109,39 @@ Rules it must keep obeying:
 - **Demote fast, promote slowly.** 90 frames of evidence to drop a tier, 360 to
   earn one back, and a tier the device has already failed at becomes a floor it
   never climbs past this session.
-- **Median, never mean.** One glTF stall must not demote a smooth device.
+- **Never a mean — but never a median alone either.** A mean lets one glTF stall
+  demote a smooth device. A median lets a *periodic* stall hide completely: the
+  scatter-drain bug measured 459 ms frames against a 1.5 ms median, and the
+  governor never moved. Three gates now run together — median, **stall share**
+  (the fraction of the window over `STALL_MS`), and a **panic run** of
+  consecutive severe frames that demotes in 6 frames rather than 90.
+- **Clamp samples, never drop them.** An outlier filter that discards slow
+  frames silences the governor precisely on the devices that need it: at 4 fps
+  *every* frame is an outlier, so nothing is recorded and no amount of misery
+  can move the tier. Clamp to a ceiling so the frame still counts as evidence.
+- **The first demotion must shed the dominant cost.** Tier 1 once left
+  `scatterScale` at 1.0, which on the only holes that struggle (Port Johnson h3
+  plants ~40k grass cards, Wild Prairie h3 ~26k) made it close to a no-op.
+- **A phone is a phone whatever it claims.** A modern Android reports 8 cores
+  and dpr 3 and passes every capability heuristic, so `matchMedia('(pointer:
+  coarse)')` costs a touch device its first tier. A remembered tier still
+  outranks it — a device that measured fine is never held back.
+- **A demotion must act on the hole in progress.** Everything else is sized at
+  build time, and a device that is stalling now may never reach the next hole.
+  `HoleScene.applyQuality` → `Course3D.shedQuality` drops the mirror, shrinks
+  the shadow map and thins the scatter live.
+- **Thin by stride, not by truncation.** Scatter slots are filled in grid-scan
+  order, so lowering `thinInstanceCount` deletes a contiguous *region* — a bald
+  band in every cell. A stride removes a spatially uniform sample instead.
 - **Inert under automation and the capture harness.** SwiftShader frame times
   describe a software rasteriser, not a phone. `tests/visual/quality.spec.ts`
   gates this — if it fails, every reference screenshot in the suite is being
   taken at the wrong quality.
-- **A lost WebGL context demotes immediately.** That is the GPU reporting it ran
-  out of memory, which outranks any frame-time median.
+- **A lost WebGL context demotes immediately, on the `lost` event.** That is the
+  GPU reporting it ran out of memory, which outranks any frame-time median.
+  Wiring it to `restored` instead is a silent no-op on the case that matters:
+  when the GPU process dies, restore never fires, and the device relaunches at
+  the budget that just killed it.
 
 Measured facts behind the tier table (per-course texture inventory, phone
 viewport):
@@ -145,6 +171,32 @@ and the ball position and stroke count are carried across the rebuild via the
 same `resumeAt` the unfinished-round card uses, so the player returns to the
 same lie. Only a shot already in flight is lost. The rebuild must go through
 `buildWithLoading` — `playHole` does not lift the loading veil by itself.
+
+Two failure modes beyond the recoverable one, both release-blocking if they
+return:
+
+- **Restore may never come.** When the GPU *process* dies rather than recycling,
+  `webglcontextrestored` never fires. Any veil raised on `lost` must therefore
+  carry its own timeout (8 s) that checkpoints the round, lowers the veil and
+  returns the player to the menu with an explanation. A modal whose only exit is
+  an event that may never arrive is worse than the freeze it replaced.
+- **Whoever raises the loading veil owns lowering it.** `buildWithLoading` arms
+  two deferred `hideLoading` calls (ground-ready, and a 4 s safety cap). When a
+  build is interrupted, those timers outlive it — and lowered the veil the loss
+  handler had just raised, uncovering a hole that was never rebuilt. `showLoading`
+  stamps a generation and a deferred lift only lowers the veil it raised. Any
+  new veil-raising path must keep that property.
+- **The abandon path must be unstoppable.** It runs because the GPU already
+  died, so every step before the chrome reset is best-effort and wrapped; a
+  throw halfway through re-creates the trap it exists to open.
+- **The menus must outlive the GPU.** `new Engine()` is a module-top-level
+  statement and every menu listener is registered below it, so an unguarded
+  throw kills the module and leaves the browser painting `#setup`'s static
+  markup with no handlers — a menu that looks real and does nothing. The engine
+  is built in a try/catch, every top-level use is guarded, and the entry points
+  that reach `new HoleScene` refuse with a message. Losing the context costs the
+  player the round, never the game. Gated by
+  `tests/visual/webglFallback.spec.ts`.
 
 ## Documentation requirement
 

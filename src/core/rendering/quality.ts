@@ -93,7 +93,12 @@ const PROFILES: Readonly<Record<QualityTier, QualityProfile>> = {
     staticShadows: false,
     waterReflectScale: 0.7,
     bakeScale: 0.7,
-    scatterScale: 1
+    // Sheds grass from the FIRST demotion. This was 1.0, which made tier 1
+    // nearly a no-op on the holes that actually struggle: Port Johnson h3
+    // plants ~40k grass cards and Wild Prairie h3 ~26k, so a tier that trimmed
+    // pixels and the shadow map but not one blade left the dominant cost
+    // untouched.
+    scatterScale: 0.8
   },
   2: {
     // Half the pixels of full, a 9 MB ground bake, a soft mirror, and the
@@ -141,6 +146,24 @@ export function asTier(v: unknown): QualityTier {
 /** Frame time we are willing to live with. 33 ms is 30 fps — the point where
  *  the swing meter starts to read jumpy rather than merely soft. */
 export const DEMOTE_MS = 33;
+/**
+ * A frame this long is a STALL, not slow rendering — the player sees a hitch.
+ *
+ * The median gate below cannot see these. A scatter drain that spikes one frame
+ * in ten leaves nine cheap frames, so the median stays comfortable while the
+ * game visibly stutters — which is exactly the shape that killed Wild Prairie 3
+ * (measured: a 459ms frame against a 1.5ms median) and exactly what the
+ * governor sat through without demoting.
+ */
+export const STALL_MS = 90;
+/** Fraction of the window allowed to be stalls before the tier drops. One in
+ *  twelve is already a visible hitch every fifth of a second. */
+export const STALL_SHARE = 0.08;
+/** Consecutive catastrophic frames that demote immediately, without waiting for
+ *  a full window. A device rendering this slowly is seconds from being killed
+ *  by the OS; there is no time to collect ninety samples. */
+export const PANIC_MS = 250;
+export const PANIC_RUN = 6;
 /** A device must be comfortably INSIDE the budget, not merely at it, before it
  *  earns a tier back — otherwise promoting immediately re-breaks the budget
  *  and the tier flaps. 20 ms is 50 fps. */
@@ -169,12 +192,36 @@ export interface QualityDecision {
  */
 export function nextTier(current: QualityTier, samples: readonly number[], floor: QualityTier = 0): QualityDecision {
   const hold = (): QualityDecision => ({ tier: current, changed: false, reason: '' });
+  // PANIC FIRST, on a handful of frames rather than a full window. A run this
+  // bad means the device is already in the state that precedes a lost context,
+  // and waiting for ninety samples at 4fps would take twenty seconds it does
+  // not have. Checked before the length guard on purpose — the whole point is
+  // that it fires long before a window exists.
+  if (current < 3 && samples.length >= PANIC_RUN) {
+    const tail = samples.slice(-PANIC_RUN);
+    if (tail.every((ms) => ms > PANIC_MS)) {
+      const tier = (current + 1) as QualityTier;
+      return { tier, changed: true, reason: `${PANIC_RUN} frames over ${PANIC_MS}ms` };
+    }
+  }
   if (samples.length < DEMOTE_FRAMES) return hold();
   const recent = samples.slice(-DEMOTE_FRAMES);
   const med = median(recent);
   if (med > DEMOTE_MS && current < 3) {
     const tier = (current + 1) as QualityTier;
     return { tier, changed: true, reason: `median ${med.toFixed(0)}ms over ${DEMOTE_MS}ms` };
+  }
+  // STALL SHARE. The median above answers "is everything slow?"; this answers
+  // "is anything hitching?", which is the question the reported crash actually
+  // posed. A periodic spike among smooth frames never moves a median, so
+  // without this the governor is blind to the most common way a phone gets
+  // into trouble here.
+  if (current < 3) {
+    const stalls = recent.filter((ms) => ms > STALL_MS).length;
+    if (stalls / recent.length > STALL_SHARE) {
+      const tier = (current + 1) as QualityTier;
+      return { tier, changed: true, reason: `${stalls}/${recent.length} frames over ${STALL_MS}ms` };
+    }
   }
   if (samples.length < PROMOTE_FRAMES) return hold();
   // Promotion reads the WHOLE long window: a device only climbs back after a
@@ -214,6 +261,9 @@ export function bootTier(opts: {
   cores?: number;
   /** navigator.deviceMemory in GB (Chrome only). */
   memoryGb?: number;
+  /** True on a touch-first device — `matchMedia('(pointer: coarse)')`. The one
+   *  signal that reliably says "phone" regardless of what the CPU reports. */
+  coarsePointer?: boolean;
 }): QualityTier {
   // A device that has already proved what it can take gets that answer back —
   // this is the whole point of persisting it. Never boot better than earned.
@@ -226,5 +276,11 @@ export function bootTier(opts: {
   // A dense-display phone (dpr 3) on a modest core count is the common iPhone
   // shape in the wild: start it one step down and let it climb.
   if (opts.dpr >= 3 && cores <= 6) return 1;
+  // ANY touch-first device starts one step down. The core-count test above
+  // misses the phones that matter most: a modern Android reports 8 cores and
+  // dpr 3 and sailed straight through to tier 0 — full price on the hardware
+  // least able to pay it, which is how the reported crash device booted. A
+  // phone that can hold tier 0 climbs back within seconds and loses nothing.
+  if (opts.coarsePointer) return 1;
   return 0;
 }
