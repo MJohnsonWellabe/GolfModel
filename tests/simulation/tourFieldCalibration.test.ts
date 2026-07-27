@@ -26,7 +26,13 @@ const COURSES = coursesFor({ newCourses: true, courseRebuilds: true });
 
 /** Measured E[win] per course, PLUS the pass-9 deepening (0.25/round, and
  *  0.7 for Timberline West) that lifted the major winning total to the −10
- *  the owner asked for. Re-measure with scripts/calibrate-tour-field.mjs. */
+ *  the owner asked for. Re-measure with scripts/calibrate-tour-field.mjs.
+ *
+ *  These numbers SURVIVED the 2026-07 field rebalance unchanged, which is the
+ *  point: six contenders instead of two were winning rounds ~0.6 strokes
+ *  deeper, so every COURSE_FIELD_EASING entry absorbed its own measured delta
+ *  to put the winning score back exactly here. The field got harder to beat by
+ *  being deeper, not by scoring lower. */
 const MEASURED_WIN: Record<string, number> = {
   wildwood: -3.15,
   sablebay: -3.57,
@@ -118,10 +124,19 @@ describe('tour field calibration', () => {
         }
       }
     }
-    // "There shouldn't be 5 ai tying at 4 under every tournament" — measured
-    // P(4+way lead tie) is 0.02..0.07 per course; pooled it must stay rare.
-    expect(bigTies / events).toBeLessThan(0.1);
-    // Skill ordering with real gaps (measured Legend−Easy ≈ 2.6..3.6/round).
+    // "There shouldn't be 5 ai tying at 4 under every tournament."
+    //
+    // RE-PINNED in the 2026-07 rebalance: with SIX rivals now within a point of
+    // each other (owner: "Put 2 players at the level of rex Callaway. Put 2 at
+    // the level of Mei Tanaka too."), more of them reach the lead together —
+    // pooled P(4+way lead tie) measured 0.02 before and 0.073 after. That is
+    // arithmetic, not drift: three times as many golfers can shoot the winning
+    // number. The gate moves to 0.13 so it still fails on a real flattening of
+    // the field while giving the measured rate room, and the owner's actual
+    // complaint — a four-way tie most weeks — remains firmly out of bounds.
+    expect(bigTies / events).toBeLessThan(0.13);
+    // Skill ordering with real gaps (measured Legend−Easy ≈ 3.3/round after the
+    // rebalance, from a Legend tier that is now six deep).
     const mean = (k: string): number => tier[k].s / tier[k].n;
     expect(mean('Legend')).toBeLessThan(mean('Hard'));
     expect(mean('Hard')).toBeLessThan(mean('Medium'));

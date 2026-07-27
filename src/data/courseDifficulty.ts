@@ -29,16 +29,29 @@
  * (player-mild), which is still the "winnable at 3-4 under" the earlier pass
  * asked for. Pinned by tests/simulation/tourFieldCalibration.test.ts and
  * tourConsistency.test.ts.
+ *
+ * PASS 11 (the field rebalance — see docs/26_SCALE_PASS.md §31). The owner
+ * asked for two more rivals at Rex's level and two more at Mei's, which took
+ * the top of the field from TWO contenders to SIX. Nothing about a course
+ * changed, but the winning score did: the best of six near-equal golfers beats
+ * the best of two by roughly 0.6 strokes a round, so every single round was
+ * being won at about −4.2 instead of −3.5 and every major at −11.4 instead of
+ * −9.7. Each entry below therefore gained its OWN measured delta (+0.45 to
+ * +0.98, the depth that course lost), which puts the per-course winning score
+ * back on the numbers pass 9 signed off on and leaves the streak-free major at
+ * about −9.5. HOT STREAKS then take the major the rest of the way: a rival
+ * playing +5 above their level roughly a third of the time is worth another
+ * ~0.7, landing the number the player actually sees at ≈ −10.
  */
 export const COURSE_FIELD_EASING: Record<string, number> = {
-  sablebay: 0.15,
-  wildwood: 0.25,
-  timberline: 0.35,
-  portjohnson: 0.25,
-  redhollow: -0.35,
-  wildvalley: 0.85,
-  maplevale: 1.15,
-  timberlinewest: -0.8
+  sablebay: 0.74,
+  wildwood: 0.67,
+  timberline: 0.9,
+  portjohnson: 0.7,
+  redhollow: 0.31,
+  wildvalley: 1.41,
+  maplevale: 1.75,
+  timberlinewest: 0.18
 };
 
 /** Unknown/generated course ids (the daily hole theme, builder previews). */

@@ -51,7 +51,7 @@ import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
-import { AiTournamentState, completeRound, createAiTournament, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
+import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
 import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
@@ -62,7 +62,11 @@ import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfil
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
-import { activePro, careerOvr, careerStarted, CP, grantCp, pointCost, raiseAttr, setActivePro, setProLook, startPro } from '../data/career';
+import { activePro, careerOvr, careerStarted, CP, pointCost, setActivePro, setProLook, startPro } from '../data/career';
+// CP belongs to the Pro who earned it — every grant/spend goes through the
+// wallet so a rookie starts at zero and a retired Pro's balance is frozen
+// rather than nagging from the landing (systems/CareerWallet.ts).
+import { buyProAttrPoint, grantCareerCp, spendableCp } from '../systems/CareerWallet';
 import { applyRound, RewardEvent } from '../systems/ProgressionEngine';
 import { Analytics, restTransport } from '../systems/Analytics';
 import { TutorialCoach } from './tutorial';
@@ -111,11 +115,16 @@ import {
 } from '../firebase/Rivals';
 import { applyHoleMastery, emptyMastery, holeStars, HoleMasteryInput, nextStarHint, starCount, STAR_BITS } from '../systems/Mastery';
 import { MASTERY_CHALLENGES, thirdStarFor } from '../data/masteryChallenges';
-import { buyItem, canBuy, equip, equippedColor, isOwned } from '../systems/StoreEngine';
+import { buyItem, canBuy, equip, equippedBallArt, equippedColor, isOwned } from '../systems/StoreEngine';
+import { makeBallArtTexture } from './ballArt3d';
 import { addSeasonXp, buyPassWithCoins, claimReward, claimState, levelProgress, ownsPass, rewardLabel, rolloverSeason, seasonActive } from '../systems/SeasonPassEngine';
 import { salesOpen, SeasonReward, SEASON_1 } from '../data/seasonPass';
 import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '../firebase/Purchases';
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult, upgradeStatBonus } from '../data/storeCatalog';
+// The store offers a WEEKLY SHELF, not the whole catalog (owner: "We should
+// start rotating store items… Only leave in the club upgrades always").
+import { currentStoreShelf, shelfIds, shelfTimeLeft } from '../systems/StoreRotation';
+import { ballArtSwatchCss } from '../core/rendering/ballArt';
 import { palByKey, PalDef } from '../data/pals';
 import { PerkDef, perkById, perkEffectLabel, perkPerfectZoneMult } from '../data/perks';
 import { TRUE_VISION } from '../data/consumables';
@@ -969,8 +978,22 @@ class HoleScene {
       this.golfers.push(g);
       const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
       const bm = new StandardMaterial(`ballMat${i}`, this.scene);
-      // The human player's ball wears the equipped tint (Phase 7 store).
-      bm.diffuseColor = part.isAI ? new Color3(0.97, 0.97, 0.95) : c3(equippedColor(profile, 'ball', 0xf7f7f2));
+      // The human player's ball wears the equipped cosmetic (Phase 7 store):
+      // a flat tint as it always has, or — for a DESIGNED ball (StoreItem
+      // .ballArt: the ink wash, the alignment stripe, the cavity band, the
+      // drip) — a 128x64 lat-long texture painted once here. AI opponents keep
+      // plain white. The texture belongs to the scene, so HoleScene.dispose
+      // frees it; the material hook covers a material replaced mid-scene, so
+      // nothing accumulates across holes (CLAUDE.md rule 13).
+      const ballArt = part.isAI ? undefined : equippedBallArt(profile);
+      if (ballArt) {
+        const ballTex = makeBallArtTexture(this.scene, `ballArt${i}`, ballArt);
+        bm.diffuseTexture = ballTex;
+        bm.diffuseColor = new Color3(1, 1, 1);
+        bm.onDisposeObservable.addOnce(() => ballTex.dispose());
+      } else {
+        bm.diffuseColor = part.isAI ? new Color3(0.97, 0.97, 0.95) : c3(equippedColor(profile, 'ball', 0xf7f7f2));
+      }
       bm.specularColor = new Color3(0.5, 0.5, 0.5);
       b.material = bm;
       shadows.addShadowCaster(b);
@@ -2239,16 +2262,25 @@ class HoleScene {
     } else {
       target = path![landIdx];
     }
-    // Overhead planning view shows a CLEAN map — the aim dots + target ring are
-    // hidden up here (owner: "get rid of all the red circle aiming system in the
-    // aerial view"). The floating distance/elevation readout stays. The dots and
-    // ring come back the moment the play camera returns.
-    const hideCircles = this.aerial;
-    this.aimRing.setEnabled(!hideCircles);
+    // THE OVERHEAD AIM LINE (owner: "Aerial view aim line is non existent").
+    //
+    // Two different overlays used to be conflated here. "Get rid of all the red
+    // circle aiming system in the aerial view" was about the RED True Vision
+    // reveal — but the switch that answered it hid this WHITE aim guide too, so
+    // the one view built for planning a shot stopped showing where the shot was
+    // aimed. The red line stays out of the aerial (see updateTrueVision); the
+    // white guide belongs here more than anywhere, because from overhead it is
+    // the only thing that tells you what the drag is doing.
+    //
+    // It draws restrained up here on purpose — the dots are already sized for
+    // the high camera by aimDotScale, and the play view's near-to-far taper is
+    // skipped below, since a top-down view has no perspective to compensate
+    // for. The result reads as a line drawn on a map rather than a targeting
+    // reticle sitting on the world.
+    this.aimRing.setEnabled(true);
     const curved = !this.aim.isPutting && landIdx > 4;
     this.aimDots.forEach((dot, i) => {
-      dot.setEnabled(!hideCircles);
-      if (hideCircles) return;
+      dot.setEnabled(true);
       const f = (i + 1) / (this.aimDots.length + 1);
       let dx: number;
       let dy: number;
@@ -2269,10 +2301,8 @@ class HoleScene {
       const taper = !this.aim.isPutting && !this.aerial ? 1 + 0.8 * f : 1;
       dot.scaling.setAll(dotScale * taper);
     });
-    if (!hideCircles) {
-      this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
-      this.aimRing.scaling.setAll(dotScale);
-    }
+    this.aimRing.position = w2b(target.x, target.y, 0.12 + this.gh(target.x, target.y));
+    this.aimRing.scaling.setAll(dotScale);
     this.updateAimReadout(target);
   }
 
@@ -4561,7 +4591,7 @@ function showSummary(): void {
       profile.coinsEarned += claim.reward.coins;
       // Streak XP bounties pay as CP now (career mode's ÷25 re-denomination).
       const streakCp = claim.reward.xp ? achievementCp(claim.reward.xp) : 0;
-      if (streakCp) profile.career = grantCp(profile.career, streakCp);
+      if (streakCp) grantCareerCp(profile, streakCp);
       const day = cycleDay(adv.state.current);
       streakRewardLine =
         `<div class="rwLine daily">🔥 Streak day ${day}: ` +
@@ -4979,8 +5009,9 @@ function rewardStripHtml(events: RewardEvent[]): string {
   let html =
     `<div class="rewardStrip"><span class="rw xp">+${sum('cp')} CP</span>` +
     `<span class="rw coin">+${sum('coins')} 🪙</span></div>`;
-  if (flag('careerMode') && careerStarted(profile.career) && profile.career.cp > 0) {
-    html += `<div class="rwLine level">📈 ${profile.career.cp} CP to spend — grow your Pro in the Locker</div>`;
+  const rewardCp = spendableCp(profile);
+  if (flag('careerMode') && careerStarted(profile.career) && rewardCp > 0) {
+    html += `<div class="rwLine level">📈 ${rewardCp} CP to spend — grow your Pro in the Locker</div>`;
   }
   const daily = events.find((e) => e.kind === 'daily') as { name: string; streak: number } | undefined;
   // The daily's coin bounty is inside the round's coin total; call it out so
@@ -5109,7 +5140,7 @@ function renderProfile(tab?: ProfileTab): void {
     `<div class="profLvl">${(() => {
       const pro = flag('careerMode') ? activePro(p.career) : null;
       return pro ? `${escapeHtml(pro.name)} OVR ${careerOvr(pro.attrs)} · ` : '';
-    })()}Pass level ${lp.level} · ${p.coins} 🪙 · ${p.career.cp} CP</div>` +
+    })()}Pass level ${lp.level} · ${p.coins} 🪙 · ${spendableCp(p)} CP</div>` +
     `<div class="xpBar"><i style="width:${pct}%"></i></div>` +
     `<div class="profTabs">` +
     tabs
@@ -5688,9 +5719,7 @@ function refreshEntitlements(): void {
 }
 
 /** The Characters store section starts collapsed to two rows (playtest FB9). */
-let storeCharsExpanded = false;
 /** Character cards shown before "See more" (two rows of the 3-wide grid). */
-const STORE_CHAR_PREVIEW = 6;
 /** Item id awaiting the "Spend X coins?" confirmation (null = no popup). */
 let pendingBuy: string | null = null;
 
@@ -5698,14 +5727,27 @@ let pendingBuy: string | null = null;
 function renderStore(): void {
   const p = profile;
   refreshEntitlements();
+  // THE SHELF, NOT THE CATALOG (owner: "We should start rotating store items…
+  // Only leave in the club upgrades always"). The catalog still holds every
+  // item — nothing was deleted, so no saved profile and no pass reward can be
+  // orphaned — but only this week's slate is offered. `devNow()` rather than
+  // Date.now() so the dev date override moves the shelf too.
+  const shelf = currentStoreShelf(devNow());
+  const onShelf = shelfIds(shelf.weekIndex);
   const hex = (c: number): string => `#${(c & 0xffffff).toString(16).padStart(6, '0')}`;
   const card = (item: StoreItem): string => {
     const owned = isOwned(p, item);
     const equipped = isEquippableKind(item.kind) && p.cosmetics.equipped[item.kind as CosmeticKind] === item.id;
-    const affordable = canBuy(p, item).ok;
+    const affordable = canBuy(p, item, onShelf).ok;
     const cls = equipped ? 'equipped' : owned ? 'owned' : affordable ? '' : 'locked';
-    const swatch =
-      item.color !== undefined ? `<div class="swatch" style="background:${hex(item.color)}"></div>` : `<div class="swatch" style="background:#2b6b41">⬆️</div>`;
+    // A patterned ball has to preview as its PATTERN — the four drop balls all
+    // carry a white shell colour, so the flat-tint swatch would render the
+    // whole collection as identical white squares.
+    const swatch = item.ballArt
+      ? `<div class="swatch" style="background:${ballArtSwatchCss(item.ballArt)}"></div>`
+      : item.color !== undefined
+        ? `<div class="swatch" style="background:${hex(item.color)}"></div>`
+        : `<div class="swatch" style="background:#2b6b41">⬆️</div>`;
     const label =
       item.kind === 'character'
         ? `<img src="ui/characters/${item.character}.png" alt="" style="width:100%;aspect-ratio:3/4;object-fit:cover;object-position:50% 22%;border-radius:8px" />`
@@ -5715,8 +5757,10 @@ function renderStore(): void {
     const price = equipped ? 'Equipped' : owned ? (isEquippableKind(item.kind) ? 'Tap to equip' : 'Owned') : `${item.price} 🪙`;
     return `<div class="storeCard ${cls}" data-item="${item.id}">${label}<div class="sName">${item.name}</div><div class="sPrice">${price}</div></div>`;
   };
-  // Season-pass exclusives never appear in the store (claim-only).
-  const forSale = STORE_CATALOG.filter((i) => !i.season);
+  // Season-pass exclusives never appear in the store (claim-only); the shelf
+  // already excludes them and the default-owned starters, so this is the
+  // week's offer plus the permanent club upgrades.
+  const forSale: StoreItem[] = shelf.items;
   const section = (title: string, kind: StoreItem['kind']): string =>
     `<div class="storeTab">${title}</div><div class="storeGrid">${forSale.filter((i) => i.kind === kind).map(card).join('')}</div>`;
   // Pals for sale only — the free starter pair lives in the Pals menu. Nothing
@@ -5730,15 +5774,10 @@ function renderStore(): void {
         : `<div class="storeEmpty">New pals coming soon 🐾</div>`)
     );
   };
-  // Characters collapse to two rows with a See-more toggle (there are 20+),
-  // so the other categories stay reachable without a long scroll (FB9).
+  // Characters used to collapse behind a See-more toggle because there were
+  // 20+ on one page. The shelf offers three, so the toggle is gone.
   const charItems = forSale.filter((i) => i.kind === 'character');
-  const shownChars = storeCharsExpanded ? charItems : charItems.slice(0, STORE_CHAR_PREVIEW);
-  const seeMore =
-    charItems.length > STORE_CHAR_PREVIEW
-      ? `<button id="charSeeMore" class="storeSeeMore">${storeCharsExpanded ? 'Show fewer ▴' : `See more (${charItems.length - STORE_CHAR_PREVIEW}) ▾`}</button>`
-      : '';
-  const charactersSection = `<div class="storeTab">Characters</div><div class="storeGrid">${shownChars.map(card).join('')}</div>${seeMore}`;
+  const charactersSection = `<div class="storeTab">Characters</div><div class="storeGrid">${charItems.map(card).join('')}</div>`;
   // Purchases go through an explicit "Spend X coins?" confirmation so a
   // stray tap can never drain coins (equipping owned items stays one-tap).
   const pending = pendingBuy ? STORE_CATALOG.find((i) => i.id === pendingBuy) : undefined;
@@ -5766,6 +5805,13 @@ function renderStore(): void {
   storeEl.innerHTML =
     `<div class="storeInner"><h2>Store</h2><div class="storeCoins">${p.coins} 🪙</div>` +
     (!signedIn && authConfigured() ? `<div class="signInNudge">Sign in to earn coins & keep purchases.</div>` : '') +
+    // A rotating shelf only works if the player can see that it rotates: what
+    // is here this week, how long it lasts, and — when a themed drop is on —
+    // what the drop is. Without the clock, an item vanishing next week reads as
+    // a bug rather than an offer that ended.
+    `<div class="shelfBar">` +
+    (shelf.drop ? `<span class="shelfDrop">✨ ${escapeHtml(shelf.drop.name)}</span>` : `<span class="shelfDrop">This week's shelf</span>`) +
+    `<span class="shelfClock">${escapeHtml(shelfTimeLeft(shelf, devNow().getTime()))} left</span></div>` +
     `<div class="storeScroll">` +
     topUpSection +
     charactersSection +
@@ -5776,12 +5822,6 @@ function renderStore(): void {
     section('Club Upgrades', 'clubUpgrade') +
     palsSection() +
     `</div><button id="storeBack">Back</button>${confirmPanel}</div>`;
-  const seeMoreBtn = document.getElementById('charSeeMore');
-  if (seeMoreBtn)
-    seeMoreBtn.addEventListener('pointerdown', () => {
-      storeCharsExpanded = !storeCharsExpanded;
-      renderStore();
-    });
   const topUpBtn = document.getElementById('topUpCoins');
   if (topUpBtn)
     onTap(topUpBtn, () => {
@@ -5811,7 +5851,9 @@ function renderStore(): void {
       }
       // Not owned: arm the confirmation instead of buying outright. Items
       // that can't be bought keep the transient reason message.
-      const can = canBuy(p, item);
+      // Gate on THIS WEEK's shelf: an item can be owned and equipped forever,
+      // but only bought while it is offered.
+      const can = canBuy(p, item, onShelf);
       if (!can.ok) {
         showMsg(can.reason, 1200);
         return;
@@ -5824,7 +5866,7 @@ function renderStore(): void {
   if (buyYes && pending) {
     buyYes.addEventListener('pointerdown', () => {
       pendingBuy = null;
-      const r = buyItem(p, pending.id);
+      const r = buyItem(p, pending.id, onShelf);
       if (!r.ok) {
         showMsg(r.reason, 1200);
         renderStore();
@@ -5980,6 +6022,9 @@ function renderSeasonPass(): void {
     // on a transparent card.
     if (item.kind === 'pal')
       return `<img src="${palByKey(item.pal)?.image ?? ''}" alt="" class="spPalImg" />`;
+    // A patterned ball previews as its pattern — the drop balls all carry a
+    // white shell colour, so the flat tint would render them identically.
+    if (item.ballArt) return `<div class="swatch" style="background:${ballArtSwatchCss(item.ballArt)}"></div>`;
     if (item.color !== undefined) return `<div class="swatch" style="background:${hex(item.color)}"></div>`;
     return `<div class="swatch" style="background:#2b6b41">🎁</div>`;
   };
@@ -6758,12 +6803,20 @@ function startTourPlayoffHole(): void {
 function tourSeasonTableHtml(): string {
   const t = profile.tour;
   if (!t) return '';
+  // HOT STREAKS, MADE VISIBLE (owner: "give some ais random hot streaks where
+  // they play higher than their level (+5) for a few weeks"). A streak that
+  // only shows up as a rival mysteriously running away with an event reads as
+  // the field being unfair; badged, it reads as form. `hotStreakAt` is pure and
+  // derived from (seed, rival id, event index), so this costs a hash — no
+  // stored state, no extra simulation.
+  const eventIdx = Math.min(t.played, TOUR_EVENTS - 1);
   const rows = coopSeasonStandings(t)
     .map((r, i) => {
       const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      const hot = !r.isPlayer && hotStreakAt(t.seed, r.id, eventIdx);
       return (
         `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
-        `<span class="recNm">${escapeHtml(r.name)}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}${hot ? ' <span class="hotForm" title="In hot form">🔥</span>' : ''}</span>` +
         `<span class="recTot">${r.total} pts</span></div>`
       );
     })
@@ -6824,7 +6877,7 @@ function tourEventOutcomeUi(
     // pays it (majors double — they're the season's spine).
     profile.stats.tournamentWins += 1;
     const winCp = CP.tournamentWin * (def.major ? 2 : 1);
-    profile.career = grantCp(profile.career, winCp);
+    grantCareerCp(profile, winCp, recordPro?.id);
     cpLine = `<div class="rwLine ach">🏅 ${def.major ? 'Major champion' : 'Event won'}: +${winCp} CP</div>`;
     if (recordPro) recordTourEventWin(profile.tourHistory, recordPro.id, recordPro.name, def.majorName);
   } else {
@@ -6855,7 +6908,7 @@ function tourEventOutcomeUi(
     }
     profile.coins += fin.coins;
     profile.coinsEarned += fin.coins;
-    profile.career = grantCp(profile.career, fin.cp);
+    grantCareerCp(profile, fin.cp, recordPro?.id);
     cpLine += `<div class="rwLine ach">💰 Season purse: +${fin.coins} 🪙 · +${fin.cp} CP (${ordinal(fin.playerRank)} in points)</div>`;
     if (fin.playerRank === 1 && settled) {
       awardSeasonChampion(t);
@@ -6914,7 +6967,7 @@ function awardSeasonChampion(t: TourSeasonState): void {
     profile.achievements.push('season_champion');
     const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
     if (champ) {
-      profile.career = grantCp(profile.career, achievementCp(champ.xp));
+      grantCareerCp(profile, achievementCp(champ.xp));
       profile.coins += champ.coins;
       profile.coinsEarned += champ.coins;
     }
@@ -7168,7 +7221,6 @@ function renderTourHub(): void {
   }
   const t = profile.tour;
   const ids = tourCourseIds();
-  const sched = tourSchedule(t.seed, ids);
   const def = currentEvent(t, ids);
   const roundsIn = eventRoundsPlayed(t);
   const table = seasonStandings(t);
@@ -7179,6 +7231,7 @@ function renderTourHub(): void {
     : `Season ${t.seasonNo} tees off — the field is waiting.`;
   const hubPro = activePro(profile.career);
   const hubRetired = !!hubPro && proRetired(profile.tourHistory, hubPro.id);
+  const cpToSpend = spendableCp(profile);
   // A finished shared season that is waiting on the friend: nothing left to
   // play, and the title is not final yet.
   const awaiting = t.played >= TOUR_EVENTS && !!t.coop && !coopSeasonSettled(t, Date.now());
@@ -7192,9 +7245,115 @@ function renderTourHub(): void {
         ? `⛳ ${tourEventName(def)} — round ${roundsIn + 1} of ${def.rounds} →`
         : `⛳ Play Event ${def.idx + 1}/${TOUR_EVENTS} · ${tourEventName(def)} →`
     : '';
-  // The schedule IS the results page: a finished row says where you landed,
-  // what it paid, and who took the trophy when it wasn't you.
-  const schedRows = sched
+  el.innerHTML =
+    `<div class="recInner"><h2>⛳ Tour Season ${t.seasonNo}</h2>` +
+    `<div class="recSub">${status}</div>` +
+    (playLabel ? `<button id="thPlay" class="tourAction">${escapeHtml(playLabel)}</button>` : '') +
+    (hubRetired
+      ? `<div class="recSub">🏛 ${escapeHtml(hubPro!.name)} retired after ${SEASON_LIMIT} seasons — ` +
+        `their career is in the records. Start a new Pro in the Locker to tour again.</div>`
+      : '') +
+    (awaiting
+      ? `<div class="recSub">🏁 Season complete — waiting on ` +
+        escapeHtml(
+          t.coop!.partners
+            .map((p) => `${p.name} (${Object.keys(p.results).length} of ${TOUR_EVENTS})`)
+            .join(', ') || 'your friend'
+        ) +
+        `. The table below is provisional; start the next season whenever you like.</div>`
+      : '') +
+    coopHubHtml(t) +
+    // THE CAREER LANDING (owner: "there should be a career landing, button to
+    // look at schedule, play the next event, see career records, improve your
+    // player, whatever else makes sense"). This screen used to be one long
+    // scroll — status, play, the points table, all sixteen schedule rows, then
+    // the actions — so the two things a player opens it to DO (tee off, spend
+    // CP) sat above and below a wall of reference material. The reference moves
+    // to its own screen; what stays here is the season in one line and the
+    // things you can act on.
+    `<div class="tourHeadRow">Your career</div>` +
+    `<div class="careerNav">` +
+    `<button id="thSched" class="careerNavBtn"><span class="cnIcon">📋</span>` +
+    `<span class="cnName">Schedule &amp; standings</span>` +
+    `<span class="cnSub">${t.played}/${TOUR_EVENTS} played${myRank ? ` · ${ordinal(myRank)} in points` : ''}</span></button>` +
+    // "From tour season there should be a button to take you directly to the
+    // screen to spend your cp." The subtitle carries the balance, so the answer
+    // to "have I got anything to spend?" is on the button itself.
+    (hubPro
+      ? `<button id="thTrain" class="careerNavBtn${cpToSpend > 0 ? ' hot' : ''}"><span class="cnIcon">💪</span>` +
+        `<span class="cnName">Improve your Pro</span>` +
+        `<span class="cnSub">${escapeHtml(hubPro.name)} · ${careerOvr(hubPro.attrs)} OVR · ${
+          cpToSpend > 0 ? `${cpToSpend} CP to spend` : 'no CP banked'
+        }</span></button>`
+      : '') +
+    `<button id="thRecords" class="careerNavBtn"><span class="cnIcon">🏅</span>` +
+    `<span class="cnName">Career records</span>` +
+    `<span class="cnSub">Wins, majors and every season placement</span></button>` +
+    (hubRetired
+      ? ''
+      : `<button id="thQuit" class="careerNavBtn"><span class="cnIcon">${
+          awaiting ? '➡' : t.played > 0 ? '🚪' : '🎲'
+        }</span><span class="cnName">${
+          awaiting ? 'Start next season' : t.played > 0 ? 'End this season' : 'New schedule'
+        }</span><span class="cnSub">${
+          awaiting
+            ? 'Freeze the table as it stands and tee up the next one'
+            : t.played > 0
+              ? `The part-season still counts toward ${SEASON_LIMIT}`
+              : 'Reroll the sixteen events before you start'
+        }</span></button>`) +
+    `</div>` +
+    `<button id="thBack" class="ghostBtn">Back</button></div>`;
+  // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
+  // Play is fine: the round scene replaces everything under the finger.
+  el.querySelector('#thBack')?.addEventListener('click', () => {
+    el.style.display = 'none';
+    refreshProgressSurfaces();
+  });
+  el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+  el.querySelector('#thSched')?.addEventListener('click', () => renderTourSchedule());
+  // Straight to the stat-spend screen — the Locker's Style tab IS that screen,
+  // so this is one tap instead of Back → Locker → Style.
+  el.querySelector('#thTrain')?.addEventListener('click', () => {
+    el.style.display = 'none';
+    lkTab = 'style';
+    renderLockerRoom();
+  });
+  // 'click', NOT 'pointerdown': this opens a modal that stays under the
+  // finger, so a pointerdown binding would risk the release landing on the
+  // confirm's Yes — the exact hazard its arming window exists for.
+  el.querySelector('#thQuit')?.addEventListener('click', () => confirmQuitSeason());
+  el.querySelector('#thCoop')?.addEventListener('click', () => void startCoopSeason());
+  el.querySelector('#thCoopShare')?.addEventListener('click', () => {
+    const id = profile.tour?.coop?.id;
+    if (id) void shareOrCopy('Play a golf season with me — same schedule, same rivals. Join: ', coopUrl(id, `${location.origin}${location.pathname}`));
+  });
+  // A partner may have posted since the last paint; refresh in the background.
+  void syncCoopSeason(true);
+  el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
+    if (flag('audio')) play('ui');
+    el.style.display = 'none';
+    startTourEvent();
+  });
+}
+
+/**
+ * SCHEDULE & STANDINGS — the season's reference material, moved off the career
+ * landing so the landing can be a set of decisions rather than a scroll. Points
+ * table first (where you stand), then all sixteen events with what each one
+ * paid. Renders into the same overlay; Back returns to the landing.
+ */
+function renderTourSchedule(): void {
+  const el = document.getElementById('tourHub');
+  const t = profile.tour;
+  if (!el || !t) return;
+  el.style.display = 'flex';
+  const ids = tourCourseIds();
+  const sched = tourSchedule(t.seed, ids);
+  const def = currentEvent(t, ids);
+  const roundsIn = eventRoundsPlayed(t);
+  const poPending = playoffPending(t, ids);
+  const rows = sched
     .map((e) => {
       const res = t.results.find((r) => r.idx === e.idx);
       const cur = def && e.idx === def.idx;
@@ -7221,56 +7380,12 @@ function renderTourHub(): void {
     })
     .join('');
   el.innerHTML =
-    `<div class="recInner"><h2>⛳ Tour Season ${t.seasonNo}</h2>` +
-    `<div class="recSub">${status}</div>` +
-    (playLabel ? `<button id="thPlay" class="tourAction">${escapeHtml(playLabel)}</button>` : '') +
-    (hubRetired
-      ? `<div class="recSub">🏛 ${escapeHtml(hubPro!.name)} retired after ${SEASON_LIMIT} seasons — ` +
-        `their career is in the records. Start a new Pro in the Locker to tour again.</div>`
-      : '') +
-    (awaiting
-      ? `<div class="recSub">🏁 Season complete — waiting on ` +
-        escapeHtml(
-          t.coop!.partners
-            .map((p) => `${p.name} (${Object.keys(p.results).length} of ${TOUR_EVENTS})`)
-            .join(', ') || 'your friend'
-        ) +
-        `. The table below is provisional; start the next season whenever you like.</div>`
-      : '') +
-    coopHubHtml(t) +
+    `<div class="recInner"><h2>📋 Season ${t.seasonNo}</h2>` +
     tourSeasonTableHtml() +
     `<div class="tourHeadRow">Schedule &amp; results</div>` +
-    `<div class="thSched">${schedRows}</div>` +
-    `<button id="thRecords" class="ghostBtn">🏅 Golfer records</button>` +
-    (hubRetired
-      ? ''
-      : `<button id="thQuit" class="ghostBtn">${
-          awaiting ? 'Start next season →' : t.played > 0 ? '🚪 End this season' : '🎲 New schedule'
-        }</button>`) +
-    `<button id="thBack" class="ghostBtn">Back</button></div>`;
-  // 'click' for Back (the tap-through rule — see #lkLock); pointerdown for
-  // Play is fine: the round scene replaces everything under the finger.
-  el.querySelector('#thBack')?.addEventListener('click', () => {
-    el.style.display = 'none';
-    refreshProgressSurfaces();
-  });
-  el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
-  // 'click', NOT 'pointerdown': this opens a modal that stays under the
-  // finger, so a pointerdown binding would risk the release landing on the
-  // confirm's Yes — the exact hazard its arming window exists for.
-  el.querySelector('#thQuit')?.addEventListener('click', () => confirmQuitSeason());
-  el.querySelector('#thCoop')?.addEventListener('click', () => void startCoopSeason());
-  el.querySelector('#thCoopShare')?.addEventListener('click', () => {
-    const id = profile.tour?.coop?.id;
-    if (id) void shareOrCopy('Play a golf season with me — same schedule, same rivals. Join: ', coopUrl(id, `${location.origin}${location.pathname}`));
-  });
-  // A partner may have posted since the last paint; refresh in the background.
-  void syncCoopSeason(true);
-  el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
-    if (flag('audio')) play('ui');
-    el.style.display = 'none';
-    startTourEvent();
-  });
+    `<div class="thSched">${rows}</div>` +
+    `<button id="thSchedBack" class="ghostBtn">Back</button></div>`;
+  el.querySelector('#thSchedBack')?.addEventListener('click', () => renderTourHub());
 }
 
 /**
@@ -8349,7 +8464,7 @@ function renderLockerRoom(): void {
       const tag = retired
         ? `🏛 Hall of Fame · ${rec?.wins ?? 0} wins · ${rec?.majorWins ?? 0} majors`
         : isActive
-          ? `grows as you play · ${c.cp} CP to spend`
+          ? `grows as you play · ${spendableCp(p)} CP to spend`
           : 'in the stable — tap to play as them';
       let inner =
         `<div class="ahead"><span class="an">${retired ? '🏛' : '🎓'} ${escapeHtml(pro.name)}</span>` +
@@ -8370,7 +8485,7 @@ function renderLockerRoom(): void {
             // point past base+bonus=100 buys literally nothing (owner, with a
             // screenshot of PWR 100 still selling points for 10 CP).
             const maxed = !Number.isFinite(cost) || pro.attrs[k] + upgradeStatBonus(k, p.clubUpgrades) >= 100;
-            const can = !maxed && c.cp >= cost;
+            const can = !maxed && spendableCp(p) >= cost;
             const label = maxed ? 'MAX' : `+1 · ${cost} CP`;
             return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
           })
@@ -8452,7 +8567,9 @@ function renderLockerRoom(): void {
   };
   const cosmeticCard = (kind: 'outfit' | 'ball' | 'trail' | 'clubskin', item: StoreItem): string => {
     const selected = p.cosmetics.equipped[kind] === item.id;
-    const bg = item.color !== undefined ? hex(item.color) : '#2b6b41';
+    // Patterned balls preview as their pattern here too — the Locker is where
+    // you choose between the ones you own, so they cannot all read as white.
+    const bg = item.ballArt ? ballArtSwatchCss(item.ballArt) : item.color !== undefined ? hex(item.color) : '#2b6b41';
     return (
       `<div class="charCard palPick${selected ? ' sel' : ''}" data-cosmetic="${kind}:${item.id}">` +
       `<div class="palPickIcon" style="background:${bg}"></div><div class="cn">${item.name}</div></div>`
@@ -8600,9 +8717,7 @@ function renderLockerRoom(): void {
     el.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       const key = (el as HTMLElement).dataset.cspend as keyof GolferStats;
-      const next = raiseAttr(profile.career, key, upgradeStatBonus(key, profile.clubUpgrades));
-      if (!next) return;
-      profile.career = next;
+      if (!buyProAttrPoint(profile, key, upgradeStatBonus(key, profile.clubUpgrades))) return;
       persistProfile();
       if (signedIn) void cloudSyncProfile(profile).then((res) => { applyCloudMerge(profile, res.profile); showCloudStatus(res.status, true); });
       renderLockerRoom();
@@ -9025,7 +9140,7 @@ function updateDestinations(newPlayer: boolean): void {
   const claimable = seasonClaimableCount();
   // Unspent CP is the second thing worth interrupting for: growth waiting to
   // be taken (career mode).
-  const cpWaiting = flag('careerMode') && careerStarted(profile.career) ? profile.career.cp : 0;
+  const cpWaiting = flag('careerMode') && careerStarted(profile.career) ? spendableCp(profile) : 0;
   set(
     'locker',
     !newPlayer,
@@ -10766,7 +10881,7 @@ else {
 // Test hook: bank CP directly (career mode), so specs can exercise the spend
 // UI without simulating the rounds that would earn it.
 (window as unknown as { __grantCp: unknown }).__grantCp = (n: number) => {
-  profile.career = grantCp(profile.career, n);
+  grantCareerCp(profile, n);
 };
 
 // Test hook: grant owned consumable charges (e.g. True Vision) directly, so

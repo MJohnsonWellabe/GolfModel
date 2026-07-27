@@ -5,8 +5,8 @@ import { openDestination, seedReturningDevice } from './support/wizard';
  * CAREER MODE, end to end on the real UI: the Style tab leads with the stable,
  * starting a NAMED Pro adopts a 65-overall shape, CP spends into real
  * attribute points with the OVR rising on screen, the Pro wears a dedicated
- * look, and starting a second Pro keeps the wallet while the first stays in
- * the stable, selectable.
+ * look, and starting a second Pro leaves the rookie broke while the first
+ * stays in the stable, selectable, with the CP they earned.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -61,19 +61,22 @@ test('name a Pro, spend CP, watch them grow, then start a rookie — the stable 
   await page.locator('.cpSpend[data-cspend="drivingPower"]').dispatchEvent('pointerdown');
   await expect(card).toContainText('16 CP');
 
-  // Start a ROOKIE: the wallet carries (16 CP), the vet stays in the stable.
+  // Start a ROOKIE: they start BROKE (CP belongs to the Pro who earned it),
+  // and the vet stays in the stable with their 16 unspent waiting.
   await page.locator('#proName').fill('Rookie Two');
   await page.locator('.careerStart[data-cstart="puttKing"]').dispatchEvent('pointerdown');
   const cards = page.locator('.careerCard[data-pro]');
   await expect(cards).toHaveCount(2);
   const active = page.locator('.careerCard.sel');
   await expect(active).toContainText('Rookie Two');
-  await expect(active).toContainText('16 CP'); // unspent CP carried over
+  await expect(active).toContainText('0 CP'); // the rookie earns their own way
   await expect(cards.first()).toContainText('Lefty'); // the vet, still here
 
-  // Tap the vet: active again, points intact (OVR above the rookie's 65).
+  // Tap the vet: active again, points intact (OVR above the rookie's 65) and
+  // their own 16 CP still there — switching Pro switches wallet.
   await cards.first().dispatchEvent('pointerdown');
   await expect(page.locator('.careerCard.sel')).toContainText('Lefty');
+  await expect(page.locator('.careerCard.sel')).toContainText('16 CP');
 
   // And the LANDING behind the overlay repainted with the live balance (owner
   // bug: "the CP to spend on your Pro didn't reset after I spent it").

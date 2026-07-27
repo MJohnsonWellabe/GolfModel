@@ -120,11 +120,13 @@ export interface PlayerProfile {
    *  cross-device sync and offline reconciliation can never lose a best,
    *  resurrect a claim, or double-award a star. */
   retention: RetentionState;
-  /** CAREER MODE: your stable of named Pros and the shared CP wallet that
-   *  grows them (data/career.ts). CP replaces XP as the progression currency
-   *  — the legacy xp/level fields above are frozen. Merges via mergeCareers
-   *  (grow-only cpEarned/cpSpent pair, pros union by id, per-stat max
-   *  attrs). */
+  /** CAREER MODE: your stable of named Pros and the CP each of them earned
+   *  (data/career.ts). CP replaces XP as the progression currency — the
+   *  legacy xp/level fields above are frozen — and it belongs to the PRO who
+   *  earned it: `career.cpLedger` holds one grow-only earned/spent pair per
+   *  Pro, so a rookie starts at zero and an older Pro's unspent CP is still
+   *  there when you go back to them. Merges via mergeCareers (per-Pro
+   *  grow-only pairs, pros union by id, per-stat max attrs). */
   career: CareerState;
   /** TOUR SEASON (career round 2): the Pro's season against the named rival
    *  field (systems/TourSeason.ts). Null until the first event is entered.
@@ -460,9 +462,10 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     // backfill to safe empty states — no loss of existing profiles.
     retention: migrateRetention(parsed.retention),
     // Any stored career shape (the legacy single-Pro one included) upgrades
-    // to the stable; partial RTDB copies coalesce field-by-field so a dropped
-    // counter can't zero the grow-only pair. The legacy Pro inherits the
-    // profile's name and character as its own.
+    // to the stable; partial RTDB copies coalesce row by row so a dropped
+    // counter can't zero a grow-only pair. The legacy Pro inherits the
+    // profile's name and character as its own. A pre-ledger account-wide CP
+    // wallet is split onto the Pro who was playing here, exactly once.
     career: migrateCareer(parsed.career, {
       name: typeof parsed.name === 'string' ? parsed.name : '',
       character: (parsed.character as PlayerProfile['character']) ?? 'chip'
@@ -575,9 +578,11 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
     perks: mergePerks(a.perks, b.perks),
     consumables: mergePerks(a.consumables, b.consumables),
     retention: mergeRetention(a.retention, b.retention),
-    // The career merges like the coins: grow-only earned/spent pair, derived
-    // balance, per-stat max attributes — the NEWER career goes first so its
-    // style choice wins a conflict.
+    // The career merges like the coins, once PER PRO: each Pro's grow-only
+    // earned/spent pair takes the max, every balance is derived, attributes
+    // take the per-stat max — the NEWER career goes first so its style choice
+    // wins a conflict (and its legacy-split attribution, if the two devices
+    // ever disagreed about it).
     career: mergeCareers(
       newer.career ?? emptyCareer(),
       (newer === a ? b.career : a.career) ?? emptyCareer()

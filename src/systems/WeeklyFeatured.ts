@@ -113,8 +113,10 @@ export function weeklyEventFor(date: Date): WeeklyEvent {
   };
 }
 
-/** Time remaining in the event at `nowMs`, formatted compactly ('3d 4h', '2h'). */
-export function weeklyTimeLeft(ev: WeeklyEvent, nowMs: number): string {
+/** Time remaining in the event at `nowMs`, formatted compactly ('3d 4h', '2h').
+ *  Takes only the end instant so any timed window can borrow the format — the
+ *  store's weekly shelf countdown does (systems/StoreRotation.shelfTimeLeft). */
+export function weeklyTimeLeft(ev: Pick<WeeklyEvent, 'endMs'>, nowMs: number): string {
   const ms = Math.max(0, ev.endMs - nowMs);
   const days = Math.floor(ms / 86400000);
   const hours = Math.floor((ms % 86400000) / 3600000);

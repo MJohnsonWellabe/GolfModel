@@ -260,7 +260,12 @@ export function completeTourRound(
       def.courseId,
       r,
       s.seed + def.idx * 15013 + roundNo * 7919 + i * 104729,
-      (s.seed ^ 0x9e3779b9) + def.idx * 8191 + roundNo * 6151 + i * 3079
+      (s.seed ^ 0x9e3779b9) + def.idx * 8191 + roundNo * 6151 + i * 3079,
+      // HOT STREAKS: which rivals are running hot at this stop is a pure
+      // function of (season seed, rival id, event index), so a shared season
+      // derives the identical purple patches on both devices — same as every
+      // other thing about this field.
+      { seasonSeed: s.seed, eventIdx: def.idx }
     );
     ev.fieldTotals[i].push(res.total);
     ev.fieldToPars[i].push(res.toPar);

@@ -856,7 +856,8 @@ the majors can be 3 round tournaments").
   NAMED at creation, wears a dedicated look (their `character` survives the
   unlocked-loadout shuffle; the Look row on the active card changes it), and
   starting a rookie keeps the shared CP wallet while the old Pro keeps every
-  point bought and stays selectable (soft retirement). Legacy single-Pro
+  point bought and stays selectable (soft retirement). (The shared wallet was
+  superseded in §30 — CP is now banked per Pro.) Legacy single-Pro
   saves migrate to `pros[0]` with the deterministic id `legacy-<createdAt>`
   so two devices migrating the same career merge to ONE Pro; merges union
   the stable by id (per-stat max attrs). A career round is played AS the
@@ -1194,3 +1195,440 @@ that spike lands between holes, which is precisely where the existing
   texture footprint in the game and are untouched by this pass — the tiers scale
   procedural budgets, not the imported asset set. That is a separate content
   job.
+
+## 29. Owner pass 11 — the career gets a front door
+
+### The aerial aim line came back
+
+> "Aerial view aim line is non existent"
+
+Two overlays had been conflated. An earlier note — "get rid of all the red
+circle aiming system in the aerial view" — was about the RED True Vision
+reveal, but the switch that answered it (`hideCircles = this.aerial` in
+`updateAimVisuals`) also hid the WHITE aim guide, so the one view built for
+planning a shot stopped showing where the shot was aimed. The red reveal still
+stays out of the aerial; the white guide is back, drawn without the play view's
+near-to-far taper (a top-down view has no perspective to compensate for), so it
+reads as a line on a map rather than a reticle on the world.
+
+### The career landing
+
+> "You should rework the career menu there should be a career landing, button
+> to look at schedule, play the next event, see career records, improve your
+> player, whatever else makes sense." … "From tour season there should be a
+> button to take you directly to the screen to spend your cp."
+
+The tour hub was one long scroll — status, play, the points table, sixteen
+schedule rows, then the actions — so the two things a player opens it to DO
+(tee off, spend CP) sat above and below a wall of reference material. It is now
+a landing: the season in one line, the play button, and a short column of
+destinations that each carry the live state answering "is there anything for me
+in there?" — events played and points position, the Pro's name/OVR and **CP
+banked**, the record book, and ending the season. Unspent CP highlights the row,
+because that is progress already earned and not collected.
+
+The reference material moved to `renderTourSchedule()` — points table plus all
+sixteen events with what each paid — reachable in one tap and returning to the
+landing. "Improve your Pro" opens the Locker's Style tab, which IS the stat
+spend screen, so it is one tap instead of Back → Locker → Style.
+
+### Menu actions stopped hiding below the fold
+
+> "On any menu if there are buttons at the bottom make sure they're always there
+> and you don't have to scroll down to see them just freeze the pane."
+
+Every menu is a scroll container with its closing action last inside it, so on a
+tall list the way out was below the fold. The fix is `position: sticky` rather
+than a flex refit, for two reasons: the row stays in normal flow, so a pane whose
+content fits renders **exactly** as it did before and no reference screenshot
+moves; and it is keyed on `:last-child`, so a button row in the middle of a pane
+is untouched — a mid-content row pinned to the bottom would be a new bug, not a
+fix. Rows (wrappers) get a fade-in gradient backdrop; a bare trailing button gets
+a shadow instead, because a gradient would have erased the button's own fill.
+
+Known gap: `#landing` is deliberately excluded — it is a grid of destination
+tiles, not a pane with a trailing action, and pinning its last tile would be
+wrong.
+
+## 29. Owner pass 11 — the store becomes a weekly shelf
+
+> "We should start rotating store items. Take out characters except 3. Take out
+> ball colors and skins except 3. Take out color ways, ball trails, skins, pals,
+> etc except 3. Then create a weekly rotation. Only leave in the club upgrades
+> always."
+
+### The problem
+
+The store rendered `STORE_CATALOG` **whole**: sixteen characters, nine balls,
+six trails, six colorways, six club skins, seven pals and eight club upgrades,
+on one scroll, unchanged since Phase 7. Two things follow.
+
+Nothing is ever an **event**. A shelf that has looked identical for three months
+is furniture; a player learns there is no reason to open it, and stops. Every
+other retention surface in the game already runs on a clock — the daily
+challenge, the daily hole, the streak, the Weekly Featured round — and the store
+was the one that did not.
+
+And it does not **fit**. The character grid alone needed a see-more toggle
+(`STORE_CHAR_PREVIEW`) to stop it burying the other five categories, which is
+the interface admitting the shelf is too long for the screen it is on.
+
+### What shipped
+
+**`src/systems/StoreRotation.ts`** — a pure, deterministic picker. Given a week
+index it returns that week's shelf: **three items per cosmetic kind**, plus
+**every club upgrade, every week**.
+
+| | |
+| --- | --- |
+| Rotating kinds | character · ball · trail · outfit · clubskin · pal |
+| Permanent kinds | clubUpgrade (all 8 tiers, always) |
+| Slate per rotating kind | **3** |
+| Purchasable cards on screen | 8 upgrades + 18 cosmetics, down from 8 + 50 |
+
+Why three: three cards fill exactly one row of the store grid on a phone, so
+every category is one glance instead of one scroll and the see-more toggle stops
+being necessary — and against the smallest rotatable pool (5 trails, 5
+colorways, 5 club skins) three is the **largest** slate that can still change
+every single week.
+
+Club upgrades never rotate because they are the one thing a player may be saving
+toward across several weeks. Pulling a half-bought tier ladder off the shelf
+would not be a tease, it would be a broken promise.
+
+### Rotation is not deletion
+
+This is the part that could have corrupted real saves, so it is worth stating
+plainly: **no id was removed from the catalog and nothing was removed from any
+inventory.** Saved profiles, the cloud merge and the Season Pass reward track
+all reference catalog ids by name; deleting one would orphan a purchase or a
+claimed reward. `STORE_CATALOG` still holds every id it has ever shipped.
+
+An item that is off the shelf is still **owned**, still **equippable** (the
+locker filters by `isOwned`, not by the shelf), and still **rendered**. It is
+only not purchasable this week. `StoreEngine.isOwned` and `equip` do not know
+the shelf exists; `canBuy`/`buyItem` take an **optional** set of this week's ids
+and reject an off-shelf item with "Back another week" — omit it and nothing is
+gated, which is what every non-store caller wants. Ownership is checked *before*
+the shelf, so an item the player already owns always reports "Already owned",
+on shelf or off.
+
+### Why the schedule is arithmetic, not luck
+
+Each kind's pool is shuffled **once**, by kind — not by week — so the whole
+schedule is stable and previewable arbitrarily far ahead. The week picks a
+window of three consecutive items in that fixed order, and the window's start
+advances by three each week **plus one extra step per completed pass** over the
+pool. Both required properties fall out of that, with no retry loop:
+
+- **No immediate repeat.** Consecutive starts differ by K or K+1 (mod n). With
+  n ≥ K+2 neither is zero, so consecutive windows are different arcs of the same
+  cycle — and two distinct arcs of equal length K < n are always different sets.
+  A test asserts every pool is at least K+2, so trimming a category below five
+  fails the build rather than silently serving the same shelf twice.
+- **Full coverage.** The starts walk the whole cycle, so every rotatable item
+  comes around on a schedule rather than in a lottery, and the extra step per
+  pass stops the pool being re-served in the same fixed groups of three. Tested:
+  every rotatable item appears within the first 13 weeks, and nothing repeats
+  week-on-week across a 104-week horizon.
+
+Season-pass exclusives and default-owned items can never be shelved — the first
+would dangle something the player is not allowed to buy, the second is already
+in every inventory. One predicate (`isRotatable`) gates both the pool and the
+authored drop pins, so a mistake in the drop table cannot put a claim-only item
+on sale.
+
+The week itself is **not a second calendar**: `storeWeekIndex` derives from
+`WeeklyFeatured.weeklyEventFor`, so the store, the Weekly Featured round and the
+Live Ops preview all turn over on the same boundary. Week 0 is 2026-07-27. A
+device whose clock is set before launch sees week 0 rather than a negative week.
+
+### Drops
+
+A week may headline an authored collection (`STORE_DROPS`), pinned onto that
+week's slate for the kinds it touches. That is the only reason a slate is ever
+larger than three: shipping three quarters of a four-ball collection because the
+slate says three would be silly. A drop smaller than the slate is topped up from
+the normal rotation, so a one-item drop still leaves a full row.
+
+### The first ball drop — *The Paint Shop*
+
+Balls were a single RGB tint painted onto the sphere's `diffuseColor`. That is
+all "Cherry" or "Onyx" ever needed, and those balls are **untouched** — a
+`StoreItem` with no `ballArt` renders through exactly the same flat-colour path
+as before. A *designed* ball cannot be a tint, so `StoreItem` gained an optional
+`ballArt` and the game gained a procedural ball texture.
+
+| id | name | style | price |
+| --- | --- | --- | --- |
+| `ball_inkwash` | Inkwash | splatter — a saturated ink wash marbled over one side, violet bleeding through blue, with flicks and satellite spots | 300 |
+| `ball_sightline` | Sightline | alignment — a wide equatorial putting stripe, flanking guide lines, two cross ticks | 200 |
+| `ball_cavity` | Cavity Copper | band — a copper cavity belt with a vertical sheen, hairlined black, on an ivory cover | 200 |
+| `ball_paintfall` | Paintfall | drip — blue and red poured over the crown and running down, blending through each other where they meet | 300 |
+
+All four are on the week-0 shelf. They are priced on the existing tint ladder
+(rare 200 / special 300): a patterned ball is a nicer ball, not a new currency
+tier. The names are original — these are *inspired-by* designs, and no brand
+mark, wordmark or name appears anywhere in the catalog or the art.
+
+**How the art is described and drawn.** `BallArt` is
+`{ style, base, ink: [a, b], amount, seed }` — a style tag, the shell colour,
+two pattern colours whose meaning is style-specific, how much surface the
+pattern claims, and a seed so the scattering styles are identical on every
+device. The painting is split the way the course art already is: the canvas
+painting lives in `src/core/rendering/ballArt.ts` with no Babylon and no DOM
+beyond the 2D context (the shape of `CourseTexture.renderCourseCanvas`), and the
+`DynamicTexture` wrapper lives beside the renderer in
+`src/slice3d/ballArt3d.ts`. So the pattern maths is unit-testable in node, and
+it is — against a recording 2D context that logs every call.
+
+The canvas is a **128×64 lat-long map**: `u` runs once around the ball, `v` pole
+to pole. A full-width bar is therefore a great circle (the stripe, the band), the
+top edge converges on a pole (the drip), and anything scattered is kept off the
+poles where a lat-long map pinches — and drawn three times, at −w, 0 and +w, so
+nothing is clipped at the seam. The drip's two colours blend through a smooth
+window at *both* meridians where they meet, so the mapping is continuous across
+the seam and one of the two blends is always on the visible face.
+
+**Cost.** 8k texels, 32 KB, painted once per hole for one mesh — 0.15% of the
+ground bake the quality governor spends its budget on (§28), so ball art is
+deliberately absent from the tier table: there is nothing here worth scaling.
+The ball is a 1-unit sphere usually a few dozen pixels tall, so anything finer
+would only alias, and for the same reason there are no dimples — at ball scale a
+dimple field is noise, not detail. The texture is created against the scene, so
+`HoleScene.dispose` frees it with the hole; the ball material's dispose is also
+hooked, so a material replaced mid-scene takes its texture with it (CLAUDE.md
+rule 13).
+
+### Known limitations
+
+- Which physical pole the drip runs from depends on the texture's `invertY`. It
+  reads identically either way — it is a ball, and it tumbles — so it is not
+  pinned.
+- A drop's pinned items also sit in the normal pool, so two of the four launch
+  balls are still on the shelf in week 1. That is deliberate (a collection that
+  vanishes after seven days is a worse offer than one that lingers a fortnight),
+  but if a drop should ever be strictly one week, that is a change to
+  `slateFor`, not to the drop table.
+- The rotation is client-side and deterministic, like the Weekly Featured
+  round. It has no Live Ops override yet — `liveOpsConfig` can pin a featured
+  course and a daily challenge, but not a shelf. That is the natural next step
+  and would slot in exactly where `dropForWeek` does.
+
+## 30. Owner pass 11 — CP belongs to the Pro who earned it
+
+Owner, verbatim: "Cp earned with a pro should be assigned to that pro. You
+shouldn't have a bunch when you start a new golfer but it also shouldn't go
+away in case your not done with the first golfer. So you'll need to store cp
+per pro."
+
+Career round 2 shipped a single account-wide wallet: a rookie inherited every
+unspent CP in the stable, which made "start a new Pro" a way to hand a fresh
+65-overall golfer a pile of upgrades, and made an unfinished veteran's savings
+feel like they belonged to nobody. Both halves of the ask are now one data
+structure.
+
+- **The ledger** (`data/career.ts`). `CareerState.cpLedger` is
+  `Record<proId, { earned, spent }>` — the SAME grow-only pair the coins use,
+  once per Pro. A balance is derived (`earned − spent`, floored), so a spend
+  sticks across a cloud merge and an idle device can never resurrect it.
+  `cp`/`cpEarned`/`cpSpent` survive as DERIVED read-caches (the ACTIVE Pro's
+  balance; the stable's lifetime totals for the season-pass pace), recomputed
+  by every mutator, so nothing that read them has to change to read right.
+- **A rookie starts at zero, a veteran keeps their savings.** `startPro` no
+  longer carries a wallet forward, `raiseAttr` pays out of the active Pro's own
+  row, and `setActivePro` switches wallets with the golfer. The one exception
+  is the career's FIRST Pro, who owns the `__unclaimed` row — CP earned before
+  any Pro existed (a lesson, a casual round, a pass reward) is theirs. That row
+  is folded in at READ time and never moved: two devices holding the same CP
+  under two different keys is precisely how a row-by-row merge mints currency.
+- **Grant and spend name a Pro.** `grantCpTo(career, proId | null, amount)` and
+  `spendCpFrom(career, proId, amount)` are the primitives; `grantCp` is kept as
+  the one-argument form meaning "whoever is playing". `systems/CareerWallet.ts`
+  is the profile-level seam where the ledger meets the record book —
+  `grantCareerCp`, `spendableCp`, `buyProAttrPoint`, `proCpBalance` — and it is
+  the only place that knows about retirement. Every reward path
+  (ProgressionEngine, SeasonPassEngine, and main.ts's tour purse / streak /
+  champion grants) credits the Pro who was playing.
+- **A retired Pro's CP is kept, not forfeited.** Ten seasons and the career is
+  closed (`SEASON_LIMIT`); their ledger row stands as part of their record,
+  exactly like their wins and majors, and is simply no longer spendable — the
+  growing is done. Deleting it would have been the only irreversible option,
+  and the owner's worry ("it also shouldn't go away") is about a Pro who is not
+  finished. CP a retired Pro goes on earning in casual rounds is still credited
+  to them, so the ledger stays an honest record of who played; the game already
+  says the one thing that changes it — start a new Pro, who earns from their
+  first round.
+- **The migration runs once, and preserves the total.** A stored career from
+  before the ledger carries one account-wide `cpEarned`/`cpSpent` pair. It
+  lands, whole, on the Pro who was playing — the active Pro, or the most
+  recently used one when `activeProId` needs healing, or the `__unclaimed` row
+  when no career was ever started. `cpPerPro` is the explicit marker (the
+  season pass's `cpDenominated` pattern); the written ledger is the evidence in
+  case the marker is ever lost in transit; and the split ASSIGNS rather than
+  adds, so even a third pass writes the same numbers.
+- **Two devices cannot mint the balance twice.** The nasty case: the update
+  lands on two devices that disagree about who was playing, so each attributes
+  the same legacy pool to a different Pro, and a row-by-row max-merge would
+  keep both. `cpSplit` records where each device's split went; `mergeCareers`
+  strips that stamp from both sides, merges the remainder row by row, then
+  re-applies ONE (the larger pool — choosing the smaller would throw CP away).
+  Gated in `tests/careerCp.test.ts`, alongside a rookie starting broke, a
+  veteran's balance surviving other Pros, spending bounded by one Pro's row, an
+  idempotent migration, a merge that neither duplicates nor loses CP, and a
+  storage round trip.
+
+### The seam main.ts still has to move
+
+`profile.career.cp` now means "the ACTIVE Pro's balance", which is the right
+number everywhere the Locker and the landing already print it — with one
+exception: it does not know about retirement, so a retired Pro's frozen CP
+would still read as "CP to spend". The landing's `cpWaiting` and the Locker's
+spend row should read `spendableCp(profile)` (0 for a retired or absent Pro),
+and the spend button should call `buyProAttrPoint(profile, key, bonus)` instead
+of assigning `raiseAttr(...)` directly.
+
+## 31. Owner pass 11 — the tour field gets deeper, kinder, and streakier
+
+> "Put 2 players at the level of rex Callaway. Put 2 at the level of Mei Tanaka
+> too. Make others a little better too so no one is consistently awful. Also
+> give some ais random hot streaks where they play higher than their level (+5)
+> for a few weeks."
+
+Three asks about the same ten names, and one of them changes the shape of every
+leaderboard in the game.
+
+### The roster: six contenders, not two
+
+`TOUR_RIVALS` stays at **ten**, because `TOUR_POINTS` pays exactly eleven
+finishers (you plus ten) and an eleventh rival would play all sixteen events for
+nothing. Rival **ids are load-bearing** too — they key `points`, `winnerId` and
+the per-event field scores a shared season re-settles from — so nobody was
+replaced and nobody was added. Eight of the ten were **re-rated in place**:
+
+| | before | after | |
+| --- | --- | --- | --- |
+| Rex Calloway | 95.2 | 95.2 | the benchmark, untouched |
+| Dutch Vanderberg | 89.6 | **95.0** | Rex's level |
+| Wren Okafor | 89.8 | **94.8** | Rex's level |
+| Mei Tanaka | 94.4 | 94.4 | the second benchmark, untouched |
+| Sol Njoku | 88.8 | **94.2** | Mei's level |
+| Lena Kowalski | 86.4 | **94.0** | Mei's level |
+| Baz Romero | 85.8 | 89.8 | |
+| Gus Pemberton | 85.4 | 88.6 | |
+| Pip Delacroix | 81.4 | 87.8 | |
+| Moss Whitaker | 80.4 | **85.4** | the floor |
+
+The six at the top are deliberately a *fraction* apart rather than identical:
+`entrantForm` is a line in the rating, so two rivals on the same rating are
+literally the same golfer to the simulator — the flatness pass 9 existed to
+remove. The four below keep real gaps from each other for the same reason.
+
+The floor lift is the second ask. Measured on identical courses and seeds, the
+weakest rival in the field now shoots **1.71 strokes a round better** than the
+man who used to hold that slot (+2.67 to par → +0.96). The price is a tighter
+field: best-to-worst went from **5.38 strokes a round to 3.67**, which is still
+three and a half shots of daylight against a per-round sd of ~1.05, and the
+rating→finish correlation barely moved (below).
+
+### What that cost, and what it bought back
+
+A deeper top of the field wins with a lower number even though nothing about a
+course or a golfer's scoring changed — the best of six near-equal players beats
+the best of two. Left alone, single rounds were being won at **−4.24** instead
+of −3.5 and majors at **−11.4** instead of −9.7. So every entry in
+`COURSE_FIELD_EASING` absorbed **its own measured delta** (+0.45 to +0.98, the
+depth that course lost), which puts the per-course winning score back on exactly
+the numbers pass 9 signed off on — `MEASURED_WIN` in
+`tourFieldCalibration.test.ts` is unchanged. The field got harder to beat by
+being **deeper**, not by scoring lower.
+
+### Hot streaks
+
+A streak is a temporary **form bonus** laid over a rival's rating for a run of
+consecutive tour events — never a change to the rating, which is their identity.
+The owner's "+5" is expressed in the unit the model actually speaks: a hot rival
+plays like a golfer five *overall points* better, so the bonus is derived from
+the form line (`entrantForm(ovr + 5) − entrantForm(ovr)` ≈ 1.4 strokes a round)
+rather than typed in as strokes. Re-tuning the curve can never silently change
+what "+5" means.
+
+**It is derived, never rolled.** A shared season works only because both phones
+re-build the identical AI field from the season seed alone
+(`firebase/CoopSeason.ts`, `recomputeSeasonPoints`). A streak decided by
+`Math.random` or a clock would hand the two players different leaderboards for
+the same event — not a bug you can patch around, just a season that is wrong on
+one device. So `hotStreakAt(seasonSeed, rivalId, eventIdx)` is a pure function:
+an FNV-1a of the rival's **id** (not their roster position, so re-rating the
+field never reshuffles history) folded with the seed and the event index, seeding
+a `mulberry32` that draws twice — does a streak begin here, and how long does it
+run (2–4 events). A lookup walks back at most four possible starts, so it needs
+no season state and no stored history. Starts *before* event 0 are allowed on
+purpose: form carries over, so a season can open with someone already hot rather
+than an artificially cold field. `simulateEntrantRound` takes an optional
+`TourFormContext` and adds the bonus **outside** the rng, so the seed stream is
+untouched — the same seeds produce the same physics and the same weekly wobble
+whether the rival is hot or not, and the AI Tournament mode (which passes no
+context) is bit-identical to before.
+
+Frequency is a calibration constant as much as a flavour one, because a hot
+*contender* is worth about two strokes off a major's winning total. At
+`STREAK_START_CHANCE = 0.025` it covers **≈7% of rival-weeks** — about four
+purple patches per sixteen-event season across the whole field, with nobody hot
+at all in ~47% of weeks.
+
+### The numbers, before and after
+
+Winning scores are measured over the five courses the pre-rebalance baseline
+covered, so the two columns are the same venues; the identity rows are pooled
+across all eight (`node scripts/calibrate-tour-field.mjs`). The "after" column
+is the field the player actually plays — streaks live:
+
+| | before | after |
+| --- | --- | --- |
+| Single round, E[winning score] | −3.48 | −3.76 |
+| **Major (3 rounds), E[winning score]** | **−9.68** | **−9.91** |
+| Spearman ρ(rating, finish) | 0.77–0.90 | 0.78 |
+| P(the top rival finishes top 3) | 0.94–1.00 | **0.76** |
+| P(the top rival finishes in the top half) | — | 0.93 |
+| P(a contender wins the event) | — | 0.99 |
+| P(the weakest rival wins) | 0.000 | 0.000 |
+| P(4+ rivals tie for the lead) | 0.01–0.03 | 0.073 |
+| Weakest rival's mean toPar (paired, same seeds) | +2.67 | +0.96 |
+
+Two gates moved **deliberately**, and both for the same arithmetic reason:
+
+- **P(top rival finishes top 3) ≥ 0.8** is unreachable with six near-equal
+  rivals — half a dozen golfers cannot each own a top-three slot. The claim it
+  was protecting ("if they're a 95 ai, they should shoot a good score almost
+  every round") is now pinned as *the top rival finishes in the upper half*
+  (≥0.8, measured 0.93) plus *the six own the trophy* (≥0.85, measured 0.99).
+  ρ, which measures the same thing across the whole board, is still gated and
+  barely moved.
+- **P(4+ way lead tie) < 0.1 → < 0.13**, because three times as many golfers
+  can now shoot the winning number. The owner's actual complaint — four rivals
+  tying most weeks — stays firmly out of bounds at 0.073.
+
+### Tests
+
+- `tests/simulation/tourRoster.test.ts` — the roster is still ten and still the
+  same ids; two rivals sit at Rex's level and two at Mei's; the elite is six
+  deep with a real seam beneath it; the floor lifted by more than a stroke
+  without flattening the ladder; every ≥2-point rating gap still shows up in the
+  scores; the difficulty tiers still run in rating order.
+- `tests/simulation/tourHotStreaks.test.ts` — determinism (including a whole
+  tour event re-simulated on a second "device" with `Math.random` booby-trapped
+  to throw), frequency and run length, a streak's two ends, the bonus being
+  exactly "+5 rating points", a paired hot-vs-cold measurement worth ≈1.4
+  strokes a round, the strokes being given back when it ends, and the major
+  still averaging ≈−10 with streaks live.
+- `tourConsistency.test.ts` and `tourFieldCalibration.test.ts` re-pinned as
+  described above.
+
+### Not done here
+
+Nothing in the UI shows a streak yet. `hotStreakAt` is exported and pure, so the
+Tour hub's rival list and the event preview could badge a hot rival (and the
+post-event card could explain a runaway winner) from `(season.seed, rival.id,
+event.idx)` with no new state and no extra simulation — that is a `main.ts`
+change, deliberately left out of this pass.

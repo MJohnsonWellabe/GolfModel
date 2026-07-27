@@ -14,8 +14,24 @@ import { majorCourseForRound, MAJOR_WIND_RAMP } from '../../src/systems/TourMajo
  *
  * Those sentences are the gates below. They are deliberately about the SHAPE
  * of a leaderboard rather than any single score: a rating has to predict a
- * finish, the best rival has to be reliably near the top, a mid rival has to
- * sit mid-board, and a major has to cost about ten under to win.
+ * finish, the strong have to be reliably near the top, the weak have to be
+ * reliably behind them, and a major has to cost about ten under to win.
+ *
+ * RE-PINNED FOR THE 2026-07 REBALANCE (owner: "Put 2 players at the level of
+ * rex Callaway. Put 2 at the level of Mei Tanaka too."). The old gate on the
+ * single best rival — P(top rival finishes top-3) ≥ 0.8 — measured 0.94–1.00
+ * when exactly two rivals could contend. With SIX in that band the same number
+ * is arithmetically unreachable: half a dozen near-equal golfers cannot each
+ * own a top-three slot, and the one who does own it changes week to week. That
+ * is the requested field, not a regression, so the gate moved deliberately:
+ * the claim is now about the TOP CLASS (the six own the podium and supply the
+ * winner) plus the top rival still finishing in the upper half nearly every
+ * week. Everything the owner actually asked for — a rating predicts a finish,
+ * the best is reliably good, the weakest essentially never wins — is still
+ * pinned, and ρ (0.77–0.91 before) is measured below and still gated.
+ *
+ * These gates measure the BASE field, with no season context, so no hot streak
+ * can colour them; the streak-side numbers live in tourHotStreaks.test.ts.
  *
  * Re-measure with `node scripts/calibrate-tour-field.mjs`, which prints every
  * number pinned here over a much larger sample.
@@ -28,8 +44,11 @@ const EVENTS = 20;
 
 const OVR = TOUR_RIVALS.map((r) => entrantOvr(r));
 const TOP = OVR.indexOf(Math.max(...OVR));
-/** The owner's "85": whoever's rating sits closest to it. */
-const MID = OVR.reduce((best, v, i) => (Math.abs(v - 85) < Math.abs(OVR[best] - 85) ? i : best), 0);
+/** The contenders: the six at Rex's and Mei's level. */
+const ELITE = TOUR_RIVALS.map((r, i) => (r.difficulty === 'Legend' ? i : -1)).filter((i) => i >= 0);
+/** The chasing pack: everyone else. After the floor lift they are good
+ *  players — they are just not these six. */
+const PACK = TOUR_RIVALS.map((r, i) => (r.difficulty === 'Legend' ? -1 : i)).filter((i) => i >= 0);
 const EASY = TOUR_RIVALS.map((r, i) => (r.difficulty === 'Easy' ? i : -1)).filter((i) => i >= 0);
 
 const mean = (a: number[]): number => a.reduce((x, y) => x + y, 0) / a.length;
@@ -83,18 +102,20 @@ describe('a rating is an identity, not a die roll', () => {
     expect(playEvent('wildwood', 7)).not.toEqual(playEvent('wildwood', 8));
   });
 
-  it('a 95 is near the top almost every event; an 85 is mid-board', { timeout: 300_000 }, () => {
+  it('the six contenders own the top of the board; the pack chases', { timeout: 300_000 }, () => {
     let events = 0;
-    let topThree = 0;
-    let midBand = 0;
+    let topHalf = 0;
+    let eliteWins = 0;
+    let packBelow = 0;
     let easyWins = 0;
     const rhos: number[] = [];
     for (const id of VENUES) {
       for (let ev = 0; ev < EVENTS; ev++) {
         const rank = ranksOf(playEvent(id, ev));
         events++;
-        if (rank[TOP] <= 2) topThree++;
-        if (rank[MID] >= 3 && rank[MID] <= 7) midBand++;
+        if (rank[TOP] < TOUR_RIVALS.length / 2) topHalf++;
+        if (ELITE.some((i) => rank[i] === 0)) eliteWins++;
+        if (PACK.every((i) => rank[i] >= TOUR_RIVALS.length / 2)) packBelow++;
         if (EASY.some((i) => rank[i] === 0)) easyWins++;
         // Spearman ρ between rating order and finishing order.
         const byOvr = [...OVR.keys()].sort((a, b) => OVR[b] - OVR[a]);
@@ -106,15 +127,25 @@ describe('a rating is an identity, not a die roll', () => {
         rhos.push(1 - (6 * d2) / (n * (n * n - 1)));
       }
     }
-    // "if they're a 95 ai, they should shoot a good score almost every round"
-    expect(topThree / events, 'the top rival is not reliably near the top').toBeGreaterThanOrEqual(0.8);
-    // "if they're 85 they should be consistently middle of the leaderboard"
-    expect(midBand / events, 'the mid rival is not reliably mid-board').toBeGreaterThanOrEqual(0.6);
-    // Upsets stay possible but notable — a bottom-tier rival winning outright
+    // "if they're a 95 ai, they should shoot a good score almost every round" —
+    // now that six rivals are within a point of each other, the honest version
+    // of that sentence is the upper HALF of the board rather than the top three.
+    expect(topHalf / events, 'the top rival is not reliably near the top').toBeGreaterThanOrEqual(0.8);
+    // …and the tournament belongs to that six. If the pack started winning, the
+    // six ratings at the top would have stopped meaning anything.
+    expect(eliteWins / events, 'the contenders do not own the trophy').toBeGreaterThanOrEqual(0.85);
+    // The mirror image of the old "an 85 is mid-board": every member of the
+    // chasing pack finishes in the bottom half, most weeks.
+    expect(packBelow / events, 'the pack is not reliably behind the six').toBeGreaterThanOrEqual(0.5);
+    // Upsets stay possible but notable — the weakest rival winning outright
     // should be a story, not a Tuesday.
     expect(easyWins / events, 'the weakest rivals win too often').toBeLessThanOrEqual(0.03);
-    // And the board as a whole sorts by rating.
-    expect(mean(rhos), 'rating barely predicts the finishing order').toBeGreaterThanOrEqual(0.65);
+    // And the board as a whole still sorts by rating. ρ drops from the pre-
+    // rebalance 0.77–0.91 for a reason that is not a defect: six near-equal
+    // ratings genuinely cannot be told apart by one round, so their internal
+    // order is close to a coin toss. What must survive is that the six beat the
+    // four, which is most of the signal — measured ≈0.70.
+    expect(mean(rhos), 'rating barely predicts the finishing order').toBeGreaterThanOrEqual(0.6);
   });
 });
 

@@ -4,7 +4,7 @@ import { STORE_BY_ID } from '../data/storeCatalog';
 import { perkById } from '../data/perks';
 import { TRUE_VISION } from '../data/consumables';
 import { achievementCp } from '../data/progression';
-import { grantCp } from '../data/career';
+import { grantCareerCp } from './CareerWallet';
 import { BuyResult } from './StoreEngine';
 
 /**
@@ -135,8 +135,10 @@ function grantReward(profile: PlayerProfile, reward: SeasonReward): void {
     grantConsumable(profile, TRUE_VISION.id, reward.trueVision);
   } else {
     // Legacy XP rewards pay out as CP now (career mode) — same ÷25
-    // re-denomination the achievements use, credited to the career pair.
-    profile.career = grantCp(profile.career, achievementCp(reward.xp));
+    // re-denomination the achievements use, credited to the Pro who is
+    // playing (the per-Pro ledger; the unclaimed bucket before a career
+    // starts, which the first Pro then claims).
+    grantCareerCp(profile, achievementCp(reward.xp));
   }
 }
 

@@ -124,7 +124,10 @@ describe('major setup escalation', () => {
             'wildvalley',
             riv,
             s.seed + TOUR_MAJOR_IDXS[0] * 15013 + r * 7919 + i * 104729,
-            (s.seed ^ 0x9e3779b9) + TOUR_MAJOR_IDXS[0] * 8191 + r * 6151 + i * 3079
+            (s.seed ^ 0x9e3779b9) + TOUR_MAJOR_IDXS[0] * 8191 + r * 6151 + i * 3079,
+            // …including the season context, so a rival running a HOT STREAK
+            // through this major carries the same bonus in both computations.
+            { seasonSeed: s.seed, eventIdx: TOUR_MAJOR_IDXS[0] }
           ).total
       );
     completeTourRound(s, COURSES, 11, 0, courseIds);

@@ -1,6 +1,7 @@
 import { PlayerProfile } from '../profile/Profile';
 import { achievementCp, ACHIEVEMENTS, COINS, DailyChallenge, dailyChallengeFor, RoundStats } from '../data/progression';
-import { cpForRound, grantCp } from '../data/career';
+import { cpForRound } from '../data/career';
+import { grantCareerCp } from './CareerWallet';
 
 /**
  * Pure progression: turn a completed round into CP, coins, daily-challenge
@@ -9,10 +10,11 @@ import { cpForRound, grantCp } from '../data/career';
  *
  * CP REPLACED XP (career mode, owner decision: two economies, not three).
  * The legacy xp/level fields are FROZEN — never granted again, kept only so
- * old profiles merge cleanly. CP is credited to profile.career (grow-only
- * earned/spent pair) and the same amount paces the season pass. Career
- * ATTRIBUTES affect gameplay by design now — but only ever through the
- * player's own explicit spending, never through anything in this engine.
+ * old profiles merge cleanly. CP is credited to THE PRO WHO PLAYED THE ROUND
+ * (systems/CareerWallet over the per-Pro ledger — a grow-only earned/spent
+ * pair each), and the same amount paces the season pass. Career ATTRIBUTES
+ * affect gameplay by design now — but only ever through the player's own
+ * explicit spending, never through anything in this engine.
  */
 
 export type RewardEvent =
@@ -79,7 +81,7 @@ export function applyRound(
     won: r.won ?? false,
     dailyDone
   });
-  profile.career = grantCp(profile.career, cp);
+  grantCareerCp(profile, cp);
   profile.coins += coins;
   profile.coinsEarned += coins; // grow-only lifetime tally (drives cloud merge)
   events.push({ kind: 'cp', amount: cp });
@@ -110,7 +112,7 @@ export function applyRound(
     if (profile.achievements.includes(a.id)) continue;
     if (a.test(s, profile)) {
       profile.achievements.push(a.id);
-      profile.career = grantCp(profile.career, achievementCp(a.xp));
+      grantCareerCp(profile, achievementCp(a.xp));
       profile.coins += a.coins;
       profile.coinsEarned += a.coins; // grow-only lifetime tally
       events.push({ kind: 'achievement', id: a.id, name: a.name, desc: a.desc });

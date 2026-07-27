@@ -2,6 +2,9 @@ import { GolferStats } from '../core/types';
 import { SWING } from '../config';
 import { CharacterKey } from './characters';
 import { PalKey } from './pals';
+import type { BallArt } from '../core/rendering/ballArt';
+
+export type { BallArt } from '../core/rendering/ballArt';
 
 /**
  * The store catalog (docs 08): cosmetics + modest club upgrades bought with
@@ -11,6 +14,13 @@ import { PalKey } from './pals';
  * colors and the full 25-character rigged roster (five free, the other twenty
  * unlockable). Items flagged `season` are pass-claim-only, never sold. Config
  * only; the pure `StoreEngine` runs the transactions.
+ *
+ * THE CATALOG IS NOT THE SHELF. Every id here is permanent: a saved profile,
+ * a Season Pass reward and a cloud merge all reference these ids, so an item
+ * is never removed once shipped. What the store OFFERS in a given week is a
+ * small rotating slate computed by `systems/StoreRotation` — leaving the shelf
+ * only stops an item being purchasable this week; owning, equipping and
+ * rendering it are untouched (docs/26_SCALE_PASS.md §29).
  */
 
 export type StoreKind = 'ball' | 'trail' | 'character' | 'clubUpgrade' | 'outfit' | 'clubskin' | 'pal';
@@ -26,8 +36,13 @@ export interface StoreItem {
   name: string;
   price: number;
   rarity: 'common' | 'rare' | 'special';
-  /** ball/trail: RGB hex tint. */
+  /** ball/trail/outfit/clubskin: RGB hex tint. On a patterned ball this is the
+   *  shell colour — the honest fallback for any surface that can only take one
+   *  number (a card swatch, a trail, an older save path). */
   color?: number;
+  /** ball: a PATTERN instead of a flat tint (core/rendering/ballArt). Optional
+   *  and absent on every tinted ball, which keeps rendering exactly as before. */
+  ballArt?: BallArt;
   /** character: which avatar this unlocks. */
   character?: CharacterKey;
   /** clubUpgrade: which family + tier (1 or 2). */
@@ -72,6 +87,62 @@ const BALL_TINTS: Array<[string, string, number, StoreItem['rarity'], number]> =
   ['gold', 'Gold', 0xf5c542, 'special', 300],
   ['black', 'Onyx', 0x2a2a30, 'rare', 200],
   ['purple', 'Amethyst', 0x9a5cd0, 'special', 300]
+];
+
+/**
+ * PATTERNED BALLS — the first ball drop (docs/26_SCALE_PASS.md §29). These are
+ * the first store items that are DESIGNED rather than tinted: each carries a
+ * `ballArt` description that `core/rendering/ballArt` paints into a small
+ * lat-long texture. `color` stays set on every one of them as the shell colour,
+ * so nothing that reads a flat tint has to know about patterns.
+ *
+ * They are priced on the existing tint ladder (rare 200 / special 300) — a
+ * patterned ball is a nicer ball, not a new currency tier.
+ */
+const BALL_ART_ITEMS: StoreItem[] = [
+  {
+    id: 'ball_inkwash',
+    kind: 'ball',
+    name: 'Inkwash',
+    price: 300,
+    rarity: 'special',
+    color: 0xf7f7f2,
+    // A saturated ink wash marbled across one side of the cover, violet
+    // bleeding through the blue, with flicks and spots thrown off it.
+    ballArt: { style: 'splatter', base: 0xf7f7f2, ink: [0x2438d6, 0x7d21c8], amount: 0.62, seed: 0x9e3779b9 }
+  },
+  {
+    id: 'ball_sightline',
+    kind: 'ball',
+    name: 'Sightline',
+    price: 200,
+    rarity: 'rare',
+    color: 0xf7f7f2,
+    // A wide equatorial putting stripe with flanking guide lines.
+    ballArt: { style: 'alignment', base: 0xf7f7f2, ink: [0xe0392e, 0x1e2630], amount: 0.24, seed: 1 }
+  },
+  {
+    id: 'ball_cavity',
+    kind: 'ball',
+    name: 'Cavity Copper',
+    price: 200,
+    rarity: 'rare',
+    color: 0xece5d6,
+    // The retro two-tone: a copper cavity band hairlined in black on an ivory
+    // cover.
+    ballArt: { style: 'band', base: 0xece5d6, ink: [0xb4682c, 0x23252b], amount: 0.3, seed: 2 }
+  },
+  {
+    id: 'ball_paintfall',
+    kind: 'ball',
+    name: 'Paintfall',
+    price: 300,
+    rarity: 'special',
+    color: 0xf7f7f2,
+    // Blue and red poured over the crown and running down, the two drifting
+    // into each other where they meet.
+    ballArt: { style: 'drip', base: 0xf7f7f2, ink: [0x2f6fe0, 0xd8342f], amount: 0.55, seed: 0x5bf03635 }
+  }
 ];
 
 // Saturated tints so an unlit streak reads clearly as its color, not a pale
@@ -192,6 +263,7 @@ export const STORE_CATALOG: StoreItem[] = [
   ...BALL_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `ball_${id}`, kind: 'ball', name: `${name} Ball`, price, rarity, color })
   ),
+  ...BALL_ART_ITEMS,
   { id: 'trail_white', kind: 'trail', name: 'Classic Trail', price: 0, rarity: 'common', color: 0xffffff },
   ...TRAIL_TINTS.map(
     ([id, name, color, rarity, price]): StoreItem => ({ id: `trail_${id}`, kind: 'trail', name: `${name} Trail`, price, rarity, color })

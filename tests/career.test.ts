@@ -14,6 +14,7 @@ import {
   mergeCareers,
   migrateCareer,
   pointCost,
+  proCp,
   raiseAttr,
   setActivePro,
   setProLook,
@@ -27,8 +28,9 @@ import type { GolferStats } from '../src/core/types';
  * brackets) and one table (CP per round), so every promise the owner was given
  * is checkable here: the 65-overall start, the 150/200/450 bracket totals, and
  * the ~27/~28/~55-round arc at the CP a player actually earns. Round 2 adds
- * the STABLE: named Pros with a shared wallet, where a new rookie keeps the
- * unspent CP and the old Pro keeps every point ever bought.
+ * the STABLE: named Pros who each bank their OWN CP (tests/careerCp.test.ts
+ * guards the ledger itself), where a rookie starts broke and the old Pro
+ * keeps every point ever bought.
  */
 
 const sum = (s: GolferStats): number =>
@@ -158,13 +160,16 @@ describe('spending', () => {
 });
 
 describe('the stable', () => {
-  it('a new Pro keeps the unspent CP; the old Pro keeps every point bought', () => {
-    // Grow the first Pro, then start a rookie: owner Q&A verbatim — "unspent
-    // cp should carry over, spent shouldn't. pro should remain playable."
+  it('a new Pro starts broke; the old Pro keeps their CP and every point bought', () => {
+    // Grow the first Pro, then start a rookie. Owner (per-Pro CP): "You
+    // shouldn't have a bunch when you start a new golfer but it also
+    // shouldn't go away in case your not done with the first golfer" — so the
+    // rookie is broke and the vet's 16 unspent are waiting for them.
     let c = start(grantCp(emptyCareer(), 20), 'bigHitter', { id: 'first' });
     c = raiseAttr(raiseAttr(c, 'putting')!, 'putting')!; // 4 CP into the vet
     c = startPro(c, { name: 'Rookie', styleId: 'puttKing', character: 'chip', now: 2000, id: 'second' });
-    expect(c.cp).toBe(16); // the wallet carried
+    expect(c.cp).toBe(0); // the rookie's own balance, not the stable's
+    expect(proCp(c, 'first')).toBe(16); // still the vet's, whenever they play again
     expect(c.cpSpent).toBe(4); // spent stays spent — invested in the vet
     expect(activePro(c)!.id).toBe('second');
     expect(activePro(c)!.attrs).toEqual(CAREER_STARTS.puttKing);
@@ -173,6 +178,7 @@ describe('the stable', () => {
     expect(vet.attrs.putting).toBe(CAREER_STARTS.bigHitter.putting + 2);
     c = setActivePro(c, 'first');
     expect(activePro(c)!.id).toBe('first');
+    expect(c.cp).toBe(16); // switching Pro switches wallet
     expect(activePro(c)!.attrs.putting).toBe(CAREER_STARTS.bigHitter.putting + 2);
   });
 

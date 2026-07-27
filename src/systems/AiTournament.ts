@@ -123,6 +123,117 @@ export function entrantSigma(ovr: number): number {
   return SIGMA_BEST + SIGMA_SPAN * Math.min(1, Math.max(0, (95 - ovr) / 15));
 }
 
+// ---------------------------------------------------------------------------
+// HOT STREAKS (owner: "give some ais random hot streaks where they play higher
+// than their level (+5) for a few weeks").
+//
+// A rival's rating is their identity — the whole point of entrantForm — so a
+// streak must not touch the rating. It is a TEMPORARY FORM BONUS laid over the
+// top of it for a run of consecutive tour events, after which the rival drops
+// straight back to who they are.
+//
+// DETERMINISM IS THE HARD REQUIREMENT. A shared season (src/firebase/CoopSeason)
+// exists because both devices re-derive the identical AI field from the season
+// seed alone; recomputeSeasonPoints re-settles an event's points from stored
+// scores on either phone. So a streak is a PURE FUNCTION of
+// (season seed, rival id, event index) — no Math.random, no clock, no mutable
+// module state. Two devices, or the same device twice, always agree.
+// ---------------------------------------------------------------------------
+
+/**
+ * The owner's "+5", in the unit the model actually speaks: a hot rival plays
+ * like a golfer five OVERALL POINTS better. entrantForm is a line in OVR, so
+ * that converts to FORM_PER_OVR × 5 strokes per round — the bonus is derived
+ * from the form curve rather than hard-coded, so re-tuning the curve can never
+ * silently change what "+5" means.
+ */
+export const STREAK_OVR_BONUS = 5;
+
+/** "A few weeks": a streak runs 2–4 consecutive tour events (a major counts as
+ *  one event, so a hot rival carries the bonus through all three of its
+ *  rounds — which is exactly how a purple patch reads on a leaderboard). */
+export const STREAK_MIN_EVENTS = 2;
+export const STREAK_MAX_EVENTS = 4;
+
+/**
+ * Chance that a streak BEGINS for a given rival at a given event. Deliberately
+ * small: at ~3 events per streak it covers ≈7% of (rival, event) pairs, which
+ * is about four purple patches per sixteen-event season across the whole field
+ * and leaves half the weeks with nobody hot at all. A hot streak has to read as
+ * an event, not as the weather.
+ *
+ * It is also a CALIBRATION constant, not just a flavour one. Six of the ten
+ * rivals are now contenders, so raising this raises the odds that one of THEM
+ * is playing +5 in any given week — and a hot contender is worth about two
+ * strokes off the winning total of a major. At this rate the major the player
+ * actually plays averages ≈ −10, which is the number the owner signed off on.
+ */
+export const STREAK_START_CHANCE = 0.025;
+
+/** A run of consecutive events one rival spends above their level. */
+export interface HotStreak {
+  /** Event index the streak began at (may be negative — see hotStreakAt). */
+  start: number;
+  /** Consecutive events it covers, STREAK_MIN_EVENTS..STREAK_MAX_EVENTS. */
+  length: number;
+}
+
+/** Where a rival's round sits in the season, for the streak lookup. Absent
+ *  outside the Tour Season (the AI tournament mode has no season timeline, so
+ *  it simply never runs streaks). */
+export interface TourFormContext {
+  /** The season seed — the ONLY entropy a streak is allowed to use. */
+  seasonSeed: number;
+  /** 0-based index of the event in the season schedule. */
+  eventIdx: number;
+}
+
+/** FNV-1a over the rival id, folded with the season seed and the event index.
+ *  A string id (not a roster position) keeps a rival's streaks attached to the
+ *  RIVAL, so re-ordering or re-rating the roster never reshuffles history. */
+function streakHash(seasonSeed: number, rivalId: string, eventIdx: number): number {
+  let h = (0x811c9dc5 ^ (seasonSeed | 0)) >>> 0;
+  for (let i = 0; i < rivalId.length; i++) {
+    h = Math.imul(h ^ rivalId.charCodeAt(i), 0x01000193) >>> 0;
+  }
+  // eventIdx can be negative (a streak that began before the season opened);
+  // Math.imul keeps the mix well-defined either way.
+  h = Math.imul(h ^ (eventIdx + 0x7fff), 0x27d4eb2d) >>> 0;
+  return (h ^ (h >>> 15)) >>> 0;
+}
+
+/** The streak that STARTS at exactly `eventIdx`, or null. Two draws from one
+ *  stream: does one begin, and how long does it run. */
+function streakStartingAt(seasonSeed: number, rivalId: string, eventIdx: number): HotStreak | null {
+  const rng = mulberry32(streakHash(seasonSeed, rivalId, eventIdx));
+  if (rng() >= STREAK_START_CHANCE) return null;
+  const span = STREAK_MAX_EVENTS - STREAK_MIN_EVENTS + 1;
+  return { start: eventIdx, length: STREAK_MIN_EVENTS + Math.min(span - 1, Math.floor(rng() * span)) };
+}
+
+/**
+ * The streak a rival is in the middle of at `eventIdx`, or null.
+ *
+ * Walks back over the only starts that could still reach this event — at most
+ * STREAK_MAX_EVENTS of them, so the lookup is O(1) and needs no season state.
+ * Starts BEFORE the season (negative indices) are allowed on purpose: form
+ * carries over, so event 1 is as likely to catch a rival mid-run as event 12,
+ * instead of the schedule opening with an artificially cold field.
+ */
+export function hotStreakAt(seasonSeed: number, rivalId: string, eventIdx: number): HotStreak | null {
+  for (let s = eventIdx; s > eventIdx - STREAK_MAX_EVENTS; s--) {
+    const w = streakStartingAt(seasonSeed, rivalId, s);
+    if (w && s + w.length > eventIdx) return w;
+  }
+  return null;
+}
+
+/** Strokes per round a rival on a hot streak plays above their own level: the
+ *  form of (their rating + STREAK_OVR_BONUS) minus the form of their rating. */
+export function streakFormBonus(ovr: number): number {
+  return entrantForm(ovr + STREAK_OVR_BONUS) - entrantForm(ovr);
+}
+
 /**
  * One AI entrant's round on a course: the REAL round simulator plus the
  * calibrated tournament form for their RATING. Exported so the Tour Season
@@ -134,20 +245,34 @@ export function entrantSigma(ovr: number): number {
  * to express. The second seed is derived here so the caller's seed contract
  * is unchanged. `shiftSeed` remains a TWO-DRAW stream (gaussian form first,
  * then the rounding uniform — the order is part of the contract).
+ *
+ * `tour` places the round in a season so a HOT STREAK can apply. It is added
+ * OUTSIDE the rng, before the gaussian, so a streak never disturbs the seed
+ * stream: the same seeds produce the same physics and the same week-to-week
+ * wobble whether the rival is hot or not. Omit it (the AI tournament mode,
+ * which has no season timeline) and no streak can ever fire.
  */
 export function simulateEntrantRound(
   course: CourseData,
   courseId: string,
   golfer: Golfer,
   simSeed: number,
-  shiftSeed: number
+  shiftSeed: number,
+  tour?: TourFormContext
 ): { total: number; toPar: number } {
   const a = simulateRound(course, golfer, simSeed, RULES.holesPerRound);
   const b = simulateRound(course, golfer, (simSeed ^ 0x85ebca6b) >>> 0, RULES.holesPerRound);
   const par = a.total - a.toPar;
   const ovr = entrantOvr(golfer);
   const rng = mulberry32(shiftSeed);
-  const form = entrantForm(ovr) - fieldEasingFor(courseId) + gaussianOf(rng, 0, entrantSigma(ovr));
+  const hot = tour ? hotStreakAt(tour.seasonSeed, golfer.id, tour.eventIdx) !== null : false;
+  const form =
+    entrantForm(ovr) +
+    (hot ? streakFormBonus(ovr) : 0) -
+    fieldEasingFor(courseId) +
+    // Sigma stays keyed to the RATING, not the streak: catching fire makes a
+    // rival better, it does not make them a metronome.
+    gaussianOf(rng, 0, entrantSigma(ovr));
   // The averaged total is a half-integer and the form is real, so round the
   // RESULT once — stochastically, and via floor + fraction so it stays
   // correct for negative values (`% 1` flips sign, which silently biased the
