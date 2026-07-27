@@ -189,6 +189,26 @@ return:
 - **The abandon path must be unstoppable.** It runs because the GPU already
   died, so every step before the chrome reset is best-effort and wrapped; a
   throw halfway through re-creates the trap it exists to open.
+- **Input teardown must not live behind `scene.dispose()`.** A scene whose
+  context has died cannot be disposed (it throws), so any listener removal
+  bundled into `dispose()` silently never happens on the one path where it
+  matters most. `HoleScene` splits `teardownChrome()` (GPU-free: listeners, DOM,
+  timers, live drags, stray modals) from `dispose()` (that, then
+  `scene.dispose()`), and both exits run the same teardown. The failure this
+  fixes is invisible in code review and unmistakable to a player: leftover
+  `window` pointer handlers `preventDefault()` every move, which — with
+  `touch-action: none` set globally — suppresses tap synthesis and stops the
+  landing scrolling. Owner: *"it was like I was clicking in the wrong spots."*
+  Gated by `tests/visual/webglFallback.spec.ts`, which clicks the menu with a
+  real click; a `dispatchEvent` would bypass the broken layer.
+- **A crash on a player's device must leave evidence.** `webglcontextlost`
+  writes a `CrashRecord` (course, hole, tier, floor, reason, mesh/material/
+  texture counts, planted scatter instances, heap) that Settings → Graphics
+  displays. It reads only CPU-side values — the context is gone, so anything
+  that round-trips to the driver throws or hangs — and is wrapped, because a
+  diagnostic that breaks the escape path is worse than no diagnostic. It lives
+  on `DeviceSettings`, not the profile: `persistProfile()` writes nothing for a
+  signed-out player, and a guest's crash is exactly as informative.
 - **The menus must outlive the GPU.** `new Engine()` is a module-top-level
   statement and every menu listener is registered below it, so an unguarded
   throw kills the module and leaves the browser painting `#setup`'s static

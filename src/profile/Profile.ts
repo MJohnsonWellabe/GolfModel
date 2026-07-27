@@ -115,6 +115,19 @@ export interface PlayerProfile {
   /** True once the player has chosen a loadout in the Locker Room ("Lock it
    *  in"). Until then, each round tees off with a random owned loadout. */
   loadoutLocked?: boolean;
+  /**
+   * One-time marker for the Paintfall gift (`season.cpDenominated` /
+   * `career.cpPerPro` pattern).
+   *
+   * Adding the ball to DEFAULT_OWNED grants it to every save on its own, but
+   * the owner asked for it to be the ball players are actually USING — and
+   * `equipped` is the one collection that does NOT union on migrate (stored
+   * wins over base, so nobody's choice is silently overwritten). So the equip
+   * has to be an explicit, once-only act. Marked here so a second load, or a
+   * round-trip through the cloud, never drags a player back off a ball they
+   * chose afterwards.
+   */
+  dripGranted?: boolean;
   /** Retention layer (records / 7-day streak / hole mastery) — versioned
    *  sub-states that migrate from any stored shape and merge grow-only, so
    *  cross-device sync and offline reconciliation can never lose a best,
@@ -241,6 +254,40 @@ function defaultStorage(): KVStorage | null {
  * also re-asserted OVER the profile after any cloud merge, so a sync from a
  * louder device never unmutes this one (see applyDeviceSettings callers).
  */
+/**
+ * What this device was drawing when a WebGL context died.
+ *
+ * The crashes that matter happen on players' phones, which no test rig here can
+ * reproduce — the reports have been "it lagged then died on Wild Prairie 3",
+ * with no numbers attached. This is written by the lost-context handler and
+ * surfaced in Settings → Graphics so the numbers can be read back off the
+ * device that actually failed. Device-local for the same reason as the volumes:
+ * a guest's crash is exactly as informative as a signed-in player's.
+ *
+ * Deliberately small and plain: it is written at the worst possible moment, so
+ * every field is a number or a short string already in memory. Nothing here
+ * touches the GPU.
+ */
+export interface CrashRecord {
+  /** Epoch ms, so the readout can say how long ago. */
+  at: number;
+  course: string;
+  hole: number;
+  /** Quality tier in force when it died, and the session's worst tier. */
+  tier: number;
+  floor: number;
+  /** Why the governor last moved, if it had. */
+  reason: string;
+  meshes: number;
+  materials: number;
+  textures: number;
+  /** Planted scatter instances across every batch — the number this whole
+   *  performance investigation has been circling. */
+  props: number;
+  /** Chrome only; null elsewhere. */
+  heapMB: number | null;
+}
+
 export interface DeviceSettings {
   sound: number;
   ambience: number;
@@ -274,6 +321,37 @@ export interface DeviceSettings {
    *  rather choose than be measured. A preference about THIS device, like the
    *  volumes; it changes what a frame COSTS, never how the hole plays. */
   graphics: 'auto' | 0 | 1 | 2 | 3;
+  /** The most recent store week this device has actually looked at. The coins
+   *  chip flags "new items" while this trails the current week index. Kept here
+   *  rather than on the profile because `persistProfile()` writes nothing for a
+   *  signed-out player, and a guest should still be told the shelf changed. */
+  storeSeenWeek: number;
+  /** The last WebGL context loss on this device, or undefined if it has never
+   *  had one. See CrashRecord. */
+  lastCrash?: CrashRecord;
+}
+
+/** Parse a stored crash record, rejecting anything malformed. Storage is
+ *  attacker-adjacent (any script on the origin can write it) and this is shown
+ *  as text, so every field is coerced rather than trusted. */
+function readCrash(v: unknown): CrashRecord | undefined {
+  if (!v || typeof v !== 'object') return undefined;
+  const c = v as Partial<CrashRecord>;
+  if (typeof c.at !== 'number' || !Number.isFinite(c.at)) return undefined;
+  const num = (n: unknown): number => (typeof n === 'number' && Number.isFinite(n) ? n : 0);
+  return {
+    at: c.at,
+    course: typeof c.course === 'string' ? c.course.slice(0, 40) : '',
+    hole: num(c.hole),
+    tier: num(c.tier),
+    floor: num(c.floor),
+    reason: typeof c.reason === 'string' ? c.reason.slice(0, 80) : '',
+    meshes: num(c.meshes),
+    materials: num(c.materials),
+    textures: num(c.textures),
+    props: num(c.props),
+    heapMB: typeof c.heapMB === 'number' && Number.isFinite(c.heapMB) ? c.heapMB : null
+  };
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -291,7 +369,9 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       tutorialDone: !!p.tutorialDone,
       lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : '',
       swingType: p.swingType === 'trace' ? 'trace' : 'tap',
-      graphics: p.graphics === 0 || p.graphics === 1 || p.graphics === 2 || p.graphics === 3 ? p.graphics : 'auto'
+      graphics: p.graphics === 0 || p.graphics === 1 || p.graphics === 2 || p.graphics === 3 ? p.graphics : 'auto',
+      storeSeenWeek: typeof p.storeSeenWeek === 'number' && Number.isFinite(p.storeSeenWeek) ? p.storeSeenWeek : -1,
+      lastCrash: readCrash(p.lastCrash)
     };
   } catch {
     return null;
@@ -359,6 +439,9 @@ export function defaultProfile(now = 0): PlayerProfile {
     equippedPerk: null,
     consumables: [],
     loadoutLocked: false,
+    // A fresh profile starts already gifted — DEFAULT_OWNED/DEFAULT_EQUIPPED
+    // gave it the ball outright, so there is nothing for the migration to do.
+    dripGranted: true,
     retention: emptyRetention(),
     career: emptyCareer(),
     tour: null,
@@ -422,6 +505,23 @@ export function resetProfileRecords(profile: PlayerProfile, now = 0): PlayerProf
  * (`Object.keys(undefined)`). Normalizing through here first guarantees all
  * collections are present. Shared by loadProfile and cloudSyncProfile.
  */
+/**
+ * Put the Paintfall ball in a returning player's hands, once.
+ *
+ * `alreadyGranted` is the marker: true means this profile has already been
+ * through here, so whatever ball is equipped now is the player's own decision
+ * and must be left alone. It is deliberately a one-shot rather than a default —
+ * a gift that re-equipped itself on every load would override the player's
+ * choice forever, which is a worse bug than not giving the gift at all.
+ */
+function withDripEquipped(
+  equipped: Partial<Record<CosmeticKind, string>>,
+  alreadyGranted: boolean
+): Partial<Record<CosmeticKind, string>> {
+  if (alreadyGranted) return equipped;
+  return { ...equipped, ball: DEFAULT_EQUIPPED.ball };
+}
+
 export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
   const base = defaultProfile();
   return {
@@ -434,9 +534,16 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     coinsEarned: parsed.coinsEarned ?? parsed.coins ?? base.coinsEarned,
     coinsSpent: parsed.coinsSpent ?? base.coinsSpent,
     cosmetics: {
-      // Always keep the default-owned items, even for older saves.
+      // Always keep the default-owned items, even for older saves. This is what
+      // grants the Paintfall ball to everyone who already had a profile.
       owned: [...new Set([...base.cosmetics.owned, ...(parsed.cosmetics?.owned ?? [])])],
-      equipped: { ...base.cosmetics.equipped, ...(parsed.cosmetics?.equipped ?? {}) }
+      // Stored equipment wins over the defaults — a player's choices are never
+      // overwritten — EXCEPT for the one-time Paintfall equip below, which is
+      // the only way a gift can become the ball they are actually using.
+      equipped: withDripEquipped(
+        { ...base.cosmetics.equipped, ...(parsed.cosmetics?.equipped ?? {}) },
+        parsed.dripGranted === true
+      )
     },
     clubUpgrades: { ...(parsed.clubUpgrades ?? {}) },
     achievements: [...(parsed.achievements ?? [])],
@@ -458,6 +565,9 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     equippedPerk: parsed.equippedPerk ?? null,
     consumables: [...(parsed.consumables ?? [])],
     loadoutLocked: parsed.loadoutLocked ?? false,
+    // Stamped whether or not anything moved, so the equip above happens exactly
+    // once in this profile's life.
+    dripGranted: true,
     // Pre-retention profiles (and RTDB copies with the sub-trees dropped)
     // backfill to safe empty states — no loss of existing profiles.
     retention: migrateRetention(parsed.retention),
@@ -565,6 +675,11 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
       owned: [...new Set([...aOwned, ...bOwned])],
       equipped: newer.cosmetics?.equipped ?? {}
     },
+    // One-time markers OR together, like season.cpDenominated: if EITHER side
+    // has already handed out the Paintfall ball, the gift is spent. Taking the
+    // newer side's value instead would let a stale cloud copy un-mark it and
+    // re-equip the ball over a choice the player made since.
+    dripGranted: (a.dripGranted ?? false) || (b.dripGranted ?? false),
     clubUpgrades: Object.fromEntries(
       [...new Set([...Object.keys(aClub), ...Object.keys(bClub)])].map((k) => [
         k,

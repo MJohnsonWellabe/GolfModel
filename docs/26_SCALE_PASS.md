@@ -1952,3 +1952,94 @@ tight fit to the middle of its cell — so overlapping leaves composite in a
 different order. Both orderings are legitimate, and nothing is misplaced, but
 the margin is now thin enough that this gate deserves a tighter look if it
 starts flaking rather than a raised threshold.
+
+## 33. The crash survives, so make the aftermath survivable — and measured
+
+Wild Prairie 3 killed the context again on a Pixel 8, on the build carrying
+everything in §31–32. The escape hatch worked — owner: *"It did load back out to
+menu with an option to resume"* — and then:
+
+> "None of the menus actually worked. It wasn't responsive to clicks it was like
+> I was clicking in the wrong spots."
+
+### The teardown that never ran
+
+`abandonAfterContextLoss` could not call `dispose()`, because disposing a scene
+whose context has been destroyed throws. So it hand-rolled six `display:none`
+calls — and `dispose()` was where **every listener** came off, along with a
+dozen more elements. What survived a crash:
+
+- three WINDOW-level pointer listeners, one of which (`onTraceMove`) calls
+  `preventDefault()` on every move while a drag is live. With
+  `touch-action: none` set globally, that suppresses tap synthesis and stops the
+  landing — `overflow: auto`, taller than a phone screen — from scrolling;
+- `onTraceUp`, which fires `executeShot()` into the dead scene on the next
+  pointerup;
+- the trace pad, meter, club bar, aerial/true-vision/clip/skip buttons, the 🏆
+  board button and the `html.trace-pad` class;
+- any `.storeConfirm` modal — built with an inline `z-index: 30` against the
+  landing's 21, and the **only** in-round DOM that genuinely renders above the
+  menu.
+
+Which of those the owner actually hit is not established, and the fix does not
+depend on knowing: `dispose()` now splits into `teardownChrome()` (GPU-free:
+listeners, DOM, timers, drags, stray modals) and `dispose()` (that, then
+`scene.dispose()`). Both the normal exit and the abandon path run the same
+teardown, so the whole class is gone rather than one member of it. The 🏆 button
+was leaking on the **normal** path too — it was shown on a turn and hidden only
+by the paths that end one cleanly.
+
+`tests/visual/webglFallback.spec.ts` starts a real trace drag, kills the context
+mid-gesture, and then clicks the menu with a real click rather than a
+`dispatchEvent` — the latter would bypass the exact layer that was broken. It
+fails without the fix.
+
+### Instrumenting a device we do not have
+
+Every crash report so far has been a sentence with no numbers, about hardware no
+rig here reproduces. `webglcontextlost` now writes a `CrashRecord` to
+`DeviceSettings` — course, hole, tier, floor, the governor's last reason, mesh /
+material / texture counts, planted scatter instances, heap — and Settings →
+Graphics shows it as a second note under the existing one. A phone has no
+console; this is the substitute.
+
+Two constraints on that record. It must not touch the GPU (the context is
+already gone, so every value is a CPU-side property or an array length), and it
+must never break the escape path, so the whole thing is wrapped. It lives on
+`DeviceSettings` rather than the profile because `persistProfile()` writes
+nothing for a signed-out player, and a guest's crash is exactly as informative.
+
+**The grass is deliberately untouched.** The owner's call: fix the aftermath and
+instrument it, then act on real numbers instead of guessing at a density. Wild
+Prairie authors tall grass at density 22 and Port Johnson v2 at 30, against Maple
+Vale's 18 — the obvious lever, still unpulled, and `GARDEN_DENSITY_CAP` right
+beside it is the precedent for a tier-aware cap when the evidence justifies one.
+
+## 34. The store says when it has something new
+
+The shelf has rotated weekly since §29, and nothing outside the store ever said
+so — a player who did not open it never learned the new balls existed. The coins
+chip (`#psCoins`) now carries the notice: it already showed the balance, and
+gains a second line reading *New items* plus the amber `.hasNews` tint the Tour
+and Locker tiles already use for "something is waiting here". Two lines rather
+than one because three chips share a `nowrap` flex row on a phone and the phrase
+does not fit beside a balance.
+
+"Unseen" is `storeSeenWeek < storeWeekIndex(now)`, stored on `DeviceSettings`
+for the guest reason above, defaulting to **-1** rather than 0 — week 0 is a real
+shelf with the ball drop on it, and a default of 0 would hide the launch week
+from everyone who had not already looked.
+
+The Paintfall ball is now a **gift**: free, in `DEFAULT_OWNED`, and the default
+equipped ball. Being free takes it out of the rotation by the rotation's own
+rule (`isRotatable` rejects free and default-owned items), so it also comes out
+of the week-0 drop pin — a giveaway has no business holding one of three shelf
+slots, and a pin that cannot be shelved would leave the week a slot short.
+
+Granting it to *existing* players needed more than a default. `owned` unions on
+migrate, so ownership arrives free; `equipped` does not — stored beats base,
+which is what stops the game overwriting anyone's choices. The owner asked for
+it to be the ball players are actually using, so the equip is an explicit
+one-time act marked by `dripGranted`, following `season.cpDenominated` and
+`career.cpPerPro`. It OR-merges, so a stale cloud copy cannot un-mark it and
+drag a player off a ball they picked afterwards.

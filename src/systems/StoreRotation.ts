@@ -72,15 +72,20 @@ export interface StoreDrop {
 }
 
 /**
- * The drop schedule. Week 0 is the first ball drop: four designed balls that
+ * The drop schedule. Week 0 is the first ball drop: the designed balls, which
  * are a set and launch as one.
+ *
+ * `ball_paintfall` was the fourth of them and is no longer here — it is a gift
+ * now (free, and in `DEFAULT_OWNED`), so `isRotatable` rejects it and a pin
+ * would silently drop out of the slate anyway. Pinning something unshelvable
+ * would leave the week a slot short with nothing to show for it.
  */
 export const STORE_DROPS: readonly StoreDrop[] = [
   {
     id: 'drop_paint_shop',
     name: 'The Paint Shop',
     week: 0,
-    itemIds: ['ball_inkwash', 'ball_sightline', 'ball_cavity', 'ball_paintfall']
+    itemIds: ['ball_inkwash', 'ball_sightline', 'ball_cavity']
   }
 ];
 

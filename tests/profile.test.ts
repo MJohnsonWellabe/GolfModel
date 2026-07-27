@@ -157,6 +157,33 @@ describe('cloud round-trip — RTDB drops empty collections', () => {
     const merged = mergeProfiles(defaultProfile(), withPal);
     expect(merged.cosmetics.equipped.pal).toBe('pal_fox');
   });
+
+  it('hands the Paintfall ball to an old save and puts it in play — exactly once', () => {
+    // The gift has to reach players who already have a profile, and the owner
+    // asked for it to be the ball they are USING, not just one they own. That
+    // needs an explicit equip, because `equipped` is the one collection where a
+    // stored value beats the default.
+    const old = migrateProfile({ coins: 500, cosmetics: { owned: [], equipped: { ball: 'ball_red' } } } as Partial<PlayerProfile>);
+    expect(old.cosmetics.owned).toContain('ball_paintfall');
+    expect(old.cosmetics.equipped.ball).toBe('ball_paintfall');
+    expect(old.dripGranted).toBe(true);
+
+    // ONCE. Having been given the ball, a player who picks another one keeps it
+    // through every future load — a gift that re-equipped itself on each boot
+    // would be a bug that overrides the player forever.
+    old.cosmetics.equipped.ball = 'ball_gold';
+    expect(migrateProfile(old).cosmetics.equipped.ball).toBe('ball_gold');
+  });
+
+  it('a stale cloud copy cannot re-gift the ball over a later choice', () => {
+    // The marker OR-merges rather than following `updatedAt`. Without that, a
+    // pre-gift copy arriving from another device would migrate (equipping
+    // Paintfall), and could then win the merge and undo the player's pick.
+    const chosen = migrateProfile({ cosmetics: { owned: [], equipped: { ball: 'ball_gold' } }, dripGranted: true } as Partial<PlayerProfile>);
+    chosen.updatedAt = 10;
+    const stale = { ...defaultProfile(), dripGranted: false, updatedAt: 999 };
+    expect(mergeProfiles(chosen, stale).dripGranted).toBe(true);
+  });
 });
 
 describe('mergeProfiles — progress is never lost', () => {
@@ -329,7 +356,7 @@ describe('device settings (persistent audio/motion preferences)', () => {
   it('round-trips through storage for guests (no profile persistence needed)', () => {
     const s = memStorage();
     saveDeviceSettings(
-      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace', graphics: 2 },
+      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace', graphics: 2, storeSeenWeek: 4 },
       s
     );
     const back = loadDeviceSettings(s);
@@ -342,7 +369,10 @@ describe('device settings (persistent audio/motion preferences)', () => {
       tutorialDone: true,
       lastCourseId: 'wildwood',
       swingType: 'trace',
-      graphics: 2
+      graphics: 2,
+      storeSeenWeek: 4,
+      // Never crashed on this device, so there is nothing to report.
+      lastCrash: undefined
     });
   });
 
@@ -360,6 +390,42 @@ describe('device settings (persistent audio/motion preferences)', () => {
     expect(back.clipCapture).toBe(true);
     // An absent or corrupt swing choice is the DEFAULT control, never the pad.
     expect(back.swingType).toBe('tap');
+    // A device that has never seen the store must be told the shelf has items,
+    // so the default trails week 0 rather than sitting on it.
+    expect(back.storeSeenWeek).toBe(-1);
+  });
+
+  it('keeps a crash record it can trust, and drops one it cannot', () => {
+    const s = memStorage();
+    const crash = {
+      at: 1_700_000_000_000,
+      course: 'Wild Prairie',
+      hole: 3,
+      tier: 1,
+      floor: 1,
+      reason: '6 frames over 250ms',
+      meshes: 210,
+      materials: 44,
+      textures: 61,
+      props: 25_803,
+      heapMB: 412
+    };
+    saveDeviceSettings({ ...loadDeviceSettings(s)!, lastCrash: crash } as never, s);
+    expect(loadDeviceSettings(s)!.lastCrash).toEqual(crash);
+
+    // Junk from another script on the origin must not reach the readout: a
+    // record with no timestamp is not a record.
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ lastCrash: { course: 'nonsense' } }));
+    expect(loadDeviceSettings(s)!.lastCrash).toBeUndefined();
+
+    // A partial record keeps its timestamp and zeroes what it cannot vouch for,
+    // rather than rendering `undefined` into the settings screen.
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ lastCrash: { at: 5, props: 'lots' } }));
+    const partial = loadDeviceSettings(s)!.lastCrash!;
+    expect(partial.at).toBe(5);
+    expect(partial.props).toBe(0);
+    expect(partial.course).toBe('');
+    expect(partial.heapMB).toBeNull();
   });
 
   it('survives a broken JSON blob (falls back to null, not a throw)', () => {

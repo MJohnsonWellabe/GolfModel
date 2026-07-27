@@ -124,7 +124,7 @@ import { claimEntitlements, PRODUCTS, purchaseConfigured, startPurchase } from '
 import { applyClubUpgrades, isEquippableKind, STORE_BY_ID, STORE_CATALOG, StoreItem, upgradePerfectZoneMult, upgradeStatBonus } from '../data/storeCatalog';
 // The store offers a WEEKLY SHELF, not the whole catalog (owner: "We should
 // start rotating store items… Only leave in the club upgrades always").
-import { currentStoreShelf, shelfIds, shelfTimeLeft } from '../systems/StoreRotation';
+import { currentStoreShelf, shelfIds, shelfTimeLeft, storeWeekIndex } from '../systems/StoreRotation';
 import { ballArtSwatchCss } from '../core/rendering/ballArt';
 import { palByKey, PalDef } from '../data/pals';
 import { PerkDef, perkById, perkEffectLabel, perkPerfectZoneMult } from '../data/perks';
@@ -958,6 +958,10 @@ class HoleScene {
    *  shot straight through the roll to rest (fastForwardFlight). */
   private skipToRest = false;
   private disposed = false;
+  /** Guards `teardownChrome` — both `dispose()` and the lost-context abandon
+   *  path call it, and a lost context can still be followed by a normal
+   *  teardown, so it has to be safe to run twice. */
+  private chromeTornDown = false;
   /** Reused each frame for the tree-occlusion golfer-head point (no per-frame alloc). */
   private _golferHead = new Vector3();
   /** Scratch objects for the per-frame aim-readout projection (no per-frame alloc). */
@@ -4305,8 +4309,27 @@ class HoleScene {
     this.course3d.shedQuality(q);
   }
 
-  dispose(): void {
-    this.disposed = true;
+  /**
+   * Put every piece of in-round UI back, and unbind every listener this scene
+   * attached. Touches NO GPU object, so it is safe to run against a scene whose
+   * WebGL context has already died — which is the whole reason it is split out
+   * of `dispose()`.
+   *
+   * That split matters more than it looks. `abandonAfterContextLoss` cannot call
+   * `dispose()` (disposing a dead context throws), so before this existed it
+   * hand-rolled a handful of `display:none` calls and skipped the rest —
+   * including the three WINDOW-level pointer listeners. `onTraceMove` calls
+   * `preventDefault()` on every pointermove, and with `touch-action: none` set
+   * globally that kills tap synthesis and stops the landing (which scrolls)
+   * from scrolling. The owner's report was exact: "None of the menus actually
+   * worked … it was like I was clicking in the wrong spots."
+   *
+   * Idempotent, because both `dispose()` and the abandon path call it and a
+   * lost context can be followed by a normal teardown.
+   */
+  teardownChrome(): void {
+    if (this.chromeTornDown) return;
+    this.chromeTornDown = true;
     document.documentElement.classList.remove('fire-vignette');
     // Cancel any still-pending intro-flyover timers outright (they were only
     // no-op'd by the disposed guard before — harmless, but the timers
@@ -4347,6 +4370,27 @@ class HoleScene {
     shotShapeEl.style.display = 'none';
     shotCapture.stop();
     if (captureBtn) captureBtn.style.display = 'none';
+    // The 🏆 board button was shown by beginTurn and hidden only on the paths
+    // that end a turn cleanly — so it survived even a NORMAL teardown and sat
+    // on the landing with a live listener. Hidden here for both paths.
+    tourBoardBtn.style.display = 'none';
+    // In-round modals live ABOVE the menu layer. `showTourBoard` builds its
+    // sheet with an inline `z-index: 30` against the landing's 21, and only a
+    // tap on it removes it — so a board left open when the round ends is a
+    // full-screen tap-swallower over the menu. This is the one piece of
+    // in-round DOM that genuinely can cover the landing.
+    document.querySelectorAll('.storeConfirm').forEach((el) => el.remove());
+    // Belt and braces: the drags the window listeners read. Even if a listener
+    // somehow outlives the removals above, an inactive drag makes both handlers
+    // no-ops rather than a preventDefault() storm or a shot fired into a dead
+    // scene.
+    this.trace = null;
+    this.strikeDragging = false;
+  }
+
+  dispose(): void {
+    this.disposed = true;
+    this.teardownChrome();
     this.scene.dispose();
   }
 }
@@ -4562,7 +4606,17 @@ function gpuBlocked(): boolean {
   // teardown.
   hideLoading();
   showLanding();
-  showMsg('This device can’t start a round right now — its graphics are unavailable.', 3600);
+  // Name the fix. `contextGone` is the common case here — the GPU died during a
+  // round — and a page reload gets a fresh context, so telling the player only
+  // that graphics are "unavailable" leaves them stuck on a screen that would
+  // work again after one pull-to-refresh. The card is already checkpointed, so
+  // reloading costs them nothing.
+  showMsg(
+    contextGone
+      ? 'Graphics stopped on this device. Reload the page to play on — your round is saved.'
+      : 'This device can’t start a round right now — its graphics are unavailable.',
+    4200
+  );
   return true;
 }
 
@@ -5357,6 +5411,27 @@ function graphicsNote(): string {
   return q.pinned ? `Drawing at ${q.label}${detail}` : `Auto chose ${q.label} for this device${detail}`;
 }
 
+/**
+ * A second line under Graphics: what this device was drawing the last time it
+ * lost its WebGL context, or nothing if it never has.
+ *
+ * The crashes worth fixing happen on players' phones, and until now the only
+ * evidence was a sentence typed afterwards. A phone has no console, so the
+ * numbers have to be somewhere a player can read them out — this is that place.
+ */
+function crashNote(): string {
+  const c = deviceSettings.lastCrash;
+  if (!c) return '';
+  const days = Math.floor((Date.now() - c.at) / 86_400_000);
+  const when = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
+  const hole = c.hole > 0 ? ` h${c.hole}` : '';
+  const heap = c.heapMB === null ? '' : ` · ${c.heapMB}MB heap`;
+  return (
+    `Last graphics failure ${when}: ${escapeHtml(c.course)}${hole} at tier ${c.tier}` +
+    ` · ${c.props.toLocaleString()} props · ${c.meshes} meshes · ${c.textures} textures${heap}`
+  );
+}
+
 /** Which tab was last open, so a re-render (a claim, a grant, a reset) comes
  *  back to where the player was rather than throwing them to the top. */
 let profileTab: ProfileTab = 'player';
@@ -5490,6 +5565,9 @@ function renderProfile(tab?: ProfileTab): void {
         ).join('') +
         `</div></div>` +
         `<div class="setNote" id="gfxNote">${graphicsNote()}</div>` +
+        // Only rendered once this device has actually lost a context, so it is
+        // invisible to everyone whose hardware copes.
+        (crashNote() ? `<div class="setNote setNoteWarn" id="crashNote">${crashNote()}</div>` : '') +
         `<a class="ghostBtn aboutGameRow" href="marketing.html">ℹ️ About the game</a>` +
         `<div id="resetZone" class="resetZone">` +
         `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
@@ -5975,9 +6053,37 @@ function refreshEntitlements(): void {
 let pendingBuy: string | null = null;
 
 /** Store overlay (Phase 7): buy/equip cosmetics + club upgrades with coins. */
+/**
+ * Has the shelf changed since this device last looked?
+ *
+ * The store rotates weekly, and until now nothing said so from the outside —
+ * the new balls could sit on the shelf for a week with the player never
+ * opening the store (owner: "show the coins and 'new items available' to draw
+ * attention to the new balls"). Compares the week this device last SAW against
+ * the week that is live.
+ *
+ * Device-local, not profile-backed: a signed-out player persists no profile at
+ * all, and they need telling just as much as anyone.
+ */
+function storeHasNewItems(): boolean {
+  return deviceSettings.storeSeenWeek < storeWeekIndex(devNow());
+}
+
+/** Mark this week's shelf as seen and repaint the chip that was flagging it. */
+function markStoreSeen(): void {
+  const week = storeWeekIndex(devNow());
+  if (deviceSettings.storeSeenWeek === week) return;
+  updateDeviceSettings({ storeSeenWeek: week });
+  refreshProgressSurfaces();
+}
+
 function renderStore(): void {
   const p = profile;
   refreshEntitlements();
+  // Opening the store IS seeing it. Marked on entry rather than on close so a
+  // player who backs out with the hardware button still doesn't get told about
+  // the same week twice.
+  markStoreSeen();
   // THE SHELF, NOT THE CATALOG (owner: "We should start rotating store items…
   // Only leave in the club upgrades always"). The catalog still holds every
   // item — nothing was deleted, so no saved profile and no pass reward can be
@@ -7787,10 +7893,11 @@ window.addEventListener('resize', () => engine3d?.resize());
  * act instead of leaving them under a veil.
  *
  * This cannot go through `leaveRound()`: that calls `current.dispose()`, and
- * disposing a scene whose context has been destroyed throws. So it does the
- * same chrome teardown by hand, drops the scene reference WITHOUT disposing
- * (there is nothing left to free — the context took it), and saves the card
- * first so the round can be picked up again from the menu.
+ * disposing a scene whose context has been destroyed throws. It runs the
+ * scene's own `teardownChrome()` instead — the GPU-free half of `dispose()` —
+ * then drops the scene reference WITHOUT disposing (there is nothing left to
+ * free; the context took it), having saved the card first so the round can be
+ * picked up again from the menu.
  */
 function abandonAfterContextLoss(): void {
   // This runs BECAUSE the GPU already died, so treat every step before the
@@ -7805,6 +7912,14 @@ function abandonAfterContextLoss(): void {
       checkpointRound();
     } catch {
       /* best-effort — a lost card is better than a stuck screen */
+    }
+    // Unbind the scene's listeners and put its UI away. This is the step whose
+    // absence made the menus unusable: the window-level pointer handlers stayed
+    // bound to the dead scene, and `onTraceMove` preventDefault()s every move.
+    try {
+      current?.teardownChrome();
+    } catch {
+      /* best-effort — never block the way out */
     }
   }
   // Drop the scene WITHOUT disposing: disposing against a destroyed context
@@ -7822,7 +7937,10 @@ function abandonAfterContextLoss(): void {
       /* best-effort */
     }
   }
-  // UNCONDITIONAL from here down.
+  // UNCONDITIONAL from here down. `teardownChrome` above owns the gameplay
+  // controls; these are the round-frame elements it does not touch (they are
+  // shown by the round, not by the scene), and they must be reset even when
+  // there was no live scene to tear down.
   hideLoading();
   swingBtn.style.display = 'none';
   hudEl.style.display = 'none';
@@ -7832,6 +7950,58 @@ function abandonAfterContextLoss(): void {
   summaryEl.style.display = 'none';
   showLanding();
   showMsg('The graphics ran out of memory. Your card is saved — finish the round from the menu.', 4200);
+}
+
+/**
+ * Write down what this device was drawing when the context died.
+ *
+ * Every crash so far has arrived as a sentence — "it lagged then died on Wild
+ * Prairie 3" — with no numbers, on hardware no rig here can reproduce. This
+ * turns the next one into figures the player can read straight off Settings →
+ * Graphics (`graphicsNote`), which is the only console a phone has.
+ *
+ * MUST NOT TOUCH THE GPU. The context is already gone, so anything that would
+ * round-trip to the driver either throws or hangs; every value here is a plain
+ * JS property or an array length that Babylon keeps on the CPU side. The whole
+ * thing is wrapped anyway — a diagnostic that breaks the escape path would be
+ * worse than no diagnostic at all.
+ */
+function recordCrash(): void {
+  try {
+    const scene = current?.scene ?? null;
+    const q = qualityStatus();
+    const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
+    // Thin-instance counts are a plain number on the mesh — no GL call. Batch
+    // meshes are named `nat*` (excluding the `natProto*` prototypes), the same
+    // filter the batching gate uses.
+    let props = 0;
+    if (scene) {
+      for (const m of scene.meshes) {
+        if (!m.name.startsWith('nat') || m.name.startsWith('natProto')) continue;
+        // thinInstanceCount lives on Mesh, not AbstractMesh, and scene.meshes is
+        // typed as the latter. Read it structurally rather than casting the mesh
+        // to Mesh — a non-Mesh entry simply contributes nothing.
+        props += (m as unknown as { thinInstanceCount?: number }).thinInstanceCount ?? 0;
+      }
+    }
+    updateDeviceSettings({
+      lastCrash: {
+        at: Date.now(),
+        course: round.course.name,
+        hole: current ? current.hole.number : 0,
+        tier: q.tier,
+        floor: q.floor,
+        reason: q.reason,
+        meshes: scene ? scene.meshes.length : 0,
+        materials: scene ? scene.materials.length : 0,
+        textures: scene ? scene.textures.length : 0,
+        props,
+        heapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null
+      }
+    });
+  } catch {
+    /* diagnostics are never worth breaking the way out */
+  }
 }
 
 /** Fires if the context never comes back — see the handler below. */
@@ -7849,6 +8019,9 @@ canvas.addEventListener('webglcontextlost', (e) => {
   // meant the one path that actually happens — the GPU process dying, with no
   // restore ever — left the device to relaunch at the budget that killed it.
   demoteQuality('webgl context lost');
+  // Snapshot BEFORE the demote takes effect on anything and before the scene is
+  // dropped — this is the only moment the failing hole's numbers still exist.
+  recordCrash();
   // The veil is raised here and lifted by the restore handler, or by the
   // timeout below — never by playHole itself.
   showLoading('Rebuilding the hole…');
@@ -8096,7 +8269,10 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   tutorialDone: false,
   lastCourseId: '',
   swingType: 'tap',
-  graphics: 'auto'
+  graphics: 'auto',
+  // -1, not 0: week 0 is a real week, and a device that has never opened the
+  // store should be told the shelf has something on it.
+  storeSeenWeek: -1
 };
 
 /** Whether THIS device swings by tracing the rabbit. The `dragSwing` flag is
@@ -9267,6 +9443,10 @@ function refreshLandingCards(): void {
   } else {
     if (seasonBtn) seasonBtn.style.display = '';
     if (storeBtn) storeBtn.style.display = '';
+    // The Store art tile carries the same amber "something new here" as the
+    // coins chip — tint only, since the tile is artwork with a label and extra
+    // copy would sit on top of the picture.
+    storeBtn?.classList.toggle('hasNews', storeHasNewItems());
     updateDailyBanner();
     updateWeeklyCard();
   }
@@ -9366,10 +9546,19 @@ function updateProgressStrip(newPlayer: boolean): void {
   // reports: the level to the pass that pays it, the streak to today's
   // challenge that feeds it, the coins to the store that spends them. Bound on
   // 'click' (the tap-through rule — see the destination tiles).
+  // The coins chip doubles as the store's notification. It is one of three in a
+  // nowrap flex row, so "new items available" cannot share the line with the
+  // balance on a phone — it goes underneath, and only when there is actually
+  // something unseen. `.hasNews` is the same amber the Tour and Locker tiles use
+  // for "something is waiting for you here".
+  const shelfNew = storeHasNewItems();
   el.innerHTML =
     `<button id="psLevel">Level ${level}</button>` +
     `<button id="psStreak">${streak > 0 ? `🔥 ${streak} day${streak > 1 ? 's' : ''}` : '🔥 Daily'}</button>` +
-    `<button id="psCoins">🪙 ${profile.coins}</button>`;
+    `<button id="psCoins"${shelfNew ? ' class="hasNews"' : ''}>` +
+    `<span class="psMain">🪙 ${profile.coins}</span>` +
+    (shelfNew ? `<span class="psSub">New items</span>` : '') +
+    `</button>`;
   document.getElementById('psLevel')!.addEventListener('click', () => renderSeasonPass());
   document.getElementById('psStreak')!.addEventListener('click', () => openDailyPopup());
   document.getElementById('psCoins')!.addEventListener('click', () => renderStore());

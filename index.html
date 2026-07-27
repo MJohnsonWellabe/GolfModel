@@ -1139,6 +1139,18 @@
         text-overflow: ellipsis;
       }
       #progressStrip button { font: inherit; cursor: pointer; }
+      /* The coins chip grows a second line when the store shelf has rotated.
+         Three chips share a nowrap row on a phone, so "New items" cannot sit
+         beside the balance — it goes under it. The row's default stretch keeps
+         all three the same height, so the strip stays level. */
+      #progressStrip button .psMain { display: block; }
+      #progressStrip button .psSub {
+        display: block;
+        margin-top: 2px;
+        font-size: 10px;
+        font-weight: 700;
+        color: #ffe4a3;
+      }
       /* The second way to tee off: explicit course choice, quieter than Quick
          Start but still an action, not a door. */
       .landingChoose {
@@ -1241,7 +1253,12 @@
         white-space: nowrap;
       }
       .destTile .dtSub:empty { display: none; }
-      .destTile.hasNews {
+      /* "Something is waiting for you here." One amber treatment shared by the
+         destination tiles, the Store art tile and the coins chip, so the signal
+         means the same thing wherever it shows up. */
+      .destTile.hasNews,
+      #landingStore.hasNews,
+      #progressStrip button.hasNews {
         border-color: rgba(255, 213, 79, 0.6);
         background: rgba(255, 213, 79, 0.13);
       }
@@ -2241,6 +2258,17 @@
         font-size: 12px;
         line-height: 1.35;
         color: rgba(219, 232, 214, 0.62);
+      }
+      /* The last-graphics-failure readout. Amber rather than red: it is a
+         diagnostic to read back, not an error to act on, and it only appears on
+         a device that has actually lost a context. */
+      .setNote.setNoteWarn {
+        color: #ffe28a;
+        background: rgba(245, 197, 66, 0.1);
+        border: 1px solid rgba(245, 197, 66, 0.28);
+        border-radius: 10px;
+        padding: 7px 9px;
+        margin-top: 0;
       }
       /* Four graphics choices have to fit a phone row without shrinking the
          label column to nothing. */

@@ -139,13 +139,27 @@ describe('storeRotation', () => {
 });
 
 describe('the first ball drop', () => {
-  const DROP_BALLS = ['ball_inkwash', 'ball_sightline', 'ball_cavity', 'ball_paintfall'];
+  /** Every ball the painter designed for the drop — the art set. */
+  const DESIGNED_BALLS = ['ball_inkwash', 'ball_sightline', 'ball_cavity', 'ball_paintfall'];
+  /** The ones actually SOLD. Paintfall was pulled out and given away (owner:
+   *  "Give everyone the drip ball for free"), which by the rotation's own rules
+   *  takes it off the shelf: a free, default-owned item is not rotatable. */
+  const SHELF_BALLS = ['ball_inkwash', 'ball_sightline', 'ball_cavity'];
 
-  it('is week 0 and puts all four designed balls on the launch shelf', () => {
+  it('is week 0 and puts the sold designed balls on the launch shelf', () => {
     const shelf = storeShelf(0);
     expect(shelf.drop?.id).toBe('drop_paint_shop');
-    expect(shelf.byKind.ball.map((i) => i.id)).toEqual(DROP_BALLS);
-    for (const id of DROP_BALLS) expect(isOnShelf(id, 0), id).toBe(true);
+    expect(shelf.byKind.ball.map((i) => i.id)).toEqual(SHELF_BALLS);
+    for (const id of SHELF_BALLS) expect(isOnShelf(id, 0), id).toBe(true);
+  });
+
+  it('keeps the gifted ball off the shelf entirely — it is not for sale', () => {
+    // Not just absent from week 0: a giveaway must never occupy one of the
+    // three ball slots in ANY week, which is what isRotatable guarantees.
+    expect(isRotatable(STORE_BY_ID.get('ball_paintfall')!)).toBe(false);
+    for (let week = 0; week < 12; week++) {
+      expect(isOnShelf('ball_paintfall', week), `week ${week}`).toBe(false);
+    }
   });
 
   it('every drop only pins items that really exist and really can rotate', () => {
@@ -159,15 +173,20 @@ describe('the first ball drop', () => {
   });
 
   it('each designed ball carries pattern art plus a flat fallback colour', () => {
-    for (const id of DROP_BALLS) {
+    for (const id of DESIGNED_BALLS) {
       const item = STORE_BY_ID.get(id)!;
       expect(item.kind).toBe('ball');
       expect(typeof item.color, id).toBe('number');
       expect(item.ballArt, id).toBeTruthy();
-      expect([200, 300], `${id} is off the tint price ladder`).toContain(item.price);
     }
-    // The four are one of each style — the drop is a range, not four variants.
-    expect(DROP_BALLS.map((id) => STORE_BY_ID.get(id)!.ballArt!.style)).toEqual([
+    for (const id of SHELF_BALLS) {
+      expect([200, 300], `${id} is off the tint price ladder`).toContain(STORE_BY_ID.get(id)!.price);
+    }
+    // The gift is priced at zero, which is what makes `isOwned` true for
+    // everyone regardless of what their save says.
+    expect(STORE_BY_ID.get('ball_paintfall')!.price).toBe(0);
+    // The four are one of each style — the set is a range, not four variants.
+    expect(DESIGNED_BALLS.map((id) => STORE_BY_ID.get(id)!.ballArt!.style)).toEqual([
       'splatter',
       'alignment',
       'band',
@@ -243,5 +262,50 @@ describe('leaving the shelf never touches ownership', () => {
     const forced = new Set(['s1_ball_lagoon']);
     expect(buyItem(p, 's1_ball_lagoon', forced).ok).toBe(false);
     expect(p.coins).toBe(5000);
+  });
+});
+
+/**
+ * THE "NEW ITEMS" NUDGE.
+ *
+ * Owner: "In the coins button on the main page that takes you to the store can
+ * we show the coins and 'new items available' to draw attention to the new
+ * balls." The shelf already rotated weekly; nothing outside the store ever said
+ * so, and a player who did not open it simply never learned the balls existed.
+ *
+ * The rule is a comparison, and it lives on the DEVICE rather than the profile —
+ * a signed-out player persists no profile at all and needs telling just as much.
+ * `main.ts` owns the storage; this pins the arithmetic it applies.
+ */
+const shelfIsNew = (seenWeek: number, date: Date): boolean => seenWeek < storeWeekIndex(date);
+
+describe('when the store is worth a second look', () => {
+  const launch = new Date(`${ROTATION_START}T12:00:00`);
+  const weeksOn = (n: number): Date => new Date(launch.getTime() + n * 7 * 86_400_000);
+
+  it('flags a device that has never opened the store', () => {
+    // The stored default trails week 0 deliberately: week 0 is a real shelf
+    // with the ball drop on it, so a default of 0 would hide the launch week
+    // from everyone who had not already looked.
+    expect(shelfIsNew(-1, launch)).toBe(true);
+  });
+
+  it('goes quiet once this week has been seen, and speaks up when it turns over', () => {
+    const seen = storeWeekIndex(weeksOn(3));
+    expect(shelfIsNew(seen, weeksOn(3))).toBe(false);
+    // Still the same week a few days later — one look covers the whole week.
+    expect(shelfIsNew(seen, new Date(weeksOn(3).getTime() + 2 * 86_400_000))).toBe(false);
+    // New week, new slate.
+    expect(shelfIsNew(seen, weeksOn(4))).toBe(true);
+  });
+
+  it('flags a player who skipped several weeks, not just the most recent one', () => {
+    expect(shelfIsNew(storeWeekIndex(launch), weeksOn(9))).toBe(true);
+  });
+
+  it('never nags a device that is somehow ahead of the calendar', () => {
+    // A clock that has been wound back (or a dev date override) must not put the
+    // chip into a state the player cannot clear.
+    expect(shelfIsNew(storeWeekIndex(weeksOn(6)), weeksOn(2))).toBe(false);
   });
 });

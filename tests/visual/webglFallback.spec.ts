@@ -116,3 +116,89 @@ test('a lost context that never comes back still lets the player out', async ({ 
 
   expect(errors, `losing the context threw:\n${errors.join('\n')}`).toEqual([]);
 });
+
+/**
+ * THE MENUS AFTER A CRASH — the owner's Pixel 8 report.
+ *
+ * "It did load back out to menu with an option to resume but then none of the
+ * menus actually worked. It wasn't responsive to clicks it was like I was
+ * clicking in the wrong spots."
+ *
+ * The abandon path could not call `dispose()` — disposing a scene whose context
+ * has died throws — and `dispose()` was where every listener was removed. So the
+ * dead scene kept three WINDOW-level pointer listeners, and `onTraceMove` calls
+ * `preventDefault()` on every pointermove while a drag is live. With
+ * `touch-action: none` set globally, that suppresses tap synthesis and stops the
+ * landing — which is `overflow: auto` and taller than a phone screen — from
+ * scrolling.
+ *
+ * This starts a real trace drag, kills the context mid-gesture, and then uses
+ * the menu the way a player would.
+ */
+test('the menus still work after a crash mid-swing', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+
+  // The trace swing is a per-device choice; seed it the way Settings writes it,
+  // because a live drag is what arms the window listeners.
+  await page.addInitScript(() => {
+    const KEY = 'johnsons-golf-device-settings-v1';
+    const cur = JSON.parse(localStorage.getItem(KEY) || '{}');
+    localStorage.setItem(KEY, JSON.stringify({ ...cur, swingType: 'trace' }));
+  });
+  await page.goto('/?ff.dragSwing=on');
+  await page.waitForFunction(() => !!(window as never as { __startRound?: unknown }).__startRound, undefined, {
+    timeout: 120_000
+  });
+  await page.evaluate(() =>
+    (window as never as { __startRound: (o: unknown) => void }).__startRound({ name: 'Lost', courseId: 'sablebay', seed: 24680 })
+  );
+  await page.waitForFunction(() => !!(window as never as { __slice3d?: unknown }).__slice3d, undefined, { timeout: 120_000 });
+  await page.evaluate(() => (window as never as { __slice3d: { skipIntro(): void } }).__slice3d.skipIntro());
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 90_000 }
+  );
+  await page.locator('#loading').waitFor({ state: 'hidden', timeout: 90_000 });
+
+  // Put a finger down on the trace pad and start pulling — this is the state
+  // that leaves a drag live on the scene.
+  const pad = page.locator('#tracePad');
+  const box = await pad.boundingBox();
+  if (box) {
+    await page.mouse.move(box.x + box.width / 2, box.y + 20);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.6, { steps: 6 });
+  }
+
+  // Kill it mid-gesture, and let the grace period expire with no restore.
+  await page.evaluate(() => {
+    const c = document.getElementById('scene') as HTMLCanvasElement;
+    c.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+  });
+  await expect(page.locator('#loading')).not.toHaveClass(/on/, { timeout: 40_000 });
+  await expect(page.locator('#landing')).toHaveClass(/on/, { timeout: 15_000 });
+  // The finger comes up on the menu, exactly as the player's would.
+  await page.mouse.up();
+
+  // THE ASSERTION THAT MATTERS: the menu responds to an ordinary tap. Not a
+  // dispatchEvent — a real click, which is what stops being synthesised when
+  // something is calling preventDefault on every move.
+  // A REAL click on the landing's primary action — not a dispatchEvent, which
+  // would bypass exactly the layer that was broken. It is refused (the context
+  // is gone), and that refusal arriving is the proof the menu is live.
+  await page.locator('#landingPlay').click({ timeout: 15_000 });
+  await expect(page.locator('#msg')).toContainText(/graphics/i, { timeout: 15_000 });
+  await expect(page.locator('#landing')).toHaveClass(/on/);
+
+  // And nothing in-round is left displayed over the menu or holding a listener.
+  for (const id of ['#clubBar', '#aerialBtn', '#shotShape', '#tracePad', '#meter', '#tourBoardBtn']) {
+    await expect(page.locator(id), `${id} survived the crash`).toBeHidden();
+  }
+  expect(await page.locator('.storeConfirm').count(), 'a modal was left above the menu').toBe(0);
+
+  expect(errors, `crashing mid-swing threw:\n${errors.join('\n')}`).toEqual([]);
+});

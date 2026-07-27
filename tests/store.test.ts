@@ -128,6 +128,24 @@ describe('purchases', () => {
     expect(equip(p, 'pal_dragon').ok).toBe(true);
     expect(p.cosmetics.equipped.pal).toBe('pal_dragon');
   });
+
+  it('the Paintfall ball is a gift: free, owned, and already in play', () => {
+    // Owner: "Give everyone the drip ball for free and default it to their ball
+    // they're using." Free and owned are two independent routes to the same
+    // answer, and both must agree — `isOwned` short-circuits on price 0 without
+    // consulting the save at all.
+    const p = defaultProfile();
+    const ball = STORE_BY_ID.get('ball_paintfall')!;
+    expect(ball.price).toBe(0);
+    expect(DEFAULT_OWNED).toContain('ball_paintfall');
+    expect(isOwned(p, ball)).toBe(true);
+    expect(p.cosmetics.equipped.ball).toBe('ball_paintfall');
+    // And it stays a choice: a player can move off it and back.
+    expect(equip(p, 'ball_white').ok).toBe(true);
+    expect(p.cosmetics.equipped.ball).toBe('ball_white');
+    expect(equip(p, 'ball_paintfall').ok).toBe(true);
+    expect(p.cosmetics.equipped.ball).toBe('ball_paintfall');
+  });
 });
 
 describe('applyClubUpgrades', () => {

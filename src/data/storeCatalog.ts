@@ -59,7 +59,8 @@ export interface StoreItem {
 export const FREE_CHARACTERS: CharacterKey[] = ['chip', 'rose', 'rio', 'sunny', 'theo'];
 
 /** Cosmetics owned by default (white ball + plain white trail + the classic
- *  outfit colorway, steel clubs, and the starter pals — none equipped). */
+ *  outfit colorway, steel clubs, the starter pals, and the Paintfall ball —
+ *  see below). */
 export const DEFAULT_OWNED = [
   'ball_white',
   'trail_white',
@@ -67,12 +68,23 @@ export const DEFAULT_OWNED = [
   'clubskin_steel',
   'pal_fox',
   'pal_dragon',
+  // A GIFT, not a purchase (owner: "Give everyone the drip ball for free"). It
+  // is the best-looking thing the ball painter does, and a patterned ball is
+  // also the only way a player ever SEES the ball spin — a white sphere rolling
+  // and a white sphere sliding are the same picture. Listing it here grants it
+  // to new players and, through migrateProfile's union, retroactively to every
+  // save that already exists.
+  'ball_paintfall',
   ...FREE_CHARACTERS.map((c) => `char_${c}`)
 ];
 
 /** Default equipped cosmetics for a fresh profile. */
 export const DEFAULT_EQUIPPED = {
-  ball: 'ball_white',
+  // Paintfall rather than the plain white ball: the owner asked for the drip
+  // ball to be what players are actually using, and its pattern is what makes
+  // the backspin readable in flight. Existing saves keep whatever they had
+  // equipped unless the one-time grant in migrateProfile moves them across.
+  ball: 'ball_paintfall',
   trail: 'trail_white',
   outfit: 'outfit_default',
   clubskin: 'clubskin_steel'
@@ -136,7 +148,11 @@ const BALL_ART_ITEMS: StoreItem[] = [
     id: 'ball_paintfall',
     kind: 'ball',
     name: 'Paintfall',
-    price: 300,
+    // FREE. It is in DEFAULT_OWNED, and `isOwned` short-circuits on price 0, so
+    // the two agree however a caller asks. Being free also takes it out of the
+    // weekly rotation pool (`isRotatable`), which is correct — a gift has no
+    // business occupying one of three shelf slots.
+    price: 0,
     rarity: 'special',
     color: 0xf7f7f2,
     // Blue and red poured over the crown and running down, the two drifting
