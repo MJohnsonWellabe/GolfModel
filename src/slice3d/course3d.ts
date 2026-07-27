@@ -47,6 +47,7 @@ import { HoleData } from '../core/types';
 import { AtmosphereKind, buildAtmosphere } from './atmosphere';
 import { buildBreakDots } from './breakDots';
 import { renderPacing } from './renderPacing';
+import { renderQuality } from './qualityGovernor';
 import { instanceHandle, NatureBatcher, PropHandle } from './natureBatch';
 import {
   BUSH_KEYS,
@@ -289,6 +290,15 @@ export function buildCourse(
   const pad = TEXTURE_PAD;
   const w = hole.world.width;
   const h = hole.world.height;
+  // What this device has proved it can afford. Read ONCE per build so a tier
+  // change mid-hole cannot leave one scene half-budgeted; the governor's next
+  // effect lands on the next hole. See src/core/rendering/quality.ts.
+  const quality = renderQuality();
+  /** Multiply any decorative-scatter GRID PITCH by this to reach the tier's
+   *  density. Counts go as 1/step², so a 0.45x density is a 1.49x pitch.
+   *  Trees, hazards and every collision hitbox are outside this — only the
+   *  grass/heather/bloom cards thin, and only below tier 1. */
+  const scatterPitch = 1 / Math.sqrt(quality.scatterScale);
 
   // ----------------------------------------------------------- lights & fog
   const hemi = new HemisphericLight('hemi', new Vector3(0, 1, 0), scene);
@@ -302,7 +312,7 @@ export function buildCourse(
   );
   sun.intensity = 0.78;
   sun.position = w2b(hole.tee.x, hole.tee.y - 400, 600);
-  const shadows = new ShadowGenerator(1024, sun);
+  const shadows = new ShadowGenerator(quality.shadowSize, sun);
   shadows.usePercentageCloserFiltering = true;
   shadows.darkness = 0.35;
 
@@ -398,9 +408,19 @@ export function buildCourse(
   // scale 2; large ones ease down toward ~1.3. Near-field crispness is
   // unaffected: the green wears its own scale-6 patch and the ground carries
   // tiling detail + normal maps at gameplay-camera distance.
+  //
+  // THE BIGGEST ALLOCATION IN THE GAME. Measured across all eight courses this
+  // bake lands on the budget every single time — ~2000² texels, 20.4 MB on the
+  // GPU with mips, 2-4x the next largest texture in the scene. And a build pays
+  // for it THREE times over: the source canvas (16 MB), the DynamicTexture's own
+  // backing canvas (16 MB), then the upload. That transient ~52 MB spike lands
+  // squarely between holes, which is exactly where the tab-death breadcrumb
+  // below (main.ts `jg-building`) has been catching iOS reclaiming the page.
+  // Scaling the budget by the device's quality tier is therefore the single
+  // most valuable thing the governor does.
   const bakeArea = (w + pad * 2) * (h + pad * 2);
-  const BAKE_TEXEL_BUDGET = 4_000_000;
-  const bakeScale = Math.max(1, Math.min(2, Math.sqrt(BAKE_TEXEL_BUDGET / bakeArea)));
+  const BAKE_TEXEL_BUDGET = 4_000_000 * quality.bakeScale;
+  const bakeScale = Math.max(0.5, Math.min(2, Math.sqrt(BAKE_TEXEL_BUDGET / bakeArea)));
   const bakeT0 = performance.now();
   const courseCanvas = renderCourseCanvas(hole, theme, engine, bakeScale);
   // Expose the synchronous ground-bake cost so the perf gate can regression-test
@@ -425,6 +445,12 @@ export function buildCourse(
     c2.restore();
   }
   courseTex.update(false);
+  // Release the source canvas's backing store the moment its pixels are in the
+  // texture. Two ~16 MB canvases were alive at once until GC happened to run,
+  // and on a phone the collector is not what decides whether the tab survives
+  // the next allocation. Zeroing the dimensions frees it deterministically.
+  courseCanvas.width = 0;
+  courseCanvas.height = 0;
   courseTex.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
   courseTex.anisotropicFilteringLevel = 8;
   const groundMat = new StandardMaterial('groundMat', scene);
@@ -689,6 +715,11 @@ export function buildCourse(
   // a low resolution, an every-other-frame refresh, and a render list curated to
   // the horizon silhouettes that actually read in a reflection.
   const reflectStrength = theme.waterReflectStrength ?? 0.62;
+  // The mirror is a second full render of the scene's silhouettes every other
+  // frame. A device that cannot hold 30 fps gets a softer one, and at the
+  // cheapest tier none at all — the water keeps its depth tint, shore blend,
+  // scrolling wavelets and fresnel sheen, which is what carries the look.
+  const mirrorRatio = (theme.waterReflectRatio ?? 0.35) * quality.waterReflectScale;
   let waterMirror: MirrorTexture | null = null;
   /** Set once a mirror exists: rebuild its render list from the scene as it
    *  stands now. The fill loop below latches after a few stable frames (it
@@ -700,8 +731,8 @@ export function buildCourse(
   for (const hz of hole.hazards) {
     if (hz.type !== 'water') continue;
     const level = hz.level ?? 0.35;
-    if (theme.waterReflect && !waterMirror) {
-      waterMirror = new MirrorTexture('waterMirror', { ratio: theme.waterReflectRatio ?? 0.35 }, scene, false);
+    if (theme.waterReflect && mirrorRatio > 0 && !waterMirror) {
+      waterMirror = new MirrorTexture('waterMirror', { ratio: mirrorRatio }, scene, false);
       waterMirror.mirrorPlane = new Plane(0, -1, 0, level);
       waterMirror.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
       // A light blur hides the low reflection resolution without smearing the
@@ -2038,8 +2069,16 @@ export function buildCourse(
     // (every OTHER frame, matching waterMirror below) halves that cost with no
     // perceptible difference — the mirror has run at this same cadence all
     // along and nobody has ever reported reflection lag from it.
+    //
+    // At the cheapest tier the map is baked ONCE for the hole instead: only the
+    // ball and the golfer move, so the loss is that their own shadows stop
+    // tracking, in exchange for removing the largest fixed per-frame GPU cost
+    // in the scene on the device least able to pay it.
     const shadowMap = shadows.getShadowMap();
-    if (shadowMap) shadowMap.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
+    const liveShadowRate = quality.staticShadows
+      ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
+      : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
+    if (shadowMap) shadowMap.refreshRate = liveShadowRate;
     let pacingFrozen = false;
     scene.onBeforeRenderObservable.add(() => {
       const shouldFreeze = renderPacing.meterActive || renderPacing.cameraParked || renderPacing.overhead;
@@ -2053,7 +2092,7 @@ export function buildCourse(
       if (shadowMap) {
         shadowMap.refreshRate = pacingFrozen
           ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
-          : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
+          : liveShadowRate;
       }
     });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
@@ -2295,7 +2334,7 @@ export function buildCourse(
           pointInPolygon(px, py + TREE_CLEARANCE, z.polygon) ||
           pointInPolygon(px, py - TREE_CLEARANCE, z.polygon)
       );
-    const tuftStep = 34 / Math.sqrt(theme.tuftDensity);
+    const tuftStep = (34 / Math.sqrt(theme.tuftDensity)) * scatterPitch;
     for (let yy = 0; yy < h; yy += tuftStep) {
       const yRow = yy;
       popQueue.push(() => {
@@ -2395,7 +2434,7 @@ export function buildCourse(
     // green and the immediate tee approach so it never reads as a wall at address.
     if (theme.tallGrass) {
       const { cap, density } = theme.tallGrass;
-      const tgStep = 40 / Math.sqrt(Math.max(0.15, density));
+      const tgStep = (40 / Math.sqrt(Math.max(0.15, density))) * scatterPitch;
       // Photo-textured heather / links-fescue cards (theme.heatherKeys) are the
       // preferred field content — real fescue + purple heather imagery, planted
       // untinted so the photo (incl. the purple bloom) reads true. Absent that,
@@ -2530,7 +2569,7 @@ export function buildCourse(
       // accent clumps (default) or a dense aloe-dotted expanse (Sable Bay wants
       // "way more"). sandPlantStep = grid pitch (smaller = denser), sandPlantKeep
       // = fraction of cells kept (higher = denser).
-      const sandStep = theme.sandPlantStep ?? 82;
+      const sandStep = (theme.sandPlantStep ?? 82) * scatterPitch;
       const keep = theme.sandPlantKeep ?? 0.5;
       // Keep the aloe out of the WATER and the WOODS (playtest: "don't put the
       // aloe in the woods / in the water"). The sand under an authored tree band
@@ -3613,8 +3652,10 @@ export function buildCourse(
         ? RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES
         : RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
       if (waterMirror && waterMirror.refreshRate !== rate) waterMirror.refreshRate = rate;
+      // A tier that bakes the shadow map once stays baked through the drag too.
+      const shadowRate = quality.staticShadows ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE : rate;
       const sm = shadows.getShadowMap();
-      if (sm && sm.refreshRate !== rate) sm.refreshRate = rate;
+      if (sm && sm.refreshRate !== shadowRate) sm.refreshRate = shadowRate;
     },
     occlusionCandidates: (): Array<{ x: number; y: number; r: number; parts: number }> =>
       canopyOcclusion.map((c) => ({ x: c.x, y: c.y, r: c.r, parts: c.insts.length }))

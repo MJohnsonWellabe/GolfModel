@@ -266,6 +266,12 @@ export interface DeviceSettings {
    *  both inputs resolve through the same swingModel, so this never changes
    *  difficulty, only the gesture. */
   swingType: 'tap' | 'trace';
+  /** Graphics budget. 'auto' (the default) lets the adaptive governor pick the
+   *  tier from the frame times this device actually achieves — see
+   *  src/core/rendering/quality.ts. A number pins it, for a player who would
+   *  rather choose than be measured. A preference about THIS device, like the
+   *  volumes; it changes what a frame COSTS, never how the hole plays. */
+  graphics: 'auto' | 0 | 1 | 2 | 3;
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -282,7 +288,8 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       firstRoundDone: !!p.firstRoundDone,
       tutorialDone: !!p.tutorialDone,
       lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : '',
-      swingType: p.swingType === 'trace' ? 'trace' : 'tap'
+      swingType: p.swingType === 'trace' ? 'trace' : 'tap',
+      graphics: p.graphics === 0 || p.graphics === 1 || p.graphics === 2 || p.graphics === 3 ? p.graphics : 'auto'
     };
   } catch {
     return null;

@@ -2234,6 +2234,20 @@
         border-color: transparent;
         color: #fff;
       }
+      /* Quiet explanatory line under a setting — the Graphics row uses it to
+         say what the game is actually drawing on this device right now. */
+      .setNote {
+        margin: -4px 2px 10px;
+        font-size: 12px;
+        line-height: 1.35;
+        color: rgba(219, 232, 214, 0.62);
+      }
+      /* Four graphics choices have to fit a phone row without shrinking the
+         label column to nothing. */
+      .setRow .setSeg .segBtn {
+        padding: 9px 10px;
+        font-size: 12px;
+      }
       /* About-the-game, relocated from the sheet into Settings. A real link,
          styled as a full-width quiet row. */
       .aboutGameRow {

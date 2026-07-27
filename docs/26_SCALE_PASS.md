@@ -1089,3 +1089,108 @@ Six asks, two of them the same root cause.
   penalised and never final, and both players' totals move the moment the
   second one posts. Each event line now carries the field's scores so a
   re-settle costs ten numbers instead of ten physics rounds.
+
+## 28. Owner pass 10 — the device sets the budget
+
+> "the game keeps crashing on the links style courses and on wild wood. it's
+> laggy on those then sometimes crashes all together" … "also the prairie is
+> included in the links problems"
+
+### What the measurements actually said
+
+The obvious theory — those four courses are the heaviest — is **wrong**. A
+per-course probe at a phone viewport (390×844):
+
+| course | meshes | verts | textures | heap |
+| --- | --- | --- | --- | --- |
+| Sable Bay | 187-227 | 0.10-0.15M | 40-44 MB | 62-77 MB |
+| Port Johnson | 190-227 | 0.09-0.12M | 60-70 MB | 65-75 MB |
+| Wild Prairie | 213-236 | 0.14-0.15M | 38-49 MB | 60-71 MB |
+| Wildwood | 332-451 | 1.10-1.32M | 44-47 MB | 158-184 MB |
+| Timberline | 284-317 | 0.71-0.74M | 84-97 MB | 127-134 MB |
+| Maple Vale | 339-435 | 1.20-1.92M | 37 MB | 186-236 MB |
+| Red Hollow | 314-418 | 0.36-0.41M | **138-146 MB** | 95-238 MB |
+| Timberline West | 339-367 | **1.85-1.95M** | 51-54 MB | 225-445 MB |
+
+Three of the four reported courses are the **lightest scenes in the game**.
+What they share is not weight but shape: they are wide and open — sky, water
+and unoccluded ground — which costs fill rate and memory bandwidth rather than
+triangles, and a phone's tile-based GPU is bound by exactly those. Wildwood is
+the exception that proves it: it pays a planar water mirror on top of the
+game's densest garden scatter.
+
+The existing repeat-round soak gate already rules out a leak (scene resources
+return to the same level cycle after cycle), so "laggy then gone" is not
+accumulation either. It is a **fixed budget on an unknown device**: a 1024²
+shadow map, a mirror at the authored ratio, a four-megatexel ground bake and a
+render resolution pinned at `min(devicePixelRatio, 2)`, identical on a desktop
+and on a four-year-old phone, with no way for the phone to say no.
+
+A per-texture inventory found where the memory is:
+
+| what | cost | note |
+| --- | --- | --- |
+| ground albedo bake | **20.4 MB on every hole of every course** | 2-4x the next largest texture |
+| green patch | 3-11 MB | scales with the green |
+| putt grid | 5.4 MB | fixed 1024² |
+| shadow map | 4 MB | fixed 1024² |
+
+The bake is also paid **three times during a build** — the source canvas, the
+`DynamicTexture`'s own backing canvas, and the upload, ~52 MB transient — and
+that spike lands between holes, which is precisely where the existing
+`jg-building` tab-death breadcrumb has been catching iOS reclaiming the page.
+
+### What shipped
+
+- **An adaptive quality governor.** `src/core/rendering/quality.ts` is the pure
+  policy (a four-tier budget table plus a promote/demote rule);
+  `src/slice3d/qualityGovernor.ts` wires it to the engine. The render loop feeds
+  it frame times, scene builds read `renderQuality()`, and the settled tier is
+  remembered per device. Each tier scales the render resolution, the shadow map,
+  the mirror ratio, the ground bake and decorative scatter — and **nothing
+  else**: geometry, elevation, hazards, wind, collision and putting are
+  bit-identical at every tier, so this can never become a difficulty setting.
+  Demoting takes 90 frames of evidence, promoting 360, and a tier the device has
+  already failed at becomes a floor. Medians, not means, so one glTF stall does
+  not demote a smooth phone. Measured: Wildwood 37.5 → 27.1 MB and Port Johnson
+  60.6 → 42.8 MB of texture at the cheapest tier, on top of ~70% fewer pixels.
+- **WebGL context-loss recovery.** `webglcontextlost` was unhandled, so the iOS
+  GPU process reclaiming the context left the canvas frozen on its last frame
+  for good — the crash, seen from the player's side. It is now
+  `preventDefault()`-ed (without which the context can never be restored) and
+  `webglcontextrestored` rebuilds the hole behind the loading veil. Babylon's
+  own restore only recovers file-backed textures and every surface here is drawn
+  procedurally into a `DynamicTexture`, so a "restored" scene would come back
+  blank. Round state lives outside the scene, so the player returns to the same
+  ball, lie and score. A loss also demotes a tier immediately: the GPU reporting
+  it ran out of memory outranks any frame-time median.
+- **`preserveDrawingBuffer` is no longer paid by players.** It forces the
+  browser to preserve the back buffer — an extra render target at display
+  resolution, a copy every frame, and no compositor direct-swap — and the code
+  claimed that was "negligible". Nothing in the game reads pixels back (the shot
+  recorder uses `canvas.captureStream()`, which does not need it), so it is now
+  enabled only under automation and the capture harness, which do need it for
+  `page.screenshot()` to return the hole instead of black.
+- **The ground bake's source canvas is freed on upload** rather than left for
+  the collector, halving the transient spike at the exact moment iOS was killing
+  the tab.
+- **Settings → Graphics.** Auto (the default) plus three pinned tiers, with a
+  live readout underneath saying what the game is drawing *right now* and why —
+  so "it's laggy" has an answer that does not need a debugger.
+
+### Known limitations
+
+- The tier thresholds (33 ms to demote, 20 ms to promote) are reasoned, not
+  device-measured: this session had no iPhone to measure on. They are one
+  constant each in `quality.ts` and should be re-tuned against
+  `docs/DEVICE_MATRIX.md`.
+- The governor is deliberately inert under Playwright and the capture harness
+  (SwiftShader frame times describe a software rasteriser, not a phone), so its
+  *reaction* is unit-tested against synthetic frame times rather than observed
+  end-to-end. `tests/visual/quality.spec.ts` gates the pinning itself, because a
+  live governor in CI would silently re-shoot every reference screenshot at the
+  wrong quality.
+- Red Hollow's 96-98 loaded tree/rock textures (138-146 MB) are the largest
+  texture footprint in the game and are untouched by this pass — the tiers scale
+  procedural budgets, not the imported asset set. That is a separate content
+  job.

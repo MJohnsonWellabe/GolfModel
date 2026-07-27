@@ -329,7 +329,7 @@ describe('device settings (persistent audio/motion preferences)', () => {
   it('round-trips through storage for guests (no profile persistence needed)', () => {
     const s = memStorage();
     saveDeviceSettings(
-      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace' },
+      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace', graphics: 2 },
       s
     );
     const back = loadDeviceSettings(s);
@@ -341,7 +341,8 @@ describe('device settings (persistent audio/motion preferences)', () => {
       firstRoundDone: false,
       tutorialDone: true,
       lastCourseId: 'wildwood',
-      swingType: 'trace'
+      swingType: 'trace',
+      graphics: 2
     });
   });
 

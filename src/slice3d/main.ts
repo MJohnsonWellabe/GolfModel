@@ -142,13 +142,37 @@ import { readTrace, resolveTraceSwing, type TraceSample, type TraceState } from 
 import { TracePad } from './tracePad';
 import { DesignMode, type FlyCam } from './designMode';
 import { ShotCapture } from './shotCapture';
+import {
+  demoteQuality,
+  qualityStatus,
+  renderQuality,
+  resetQualityMemory,
+  resetQualitySamples,
+  sampleFrame,
+  setQualityPreference,
+  startQualityGovernor
+} from './qualityGovernor';
 
 // ------------------------------------------------------------------- boot
 
 const canvas = document.getElementById('scene') as HTMLCanvasElement;
-// preserveDrawingBuffer keeps the last frame readable for screenshots/share
-// captures (and reliable headless verification) at negligible cost here.
-const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true, preserveDrawingBuffer: true });
+// preserveDrawingBuffer keeps the last composited frame readable, which is what
+// makes `page.screenshot()` of a WebGL canvas return the hole instead of black —
+// the whole visual reference suite and `npm run shots` depend on it.
+//
+// It is NOT free, and the old claim that it was is why it shipped on to every
+// player's phone: it forces the browser to preserve the back buffer, costing a
+// full extra render-target at display resolution plus a copy every frame, and it
+// forfeits the compositor's direct-swap path. Nothing IN the game reads pixels
+// back — the shot-clip recorder uses `canvas.captureStream()`, which does not
+// need it — so it is now paid only where it is used: automation and the capture
+// harness.
+const needsReadableBuffer =
+  (typeof navigator !== 'undefined' && navigator.webdriver === true) || SHOT.hole !== undefined;
+const engine3d = new Engine(canvas, true, {
+  adaptToDeviceRatio: true,
+  preserveDrawingBuffer: needsReadableBuffer
+});
 
 // Cap the render resolution at 2x CSS pixels. `adaptToDeviceRatio` above backs
 // the canvas at the display's FULL pixel ratio (3x on many phones), and every
@@ -162,7 +186,20 @@ const engine3d = new Engine(canvas, true, { adaptToDeviceRatio: true, preserveDr
 // thread is pixel-bound. Displays at 1x/2x are untouched; only >2x render less.
 const MAX_RENDER_DPR = 2;
 const renderDpr = Math.min(window.devicePixelRatio || 1, MAX_RENDER_DPR);
-engine3d.setHardwareScalingLevel(1 / renderDpr);
+// ADAPTIVE QUALITY. The clamp above is a fixed guess about every device in the
+// world; the governor turns it into a measurement. It owns the scaling level
+// from here on (this call is what it makes at tier 0), stepping the render
+// resolution — and, through renderQuality(), the shadow map, water mirror,
+// ground bake and decorative scatter — down whenever the median frame time
+// says the device cannot hold 30 fps, and back up when it can. See
+// src/core/rendering/quality.ts for why that is the fix for the reported
+// lag-then-crash rather than thinning any one course.
+startQualityGovernor(
+  (q) => engine3d.setHardwareScalingLevel(1 / (renderDpr * q.renderScale)),
+  // Read straight from storage: `deviceSettings` is assembled much further down
+  // this module, and the governor has to be live before the first scene build.
+  loadDeviceSettings()?.graphics ?? 'auto'
+);
 // Nothing here uses Babylon's offline asset DB — the default `true` makes the
 // loader probe for a `.manifest` beside every glb/texture and touch IndexedDB
 // on load. Off removes that load-time XHR/DB churn (no visual change).
@@ -4252,6 +4289,10 @@ function checkpointRound(): void {
 function playHole(): void {
   checkpointRound();
   current?.dispose();
+  // The build stall, the glTF loads and the intro flyover are not steady play —
+  // starting the quality governor's window fresh here keeps it from demoting a
+  // device for the one part of a hole that is expensive by design.
+  resetQualitySamples();
   // Layouts (flag-gated): materialize this seed's tee variants onto the round
   // course. Idempotent + deterministic (same seed → same tees), so calling it
   // per hole is safe; without authored `tees` it returns the course unchanged.
@@ -5015,6 +5056,25 @@ const PROFILE_TAB_LABELS: Record<ProfileTab, string> = {
   dev: '🛠 Dev'
 };
 
+/** Settings → Graphics. 'Auto' is the default and the one anybody should need;
+ *  the pinned tiers exist for a player who would rather choose than be
+ *  measured, and for diagnosing a report of lag on a specific device. */
+const GRAPHICS_CHOICES: ReadonlyArray<[DeviceSettings['graphics'], string]> = [
+  ['auto', 'Auto'],
+  [0, 'Full'],
+  [2, 'Balanced'],
+  [3, 'Performance']
+];
+
+/** One line under the Graphics row saying what the game is drawing RIGHT NOW.
+ *  On Auto that is the whole point: the player can see the device was measured
+ *  and what it was measured as. */
+function graphicsNote(): string {
+  const q = qualityStatus();
+  const detail = q.reason ? ` · ${q.reason}` : '';
+  return q.pinned ? `Drawing at ${q.label}${detail}` : `Auto chose ${q.label} for this device${detail}`;
+}
+
 /** Which tab was last open, so a re-render (a claim, a grant, a reset) comes
  *  back to where the player was rather than throwing them to the top. */
 let profileTab: ProfileTab = 'player';
@@ -5137,6 +5197,17 @@ function renderProfile(tab?: ProfileTab): void {
           ? `<label class="setRow"><span>Record shot clips</span>` +
             `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
           : '') +
+        // Graphics: Auto measures this device and picks a budget for it; the
+        // rest pin one. Whatever is showing, the readout underneath says what
+        // the game is ACTUALLY drawing right now, so "it's laggy" has an
+        // answer that does not require a debugger.
+        `<div class="setRow"><span>Graphics</span><div class="setSeg">` +
+        GRAPHICS_CHOICES.map(
+          ([value, label]) =>
+            `<button id="setGfx${value}" class="segBtn${deviceSettings.graphics === value ? ' sel' : ''}">${label}</button>`
+        ).join('') +
+        `</div></div>` +
+        `<div class="setNote" id="gfxNote">${graphicsNote()}</div>` +
         `<a class="ghostBtn aboutGameRow" href="marketing.html">ℹ️ About the game</a>` +
         `<div id="resetZone" class="resetZone">` +
         `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
@@ -5180,6 +5251,20 @@ function renderProfile(tab?: ProfileTab): void {
   };
   document.getElementById('setSwingTap')?.addEventListener('click', () => pickSwing('tap'));
   document.getElementById('setSwingTrace')?.addEventListener('click', () => pickSwing('trace'));
+  // Graphics takes effect immediately for the render resolution and from the
+  // next hole for everything sized at build time — so it is safe mid-round and
+  // never rebuilds the hole under the player.
+  for (const [value] of GRAPHICS_CHOICES) {
+    document.getElementById(`setGfx${value}`)?.addEventListener('click', () => {
+      updateDeviceSettings({ graphics: value });
+      setQualityPreference(value);
+      for (const [v] of GRAPHICS_CHOICES) {
+        document.getElementById(`setGfx${v}`)?.classList.toggle('sel', v === value);
+      }
+      const note = document.getElementById('gfxNote');
+      if (note) note.textContent = graphicsNote();
+    });
+  }
   document.getElementById('setClipCapture')?.addEventListener('change', (e) => {
     const on = (e.target as HTMLInputElement).checked;
     updateDeviceSettings({ clipCapture: on });
@@ -7312,8 +7397,53 @@ function showTourBoard(): void {
   modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
 }
 
-engine3d.runRenderLoop(() => current?.render());
+engine3d.runRenderLoop(() => {
+  current?.render();
+  // Only frames that actually drew a hole are evidence about rendering cost —
+  // a menu frame is nearly free and would flatter a struggling device.
+  if (current) sampleFrame(engine3d.getDeltaTime());
+});
 window.addEventListener('resize', () => engine3d.resize());
+
+// WEBGL CONTEXT LOSS. On iOS the GPU process reclaims contexts under memory
+// pressure, and an unhandled loss leaves the canvas frozen on its last frame
+// for good — the "sometimes crashes all together" half of the report, seen
+// from the player's side as a dead screen with the UI still responding.
+// Babylon's own restore path rebuilds file-backed textures, but every surface
+// in this game is drawn procedurally into a DynamicTexture at build time and
+// cannot be restored that way, so the honest recovery is to rebuild the hole.
+// Round state (course, seed, hole, card) is plain data that outlives the scene,
+// and the ball and stroke count are carried across below, so the player comes
+// back to the same lie. Only a shot already in flight is lost.
+canvas.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault(); // without this the context is never eligible for restore
+  // The veil is raised here and lifted by buildWithLoading below (or by
+  // hideLoading when there was no hole to rebuild) — never by playHole itself.
+  showLoading('Rebuilding the hole…');
+});
+canvas.addEventListener('webglcontextrestored', () => {
+  // The lost context took every GPU resource with it; the JS-side scene is
+  // rubble. Drop to the cheapest budget the device has earned and rebuild —
+  // a context is lost because memory ran out, so coming back at the same price
+  // just loses it again.
+  demoteQuality('webgl context lost');
+  if (!current) {
+    hideLoading();
+    return;
+  }
+  // Where the player actually stood. `round` survives (it is plain state, not
+  // scene objects), so the hole and card come back on their own; this is the
+  // mid-hole part — the same ball/strokes restore the unfinished-round card
+  // uses. resumeAt re-reads the surface under the point, so the lie comes from
+  // the rebuilt course rather than from a snapshot that could disagree with it.
+  const strokes = current.state.strokes;
+  const ball = strokes > 0 ? { x: current.state.ballPos.x, y: current.state.ballPos.y } : null;
+  current = null; // its GPU resources are already gone; disposing would throw
+  buildWithLoading(() => {
+    playHole();
+    if (ball) current?.resumeAt(ball.x, ball.y, strokes);
+  });
+});
 
 // Unmistakable DEV badge outside production; a no-op on the live site.
 mountEnvBadge();
@@ -7323,6 +7453,19 @@ document.documentElement.classList.toggle('ff-delight', flag('delight'));
 
 // Perf probe for the Playwright FPS baseline (Phase 9).
 (window as unknown as { __fps: () => number }).__fps = () => engine3d.getFps();
+
+/** Adaptive-quality probe: what tier the device settled on, why, and what that
+ *  tier is currently spending. Read by the perf spec and by support requests
+ *  ("it's laggy" → ask for this). */
+(window as unknown as { __quality: unknown }).__quality = () => ({
+  ...qualityStatus(),
+  profile: renderQuality(),
+  hardwareScaling: engine3d.getHardwareScalingLevel()
+});
+(window as unknown as { __resetQuality: unknown }).__resetQuality = () => {
+  resetQualityMemory();
+  return qualityStatus();
+};
 
 /** Repeat-round soak probe: a snapshot of every resource class that could
  *  accumulate across Replay / Play Next scene rebuilds. The soak spec starts
@@ -7502,7 +7645,8 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   firstRoundDone: legacyLocal.stats.rounds > 0, // returning devices skip the intro reveal
   tutorialDone: false,
   lastCourseId: '',
-  swingType: 'tap'
+  swingType: 'tap',
+  graphics: 'auto'
 };
 
 /** Whether THIS device swings by tracing the rabbit. The `dragSwing` flag is
