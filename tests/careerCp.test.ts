@@ -254,6 +254,44 @@ describe('persistence', () => {
     expect(back.career.cp).toBe(7); // the rookie is active, so the rookie's balance reads
     expect(back.career.cpEarned).toBe(40);
   });
+
+  /**
+   * The owner's scenario, to the number (owner: "if you're playing with your
+   * first pro and have a Balance of 100cp … I want you to have 0 for the new
+   * guy … but if you go back and select the original, you should have your 100
+   * back to spend").
+   *
+   * The UI walk in tests/visual/career.spec.ts proves this on screen, but it
+   * cannot prove it across a RELOAD: a guest profile is in-memory only
+   * (persistProfile writes only when signed in), so the career would simply be
+   * gone. Storage is a model concern, so the round trip is asserted here — and
+   * asserted through `setActivePro`, because switching Pro is what re-derives
+   * the displayed balance.
+   */
+  it('a hundred banked on one Pro is untouched by a second, and survives a reload', () => {
+    const s = memStorage();
+    const p = defaultProfile();
+    p.career = grantCpTo(startAt(emptyCareer(), 'first'), 'first', 100);
+    // A second Pro joins the stable and becomes active.
+    p.career = startAt(p.career, 'second', 4000);
+
+    // Before saving anything: the newcomer is broke and the first is intact.
+    expect(proCp(p.career, 'second')).toBe(0);
+    expect(p.career.cp, 'the active rookie shows nothing to spend').toBe(0);
+    expect(proCp(p.career, 'first')).toBe(100);
+
+    saveProfile(p, s, 1);
+    const back = loadProfile(s);
+
+    // Reloaded: still one wallet each, still the right way round.
+    expect(proCp(back.career, 'first')).toBe(100);
+    expect(proCp(back.career, 'second')).toBe(0);
+    // Selecting the original brings its hundred back as the live balance.
+    const reselected = setActivePro(back.career, 'first');
+    expect(reselected.cp, 'going back to the original restores their 100').toBe(100);
+    // …and switching away hides it again rather than lending it out.
+    expect(setActivePro(reselected, 'second').cp).toBe(0);
+  });
 });
 
 describe('a retired Pro', () => {

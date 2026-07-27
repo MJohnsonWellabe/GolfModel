@@ -89,6 +89,74 @@ test('name a Pro, spend CP, watch them grow, then start a rookie — the stable 
   await expect(page.locator('#landingPlay')).toContainText('OVR');
 });
 
+/**
+ * The owner's scenario, in their numbers (owner: "if you're playing with your
+ * first pro and have a Balance of 100cp and they're not maxed out, when you
+ * select a new pro, I don't want you to have the 100cp to spend. I want you to
+ * have 0 for the new guy. he has to earn his own. but if you go back and
+ * select the original, you should have your 100 back to spend.")
+ *
+ * The walk above already proves the rule at 20 CP with CP banked BEFORE the
+ * career started. This one is deliberately different on both counts: a
+ * three-figure balance earned by a Pro who already exists, which is the shape
+ * a real player hits, and which crosses more of `pointCost`'s brackets (2 below
+ * 80, 4 in the 80s, 10 in the 90s) than 20 CP can reach.
+ *
+ * Balances are read from the screen rather than hardcoded, so the test asserts
+ * the PROPERTY — this Pro's money is theirs alone and comes back untouched —
+ * without also pinning the price list, which is tuning and moves.
+ */
+test('100 CP belongs to the Pro who earned it, and is still there when you return', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await openStyleTab(page);
+
+  // A first Pro, THEN the money — so the 100 is earned by a Pro who already
+  // exists rather than arriving through the pre-career bucket.
+  await page.locator('#proName').fill('Hundred');
+  await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
+  await grantCp(page, 100);
+  await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown'); // repaint
+  const vet = page.locator('.careerCard[data-pro]').first();
+  await expect(vet).toContainText('Hundred');
+  await expect(vet).toContainText('100 CP');
+
+  // Spend a few points so the remaining balance is a live number, not the
+  // round one we banked — a stale read-cache would still say 100.
+  for (let i = 0; i < 3; i++) {
+    await page.locator('.cpSpend[data-cspend="drivingPower"]').dispatchEvent('pointerdown');
+  }
+  const afterSpend = (await page.locator('.careerCard.sel').innerText()).match(/(\d+) CP/)?.[1];
+  expect(afterSpend, 'the vet has a CP balance on screen').toBeTruthy();
+  expect(Number(afterSpend), 'spending must reduce the balance').toBeLessThan(100);
+  expect(Number(afterSpend), 'and must not empty it — this Pro is not maxed').toBeGreaterThan(0);
+
+  // A NEW Pro is broke. This is the assertion the owner asked for.
+  await page.locator('#proName').fill('Rookie');
+  await page.locator('.careerStart[data-cstart="puttKing"]').dispatchEvent('pointerdown');
+  await expect(page.locator('.careerCard.sel')).toContainText('Rookie');
+  await expect(page.locator('.careerCard.sel'), 'the rookie must not inherit the vet\'s CP').toContainText('0 CP');
+  // …and cannot reach it: with nothing banked, every spend chip is dead.
+  const chips = page.locator('.cpSpend');
+  const n = await chips.count();
+  for (let i = 0; i < n; i++) await expect(chips.nth(i)).toBeDisabled();
+
+  // Go back to the original: the exact remainder is waiting, to the point.
+  await page.locator('.careerCard[data-pro]').first().dispatchEvent('pointerdown');
+  await expect(page.locator('.careerCard.sel')).toContainText('Hundred');
+  await expect(page.locator('.careerCard.sel')).toContainText(`${afterSpend} CP`);
+
+  // The surfaces outside the Locker agree — the landing reads the same wallet,
+  // so the two can never tell the player different numbers.
+  await page.locator('#lkBack').dispatchEvent('click');
+  await expect(page.locator('#destLocker .dtSub')).toContainText(`${afterSpend} CP`);
+  expect(errors, errors.join('\n')).toEqual([]);
+});
+
 test('a rookie without CP sees honest, disabled spend buttons', async ({ page }) => {
   test.setTimeout(180_000);
   await page.setViewportSize(PHONE);
