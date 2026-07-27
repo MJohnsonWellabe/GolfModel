@@ -3935,6 +3935,13 @@ class HoleScene {
         // Dispose the trail's material + textures with it — each shot creates a
         // fresh StandardMaterial, and plain dispose() leaves it registered on
         // the scene until hole teardown (materials accumulated per shot).
+        // stop() BEFORE dispose(): TrailMesh registers an
+        // onBeforeRenderObservable observer when constructed with autoStart,
+        // and Babylon 9's TrailMesh has no dispose() override — so Mesh.dispose
+        // tears down the geometry and leaves the observer running for the life
+        // of the scene. One leaked observer per non-putt shot (CLAUDE.md rule
+        // 13: "observers... must not accumulate").
+        this.flight.trail?.stop();
         this.flight.trail?.dispose(false, true);
         this.flight = null;
         this.skipToRest = false;

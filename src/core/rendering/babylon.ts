@@ -37,6 +37,7 @@ export { DynamicTexture } from '@babylonjs/core/Materials/Textures/dynamicTextur
 export { Engine } from '@babylonjs/core/Engines/engine';
 export { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
 export { FresnelParameters } from '@babylonjs/core/Materials/fresnelParameters';
+export { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo';
 export { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 export { InstancedMesh } from '@babylonjs/core/Meshes/instancedMesh';
 export { LoadAssetContainerAsync } from '@babylonjs/core/Loading/sceneLoader';

@@ -1705,3 +1705,90 @@ it was played at") passes unchanged.
 
 Also: the human player's ball went from 12 to 16 segments. A tumbling
 silhouette shows faceting a static one hides; AI balls stay at 12.
+
+## 31. The Wild Prairie / Port Johnson stall
+
+> "I lagged out with the ball in the air on wild prairie number 3 again. the
+> power meter on the drive was really choppy… I refreshed and it couldn't build
+> the menus." — with a boot screen reading *"Uncaught Error: WebGL not
+> supported"*, on Chrome for Android.
+
+An earlier pass chased GPU *memory*. That was wrong: these holes carry ~42-54 MB
+of GPU state, which is unremarkable. **The failure is a main-thread stall long
+enough that the browser reclaims the WebGL context** — which is exactly the
+choppy-then-gone ordering the owner described.
+
+### The cause: an O(instances) bounds pass, every frame, outside the budget
+
+The scatter drain time-slices planting to 3.5 ms a frame, then called
+`batcher.flush()` **after** the time check — outside the budget it had just
+enforced. `flush()` called `thinInstanceRefreshBoundingInfo` on every batch that
+had grown, and `plant()` marks a batch grown on every single prop, so that was
+essentially every batch every frame. Babylon's implementation walks **every
+instance** and pushes 8 bounding-box corners through its matrix.
+
+Port Johnson h3 scans ~40,700 tall-grass cells and Wild Prairie h3 ~25,800
+(Maple Vale h3 20,800; Wildwood h3 ~1,700). At that scale the pass is ~160,000
+transform operations in a single frame, climbing as the hole fills. Measured on
+this container before the fix: a **459 ms** single frame on Wild Prairie h3
+against a 1.5 ms median.
+
+### What actually fixed it — and two attempts that did not
+
+1. **Deferring the bounds pass to the end made it worse** — 3.5 s in one frame,
+   measured. Moving an O(N) cost does not remove it.
+2. **Computing bounds from `extendSize` broke the art.** A tree's origin sits at
+   its BASE, so treating its box as centred on the origin put the top half
+   outside the bounds and edge-of-frustum trees were culled — 2.16% of
+   Timberline's pixels went missing. Bounds that are too small are worse than
+   bounds that are too slow.
+3. **What works:** a batch is keyed into one 480-unit cell, so the cell grown by
+   the largest prop reach is a guaranteed **superset** of what it draws. That is
+   O(1), needs no matrices, and no arithmetic about origins or Y rotation can
+   make it too small. Vertical extent is still accumulated tightly, since props
+   share an upright axis.
+
+Also: `flush()` moved inside the budget; uploads run on a 6-frame cadence
+(`thinInstanceBufferUpdated` re-sends a batch's whole matrix array, so per-frame
+flushing costs O(planted) of bus traffic per frame); and the quantum dropped
+from 32 queue items to 8, because one item is a whole grid **row** — at 32 the
+loop could chew ~5,800 cells before it ever read the clock, making the budget a
+floor rather than a ceiling.
+
+### The drain now has a ceiling, measured in work rather than wall clock
+
+Its only previous exit was an empty queue, so planting could still be running
+minutes into a hole. It now stops after 6 s of **its own** time.
+
+Wall clock was tried first and was measurably wrong: the budget is only spent on
+frames that render, so a slow or briefly-backgrounded device burns the allowance
+having planted nothing. A 12 s wall-clock cap cost a third of the scenery under
+a 1 fps headless renderer — 151 batches down to 102, and 2% of the frame visibly
+different. Counting the drain's own time makes the ceiling mean the same thing
+at 5 fps as at 60.
+
+### One leaked observer per shot
+
+`TrailMesh` is constructed with `autoStart`, which registers an
+`onBeforeRenderObservable` observer — and Babylon 9's `TrailMesh` has **no
+`dispose()` override**, so `dispose()` tore down the geometry and left the
+observer running for the life of the scene. One per non-putt shot (CLAUDE.md
+rule 13). `stop()` now precedes `dispose()`.
+
+### What this container can and cannot prove
+
+`tests/visual/drain.spec.ts` gates that the drain **terminates** and that the
+**median** frame stays cheap. It deliberately does not assert the tail: under
+software GL each batch's first draw compiles a shader, and batches appear
+progressively, so multi-second frames land mid-drain that have nothing to do
+with the drain and move run to run. Owning the render loop, warm-up frames and
+promise yields each removed some contamination and left more. The tail is
+logged, never asserted — the real verification is a phone.
+
+### Still open
+
+The quality governor remains blind to this shape of stall (it demotes on a
+90-frame **median**, and drops frames over 250 ms entirely, so a device at 4 fps
+records no samples at all), `scatterScale` is 1.0 at tiers 0 **and** 1, and
+`bootTier` has no "this is a phone" signal. The `webglcontextlost` veil still
+has no escape when restore never fires. Those are the next pass.

@@ -43,7 +43,7 @@
  * and it happens at most once every few frames when the fade set changes).
  */
 
-import { Color4, Matrix, Mesh, Quaternion, TransformNode, Vector3 } from '../core/rendering/babylon';
+import { BoundingInfo, Color4, Matrix, Mesh, Quaternion, TransformNode, Vector3 } from '../core/rendering/babylon';
 
 /**
  * One planted prop part, independent of how it is actually drawn. course3d's
@@ -88,6 +88,28 @@ interface Batch {
   /** The array currently bound to the GPU buffer — when it still matches, an
    *  edit only needs a re-upload, not a fresh buffer allocation. */
   bound: Float32Array | null;
+  /** Running world-space extent of everything planted in this batch, grown one
+   *  prop at a time. See `growBounds` for why this exists instead of Babylon's
+   *  own bounds pass. */
+  min: Vector3;
+  max: Vector3;
+  /** ONE unscaled prop's local extent, read from the prototype once. Stored as
+   *  the actual min/max corners, NOT a half-size: a tree's origin sits at its
+   *  BASE, so its box is not centred on the origin and a half-size would put
+   *  the top half of the trunk outside the bounds (measured: 2.16% of Timberline
+   *  pixels went missing that way, as edge-of-frustum trees were culled). */
+  lo: Vector3;
+  hi: Vector3;
+  /** Horizontal reach of ONE unscaled prop, max over |x| and |z| of the
+   *  corners — a prop is planted with an arbitrary Y rotation, so its footprint
+   *  has to be bounded by the radius that survives any spin about Y. */
+  radius: number;
+  /** Largest `radius * scale` planted so far — how far this batch's contents
+   *  can spill past their cell. */
+  reach: number;
+  /** World corner of this batch's cell. */
+  cellX: number;
+  cellZ: number;
 }
 
 /**
@@ -102,6 +124,8 @@ export class NatureBatcher {
   private readonly scratch = new Matrix();
   private readonly scratchQ = new Quaternion();
   private readonly scratchS = new Vector3(1, 1, 1);
+  private readonly boundsMin = new Vector3();
+  private readonly boundsMax = new Vector3();
   private seq = 0;
 
   constructor(private readonly parent: TransformNode) {}
@@ -117,13 +141,14 @@ export class NatureBatcher {
     const key = `${part.uniqueId}|${cx}|${cz}`;
     let batch = this.batches.get(key);
     if (!batch) {
-      batch = this.createBatch(part, key);
+      batch = this.createBatch(part, cx * CELL, cz * CELL);
       this.batches.set(key, batch);
     }
     const index = batch.count;
     this.ensureCapacity(batch, index + 1);
     batch.count = index + 1;
     batch.grew = true;
+    this.growBounds(batch, position, scale);
 
     Quaternion.RotationYawPitchRollToRef(rotationY, 0, 0, this.scratchQ);
     this.scratchS.set(scale, scale, scale);
@@ -175,13 +200,95 @@ export class NatureBatcher {
         // would draw the unused tail slots (zeroed matrices at the origin).
         batch.mesh.thinInstanceCount = batch.count;
       }
-      // Only a slot COUNT change can move the batch's bounds; a hide/show writes
-      // inside the existing extent, so skip the O(n) bounds pass for fades.
-      if (batch.grew) batch.mesh.thinInstanceRefreshBoundingInfo(false);
+      // O(1) — the extent was accumulated prop by prop in growBounds.
+      if (batch.grew) this.applyBounds(batch);
       batch.dirty = false;
       batch.grew = false;
     }
     this.dirty.clear();
+  }
+
+  /**
+   * Grow a batch's world extent by one prop — six comparisons, no matrices.
+   *
+   * THIS REPLACES `thinInstanceRefreshBoundingInfo`, which is the single most
+   * expensive thing this module used to do. Babylon's version walks EVERY
+   * instance and pushes 8 bounding-box corners through its matrix, so calling
+   * it per flush cost O(instances planted so far) every frame of the drain —
+   * ~160,000 transform operations in one frame on Port Johnson h3, and a
+   * measured 459ms single frame on Wild Prairie h3. That is what made the swing
+   * meter choppy and, on a phone, got the WebGL context reclaimed.
+   *
+   * Deferring it to the end was NOT the answer and made things worse (3.5s in a
+   * single frame — measured). The answer is not to walk instances at all: a
+   * prop's world extent is its position plus its own half-size times its scale,
+   * which is known at plant time. Accumulating that is O(1) per prop, so the
+   * whole bounds problem disappears rather than moving.
+   *
+   * The result is a slightly looser box than Babylon's — the prop's half-size
+   * is not rotated, so a Y-rotated prop is bounded by a box sized for its
+   * diagonal. That costs a few needlessly-drawn batches at the frustum edge and
+   * saves the stall; for grass cards a couple of units either way is nothing.
+   */
+  private growBounds(batch: Batch, position: Vector3, scale: number): void {
+    const reach = batch.radius * scale;
+    if (reach > batch.reach) batch.reach = reach;
+    const loY = position.y + batch.lo.y * scale;
+    const hiY = position.y + batch.hi.y * scale;
+    if (loY < batch.min.y) batch.min.y = loY;
+    if (hiY > batch.max.y) batch.max.y = hiY;
+  }
+
+  /**
+   * Publish the accumulated extent to the mesh. O(1), so this can run on every
+   * flush without the cost that made the old bounds pass a hazard.
+   */
+  private applyBounds(batch: Batch): void {
+    if (batch.count === 0) return;
+    // HORIZONTALLY, USE THE CELL, NOT THE PROPS. Every prop in this batch was
+    // keyed into one CELL-sized square, so the square grown by the largest prop
+    // reach is a guaranteed SUPERSET of what the batch draws — no arithmetic
+    // about origins or Y rotation can make it too small, and a bound that is
+    // too small culls scenery that should be on screen (which is exactly how a
+    // first attempt at this lost the top half of every Timberline tree: it
+    // treated `extendSize` as if a tree's box were centred on its origin, when
+    // the origin sits at the base).
+    //
+    // Vertically the accumulated min/max is used as-is: props share an upright
+    // axis, so there is no rotation to be conservative about, and a tight Y
+    // bound is what keeps the batch cullable when the camera looks along the
+    // ground.
+    const r = batch.reach;
+    this.boundsMin.set(batch.cellX - r, batch.min.y, batch.cellZ - r);
+    this.boundsMax.set(batch.cellX + CELL + r, batch.max.y, batch.cellZ + CELL + r);
+    batch.mesh.setBoundingInfo(new BoundingInfo(this.boundsMin, this.boundsMax));
+  }
+
+  /**
+   * Settle every batch once planting is done. Cheap now — the extents were
+   * accumulated as the props landed — but kept as an explicit end-of-drain step
+   * so the course is never declared ready with a half-uploaded batch.
+   *
+   * This used to run per batch per flush — i.e. every frame of the drain, for
+   * every batch that had grown that frame, which `plant()` marks on every
+   * single prop. `thinInstanceRefreshBoundingInfo` walks EVERY instance and
+   * transforms 8 bounding-box corners through its matrix, so the cost was
+   * O(instances planted so far) EVERY FRAME, climbing as the hole filled. On
+   * Port Johnson h3 (~40k grass cells) that is ~160,000 transform operations
+   * in a single frame's flush, 8-20ms on a phone — on top of, and outside, the
+   * drain's 3.5ms budget. That was the stall behind "the power meter on the
+   * drive was really choppy", and the frame times it produced are what got the
+   * WebGL context reclaimed mid-flight.
+   *
+   * Deferring it is safe because a batch's bounds are only used for frustum
+   * culling: until this runs the batch reports the prototype's own small
+   * extent, so a batch may be culled while it is still filling. That resolves
+   * the moment planting completes, and a missing blade of grass for part of the
+   * flyover is not worth a dropped frame — let alone a lost context.
+   */
+  finalize(): void {
+    this.flush();
+    for (const batch of this.batches.values()) this.applyBounds(batch);
   }
 
   /** Every batch mesh currently in the scene (the water mirror's render list
@@ -195,7 +302,7 @@ export class NatureBatcher {
     this.dirty.add(batch);
   }
 
-  private createBatch(part: Mesh, key: string): Batch {
+  private createBatch(part: Mesh, cellX: number, cellZ: number): Batch {
     // clone() shares the prototype's geometry (Babylon reference-counts it) and
     // its material, so a batch costs one scene node and nothing else. The name
     // keeps the `nat` prefix the mirror render-list filter and the soak specs
@@ -222,11 +329,26 @@ export class NatureBatcher {
     mesh.thinInstanceEnablePicking = false;
     mesh.receiveShadows = false;
     mesh.alwaysSelectAsActiveMesh = false;
+    // Do not let Babylon recompute bounds behind our back. `thinInstanceSetBuffer`
+    // otherwise runs its own O(instances) bounds pass on EVERY capacity doubling
+    // — and it sizes that pass from the buffer LENGTH, so it walks the unused
+    // zero tail too, up to 2x the real count. Combined with the explicit pass
+    // that used to follow it, a growth frame paid for the walk about three
+    // times. `finalize()` computes the bounds once, deliberately, at the end.
+    mesh.doNotSyncBoundingInfo = true;
     // Nothing about a batch's own transform ever changes — only the thin
     // instance buffer does — so the node matrix is computed once.
     mesh.computeWorldMatrix(true);
     mesh.freezeWorldMatrix();
     const tintable = (part as Mesh & { tintable?: boolean }).tintable === true;
+    // One prop's own local extent, read from the prototype once and reused for
+    // every prop in this batch — they are all the same mesh at different
+    // scales, so this is all growBounds needs. Corners, not a half-size: see
+    // the note on Batch.lo.
+    const box = part.getBoundingInfo().boundingBox;
+    const lo = box.minimum.clone();
+    const hi = box.maximum.clone();
+    const radius = Math.max(Math.abs(lo.x), Math.abs(hi.x), Math.abs(lo.z), Math.abs(hi.z));
     return {
       mesh,
       matrices: new Float32Array(INITIAL_CAPACITY * 16),
@@ -234,7 +356,15 @@ export class NatureBatcher {
       count: 0,
       dirty: false,
       grew: false,
-      bound: null
+      bound: null,
+      min: new Vector3(Infinity, Infinity, Infinity),
+      max: new Vector3(-Infinity, -Infinity, -Infinity),
+      lo,
+      hi,
+      radius,
+      reach: 0,
+      cellX,
+      cellZ
     };
   }
 

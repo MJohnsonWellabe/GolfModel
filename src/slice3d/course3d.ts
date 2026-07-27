@@ -2011,30 +2011,78 @@ export function buildCourse(
     // Even a small budget can line up with the first tap on dense holes and steal
     // time from the rAF meter. Scenery resumes immediately after the shot.
     const AIM_BUDGET_MS = 0;
+    // HARD CEILING ON THE WHOLE JOB, measured in WORK DONE rather than wall
+    // clock. Without a ceiling the drain's only exit is an empty queue, so a
+    // player who spends a hole with the meter armed pushes planting minutes
+    // into the round, and the densest holes (Port Johnson h3 scans ~40k grass
+    // cells, Wild Prairie h3 ~26k) can still be planting while the ball is in
+    // the air. Past this the remaining queue is ABANDONED: some grass never
+    // appears, which nobody will notice, instead of frames the browser reclaims
+    // the WebGL context over, which everybody does.
+    //
+    // WALL CLOCK WOULD BE WRONG, and measurably so: the budget is only spent on
+    // frames that render, so a slow or briefly-backgrounded device burns the
+    // allowance without planting anything. Gating a 12s wall clock cost a third
+    // of the scenery under a 1fps headless renderer — 151 batches down to 102,
+    // and 2% of the frame visibly different. Counting the drain's OWN time
+    // makes the ceiling mean the same thing at 5fps as at 60.
+    const DRAIN_TOTAL_MS = 6_000;
+    let drainSpentMs = 0;
+    // Upload on a CADENCE, not every frame. `thinInstanceBufferUpdated` re-sends
+    // a batch's ENTIRE matrix array, not just the slots added since last time,
+    // so flushing per frame costs O(planted) of bus traffic per frame — for a
+    // 40k-instance hole that is hundreds of MB over the drain. Flushing every
+    // sixth frame cuts that by six with no visible difference: grass still fills
+    // in progressively, just in ~100ms steps instead of ~16ms ones.
+    const FLUSH_EVERY = 6;
+    let sinceFlush = 0;
+    const finish = (): void => {
+      scene.onBeforeRenderObservable.remove(drain);
+      // Push the final cell transforms and compute the batch bounds ONCE,
+      // before the course is declared ready, so the flyover never sees a
+      // half-uploaded batch. See NatureBatcher.finalize for why the bounds pass
+      // cannot run per frame.
+      batcher?.finalize();
+      refreshMirrorList?.();
+      resolveNatureReady();
+    };
     const drain = scene.onBeforeRenderObservable.add(() => {
       const budget = renderPacing.meterActive ? AIM_BUDGET_MS : BUDGET_MS;
       if (budget <= 0) return;
+      if (drainSpentMs > DRAIN_TOTAL_MS) {
+        finish();
+        return;
+      }
       const t0 = performance.now();
       for (;;) {
-        let batch = 32; // amortize the performance.now() cost over a small batch
+        // Amortize the performance.now() cost — but only over a handful of
+        // items, because ONE popQueue item is a whole grid row (up to ~180
+        // columns x several surfaceAt calls). At the old quantum of 32 the loop
+        // could chew ~5,800 cells before it ever read the clock, which made the
+        // budget a floor rather than a ceiling.
+        let batch = 8;
         while (batch-- > 0) {
           if (popHead < popQueue.length) popQueue[popHead++]();
           else if (plantHead < plantQueue.length) plantQueue[plantHead++]();
           else {
-            scene.onBeforeRenderObservable.remove(drain);
-            // Batched path: push the final cell transforms before the course is
-            // declared ready, so the flyover never sees a half-uploaded batch.
-            batcher?.flush();
-            refreshMirrorList?.();
-            resolveNatureReady();
+            drainSpentMs += performance.now() - t0;
+            finish();
             return;
           }
         }
         if (performance.now() - t0 >= budget) {
-          // Upload what this frame planted so the scatter fills in progressively
-          // (same visible behaviour as the instanced path) rather than popping in
-          // all at once at the end.
-          batcher?.flush();
+          // Upload what has been planted so the scatter fills in progressively
+          // (same visible behaviour as the instanced path) rather than popping
+          // in all at once at the end — but on a cadence, and counted against
+          // this frame's clock rather than after it. The old code flushed here
+          // unconditionally and AFTER the budget test, so a frame's real cost
+          // was the budget plus an unbounded upload plus an unbounded bounds
+          // pass. That was the stall.
+          if (++sinceFlush >= FLUSH_EVERY) {
+            sinceFlush = 0;
+            batcher?.flush();
+          }
+          drainSpentMs += performance.now() - t0;
           return;
         }
       }
