@@ -1632,3 +1632,76 @@ Tour hub's rival list and the event preview could badge a hot rival (and the
 post-event card could explain a runaway winner) from `(season.seed, rival.id,
 event.idx)` with no new state and no extra simulation — that is a `main.ts`
 change, deliberately left out of this pass.
+
+## 30. The ball spins
+
+> "how hard would it be to make the ball look like it's back spinning in the
+> air? right now it's static which is noticable on the new balls that have
+> designs on them"
+
+The ball had never rotated — `rotationQuaternion` appeared nowhere in the
+codebase. A white ball hid that completely; the new patterned balls do not, and
+neither does the ground, where the camera sits closest and a *sliding* ball
+reads worst of all. So this covers flight, rollout and putts.
+
+### Driven by distance travelled, not elapsed time
+
+The decision everything else falls out of. Flight playback is slow-motion at a
+factor that changes constantly (0.26x air, 0.45x roll, 0.32x green, 0.8x putt),
+and a skip or `settleFlight()` can step the whole remaining path in one frame.
+Rotating by elapsed time fights all of that — the ball would blur while visibly
+drifting, and a skip would spin it through hundreds of revolutions. Rotating by
+**ground covered** is immune, because it is tied to the motion the player
+actually sees, and it makes the rolling case physically exact for free: a ball
+in rolling contact turns through `distance / radius`, so a stripe makes exactly
+one revolution per circumference.
+
+### The aliasing cap is derived, not guessed
+
+Real backspin is 2,000-10,000 rpm — 33 to 167 revolutions per second. At 60fps
+every one of those aliases into the wagon-wheel effect. Aliasing is Nyquist: a
+pattern with n-fold rotational symmetry about the spin axis aliases at π/n per
+frame. The ink wash and drip are asymmetric (n=1, aliases at π); an alignment
+stripe tumbling end over end is 2-fold (n=2, aliases at π/2) and therefore sets
+the bound. `MAX_STEP_RAD` is **π/3**, two thirds of that worst case.
+
+An earlier π/6 was wrong and the tests caught it: it clamped *ordinary*
+rollouts, so the ball under-rotated through most of every roll — reintroducing
+the sliding look the change exists to remove. The cap is a safety net for a
+skipped frame, not a rate limiter for normal play.
+
+Measured on a real driver flight: **0.364 rad/frame mean, 3.47 rev/s at 60fps**,
+with the cap engaging only on the fastest frames. That reads as fast backspin
+and cannot reverse.
+
+### The ball is two meshes, and has to stay that way
+
+`ball<i>` is a geometry-less anchor carrying position, view scale, and — the
+reason for the split — the trail's generator. Babylon builds the trail ribbon's
+cross-section ring in the generator's local XY plane and pushes it through the
+generator's **full world matrix, rotation included**
+(`trailMesh.pure.js._updateSectionVectors`). Backspin turns about a local
+horizontal axis, so a spinning generator would tilt that ring every frame and
+the ribbon would strobe, pinch and self-intersect. `ballSkin<i>` is the child
+sphere that carries the material, the shadow casting and the rotation.
+
+Do not collapse these back into one mesh. `tests/visual/ballSpin.spec.ts`
+asserts the trail still renders precisely so that regression is caught.
+
+Two consequences worth knowing: the shader prewarm had to move to the skins
+(the anchor has no material, so warming it compiled nothing and handed the
+ball's textured shader to the first frame), and orientation is reset in
+`showActiveCompetitor()` because ball meshes live for the whole hole and are
+shared by every competitor.
+
+### Nothing about physics moved
+
+`TrajectoryPoint` is `{x, y, z}` — no orientation is recorded, replayed or
+verified. The spin reads path samples and club/spin and writes only the skin's
+orientation; it draws no random numbers, because `shotRng` is the stream the
+replay re-derives and sampling it would break score verification outright.
+`roundRecording.spec.ts` ("a round played in the real game replays to the score
+it was played at") passes unchanged.
+
+Also: the human player's ball went from 12 to 16 segments. A tumbling
+silhouette shows faceting a static one hides; AI balls stay at 12.

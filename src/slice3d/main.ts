@@ -9,6 +9,7 @@ import {
   Mesh,
   MeshBuilder,
   ParticleSystem,
+  Quaternion,
   Scene,
   StandardMaterial,
   TrailMesh,
@@ -137,6 +138,7 @@ import { TurnManager } from '../systems/TurnManager';
 import { drawWind, simulateHole } from '../systems/RoundSimulator';
 import { shouldShowPuttGrid } from '../core/puttAids';
 import { renderPacing } from './renderPacing';
+import { ballSpinStep } from './ballSpin';
 import { dist } from '../utils/Geometry';
 import { PhysicsEngine, statsForClub } from '../systems/PhysicsEngine';
 import { TreeSpecies } from '../systems/treeField';
@@ -732,6 +734,9 @@ class HoleScene {
   private theme = resolveTheme(round.course);
   private golfers: Golfer3D[] = [];
   private balls: Mesh[] = [];
+  /** The visible spheres, one per anchor in `balls`. These are the meshes that
+   *  ROTATE — the anchors must not (see the ball construction comment). */
+  private ballSkins: Mesh[] = [];
   /** Bounded-world debug overlay line meshes (see showBoundary); empty in play. */
   private boundaryOverlay: Mesh[] = [];
   /** Red hatched OUT-OF-BOUNDS border, drawn only in the aerial planning view
@@ -762,6 +767,68 @@ class HoleScene {
   }
   private get ball(): Mesh {
     return this.balls[this.turnIdx];
+  }
+
+  /** The active ball's visible sphere — what spin is applied to. */
+  private get ballSkin(): Mesh {
+    return this.ballSkins[this.turnIdx];
+  }
+
+  /** Scratch quaternion for the per-frame spin, so a flight frame allocates
+   *  nothing (the tick is the hot path — see the reused scratch vectors above). */
+  private readonly _spinQ = Quaternion.Identity();
+
+  /**
+   * Turn the ball for one frame of travel (systems: src/slice3d/ballSpin.ts).
+   *
+   * PURELY VISUAL, and one-directional by construction: it reads the ball's
+   * old and new positions and the shot's club/spin, and writes only the SKIN's
+   * orientation. It never touches `flight`, `state`, the recorder or the
+   * physics — and it draws no random numbers, because `shotRng` is the stream
+   * the replay re-derives and sampling it would break score verification.
+   *
+   * Driven by distance travelled rather than elapsed time, so slow-motion
+   * playback and a skipped-to-rest flight both come out right; see the module
+   * header for why that matters.
+   */
+  private spinBall(nextPos: Vector3, heightAboveGround: number): void {
+    const skin = this.ballSkin;
+    const fl = this.flight;
+    if (!skin || !fl) return;
+    const prev = this.ball.position;
+    const travel = { x: nextPos.x - prev.x, y: nextPos.y - prev.y, z: nextPos.z - prev.z };
+    // `bz` is the trajectory's own height, which is the honest read: a ball at
+    // the apex is moving flat but is still airborne, and the vertical component
+    // of `travel` would call that a roll.
+    const airborne = heightAboveGround > 0.01 && !fl.isPutt;
+    const step = ballSpinStep(travel, airborne, 1.0, {
+      clubSpin: fl.launch?.club.spin,
+      spinEff: fl.launch?.spinEff,
+      topSpin: fl.spin.top,
+      sideSpin: fl.spin.side
+    });
+    if (!step.axis || !step.radians) return;
+    Quaternion.RotationAxisToRef(
+      new Vector3(step.axis.x, step.axis.y, step.axis.z),
+      step.radians,
+      this._spinQ
+    );
+    // Compose onto the current orientation rather than replacing it: a golf
+    // ball has no home face, and accumulating is what carries the tumble
+    // smoothly across the flight-to-roll handover.
+    (skin.rotationQuaternion ?? Quaternion.Identity()).multiplyToRef(
+      this._spinQ,
+      (skin.rotationQuaternion ??= Quaternion.Identity())
+    );
+  }
+
+  /** Face every ball forward again. Ball meshes live for the whole hole and are
+   *  shared by every competitor, so without this each shot would inherit the
+   *  last one's tumble — and player B would start wearing player A's. */
+  private resetBallSpin(): void {
+    for (const skin of this.ballSkins) {
+      (skin.rotationQuaternion ??= Quaternion.Identity()).copyFrom(Quaternion.Identity());
+    }
   }
   private get ai(): AIController | null {
     return this.ais[this.turnIdx];
@@ -976,7 +1043,34 @@ class HoleScene {
         g.setClubSkin(equippedColor(profile, 'clubskin', 0x9aa6b2));
       }
       this.golfers.push(g);
-      const b = MeshBuilder.CreateSphere(`ball${i}`, { diameter: 1.0, segments: 12 }, this.scene);
+      // THE BALL IS TWO MESHES, AND HAS TO BE (see ballSpin.ts).
+      //
+      // `b` is an un-rotated ANCHOR: it carries the position, the view scale,
+      // and — the reason for the split — it is the trail's generator. Babylon
+      // builds the trail ribbon's cross-section ring in the generator's local
+      // XY plane and pushes it through the generator's FULL world matrix,
+      // rotation included (trailMesh.pure.js `_updateSectionVectors`). Backspin
+      // turns about a local horizontal axis, so spinning the generator would
+      // tilt that ring every frame and the ribbon would strobe, pinch and
+      // self-intersect. Do not collapse these two back into one mesh.
+      //
+      // `skin` is the sphere the player actually sees: it wears the material
+      // and it is the only thing that rotates. Parented, so every existing
+      // position and scaling write on the anchor still moves it.
+      // The anchor is a geometry-less Mesh — Babylon's empty-parent idiom — so
+      // it stays a real Mesh for `balls: Mesh[]`, positions and scales exactly
+      // as before, and draws nothing itself.
+      const b = new Mesh(`ball${i}`, this.scene);
+      // A tumbling silhouette shows faceting a static one hides, so the human
+      // player's ball gets 16 segments; AI balls stay at the cheaper 12.
+      const skin = MeshBuilder.CreateSphere(
+        `ballSkin${i}`,
+        { diameter: 1.0, segments: part.isAI ? 12 : 16 },
+        this.scene
+      );
+      skin.parent = b;
+      skin.rotationQuaternion = Quaternion.Identity();
+      this.ballSkins.push(skin);
       const bm = new StandardMaterial(`ballMat${i}`, this.scene);
       // The human player's ball wears the equipped cosmetic (Phase 7 store):
       // a flat tint as it always has, or — for a DESIGNED ball (StoreItem
@@ -995,8 +1089,11 @@ class HoleScene {
         bm.diffuseColor = part.isAI ? new Color3(0.97, 0.97, 0.95) : c3(equippedColor(profile, 'ball', 0xf7f7f2));
       }
       bm.specularColor = new Color3(0.5, 0.5, 0.5);
-      b.material = bm;
-      shadows.addShadowCaster(b);
+      // Material and shadow belong to the skin — the anchor has no geometry to
+      // shade or to cast. (A rotating sphere casts the same shadow as a still
+      // one, so the shadow map is unaffected by the spin either way.)
+      skin.material = bm;
+      shadows.addShadowCaster(skin);
       this.balls.push(b);
       const fire = new FireSystem();
       // Carry the streak in from the previous hole of this round (holeIdx 0 =
@@ -1149,7 +1246,10 @@ class HoleScene {
       this.golfers.forEach((g) => g.root.getChildMeshes().forEach((m) => jobs.push(warm(m))));
       this.aimDots.forEach((d) => jobs.push(warm(d)));
       jobs.push(warm(this.aimRing), warm(this.ballShadow));
-      this.balls.forEach((b) => jobs.push(warm(b)));
+      // The SKINS, not the anchors: the anchor is a geometry-less parent with
+      // no material, so warming it would compile nothing and hand the ball's
+      // shader — a textured one, for a designed ball — to the first frame.
+      this.ballSkins.forEach((s) => jobs.push(warm(s)));
       await Promise.all(jobs.filter(Boolean));
       markPerf(round.course.name, this.hole.number, `address-shaders-warm:${Math.round(performance.now() - warmT0)}ms`);
     } catch {
@@ -1592,6 +1692,7 @@ class HoleScene {
       b.position = w2b(c.ball.x, c.ball.y, this.ballRestH() + this.gh(c.ball.x, c.ball.y));
       b.setEnabled(!c.holed && (!this.tm.isScramble || i === this.turnIdx));
     });
+    this.resetBallSpin();
   }
 
   private fwd3(yaw: number): Vector3 {
@@ -3852,7 +3953,9 @@ class HoleScene {
         const bx = p.x + (pn.x - p.x) * frac;
         const by = p.y + (pn.y - p.y) * frac;
         const bz = p.z + (pn.z - p.z) * frac;
-        this.ball.position = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
+        const nextPos = w2b(bx, by, bz + this.ballRestH() + this.gh(bx, by));
+        this.spinBall(nextPos, bz);
+        this.ball.position = nextPos;
         const dCup = Math.hypot(p.x - this.hole.pin.x, p.y - this.hole.pin.y);
         // Putts: zoom the camera in tight as the ball nears the cup (FB2).
         if (this.flight.isPutt && dCup < 46) {
