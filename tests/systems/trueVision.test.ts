@@ -10,10 +10,10 @@ import { golferWith, NO_WIND, openHole } from '../simulation/simHelpers';
 const golfer = golferWith(85);
 const putter = clubById('putter');
 const driver = clubById('driver');
-const PUTTER_MAX_CARRY_PX = effectiveCarryYards(putter, golfer, 0, 'green') * PX_PER_YARD;
+const PUTTER_MAX_CARRY_PX = effectiveCarryYards(putter, golfer, 'green') * PX_PER_YARD;
 
 function ctxOn(ball: { x: number; y: number }, lie: 'green' | 'fairway' = 'green'): ShotContext {
-  return { ball, lie, golfer, fireBoost: 0, strokes: 0 };
+  return { ball, lie, golfer, strokes: 0 };
 }
 
 /** Initial aim direction implied by the first two points of a path. */

@@ -33,7 +33,6 @@ function lateralP90(clubId: string, quality: 'perfect' | 'good' | 'miss', n = 12
       swing: SWING_OF(0.95, quality, 0),
       club,
       golfer,
-      fireBoost: 0,
       lie: 'tee',
       wind: NO_WIND,
       hole
@@ -101,7 +100,6 @@ function lateralP90Lie(quality: 'perfect' | 'good' | 'miss', lie: Surface, n = 1
       swing: SWING_OF(0.95, quality, 0),
       club,
       golfer,
-      fireBoost: 0,
       lie,
       wind: NO_WIND,
       hole
@@ -132,7 +130,6 @@ function signedLaterals(quality: 'perfect' | 'good' | 'miss', lie: Surface, n = 
       swing: SWING_OF(0.95, quality, 0),
       club,
       golfer,
-      fireBoost: 0,
       lie,
       wind: NO_WIND,
       hole
@@ -201,7 +198,7 @@ describe('ADJ-2 rough dispersion bands (~80 / ~140 / ~200 yд)', () => {
     for (let i = 0; i < n; i++) {
       const out = engine.simulate({
         origin: { x: 1500, y: 2800 }, aimAngle: -Math.PI / 2,
-        swing: SWING_OF(0.95, quality, 0), club, golfer, fireBoost: 0, lie, wind: NO_WIND, hole
+        swing: SWING_OF(0.95, quality, 0), club, golfer, lie, wind: NO_WIND, hole
       });
       lats.push(Math.abs(out.finalPos.x - 1500) / PX_PER_YARD);
       carries.push((2800 - out.finalPos.y) / PX_PER_YARD);

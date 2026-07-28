@@ -144,6 +144,22 @@ export interface RoundRecordInput {
   closestApproachFt?: number | null;
   /** Weekly featured event id when this round was a weekly entry. */
   weeklyEventId?: string;
+  /**
+   * Whether this round may set a SCORING record — the per-course best, the
+   * best round anywhere, and the weekly best.
+   *
+   * Owner rule: "course records can only be set on pro or higher." A wider
+   * swing band is a real scoring advantage, so a round played at Beginner or
+   * Amateur is not comparable with one played at Pro and must not overwrite it
+   * or be celebrated as beating it. Everything else about the round is
+   * untouched — it still pays, still counts, and still sets the SKILL records
+   * below (longest drive, longest putt, closest approach, birdies, fire), none
+   * of which is a course record and all of which read the same at any width.
+   *
+   * Defaults to true so every existing caller and test keeps its meaning; the
+   * live game passes `recordsAllowed(round.difficulty)`.
+   */
+  ranked?: boolean;
   /** Epoch ms (injected for determinism). */
   now?: number;
 }
@@ -158,27 +174,32 @@ export function applyRoundRecords(rec: PersonalRecords, input: RoundRecordInput)
   const events: RecordEvent[] = [];
   const { stats } = input;
   const now = input.now ?? 0;
+  const ranked = input.ranked ?? true;
   rec.totalRounds += 1;
 
-  // Course best
-  const prev = rec.bestByCourse[input.courseId];
-  if (!prev) {
-    rec.bestByCourse[input.courseId] = { total: input.total, toPar: stats.toPar, at: now };
-  } else if (input.total < prev.total) {
-    rec.bestByCourse[input.courseId] = { total: input.total, toPar: stats.toPar, at: now };
-    events.push({ id: 'course_best', kind: 'broken', label: `New ${input.courseName} best: ${input.total}` });
-  } else if (input.total === prev.total) {
-    events.push({ id: 'course_best_tie', kind: 'near', label: `Matched your ${input.courseName} best (${prev.total})` });
-  } else if (input.total - prev.total === 1) {
-    events.push({ id: 'course_best_near', kind: 'near', label: `One stroke from your ${input.courseName} best` });
-  }
+  // THE SCORING RECORDS — course best, best round anywhere, the par-or-better
+  // run. All three are ranked-only (see RoundRecordInput.ranked). An unranked
+  // round neither SETS one nor BREAKS one: ending a run built at Pro because of
+  // a relaxed Beginner round would be a penalty for using a setting.
+  if (ranked) {
+    const prev = rec.bestByCourse[input.courseId];
+    if (!prev) {
+      rec.bestByCourse[input.courseId] = { total: input.total, toPar: stats.toPar, at: now };
+    } else if (input.total < prev.total) {
+      rec.bestByCourse[input.courseId] = { total: input.total, toPar: stats.toPar, at: now };
+      events.push({ id: 'course_best', kind: 'broken', label: `New ${input.courseName} best: ${input.total}` });
+    } else if (input.total === prev.total) {
+      events.push({ id: 'course_best_tie', kind: 'near', label: `Matched your ${input.courseName} best (${prev.total})` });
+    } else if (input.total - prev.total === 1) {
+      events.push({ id: 'course_best_near', kind: 'near', label: `One stroke from your ${input.courseName} best` });
+    }
 
-  // Overall best round
-  if (rec.bestRoundToPar === null) {
-    rec.bestRoundToPar = stats.toPar;
-  } else if (stats.toPar < rec.bestRoundToPar) {
-    rec.bestRoundToPar = stats.toPar;
-    events.push({ id: 'overall_best', kind: 'broken', label: 'Best round ever!' });
+    if (rec.bestRoundToPar === null) {
+      rec.bestRoundToPar = stats.toPar;
+    } else if (stats.toPar < rec.bestRoundToPar) {
+      rec.bestRoundToPar = stats.toPar;
+      events.push({ id: 'overall_best', kind: 'broken', label: 'Best round ever!' });
+    }
   }
 
   // Longest made putt
@@ -227,21 +248,23 @@ export function applyRoundRecords(rec: PersonalRecords, input: RoundRecordInput)
     }
   }
 
-  // Consecutive rounds at par or better
-  if (stats.toPar <= 0) {
-    rec.parOrBetterRun += 1;
-    if (rec.parOrBetterRun > rec.bestParOrBetterRun) {
-      rec.bestParOrBetterRun = rec.parOrBetterRun;
-      if (rec.parOrBetterRun >= 3) {
-        events.push({
-          id: 'par_run',
-          kind: 'broken',
-          label: `${rec.parOrBetterRun} rounds at par or better in a row`
-        });
+  // Consecutive rounds at par or better (see the scoring-records note above).
+  if (ranked) {
+    if (stats.toPar <= 0) {
+      rec.parOrBetterRun += 1;
+      if (rec.parOrBetterRun > rec.bestParOrBetterRun) {
+        rec.bestParOrBetterRun = rec.parOrBetterRun;
+        if (rec.parOrBetterRun >= 3) {
+          events.push({
+            id: 'par_run',
+            kind: 'broken',
+            label: `${rec.parOrBetterRun} rounds at par or better in a row`
+          });
+        }
       }
+    } else {
+      rec.parOrBetterRun = 0;
     }
-  } else {
-    rec.parOrBetterRun = 0;
   }
 
   // Longest fire streak
@@ -252,8 +275,8 @@ export function applyRoundRecords(rec: PersonalRecords, input: RoundRecordInput)
     if (had) events.push({ id: 'fire_streak', kind: 'broken', label: `Longest Fire streak: ${fire}` });
   }
 
-  // Weekly featured best
-  if (input.weeklyEventId) {
+  // Weekly featured best — the weekly board is a scoring board.
+  if (ranked && input.weeklyEventId) {
     const w = rec.bestWeekly[input.weeklyEventId];
     if (!w || input.total < w.total) {
       rec.bestWeekly[input.weeklyEventId] = { total: input.total, toPar: stats.toPar };

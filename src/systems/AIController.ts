@@ -121,7 +121,6 @@ export class AIController {
     const maxCarry = effectiveCarryYards(
       clubById('driver'),
       this.golfer,
-      this.fire.statBoost,
       lie
     );
     // Aggression extends (or shrinks) how far out this AI will "go for it":
@@ -322,7 +321,7 @@ export class AIController {
       // distance. Sand cuts carry hard (lieDistance 0.55): a fixed 130yd
       // threshold sent 44yd sand wedges at 110yd targets, whose arcs died
       // against canyon walls short of the green (Devil's Kitchen sims).
-      const swReach = effectiveCarryYards(clubById('sw'), this.golfer, this.fire.statBoost, lie);
+      const swReach = effectiveCarryYards(clubById('sw'), this.golfer, lie);
       return neededYds > swReach * 1.25 ? clubById('9i') : clubById('sw');
     }
     if (lie === 'fringe' && neededYds < 35) return clubById('putter');
@@ -331,7 +330,7 @@ export class AIController {
     const candidates = CLUBS.filter((c) => c.id !== 'putter');
     let choice = candidates[0]; // driver = longest
     for (let i = candidates.length - 1; i >= 0; i--) {
-      const carry = effectiveCarryYards(candidates[i], this.golfer, this.fire.statBoost, lie);
+      const carry = effectiveCarryYards(candidates[i], this.golfer, lie);
       if (carry >= neededYds) {
         choice = candidates[i];
         break;
@@ -375,8 +374,15 @@ export class AIController {
     // cleanly the AI strikes BOTH meter clicks — matching the player, whose
     // perfect/good zone is set by the same touch stat. (The carry the AI plans
     // to is effectiveCarryYards below, which reads Power internally.)
-    const { zone } = statsForClub(club, this.golfer, this.fire.statBoost);
-    const carry = effectiveCarryYards(club, this.golfer, this.fire.statBoost, lie);
+    const { zone } = statsForClub(club, this.golfer);
+    // The AI's fire benefit, in the AI's own currency. The player's fire widens
+    // the perfect band by SWING.firePerfectMult; the AI has no meter, so its
+    // analogue is the CHANCE of striking one — sampleBand scales that by the
+    // same multiplier. (Fire used to reach the AI only through a +5 stat boost
+    // on the line above; that boost is gone from the whole game, so without
+    // this an AI's fire streak would still light up and mean nothing.)
+    const fireZone = this.fire.perfectZoneMultiplier;
+    const carry = effectiveCarryYards(club, this.golfer, lie);
     // Full shots rate their power for the elevation-adjusted distance (putts
     // have their own slope-aware pace path below).
     const elevAdj = club.id === 'putter' ? 0 : this.elevPlaysLikeYds(ballPos, aimPoint);
@@ -405,8 +411,8 @@ export class AIController {
       if (lie === 'fringe') targetPower = clamp(targetPower * 1.5, minPower, 1.0);
     }
 
-    const powerBand = this.sampleBand(zone);
-    const accuracyBand = this.sampleBand(zone);
+    const powerBand = this.sampleBand(zone, fireZone);
+    const accuracyBand = this.sampleBand(zone, fireZone);
 
     // Even "perfect" AI swings carry a little dispersion — a perfect meter
     // click for the player is deterministic, but the AI shouldn't be a robot
@@ -440,12 +446,16 @@ export class AIController {
     };
   }
 
-  private sampleBand(stat: number): Band {
+  /** `zoneMult` widens (or narrows) the bands exactly as it does on the
+   *  player's meter — 1 for an ordinary swing, SWING.firePerfectMult on fire.
+   *  A wider perfect band is a higher chance of hitting it, and it eats into
+   *  the miss band from the same side, so both move together. */
+  private sampleBand(stat: number, zoneMult = 1): Band {
     // Steep skill curve so the GDD scoring tiers actually separate:
     // stat 72 → ~37% perfect / 8% miss · 80 → 53%/6.4% · 88 → 71%/4.6% ·
     // 95 → 87%/3.1% (calibrated by tests/simulation/scoring.test.ts).
-    const pPerfect = clamp(Math.pow(Math.max(0, stat - 45) / 55, 1.4), 0.05, 0.95);
-    const pMiss = clamp(0.24 - (stat / 100) * 0.22, 0.02, 0.3);
+    const pPerfect = clamp(Math.pow(Math.max(0, stat - 45) / 55, 1.4) * zoneMult, 0.05, 0.95);
+    const pMiss = clamp((0.24 - (stat / 100) * 0.22) / zoneMult, 0.02, 0.3);
     const r = this.rng();
     if (r < pPerfect) return 'perfect';
     if (r > 1 - pMiss) return 'miss';

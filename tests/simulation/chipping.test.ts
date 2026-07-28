@@ -33,7 +33,6 @@ function chipStats(fromYd: number, n = 1500): { holeOutPct: number; within6ftPct
       swing: PERFECT_SWING(fromYd / fullCarry),
       club,
       golfer,
-      fireBoost: 0,
       lie: 'fairway',
       wind: NO_WIND,
       hole

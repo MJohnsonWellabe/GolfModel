@@ -566,9 +566,11 @@ export const FLIGHT = {
 
 export const FIRE = {
   /** Consecutive all-perfect swings needed to catch fire. */
-  streakToIgnite: 2,
-  /** Temporary stat boost while on fire. */
-  statBoost: 5
+  streakToIgnite: 2
+  // Fire's ONLY effect is SWING.firePerfectMult — the widened perfect/good
+  // bands. It used to also carry a +5 stat boost (carry and dispersion); that
+  // was removed deliberately (owner: "that's enough of a boost"), see
+  // systems/FireSystem.
 } as const;
 
 export const RULES = {

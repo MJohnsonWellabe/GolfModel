@@ -29,7 +29,6 @@ function driveDistanceYd(hole: ReturnType<typeof openHole>): { yd: number; hitTr
     swing: SWING_OF(0.98, 'perfect', 0),
     club: clubById('driver'),
     golfer: golferWith(80),
-    fireBoost: 0,
     lie: 'tee',
     wind: NO_WIND,
     hole
@@ -142,7 +141,6 @@ describe('keepGround trunks stop a rolling ball (Sable Bay palm regression)', ()
       swing: PERFECT_SWING(power),
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'green',
       wind: NO_WIND,
       hole

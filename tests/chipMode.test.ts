@@ -23,7 +23,6 @@ function ctxAt(distYds: number, overrides: Partial<ShotContext> = {}): ShotConte
     ball: { x: 1000, y: 300 + distYds * 2 }, // PX_PER_YARD = 2, straight below the pin
     lie: 'fairway',
     golfer,
-    fireBoost: 0,
     strokes: 1,
     ...overrides
   };
@@ -121,7 +120,6 @@ describe('a perfect chip swing carries to the aimed distance (end-to-end)', () =
         swing: { power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
         club: aim.club,
         golfer,
-        fireBoost: 0,
         lie: ctx.lie,
         wind: NO_WIND,
         hole,

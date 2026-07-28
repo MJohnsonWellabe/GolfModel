@@ -78,13 +78,12 @@ describe('AI personalities', () => {
 });
 
 describe('fire integration', () => {
-  it('two all-perfect swings ignite and boost stats + perfect zone', () => {
+  it('two all-perfect swings ignite and widen the perfect zone', () => {
     const fire = new FireSystem();
     const perfect = { power: 1, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' } as const;
     expect(fire.recordSwing(perfect)).toBe(false);
     expect(fire.recordSwing(perfect)).toBe(true);
     expect(fire.isOnFire).toBe(true);
-    expect(fire.statBoost).toBeGreaterThan(0);
     expect(fire.perfectZoneMultiplier).toBeGreaterThan(1);
     // A missed band puts it out
     fire.recordSwing({ power: 1, powerQuality: 'miss', accuracy: 0.5, accuracyQuality: 'miss' });

@@ -29,7 +29,6 @@ function worstCaseDrive(hole: HoleData): number {
     swing: PERFECT_SWING(1.0),
     club: driver,
     golfer: bigHitter,
-    fireBoost: 0,
     lie: 'tee',
     wind: { angle: aim, speed: 20 }, // max tailwind
     hole,
@@ -62,9 +61,9 @@ describe('wood carry by lie (documented)', () => {
     it(`${clubId} keeps a sane fraction of its tee carry from the fairway and rough`, () => {
       const club = clubById(clubId);
       const g = golferWith(90);
-      const tee = effectiveCarryYards(club, g, 0, 'tee');
-      const fairway = effectiveCarryYards(club, g, 0, 'fairway');
-      const rough = effectiveCarryYards(club, g, 0, 'rough');
+      const tee = effectiveCarryYards(club, g, 'tee');
+      const fairway = effectiveCarryYards(club, g, 'fairway');
+      const rough = effectiveCarryYards(club, g, 'rough');
       // A clean fairway lie plays the same as the tee (no penalty).
       expect(fairway / tee).toBeCloseTo(1, 5);
       // Rough currently costs ~25% (lieDistance.rough = 0.75). Guard a band so an

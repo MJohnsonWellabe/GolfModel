@@ -29,7 +29,6 @@ function puttStraightAtPin(engine: PhysicsEngine) {
     swing: PERFECT_SWING(distPx / CARRY_PX),
     club: putter,
     golfer,
-    fireBoost: 0,
     lie: 'green',
     wind: NO_WIND,
     hole

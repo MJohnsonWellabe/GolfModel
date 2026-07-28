@@ -18,7 +18,6 @@ export interface ShotContext {
   ball: Point;
   lie: Surface;
   golfer: Golfer;
-  fireBoost: number;
   /** Strokes already played on this hole (0 = tee shot). */
   strokes: number;
 }
@@ -100,7 +99,7 @@ export class AimControl {
 
   /** Full-power carry with the current club from the current lie, world px. */
   maxCarryPx(ctx: ShotContext): number {
-    return effectiveCarryYards(this.club, ctx.golfer, ctx.fireBoost, ctx.lie) * PX_PER_YARD;
+    return effectiveCarryYards(this.club, ctx.golfer, ctx.lie) * PX_PER_YARD;
   }
 
   /**
@@ -246,7 +245,7 @@ export class AimControl {
     } else {
       id = 'driver';
       for (let i = CLUBS.length - 2; i >= 0; i--) {
-        const carry = effectiveCarryYards(CLUBS[i], ctx.golfer, ctx.fireBoost, ctx.lie);
+        const carry = effectiveCarryYards(CLUBS[i], ctx.golfer, ctx.lie);
         if (carry >= needed) {
           id = CLUBS[i].id;
           break;
@@ -301,7 +300,6 @@ export class AimControl {
       },
       club: this.club,
       golfer: ctx.golfer,
-      fireBoost: ctx.fireBoost,
       lie: ctx.lie,
       wind: { angle: 0, speed: 0 },
       hole: this.hole,

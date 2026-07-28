@@ -73,23 +73,23 @@ describe('purchases', () => {
     const stock = assembleGolfer('A', 'chip', 'bigHitter');
     const tier1 = assembleGolfer('A', 'chip', 'bigHitter', { driver: 1 });
     const tier2 = assembleGolfer('A', 'chip', 'bigHitter', { driver: 2 });
-    const base = effectiveCarryYards(driver, stock, 0, 'tee');
-    expect(effectiveCarryYards(driver, tier1, 0, 'tee') / base).toBeCloseTo(1.03, 5);
-    expect(effectiveCarryYards(driver, tier2, 0, 'tee') / base).toBeCloseTo(1.06, 5);
+    const base = effectiveCarryYards(driver, stock, 'tee');
+    expect(effectiveCarryYards(driver, tier1, 'tee') / base).toBeCloseTo(1.03, 5);
+    expect(effectiveCarryYards(driver, tier2, 'tee') / base).toBeCloseTo(1.06, 5);
 
     // Iron / wedge / putter upgrades must NOT change how far you hit them — their
     // benefit is a wider swing-meter perfect zone, not distance.
     const iron = clubById('7i');
-    expect(effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden', { irons: 2 }), 0, 'fairway')).toBe(
-      effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden'), 0, 'fairway')
+    expect(effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden', { irons: 2 }), 'fairway')).toBe(
+      effectiveCarryYards(iron, assembleGolfer('A', 'chip', 'ironMaiden'), 'fairway')
     );
     const wedge = clubById('sw');
-    expect(effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame', { wedges: 2 }), 0, 'fairway')).toBe(
-      effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame'), 0, 'fairway')
+    expect(effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame', { wedges: 2 }), 'fairway')).toBe(
+      effectiveCarryYards(wedge, assembleGolfer('A', 'chip', 'shortGame'), 'fairway')
     );
     const putter = clubById('putter');
-    expect(effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing', { putter: 2 }), 0, 'green')).toBe(
-      effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing'), 0, 'green')
+    expect(effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing', { putter: 2 }), 'green')).toBe(
+      effectiveCarryYards(putter, assembleGolfer('A', 'chip', 'puttKing'), 'green')
     );
   });
 

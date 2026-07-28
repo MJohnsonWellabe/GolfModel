@@ -114,14 +114,12 @@ function playRecording(
         lm: 1,
         rm: 1
       });
-      const fireBoost = fire.statBoost;
       const launch = engine.resolveLaunch({
         origin: ball,
         aimAngle: d.aimAngle,
         swing: d.swing,
         club: d.club,
         golfer,
-        fireBoost,
         lie,
         wind,
         hole,

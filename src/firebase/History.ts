@@ -1,4 +1,5 @@
 import { LEADERBOARD_URL } from '../config';
+import { Difficulty } from '../systems/Difficulty';
 import { GameMode } from '../core/types';
 
 /** One finished round, as stored locally and on the shared leaderboard. */
@@ -39,6 +40,15 @@ export interface RoundRecord {
    *  rule 18 — guests are real players), but they are kept off the player-
    *  facing leaderboard and never shown as an account. */
   guest?: boolean;
+  /**
+   * The difficulty the round was played at (systems/Difficulty).
+   *
+   * The record boards are a scoring comparison, and an easier difficulty widens
+   * the swing bands, so only ranked rounds (Pro/Expert) may appear on them.
+   * ABSENT means a round recorded before difficulty shipped — every one of
+   * those was played at what is now Pro, so an absent value reads as ranked.
+   */
+  diff?: Difficulty;
   /** Player's post-round lifetime XP total (grow-only). Lets the admin surface
    *  per-account XP from the public /rounds node without reading the private
    *  profiles/{uid} tree. Absent on rounds recorded before this field shipped. */

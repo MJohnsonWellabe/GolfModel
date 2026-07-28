@@ -188,14 +188,12 @@ export function replayRound(
       if (!club) return fail(`hole ${h + 1}: unknown club "${shot.c}"`);
 
       shotRng = mulberry32(shotRngSeed(rec.seed, h, strokes));
-      const fireBoost = fire.statBoost;
       const launch = engine.resolveLaunch({
         origin: ball,
         aimAngle: shot.a,
         swing: { power: shot.p, powerQuality: shot.pq, powerMiss: shot.pm, accuracy: shot.ac, accuracyQuality: shot.aq },
         club,
         golfer,
-        fireBoost,
         lie,
         wind,
         hole,

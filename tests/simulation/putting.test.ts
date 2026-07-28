@@ -91,7 +91,6 @@ function puttFrom(ft: number, cursor: number, rng: () => number): { holed: boole
     },
     club: putter,
     golfer,
-    fireBoost: 0,
     lie: 'green',
     wind: NO_WIND,
     hole
@@ -278,7 +277,7 @@ describe('putting — uphill rule: 2in = 1ft, perfect stroke never long', () => 
     const distPx = ftToPx(cupFt + extraAimFt);
     const out = new PhysicsEngine(upHole, null, rng).simulate({
       origin, aimAngle: -Math.PI / 2, swing: PERFECT_SWING(distPx / CARRY_PX),
-      club: putter, golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: upHole
+      club: putter, golfer, lie: 'green', wind: NO_WIND, hole: upHole
     });
     return { holed: out.holed, signedFt: ((upHole.pin.y - out.finalPos.y) / 2) * 3 };
   }
@@ -365,7 +364,7 @@ describe('putting — Port Johnson long uphill: dumb aim comes up short, True Vi
   const course = loadCourse(portjohnson as unknown as CourseAuthoring);
   const pj3 = course.holes[2];
   const origin = { x: pj3.pin.x - ftToPx(78), y: pj3.pin.y };
-  const ctx = { ball: origin, lie: 'green' as const, golfer, fireBoost: 0, strokes: 2 };
+  const ctx = { ball: origin, lie: 'green' as const, golfer, strokes: 2 };
 
   // FLAT aim/preview engine (no slope, no heightfield) — the shipped aim LINE
   // AND the shipped putt PACE (P5: the normal aim never reads the break).
@@ -383,7 +382,7 @@ describe('putting — Port Johnson long uphill: dumb aim comes up short, True Vi
   function shot(engine: PhysicsEngine, preview: boolean): { traveledFt: number; remainingFt: number } {
     const out = engine.simulate({
       origin, aimAngle: aim.yaw, swing: PERFECT_SWING(power), club: putter,
-      golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole: pj3, preview
+      golfer, lie: 'green', wind: NO_WIND, hole: pj3, preview
     });
     return {
       traveledFt: Math.hypot(out.finalPos.x - origin.x, out.finalPos.y - origin.y) / PX_PER_YARD * 3,
@@ -477,11 +476,11 @@ describe('putting — fringe-transition pace scales with fringe distance, not a 
     aim.yaw = -Math.PI / 2;
     aim.distPx = puttLenPx;
     const lie = engine.surfaceAt(ball.x, ball.y);
-    const c = { ball, lie, golfer, fireBoost: 0, strokes: 2 };
+    const c = { ball, lie, golfer, strokes: 2 };
     const power = aim.barToPhysicsPower(aim.barPowerTarget(c), c);
     const out = engine.simulate({
       origin: ball, aimAngle: aim.yaw, swing: PERFECT_SWING(power), club: putter,
-      golfer, fireBoost: 0, lie, wind: NO_WIND, hole, preview: true
+      golfer, lie, wind: NO_WIND, hole, preview: true
     });
     const trav = Math.hypot(out.finalPos.x - ball.x, out.finalPos.y - ball.y) / PX_PER_YARD * 3;
     return { surf: String(lie), short: puttFt - trav };

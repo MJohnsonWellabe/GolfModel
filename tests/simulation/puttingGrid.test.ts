@@ -63,7 +63,7 @@ function firePutt(scn: Scn, preview: boolean, rng: () => number): { holed: boole
     origin,
     aimAngle: -Math.PI / 2 + (scn.yawOff ?? 0),
     swing: PERFECT_SWING(ftToPx(scn.aimFt) / CARRY_PX),
-    club: putter, golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole, preview
+    club: putter, golfer, lie: 'green', wind: NO_WIND, hole, preview
   });
   const dx = out.finalPos.x - hole.pin.x;
   const dy = out.finalPos.y - hole.pin.y;
@@ -116,7 +116,7 @@ function bisectYaw(cupFt: number, angle: number, strength: number, aimFt: number
     const origin = { x: hole.pin.x, y: hole.pin.y + ftToPx(cupFt) };
     const out = new PhysicsEngine(hole, null, det).simulate({
       origin, aimAngle: -Math.PI / 2 + mid, swing: PERFECT_SWING(ftToPx(aimFt) / CARRY_PX),
-      club: putter, golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole, preview: true
+      club: putter, golfer, lie: 'green', wind: NO_WIND, hole, preview: true
     });
     const fx = out.holed ? hole.pin.x : out.finalPos.x;
     if (fx > hole.pin.x) hi = mid; // finished right → aim more left
@@ -213,7 +213,7 @@ describe('putting grid — BREAK: mirror-symmetric, read holes it', () => {
     const origin = { x: hole.pin.x, y: hole.pin.y + ftToPx(cupFt) };
     const out = new PhysicsEngine(hole, null, () => 0.5).simulate({
       origin, aimAngle: -Math.PI / 2, swing: PERFECT_SWING(ftToPx(aimFt) / CARRY_PX),
-      club: putter, golfer, fireBoost: 0, lie: 'green', wind: NO_WIND, hole, preview: true
+      club: putter, golfer, lie: 'green', wind: NO_WIND, hole, preview: true
     });
     return out.finalPos.x - hole.pin.x;
   }

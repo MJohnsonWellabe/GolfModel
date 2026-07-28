@@ -30,7 +30,7 @@ const GOLFER: Golfer = {
 function defaultAimSurface(hole: HoleData, ball: Point, lie: Surface, strokes: number): Surface {
   const engine = new PhysicsEngine(hole, buildHeightField(hole));
   const aim = new AimControl(hole, engine);
-  const ctx: ShotContext = { ball, lie, golfer: GOLFER, fireBoost: 0, strokes };
+  const ctx: ShotContext = { ball, lie, golfer: GOLFER, strokes };
   aim.autoSelectClub(ctx);
   aim.resetAim(ctx);
   const p = aim.aimPoint(ball);
@@ -69,7 +69,7 @@ const ELITE: Golfer = {
 function defaultAim(hole: HoleData, ball: Point, lie: Surface, strokes: number, golfer: Golfer = GOLFER): Point {
   const engine = new PhysicsEngine(hole, buildHeightField(hole));
   const aim = new AimControl(hole, engine);
-  const ctx: ShotContext = { ball, lie, golfer, fireBoost: 0, strokes };
+  const ctx: ShotContext = { ball, lie, golfer, strokes };
   aim.autoSelectClub(ctx);
   aim.resetAim(ctx);
   return aim.aimPoint(ball);
@@ -120,7 +120,7 @@ describe('default aim strategic intent', () => {
     const h = wild.holes.find((x) => x.number === 3)!;
     const engine = new PhysicsEngine(h, buildHeightField(h));
     const aim = new AimControl(h, engine);
-    const ctx: ShotContext = { ball: h.tee, lie: 'tee', golfer: ELITE, fireBoost: 0, strokes: 0 };
+    const ctx: ShotContext = { ball: h.tee, lie: 'tee', golfer: ELITE, strokes: 0 };
     aim.autoSelectClub(ctx);
     aim.resetAim(ctx);
     const maxCarry = aim.maxCarryPx(ctx);
@@ -160,7 +160,7 @@ describe('default aim complete setup path with ordinary golfer', () => {
   function setup(hole: HoleData, ball: Point, lie: Surface, strokes: number, golfer: Golfer = GOLFER) {
     const engine = new PhysicsEngine(hole, buildHeightField(hole));
     const aim = new AimControl(hole, engine);
-    const ctx: ShotContext = { ball, lie, golfer, fireBoost: 0, strokes };
+    const ctx: ShotContext = { ball, lie, golfer, strokes };
     aim.autoSelectClub(ctx);
     aim.resetAim(ctx);
     return { aim, engine, point: aim.aimPoint(ball), ctx };
@@ -244,7 +244,7 @@ describe('putter defaults on surface, not pin distance', () => {
 
   function clubAt(ball: Point, lie: Surface): string {
     const aim = new AimControl(hole, engine);
-    const ctx: ShotContext = { ball, lie, golfer: GOLFER, fireBoost: 0, strokes: 1 };
+    const ctx: ShotContext = { ball, lie, golfer: GOLFER, strokes: 1 };
     aim.autoSelectClub(ctx);
     return aim.club.id;
   }
@@ -331,7 +331,7 @@ describe('choosing a club aims at its full distance', () => {
 
   function fromTee(): { aim: AimControl; ctx: ShotContext } {
     const aim = new AimControl(hole, engine);
-    const ctx: ShotContext = { ball: { ...hole.tee }, lie: 'tee', golfer: GOLFER, fireBoost: 0, strokes: 0 };
+    const ctx: ShotContext = { ball: { ...hole.tee }, lie: 'tee', golfer: GOLFER, strokes: 0 };
     return { aim, ctx };
   }
 

@@ -35,6 +35,7 @@
  *   - a closing card that names the next action rather than trailing off.
  */
 
+import { Difficulty, DEFAULT_DIFFICULTY, difficultyProfile } from '../systems/Difficulty';
 import { flag } from '../core/flags';
 import { loadDeviceSettings } from '../profile/Profile';
 
@@ -94,6 +95,10 @@ export class TutorialCoach {
   private onExit: (() => void) | null = null;
   private active = false;
   private deep = false;
+  /** The difficulty this lesson is being played at, so the coach can name it.
+   *  A lesson that quietly runs at the widest timing windows and never says so
+   *  teaches a swing the player will not have on their next round. */
+  private difficulty: Difficulty = DEFAULT_DIFFICULTY;
   /** True once the closing card has been queued — the lesson is complete even
    *  if the player leaves before tapping it away. */
   private finished = false;
@@ -112,10 +117,11 @@ export class TutorialCoach {
    * Begin the guided hole. `onExit` fires when the player finishes or skips.
    * `deep` turns on the extended lesson (`tutorialDepth`).
    */
-  start(onExit: () => void, deep = false): void {
+  start(onExit: () => void, deep = false, difficulty: Difficulty = DEFAULT_DIFFICULTY): void {
     if (this.active) return;
     this.active = true;
     this.deep = deep;
+    this.difficulty = difficulty;
     this.finished = false;
     this.seen.clear();
     this.onExit = onExit;
@@ -142,6 +148,19 @@ export class TutorialCoach {
     }
     if (ctx.firstTee) {
       this.enqueueOnce([
+        {
+          // No `step`: like the lie and recovery cards this is context, not a
+          // control to learn, so it stays out of the "3 / 7" count.
+          key: 'difficulty',
+          card: {
+            title: `Playing at ${difficultyProfile(this.difficulty).label}`,
+            body:
+              `${difficultyProfile(this.difficulty).blurb} ` +
+              `Everything else is the real game — only the timing windows change. ` +
+              `Settings → Difficulty moves it any time.`,
+            cta: 'Got it'
+          }
+        },
         {
           key: 'aim',
           card: {
@@ -280,6 +299,12 @@ export class TutorialCoach {
     if (!this.active) return;
     this.finished = true;
     const rewardLine = reward?.coins ? ` You've earned ${reward.coins} coins for finishing the lesson.` : '';
+    // The lesson's own default steps up once it is behind them, so say so here
+    // rather than letting the next round feel inexplicably harder.
+    const nextLine =
+      this.difficulty === DEFAULT_DIFFICULTY
+        ? ''
+        : ` From here rounds play at ${difficultyProfile(DEFAULT_DIFFICULTY).label} — Settings → Difficulty if you'd rather they didn't.`;
     this.enqueueOnce([
       {
         key: 'done',
@@ -288,8 +313,9 @@ export class TutorialCoach {
           body: this.deep
             ? 'Aim, wind, club, swing, shape, spin, read the green — that is the whole game.' +
               rewardLine +
+              nextLine +
               ' Two holes left: play them out and the score goes in the book.'
-            : 'Aim, swing, shape, spin, read the green — that’s the whole game. Play on.',
+            : 'Aim, swing, shape, spin, read the green — that’s the whole game. Play on.' + nextLine,
           cta: this.deep ? 'Finish my round' : 'Keep playing'
         }
       }

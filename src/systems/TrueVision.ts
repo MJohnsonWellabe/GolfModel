@@ -42,7 +42,6 @@ export function computeTrueVisionOutcome(
     swing: { power: shot.power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
     club: shot.club,
     golfer: ctx.golfer,
-    fireBoost: ctx.fireBoost,
     lie: ctx.lie,
     wind: shot.wind,
     hole,

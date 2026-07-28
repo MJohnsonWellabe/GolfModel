@@ -556,15 +556,21 @@ Playing well creates momentum.
 
 Two consecutive perfect swings activate Fire Mode.
 
-Benefits:
+**Fire does exactly one thing: it widens the swing meter's perfect and good
+bands** (`SWING.firePerfectMult`, currently 1.4x). Plus the visual and audio
+feedback that announces it.
 
-Slight confidence bonus.
+It used to also add +5 to driving power and driving accuracy, which bought a
+player who was already striking it perfectly extra carry and tighter dispersion
+on top of an easier target — three rewards for one achievement, only one of
+which they could see, and an aim ring that jumped the moment they ignited. That
+stat boost was removed (owner: "that's enough of a boost. we don't also need it
+to increase distance, reduce dispersion, etc."), and with it the `fireBoost`
+parameter that used to be threaded through `statsForClub`, `effectiveCarryYards`
+and every launch. A shot on fire now flies exactly as far as the same shot cold.
 
-Visual effects.
-
-Audio feedback.
-
-Never large enough to remove challenge.
+The same rule holds for the AI, which has no meter: fire scales its chance of
+striking a perfect band by the same multiplier (`AIController.sampleBand`).
 
 Fire Mode rewards consistency.
 
@@ -583,6 +589,45 @@ Never through input delay.
 Never through hidden modifiers.
 
 The player should always understand why a shot succeeded or failed.
+
+## The difficulty setting
+
+Settings → Difficulty offers four standards. Like Fire, a difficulty changes
+**only the width of the swing meter's perfect and good bands** — never carry,
+dispersion, wind, pin placement, the AI field, or the hole itself. The
+implementation is `src/systems/Difficulty.ts`; it lands in the same
+`SwingCtx.perfectMult` product that fire, club upgrades and perks already
+multiply into.
+
+| Difficulty | Zone | Records | Notes |
+| --- | --- | --- | --- |
+| Beginner | 1.4x | no | Exactly the width Fire grants — a beginner swings at "always on fire" |
+| Amateur | 1.2x | no | The default once the lesson is done |
+| Pro | **1.0x** | yes | The game as it shipped. Every course record is set here |
+| Expert | 0.8x | yes | Narrower than Pro |
+
+Rules that make it coherent:
+
+- **Pro is defined as 1.0.** Nothing else is retuned to compensate, so "the game
+  as it shipped" stays a real, fixed reference.
+- **Defaults follow the lesson.** A player who has never opened the setting gets
+  Beginner while the tutorial is still ahead of them and Amateur once it is
+  behind them. Choosing anything makes it explicit and the defaults stop
+  applying. The lesson names the difficulty it is running at and points at
+  Settings.
+- **A round locks its difficulty at the tee.** Changing the setting mid-round
+  never resizes the meter under a card already half written.
+- **A shared season is played at one difficulty — the host's.** It rides the
+  shared doc (`firebase/CoopSeason`), because it is a property of the contest
+  rather than of a participant: two people comparing totals have to have been
+  swinging at the same-sized band. The invite banner says which.
+- **Course records need Pro or Expert.** The per-course best, the best round
+  anywhere, the par-or-better run, the weekly best and the shared record boards
+  all ignore an easier round — and an easier round does not BREAK a run built at
+  Pro either, because that would be a penalty for using a setting. Everything
+  else is untouched: the round still pays coins and CP, still advances the
+  season pass, still fills the career, and still sets the skill feats (longest
+  drive, longest putt, closest approach, most birdies, longest fire streak).
 
 ---
 

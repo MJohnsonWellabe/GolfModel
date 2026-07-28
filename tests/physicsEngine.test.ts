@@ -237,7 +237,6 @@ describe('bunker dead-stop', () => {
       swing: PERFECT(0.6),
       club: clubById('7i'),
       golfer: GOLFER,
-      fireBoost: 0,
       lie: 'tee',
       wind: NO_WIND,
       hole: sandHole
@@ -255,14 +254,13 @@ describe('bunker dead-stop', () => {
 describe('simulate', () => {
   it('a perfect straight iron carries its rated distance with no wind', () => {
     const club = clubById('7i');
-    const carryYds = effectiveCarryYards(club, GOLFER, 0, 'tee');
+    const carryYds = effectiveCarryYards(club, GOLFER, 'tee');
     const outcome = engine.simulate({
       origin: { x: 1000, y: 1800 },
       aimAngle: -Math.PI / 2, // straight up the fairway
       swing: PERFECT(0.6),
       club,
       golfer: GOLFER,
-      fireBoost: 0,
       lie: 'tee',
       wind: NO_WIND,
       hole: HOLE,
@@ -279,7 +277,7 @@ describe('simulate', () => {
 
   it('a ball down into the creek takes a penalty and drops on dry land', () => {
     const club = clubById('7i');
-    const carryYds = effectiveCarryYards(club, GOLFER, 0, 'tee');
+    const carryYds = effectiveCarryYards(club, GOLFER, 'tee');
     // Aim the carry into the middle of the creek band (y = 1500)
     const power = 300 / PX_PER_YARD / carryYds;
     const outcome = engine.simulate({
@@ -288,7 +286,6 @@ describe('simulate', () => {
       swing: PERFECT(power),
       club,
       golfer: GOLFER,
-      fireBoost: 0,
       lie: 'tee',
       wind: NO_WIND,
       hole: HOLE,
@@ -302,7 +299,7 @@ describe('simulate', () => {
 
   it('a straight putt at the cup with matching pace drops', () => {
     const putter = clubById('putter');
-    const carryYds = effectiveCarryYards(putter, GOLFER, 0, 'green');
+    const carryYds = effectiveCarryYards(putter, GOLFER, 'green');
     const origin = { x: 1000, y: 350 }; // 50px = 25yd... a long but flat putt
     const power = 50 / PX_PER_YARD / carryYds;
     const outcome = engine.simulate({
@@ -311,7 +308,6 @@ describe('simulate', () => {
       swing: PERFECT(power),
       club: putter,
       golfer: GOLFER,
-      fireBoost: 0,
       lie: 'green',
       wind: NO_WIND,
       hole: HOLE,
@@ -323,14 +319,13 @@ describe('simulate', () => {
 
   it('a putt blasted well past the cup lips out (too fast to capture)', () => {
     const putter = clubById('putter');
-    const carryYds = effectiveCarryYards(putter, GOLFER, 0, 'green');
+    const carryYds = effectiveCarryYards(putter, GOLFER, 'green');
     const outcome = engine.simulate({
       origin: { x: 1000, y: 350 },
       aimAngle: -Math.PI / 2,
       swing: PERFECT(Math.min(1, (140 / PX_PER_YARD) / carryYds)),
       club: putter,
       golfer: GOLFER,
-      fireBoost: 0,
       lie: 'green',
       wind: NO_WIND,
       hole: HOLE,
@@ -372,7 +367,6 @@ describe('perfect-click start line (difficulty pass)', () => {
         swing: swing(power),
         club,
         golfer: GOLFER,
-        fireBoost: 0,
         lie: 'tee',
         wind: NO_WIND,
         hole: OPEN
@@ -399,9 +393,9 @@ describe('perfect-click start line (difficulty pass)', () => {
 describe('effectiveCarryYards', () => {
   it('scales with the governing stat and the lie', () => {
     const iron = clubById('7i');
-    const fromFairway = effectiveCarryYards(iron, GOLFER, 0, 'fairway');
-    const fromRough = effectiveCarryYards(iron, GOLFER, 0, 'rough');
-    const fromSand = effectiveCarryYards(iron, GOLFER, 0, 'sand');
+    const fromFairway = effectiveCarryYards(iron, GOLFER, 'fairway');
+    const fromRough = effectiveCarryYards(iron, GOLFER, 'rough');
+    const fromSand = effectiveCarryYards(iron, GOLFER, 'sand');
     // statMult = 0.259 + (approach/100) * 0.926 (GDD Appendix A carry table).
     // 7i is an iron, so the woods-only driveDistanceScale does not apply here.
     expect(fromFairway).toBeCloseTo(160 * (0.259 + 0.8 * 0.926));
@@ -409,10 +403,4 @@ describe('effectiveCarryYards', () => {
     expect(fromSand).toBeCloseTo(fromFairway * 0.55);
   });
 
-  it('fire boost raises the effective stat', () => {
-    const iron = clubById('7i');
-    expect(effectiveCarryYards(iron, GOLFER, 5, 'fairway')).toBeGreaterThan(
-      effectiveCarryYards(iron, GOLFER, 0, 'fairway')
-    );
-  });
 });

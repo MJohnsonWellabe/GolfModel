@@ -201,6 +201,12 @@ export interface Course3D {
    *  no-op unless the pacing is currently frozen (parked at address / meter
    *  live), so ordinary flight/flyover frames are untouched. */
   refreshParkedRTTs: () => void;
+  /** Force ONE fresh shadow-map capture, whatever the current freeze state.
+   *  Call after anything that ADDS or moves a shadow caster while the map is
+   *  frozen — the scatter drain finishing its planting is the case that
+   *  matters, because the trees it merges register as casters mid-flyover and
+   *  a map frozen before them would leave the whole hole's trees shadowless. */
+  invalidateShadows: () => void;
   /** Drag-to-aim RTT pacing: `true` while a drag is reframing the camera every
    *  pointermove (run the parked RTTs at the live every-other-frame cadence
    *  instead of a forced fresh capture per move — the per-move captures were
@@ -219,6 +225,17 @@ export interface Course3D {
    *  candidates can never fade, the Sable Bay palm regression). */
   occlusionCandidates: () => Array<{ x: number; y: number; r: number; parts: number }>;
 }
+
+/**
+ * Frames between shadow-map regenerations while a drag-to-aim is live.
+ *
+ * Babylon's `refreshRate` is literally "render every Nth frame", so this is a
+ * number of frames rather than one of the REFRESHRATE_ constants. Eight is
+ * ~130 ms at 60 fps — below the threshold at which a slowly rotating figure's
+ * shadow reads as lagging, and a quarter of the cost of the every-other-frame
+ * cadence the mirror needs.
+ */
+const DRAG_SHADOW_FRAMES = 8;
 
 /** Visual raise of the green plateau and the tee platform top (world units). */
 const GREEN_RAISE = 0.55;
@@ -2061,6 +2078,15 @@ export function buildCourse(
       // cannot run per frame.
       batcher?.finalize();
       refreshMirrorList?.();
+      // Trees register as shadow casters AS THEY ARE PLANTED, so a shadow map
+      // frozen mid-drain (the flyover's timeout path, where the sweep starts
+      // before planting finishes) would hold a capture with trees missing from
+      // it. One forced re-capture the moment planting ends fixes that; it is
+      // a no-op when the map is live.
+      const sm = shadows.getShadowMap();
+      if (sm && sm.refreshRate === RenderTargetTexture.REFRESHRATE_RENDER_ONCE) {
+        sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+      }
       resolveNatureReady();
     };
     const drain = scene.onBeforeRenderObservable.add(() => {
@@ -2144,20 +2170,29 @@ export function buildCourse(
       ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
       : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
     if (shadowMap) shadowMap.refreshRate = liveShadowRate;
-    let pacingFrozen = false;
+    // The two RTTs freeze on DIFFERENT conditions, because they depend on
+    // different things (see renderPacing's `cinematic` note):
+    //
+    //  - the water mirror is a reflection FROM THE CAMERA, so it re-renders
+    //    whenever the camera moves — including through the whole flyover;
+    //  - the shadow map is fitted to the CASTERS, and takes nothing from the
+    //    camera but minZ/maxZ. A camera move cannot change one texel of it, so
+    //    it additionally freezes for the flyover's travel sweep, where the
+    //    camera is the only thing moving.
+    let mirrorFrozen = false;
+    let shadowFrozen = false;
     scene.onBeforeRenderObservable.add(() => {
-      const shouldFreeze = renderPacing.meterActive || renderPacing.cameraParked || renderPacing.overhead;
-      if (shouldFreeze === pacingFrozen) return;
-      pacingFrozen = shouldFreeze;
-      if (waterMirror) {
-        waterMirror.refreshRate = pacingFrozen
+      const parked = renderPacing.meterActive || renderPacing.cameraParked || renderPacing.overhead;
+      if (waterMirror && parked !== mirrorFrozen) {
+        mirrorFrozen = parked;
+        waterMirror.refreshRate = parked
           ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
           : RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES;
       }
-      if (shadowMap) {
-        shadowMap.refreshRate = pacingFrozen
-          ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
-          : liveShadowRate;
+      const castersStill = parked || renderPacing.cinematic;
+      if (shadowMap && castersStill !== shadowFrozen) {
+        shadowFrozen = castersStill;
+        shadowMap.refreshRate = castersStill ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE : liveShadowRate;
       }
     });
     // Deterministic per-tuft grass tint: vary brightness and nudge some tufts
@@ -3724,6 +3759,16 @@ export function buildCourse(
       }
       if (q.scatterScale < 1) batcherRef?.thinTo(q.scatterScale);
     },
+    invalidateShadows: (): void => {
+      // Re-assigning the SAME refresh rate is not a no-op in Babylon: the
+      // setter resets the refresh counter, which is exactly "capture one more
+      // frame". Only meaningful while frozen — a live map is about to redraw
+      // anyway.
+      const sm = shadows.getShadowMap();
+      if (sm && sm.refreshRate === RenderTargetTexture.REFRESHRATE_RENDER_ONCE) {
+        sm.refreshRate = RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
+      }
+    },
     refreshParkedRTTs: (): void => {
       // Only while parked/frozen — otherwise the freeze observer owns the cadence.
       if (!renderPacing.cameraParked && !renderPacing.meterActive && !renderPacing.overhead) return;
@@ -3742,8 +3787,22 @@ export function buildCourse(
         ? RenderTargetTexture.REFRESHRATE_RENDER_ONEVERYTWOFRAMES
         : RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
       if (waterMirror && waterMirror.refreshRate !== rate) waterMirror.refreshRate = rate;
-      // A tier that bakes the shadow map once stays baked through the drag too.
-      const shadowRate = quality.staticShadows ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE : rate;
+      // THE SHADOW MAP IS NOT ON THE MIRROR'S CADENCE HERE.
+      //
+      // A drag is a camera move, which the shadow map is blind to — but it is
+      // not ONLY that: the golfer turns to face the new aim, so their shadow
+      // does change and the map cannot simply stay frozen. What it does not
+      // need is the mirror's every-other-frame rate. The one thing moving is a
+      // single figure rotating slowly, so a coarse cadence tracks it with no
+      // perceptible lag at a quarter of the cost, and the drag ends with the
+      // usual single fresh capture.
+      //
+      // A tier that bakes the shadow map once stays baked through the drag.
+      const shadowRate = quality.staticShadows
+        ? RenderTargetTexture.REFRESHRATE_RENDER_ONCE
+        : dragging
+          ? DRAG_SHADOW_FRAMES
+          : RenderTargetTexture.REFRESHRATE_RENDER_ONCE;
       const sm = shadows.getShadowMap();
       if (sm && sm.refreshRate !== shadowRate) sm.refreshRate = shadowRate;
     },

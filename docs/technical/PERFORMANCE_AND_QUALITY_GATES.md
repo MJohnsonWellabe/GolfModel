@@ -24,8 +24,10 @@ Future work must not reintroduce these patterns under different names.
 
 Maintain tests for:
 
-- aim-drag render-target cadence
+- aim-drag render-target cadence (mirror and shadow map run at DIFFERENT rates
+  — see "A render target must only re-render when its own inputs change")
 - parked render-target freeze behavior
+- intro-flyover shadow-map freeze, and its release at handover
 - tap dispatch latency
 - tap-to-state transition latency
 - frame-time budget in representative headless runs
@@ -163,6 +165,61 @@ Johnson and Wild Prairie carry 190-236 meshes and 0.09-0.15M vertices against
 Timberline West's 1.9M. They are wide and open — sky, water and unoccluded
 ground — which costs fill rate and bandwidth rather than geometry. Any future
 fix aimed at "the slow courses" should start from that, not from mesh counts.
+
+## A render target must only re-render when its own inputs change
+
+Owner report: *"why does wild prairie number 3 lag it out every time... i don't
+think things need to rerender all the time or shadows or reflection need to
+rerender."*
+
+**Why hole 3, on every course.** Hole 3 is the par 5 everywhere, and the par 5
+carries the biggest world in the game: 1.5-2.2M world px² against ~0.9-1.3M for
+holes 1 and 2. Wild Prairie's is the fescue-dense one (`tallGrass` density 22,
+`tuftDensity` 3.3, `prairieClusters`), which is why it plants ~26k scatter cards
+and reported 5,765 batched props at the crash. It is not that Wild Prairie is
+special — it is that every course's hole 3 is the expensive one, and Wild
+Prairie's has the densest ground cover on the widest, least-occluded ground.
+
+**The two RTTs are not the same thing and must not share a cadence.**
+
+- The **planar water mirror** is a reflection of the scene *from the camera*. A
+  camera move genuinely invalidates it.
+- The **shadow map** is not. Babylon fits a directional light's ortho frustum to
+  the shadow CASTERS and takes nothing from the camera but `minZ`/`maxZ`, which
+  never change. **A camera-only move cannot change one texel of it.**
+
+So a shadow map re-rendered because the camera moved is pure waste, and the code
+had two of those:
+
+- The **intro flyover's travel sweep** — the camera glides the length of the
+  hole while the golfer stands at address and the ball sits on the tee. Nothing
+  that casts moves, and this is the single most crowded window in a hole: the
+  scatter drain is still planting under it and the glTF models are still
+  resolving. `renderPacing.cinematic` now freezes the map for the whole sweep
+  (the mirror stays live — it has to). The sweep already waits on `natureReady`,
+  and the drain forces one fresh capture when it finishes, so the trees that
+  register as casters *during* planting can never be missing from a frozen map
+  (that is what `Course3D.invalidateShadows()` exists for; the flyover's
+  6 s timeout path is the case it covers).
+- The **drag-to-aim**, which ran the map at the mirror's every-other-frame rate.
+  A drag is not purely a camera move — the golfer turns to face the new aim — so
+  it cannot freeze outright, but the one thing moving is a single figure
+  rotating slowly. `DRAG_SHADOW_FRAMES` (8, ~130 ms) tracks it with no
+  perceptible lag at a quarter of the cost, and the drag still ends with one
+  fresh capture.
+
+The general rule this states: **before giving a render target a cadence, ask
+what its content is a function of.** If the camera is not one of those inputs, a
+camera move must not refresh it. `tests/visual/perf.spec.ts` gates both — the
+flyover freeze on Wild Prairie hole 3, and the drag cadences (mirror 2, shadow
+8, both back to a single held capture on release).
+
+Note what this does NOT fix: a lost WebGL context is the GPU reporting it ran
+out of MEMORY, and none of the above frees a byte. A player who has pinned
+Graphics → Full is asking for the full-price scene and the governor honours it
+(a setting must not be silently overruled), so on a device that cannot hold it,
+Auto remains the answer. What this buys is the frame cost, which is what the
+lag and the stall-share demotions are made of.
 
 ## Shader compilation must never land on an input frame
 

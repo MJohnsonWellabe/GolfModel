@@ -18,6 +18,7 @@
  * so a posted score can never be rewritten.
  */
 
+import { asDifficulty, Difficulty } from '../systems/Difficulty';
 import { leaderboardUrl } from './History';
 
 /** One player's score in one event of the shared season. */
@@ -45,6 +46,16 @@ export interface CoopSeasonDoc {
   seasonNo: number;
   createdAt: number;
   players: Record<string, CoopPlayer>;
+  /**
+   * The difficulty the whole season is played at, chosen by whoever started it
+   * (owner rule). It rides the shared doc rather than each player's profile
+   * because it is a property of the CONTEST, not of a participant: two people
+   * comparing totals have to have been swinging at the same-sized band.
+   *
+   * Optional so seasons created before this shipped still load; those fall back
+   * to each participant's own setting, which is what they were already doing.
+   */
+  diff?: Difficulty;
 }
 
 const SID = /^[A-Za-z0-9_-]{6,32}$/;
@@ -107,13 +118,15 @@ export function migrateCoopDoc(raw: unknown): CoopSeasonDoc | null {
       results
     };
   }
+  const diff = asDifficulty(d.diff);
   return {
     v: 1,
     sid: d.sid,
     seed: d.seed,
     seasonNo: typeof d.seasonNo === 'number' ? d.seasonNo : 1,
     createdAt: typeof d.createdAt === 'number' ? d.createdAt : 0,
-    players
+    players,
+    ...(diff ? { diff } : {})
   };
 }
 

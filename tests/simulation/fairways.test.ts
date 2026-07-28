@@ -43,7 +43,6 @@ function fairwayPct(clubId: string, quality: 'perfect' | 'miss', n = 1200): numb
       swing: SWING_OF(0.95, quality, off),
       club,
       golfer,
-      fireBoost: 0,
       lie: 'tee',
       wind: NO_WIND,
       hole

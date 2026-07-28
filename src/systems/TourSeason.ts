@@ -1,3 +1,4 @@
+import { asDifficulty, Difficulty } from './Difficulty';
 import { CourseData } from '../core/types';
 import { TOUR_RIVALS, TourRival } from '../data/tourRivals';
 import { simulateEntrantRound } from './AiTournament';
@@ -114,6 +115,18 @@ export interface TourCoopState {
   /** This device's player id within the doc. */
   playerId: string;
   partners: TourCoopPartner[];
+  /**
+   * The difficulty EVERY participant plays this season at, chosen once by
+   * whoever started it (owner rule: "a shared season or event has to be played
+   * at the same difficulty. whoever starts it chooses that difficulty").
+   *
+   * Carried in the shared doc and copied here on join, so a joiner's own
+   * Settings choice does not apply inside the season — otherwise the standings
+   * would be comparing rounds played at two different band widths. Absent on
+   * seasons started before this shipped: those fall back to the participant's
+   * own setting, which is what they were already doing.
+   */
+  diff?: Difficulty;
 }
 
 export interface TourSeasonState {
@@ -1089,7 +1102,8 @@ function migrateCoop(raw: unknown): TourCoopState | null {
       ...(typeof p.updatedAt === 'number' ? { updatedAt: p.updatedAt } : {})
     });
   }
-  return { id: c.id, playerId: c.playerId, partners };
+  const diff = asDifficulty(c.diff);
+  return { id: c.id, playerId: c.playerId, partners, ...(diff ? { diff } : {}) };
 }
 
 /** A stored playoff → a valid one (as a spreadable fragment) or nothing.

@@ -4,6 +4,19 @@ import { SwingResult } from '../core/types';
 /**
  * "Catch fire" streak system, shared by the player and the AI.
  * Two all-perfect swings in a row ignite it; any missed band puts it out.
+ *
+ * FIRE DOES EXACTLY ONE THING: it widens the swing meter's perfect and good
+ * bands ({@link FireSystem.perfectZoneMultiplier}). It used to ALSO add +5 to
+ * driving power and accuracy, which quietly bought a player who was already
+ * striking it perfectly more carry and tighter dispersion on top of an easier
+ * target — three rewards for one achievement, only one of which the player
+ * could see. Owner: "that's enough of a boost. we don't also need it to
+ * increase distance, reduce dispersion, etc."
+ *
+ * So the stat boost is gone, and with it the `fireBoost` parameter that used to
+ * be threaded through statsForClub / effectiveCarryYards / every launch. A shot
+ * on fire now flies exactly as far as the same shot cold — which is also what
+ * makes the aim ring honest, since it no longer jumps the moment you ignite.
  */
 export class FireSystem {
   private streak = 0;
@@ -15,11 +28,6 @@ export class FireSystem {
 
   get currentStreak(): number {
     return this.streak;
-  }
-
-  /** Temporary stat boost applied to the relevant category while on fire. */
-  get statBoost(): number {
-    return this.onFire ? FIRE.statBoost : 0;
   }
 
   /** Multiplier applied to the swing meter's perfect zone width. */

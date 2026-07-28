@@ -26,7 +26,6 @@ function outcome(accuracy: number, power = 0.82) {
     swing,
     club,
     golfer,
-    fireBoost: 0,
     lie: 'tee',
     wind: { angle: 0, speed: 0 },
     hole,

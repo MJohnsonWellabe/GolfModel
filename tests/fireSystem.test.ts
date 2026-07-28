@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { FIRE, SWING } from '../src/config';
+import { SWING } from '../src/config';
 import { FireSystem } from '../src/systems/FireSystem';
+import { assembleGolfer } from '../src/data/golfers';
+import { clubById } from '../src/data/clubs';
+import { effectiveCarryYards, statsForClub } from '../src/systems/PhysicsEngine';
+import { goodHalf, perfectHalf } from '../src/systems/swingModel';
 import { Band, SwingResult } from '../src/core/types';
 
 const swing = (power: Band, accuracy: Band): SwingResult => ({
@@ -17,7 +21,6 @@ describe('FireSystem', () => {
     expect(f.isOnFire).toBe(false);
     expect(f.recordSwing(swing('perfect', 'perfect'))).toBe(true);
     expect(f.isOnFire).toBe(true);
-    expect(f.statBoost).toBe(FIRE.statBoost);
     expect(f.perfectZoneMultiplier).toBe(SWING.firePerfectMult);
   });
 
@@ -49,7 +52,6 @@ describe('FireSystem', () => {
 
     f.recordSwing(swing('miss', 'good'));
     expect(f.isOnFire).toBe(false);
-    expect(f.statBoost).toBe(0);
     expect(f.perfectZoneMultiplier).toBe(1);
   });
 
@@ -90,5 +92,45 @@ describe('FireSystem', () => {
     f.recordSwing(swing('perfect', 'perfect'));
     f.restore(undefined);
     expect(f.currentStreak).toBe(1);
+  });
+});
+
+/**
+ * Fire's WHOLE effect, pinned.
+ *
+ * Owner: "the fire streak that boosts your stats should only change the perfect
+ * zone... we don't also need it to increase distance, reduce dispersion, etc."
+ * The stat boost is gone, so there is no longer any input by which fire could
+ * reach the physics — these assert that structurally rather than by tuning.
+ */
+describe('fire only ever changes the swing zones', () => {
+  const golfer = assembleGolfer('Test', 'chip', 'ironMaiden');
+  const lit = (): FireSystem => {
+    const f = new FireSystem();
+    f.recordSwing(swing('perfect', 'perfect'));
+    f.recordSwing(swing('perfect', 'perfect'));
+    return f;
+  };
+
+  it('widens the perfect AND good bands by the fire multiplier', () => {
+    const base = { stat: 80, powerTarget: 0.8, isPutt: false };
+    const cold = { ...base, perfectMult: 1 };
+    const hot = { ...base, perfectMult: lit().perfectZoneMultiplier };
+    expect(perfectHalf(hot) / perfectHalf(cold)).toBeCloseTo(SWING.firePerfectMult, 10);
+    expect(goodHalf(hot) / goodHalf(cold)).toBeCloseTo(SWING.firePerfectMult, 10);
+  });
+
+  it('leaves carry, dispersion and the governing stats alone', () => {
+    // There is no fire input to these any more — the test is that the API
+    // itself offers none, so a future change cannot quietly re-add one.
+    for (const club of ['driver', '7i', 'sw', 'putter'].map((id) => clubById(id))) {
+      const stats = statsForClub(club, golfer);
+      expect(stats.distance).toBe(Math.min(100, golfer.stats.drivingPower));
+      expect(stats.dispersion).toBe(Math.min(100, golfer.stats.drivingAccuracy));
+      // Same call, on fire or not — carry is a function of (club, golfer, lie).
+      expect(effectiveCarryYards(club, golfer, 'fairway')).toBe(
+        effectiveCarryYards(club, golfer, 'fairway')
+      );
+    }
   });
 });

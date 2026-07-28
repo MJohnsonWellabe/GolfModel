@@ -111,7 +111,7 @@ describe('Appendix A scoring tiers (3-hole rounds, game-wide across courses)', (
  * OWNER DIFFICULTY TARGET (polish-pass Phase 2) — the named opponents, measured
  * on the SAME v2 courses the player plays, through the SAME now-faithful sim
  * (RoundSimulator reproduces the live fire boost, gimme concessions, and
- * tree-recovery hitbox — previously it hard-coded `fireBoost:0` and never
+ * tree-recovery hitbox — previously it hard-coded its own inputs and never
  * conceded, so it scored the AI ~a stroke harder than live and measured a
  * retired layout).
  *

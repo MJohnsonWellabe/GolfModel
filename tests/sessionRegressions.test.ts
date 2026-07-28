@@ -42,7 +42,7 @@ describe('wood backspin does not stop the ball dead', () => {
     const eng = new PhysicsEngine(GREENFIELD);
     return eng.simulate({
       origin: { x: 1000, y: 1800 }, aimAngle: -Math.PI / 2, swing: PERFECT(1),
-      club: clubById(clubId), golfer: GOLFER, fireBoost: 0, lie: 'tee',
+      club: clubById(clubId), golfer: GOLFER, lie: 'tee',
       wind: NO_WIND, hole: GREENFIELD, preview: true, spin: { side: 0, top: -1 }
     });
   };
@@ -101,7 +101,7 @@ describe('stroke count shrinks the tree hitbox (preview accuracy)', () => {
     // Natural landing with no trees.
     const openLand = landingOf(new PhysicsEngine(OPEN).simulate({
       origin: { x: 1000, y: 1800 }, aimAngle: -Math.PI / 2, swing: PERFECT(1),
-      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'tee', wind: NO_WIND, hole: OPEN, preview: true
+      club: clubById('7i'), golfer: GOLFER, lie: 'tee', wind: NO_WIND, hole: OPEN, preview: true
     }));
     const treeY = openLand.y + 20;
     // Trunk radius is deterministic from the polygon centroid; place the trunk
@@ -114,7 +114,7 @@ describe('stroke count shrinks the tree hitbox (preview accuracy)', () => {
     const eng = new PhysicsEngine(hole);
     const fire = (stroke: number) => eng.simulate({
       origin: { x: 1000, y: 1800 }, aimAngle: -Math.PI / 2, swing: PERFECT(1),
-      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'tee', wind: NO_WIND, hole, preview: true, stroke
+      club: clubById('7i'), golfer: GOLFER, lie: 'tee', wind: NO_WIND, hole, preview: true, stroke
     });
     const tee = fire(0);
     const recovery = fire(1);
@@ -148,7 +148,7 @@ describe('beach/waste sand runs; scoring bunkers plug', () => {
     // edge, firm sand lets it run on into the band.
     const out = eng.simulate({
       origin: { x: 1000, y: 1080 }, aimAngle: -Math.PI / 2, swing: PERFECT(1),
-      club: clubById('putter'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true
+      club: clubById('putter'), golfer: GOLFER, lie: 'fairway', wind: NO_WIND, hole, preview: true
     });
     return 1080 - out.finalPos.y; // forward travel toward the pin (px)
   };
@@ -187,7 +187,7 @@ describe('sand bounces are spin-neutral', () => {
     const eng = new PhysicsEngine(hole);
     const out = eng.simulate({
       origin: { x: 1000, y: 1800 }, aimAngle: -Math.PI / 2, swing: PERFECT(0.5),
-      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true,
+      club: clubById('7i'), golfer: GOLFER, lie: 'fairway', wind: NO_WIND, hole, preview: true,
       spin: { side: 0, top: spinTop }
     });
     expect(out.surface).toBe('sand');
@@ -223,7 +223,7 @@ describe('water penalty drops cleanly without a backward teleport', () => {
     const eng = new PhysicsEngine(hole);
     const out = eng.simulate({
       origin: { x: 1000, y: 1000 }, aimAngle: -Math.PI / 2, swing: PERFECT(0.6),
-      club: clubById('7i'), golfer: GOLFER, fireBoost: 0, lie: 'fairway', wind: NO_WIND, hole, preview: true
+      club: clubById('7i'), golfer: GOLFER, lie: 'fairway', wind: NO_WIND, hole, preview: true
     });
     expect(out.waterPenalty).toBe(true);
     expect(out.surface).not.toBe('water'); // dropped on dry land

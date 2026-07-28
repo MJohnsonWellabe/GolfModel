@@ -94,6 +94,7 @@ import {
   submitChallengeResponse
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
+import { asDifficulty, Difficulty, DIFFICULTIES, difficultyProfile, effectiveDifficulty, recordsAllowed, UNRANKED_RECORDS_MSG, zoneMultFor } from '../systems/Difficulty';
 import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
 import {
   calibrateRivalSkill,
@@ -573,6 +574,16 @@ interface RoundState {
   weeklyEventId?: string | null;
   /** Async challenge being answered this round (Part 9), or null. */
   challenge?: AsyncChallengeDef | null;
+  /**
+   * The difficulty this round is being played at — LOCKED at the tee.
+   *
+   * Read by the meter (armMeter) and by the records fold at the summary. It is
+   * a snapshot rather than a live read of the setting for two reasons: changing
+   * Settings mid-round must not resize the meter under a card already half
+   * written, and a shared season plays at the HOST's difficulty rather than
+   * each participant's own (see lockRoundDifficulty).
+   */
+  difficulty: Difficulty;
 }
 
 // V2 content expansion (redhollow/wildvalley). The newCourses flag now defaults
@@ -643,8 +654,39 @@ const round: RoundState = {
   players: [{ golfer: assembleGolfer('Player', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }],
   activePlayer: 0,
   holeWinds: [],
-  holePins: []
+  holePins: [],
+  // Replaced by lockRoundDifficulty() at every tee; this is only the value a
+  // round would have if one somehow began without one.
+  difficulty: 'amateur'
 };
+
+/**
+ * What the player has chosen in Settings, or the lesson-aware default while
+ * they have not chosen (Beginner before the lesson, Amateur after it).
+ */
+function playerDifficulty(): Difficulty {
+  return effectiveDifficulty(profile.settings.difficulty, deviceSettings.tutorialDone);
+}
+
+/**
+ * Stamp the difficulty this round will be played at. Called from every tee —
+ * casual, AI tournament, tour event, playoff — so there is exactly one rule.
+ *
+ * Owner rule: "a shared season or event has to be played at the same
+ * difficulty. whoever starts it chooses that difficulty." A shared season
+ * carries its host's choice in the shared doc (firebase/CoopSeason), so every
+ * participant's rounds in it run at that difficulty regardless of their own
+ * setting — otherwise the standings would be comparing two different games.
+ * Everything else uses the player's own setting.
+ */
+function lockRoundDifficulty(): void {
+  // A tour EVENT and its sudden-death playoff are both part of the season, so
+  // both inherit the season's locked difficulty; everything else is the
+  // player's own setting.
+  const inSeason = tourRoundLive || !!tourPlayoff;
+  const shared = inSeason ? asDifficulty(profile.tour?.coop?.diff) : undefined;
+  round.difficulty = shared ?? playerDifficulty();
+}
 
 /** Shot-based round stats accumulated for the HUMAN player during play
  *  (score-based stats are derived at the summary). Feeds ProgressionEngine. */
@@ -1563,7 +1605,6 @@ class HoleScene {
       ball: this.state.ballPos,
       lie: this.state.lie,
       golfer: this.curPart().golfer,
-      fireBoost: this.fires[this.turnIdx].statBoost,
       strokes: this.state.strokes
     };
   }
@@ -1593,10 +1634,14 @@ class HoleScene {
         ? SWING.driverOverswingBonus
         : undefined;
     const swingCtx = {
-      stat: statsForClub(this.aim.club, this.curPart().golfer, fire.statBoost).zone,
+      stat: statsForClub(this.aim.club, this.curPart().golfer).zone,
       powerTarget: this.aim.barPowerTarget(this.ctx()),
       isPutt: this.aim.isPutting,
-      perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone,
+      // ...and the ROUND's difficulty multiplies the same band. It is read off
+      // `round`, not off the profile, because a round locks its difficulty at
+      // the tee (see lockRoundDifficulty) — changing the setting mid-round must
+      // not resize the meter under a card already being written.
+      perfectMult: fire.perfectZoneMultiplier * upgradeZone * perkZone * zoneMultFor(round.difficulty),
       difficultyMult: this.swingDifficulty(),
       overswingBonus
     };
@@ -2065,6 +2110,16 @@ class HoleScene {
     const beginTravel = (): void => {
       if (travelStarted || this.disposed || this.introSkipped) return;
       travelStarted = true;
+      // THE SWEEP IS A CAMERA MOVE AND NOTHING ELSE. The golfer is standing at
+      // address and the ball is on the tee, so no shadow caster moves for the
+      // whole travel — and a directional light's shadow map does not depend on
+      // the camera. Freezing it here removes a 1024² depth pass every other
+      // frame from the single most crowded window in a hole (the scatter drain
+      // is still planting under it and the glTF models are still resolving).
+      // `invalidateShadows` covers the case where planting had NOT finished:
+      // the drain forces a fresh capture when it does.
+      renderPacing.cinematic = true;
+      this.course3d.invalidateShadows();
       let from = { x: h.tee.x, y: h.tee.y };
       stops.forEach((stop, i) => {
         const last = i === stops.length - 1;
@@ -2390,6 +2445,10 @@ class HoleScene {
     // animate live under the moving camera.
     renderPacing.meterActive = false;
     renderPacing.cameraParked = false;
+    // The flyover is over the moment the golfer has the club: from here the
+    // golfer walks, poses and swings, so the shadow map goes back to its live
+    // cadence.
+    renderPacing.cinematic = false;
     // The ball has come to rest and the next turn is starting: close the shot's
     // segment so the clip button has a complete recording of it. A no-op when
     // no shot is open (the first turn of a hole, a resumed round).
@@ -3023,6 +3082,10 @@ class HoleScene {
     // through the flight.
     renderPacing.meterActive = false;
     renderPacing.cameraParked = false;
+    // Belt and braces: a shot cannot be struck during the flyover, but the ball
+    // and the golfer are both shadow casters and both are about to move, so
+    // nothing may leave the map frozen here.
+    renderPacing.cinematic = false;
     // NOTE: the capture segment stays OPEN across the flight — it is closed at
     // rest by beginTurn. Releasing it here (as this used to) let the idle
     // cadence rotate mid-flight and cut the clip in half at the one moment
@@ -3068,7 +3131,6 @@ class HoleScene {
       swing: converted,
       club,
       golfer: this.curPart().golfer,
-      fireBoost: fire.statBoost,
       lie: this.state.lie,
       wind: this.wind,
       hole: this.hole,
@@ -4451,6 +4513,14 @@ class HoleScene {
     // lingered past scene teardown).
     for (const t of this.introTimers) clearTimeout(t);
     this.introTimers.length = 0;
+    // `renderPacing` is module-global and outlives the scene, so a hole
+    // abandoned mid-flyover must not leave its freeze flags standing over the
+    // next one. (beginTurn would clear them anyway; leaving them set until
+    // then is the kind of cross-hole leak this file has been bitten by.)
+    renderPacing.cinematic = false;
+    renderPacing.overhead = false;
+    renderPacing.meterActive = false;
+    renderPacing.cameraParked = false;
     swingBtn.removeEventListener('pointerdown', this.onSwingTap);
     tracePadEl.removeEventListener('pointerdown', this.onTraceDown);
     this.trace = null;
@@ -4930,6 +5000,9 @@ function showSummary(): void {
     fireStreakBest: shotAcc.fireStreakBest,
     closestApproachFt: shotAcc.closestApproachFt,
     weeklyEventId: round.weeklyEventId ?? undefined,
+    // Owner rule: course records are only set on Pro or Expert. The round is
+    // otherwise completely normal — it pays, it counts, it fills the career.
+    ranked: recordsAllowed(round.difficulty),
     now: Date.now()
   });
   // Weekly Featured entry (Part 8): submit ONLY when this round set the
@@ -4942,8 +5015,13 @@ function showSummary(): void {
       score_to_par: totals[0] - totalPar
     });
     const bestNow = profile.retention.records.bestWeekly[round.weeklyEventId];
-    const isBest = bestNow && bestNow.total === totals[0];
-    if (signedIn && isBest) {
+    // Gated on the round's own difficulty, not just on bestWeekly: an unranked
+    // round that happens to TIE a Pro round's total would otherwise read as
+    // "this is my best" and post to a board it is not comparable with.
+    const isBest = recordsAllowed(round.difficulty) && bestNow && bestNow.total === totals[0];
+    if (!recordsAllowed(round.difficulty)) {
+      weeklyLine = `<div class="rwLine">🏆 ${escapeHtml(UNRANKED_RECORDS_MSG)} This round is not on the weekly board.</div>`;
+    } else if (signedIn && isBest) {
       void submitWeeklyEntry(round.weeklyEventId, {
         playerId: profile.id,
         name: profile.name || 'Golfer',
@@ -5051,6 +5129,11 @@ function showSummary(): void {
     // no leaderboard could see them.
     ...(rstats.longestDriveYds > 0 ? { drive: Math.round(rstats.longestDriveYds) } : {}),
     ...(rstats.chipIns > 0 ? { chipIns: rstats.chipIns } : {}),
+    // The difficulty this round was played at, so the shared record boards can
+    // rank only comparable rounds. Absent on rounds recorded before difficulty
+    // shipped — those were all played at what is now Pro, and RecordBoards
+    // treats an absent value as exactly that.
+    diff: round.difficulty,
     // Signed in → the real Firebase uid; guest → the device's STABLE guest id
     // (so a guest's rounds group together across a session), flagged `guest`.
     uid: signedIn ? profile.id : guestId(),
@@ -5558,6 +5641,26 @@ function graphicsNote(): string {
 }
 
 /**
+ * The line under Difficulty: what the current choice does, and — while the
+ * player has not chosen — that the game picked for them and why.
+ *
+ * A setting whose effect is invisible until you have played three holes is a
+ * setting nobody touches, so this says the actual rule (records need Pro) on
+ * the screen where the choice is made rather than in a results-screen surprise.
+ */
+function difficultyNote(): string {
+  const d = playerDifficulty();
+  const p = difficultyProfile(d);
+  const auto = profile.settings.difficulty === undefined
+    ? deviceSettings.tutorialDone
+      ? ' (chosen for you — change it any time)'
+      : ' (the lesson starts here — change it any time)'
+    : '';
+  const records = p.ranked ? '' : ` ${UNRANKED_RECORDS_MSG}`;
+  return `${p.label}${auto} — ${p.blurb}${records}`;
+}
+
+/**
  * A second line under Graphics: what this device was drawing the last time it
  * lost its WebGL context, or nothing if it never has.
  *
@@ -5725,6 +5828,17 @@ function renderProfile(tab?: ProfileTab): void {
             // is overruling it, so a dead toggle never reads as a bug.
             (captureBlocked() ? `<div class="setNote">${CAPTURE_BLOCKED_MSG}</div>` : '')
           : '') +
+        // Difficulty: the ONE gameplay setting, and it only resizes the swing
+        // meter's bands. It sits above Graphics deliberately — a player looking
+        // for "make this easier" should meet the setting that means it before
+        // the one that means "draw less".
+        `<div class="setRow"><span>Difficulty</span><div class="setSeg">` +
+        DIFFICULTIES.map((d) => {
+          const sel = playerDifficulty() === d;
+          return `<button id="setDiff-${d}" class="segBtn${sel ? ' sel' : ''}">${difficultyProfile(d).label}</button>`;
+        }).join('') +
+        `</div></div>` +
+        `<div class="setNote" id="diffNote">${difficultyNote()}</div>` +
         // Graphics: Auto measures this device and picks a budget for it; the
         // rest pin one. Whatever is showing, the readout underneath says what
         // the game is ACTUALLY drawing right now, so "it's laggy" has an
@@ -5782,6 +5896,23 @@ function renderProfile(tab?: ProfileTab): void {
   };
   document.getElementById('setSwingTap')?.addEventListener('click', () => pickSwing('tap'));
   document.getElementById('setSwingTrace')?.addEventListener('click', () => pickSwing('trace'));
+  // Difficulty is a PROFILE setting (it decides whether a round can set a
+  // record, and records sync with the account). It takes effect from the next
+  // round: `round.difficulty` was locked at the tee, so a mid-round change can
+  // never resize the meter under a card already half written.
+  for (const d of DIFFICULTIES) {
+    document.getElementById(`setDiff-${d}`)?.addEventListener('click', () => {
+      profile.settings.difficulty = d;
+      persistProfile();
+      if (signedIn) void cloudSyncProfile(profile).then((res) => applyCloudMerge(profile, res.profile));
+      for (const other of DIFFICULTIES) {
+        document.getElementById(`setDiff-${other}`)?.classList.toggle('sel', other === d);
+      }
+      const note = document.getElementById('diffNote');
+      if (note) note.textContent = difficultyNote();
+      if (current) showMsg('Difficulty saved — it applies from your next round', 2600);
+    });
+  }
   // Graphics takes effect immediately for the render resolution and from the
   // next hole for everything sized at build time — so it is safe mid-round and
   // never rebuilds the hole under the player.
@@ -6835,7 +6966,9 @@ function startTutorial(): void {
   sel.courseId = 'sablebay';
   landingEl.classList.remove('on');
   analytics.track('tutorial_started', { course: 'sablebay' });
-  tutorialCoach.start(() => undefined, flag('tutorialDepth'));
+  // The lesson's difficulty is the one the round will actually lock in — so the
+  // coach names the same thing the meter is drawing.
+  tutorialCoach.start(() => undefined, flag('tutorialDepth'), playerDifficulty());
   startRound(0);
 }
 
@@ -6899,6 +7032,7 @@ function startAiTourRound(): void {
   round.seed = (Math.random() * 0xffffffff) >>> 0;
   round.weeklyEventId = null;
   round.challenge = null;
+  lockRoundDifficulty();
   shotAcc = freshShotAcc();
   beginRoundTracking();
   grantRoundTrueVision();
@@ -7118,20 +7252,25 @@ async function startCoopSeason(): Promise<void> {
   // partner would be joining a race already run — so that case starts fresh.
   const base = existing && existing.played === 0 ? existing : newSeason(Math.floor(Math.random() * 1e9), seasonNo);
   const sid = makeCoopId();
+  // Whoever starts the season chooses its difficulty, and it is theirs at the
+  // moment of starting — so a later Settings change never retunes a season
+  // already in flight for the friend who joined it.
+  const diff = playerDifficulty();
   const doc: CoopSeasonDoc = {
     v: 1,
     sid,
     seed: base.seed,
     seasonNo: base.seasonNo,
     createdAt: Date.now(),
-    players: { [myId]: { playerId: myId, name: coopDisplayName(), results: {} } }
+    players: { [myId]: { playerId: myId, name: coopDisplayName(), results: {} } },
+    diff
   };
   const ok = await createCoopSeason(doc);
   if (!ok) {
     showMsg('Shared seasons need an online connection', 2600);
     return;
   }
-  base.coop = { id: sid, playerId: myId, partners: [] };
+  base.coop = { id: sid, playerId: myId, partners: [], diff };
   profile.tour = base;
   persistProfile();
   const url = coopUrl(sid, `${location.origin}${location.pathname}`);
@@ -7158,7 +7297,11 @@ async function receiveCoopInvite(raw: string): Promise<void> {
   el.innerHTML =
     `<span class="chLabel">👥 SHARED SEASON</span>` +
     `<div class="chName">${escapeHtml(host?.name ?? 'A friend')} invited you to Season ${doc.seasonNo} — ` +
-    `same schedule, same rivals, play at your own pace.</div>` +
+    `same schedule, same rivals, play at your own pace.` +
+    // Say it up front: the host's difficulty is the season's, so a joiner is
+    // never surprised by a meter that does not match their own setting.
+    (doc.diff ? ` Played at <b>${difficultyProfile(doc.diff).label}</b> — the host's difficulty.` : '') +
+    `</div>` +
     `<button id="coopJoin" class="chPlay">Join the season</button>`;
   document.getElementById('coopJoin')!.addEventListener('pointerdown', () => {
     void (async () => {
@@ -7172,7 +7315,15 @@ async function receiveCoopInvite(raw: string): Promise<void> {
       await joinCoopSeason(sid, myId, coopDisplayName());
       const fresh = (await fetchCoopSeason(sid)) ?? doc;
       const season = newSeason(fresh.seed, fresh.seasonNo);
-      season.coop = { id: sid, playerId: myId, partners: coopPartnersFrom(fresh, myId) };
+      // The host's difficulty comes along with the schedule and the seed: from
+      // here on every event in THIS season is played at it, whatever the joiner
+      // has set for their own rounds.
+      season.coop = {
+        id: sid,
+        playerId: myId,
+        partners: coopPartnersFrom(fresh, myId),
+        ...(fresh.diff ? { diff: fresh.diff } : {})
+      };
       profile.tour = season;
       persistProfile();
       renderTourHub();
@@ -7219,6 +7370,7 @@ function startTourRound(): void {
   aiTour = null;
   tourRoundLive = true;
   tourPlayoff = null;
+  lockRoundDifficulty();
   // Tour rounds enter from the HUB, not startRound's wizard path — so the
   // round-state resets startRound performs must happen HERE too or the last
   // mode's state leaks in: an ease-in device's gentle pins softening a tour
@@ -7317,6 +7469,7 @@ function startTourPlayoffHole(): void {
   round.challenge = null;
   aiTour = null;
   tourRoundLive = false; // not a scored tour ROUND — the event pays at resolution
+  lockRoundDifficulty();
   roundGentlePins = false;
   activeGhost = null;
   pendingGhost = null;
@@ -8158,8 +8311,16 @@ function coopHubHtml(t: TourSeasonState): string {
       );
     })
     .join('');
+  // The season's locked difficulty, stated where the standings are read: the
+  // totals in this table are only comparable BECAUSE everyone played at it, and
+  // a joiner's own Settings choice does not apply inside the season.
+  const diff = asDifficulty(profile.tour?.coop?.diff);
+  const diffLine = diff
+    ? `<div class="recSub">Everyone plays this season at ${difficultyProfile(diff).label} — the difficulty whoever started it chose.</div>`
+    : '';
   return (
     `<div class="tourResult"><div class="tourHeadRow">👥 Shared season</div>` +
+    diffLine +
     (rows || `<div class="recSub">Waiting for your friend to join — send them the link again if it got lost.</div>`) +
     `</div><button id="thCoopShare" class="ghostBtn">🔗 Copy the invite link</button>`
   );
@@ -11271,6 +11432,9 @@ function startRound(startHoleIdx = 0): void {
   if (deviceSettings.lastCourseId !== startedCourseId) updateDeviceSettings({ lastCourseId: startedCourseId });
   round.weeklyEventId = pendingWeekly ? pendingWeekly.id : null;
   round.challenge = pendingChallenge;
+  // Lock the difficulty for this round before a single shot is armed. Casual,
+  // weekly, daily, challenge and tutorial rounds all come through here.
+  lockRoundDifficulty();
   // weekly_round_started deprecated 2026-07-18: the weekly funnel is served by
   // round_started + weekly_round_completed; no dashboard consumed the started
   // side (docs/technical/ANALYTICS_FRAMEWORK.md).

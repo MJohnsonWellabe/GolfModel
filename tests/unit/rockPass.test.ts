@@ -53,7 +53,6 @@ describe('the strategic rock caroms', () => {
       swing: PERFECT, // full 90yd-scale putt: arrives at the rock with real pace
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'fairway',
       wind: NO_WIND,
       hole
@@ -81,7 +80,6 @@ describe('the strategic rock caroms', () => {
         swing: PERFECT,
         club: driver,
         golfer,
-        fireBoost: 0,
         lie: 'tee',
         wind: NO_WIND,
         hole
@@ -115,7 +113,6 @@ describe('the strategic rock caroms', () => {
       swing: { ...PERFECT, power: 0.8 },
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'fairway',
       wind: NO_WIND,
       hole
@@ -139,7 +136,6 @@ describe('the strategic rock caroms', () => {
         swing: { ...PERFECT, power: 0.6 },
         club: putter,
         golfer,
-        fireBoost: 0,
         lie: 'fairway',
         wind: NO_WIND,
         hole
@@ -173,7 +169,6 @@ describe('h2 tier putts behave', () => {
       swing: { ...PERFECT, power: 0.42 },
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'green',
       wind: NO_WIND,
       hole: withPin
@@ -194,7 +189,6 @@ describe('h2 tier putts behave', () => {
       swing: { ...PERFECT, power: 0.26 },
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'green',
       wind: NO_WIND,
       hole: withPin
@@ -227,7 +221,6 @@ describe('Rimrock pass-9 rock frequency + fairway cluster', () => {
         swing: PERFECT,
         club: putter,
         golfer,
-        fireBoost: 0,
         lie: 'fairway',
         wind: NO_WIND,
         hole
@@ -251,7 +244,6 @@ describe('Rimrock pass-9 rock frequency + fairway cluster', () => {
           swing: PERFECT,
           club: putter,
           golfer,
-          fireBoost: 0,
           lie: 'fairway',
           wind: NO_WIND,
           hole
@@ -277,7 +269,6 @@ describe('Rimrock pass-10 deflection', () => {
       swing: PERFECT,
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'rough',
       wind: NO_WIND,
       hole
@@ -303,7 +294,6 @@ describe('Rimrock pass-10 deflection', () => {
       swing: { power: 0.5, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
       club: putter,
       golfer,
-      fireBoost: 0,
       lie: 'fairway',
       wind: NO_WIND,
       hole

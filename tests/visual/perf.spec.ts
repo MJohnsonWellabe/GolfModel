@@ -501,7 +501,13 @@ test('drag-to-aim keeps parked RTTs at live cadence, refreezes on release', asyn
     return { rates: s3d.perfRefreshRates(), isDragging: s3d.aim.isDragging };
   });
   expect(dragging.isDragging, 'drag registered').toBe(true);
-  expect(dragging.rates.shadow, 'dragging → live cadence, not per-move captures').toBe(2);
+  // The two RTTs run at DIFFERENT rates through a drag, on purpose. The mirror
+  // reflects the scene from the camera, so it tracks every reframe at the live
+  // every-other-frame cadence. The shadow map takes nothing from the camera —
+  // only the golfer turning to the new aim changes it — so it runs on the
+  // coarse drag cadence instead. What neither may do is a forced capture per
+  // pointermove, which is the regression this gate exists for.
+  expect(dragging.rates.shadow, 'dragging → coarse cadence, not per-move captures').toBe(8);
   if (dragging.rates.mirror !== null) expect(dragging.rates.mirror).toBe(2);
 
   // Release: one fresh capture then hold — armed-idle frames are cheap again.
@@ -517,4 +523,66 @@ test('drag-to-aim keeps parked RTTs at live cadence, refreezes on release', asyn
   });
   expect(released.shadow, 'released → frozen again').toBe(0);
   if (released.mirror !== null) expect(released.mirror).toBe(0);
+});
+
+/**
+ * THE FLYOVER MUST NOT RE-RENDER THE SHADOW MAP.
+ *
+ * The intro sweep is the most crowded window in a hole: the scatter drain is
+ * still planting, the glTF models are still resolving, and the camera travels
+ * the length of the biggest world on the course (hole 3 is the par 5 on every
+ * one of them, 1.5-2.2M world px² against ~0.9M for hole 1). A 1024² depth
+ * pass every other frame on top of that is the pile-up behind "Wild Prairie
+ * number 3 lags it out every time".
+ *
+ * It is also pure waste: Babylon fits a directional light's shadow frustum to
+ * the CASTERS and takes nothing from the camera but minZ/maxZ, so a camera-only
+ * move cannot change one texel of the map. Nothing that casts moves during the
+ * sweep — the golfer is at address, the ball is on the tee.
+ *
+ * The mirror is deliberately NOT asserted frozen: it is a reflection from the
+ * camera and genuinely has to keep up.
+ */
+test('the intro flyover freezes the shadow map (Wild Prairie hole 3)', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  // Hole 3 specifically — the par 5, the biggest world, the reported hole.
+  await page.evaluate(() =>
+    (window as any).__startRound({ name: 'Fly', courseId: 'wildvalley', hole: 3 })
+  );
+  await page.waitForFunction(() => !!(window as any).__slice3d);
+  // The sweep only begins once planting has finished (or the cap fires), so
+  // poll the flag rather than guessing a delay.
+  await page.waitForFunction(() => (window as any).__slice3d.renderPacing.cinematic === true, undefined, {
+    timeout: 120_000
+  });
+  const flying = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    s3d.scene.render();
+    s3d.scene.render();
+    return { rates: s3d.perfRefreshRates(), phase: s3d.state.phase };
+  });
+  expect(flying.rates.shadow, 'shadow map held through the sweep').toBe(0);
+
+  // ...and it comes back the moment the player has the club, or every shadow in
+  // the round would be a stale capture of the tee.
+  await page.evaluate(() => (window as any).__slice3d.skipIntro());
+  await page.waitForFunction(() => (window as any).__slice3d.state.phase === 'aiming', undefined, {
+    timeout: 60_000
+  });
+  const live = await page.evaluate(() => {
+    const s3d = (window as any).__slice3d;
+    const pacing = s3d.renderPacing;
+    // Address parks the camera, which freezes it again for its own reasons —
+    // clear those flags so this reads the flyover release specifically.
+    pacing.meterActive = false;
+    pacing.cameraParked = false;
+    pacing.overhead = false;
+    s3d.scene.render();
+    s3d.scene.render();
+    return { rates: s3d.perfRefreshRates(), cinematic: pacing.cinematic };
+  });
+  expect(live.cinematic, 'flyover flag cleared at handover').toBe(false);
+  expect(live.rates.shadow, 'shadow map live once the golfer has the club').toBe(2);
 });

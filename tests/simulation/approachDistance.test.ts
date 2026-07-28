@@ -37,7 +37,7 @@ describe('approach distance — a perfect full wedge finishes on target (real wi
     const ball = { x: pj3.pin.x, y: pj3.pin.y + targetYds * PX_PER_YARD };
     aim.yaw = Math.atan2(pj3.pin.y - ball.y, pj3.pin.x - ball.x);
     aim.distPx = targetYds * PX_PER_YARD;
-    const ctx = { ball, lie: 'fairway' as const, golfer, fireBoost: 0, strokes: 2 };
+    const ctx = { ball, lie: 'fairway' as const, golfer, strokes: 2 };
     const power = aim.barToPhysicsPower(aim.barPowerTarget(ctx), ctx);
     const out = engine2d.simulate({
       origin: ball,
@@ -45,7 +45,6 @@ describe('approach distance — a perfect full wedge finishes on target (real wi
       swing: PERFECT_SWING(power),
       club: clubById(clubId),
       golfer,
-      fireBoost: 0,
       lie: 'fairway',
       wind: NO_WIND,
       hole: pj3

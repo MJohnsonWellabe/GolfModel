@@ -48,7 +48,6 @@ interface Scenario {
   spin: SpinState;
   launchMult: number;
   wind: Wind;
-  fireBoost?: number;
 }
 
 /** Run the shipped derivation and return {tv, real} finalPos for a scenario. */
@@ -59,7 +58,7 @@ function endpoints(s: Scenario): { tv: Point; real: Point; club: string; power: 
   const previewEngine = new PhysicsEngine({ ...s.hole, slope: { angle: 0, strength: 0 } }, null, () => 0.5);
   const engine2d = new PhysicsEngine(s.hole, buildHeightField(s.hole), () => 0.5);
   const aim = new AimControl(s.hole, previewEngine);
-  const ctx: ShotContext = { ball: s.ball, lie: s.lie, golfer, fireBoost: s.fireBoost ?? 0, strokes: s.strokes };
+  const ctx: ShotContext = { ball: s.ball, lie: s.lie, golfer, strokes: s.strokes };
   if (s.clubId) aim.setClubById(s.clubId);
   else aim.autoSelectClub(ctx);
   if (s.yaw !== undefined) aim.yaw = s.yaw;
@@ -90,7 +89,6 @@ function endpoints(s: Scenario): { tv: Point; real: Point; club: string; power: 
     swing: { power, powerQuality: 'perfect', accuracy: 0, accuracyQuality: 'perfect' },
     club: aim.club,
     golfer,
-    fireBoost: s.fireBoost ?? 0,
     lie: s.lie,
     wind: s.wind,
     hole: s.hole,

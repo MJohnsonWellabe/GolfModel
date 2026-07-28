@@ -57,7 +57,6 @@ export interface ShotParams {
   club: ClubSpec;
   golfer: Golfer;
   /** Temporary stat boost from the fire system. */
-  fireBoost: number;
   lie: Surface;
   wind: Wind;
   hole: HoleData;
@@ -98,8 +97,7 @@ export interface ResolvedLaunch {
 /** Which stats govern a given club. */
 export function statsForClub(
   club: ClubSpec,
-  golfer: Golfer,
-  fireBoost: number
+  golfer: Golfer
 ): { distance: number; dispersion: number; zone: number } {
   const s = golfer.stats;
   // Skill model (owner): POWER (drivingPower) sets the DISTANCE for every club;
@@ -115,9 +113,9 @@ export function statsForClub(
   else if (club.id === 'driver' || club.id === '3w' || club.id === '5w') zone = s.drivingAccuracy;
   else zone = s.approach;
   return {
-    distance: Math.min(100, s.drivingPower + fireBoost),
-    dispersion: Math.min(100, s.drivingAccuracy + fireBoost),
-    zone: Math.min(100, zone + fireBoost)
+    distance: Math.min(100, s.drivingPower),
+    dispersion: Math.min(100, s.drivingAccuracy),
+    zone: Math.min(100, zone)
   };
 }
 
@@ -155,10 +153,9 @@ function upgradeCarryMult(club: ClubSpec, golfer: Golfer): number {
 export function effectiveCarryYards(
   club: ClubSpec,
   golfer: Golfer,
-  fireBoost: number,
   lie: Surface
 ): number {
-  const { distance } = statsForClub(club, golfer, fireBoost);
+  const { distance } = statsForClub(club, golfer);
   // GDD Appendix A driver carry table (base 270): power 70→245yd, 85→~283,
   // 100→320. statMult = 0.259 + power/100 * 0.926 fits those anchors, so the
   // full power spread lands on the documented targets.
@@ -690,14 +687,14 @@ export class PhysicsEngine {
 
   /** Draw all pre-flight randomness and fix the launch state. */
   resolveLaunch(params: ShotParams): ResolvedLaunch {
-    const { origin, aimAngle, swing, club, golfer, fireBoost, lie, wind } = params;
+    const { origin, aimAngle, swing, club, golfer, lie, wind } = params;
     // Dispersion is governed by ACCURACY (drivingAccuracy) for every club.
-    const { dispersion: accuracy } = statsForClub(club, golfer, fireBoost);
+    const { dispersion: accuracy } = statsForClub(club, golfer);
     // Recovery shots (2nd/3rd around a tree) get a smaller collision core.
     this.shotTreeMult = PHYSICS.treeCanopyMult * ((params.stroke ?? 0) >= 1 ? PHYSICS.treeRecoveryMult : 1);
 
     // Distance ------------------------------------------------------------
-    const carryYds = effectiveCarryYards(club, golfer, fireBoost, lie) * swing.power;
+    const carryYds = effectiveCarryYards(club, golfer, lie) * swing.power;
     // Putts must be strokeable down to tap-in range — the general 4px floor
     // would force a 3ft putt to sail the cup at lip-out speed.
     let carryPx = Math.max(club.id === 'putter' ? 1 : 4, carryYds * PX_PER_YARD);

@@ -137,7 +137,7 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
   // ONE shared FireSystem drives both the AI's club/quality reads and the shot's
   // stat boost — exactly as the live round shares the competitor's fire instance
   // between AIController and executeShot (main.ts). Previously the sim built a
-  // throwaway FireSystem, hard-coded fireBoost:0, and never fed recordSwing, so
+  // throwaway FireSystem that was never fed recordSwing, so
   // it could NEVER ignite — the #1 reason the sim scored the AI harder than live
   // (a legend-tier golfer is on fire most of a round). The sim now reproduces it.
   const fire = new FireSystem();
@@ -169,7 +169,6 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     const d = ai.decide(ball, lie, wind, hole);
     // Pre-shot fire boost (the streak earned by PRIOR swings), then feed THIS
     // swing into the streak after it resolves — the live ordering (main.ts).
-    const fireBoost = fire.statBoost;
     // Swing execution: the AI's stat-band sampler by default, OR a modeled
     // user's timing error (userModel). The user path builds the EXACT SwingCtx
     // the live meter would (statsForClub.zone, fire perfect-zone mult, lie+club
@@ -180,7 +179,7 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
     if (opts.userModel) {
       const isPutt = d.club.id === 'putter';
       const ctx: SwingCtx = {
-        stat: statsForClub(d.club, golfer, fireBoost).zone,
+        stat: statsForClub(d.club, golfer).zone,
         powerTarget: d.powerTarget,
         isPutt,
         // The SAME product the live meter arms with (main.ts, `swingCtx`):
@@ -210,7 +209,6 @@ export function simulateHole(hole: HoleData, golfer: Golfer, opts: SimulateHoleO
       swing,
       club: d.club,
       golfer,
-      fireBoost,
       lie,
       wind,
       hole,

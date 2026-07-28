@@ -41,7 +41,6 @@ describe('tree landforms have a real tree hitbox', () => {
         swing: PERFECT_SWING(1.0),
         club: clubById('7i'),
         golfer: golferWith(85),
-        fireBoost: 0,
         lie: 'tee',
         wind: { angle: 0, speed: 0 },
         hole,

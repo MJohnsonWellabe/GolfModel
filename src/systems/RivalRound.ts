@@ -50,7 +50,7 @@ import { buildHeightField } from './HeightField';
 import { withPlayableBoundary } from './PlayableBoundary';
 import { applyTeeVariants } from './Layouts';
 import { conditionsForRound, shotRngSeed } from './RoundConditions';
-import { RoundRecorder, RoundRecording, ShotInput } from './RoundRecording';
+import { RECORDING_VERSION, RoundRecorder, RoundRecording, ShotInput } from './RoundRecording';
 import { swingDifficultyFor, UserSwingModel } from './RoundSimulator';
 import { ACCURACY_TARGET, resolveUserSwing, SwingCtx, targetBar } from './swingModel';
 import { assembleGolfer } from '../data/golfers';
@@ -77,8 +77,14 @@ export interface RivalRoundOpts {
  * `SkillSimulator.USER_TIERS`. It spans a nervous club player to a very steady
  * one; a rival outside that band is either a wall or furniture, and neither is
  * worth playing.
+ *
+ * The two steadiest rungs were added when the Fire streak stopped adding a stat
+ * boost: the rival's carry and dispersion no longer improve when they catch
+ * fire, so the search needs a little more striking precision to still reach a
+ * level-par standard. The ladder's MEANING is unchanged — a given sigma is the
+ * same golfer it always was — it simply runs further.
  */
-const STEADINESS_LADDER = [0.055, 0.042, 0.03, 0.022, 0.016, 0.011, 0.008] as const;
+const STEADINESS_LADDER = [0.055, 0.042, 0.03, 0.022, 0.016, 0.011, 0.008, 0.006, 0.004] as const;
 
 /** The archetype a house rival plays. Recorded, so the replay assembles the
  *  same golfer. Fixed rather than rolled: the rival's standard comes from their
@@ -173,13 +179,12 @@ function playRound(
       // the stream (see RoundConditions.shotRngSeed).
       shotRng = mulberry32(shotRngSeed(seed, h, strokes));
       const d = ai.decide(ball, lie, wind, hole);
-      const fireBoost = fire.statBoost;
       // The AI chose the club, the aim and the intended power; the SWING is a
       // modeled human's — two gaussian cursor errors resolved through the same
       // model the live meter uses, so the bands are the bands a person gets.
       const isPutt = d.club.id === 'putter';
       const ctx: SwingCtx = {
-        stat: statsForClub(d.club, golfer, fireBoost).zone,
+        stat: statsForClub(d.club, golfer).zone,
         powerTarget: d.powerTarget,
         isPutt,
         perfectMult: fire.perfectZoneMultiplier,
@@ -213,7 +218,6 @@ function playRound(
         swing,
         club: d.club,
         golfer,
-        fireBoost,
         lie,
         wind,
         hole,
@@ -286,7 +290,10 @@ export function synthesiseRivalRound(opts: SynthesiseRivalOpts): RoundRecording 
   if (!best) return null;
 
   return {
-    v: 1,
+    // The shared constant, not a literal: a rival round IS a recording, and a
+    // hand-written version silently stops matching the moment the real one is
+    // bumped — which is exactly how every rival ghost stopped replaying.
+    v: RECORDING_VERSION,
     courseId: opts.courseId,
     seed,
     holes,

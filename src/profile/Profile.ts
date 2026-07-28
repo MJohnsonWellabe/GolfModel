@@ -3,6 +3,7 @@ import { CareerState, emptyCareer, mergeCareers, migrateCareer } from '../data/c
 import { mergeTour, mergeTourHistory, migrateTour, migrateTourHistory, TourHistory, TourSeasonState } from '../systems/TourSeason';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
+import { asDifficulty, Difficulty } from '../systems/Difficulty';
 import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../systems/Records';
 import { emptyStreak, mergeStreak, migrateStreak, StreakState } from '../systems/Streak';
 import { emptyRival, mergeRival, migrateRival, RivalState } from '../systems/Rival';
@@ -102,7 +103,21 @@ export interface PlayerProfile {
   dailyStreak: number;
   /** YYYY-MM-DD of the last completed round — the streak's continuity anchor. */
   lastDailyDate: string;
-  settings: { sound: number; ambience: number; reducedMotion: boolean };
+  settings: {
+    sound: number;
+    ambience: number;
+    reducedMotion: boolean;
+    /**
+     * Chosen swing difficulty (systems/Difficulty). ABSENT means never chosen,
+     * which is a different fact from choosing Amateur: while it is absent the
+     * lesson-aware default applies (Beginner before the lesson, Amateur after),
+     * and the moment the player picks one it stops moving on its own.
+     *
+     * On the profile rather than DeviceSettings because it decides whether a
+     * round can set a record, and records sync with the account.
+     */
+    difficulty?: Difficulty;
+  };
   season: SeasonState;
   /** Owned consumable perks (season-pass rewards). */
   perks: PerkState[];
@@ -619,7 +634,14 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
     achievements: [...(parsed.achievements ?? [])],
     stats: { ...base.stats, ...(parsed.stats ?? {}) },
     daily: { ...base.daily, ...(parsed.daily ?? {}) },
-    settings: { ...base.settings, ...(parsed.settings ?? {}) },
+    settings: {
+      ...base.settings,
+      ...(parsed.settings ?? {}),
+      // A stored/synced difficulty is untrusted input, and an unrecognised one
+      // must fall back to "never chosen" (undefined) rather than to a made-up
+      // value — otherwise a garbled sync would silently pin someone's game.
+      difficulty: asDifficulty(parsed.settings?.difficulty)
+    },
     // RTDB drops the empty claimed array — coalesce it back (like achievements).
     // Pre-career saves carry season progress on the old XP scale (~25× CP):
     // re-denominate ONCE, marked so a migrated copy never divides twice.

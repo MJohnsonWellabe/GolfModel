@@ -36,7 +36,6 @@ function fire(hole: HoleData, species: { trees: string[]; accents: string[] }, l
     swing: PERFECT_SWING(1.0),
     club: clubById('driver'),
     golfer: golferWith(90),
-    fireBoost: 0,
     lie: 'tee',
     wind: { angle: 0, speed: 0 },
     hole,

@@ -120,7 +120,15 @@ export interface RoundRecording {
   gp?: boolean;
 }
 
-export const RECORDING_VERSION = 1;
+/**
+ * Bumped to 2 when the Fire streak stopped adding a stat boost (see
+ * systems/FireSystem). A replay resolves each recorded shot through the live
+ * physics, so a v1 recording made when fire added +5 carry replays SHORTER now
+ * and would be rejected as dishonest. `isValidRecording` refuses any other
+ * version outright, which retires those recordings cleanly rather than failing
+ * their owners' scores one at a time.
+ */
+export const RECORDING_VERSION = 2;
 
 /**
  * Accumulates shots during a live round. The game hands it one entry per stroke

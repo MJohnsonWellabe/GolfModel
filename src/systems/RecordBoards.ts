@@ -29,7 +29,20 @@
  * without a network, a profile, or a browser.
  */
 
+import { asDifficulty, recordsAllowed } from './Difficulty';
 import type { RoundRecord } from '../firebase/History';
+
+/**
+ * Whether a stored round may be RANKED on these boards.
+ *
+ * A round recorded before the difficulty setting shipped carries no `diff` at
+ * all; every one of those was played at what is now Pro, so an absent value
+ * reads as ranked rather than being thrown away.
+ */
+export function rankedRound(r: Pick<RoundRecord, 'diff'>): boolean {
+  const d = asDifficulty(r.diff);
+  return d === undefined || recordsAllowed(d);
+}
 
 export interface BoardEntry {
   /** Stable identity — the account uid. */
@@ -85,6 +98,11 @@ function careers(rounds: readonly RoundRecord[]): Career[] {
     // A guest round counts as PLAY (the admin dashboard counts it) but cannot
     // be ranked: the id is a device, not a person, and it is re-rolled.
     if (r.guest || !r.uid) continue;
+    // Nor can a round played below Pro. These boards compare SCORES, and an
+    // easier difficulty widens the swing bands that produce them, so ranking
+    // the two together would quietly make the boards a difficulty setting.
+    // An absent `diff` predates the setting and was played at what is now Pro.
+    if (!rankedRound(r)) continue;
     let c = by.get(r.uid);
     if (!c) {
       c = {

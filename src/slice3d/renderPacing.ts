@@ -33,4 +33,31 @@
  * It's separate from `cameraParked` so toggling aerial never clobbers the
  * armed-at-address freeze state.
  */
-export const renderPacing = { meterActive: false, cameraParked: false, overhead: false };
+/**
+ * `cinematic` is the intro flyover's TRAVEL sweep — the camera glides the whole
+ * length of the hole and NOTHING THAT CASTS A SHADOW MOVES.
+ *
+ * That distinction is the point. A planar water mirror is a reflection of the
+ * scene FROM THE CAMERA, so it genuinely has to re-render when the camera
+ * moves. A directional light's shadow map does not: Babylon fits the light's
+ * ortho frustum to the shadow CASTERS, and the only thing it takes from the
+ * camera is minZ/maxZ, which never change. So a shadow map re-rendered because
+ * the camera moved is pure waste — and until now the flyover paid it every
+ * other frame, on the frames where the scatter drain is also still planting and
+ * the glTF models are still resolving. That pile-up is the heaviest window in a
+ * hole, and hole 3 of every course is the biggest world in the game.
+ *
+ * The flag goes true when the travel sweep starts (which already waits on
+ * `natureReady`, so the trees that register as casters during the drain are
+ * planted first) and false at `beginTurn`, when the golfer takes over and
+ * starts moving again. `Course3D.invalidateShadows()` covers the timeout path
+ * where planting had not finished.
+ *
+ * The mirror is deliberately NOT frozen by it — see above.
+ */
+export const renderPacing = {
+  meterActive: false,
+  cameraParked: false,
+  overhead: false,
+  cinematic: false
+};

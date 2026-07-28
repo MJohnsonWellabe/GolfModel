@@ -34,8 +34,8 @@ describe('driver perk = distance, layered on club upgrades', () => {
     const club = clubById('driver');
     const base = assembleGolfer('A', 'chip', 'sniper'); // sniper: not maxed in driving
     const perked = assembleGolfer('A', 'chip', 'sniper', {}, drive2);
-    const d0 = effectiveCarryYards(club, base, 0, 'fairway');
-    const d1 = effectiveCarryYards(club, perked, 0, 'fairway');
+    const d0 = effectiveCarryYards(club, base, 'fairway');
+    const d1 = effectiveCarryYards(club, perked, 'fairway');
     expect(d1).toBeGreaterThan(d0);
   });
 
@@ -43,8 +43,8 @@ describe('driver perk = distance, layered on club upgrades', () => {
     const club = clubById('driver');
     const upgraded = assembleGolfer('A', 'chip', 'sniper', { driver: 2 });
     const upgradedPlusPerk = assembleGolfer('A', 'chip', 'sniper', { driver: 2 }, drive2);
-    expect(effectiveCarryYards(club, upgradedPlusPerk, 0, 'fairway')).toBeGreaterThan(
-      effectiveCarryYards(club, upgraded, 0, 'fairway')
+    expect(effectiveCarryYards(club, upgradedPlusPerk, 'fairway')).toBeGreaterThan(
+      effectiveCarryYards(club, upgraded, 'fairway')
     );
   });
 
@@ -57,8 +57,8 @@ describe('driver perk = distance, layered on club upgrades', () => {
     const iron = clubById('7i');
     const base = assembleGolfer('A', 'chip', 'sniper');
     const perked = assembleGolfer('A', 'chip', 'sniper', {}, drive2);
-    expect(effectiveCarryYards(iron, perked, 0, 'fairway')).toBeGreaterThan(
-      effectiveCarryYards(iron, base, 0, 'fairway')
+    expect(effectiveCarryYards(iron, perked, 'fairway')).toBeGreaterThan(
+      effectiveCarryYards(iron, base, 'fairway')
     );
   });
 });
@@ -77,7 +77,7 @@ describe('non-driver perk = wider meter zone, no distance', () => {
     const iron = clubById('7i');
     const base = assembleGolfer('A', 'chip', 'ironMaiden');
     const perked = assembleGolfer('A', 'chip', 'ironMaiden', {}, iron2);
-    expect(effectiveCarryYards(iron, perked, 0, 'fairway')).toBe(effectiveCarryYards(iron, base, 0, 'fairway'));
+    expect(effectiveCarryYards(iron, perked, 'fairway')).toBe(effectiveCarryYards(iron, base, 'fairway'));
   });
 });
 
