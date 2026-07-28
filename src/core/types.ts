@@ -106,6 +106,21 @@ export interface SwingResult {
    * remains the fallback.
    */
   overswung?: boolean;
+  /**
+   * HOW BADLY the power was missed, normalized: 0 anywhere inside the perfect
+   * band, 1 at the edge of the good band, above 1 beyond it.
+   *
+   * The band alone cannot say this, and putting needs it to. Pace noise used to
+   * scale off `powerQuality`, so one pixel outside the perfect band tripled the
+   * random spread — a stroke worth inches of deliberate punishment got feet of
+   * coin-flip, in either direction, which is how a putt missed SHORT finished
+   * 20ft past (owner). Carried here so the physics can scale continuously with
+   * the size of the miss instead of stepping at the band edge.
+   *
+   * Optional — absent on AI swings and old recordings, where
+   * `PHYSICS.puttMissByQuality` maps the band back to a representative value.
+   */
+  powerMiss?: number;
 }
 
 export interface ClubSpec {

@@ -48,9 +48,10 @@ interface KnobSet {
   accuracyCurveExp: number;
   accuracyCurveGain: number;
   powerShortExp: number;
-  puttPacePerfect: number;
-  puttPaceGood: number;
-  puttPaceMiss: number;
+  /** Putt pace ramp: sigma is multiplied by 1 + gain * min(powerMiss, cap).
+   *  Replaced the per-band 1/3/6 lookup — see PHYSICS.puttPaceMissGain. */
+  puttPaceMissGain: number;
+  puttPaceMissCap: number;
   puttPaceNoise: number;
   puttPaceGrowPx: number;
   putterErrorDiv: number;
@@ -74,9 +75,10 @@ const BASELINE: KnobSet = {
   accuracyCurveExp: 1,
   accuracyCurveGain: 1,
   powerShortExp: 1,
-  puttPacePerfect: 1,
-  puttPaceGood: 3,
-  puttPaceMiss: 6,
+  // The pre-ramp baseline had no gain knob (per-band 1/3/6); 1.0 reproduces
+  // roughly the old good-band spread for a like-for-like sweep.
+  puttPaceMissGain: 1.0,
+  puttPaceMissCap: 1.5,
   puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
   putterErrorDiv: 2.4,
@@ -99,9 +101,8 @@ const TUNED: KnobSet = {
   accuracyCurveExp: Number(process.env.K_aexp ?? 1.6),
   accuracyCurveGain: Number(process.env.K_again ?? 1.3),
   powerShortExp: Number(process.env.K_pse ?? 1.5),
-  puttPacePerfect: Number(process.env.K_ppp ?? 1),
-  puttPaceGood: Number(process.env.K_ppg ?? 3),
-  puttPaceMiss: Number(process.env.K_ppm ?? 6),
+  puttPaceMissGain: Number(process.env.K_ppg ?? 0.5),
+  puttPaceMissCap: Number(process.env.K_ppc ?? 1.5),
   puttPaceNoise: Number(process.env.K_ppn ?? 0.055),
   puttPaceGrowPx: Number(process.env.K_ppgrow ?? 70),
   putterErrorDiv: Number(process.env.K_ped ?? 2.4),
@@ -123,9 +124,8 @@ function apply(k: KnobSet): void {
   s.accuracyCurveGain = k.accuracyCurveGain;
   s.powerShortExp = k.powerShortExp;
   const p = PHYSICS as unknown as Record<string, unknown>;
-  (p.puttPaceQualityMult as Record<string, number>).perfect = k.puttPacePerfect;
-  (p.puttPaceQualityMult as Record<string, number>).good = k.puttPaceGood;
-  (p.puttPaceQualityMult as Record<string, number>).miss = k.puttPaceMiss;
+  p.puttPaceMissGain = k.puttPaceMissGain;
+  p.puttPaceMissCap = k.puttPaceMissCap;
   p.puttPaceNoise = k.puttPaceNoise;
   p.puttPaceGrowPx = k.puttPaceGrowPx;
   p.putterErrorDiv = k.putterErrorDiv;
@@ -165,9 +165,8 @@ describe('difficulty calibration grid', () => {
         accuracyCurveExp: SWING.accuracyCurveExp,
         accuracyCurveGain: SWING.accuracyCurveGain,
         powerShortExp: SWING.powerShortExp,
-        puttPacePerfect: PHYSICS.puttPaceQualityMult.perfect,
-        puttPaceGood: PHYSICS.puttPaceQualityMult.good,
-        puttPaceMiss: PHYSICS.puttPaceQualityMult.miss,
+        puttPaceMissGain: PHYSICS.puttPaceMissGain,
+        puttPaceMissCap: PHYSICS.puttPaceMissCap,
         puttPaceNoise: PHYSICS.puttPaceNoise,
         puttPaceGrowPx: PHYSICS.puttPaceGrowPx,
         putterErrorDiv: PHYSICS.putterErrorDiv,

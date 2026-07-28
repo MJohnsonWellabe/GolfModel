@@ -709,7 +709,12 @@ export class PhysicsEngine {
       // reliably finishes near the hole (playtest FB9 — no more 20ft-short
       // "perfect" long putts); mishits scatter hard, so difficulty comes from
       // striking the meter, not random perfect strokes.
-      const paceMult = PHYSICS.puttPaceQualityMult[swing.powerQuality] ?? PHYSICS.puttPaceQualityMult.miss;
+      // Scale the spread by HOW BADLY the power was missed, not by which side
+      // of a band edge it landed. A swing that carries no `powerMiss` (the AI,
+      // an older recording) maps its band to a representative value, so there
+      // is one formula here rather than two. See PHYSICS.puttPaceMissGain.
+      const miss = swing.powerMiss ?? PHYSICS.puttMissByQuality[swing.powerQuality] ?? PHYSICS.puttMissByQuality.miss;
+      const paceMult = 1 + PHYSICS.puttPaceMissGain * Math.min(miss, PHYSICS.puttPaceMissCap);
       const sigmaPx = PHYSICS.puttPaceNoise * carryPx * (1 + carryPx / PHYSICS.puttPaceGrowPx) * paceMult;
       carryPx = Math.max(2, carryPx + gaussianOf(this.rng, 0, sigmaPx));
     } else if (!params.preview) {

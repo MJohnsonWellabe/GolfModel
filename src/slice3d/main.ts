@@ -3118,6 +3118,9 @@ class HoleScene {
         c: club.id,
         p: converted.power,
         pq: converted.powerQuality,
+        // An INPUT to the physics (putt pace noise scales off it), so the
+        // replay must have it or it re-simulates a different round.
+        pm: converted.powerMiss,
         ac: converted.accuracy,
         aq: converted.accuracyQuality,
         ss: shape.side,

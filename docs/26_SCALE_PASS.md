@@ -2155,23 +2155,28 @@ Owner: *"why does every putt that is a miss on distance perfect zone go way too
 far. there's no small misses on distance. it's either perfect or way off."*
 
 `deliveredPower` passed the raw cursor error through and clamped it at
-`puttGoodErrorFrac · target` (15%). In BAR units that cap is tiny on a short
-putt — at a target of 0.10 it is 0.015, **smaller than the perfect band's own
-half-width** — so the clamp was already saturated the instant the cursor left
-perfect. Measured at putting stat 80 on a 0.10 target: one notch outside the
-band delivered the full 15% overshoot, and so did every larger miss. There was
-no value in between to hit, which is exactly what the owner described.
+`puttGoodErrorFrac · target` (15%), with no gradient between the perfect edge
+and the cap. The error now scales with how far past the perfect edge the cursor
+stopped, relative to the good band: zero at the edge of perfect, the full cap at
+the edge of good, the cap beyond. Continuous, monotonic, and the same
+proportional feel at every putt length.
 
-The error now scales with how far past the perfect edge the cursor stopped,
-relative to the good band: zero at the edge of perfect, the full cap at the edge
-of good, the cap beyond. Continuous, monotonic, and the same proportional feel
-at every putt length. The 15% cap is unchanged — it was never the problem.
+**That was the right shape and the wrong target — see §41, which corrects the
+diagnosis recorded here.** The reasoning above (a cap "smaller than the perfect
+band's half-width at a target of 0.10") rested on a premise that is false: for a
+putt `AimControl.barPowerTarget` ALWAYS returns `fullPowerMark` (0.85) — the
+putt's length lives in `meterScalePx`, not in the bar target — so the cap is
+0.1275, eight times the perfect half-band, and the saturation described here
+never happened. The gradient is still an improvement; it was simply never the
+term that decided anything.
 
 Left alone deliberately: `puttPaceQualityMult` still triples the random pace
 sigma the moment a stroke stops being perfect. That is authored intent
 ("mishits scatter hard"), and it is zero-mean, so it does not push putts
 systematically long the way the saturated cap did. Worth revisiting only if the
 gradient above turns out not to be enough on a real green.
+
+**It was not enough, and "zero-mean" was the wrong test — see §41.**
 
 ## 37. The rival nobody could see, and a subtitle that moved the page
 
@@ -2324,3 +2329,124 @@ report of a 43-second clip.
 MediaRecorder: committing opens a segment, the cadence cannot split a live shot,
 rest closes and banks it, a cancelled swing leaves nothing behind and releases
 the recorder, and `stop()` clears the bank so the next round starts clean.
+
+## 40. The crash that erased its own evidence
+
+The record shipped in §33 finally produced a readout off the owner's Pixel 8:
+
+```
+Auto chose Performance for this device
+Last graphics failure today: Wild Prairie at tier 3 · 0 props · 0 meshes · 0 textures · 53MB heap
+```
+
+Every count zero, and no hole number. That combination is only reachable AFTER
+`abandonAfterContextLoss` has dropped the scene — a loss mid-build would still
+have recorded the previous scene's hole. So the record was not the crash: it was
+the **aftershock**, a second `webglcontextlost` firing once there was nothing
+left to measure, overwriting the one that had the numbers. A diagnostic with a
+single slot let the useless write win.
+
+`DeviceSettings.crashes` is a capped log now, newest first, and every field that
+reads through the live scene is paired with one that does not: the hole from
+`round`, the `jg-building` breadcrumb (did the loss land *inside* a build?),
+`sceneNull`, `lossIndex`, the engine's own texture-cache size, the drawing
+buffer, dpr, device memory, and whether the canvas recorder was rolling. An
+existing single record migrates rather than being dropped.
+`tests/visual/webglFallback.spec.ts` fires two losses and asserts the first
+one's numbers survive — and, incidentally, confirms the mechanism: the second
+record does come back with `sceneNull: true` and zeros.
+
+### The recorder was outside every budget
+
+The same readout showed clip capture ON. That is `canvas.captureStream(30)`
+feeding a MediaRecorder for the whole round — a full-frame copy off the GPU plus
+a live encode, every frame — on a device the governor had already pinned to its
+cheapest tier. The quality tiers budget the SCENE; nothing budgeted this.
+
+`captureBlocked()` now refuses to start it on a device the governor **measured**
+down to the floor, or one that has lost a context in the last week. A floor the
+player *pinned* does not count: that is a preference, and the governor's own
+rule is that a setting must not be silently overruled. The player's setting is
+untouched — the device is standing down, not the player opting out — and both
+the REC button and Settings say so rather than going quietly dead.
+
+### What the retention hunt actually found: nothing
+
+The hypothesis was that hole 3 dies because holes 1 and 2 leak.
+`tests/visual/holeRetention.spec.ts` plays Wild Prairie 1 → 2 → 3 and samples
+the engine texture cache and scene counts at each address:
+
+```
+hole 1: 24 engine textures · 233 meshes · 59 materials
+hole 2: 25 · 216 · 60
+hole 3: 24 · 239 · 59
+```
+
+Flat, before and after the fixes. **The leak theory is not evidenced.** Two real
+holes were closed anyway, because they are correct and the gate cannot reach
+them: a model load that resolves after its scene is disposed now disposes
+instead of attaching (`loadModelInto`, one chokepoint for all five loaders), and
+`webglcontextrestored` disposes the pre-loss scene rather than abandoning it —
+the context is back by then, so it can.
+
+## 41. The putt that went 20 feet past because you hit it short
+
+Owner, after §36 shipped: *"a perfectly aimed putt even just short of the
+perfect zone blasts past the hole way too far. on a 30 foot putt I got the hole
+and went 20 feet by because I missed the power target just short."*
+
+§36 fixed the wrong half, and said so in its own last paragraph. The
+deterministic gradient it added is worth **0.3 ft** on a 30-footer struck a
+whisker outside the perfect band. Sitting on top of it was
+`puttPaceQualityMult = {perfect: 1, good: 3, miss: 6}` — random pace noise
+scaled by the BAND, so one pixel of cursor travel **tripled** the spread from
+σ 2.1 ft to σ 6.4 ft. And that spread is symmetric: it does not care which way
+you missed.
+
+"Zero-mean, therefore harmless" was the wrong test. Zero-mean does not bias the
+average; it decides individual putts, which is the only thing a player
+experiences. Measured on the real chain (cursor → `deliveredPower` →
+`barToPhysicsPower` → physics) for a stroke missed SHORT:
+
+| putt | stroke | finished PAST | p90 past |
+|---|---|---|---|
+| 30 ft | a whisker outside perfect | 16.4% | +6.4 ft |
+| 40 ft | same | 26.8% | +9.9 ft |
+| 70 ft | same | 37.0% | +19.9 ft |
+
+Note the shape: at 30 ft the *smallest* miss had the *worst* overshoot risk,
+while an edge-of-good miss had none — because the directional term that should
+pull it short was still near zero when the noise had already tripled. "Either
+perfect or way off", as a measurement.
+
+**The model now says: the miss you made is the distance you get.**
+`SWING.puttGoodErrorFrac` rises 0.15 → 0.25 so the directional error carries the
+distance, and the pace noise scales continuously off `SwingResult.powerMiss`
+(0 inside the perfect band, 1 at the edge of good — `swingModel.powerMissOf`)
+instead of stepping at a band edge: `σ × (1 + puttPaceMissGain · min(miss, cap))`.
+Same stroke, after: **0.1% / 2.8% / 18.6% past**, with the 30 ft and 40 ft p90
+falling to zero. The 70 ft figure is dominated by the authored perfect-stroke
+lag noise, which FB9 asks for and this pass leaves alone — a dead-on 70-footer
+runs past 22.4% of the time, so a short stroke at 18.6% is now *better* behaved
+than a perfect one, which is the right ordering.
+
+`powerMiss` is an INPUT to the physics, so it is recorded (`ShotInput.pm`) and
+restored by the replay and the rival recorder; absent, `PHYSICS.puttMissByQuality`
+maps the band back to a representative value, so old recordings and AI swings
+replay unchanged. `roundRecording.spec.ts` is the proof.
+
+### Why the suite never caught it, twice
+
+`tests/simulation/putting.test.ts` measured `Math.abs(finish − pin)` — a short
+stroke finishing 20 ft LONG read identically to one finishing 20 ft short. Worse,
+its "good" stroke handed the physics a **perfect** power with a `'good'` label,
+so the deterministic half of the model was never exercised at all. Both are
+fixed, and the missing assertions are now gates:
+
+- a stroke missed short is **never more likely to run past than a dead-on one**;
+- when it does run past, it is **never far past** (p95 within 12% of the putt);
+- **there is a middle** — the medians are monotonic in the size of the miss, and
+  the ends differ by more than a tenth of the putt;
+- the mirror: a stroke missed long never comes up short.
+
+Reverting either half of the fix fails the first two.

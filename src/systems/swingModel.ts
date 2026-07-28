@@ -63,6 +63,22 @@ export function goodHalf(ctx: SwingCtx): number {
   return half * (ctx.perfectMult ?? 1) * (ctx.difficultyMult ?? 1);
 }
 
+/**
+ * HOW BADLY the power cursor missed, normalized: 0 anywhere inside the perfect
+ * band, 1 at the edge of the good band, above 1 beyond it.
+ *
+ * The single definition of "size of the miss", used both by the delivered-power
+ * gradient below and by `SwingResult.powerMiss`, which carries it to the
+ * physics so putt pace noise can scale with it instead of stepping at the band
+ * edge. One function so the two can never drift apart.
+ */
+export function powerMissOf(ctx: SwingCtx, lockedCursor: number): number {
+  const pHalf = perfectHalf(ctx);
+  const gHalf = goodHalf(ctx);
+  const beyond = Math.abs(lockedCursor - targetBar(ctx)) - pHalf;
+  return Math.max(0, beyond) / Math.max(1e-6, gHalf - pHalf);
+}
+
 /** Classify a locked cursor against its target given precomputed band widths. */
 export function bandFor(cursor: number, target: number, pHalf: number, gHalf: number): Band {
   const d = Math.abs(cursor - target);
@@ -94,13 +110,14 @@ export function deliveredPower(ctx: SwingCtx, lockedCursor: number, band: Band):
     // good band, restores the gradient at every putt length: 0 at the edge of
     // perfect, the full cap at the edge of good, and the cap beyond that. The
     // cap itself is unchanged — it was never the problem.
-    const pHalf = perfectHalf(ctx);
-    const gHalf = goodHalf(ctx);
-    const err = c - t;
-    const beyond = Math.abs(err) - pHalf;
-    const frac = clamp(beyond / Math.max(1e-6, gHalf - pHalf), 0, 1);
+    // …and the pace error must be YOURS. The gradient below is deterministic
+    // and signed: stop short and the putt is short, every time. It is now the
+    // DOMINANT term — the random pace noise that used to swamp it (and flip its
+    // sign) scales off the same normalized miss in the physics, gently. See
+    // PHYSICS.puttPaceMissGain.
+    const frac = clamp(powerMissOf(ctx, c), 0, 1);
     const errCap = t * SWING.puttGoodErrorFrac;
-    return clamp(t + Math.sign(err) * errCap * frac, 0.03, 1);
+    return clamp(t + Math.sign(c - t) * errCap * frac, 0.03, 1);
   }
   if (band === 'perfect') return ctx.powerTarget;
   if (c <= t) {
@@ -157,6 +174,7 @@ export function resolveUserSwing(
     powerQuality: powerBand,
     accuracy: accuracyOffsetSigned(accuracyCursor, accBand),
     accuracyQuality: accBand,
-    overswung: powerCursor > targetBar(ctx)
+    overswung: powerCursor > targetBar(ctx),
+    powerMiss: powerMissOf(ctx, powerCursor)
   };
 }

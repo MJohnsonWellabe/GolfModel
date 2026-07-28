@@ -48,6 +48,15 @@ export interface ShotInput {
   p: number;
   /** Power band at the lock. */
   pq: Band;
+  /**
+   * How badly the power was missed (0 inside the perfect band, 1 at the edge of
+   * good). Putt pace noise scales off this, so it is an INPUT to the physics,
+   * not a derived display value — a replay that dropped it would re-simulate
+   * every putt with a different spread and diverge from the round that was
+   * actually played. Optional: recordings made before it existed replay through
+   * `PHYSICS.puttMissByQuality`, which maps `pq` back to a representative value.
+   */
+  pm?: number;
   /** Signed accuracy offset, -1..1. */
   ac: number;
   /** Accuracy band at the lock. */

@@ -192,7 +192,7 @@ export function replayRound(
       const launch = engine.resolveLaunch({
         origin: ball,
         aimAngle: shot.a,
-        swing: { power: shot.p, powerQuality: shot.pq, accuracy: shot.ac, accuracyQuality: shot.aq },
+        swing: { power: shot.p, powerQuality: shot.pq, powerMiss: shot.pm, accuracy: shot.ac, accuracyQuality: shot.aq },
         club,
         golfer,
         fireBoost,

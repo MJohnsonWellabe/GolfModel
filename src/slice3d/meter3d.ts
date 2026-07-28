@@ -315,7 +315,10 @@ export class DomMeter {
       // The felt direction of the power miss — the attribution names the
       // strike from this, since delivered yardage can't tell a nerfed driver
       // overswing from an under-pull.
-      overswung: this.lockedPower > swing.targetBar(this.ctx)
+      overswung: this.lockedPower > swing.targetBar(this.ctx),
+      // …and its SIZE, which the band cannot express. Putt pace noise scales
+      // off this, so a one-pixel miss no longer scatters like a wild one.
+      powerMiss: swing.powerMissOf(this.ctx, this.lockedPower)
     });
   }
 

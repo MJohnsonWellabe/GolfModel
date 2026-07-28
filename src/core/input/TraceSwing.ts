@@ -201,5 +201,14 @@ export function resolveTraceSwing(state: TraceState, ctx: swing.SwingCtx): Swing
   // Player-meter convention: a face released RIGHT starts the ball LEFT.
   const accuracy = accuracyQuality === 'perfect' ? 0 : swing.shapeAccuracyOffset(-state.face);
 
-  return { power, powerQuality, accuracy, accuracyQuality, overswung };
+  // Both control schemes resolve against the same context, so they must also
+  // report the same SIZE of power miss — putt pace scales off it.
+  return {
+    power,
+    powerQuality,
+    accuracy,
+    accuracyQuality,
+    overswung,
+    powerMiss: swing.powerMissOf(ctx, powerCursor)
+  };
 }

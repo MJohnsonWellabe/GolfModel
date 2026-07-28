@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { PX_PER_YARD, PHYSICS, SWING } from '../../src/config';
-import { bandFor, deliveredPower, goodHalf, perfectHalf, targetBar } from '../../src/systems/swingModel';
+import { bandFor, deliveredPower, goodHalf, perfectHalf, powerMissOf, targetBar } from '../../src/systems/swingModel';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
-import { ftToPx, golferWith, NO_WIND, openHole, PERFECT_SWING, SWING_OF } from './simHelpers';
+import { ftToPx, golferWith, NO_WIND, openHole, PERFECT_SWING } from './simHelpers';
 import portjohnson from '../../src/data/courses/portjohnson.json';
 import { CourseAuthoring, loadCourse } from '../../src/data/courseLoader';
 import { AimControl } from '../../src/core/input/AimControl';
@@ -34,15 +34,61 @@ const putter = clubById('putter');
 // putter's baseDistance only scales the aim ceiling and cancels out of putt pace.
 const CARRY_PX = putter.baseDistance * (0.259 + (85 / 100) * 0.926) * 2;
 
-function putt(ft: number, quality: 'perfect' | 'good', rng: () => number): { holed: boolean; finishFt: number } {
+/** The putt swing context the live game arms: the bar target for a putt is
+ *  always `fullPowerMark` — the LENGTH lives in AimControl.meterScalePx — so a
+ *  stroke is described by where the cursor stopped relative to that mark. */
+const puttCtx = { stat: 85, powerTarget: SWING.fullPowerMark, isPutt: true };
+const T = targetBar(puttCtx);
+const PH = perfectHalf(puttCtx);
+const GH = goodHalf(puttCtx);
+
+/**
+ * Cursor positions for named strokes, all SHORT of the target (the owner's
+ * case: "I missed the power target just short").
+ *
+ * `nearMiss` is the one this file used to have no way to express and the one
+ * the bug lived in: a stroke a whisker outside the perfect band, which used to
+ * inherit the full good-band pace scatter.
+ */
+const CURSOR = {
+  perfect: T,
+  nearMiss: T - (PH + (GH - PH) * 0.08),
+  good: T - (PH + GH) / 2,
+  goodEdge: T - (GH - 0.002),
+  miss: T - (GH + 0.03)
+} as const;
+type Stroke = keyof typeof CURSOR;
+
+/**
+ * One putt through the REAL chain — cursor → band → deliveredPower (bar units)
+ * → AimControl.barToPhysicsPower → physics.
+ *
+ * This used to hand the physics a PERFECT power and merely label it 'good',
+ * which meant every "mishit" test measured a stroke that cannot happen: full
+ * pace, wrong label. The deterministic pace penalty — the half of the model
+ * that makes a short stroke finish short — was never exercised at all.
+ *
+ * `signedFt` is + PAST the hole, − short. The old helper returned
+ * `Math.abs(...)`, which is why a short stroke finishing 20ft LONG read
+ * identically to one finishing 20ft short, and why this suite passed
+ * throughout the bug it was supposed to catch.
+ */
+function puttFrom(ft: number, cursor: number, rng: () => number): { holed: boolean; signedFt: number } {
   const distPx = ftToPx(ft);
   const origin = { x: hole.pin.x, y: hole.pin.y + distPx };
-  const power = distPx / CARRY_PX;
-  const swing = quality === 'perfect' ? PERFECT_SWING(power) : SWING_OF(power, 'good', 0.04);
+  const band = bandFor(cursor, T, PH, GH);
+  const bar = deliveredPower(puttCtx, cursor, band);
+  const power = (bar * (distPx / SWING.fullPowerMark)) / CARRY_PX;
   const out = new PhysicsEngine(hole, null, rng).simulate({
     origin,
     aimAngle: -Math.PI / 2,
-    swing,
+    swing: {
+      power,
+      powerQuality: band,
+      accuracy: 0,
+      accuracyQuality: 'perfect',
+      powerMiss: powerMissOf(puttCtx, cursor)
+    },
     club: putter,
     golfer,
     fireBoost: 0,
@@ -50,10 +96,15 @@ function putt(ft: number, quality: 'perfect' | 'good', rng: () => number): { hol
     wind: NO_WIND,
     hole
   });
-  return { holed: out.holed, finishFt: Math.abs((out.finalPos.y - hole.pin.y) / 2) * 3 };
+  return { holed: out.holed, signedFt: ((hole.pin.y - out.finalPos.y) / 2) * 3 };
 }
 
-function makeRate(ft: number, quality: 'perfect' | 'good', n = 1500): number {
+function putt(ft: number, quality: Stroke, rng: () => number): { holed: boolean; finishFt: number } {
+  const r = puttFrom(ft, CURSOR[quality], rng);
+  return { holed: r.holed, finishFt: Math.abs(r.signedFt) };
+}
+
+function makeRate(ft: number, quality: Stroke, n = 1500): number {
   const rng = mulberry32(1234 + ft * 7 + (quality === 'good' ? 1 : 0));
   let holed = 0;
   for (let i = 0; i < n; i++) if (putt(ft, quality, rng).holed) holed++;
@@ -61,7 +112,7 @@ function makeRate(ft: number, quality: 'perfect' | 'good', n = 1500): number {
 }
 
 /** Distance from the hole a putt finishes, at the given percentile (feet). */
-function lagPercentile(ft: number, quality: 'perfect' | 'good', p: number, n = 800): number {
+function lagPercentile(ft: number, quality: Stroke, p: number, n = 800): number {
   const rng = mulberry32(55 + ft + (quality === 'good' ? 9 : 0));
   const errs: number[] = [];
   for (let i = 0; i < n; i++) errs.push(putt(ft, quality, rng).finishFt);
@@ -92,6 +143,107 @@ describe('putting — a perfect read + stroke is reliable', () => {
     // should finish within a few feet, not 20ft+ short.
     expect(lagPercentile(70, 'perfect', 0.5)).toBeLessThanOrEqual(6);
     expect(lagPercentile(70, 'perfect', 0.9)).toBeLessThanOrEqual(12);
+  });
+});
+
+/**
+ * THE MISS YOU MADE IS THE DISTANCE YOU GET.
+ *
+ * Owner, twice: *"there's no small misses on distance. it's either perfect or
+ * way off"*, and then *"a perfectly aimed putt even just short of the perfect
+ * zone blasts past the hole way too far. on a 30 foot putt I got the hole and
+ * went 20 feet by because I missed the power target just short."*
+ *
+ * The cause was pace NOISE scaled by the power BAND: one pixel outside perfect
+ * tripled the random spread, and that spread is symmetric, so it did not care
+ * which way you missed. Measured on this harness before the fix, for a stroke
+ * missed SHORT:
+ *
+ *     30ft, a whisker outside perfect → finished PAST 16.4% of the time, p90 +6.4ft
+ *     40ft, same stroke               → 26.8%, p90 +9.9ft
+ *     70ft, same stroke               → 37.0%, p90 +19.9ft
+ *
+ * The old suite could not see any of it: its finish was `Math.abs`, and its
+ * "good" stroke was a PERFECT power with a 'good' label, so the directional
+ * half of the model was never exercised. Both are fixed above; these are the
+ * assertions that hold the behaviour.
+ */
+describe('putting — a stroke missed short finishes short', () => {
+  /** Signed finish stats for a stroke, as a share of putts that ended PAST the
+   *  hole and how far past the tail runs. */
+  function pastStats(ft: number, cursor: number, n = 2000): { pastPct: number; p95PastFt: number; median: number } {
+    const rng = mulberry32(4242 + ft * 31);
+    const xs: number[] = [];
+    for (let i = 0; i < n; i++) xs.push(puttFrom(ft, cursor, rng).signedFt);
+    xs.sort((a, b) => a - b);
+    return {
+      pastPct: (100 * xs.filter((x) => x > 0).length) / n,
+      p95PastFt: Math.max(0, xs[Math.floor(n * 0.95)]),
+      median: xs[Math.floor(n / 2)]
+    };
+  }
+
+  const SHORT_STROKES: Stroke[] = ['nearMiss', 'good', 'goodEdge', 'miss'];
+
+  it('a short stroke is never MORE likely to run past than a dead-on one', () => {
+    // The invariant the bug violated outright: at 30ft a stroke missed short ran
+    // past 16.4% of the time against a perfect stroke's 0.3%. Whatever the
+    // absolute rates are at a given length, missing short cannot make running
+    // long more likely — that is the whole complaint, stated as a law.
+    for (const ft of [10, 20, 30, 40, 70]) {
+      const dead = pastStats(ft, CURSOR.perfect).pastPct;
+      for (const stroke of SHORT_STROKES) {
+        const s = pastStats(ft, CURSOR[stroke]);
+        expect(s.pastPct, `${ft}ft ${stroke}: past ${s.pastPct}% vs perfect ${dead}%`).toBeLessThanOrEqual(dead + 2);
+      }
+    }
+  });
+
+  it('and when it does run past, it is never far past', () => {
+    // The owner's 20ft. The tail of a SHORT stroke must stay a small fraction
+    // of the putt, at every length.
+    for (const ft of [10, 20, 30, 40, 70]) {
+      for (const stroke of SHORT_STROKES) {
+        const s = pastStats(ft, CURSOR[stroke]);
+        expect(s.p95PastFt, `${ft}ft ${stroke}: p95 ran ${s.p95PastFt.toFixed(1)}ft past`).toBeLessThanOrEqual(
+          Math.max(1.5, ft * 0.12)
+        );
+      }
+    }
+  });
+
+  it('there IS a middle: the worse the miss, the shorter the putt finishes', () => {
+    // "It's either perfect or way off" — the gradient has to be visible in the
+    // result, not just in the delivered power. Monotonic at every length.
+    for (const ft of [20, 30, 40, 70]) {
+      const medians = SHORT_STROKES.map((s) => pastStats(ft, CURSOR[s]).median);
+      for (let i = 1; i < medians.length; i++) {
+        expect(medians[i], `${ft}ft medians ${medians.map((m) => m.toFixed(1)).join(', ')}`).toBeLessThanOrEqual(
+          medians[i - 1] + 0.01
+        );
+      }
+      // …and the ends are meaningfully different, not three flavours of the same.
+      expect(medians[0] - medians[medians.length - 1], `${ft}ft spread`).toBeGreaterThan(ft * 0.1);
+    }
+  });
+
+  it('the mirror holds: a stroke missed LONG never comes up short', () => {
+    // Stated as "never short" rather than "finishes long" because a putt struck
+    // a little firm still DROPS — the cup captures up to `cupCaptureSpeed`, so
+    // the median signed finish of a slightly-long 20-footer is exactly 0, which
+    // is the ball in the hole rather than a failure of the model.
+    for (const ft of [20, 30, 40]) {
+      for (const stroke of ['good', 'goodEdge'] as const) {
+        // Same miss size, other side of the target.
+        const over = T + (T - CURSOR[stroke]);
+        const s = pastStats(ft, over);
+        expect(s.median, `${ft}ft ${stroke} long: median ${s.median.toFixed(1)}ft`).toBeGreaterThanOrEqual(0);
+      }
+    }
+    // The firmest miss must actually run past, at a length where it cannot
+    // simply drop: a 40-footer struck at the edge of the good band.
+    const firm = T + (T - CURSOR.goodEdge);
+    expect(pastStats(40, firm).median, '40ft firm miss should run past').toBeGreaterThan(0);
   });
 });
 

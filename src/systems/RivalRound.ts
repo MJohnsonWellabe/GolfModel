@@ -197,6 +197,9 @@ function playRound(
         c: d.club.id,
         p: swing.power,
         pq: swing.powerQuality,
+        // Same reason as the live recorder: the physics reads this, so a
+        // rival's recorded round must carry it to replay as it was played.
+        pm: swing.powerMiss,
         ac: swing.accuracy,
         aq: swing.accuracyQuality,
         ss: d.spin?.side ?? 0,

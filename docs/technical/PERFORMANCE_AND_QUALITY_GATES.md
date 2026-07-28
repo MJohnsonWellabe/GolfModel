@@ -33,6 +33,8 @@ Maintain tests for:
 - material, texture, observer, listener, and timer stability
 - engine-level retention across consecutive holes (nothing ratchets up)
 - the crash log appending rather than overwriting
+- putt pace measured SIGNED (a stroke missed short must finish short) — an
+  absolute-error gate hid a shipped bug through two fixes
 - page errors during multi-course soak
 - sound preference persistence
 - analytics and persistence remaining off critical input paths

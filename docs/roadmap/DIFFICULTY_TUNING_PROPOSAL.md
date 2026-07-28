@@ -54,6 +54,15 @@ instrument.
   courses, 240 rounds/cell, writes the dashboard HTML + JSON.
 - `PHYSICS.putterErrorDiv` and `PHYSICS.puttPaceQualityMult` were extracted from
   inline literals into named constants (at their original values — no change).
+- **`puttPaceQualityMult` no longer exists.** Scaling putt pace noise by the
+  power BAND was a step change — one pixel outside perfect tripled the spread,
+  symmetrically, so a putt missed short finished long (26_SCALE_PASS §41). It is
+  replaced by a continuous ramp off `SwingResult.powerMiss`:
+  `σ × (1 + PHYSICS.puttPaceMissGain · min(powerMiss, puttPaceMissCap))`, shipped
+  at gain 0.5 / cap 1.5, with `SWING.puttGoodErrorFrac` raised 0.15 → 0.25 so the
+  DIRECTIONAL error carries the distance. The grid sweeps the gain and cap
+  (`K_ppg`, `K_ppc`) in place of the three per-band knobs; the row below is
+  therefore historical.
 
 ## The proposed constants (NOT applied)
 | knob | shipped | proposed | why |
@@ -67,7 +76,7 @@ instrument.
 | `SWING.powerShortExp` | 1 | 1.6 | convex short-swing distance loss |
 | `PHYSICS.putterErrorDiv` | 2.4 | 4.0 | straighter putts → one-putt ~40–50% |
 | `PHYSICS.puttPaceNoise` | 0.055 | 0.04 | tighter perfect-putt pace → expert birdies |
-| `PHYSICS.puttPaceQualityMult` | {1,3,6} | {1,2.8,3.5} | forgiving miss/good pace → fewer 3-putts |
+| ~~`PHYSICS.puttPaceQualityMult`~~ | ~~{1,3,6}~~ | ~~{1,2.8,3.5}~~ | superseded — the per-band step was the bug (§41); now a continuous ramp |
 
 ## The tuned grid (240 rounds/cell — median `[good p10 / bad p90]`)
 ```

@@ -87,8 +87,18 @@ export const SWING = {
    *  stopped cursor straight through: on a short putt (small target) that let
    *  a "good" tap land 50%+ over/under the intended power — a "good" tap-in
    *  could rocket well past the hole. Capping the error at a fraction of the
-   *  target keeps "good" reading as a near-target roll on every putt length. */
-  puttGoodErrorFrac: 0.15,
+   *  target keeps "good" reading as a near-target roll on every putt length.
+   *
+   *  RAISED 0.15 -> 0.25 (owner: "a perfectly aimed putt just short of the
+   *  perfect zone blasts past the hole"). This is the DIRECTIONAL half of a
+   *  putt's pace error — miss short, finish short — and it used to be a
+   *  rounding error next to the random pace noise, which was symmetric and
+   *  three times larger the moment a stroke stopped being perfect. Now the
+   *  noise ramps gently (PHYSICS.puttPaceMissGain) and this carries the
+   *  distance error, so a mishit is punished by the miss you made rather than
+   *  by a coin flip. A full good-band miss is a quarter of the putt: 7.5ft
+   *  short of a 30-footer. */
+  puttGoodErrorFrac: 0.25,
   /** DIFFICULTY CURVE (owner: "smooth but harsher — a miss must hurt"). The
    *  accuracy penalty stays a continuous function of the timing error, but these
    *  two knobs steepen it: the delivered start-line offset is `gain · |rawOffset|^exp`
@@ -379,13 +389,35 @@ export const PHYSICS = {
    *  applied; this is the shipped value. */
   puttPaceNoise: 0.055,
   puttPaceGrowPx: 70,
-  /** PUTT pace forgiveness by strike quality — the 1σ pace noise is scaled by
-   *  this factor for a perfect / good / missed putt-power click. A perfect
-   *  stroke lags tight (×1); a good stroke widens; a miss scatters. This is THE
-   *  putting-forgiveness lever (owner: "putting more forgiving than other
-   *  shots", target tour make-rates for a good user with a good putter). Tuned
-   *  by the difficulty simulator (SkillSimulator); was inline 1/3/6 literals. */
-  puttPaceQualityMult: { perfect: 1, good: 3, miss: 6 } as Record<string, number>,
+  /**
+   * PUTT pace noise vs the SIZE of the power miss — replaces a per-band lookup
+   * that stepped 1 / 3 / 6 at the band edges.
+   *
+   * The step was the bug behind "a putt missed just short blasts 20ft past".
+   * One pixel outside the perfect band tripled the random 1σ pace spread, and
+   * that spread is symmetric — so a stroke whose deliberate punishment was
+   * inches got feet of coin-flip, in either direction. Measured on a 30ft putt
+   * at putting 85: a stroke one pixel short finished PAST the hole 16.4% of the
+   * time with a p90 of +6.4ft, and at 70ft, 37% and +19.9ft. The smallest
+   * misses were the WORST offenders, because the directional term that should
+   * pull them short was still near zero while the noise had already tripled.
+   *
+   * Now σ is multiplied by `1 + puttPaceMissGain · min(powerMiss, cap)`, where
+   * `powerMiss` is 0 inside the perfect band and 1 at the edge of good
+   * (swingModel.powerMissOf). Continuous, so there is no cliff to fall off, and
+   * gentle enough that the directional error (SWING.puttGoodErrorFrac) stays
+   * the bigger term — which is what makes "short stays short" true rather than
+   * likely. Mishits are still punished harder than perfect strokes; the
+   * punishment is now the miss you made instead of a dice roll.
+   */
+  puttPaceMissGain: 0.5,
+  /** Ceiling on the miss the ramp responds to: a wild stab and a very wild one
+   *  scatter the same, rather than unbounded. */
+  puttPaceMissCap: 1.5,
+  /** Representative `powerMiss` for a swing that carries none — the AI, the
+   *  replay of an older recording, the re-simulation verifier. Keeps one
+   *  formula in the physics instead of two code paths. */
+  puttMissByQuality: { perfect: 0, good: 0.5, miss: 1.2 } as Record<string, number>,
   /** Ground roll friction (px/s²) per surface. The firm tee/fairway were
    *  softened 500 -> 400 alongside the real-aero flight: a realistic drive lands
    *  steep and comparatively slow, so the old high friction killed its rollout
