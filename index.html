@@ -4401,6 +4401,13 @@
         line-height: 1.15;
         padding: 14px 18px;
         text-align: center;
+        /* The panel spaces its stacked children with margin-top: 10px each, but
+           .landingPlay carries none — it was the first action in the stack and
+           had nothing above it to clear. Putting a button in front of it left
+           the two flush against each other (owner). The margin belongs here
+           rather than on .landingPlay, which must keep sitting tight under the
+           cards when there is no CTA above it. */
+        margin-bottom: 10px;
       }
       .landingPlay.accountCta .lpSub {
         opacity: 0.85;

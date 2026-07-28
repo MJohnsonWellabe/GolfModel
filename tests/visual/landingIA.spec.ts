@@ -254,6 +254,12 @@ test('signed out, the account CTA outranks Quick Start', async ({ page }) => {
   // longer the loudest thing on a screen that cannot save anything.
   expect(ctaBox.y, 'the CTA comes first').toBeLessThan(playBox.y);
   expect(ctaBox.height, `CTA ${ctaBox.height}px vs Quick Start ${playBox.height}px`).toBeGreaterThan(playBox.height);
+  // …and they are not welded together. The panel spaces its children by margin
+  // and .landingPlay has none (nothing used to sit above it), so the first
+  // version of this shipped with the two buttons flush — the gate measured
+  // their order and size but never the gap between them.
+  const gap = playBox.y - (ctaBox.y + ctaBox.height);
+  expect(gap, `only ${Math.round(gap)}px between the CTA and Quick Start`).toBeGreaterThanOrEqual(8);
 
   // …and the WHOLE guest layout still obeys rule 5. Adding a hero is exactly
   // how a landing grows past the fold, and a guest is the player least willing
