@@ -477,9 +477,25 @@ test('drag-to-aim keeps parked RTTs at live cadence, refreezes on release', asyn
   const vp = page.viewportSize()!;
   const cx = vp.width / 2;
   const cy = vp.height / 2;
+  const yaw0 = await page.evaluate(() => (window as any).__slice3d.aim.yaw);
   await page.mouse.move(cx, cy);
   await page.mouse.down();
   for (let i = 1; i <= 6; i++) await page.mouse.move(cx + i * 12, cy + i * 4);
+  // WAIT for the drag to land before reading. Dispatching a pointer event only
+  // queues it for the renderer's main thread; a CDP evaluate is a separate task
+  // and can run AHEAD of that queue. On a software-GL headless machine the
+  // course's frames run ~20s behind these calls, so a one-shot read raced the
+  // pointerdown handler and intermittently saw isDragging === false — a flake in
+  // the reading, not in the game. Poll a signal the gate does not itself assert
+  // (the aim yaw the drag turns) so a real regression still fails loudly.
+  await page.waitForFunction(
+    (y0) => {
+      const a = (window as any).__slice3d.aim;
+      return a.isDragging && a.yaw !== y0;
+    },
+    yaw0,
+    { timeout: 60_000 }
+  );
   const dragging = await page.evaluate(() => {
     const s3d = (window as any).__slice3d;
     return { rates: s3d.perfRefreshRates(), isDragging: s3d.aim.isDragging };
@@ -490,6 +506,9 @@ test('drag-to-aim keeps parked RTTs at live cadence, refreezes on release', asyn
 
   // Release: one fresh capture then hold — armed-idle frames are cheap again.
   await page.mouse.up();
+  // Same race on the way out: the release has to be PROCESSED before the rates
+  // mean anything.
+  await page.waitForFunction(() => !(window as any).__slice3d.aim.isDragging, undefined, { timeout: 60_000 });
   const released = await page.evaluate(() => {
     const s3d = (window as any).__slice3d;
     s3d.scene.render();
