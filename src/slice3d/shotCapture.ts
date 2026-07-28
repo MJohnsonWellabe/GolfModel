@@ -65,11 +65,17 @@ export class ShotCapture {
   private shotBlob: Blob | null = null;
   /** Set for exactly one rotation: the segment about to close is the shot. */
   private captureNextAsShot = false;
-  /** Ceiling on a shot segment. A flight plus rollout plus slow-motion can run
-   *  ~20s on a long par 5, so this is well clear of any real shot; it exists
-   *  only so a swing that never resolves (a stuck state, a bug) cannot record
-   *  forever. */
-  private readonly shotCeilingMs = 45000;
+  /** Ceiling on a shot segment. A flight plus rollout plus slow-motion runs
+   *  well under 20s even on a long par 5, so this clears every real shot; it
+   *  exists only so a swing that never resolves (a stuck state, a bug) cannot
+   *  record forever.
+   *
+   *  Held DOWN deliberately. An open segment keeps its encoded chunks in
+   *  memory until it closes, so the ceiling is also the cap on how much video
+   *  a stuck state can pile up on a phone that is already short of room — and
+   *  the devices this matters on are the ones one frame from losing the
+   *  context. 45s bought nothing a real shot ever used. */
+  private readonly shotCeilingMs = 20000;
 
   constructor(canvas: HTMLCanvasElement, opts: CaptureOpts = {}) {
     this.canvas = canvas;
@@ -106,6 +112,13 @@ export class ShotCapture {
       if (MediaRecorder.isTypeSupported(c.mime)) return c;
     }
     return { mime: '', ext: '' };
+  }
+
+  /** True while a canvas capture is actually rolling — which is real per-frame
+   *  GPU work, so the crash record notes it and the graphics gate can refuse
+   *  to start one. */
+  get isRecording(): boolean {
+    return this.running;
   }
 
   /** Begin (or resume) continuous rolling capture. Safe to call repeatedly. */

@@ -1,8 +1,7 @@
-import '../core/rendering/gltf';
+import { loadModelInto, SceneGoneError } from '../core/rendering/gltf';
 import {
   AssetContainer,
   Color3,
-  LoadAssetContainerAsync,
   MeshBuilder,
   Quaternion,
   Scene,
@@ -56,7 +55,13 @@ function containerFor(scene: Scene, key: string, file: string): Promise<AssetCon
   }
   let p = perScene.get(key);
   if (!p) {
-    p = LoadAssetContainerAsync(file, scene);
+    // A hole that ends mid-load leaves `loadModelInto` to dispose the
+    // container; rejecting here routes that into the same "the pal just never
+    // shows up" path a failed fetch takes, and evicts the cache entry with it.
+    p = loadModelInto(file, scene).then((c) => {
+      if (!c) throw new SceneGoneError();
+      return c;
+    });
     p.catch(() => cache.get(scene)?.delete(key));
     perScene.set(key, p);
   }
@@ -96,6 +101,9 @@ export class Pal3D {
     withTimeout(this.instantiate(scene, def), 15000)
       .catch(() => withTimeout(this.instantiate(scene, def), 15000))
       .then((model) => {
+        // Never build into a scene that has gone: the pal is decorative, and
+        // nodes parented to a disposed scene are pure leak.
+        if (scene.isDisposed) return;
         this.bobPivot = new TransformNode('palBob', scene);
         this.bobPivot.parent = this.root;
         model.parent = this.bobPivot;

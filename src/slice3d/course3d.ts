@@ -7,7 +7,6 @@ import {
   FresnelParameters,
   HemisphericLight,
   InstancedMesh,
-  LoadAssetContainerAsync,
   Mesh,
   MeshBuilder,
   MirrorTexture,
@@ -36,6 +35,7 @@ import {
   TEXTURE_PAD,
   TreeBlob
 } from '../core/rendering/CourseTexture';
+import { loadModelInto } from '../core/rendering/gltf';
 import { CHECKER_ROTATION, mowCheckerboard } from '../core/rendering/mowPattern';
 import { CourseTheme, shade } from '../core/rendering/Theme';
 import { greenBoundaryScale, pointInGreens, pointInPolygon, triangulatePolygonWithDepth } from '../utils/Geometry';
@@ -1444,8 +1444,11 @@ export function buildCourse(
         sail.parent = boat;
         placeholders.push(sail);
       }
-      shipReady = LoadAssetContainerAsync('models/nature/ship.glb', scene)
+      shipReady = loadModelInto('models/nature/ship.glb', scene)
         .then((container) => {
+          // Null means the hole ended mid-load and the container disposed
+          // itself; there is nothing left to add it to.
+          if (!container) return;
           container.addAllToScene();
           const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
           if (!parts.length) return;
@@ -1805,8 +1808,10 @@ export function buildCourse(
     // water hazard, so the rail stops at the bank on each side and leaves the
     // crossing open instead of standing in the stream.
     if (pr.key === 'fence' && propWaterPolys.some((poly) => pointInPolygon(pr.x, pr.y, poly))) continue;
-    void LoadAssetContainerAsync(`models/props/${pr.key}.glb`, scene)
+    void loadModelInto(`models/props/${pr.key}.glb`, scene)
       .then((container) => {
+        // The hole was cut while this prop was loading — already disposed.
+        if (!container) return;
         container.addAllToScene();
         const parts = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
         for (const p of parts) p.bakeCurrentTransformIntoVertices();

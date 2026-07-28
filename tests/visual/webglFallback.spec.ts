@@ -202,3 +202,132 @@ test('the menus still work after a crash mid-swing', async ({ page }) => {
 
   expect(errors, `crashing mid-swing threw:\n${errors.join('\n')}`).toEqual([]);
 });
+
+/**
+ * THE RECORD MUST OUTLIVE ITS OWN ECHO.
+ *
+ * The first crash record ever read off the owner's phone said "Wild Prairie at
+ * tier 3 · 0 props · 0 meshes · 0 textures" — every count zero, no hole number.
+ * That combination is only reachable AFTER the abandon path has dropped the
+ * scene, which means the record was not the crash: it was the aftershock, a
+ * second `webglcontextlost` that fired once there was nothing left to measure
+ * and overwrote the one that had the numbers.
+ *
+ * A diagnostic that deletes its own evidence is worse than none, because it
+ * looks like data. The log now appends.
+ */
+test('a second context loss cannot erase the first one’s numbers', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as never as { __startRound?: unknown }).__startRound, undefined, {
+    timeout: 120_000
+  });
+  await page.evaluate(() => (window as never as { __startRound: (o: unknown) => void }).__startRound({ name: 'Echo' }));
+  await page.waitForFunction(() => !!(window as never as { __slice3d?: unknown }).__slice3d, undefined, { timeout: 120_000 });
+  // Let the hole finish building so the first record has a real scene to read.
+  await page.waitForFunction(
+    () => (window as never as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase !== 'intro',
+    undefined,
+    { timeout: 120_000 }
+  );
+
+  const lose = (): Promise<void> =>
+    page.evaluate(() => {
+      const c = document.getElementById('scene') as HTMLCanvasElement;
+      c.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+    });
+
+  await lose();
+  // The abandon path drops the scene; the aftershock lands after it, with
+  // nothing left to count. That is the write that used to destroy the record.
+  await expect(page.locator('#landing')).toHaveClass(/on/, { timeout: 40_000 });
+  await lose();
+
+  const log = await page.evaluate(() => {
+    const raw = localStorage.getItem('johnsons-golf-device-settings-v1');
+    return JSON.parse(raw || '{}').crashes as Array<Record<string, unknown>>;
+  });
+  expect(log.length, 'both losses recorded').toBeGreaterThanOrEqual(2);
+  // Newest first, so the aftershock is [0] and the crash that matters is still
+  // there behind it — with its scene counts intact.
+  const first = log[log.length - 1];
+  expect(first.lossIndex, 'the first loss is still the first loss').toBe(1);
+  expect(first.sceneNull, 'it was written while the hole was still up').toBe(false);
+  expect(first.meshes as number, 'and it still has the numbers').toBeGreaterThan(0);
+  // Even the aftershock now says something: which loss it was, and that it had
+  // no scene — instead of reporting zeros as though they were measurements.
+  expect(log[0].lossIndex).toBeGreaterThan(1);
+  expect(log[0].sceneNull).toBe(true);
+});
+
+/**
+ * THE RECORDER STANDS DOWN ON A DEVICE THAT HAS ALREADY DIED.
+ *
+ * Clip capture is `canvas.captureStream(30)` into a MediaRecorder for the whole
+ * round: a full-frame copy off the GPU plus a live encode, every frame, that no
+ * quality tier budgets for — the tiers budget the SCENE. The owner's phone lost
+ * its context with the governor already pinned to its cheapest tier and this
+ * running. Every lever spent, and this still outside the budget.
+ *
+ * So a device that has actually lost a context this week does not record. The
+ * setting is untouched — this is the device standing down, not the player
+ * changing their mind — and the button says so rather than going quietly dead.
+ */
+test('a device that has crashed does not run the canvas recorder', async ({ page }) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    const KEY = 'johnsons-golf-device-settings-v1';
+    const cur = JSON.parse(localStorage.getItem(KEY) || '{}');
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({
+        ...cur,
+        clipCapture: true,
+        crashes: [
+          {
+            at: Date.now() - 60_000,
+            course: 'Wild Prairie',
+            hole: 3,
+            tier: 3,
+            floor: 3,
+            reason: 'webgl context lost',
+            meshes: 210,
+            materials: 44,
+            textures: 61,
+            props: 25_803,
+            heapMB: 53,
+            lossIndex: 1,
+            sceneNull: false,
+            building: '',
+            recording: true,
+            engineTextures: 58,
+            canvasW: 453,
+            canvasH: 1006,
+            dpr: 2.6,
+            deviceMemory: 8
+          }
+        ]
+      })
+    );
+  });
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as never as { __startRound?: unknown }).__startRound, undefined, {
+    timeout: 120_000
+  });
+  await page.evaluate(() => (window as never as { __startRound: (o: unknown) => void }).__startRound({ name: 'Rec' }));
+  await page.waitForFunction(() => !!(window as never as { __slice3d?: unknown }).__slice3d, undefined, { timeout: 120_000 });
+
+  // The button says what happened instead of pretending to record.
+  await expect(page.locator('#captureBtn')).toHaveText('🎥 OFF', { timeout: 30_000 });
+  // And tapping it explains, rather than doing nothing.
+  await page.locator('#captureBtn').dispatchEvent('pointerdown');
+  await expect(page.locator('#msg')).toContainText(/paused/i, { timeout: 15_000 });
+
+  // The player's preference is preserved — it comes back when the device does.
+  const kept = await page.evaluate(
+    () => JSON.parse(localStorage.getItem('johnsons-golf-device-settings-v1') || '{}').clipCapture
+  );
+  expect(kept, 'the device stood down; the player did not opt out').toBe(true);
+});

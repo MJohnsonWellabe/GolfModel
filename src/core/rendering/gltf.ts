@@ -41,3 +41,43 @@ import '@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform';
 // Geometry compression applied by the asset pipeline. Registered
 // unconditionally: an uncompressed model simply never asks for it.
 import '@babylonjs/loaders/glTF/2.0/Extensions/EXT_meshopt_compression';
+
+import { AssetContainer, LoadAssetContainerAsync, Scene } from './babylon';
+
+/**
+ * Load a model into a scene that might not be there when it arrives.
+ *
+ * Every model in this game loads asynchronously into a scene that lives exactly
+ * one hole, and a hole can end — or be abandoned — while a load is still in
+ * flight. Babylon disposes a container along with its scene, but only through
+ * an observer the container registers when it is CONSTRUCTED: a container built
+ * after `scene.dispose()` has already run never sees that signal, so its
+ * geometry and textures are created on a dead scene with nothing left to free
+ * them. Adding one to a disposed scene is worse still — `addAllToScene` marks it
+ * as the scene's problem, and the scene is gone.
+ *
+ * So the resolution is guarded in exactly one place. Callers get `null` when the
+ * scene did not survive the wait, and the container disposes itself.
+ */
+export async function loadModelInto(file: string, scene: Scene): Promise<AssetContainer | null> {
+  const container = await LoadAssetContainerAsync(file, scene);
+  if (scene.isDisposed) {
+    container.dispose();
+    return null;
+  }
+  return container;
+}
+
+/**
+ * Thrown by the loaders that cache a promise, where "null" has nowhere to go.
+ *
+ * Callers treat it differently from a failed fetch: a fetch that fails deserves
+ * a retry or a fallback, while a scene that has gone deserves neither — every
+ * fallback would build into the same dead scene.
+ */
+export class SceneGoneError extends Error {
+  constructor() {
+    super('the scene was disposed while the model loaded');
+    this.name = 'SceneGoneError';
+  }
+}

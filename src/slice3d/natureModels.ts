@@ -1,7 +1,6 @@
-import '../core/rendering/gltf';
+import { loadModelInto } from '../core/rendering/gltf';
 import {
   Color3,
-  LoadAssetContainerAsync,
   Matrix,
   Mesh,
   Scene,
@@ -365,7 +364,7 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
       new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`load timed out after ${ms}ms`)), ms))
     ]);
   const loadContainer = (key: string) =>
-    withTimeout(LoadAssetContainerAsync(`models/nature/${KEY_FILE_ALIASES[key] ?? key}.glb`, scene), 15000);
+    withTimeout(loadModelInto(`models/nature/${KEY_FILE_ALIASES[key] ?? key}.glb`, scene), 15000);
   // Weak-connection hardening (playtest: a whole hole rendered bald — every
   // fetch failed inside one bad-network window): three attempts with short
   // backoff instead of one immediate retry, so a multi-second outage recovers
@@ -395,6 +394,9 @@ async function build(scene: Scene, palette: NaturePalette, keys: readonly string
         console.warn(`[nature] failed to load "${key}" — skipping`, err);
         return;
       }
+      // The hole ended while this was in flight: `loadModelInto` has already
+      // disposed the container, and there is no scene left to plant it in.
+      if (!container) return;
       container.addAllToScene();
       const raw = container.meshes.filter((mm): mm is Mesh => mm instanceof Mesh && mm.getTotalVertices() > 0);
       if (!raw.length) return;

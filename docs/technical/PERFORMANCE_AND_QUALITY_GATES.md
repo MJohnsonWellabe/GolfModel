@@ -31,6 +31,8 @@ Maintain tests for:
 - frame-time budget in representative headless runs
 - scene count after Replay and Play Next
 - material, texture, observer, listener, and timer stability
+- engine-level retention across consecutive holes (nothing ratchets up)
+- the crash log appending rather than overwriting
 - page errors during multi-course soak
 - sound preference persistence
 - analytics and persistence remaining off critical input paths
@@ -209,6 +211,58 @@ return:
   diagnostic that breaks the escape path is worse than no diagnostic. It lives
   on `DeviceSettings`, not the profile: `persistProfile()` writes nothing for a
   signed-out player, and a guest's crash is exactly as informative.
+- **A diagnostic must outlive its own echo.** The first record ever read back
+  off a player's device said *"Wild Prairie at tier 3 · 0 props · 0 meshes ·
+  0 textures"* — every count zero, no hole number. That is only reachable after
+  the abandon path has dropped the scene, so it was not the crash: it was the
+  **aftershock**, a second `webglcontextlost` that fired with nothing left to
+  measure and overwrote the record that had the numbers. A single slot made the
+  useless write win. `DeviceSettings.crashes` is now a capped log (newest first,
+  `CRASH_LOG_MAX`), every record carries `lossIndex`, and every field that reads
+  through the live scene is paired with one that does not — the hole from
+  `round` rather than the scene, the `jg-building` breadcrumb (did the loss land
+  *inside* a build?), `sceneNull`, `engineTextures` from the engine's own cache,
+  the drawing-buffer size, and whether the canvas recorder was running. Gated by
+  `tests/visual/webglFallback.spec.ts`, which fires two losses and asserts the
+  first one's numbers survive. **Any future diagnostic that can be written twice
+  must append, never overwrite.**
+- **Optional per-frame work stands down when the device is out of room.** The
+  quality tiers budget the *scene*. Clip capture is not in the scene: it is
+  `canvas.captureStream(30)` feeding a MediaRecorder for the whole round, a
+  full-frame copy off the GPU plus a live encode, every frame. The device that
+  produced the readout above lost its context with the governor already pinned
+  to tier 3 — every lever spent — and the recorder running. So `captureBlocked()`
+  refuses to start it on a device drawing at the floor, or one that has actually
+  lost a context in the last week; the player's setting is left untouched,
+  because this is the device standing down rather than the player opting out,
+  and the button and Settings both say so. **Anything else added outside the
+  tier budget must answer the same question: what turns it off on the device
+  that cannot afford it?**
+- **A model load can outlive the scene that asked for it.** Every model loads
+  asynchronously into a scene that lives exactly one hole, and a hole can end —
+  or be abandoned — mid-load. Babylon disposes a container with its scene, but
+  only through an observer the container registers when it is *constructed*: one
+  built after `scene.dispose()` has run never sees that signal, and its geometry
+  and textures are created on a dead scene with nothing left to free them.
+  `addAllToScene()` on a disposed scene is worse — it marks the assets as that
+  scene's problem, and the scene is gone. `loadModelInto` (core/rendering/gltf)
+  is the single guarded resolution: it disposes and returns `null` when the
+  scene did not survive the wait. Every loader goes through it, and no fallback
+  (procedural golfer body, pal nodes) may build into a scene that has gone.
+- **A restore must dispose, not abandon.** The abandon path drops the scene
+  without disposing because disposing against a dead context throws. On
+  `webglcontextrestored` the context is *back*, so the pre-loss scene is
+  disposed properly rather than dropped — otherwise a restore leaves a whole
+  scene's meshes, materials, textures and RTTs behind on the device least able
+  to afford them, immediately before building a fresh one.
+- **Nothing may accumulate across holes.** `tests/visual/holeRetention.spec.ts`
+  plays Wild Prairie 1 → 2 → 3 and samples the engine's loaded-texture cache
+  (the one count that outlives any single scene) plus scene mesh/material/
+  texture counts at the first address of each. Measured, before and after the
+  guards above: `24 / 25 / 24` engine textures, `233 / 216 / 239` meshes,
+  `59 / 60 / 59` materials. Flat — so on desktop the game does hand back what it
+  takes, and hole 3 is not expensive because holes 1 and 2 left something
+  behind. The gate exists to keep it that way.
 - **The menus must outlive the GPU.** `new Engine()` is a module-top-level
   statement and every menu listener is registered below it, so an unguarded
   throw kills the module and leaves the browser painting `#setup`'s static

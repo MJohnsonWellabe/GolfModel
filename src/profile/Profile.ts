@@ -286,6 +286,37 @@ export interface CrashRecord {
   props: number;
   /** Chrome only; null elsewhere. */
   heapMB: number | null;
+  /**
+   * ---- Fields that do NOT depend on there being a live scene. ----
+   *
+   * The first readout this record ever produced was all zeros, because the
+   * only loss it captured was the AFTERSHOCK — fired after the abandon path
+   * had already dropped the scene — and every count above reads through that
+   * scene. These read from the round, the engine and the device instead, so a
+   * record written with no scene still says something.
+   */
+  /** Which loss this was in the session: 1 is the one that actually matters. */
+  lossIndex: number;
+  /** True when there was no live scene — i.e. this is an aftershock, or the
+   *  loss landed between holes. */
+  sceneNull: boolean;
+  /** The `jg-building` breadcrumb: `courseId:holeIdx` when the loss landed
+   *  INSIDE a scene build, empty when it did not. Answers the one question the
+   *  scene counts cannot. */
+  building: string;
+  /** Clip capture was enabled, and the recorder was actually rolling. A
+   *  continuous canvas capture is real GPU work no quality tier accounts for. */
+  recording: boolean;
+  /** Textures the ENGINE still holds. Unlike `textures` this outlives any one
+   *  scene, so it is the number that shows accumulation across holes. */
+  engineTextures: number;
+  /** Drawing-buffer size in device pixels, and the display's ratio — what the
+   *  render scale actually resolved to on this device. */
+  canvasW: number;
+  canvasH: number;
+  dpr: number;
+  /** navigator.deviceMemory (GB), where the browser reports it. */
+  deviceMemory: number | null;
 }
 
 export interface DeviceSettings {
@@ -326,10 +357,20 @@ export interface DeviceSettings {
    *  rather than on the profile because `persistProfile()` writes nothing for a
    *  signed-out player, and a guest should still be told the shelf changed. */
   storeSeenWeek: number;
-  /** The last WebGL context loss on this device, or undefined if it has never
-   *  had one. See CrashRecord. */
-  lastCrash?: CrashRecord;
+  /**
+   * WebGL context losses on this device, newest first, capped at CRASH_LOG_MAX.
+   *
+   * Deliberately a LOG rather than a single `lastCrash`. A lost context is
+   * routinely followed by a second loss event once the abandon path has dropped
+   * the scene, and with one slot the aftershock — which knows nothing — simply
+   * overwrote the crash that did. The evidence has to outlive its own echo.
+   */
+  crashes: CrashRecord[];
 }
+
+/** How many losses the device keeps. Three covers "it happened again" without
+ *  turning a diagnostic into storage. */
+export const CRASH_LOG_MAX = 3;
 
 /** Parse a stored crash record, rejecting anything malformed. Storage is
  *  attacker-adjacent (any script on the origin can write it) and this is shown
@@ -350,8 +391,37 @@ function readCrash(v: unknown): CrashRecord | undefined {
     materials: num(c.materials),
     textures: num(c.textures),
     props: num(c.props),
-    heapMB: typeof c.heapMB === 'number' && Number.isFinite(c.heapMB) ? c.heapMB : null
+    heapMB: typeof c.heapMB === 'number' && Number.isFinite(c.heapMB) ? c.heapMB : null,
+    // Records written before the log existed carry none of these; zero and
+    // false read correctly for them ("no scene info recorded"), and the
+    // readout leans on `lossIndex === 0` to say so.
+    lossIndex: num(c.lossIndex),
+    sceneNull: !!c.sceneNull,
+    building: typeof c.building === 'string' ? c.building.slice(0, 40) : '',
+    recording: !!c.recording,
+    engineTextures: num(c.engineTextures),
+    canvasW: num(c.canvasW),
+    canvasH: num(c.canvasH),
+    dpr: num(c.dpr),
+    deviceMemory: typeof c.deviceMemory === 'number' && Number.isFinite(c.deviceMemory) ? c.deviceMemory : null
   };
+}
+
+/** Parse the stored crash log. Accepts the single `lastCrash` this replaced, so
+ *  a device that has already recorded a failure keeps it. */
+function readCrashes(list: unknown, legacy: unknown): CrashRecord[] {
+  const out: CrashRecord[] = [];
+  if (Array.isArray(list)) {
+    for (const entry of list) {
+      const rec = readCrash(entry);
+      if (rec) out.push(rec);
+    }
+  }
+  if (!out.length) {
+    const old = readCrash(legacy);
+    if (old) out.push(old);
+  }
+  return out.slice(0, CRASH_LOG_MAX);
 }
 
 export function loadDeviceSettings(storage: KVStorage | null = defaultStorage()): DeviceSettings | null {
@@ -371,7 +441,7 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       swingType: p.swingType === 'trace' ? 'trace' : 'tap',
       graphics: p.graphics === 0 || p.graphics === 1 || p.graphics === 2 || p.graphics === 3 ? p.graphics : 'auto',
       storeSeenWeek: typeof p.storeSeenWeek === 'number' && Number.isFinite(p.storeSeenWeek) ? p.storeSeenWeek : -1,
-      lastCrash: readCrash(p.lastCrash)
+      crashes: readCrashes(p.crashes, (p as { lastCrash?: unknown }).lastCrash)
     };
   } catch {
     return null;

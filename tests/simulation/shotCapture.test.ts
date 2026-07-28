@@ -108,6 +108,25 @@ describe('the clip boundary is the swing, not a timer', () => {
     expect(segmentSeq).toBeGreaterThan(after);
   });
 
+  it('a swing that never resolves cannot hold the recorder open forever', () => {
+    // The ceiling is the cap on how much encoded video an open segment can pile
+    // up in memory, which matters most on exactly the devices that are short of
+    // it. A real shot — flight, rollout, slow-motion — finishes well inside it;
+    // only a stuck state ever reaches it.
+    const { cap } = harness();
+    const ceiling = (cap as unknown as { shotCeilingMs: number }).shotCeilingMs;
+    expect(ceiling, 'well clear of a real shot').toBeGreaterThan(15_000);
+    expect(ceiling, 'but not a minute of buffered video').toBeLessThanOrEqual(20_000);
+
+    cap.start();
+    cap.beginShotClip();
+    const held = segmentSeq;
+    // Rewind the segment clock past the ceiling: the shot never ended.
+    (cap as unknown as { segmentStartMs: number }).segmentStartMs = performance.now() - ceiling - 1;
+    (cap as unknown as { rotate(): void }).rotate();
+    expect(segmentSeq, 'the stuck segment is finally rotated out').toBeGreaterThan(held);
+  });
+
   it('stopping clears the banked shot so a new round starts clean', () => {
     const { cap } = harness();
     cap.start();

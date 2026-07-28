@@ -1,8 +1,7 @@
-import '../core/rendering/gltf';
+import { loadModelInto, SceneGoneError } from '../core/rendering/gltf';
 import {
   AnimationGroup,
   AssetContainer,
-  LoadAssetContainerAsync,
   Scene,
   TransformNode,
   Vector3
@@ -38,7 +37,13 @@ function containerFor(scene: Scene, key: string, file: string): Promise<AssetCon
   }
   let p = perScene.get(key);
   if (!p) {
-    p = LoadAssetContainerAsync(file, scene);
+    // `loadModelInto` disposes the container and resolves null when the hole
+    // ended mid-load; rejecting from here turns that into the same "no body"
+    // path a failed fetch already takes, and evicts the cache entry with it.
+    p = loadModelInto(file, scene).then((c) => {
+      if (!c) throw new SceneGoneError();
+      return c;
+    });
     // Evict a REJECTED load so a retry can actually re-fetch — caching the
     // rejection used to pin the failure for the rest of the hole.
     p.catch(() => cache.get(scene)?.delete(key));

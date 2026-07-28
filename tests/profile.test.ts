@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   clearLocalProfile,
+  CRASH_LOG_MAX,
+  CrashRecord,
   defaultProfile,
+  DeviceSettings,
   KVStorage,
   loadProfile,
   mergeProfiles,
@@ -356,7 +359,7 @@ describe('device settings (persistent audio/motion preferences)', () => {
   it('round-trips through storage for guests (no profile persistence needed)', () => {
     const s = memStorage();
     saveDeviceSettings(
-      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace', graphics: 2, storeSeenWeek: 4 },
+      { sound: 0, ambience: 0, reducedMotion: true, clipCapture: false, firstRoundDone: false, tutorialDone: true, lastCourseId: 'wildwood', swingType: 'trace', graphics: 2, storeSeenWeek: 4, crashes: [] },
       s
     );
     const back = loadDeviceSettings(s);
@@ -372,7 +375,7 @@ describe('device settings (persistent audio/motion preferences)', () => {
       graphics: 2,
       storeSeenWeek: 4,
       // Never crashed on this device, so there is nothing to report.
-      lastCrash: undefined
+      crashes: []
     });
   });
 
@@ -395,37 +398,103 @@ describe('device settings (persistent audio/motion preferences)', () => {
     expect(back.storeSeenWeek).toBe(-1);
   });
 
+  const crashRecord = (over: Partial<CrashRecord> = {}): CrashRecord => ({
+    at: 1_700_000_000_000,
+    course: 'Wild Prairie',
+    hole: 3,
+    tier: 1,
+    floor: 1,
+    reason: '6 frames over 250ms',
+    meshes: 210,
+    materials: 44,
+    textures: 61,
+    props: 25_803,
+    heapMB: 412,
+    lossIndex: 1,
+    sceneNull: false,
+    building: '',
+    recording: false,
+    engineTextures: 58,
+    canvasW: 900,
+    canvasH: 1960,
+    dpr: 2.6,
+    deviceMemory: 8,
+    ...over
+  });
+
   it('keeps a crash record it can trust, and drops one it cannot', () => {
     const s = memStorage();
-    const crash = {
-      at: 1_700_000_000_000,
-      course: 'Wild Prairie',
-      hole: 3,
-      tier: 1,
-      floor: 1,
-      reason: '6 frames over 250ms',
-      meshes: 210,
-      materials: 44,
-      textures: 61,
-      props: 25_803,
-      heapMB: 412
-    };
-    saveDeviceSettings({ ...loadDeviceSettings(s)!, lastCrash: crash } as never, s);
-    expect(loadDeviceSettings(s)!.lastCrash).toEqual(crash);
+    const crash = crashRecord();
+    saveDeviceSettings({ ...loadDeviceSettings(s)!, crashes: [crash] } as never, s);
+    expect(loadDeviceSettings(s)!.crashes).toEqual([crash]);
 
     // Junk from another script on the origin must not reach the readout: a
     // record with no timestamp is not a record.
-    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ lastCrash: { course: 'nonsense' } }));
-    expect(loadDeviceSettings(s)!.lastCrash).toBeUndefined();
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ crashes: [{ course: 'nonsense' }] }));
+    expect(loadDeviceSettings(s)!.crashes).toEqual([]);
 
     // A partial record keeps its timestamp and zeroes what it cannot vouch for,
     // rather than rendering `undefined` into the settings screen.
-    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ lastCrash: { at: 5, props: 'lots' } }));
-    const partial = loadDeviceSettings(s)!.lastCrash!;
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ crashes: [{ at: 5, props: 'lots' }] }));
+    const partial = loadDeviceSettings(s)!.crashes[0];
     expect(partial.at).toBe(5);
     expect(partial.props).toBe(0);
     expect(partial.course).toBe('');
     expect(partial.heapMB).toBeNull();
+    expect(partial.sceneNull).toBe(false);
+    expect(partial.deviceMemory).toBeNull();
+  });
+
+  it('a later loss can never erase the one that mattered', () => {
+    // THE BUG THIS EXISTS FOR. A lost context is routinely followed by a second
+    // loss event once the scene has been dropped — and that aftershock has no
+    // scene to read, so it knows nothing. With a single slot it overwrote the
+    // real crash with zeros, which is exactly what the first readout off the
+    // owner's phone contained.
+    const s = memStorage();
+    const real = crashRecord({ lossIndex: 1 });
+    const aftershock = crashRecord({
+      at: real.at + 9000,
+      lossIndex: 2,
+      sceneNull: true,
+      hole: 3,
+      meshes: 0,
+      materials: 0,
+      textures: 0,
+      props: 0
+    });
+    saveDeviceSettings({ ...loadDeviceSettings(s)!, crashes: [real] } as never, s);
+    const after = loadDeviceSettings(s)!;
+    saveDeviceSettings({ ...after, crashes: [aftershock, ...after.crashes] }, s);
+
+    const log = loadDeviceSettings(s)!.crashes;
+    expect(log).toHaveLength(2);
+    expect(log[0].lossIndex, 'newest first').toBe(2);
+    expect(log[1], 'the real one survives intact').toEqual(real);
+  });
+
+  it('caps the log rather than growing it forever', () => {
+    const s = memStorage();
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ crashes: [] }));
+    for (let i = 1; i <= CRASH_LOG_MAX + 2; i++) {
+      const settings: DeviceSettings = loadDeviceSettings(s)!;
+      saveDeviceSettings(
+        { ...settings, crashes: [crashRecord({ at: 1_700_000_000_000 + i, lossIndex: i }), ...settings.crashes] },
+        s
+      );
+    }
+    const log = loadDeviceSettings(s)!.crashes;
+    expect(log).toHaveLength(CRASH_LOG_MAX);
+    expect(log[0].lossIndex, 'the most recent losses are the ones kept').toBe(CRASH_LOG_MAX + 2);
+  });
+
+  it('migrates a device that already recorded a failure under the old key', () => {
+    // The single `lastCrash` this replaced. A player who has already crashed
+    // must not lose the only evidence their device has produced.
+    const s = memStorage();
+    const legacy = crashRecord({ lossIndex: 0, engineTextures: 0, canvasW: 0, canvasH: 0, dpr: 0, deviceMemory: null });
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ lastCrash: legacy }));
+    expect(loadDeviceSettings(s)!.crashes).toEqual([legacy]);
   });
 
   it('survives a broken JSON blob (falls back to null, not a throw)', () => {

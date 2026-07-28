@@ -61,7 +61,7 @@ import { applyTeeVariants } from '../systems/Layouts';
 import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, onAccountAppeared, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
-import { chargesRemaining, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
+import { chargesRemaining, CRASH_LOG_MAX, CrashRecord, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
 import { activePro, careerOvr, careerStarted, CP, pointCost, setActivePro, setProLook, startPro } from '../data/career';
 // CP belongs to the Pro who earned it — every grant/spend goes through the
@@ -332,8 +332,39 @@ const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
 // after that, taps save the last few seconds. Degrades to a hidden button
 // where the browser can't record.
 const shotCapture = new ShotCapture(canvas);
+/** How long a recorded context loss keeps the recorder off. A device that has
+ *  gone a week without losing its context has earned the feature back. */
+const CRASH_QUIET_DAYS = 7;
+/**
+ * Whether this device has room for the canvas recorder at all.
+ *
+ * Recording is `canvas.captureStream(30)` feeding a MediaRecorder for the whole
+ * round: a full-frame copy off the GPU plus a live encode session, every frame.
+ * No quality tier accounts for it, because the tiers budget the SCENE. The
+ * owner's Pixel 8 lost its context with the governor already pinned to its
+ * cheapest tier and the recorder running — every lever spent, and this still
+ * outside the budget.
+ *
+ * So: on a device drawing at the floor, or one that has actually lost a context
+ * this week, the recorder stands down. It is an optional keepsake feature; the
+ * round is not optional. It comes back on its own once the device climbs off
+ * the floor and a quiet week passes.
+ */
+function captureBlocked(): boolean {
+  if (qualityStatus().floor >= 3) return true;
+  const last = deviceSettings.crashes[0];
+  return !!last && Date.now() - last.at < CRASH_QUIET_DAYS * 86_400_000;
+}
+/** Why the recorder is off, in the player's terms. Never a silent no-op — a
+ *  button that does nothing is indistinguishable from a broken one. */
+const CAPTURE_BLOCKED_MSG =
+  'Clip recording is paused on this device — recording costs graphics memory, and this device has run out of it. It comes back once graphics are steady again.';
 if (captureBtn) {
   captureBtn.addEventListener('pointerdown', () => {
+    if (captureBlocked()) {
+      showMsg(CAPTURE_BLOCKED_MSG, 4200);
+      return;
+    }
     if (!deviceSettings.clipCapture) {
       updateDeviceSettings({ clipCapture: true });
       shotCapture.start();
@@ -3665,10 +3696,15 @@ class HoleScene {
     // "save my last shot" always has the recent seconds ready — but ONLY when
     // the player has opted in (continuous MediaRecorder encode is real
     // per-frame work; see the capture button wiring).
-    if (deviceSettings.clipCapture) shotCapture.start();
+    // …and NOT on a device that has already shown it has no headroom for it
+    // (`captureBlocked`). The setting is left alone: this is the device
+    // standing down, not the player changing their mind, so it resumes by
+    // itself when the device recovers.
+    const capBlocked = captureBlocked();
+    if (deviceSettings.clipCapture && !capBlocked) shotCapture.start();
     if (captureBtn) {
       captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
-      captureBtn.textContent = deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP';
+      captureBtn.textContent = capBlocked ? '🎥 OFF' : deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP';
     }
 
     meter.onComplete = (result) => this.executeShot(result);
@@ -5426,15 +5462,36 @@ function graphicsNote(): string {
  * numbers have to be somewhere a player can read them out — this is that place.
  */
 function crashNote(): string {
-  const c = deviceSettings.lastCrash;
-  if (!c) return '';
+  const log = deviceSettings.crashes;
+  if (!log.length) return '';
+  const c = log[0];
   const days = Math.floor((Date.now() - c.at) / 86_400_000);
   const when = days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${days} days ago`;
   const hole = c.hole > 0 ? ` h${c.hole}` : '';
   const heap = c.heapMB === null ? '' : ` · ${c.heapMB}MB heap`;
+  // Everything that says WHAT WAS HAPPENING, which the counts alone could not:
+  // whether the loss landed inside a scene build, whether there was a scene at
+  // all, and whether the canvas recorder was running. Each is omitted when it
+  // has nothing to say, so the common case stays one readable line.
+  const context = [
+    c.building ? 'mid-build' : '',
+    c.sceneNull ? 'no live scene' : '',
+    c.recording ? 'recording' : '',
+    c.lossIndex > 1 ? `loss #${c.lossIndex} of the session` : ''
+  ]
+    .filter(Boolean)
+    .join(', ');
+  const buffer = c.canvasW > 0 ? ` · ${c.canvasW}×${c.canvasH} @${c.dpr.toFixed(1)}x` : '';
+  const mem = c.deviceMemory === null ? '' : ` · ${c.deviceMemory}GB device`;
+  const floor = c.floor !== c.tier ? ` (session floor ${c.floor})` : '';
+  const why = c.reason ? ` · ${escapeHtml(c.reason)}` : '';
+  const earlier = log.length > 1 ? ` · +${log.length - 1} earlier` : '';
   return (
-    `Last graphics failure ${when}: ${escapeHtml(c.course)}${hole} at tier ${c.tier}` +
-    ` · ${c.props.toLocaleString()} props · ${c.meshes} meshes · ${c.textures} textures${heap}`
+    `Last graphics failure ${when}: ${escapeHtml(c.course)}${hole} at tier ${c.tier}${floor}${why}` +
+    `<br />${c.props.toLocaleString()} props · ${c.meshes} meshes · ${c.textures} textures` +
+    ` · ${c.engineTextures} engine textures${heap}${buffer}${mem}` +
+    (context ? `<br />${context}` : '') +
+    earlier
   );
 }
 
@@ -5558,7 +5615,11 @@ function renderProfile(tab?: ProfileTab): void {
           : '') +
         (shotCapture.supported
           ? `<label class="setRow"><span>Record shot clips</span>` +
-            `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>`
+            `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''}` +
+            `${captureBlocked() ? ' disabled' : ''} /></label>` +
+            // The checkbox keeps the player's answer; this says why the device
+            // is overruling it, so a dead toggle never reads as a bug.
+            (captureBlocked() ? `<div class="setNote">${CAPTURE_BLOCKED_MSG}</div>` : '')
           : '') +
         // Graphics: Auto measures this device and picks a budget for it; the
         // rest pin one. Whatever is showing, the readout underneath says what
@@ -5636,9 +5697,9 @@ function renderProfile(tab?: ProfileTab): void {
     updateDeviceSettings({ clipCapture: on });
     // Take effect immediately: start the rolling recorder if a hole is live,
     // stop + release the stream outright when switched off.
-    if (on && current) shotCapture.start();
+    if (on && current && !captureBlocked()) shotCapture.start();
     else if (!on) shotCapture.stop();
-    if (captureBtn) captureBtn.textContent = on ? '🎥 REC' : '🎥 CLIP';
+    if (captureBtn) captureBtn.textContent = captureBlocked() ? '🎥 OFF' : on ? '🎥 REC' : '🎥 CLIP';
   });
   // Destructive: fire on a deliberate tap (down+up on the button), not on
   // finger-down — a scroll flick that starts on this button used to open the
@@ -8121,9 +8182,19 @@ function abandonAfterContextLoss(): void {
  * JS property or an array length that Babylon keeps on the CPU side. The whole
  * thing is wrapped anyway — a diagnostic that breaks the escape path would be
  * worse than no diagnostic at all.
+ *
+ * APPENDS, never overwrites. The first readout this shipped with came back all
+ * zeros: a lost context is routinely followed by a SECOND loss event once the
+ * abandon path has dropped the scene, and with one slot that aftershock — which
+ * has no scene to read and therefore knows nothing — replaced the record that
+ * did. Everything below that reads through `current` is now paired with a
+ * scene-independent field, so even an aftershock says which loss it was and
+ * what the device looked like.
  */
+let crashSeq = 0;
 function recordCrash(): void {
   try {
+    crashSeq += 1;
     const scene = current?.scene ?? null;
     const q = qualityStatus();
     const mem = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
@@ -8140,21 +8211,48 @@ function recordCrash(): void {
         props += (m as unknown as { thinInstanceCount?: number }).thinInstanceCount ?? 0;
       }
     }
-    updateDeviceSettings({
-      lastCrash: {
-        at: Date.now(),
-        course: round.course.name,
-        hole: current ? current.hole.number : 0,
-        tier: q.tier,
-        floor: q.floor,
-        reason: q.reason,
-        meshes: scene ? scene.meshes.length : 0,
-        materials: scene ? scene.materials.length : 0,
-        textures: scene ? scene.textures.length : 0,
-        props,
-        heapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null
-      }
-    });
+    // The engine outlives any one scene, so its texture cache is the only count
+    // here that still means something once `current` is gone.
+    let engineTextures = 0;
+    try {
+      engineTextures = engine3d ? engine3d.getLoadedTexturesCache().length : 0;
+    } catch {
+      /* the cache is a plain array, but the engine is mid-death — never assume */
+    }
+    let building = '';
+    try {
+      building = sessionStorage.getItem('jg-building') ?? '';
+    } catch {
+      /* storage unavailable — the breadcrumb is best-effort, as where it is set */
+    }
+    const record: CrashRecord = {
+      at: Date.now(),
+      course: round.course.name,
+      // Prefer the live scene, fall back to the ROUND. The round is plain state
+      // that survives the scene being dropped, so an aftershock still names the
+      // hole instead of reporting 0.
+      hole: current ? current.hole.number : (round.course.holes[round.holeIdx]?.number ?? 0),
+      tier: q.tier,
+      floor: q.floor,
+      reason: q.reason,
+      meshes: scene ? scene.meshes.length : 0,
+      materials: scene ? scene.materials.length : 0,
+      textures: scene ? scene.textures.length : 0,
+      props,
+      heapMB: mem ? Math.round(mem.usedJSHeapSize / 1048576) : null,
+      lossIndex: crashSeq,
+      sceneNull: !scene,
+      building,
+      recording: deviceSettings.clipCapture && shotCapture.isRecording,
+      engineTextures,
+      // The DRAWING BUFFER, not the CSS box: this is what the render scale
+      // actually resolved to, which is the number the tier is supposed to move.
+      canvasW: canvas.width,
+      canvasH: canvas.height,
+      dpr: window.devicePixelRatio || 1,
+      deviceMemory: (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? null
+    };
+    updateDeviceSettings({ crashes: [record, ...deviceSettings.crashes].slice(0, CRASH_LOG_MAX) });
   } catch {
     /* diagnostics are never worth breaking the way out */
   }
@@ -8217,7 +8315,22 @@ canvas.addEventListener('webglcontextrestored', () => {
   // the rebuilt course rather than from a snapshot that could disagree with it.
   const strokes = current.state.strokes;
   const ball = strokes > 0 ? { x: current.state.ballPos.x, y: current.state.ballPos.y } : null;
-  current = null; // its GPU resources are already gone; disposing would throw
+  // DISPOSE, don't abandon. The reason the abandon path (below, where no
+  // restore ever comes) drops the scene without disposing is that disposing
+  // against a dead context throws — but here the context is BACK, so the whole
+  // scene's meshes, materials, textures and RTTs can actually be handed in.
+  // Dropping the reference instead left every one of them behind, on the
+  // device least able to afford it, immediately before building a fresh scene.
+  const dead = current;
+  current = null;
+  try {
+    dead.teardownChrome();
+    dead.scene.dispose();
+  } catch (err) {
+    // A restore that arrives half-broken must not take the rebuild with it —
+    // freeing what we can is a best effort, and the rebuild is the point.
+    console.warn('[context] could not dispose the pre-loss scene', err);
+  }
   buildWithLoading(() => {
     playHole();
     if (ball) current?.resumeAt(ball.x, ball.y, strokes);
@@ -8428,7 +8541,8 @@ const deviceSettings: DeviceSettings = loadDeviceSettings() ?? {
   graphics: 'auto',
   // -1, not 0: week 0 is a real week, and a device that has never opened the
   // store should be told the shelf has something on it.
-  storeSeenWeek: -1
+  storeSeenWeek: -1,
+  crashes: []
 };
 
 /** Whether THIS device swings by tracing the rabbit. The `dragSwing` flag is

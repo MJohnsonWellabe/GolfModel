@@ -13,6 +13,7 @@ import {
 } from '../core/rendering/babylon';
 import { GolferLook } from '../core/types';
 import { NEUTRAL_PERSONALITY, PersonalityParams } from '../data/characterPersonality';
+import { SceneGoneError } from '../core/rendering/gltf';
 import { CharacterInstance, instantiateCharacter } from './characterModels';
 import { w2b } from './course3d';
 
@@ -458,6 +459,11 @@ export class Golfer3D {
           this.applyModelPose(0);
         })
         .catch((err) => {
+          // The hole ended while the body was loading. There is no golfer to
+          // show and no scene to show one in — building the procedural
+          // fallback here would create meshes on a disposed scene, which is
+          // the very leak the guarded loader exists to prevent.
+          if (err instanceof SceneGoneError || scene.isDisposed) return;
           console.error(`[Golfer3D] character "${character}" failed to load, using procedural body:`, err);
           this.modelBacked = false;
           this.buildProceduralBody(scene, shadows, look ?? DEFAULT_LOOK);
