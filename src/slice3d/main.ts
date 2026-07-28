@@ -5161,10 +5161,26 @@ function showSummary(): void {
         });
     }
   }
-  // Account-gated: signed-out rewards are shown but not kept — nudge to sign in.
+  // ---- THE CARD A PLAYER WITH NO ACCOUNT SEES ----
+  //
+  // Owner: "Get rid of some of the other post round stuff for these players. If
+  // you don't have an account it doesn't matter. We need to make it a clear cta
+  // to start an account and spend the coins in the store on cool new things."
+  //
+  // So for a guest the card keeps what is TRUE for them — the score, and the
+  // coins they just earned — and drops everything that only pays off with an
+  // account behind it: the weekly entry, the challenge, the records they cannot
+  // keep, the ghost race, the next-objective nudge. What replaces it is the two
+  // things worth doing next.
+  const guest = guestWithNoAccount();
   const signInNudge =
-    !signedIn && authConfigured()
-      ? `<div class="signInNudge">Sign in to keep these coins & save your progress.</div>`
+    guest
+      ? `<div class="guestCta">` +
+        `<div class="gcHead">Your coins are on this device only</div>` +
+        `<div class="gcSub">An account keeps your coins, your Pro and your records — and gets them on every device you play.</div>` +
+        `<div class="gcRow"><button id="guestSignUpBtn" class="gcPrimary">Create an account to save progress</button>` +
+        `<button id="guestStoreBtn" class="gcSecondary">🪙 ${profile.coins} — spend it in the store</button></div>` +
+        `</div>`
       : '';
   const purseLine = aiTourPurse ? `<div class="rwLine ach">💰 Tournament purse: +${aiTourPurse} 🪙</div>` : '';
   // Mid-tournament the primary button advances the tournament, not the menu.
@@ -5198,9 +5214,12 @@ function showSummary(): void {
     `<div class="scoreHead"><span class="big">${totals[0]}</span>` +
     `<span class="toPar">${parLabel(totals[0])}</span>` +
     `<span class="pb${isNewBest ? ' newBest' : ''}">${pbLabel}</span></div>` +
-    starLine +
+    (guest ? '' : starLine) +
     holeSurveyHtml() +
-    recLines +
+    // Records are kept on this device only until there is an account to keep
+    // them in, so a guest is told about coins (spendable now) rather than
+    // records (a promise the build cannot make yet).
+    (guest ? '' : recLines) +
     // WHAT YOU EARNED — one block. These were five separate stacked lines
     // (rewards, streak, protection, purse, and the sign-in nudge under them),
     // each styled to be noticed, all saying "you got something".
@@ -5213,11 +5232,12 @@ function showSummary(): void {
     // WHAT IT MEANT — the competitive outcomes. A weekly entry, a challenge
     // settled and a tournament standing are the reason the round was played,
     // so they stay on the card; everything hole-by-hole goes behind the fold.
-    weeklyLine +
-    challengeLine +
+    // All of it is account-shaped, so none of it is on a guest's card.
+    (guest ? '' : weeklyLine) +
+    (guest ? '' : challengeLine) +
     aiTourBlock +
     tourSeasonBlock +
-    `<div class="objLine">🎯 ${escapeHtml(objective)}</div>` +
+    (guest ? '' : `<div class="objLine">🎯 ${escapeHtml(objective)}</div>`) +
     // THE TWO PRIMARY ACTIONS, directly under the objective — the card's whole
     // job is to start the next round, and on a phone anything below a details
     // expander and a five-button row is a scroll away.
@@ -5233,7 +5253,7 @@ function showSummary(): void {
     // the tour (no ghost/challenge: its rounds aren't recorded).
     (midTour
       ? `<div class="btnRow"><button id="quitTourBtn" class="ghostBtn">Quit tournament</button></div>`
-      : tourSeasonBlock
+      : tourSeasonBlock || guest
         ? ''
         : `<div class="btnRow">` +
           (ghostRematchAvailable() ? `<button id="ghostBtn" class="ghostBtn">👻 Race this</button>` : '') +
@@ -5271,6 +5291,17 @@ function showSummary(): void {
     requestAnimationFrame(step);
   }
   document.getElementById('profBtn')!.addEventListener('pointerdown', () => renderProfile());
+  // The guest card's two actions: make an account, or go spend what you just
+  // won. Both leave the results card up behind them, so a player who backs out
+  // of either is still where they were.
+  document.getElementById('guestSignUpBtn')?.addEventListener('pointerdown', () => {
+    analytics.track('account_cta_tapped', { from: 'summary' });
+    renderProfile('settings');
+  });
+  document.getElementById('guestStoreBtn')?.addEventListener('pointerdown', () => {
+    analytics.track('store_opened', { from: 'summary' });
+    renderStore();
+  });
   // Replay: the SAME setup (course/mode/character/pal/perk all ride sel +
   // profile), back to the first tee with one tap. Play Next: the rotation's
   // next course, same mode/loadout, no course-select menu.
@@ -9759,6 +9790,7 @@ function showLanding(): void {
   closeDest();
   refreshLandingCards(); // owns the "Learn to play" entry (incl. its new-player hero)
   updateLandingProfileButton();
+  applyAccountCta(); // signed out → the account is the hero, Quick Start steps down
 }
 
 /** Render the landing's profile-driven surfaces (daily/weekly cards, Season
@@ -9833,6 +9865,9 @@ function refreshProgressSurfaces(): void {
   // locker has to reach it NOW, not on the next full landing rebuild (owner:
   // the button kept saying 71 after the Pro grew to 75).
   updateSetupEntry();
+  // Signing in mid-session has to take the CTA away, and updateDestinations
+  // above repaints the tile the CTA hides.
+  applyAccountCta();
 }
 
 // ---------------------------------------------------------------------------
@@ -10020,7 +10055,19 @@ function updateDestinations(newPlayer: boolean): void {
   );
 
   // MORE — the account, and the tools when they apply.
-  set('more', true, signedIn ? profile.name || 'Your account' : 'Sign in to sync');
+  // Signed out this door is the account CTA as well as Settings, and it says
+  // so — the landing hero above it opens the same screen (see applyAccountCta).
+  // Named here rather than in applyAccountCta because this is the function that
+  // owns the tiles; two writers for one label is how a label starts flickering.
+  const moreTile = tile('more');
+  const moreName = moreTile?.querySelector('.dtName');
+  if (moreName) moreName.textContent = guestWithNoAccount() ? 'Account & Settings' : 'Profile';
+  set(
+    'more',
+    true,
+    signedIn ? profile.name || 'Your account' : 'Save your progress',
+    guestWithNoAccount()
+  );
 
   // THE TOOLS. Two different gates, deliberately: Admin follows the signed-in
   // ACCOUNT (so an admin sees it in production, which is where they need it),
@@ -10943,7 +10990,8 @@ function updateLearnEntry(newPlayer: boolean): void {
   if (!learn || !play) return;
   if (!flag('tutorial')) {
     learn.style.display = 'none';
-    play.classList.remove('demoted');
+    learnIsHero = false;
+    syncPlayDemotion();
     return;
   }
   learn.style.display = 'block';
@@ -10951,7 +10999,10 @@ function updateLearnEntry(newPlayer: boolean): void {
   // hero-sized invitation to take it again — it stays, quietly, below Play.
   const hero = (newPlayer || !signedIn) && !deviceSettings.tutorialDone;
   learn.classList.toggle('heroLearn', hero);
-  play.classList.toggle('demoted', hero);
+  // Quick Start's demotion has two authors now (this and the account CTA), so
+  // neither writes the class directly — see `syncPlayDemotion`.
+  learnIsHero = hero;
+  syncPlayDemotion();
   learn.textContent = hero ? '🎓 New here? Learn to play →' : '🎓 Learn to play';
   // Learn sits ABOVE the tee-off actions for everyone now (owner call): the
   // markup order is the order, and only the STYLING changes with experience.
@@ -11320,6 +11371,49 @@ function updateLandingProfileButton(name?: string): void {
   }
 }
 
+/**
+ * TRUE for a player with nowhere to save: no account, on a build where accounts
+ * exist at all. Everything account-shaped keys off this one predicate — the
+ * landing hero, the post-round card, and the copy in both.
+ */
+function guestWithNoAccount(): boolean {
+  return !signedIn && authConfigured();
+}
+
+/**
+ * SIGNED OUT, the account is the headline (owner: "swap the quick start button
+ * and the profile button… make the profile button say 'create an account to
+ * save progress'", and "make the cta more prevalent").
+ *
+ * The swap is done by WEIGHT, not by moving nodes: the account CTA takes the
+ * hero styling and Quick Start drops to the quiet outline treatment
+ * Learn-to-play already uses. The landing used to relocate nodes per repaint
+ * and the file still carries the note about why that was a mistake
+ * (`updateLearnEntry`) — so the markup order is fixed and only the classes
+ * move. The Profile tile keeps its place in the grid and only changes what it
+ * says (`updateDestinations`): it is also the only door to Settings, which a
+ * player without an account needs exactly as much as one with.
+ *
+ * Idempotent, and called from every path that repaints the landing, because the
+ * one thing worse than a missing CTA is one that survives signing in.
+ */
+function applyAccountCta(): void {
+  const cta = document.getElementById('landingAccountCta');
+  if (!cta) return;
+  cta.style.display = guestWithNoAccount() ? 'flex' : 'none';
+  syncPlayDemotion();
+}
+
+/** True while the Learn-to-play button is the hero (a newcomer who has not taken
+ *  the lesson). Kept as state because TWO things can demote Quick Start — the
+ *  lesson and the account CTA — and whichever ran last must not undo the other. */
+let learnIsHero = false;
+
+/** The one writer of Quick Start's `demoted` class. */
+function syncPlayDemotion(): void {
+  document.getElementById('landingPlay')?.classList.toggle('demoted', learnIsHero || guestWithNoAccount());
+}
+
 /** Refresh the landing's account-facing chrome. Historically this rendered a
  * dedicated #acctMenu sign-in block; that element no longer exists in the
  * landing DOM (sign-in lives in Profile's account row, reached via the
@@ -11413,6 +11507,12 @@ document.getElementById('landingStore')!.addEventListener('click', () => renderS
 // row (Settings); signed in, the Player tab now carries the account + Log
 // out at its top (owner pass 8).
 document.getElementById('landingProfile')!.addEventListener('click', () => renderProfile(signedIn ? 'player' : 'settings'));
+// The signed-out hero goes STRAIGHT to the screen with the sign-in button on
+// it. A call to action that lands you in a menu is not a call to action.
+document.getElementById('landingAccountCta')!.addEventListener('click', () => {
+  analytics.track('account_cta_tapped', { from: 'landing' });
+  renderProfile('settings');
+});
 document.getElementById('landingSettings')!.addEventListener('click', () => renderProfile('settings'));
 // Straight to the tab, not to the top of a scroll.
 document.getElementById('landingAdmin')!.addEventListener('click', () => renderProfile('admin'));

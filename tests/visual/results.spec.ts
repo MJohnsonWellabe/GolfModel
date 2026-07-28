@@ -135,3 +135,45 @@ test('brand-new device sees core golf only (progressive disclosure)', async ({ p
   await expect(page.locator('#destBoards')).toBeVisible();
   await expect(page.locator('#destMore')).toBeVisible();
 });
+
+/**
+ * THE RESULTS CARD FOR A PLAYER WITH NO ACCOUNT.
+ *
+ * Owner: *"Get rid of some of the other post round stuff for these players. If
+ * you don't have an account it doesn't matter. We need to make it a clear cta
+ * to start an account and spend the coins in the store on cool new things."*
+ *
+ * A guest's coins live on one device and their records die with it, so the card
+ * keeps what is true for them — the score, and what they just earned — and
+ * drops the lines that only pay off with an account behind them. `?env=prod` is
+ * the suite's way to get a build where accounts exist at all (development ships
+ * an empty Firebase key, so the whole account layer is dormant there).
+ */
+test('signed out, the results card sells the account and the store', async ({ page }) => {
+  test.setTimeout(420_000);
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto('/?env=prod');
+  await page.waitForFunction(() => !!(window as any).__startRound);
+  await bootRound(page, 'sablebay');
+  await page.evaluate(() => (window as any).__finishRound([4, 3, 5]));
+  await expect(page.locator('#summary')).toBeVisible();
+
+  // The two things worth doing next, both one tap.
+  await expect(page.locator('#guestSignUpBtn')).toBeVisible();
+  await expect(page.locator('#guestSignUpBtn')).toContainText(/create an account/i);
+  const store = page.locator('#guestStoreBtn');
+  await expect(store).toBeVisible();
+  await expect(store, 'the store button names the coins it would spend').toContainText(/🪙/);
+
+  // …and the account-shaped noise is gone. The objective line and the
+  // challenge/ghost row are progress a guest cannot keep, so they do not
+  // compete with the CTA.
+  await expect(page.locator('#summary .objLine')).toHaveCount(0);
+  await expect(page.locator('#shareChBtn')).toHaveCount(0);
+  await expect(page.locator('#ghostBtn')).toHaveCount(0);
+
+  // The score is still the headline, and the CTA is above the fold with it.
+  await expect(page.locator('#summary .scoreHead .big')).toHaveText('12');
+  const cta = (await page.locator('#guestSignUpBtn').boundingBox())!;
+  expect(cta.y + cta.height, `the CTA ends at ${Math.round(cta.y + cta.height)}px`).toBeLessThanOrEqual(800);
+});

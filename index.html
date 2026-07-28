@@ -3473,6 +3473,59 @@
         font-size: 12px;
         color: #a9c4ae;
       }
+      /* THE GUEST'S RESULTS CARD. A player with no account has just earned
+         coins that live on one device and records that will not survive a lost
+         phone, so their card says the two useful things instead of the six that
+         need an account behind them: make one, or go spend what you just won.
+         Deliberately louder than .signInNudge (which it replaces on this card)
+         — that was a footnote under five other lines saying "you got
+         something", and it read as one more of them. */
+      .guestCta {
+        margin: 12px 0 10px;
+        padding: 14px;
+        border-radius: 16px;
+        background: linear-gradient(180deg, rgba(111, 192, 255, 0.18), rgba(32, 114, 200, 0.14));
+        border: 1px solid rgba(111, 192, 255, 0.45);
+      }
+      .guestCta .gcHead {
+        font-size: 16px;
+        font-weight: 900;
+        color: #dcefff;
+        text-align: center;
+      }
+      .guestCta .gcSub {
+        margin-top: 4px;
+        font-size: 12.5px;
+        font-weight: 600;
+        line-height: 1.35;
+        color: rgba(220, 239, 255, 0.82);
+        text-align: center;
+      }
+      .guestCta .gcRow {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 11px;
+      }
+      .guestCta .gcPrimary,
+      .guestCta .gcSecondary {
+        width: 100%;
+        border-radius: 12px;
+        padding: 13px 12px;
+        font-size: 15px;
+        font-weight: 900;
+        cursor: pointer;
+        border: none;
+      }
+      .guestCta .gcPrimary {
+        background: linear-gradient(180deg, #6fc0ff, #2072c8);
+        color: #04203c;
+      }
+      .guestCta .gcSecondary {
+        background: rgba(255, 213, 79, 0.16);
+        border: 1px solid rgba(255, 213, 79, 0.5);
+        color: #ffe4a3;
+      }
       .signInNudge {
         margin: 8px 0;
         padding: 9px 12px;
@@ -4336,6 +4389,23 @@
         font-size: clamp(19px, 3.6vw, 26px);
         box-shadow: none;
       }
+      /* The signed-out hero. Same shape as Quick Start so the swap reads as a
+         swap rather than a new kind of thing, in the blue of the account rather
+         than the gold of "go" — the two are never competing for the same tap.
+         The copy is long by design: it says what you get, not just what to do. */
+      .landingPlay.accountCta {
+        background: linear-gradient(180deg, #6fc0ff, #2072c8);
+        color: #04203c;
+        font-size: clamp(19px, 4vw, 27px);
+        letter-spacing: -0.2px;
+        line-height: 1.15;
+        padding: 14px 18px;
+        text-align: center;
+      }
+      .landingPlay.accountCta .lpSub {
+        opacity: 0.85;
+        font-size: 12.5px;
+      }
       /* Onboarding coach card (tutorial.ts). */
       .tutCard {
         max-width: 440px;
@@ -4536,6 +4606,17 @@
           <div id="resumeCard"></div>
           <div id="challengeBanner"></div>
           <button id="landingLearn" style="display:none">🎓 New? Learn to play</button>
+          <!-- SIGNED OUT: the account takes the hero slot and Quick Start steps
+               down into the quiet one (owner: "swap the quick start button and
+               the profile button"). Nothing MOVES — both buttons keep their
+               place in the markup and only their weight changes, because the
+               old landing did move nodes per repaint and it made the layout
+               impossible to reason about (see updateLearnEntry). Hidden
+               outright once there is an account to save to. -->
+          <button id="landingAccountCta" class="landingPlay accountCta" style="display:none">
+            <span class="lpMain">Create an account to save progress</span>
+            <span class="lpSub">Keep your coins, your Pro and your records — on every device</span>
+          </button>
           <button id="landingPlay" class="landingPlay">Quick Start</button>
           <button id="landingChoose" class="landingChoose">⛳ Choose your course</button>
           <div class="landingDest">

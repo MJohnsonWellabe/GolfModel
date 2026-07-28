@@ -220,3 +220,63 @@ test('no tile subtitle, however long, can scroll the landing sideways', async ({
     expect(tile!.width, 'the tile outgrew the viewport').toBeLessThanOrEqual(PHONE.width);
   }
 });
+
+/**
+ * THE PLAYER WITH NOWHERE TO SAVE.
+ *
+ * Owner: *"For anyone who hasn't created an account, on the main menu swap the
+ * quick start button and the profile button and make the profile button say
+ * 'create an account to save progress'… make the CTA more prevalent."*
+ *
+ * A guest's coins, Pro and records live on one device and die with it, so the
+ * account is the most valuable thing on the screen — and it used to be a
+ * `.destLink` behind a door called "Profile". The swap is by WEIGHT, not by
+ * moving nodes (the landing has been burned by per-repaint DOM moves before —
+ * see `updateLearnEntry`), so what this measures is which button is bigger.
+ */
+test('signed out, the account CTA outranks Quick Start', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  // `?env=prod` is the suite's existing way to get a build where accounts EXIST
+  // (profile.spec.ts uses it for the same reason). Development ships an empty
+  // Firebase key, so the whole account layer — this CTA included — is correctly
+  // dormant there, and a test against the dev build would measure nothing.
+  await landing(page, '?env=prod');
+
+  const cta = page.locator('#landingAccountCta');
+  const play = page.locator('#landingPlay');
+  await expect(cta, 'a guest is offered an account up front').toBeVisible();
+  await expect(cta).toContainText(/create an account/i);
+
+  const ctaBox = (await cta.boundingBox())!;
+  const playBox = (await play.boundingBox())!;
+  // Above it, and taller than it — "more prevalent" measured rather than
+  // asserted. Quick Start is still there and still one tap; it is simply no
+  // longer the loudest thing on a screen that cannot save anything.
+  expect(ctaBox.y, 'the CTA comes first').toBeLessThan(playBox.y);
+  expect(ctaBox.height, `CTA ${ctaBox.height}px vs Quick Start ${playBox.height}px`).toBeGreaterThan(playBox.height);
+
+  // …and the WHOLE guest layout still obeys rule 5. Adding a hero is exactly
+  // how a landing grows past the fold, and a guest is the player least willing
+  // to hunt for the button that starts the game.
+  for (const id of ['landingAccountCta', 'landingPlay', 'landingChoose', 'destTour', 'destBoards', 'destLocker', 'destMore']) {
+    const box = (await page.locator(`#${id}`).boundingBox())!;
+    expect(box.y + box.height, `${id} ends at ${Math.round(box.y + box.height)}px`).toBeLessThanOrEqual(PHONE.height);
+  }
+
+  // The door that also holds Settings stays in the grid — a guest needs sound,
+  // graphics and the crash readout exactly as much as anyone — but it now says
+  // what it is really for.
+  const more = page.locator('#destMore');
+  await expect(more).toBeVisible();
+  await expect(more).toContainText(/account/i);
+  await expect(more).toContainText(/save your progress/i);
+});
+
+test('the CTA lands on the screen with the sign-in button, in one tap', async ({ page }) => {
+  await page.setViewportSize(PHONE);
+  await landing(page, '?env=prod');
+  await page.locator('#landingAccountCta').click();
+  // Profile → Settings, where the account row lives. A call to action that
+  // drops you in a menu is not a call to action.
+  await expect(page.locator('#linkGoogle')).toBeVisible({ timeout: 15_000 });
+});
