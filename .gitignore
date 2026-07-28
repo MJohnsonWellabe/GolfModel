@@ -46,3 +46,17 @@ asset-packs/stylized_red_rocks/textures/
 _*_tmp.*
 **/_*_tmp.test.ts
 *.scratch.mjs
+
+# Playwright capture output (tests/visual/__shots__).
+#
+# WRITE-ONLY, all 93 files of it: every reference in the repo is a
+# `page.screenshot({ path })` or a `writeFileSync` — no spec reads one back, and
+# there is no `toMatchSnapshot`/`toHaveScreenshot` anywhere, so none of it is a
+# pass/fail gate. They are there to be LOOKED at (course art passes, the club
+# lab, viewport sweeps) and the *-baseline.json files are diagnostic dumps of
+# whatever machine last ran.
+#
+# Tracking them meant every suite run dirtied the tree with 43MB of rebaked
+# pixels, and committing that recorded one container's timings as if they were
+# the reference. Regenerate on demand with `npx playwright test`.
+tests/visual/__shots__/
