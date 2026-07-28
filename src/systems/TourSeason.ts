@@ -156,6 +156,10 @@ export interface TourStandingRow {
   /** Event standings: cumulative strokes/toPar. Season standings: points. */
   total: number;
   toPar: number;
+  /** DISPLAY ONLY: a shared-season partner who has not played this event yet.
+   *  Carries no score, holds no rank, and must never reach the points math —
+   *  see `eventBoardRows`. */
+  dnp?: boolean;
 }
 
 export function newSeason(seed: number, seasonNo = 1): TourSeasonState {
@@ -696,6 +700,43 @@ export function eventStandings(ev: TourActiveEvent, rivals: readonly TourRival[]
     }))
   ];
   return rows.sort((a, b) => a.toPar - b.toPar || a.total - b.total || Number(b.isPlayer) - Number(a.isPlayer));
+}
+
+/**
+ * An event leaderboard AS SHOWN: the scored rows, plus every shared-season
+ * partner — with their score for this event if they have posted it, and as a
+ * DNP row at the foot if they have not.
+ *
+ * Owner: "You can't see your rival in the leaderboard of a tourney. You should
+ * always see them. If they played with their score, if not then with a DNP."
+ * They were missing entirely: `eventStandings` builds the live board from the
+ * player and the AI field alone, so the one opponent who is a real person never
+ * appeared on the board they most wanted to check.
+ *
+ * DISPLAY ONLY, and deliberately not folded into `eventStandings` or
+ * `eventRowsFor`. Those two decide points, playoff ties and the season
+ * countback; a partner who has not played must not occupy a rank or shift
+ * anyone's haul. Absent partners are therefore appended AFTER the sort, never
+ * mixed into it — a DNP is not a last place, it is a blank.
+ */
+export function eventBoardRows(
+  rows: readonly TourStandingRow[],
+  s: TourSeasonState,
+  eventIdx: number
+): TourStandingRow[] {
+  const partners = s.coop?.partners ?? [];
+  if (partners.length === 0) return [...rows];
+  const seen = new Set(rows.map((r) => r.id));
+  const scored = [...rows];
+  const absent: TourStandingRow[] = [];
+  for (const p of partners) {
+    if (seen.has(p.playerId)) continue; // already on the board (eventRowsFor)
+    const r = p.results[eventIdx];
+    if (r) scored.push({ id: p.playerId, name: p.name, isPlayer: false, total: r.total, toPar: r.toPar });
+    else absent.push({ id: p.playerId, name: p.name, isPlayer: false, total: 0, toPar: 0, dnp: true });
+  }
+  scored.sort((a, b) => a.toPar - b.toPar || a.total - b.total || Number(b.isPlayer) - Number(a.isPlayer));
+  return [...scored, ...absent];
 }
 
 /** The season points table, highest first (ties: the player reads first).

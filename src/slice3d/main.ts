@@ -53,7 +53,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -5012,7 +5012,7 @@ function showSummary(): void {
     const outcome = def ? completeTourRound(t, COURSES, totals[0], totals[0] - totalPar, ids) : null;
     if (def && outcome) {
       const evName = tourEventName(def);
-      const evRows = tourStandingRowsHtml(outcome.standings);
+      const evRows = tourEventBoardHtml(outcome.standings, def.idx);
       if (!outcome.eventDone && outcome.playoff) {
         // Regulation ended with the player TIED FOR THE LEAD: the event holds
         // un-finalized — no points yet — until sudden death settles it.
@@ -7202,10 +7202,21 @@ function tourEntrantName(id: string): string {
 /** Event standings as board rows (shared by the round summary, the playoff
  *  card, and the tied-at-the-top card). */
 function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string {
+  // A DNP row holds no rank, so the numbering counts only the scored rows above
+  // it — otherwise a partner who has not teed off yet would read as "11th".
+  let placed = 0;
   return standings
-    .map((r, i) => {
+    .map((r) => {
+      if (r.dnp) {
+        return (
+          `<div class="recRow dnp"><span class="recRk">–</span>` +
+          `<span class="recNm">${escapeHtml(r.name)}</span>` +
+          `<span class="recTot">DNP</span></div>`
+        );
+      }
       const sign = r.toPar === 0 ? 'E' : r.toPar > 0 ? `+${r.toPar}` : `${r.toPar}`;
-      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      const rank = placed === 0 ? '🏆' : `${placed + 1}.`;
+      placed++;
       return (
         `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
         `<span class="recNm">${escapeHtml(r.name)}</span>` +
@@ -7213,6 +7224,14 @@ function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string 
       );
     })
     .join('');
+}
+
+/** An event board with the shared-season partners folded in — their score if
+ *  they have posted this event, a DNP row if they have not. The scored array
+ *  itself is left untouched; see `eventBoardRows`. */
+function tourEventBoardHtml(standings: TourRoundOutcome['standings'], eventIdx: number): string {
+  const t = profile.tour;
+  return tourStandingRowsHtml(t ? eventBoardRows(standings, t, eventIdx) : standings);
 }
 
 /**
@@ -7229,7 +7248,7 @@ function tourEventOutcomeUi(
   ids: string[]
 ): { headline: string; block: string; cpLine: string; primary: string } {
   const evName = tourEventName(def);
-  const evRows = tourStandingRowsHtml(outcome.standings);
+  const evRows = tourEventBoardHtml(outcome.standings, def.idx);
   const won = outcome.playerRank === 1;
   const myPts = outcome.pointsAwarded?.['player'] ?? 0;
   // The Pro this result belongs to in the record book (the tour force-selects
@@ -7823,16 +7842,33 @@ function renderTourEventResult(idx: number): void {
   tourView = 'event';
   tourEventView = idx;
 
-  const rows = eventRowsFor(res, t, TOUR_RIVALS);
+  // Every partner shows, always: their score for this event if posted, a DNP
+  // row if not. Appended after the scored rows, never mixed into the points.
+  // SCORED first, and points computed from THAT — a partner who has not played
+  // must not be handed a rank or a share of the points. The board adds them
+  // back afterwards purely to be seen.
+  const scored = eventRowsFor(res, t, TOUR_RIVALS);
   // A result banked before shared seasons existed carries no `field`, so the
   // rebuilt table is the player alone. Say so instead of showing a one-row
-  // leaderboard that looks like a bug.
-  const rebuilt = rows.length > 1;
-  const awarded = rebuilt ? pointsForStandings(rows, def.major) : {};
+  // leaderboard that looks like a bug. Measured on the SCORED rows, so an
+  // added DNP row cannot make a legacy result look reconstructable.
+  const rebuilt = scored.length > 1;
+  const awarded = rebuilt ? pointsForStandings(scored, def.major) : {};
+  const rows = eventBoardRows(scored, t, idx);
   const par = (n: number): string => (n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`);
+  let placed = 0;
   const body = rows
-    .map((r, i) => {
-      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+    .map((r) => {
+      if (r.dnp) {
+        return (
+          `<div class="recRow dnp"><span class="recRk">–</span>` +
+          `<span class="recNm">${escapeHtml(r.name)}</span>` +
+          `<span class="thEvPar">–</span>` +
+          `<span class="recTot">DNP</span></div>`
+        );
+      }
+      const rank = placed === 0 ? '🏆' : `${placed + 1}.`;
+      placed++;
       const pts = awarded[r.id] ?? 0;
       return (
         `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
@@ -7852,8 +7888,8 @@ function renderTourEventResult(idx: number): void {
       : `<div class="recSub">This event was played before full leaderboards were kept, so only your own` +
         ` finish is on record: ${ordinal(res.playerRank)}, ${par(res.toPar)}, +${res.points} pts.</div>`) +
     (t.coop
-      ? `<div class="recSub">Shared season — a partner who has not posted this event yet will appear here` +
-        ` once they do, and the points above will re-settle around them.</div>`
+      ? `<div class="recSub">Shared season — a partner shown as DNP has not played this event yet.` +
+        ` Their score joins the board when they post it, and the points re-settle around them.</div>`
       : '') +
     `<button id="thEvBack" class="ghostBtn">Back to the schedule</button></div>`;
   el.querySelector('#thEvBack')?.addEventListener('click', () => renderTourSchedule());

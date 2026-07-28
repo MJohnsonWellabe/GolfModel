@@ -176,3 +176,47 @@ test('the strip-down removes systems rather than burying them', async ({ page })
   await expect(page.locator('#ghostCard')).toBeEmpty();
   await expect(page.locator('#dailyHoleCard')).not.toBeEmpty();
 });
+
+/**
+ * THE LANDING NEVER SCROLLS SIDEWAYS.
+ *
+ * Owner, with a screenshot of the menu shifted off its right edge: "sometimes
+ * the menu loads with left to right scroll when you have a major that's 2/3
+ * rounds complete."
+ *
+ * The destination tiles are grid items, so `min-width: auto` applied: a tile
+ * could not shrink below its min-content width, and `.dtSub` is
+ * `white-space: nowrap`, whose min-content width is the ENTIRE string.
+ * `overflow: hidden` on the sub made it ellipsis once the tile was narrow, but
+ * did nothing about the min-content it handed up — so a long subtitle widened
+ * the column, the grid, and then the whole page. A major mid-play is what makes
+ * one long enough ("Event 4/16 · The Spring Invitational · round 2/3").
+ *
+ * Driven by writing the subtitle directly rather than by playing two rounds of
+ * a major: the rule under test is a layout invariant, and it should hold for
+ * ANY subtitle the game ever puts there, not just today's longest one.
+ */
+test('no tile subtitle, however long, can scroll the landing sideways', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize(PHONE);
+  await landing(page);
+
+  const overflow = async (): Promise<number> =>
+    page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+  expect(await overflow(), 'the landing overflowed before we even touched it').toBeLessThanOrEqual(0);
+
+  // The reported case, then something considerably worse.
+  for (const sub of [
+    'Event 4/16 · The Spring Invitational · round 2/3',
+    'Event 16/16 · The Grand Championship of the Long Sands · round 3/3 · playoff'
+  ]) {
+    await page.evaluate((text) => {
+      document.querySelectorAll<HTMLElement>('.destTile .dtSub').forEach((el) => (el.textContent = text));
+    }, sub);
+    expect(await overflow(), `"${sub}" widened the page`).toBeLessThanOrEqual(0);
+    // And the tile still fits its half of the grid.
+    const tile = await page.locator('#destTour').boundingBox();
+    expect(tile!.width, 'the tile outgrew the viewport').toBeLessThanOrEqual(PHONE.width);
+  }
+});

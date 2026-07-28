@@ -1221,6 +1221,18 @@
       }
       .destTile {
         min-height: 58px;
+        /* MUST be allowed to shrink. These are grid items, so `min-width: auto`
+           applies: the tile cannot go narrower than its min-content width, and
+           `.dtSub` below is `white-space: nowrap` — whose min-content width is
+           the WHOLE string. `overflow: hidden` on the sub lets it ellipsis once
+           the tile is narrow, but does nothing about the min-content it hands
+           up to the tile, so a long subtitle widened the column, the grid and
+           then the page. A major mid-play is the one that gets long enough
+           ("Event 4/16 · The Spring Invitational · round 2/3") — owner:
+           "sometimes the menu loads with left to right scroll when you have a
+           major that's 2/3 rounds complete". */
+        min-width: 0;
+        overflow: hidden;
         padding: 9px 12px;
         border-radius: 16px;
         border: 1px solid rgba(255,255,255,0.15);
@@ -3382,6 +3394,17 @@
       }
       /* The to-par column in a single event's leaderboard, between the name and
          the points it paid. */
+      /* A shared-season partner who has not played this event yet. Present and
+         legible, but visibly not a placing — they have not been beaten, they
+         have not been round. */
+      .recRow.dnp {
+        opacity: 0.62;
+      }
+      .recRow.dnp .recTot {
+        font-weight: 800;
+        letter-spacing: 0.4px;
+        color: #9db3a2;
+      }
       .recRow .thEvPar {
         flex: none;
         width: 44px;

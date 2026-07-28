@@ -5,6 +5,8 @@ import {
   migrateTour,
   newSeason,
   recomputeSeasonPoints,
+  eventBoardRows,
+  eventRowsFor,
   TOUR_POINTS,
   TourCoopPartner,
   TourSeasonState
@@ -217,5 +219,75 @@ describe('the field keeps its names', () => {
     const best = Math.min(...res.field!.map((f) => f.toPar));
     const bestIds = TOUR_RIVALS.filter((_, i) => res.field![i].toPar === best).map((r) => r.id);
     if (res.winnerId !== 'player') expect(bestIds).toContain(res.winnerId);
+  });
+});
+
+/**
+ * YOUR RIVAL IS ALWAYS ON THE BOARD.
+ *
+ * Owner: "You can't see your rival in the leaderboard of a tourney. You should
+ * always see them. If they played with their score, if not then with a DNP."
+ *
+ * They were missing outright: `eventStandings` builds the live board from the
+ * player and the AI field, and `eventRowsFor` lists only partners who have
+ * POSTED — so the one opponent who is an actual person was absent from exactly
+ * the board you open to see how you are doing against them.
+ *
+ * The fix is display-only on purpose. A partner who has not played must not
+ * take a rank or a share of the points, so DNP rows are appended after the
+ * sort and never reach `pointsForStandings`.
+ */
+describe('the board always shows your rival', () => {
+  const board = (s: TourSeasonState, idx: number) =>
+    eventBoardRows(eventRowsFor(s.results.find((r) => r.idx === idx)!, s, TOUR_RIVALS), s, idx);
+
+  it('lists a partner who has not played as DNP, with no rank', () => {
+    const s = withPartner(seasonWith(1, -6, -2), {});
+    const rows = board(s, 0);
+    const sam = rows.find((r) => r.id === 'them');
+    expect(sam, 'the rival must appear even having not played').toBeTruthy();
+    expect(sam!.dnp).toBe(true);
+    expect(sam!.name).toBe('Sam');
+    // Last on the board — a DNP is a blank, not a finishing position.
+    expect(rows[rows.length - 1].id).toBe('them');
+    // Everyone else is a real placing.
+    expect(rows.filter((r) => !r.dnp).every((r) => r.dnp === undefined)).toBe(true);
+  });
+
+  it('lists them with their score once they post, ranked on merit', () => {
+    const s = withPartner(seasonWith(1, -6, -2), { 0: { total: 29, toPar: -7 } });
+    const rows = board(s, 0);
+    const sam = rows.find((r) => r.id === 'them')!;
+    expect(sam.dnp).toBeUndefined();
+    expect(sam.toPar).toBe(-7);
+    // -7 beats the player's -6, so Sam leads the board.
+    expect(rows[0].id).toBe('them');
+    expect(rows[1].isPlayer).toBe(true);
+  });
+
+  it('NEVER lets a DNP row touch the points', () => {
+    // The invariant that keeps this display-only. Scoring reads eventRowsFor;
+    // if a DNP row ever reached pointsForStandings it would take a rank and
+    // push a real finisher down a place.
+    const s = withPartner(seasonWith(1, -6, -2), {});
+    const scored = eventRowsFor(s.results[0], s, TOUR_RIVALS);
+    expect(scored.some((r) => r.id === 'them'), 'scoring must not see an absent partner').toBe(false);
+    const withDnp = eventBoardRows(scored, s, 0);
+    expect(withDnp.length).toBe(scored.length + 1);
+    // And the season points are unchanged by the board existing at all.
+    expect(recomputeSeasonPoints(s, IDS)['them']).toBeUndefined();
+    expect(recomputeSeasonPoints(s, IDS)['player']).toBe(TOUR_POINTS[0]);
+  });
+
+  it('is a no-op in a solo season', () => {
+    const s = seasonWith(1, -6, -2);
+    const scored = eventRowsFor(s.results[0], s, TOUR_RIVALS);
+    expect(eventBoardRows(scored, s, 0)).toEqual(scored);
+  });
+
+  it('does not duplicate a partner already on the scored board', () => {
+    const s = withPartner(seasonWith(1, -6, -2), { 0: { total: 29, toPar: -7 } });
+    const rows = board(s, 0);
+    expect(rows.filter((r) => r.id === 'them')).toHaveLength(1);
   });
 });

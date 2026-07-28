@@ -2172,3 +2172,61 @@ sigma the moment a stroke stops being perfect. That is authored intent
 ("mishits scatter hard"), and it is zero-mean, so it does not push putts
 systematically long the way the saturated cap did. Worth revisiting only if the
 gradient above turns out not to be enough on a real green.
+
+## 37. The rival nobody could see, and a subtitle that moved the page
+
+### Your rival is always on the board now
+
+Owner: *"You can't see your rival in the leaderboard of a tourney. You should
+always see them. If they played with their score, if not then with a DNP."*
+
+They were missing outright. `eventStandings` builds the live event board from
+the player and the ten AI rivals, and `eventRowsFor` (which rebuilds a finished
+event) lists only partners who have actually POSTED — so in a shared season the
+one opponent who is a real person was absent from precisely the board you open
+to see how you are doing against them. The season points table already listed
+them; the per-event boards never did.
+
+`eventBoardRows` adds them: their score for that event if posted, a DNP row at
+the foot if not. It is **display only**, and deliberately not folded into
+`eventStandings` or `eventRowsFor` — those two decide points, playoff ties and
+the season countback, and a partner who has not played must not occupy a rank or
+shift anyone's haul. So DNP rows are appended *after* the sort, never mixed into
+it, and the rank numbering skips them: a DNP is a blank, not a last place. The
+event drill-down computes its points from the scored array explicitly for the
+same reason.
+
+Gated in `tests/simulation/tourCoop.test.ts`, including the invariant that
+matters most — a DNP row can never reach `pointsForStandings`.
+
+### A long subtitle scrolled the whole menu sideways
+
+Owner, with a screenshot of the landing shifted off its right edge: *"sometimes
+the menu loads with left to right scroll when you have a major that's 2/3 rounds
+complete."*
+
+The destination tiles are grid items, so `min-width: auto` applied — a tile
+cannot shrink below its min-content width. `.dtSub` is `white-space: nowrap`,
+and the min-content width of a nowrap box is the **entire string**. The
+`overflow: hidden` already on the sub made it ellipsis once the tile was narrow,
+but did nothing about the min-content the sub handed *up* to the tile. So the
+column grew, the grid grew, and the page grew with it.
+
+Only a major mid-play makes a subtitle long enough to do it — "Event 4/16 · The
+Spring Invitational · round 2/3" — which is exactly the condition the owner
+identified, and why nothing in the suite had ever caught it.
+
+`min-width: 0` on `.destTile` lets the ellipsis actually engage. The regression
+test drives it by writing a subtitle directly rather than by playing two rounds
+of a major: the rule is a layout invariant and should hold for any subtitle the
+game ever puts there, not just today's longest one.
+
+### A note on the verification of this pass
+
+The unit suite was run CONCURRENTLY with the Playwright suite while preparing
+this, which starved the render-timing specs and produced ten failures
+(`natureBatching`, `drain`, `perf`, `occlusion`, `ballSpin`, `quality`) that all
+pass in isolation. Two unit files flaked the same way for the same reason. Do
+not run the two suites at once on this container and then believe either — the
+frame-time and pixel gates are contention-sensitive by construction, and a
+contended run is worse than no run because it looks like evidence.
