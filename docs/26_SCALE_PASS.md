@@ -2274,3 +2274,53 @@ a sphere, rather than by reading the code — the first pass looked right in
 source and wrong on a ball. The op-count assertion in the catalog test was also
 dropped: two-tone is two rectangles and that IS the design, so counting ops
 punished the simplest pattern for being simple.
+
+## 39. A clip that means "my last shot"
+
+Owner: *"can you make the record button go all the way back to the beginning of
+whatever the last hit was… sometimes it records three seconds. sometimes ten.
+it doesn't seem to have any rhyme or reason right now."*
+
+There was a reason, and it was the wrong one. `ShotCapture` rotated its recorder
+on a fixed ~10 s timer, and `saveClip` exported the current segment if it
+happened to be more than half-grown, otherwise the previous one:
+
+```
+const chosen = currentBlob && ageMs >= minKeepMs ? currentBlob : this.prevBlob ?? currentBlob;
+```
+
+That window is tied to wall-clock and has no relationship to when the ball was
+struck. The same button therefore produced three seconds or ten depending only
+on WHEN it was pressed — and could easily miss the strike altogether.
+
+**The boundary now sits on the swing.** `beginShotClip()` closes the idle
+segment and opens a fresh one the moment the player commits; `endShotClip()`
+closes it when the ball comes to rest, banking it as *the* clip. Saving exports
+the in-flight segment mid-shot, or that banked one afterwards — either way, a
+recording that starts at the stroke.
+
+Three details that matter:
+
+- **The rotation cost lands at address**, not mid-flight. Swapping recorders is
+  real (if small) main-thread work, and the moment before the meter starts — the
+  camera parked, nothing animating — is the quietest in the shot. The old code
+  already deferred rotation across the swing for exactly this reason; it just
+  never actually moved the boundary there. The comment at the commit site even
+  said it should ("land the boundary right at the swing").
+- **The segment stays open across the flight.** `executeShot` used to release
+  the hold at launch, which let the cadence timer rotate mid-flight and cut the
+  clip in half at the one moment worth watching.
+- **`rotate()` never cleared its own timeout** — it only nulled the handle,
+  which was harmless while the timer was its only caller. Calling it directly
+  without `clearRotateTimer()` first leaves that timeout armed to fire mid-shot:
+  precisely the split this whole change exists to prevent.
+
+A shot segment gets a 45 s ceiling rather than the ordinary ~20 s, so a long par
+5 (flight, rollout, slow-motion) is never split, while a swing that somehow
+never resolves still cannot record forever — the failure behind an earlier bug
+report of a 43-second clip.
+
+`tests/simulation/shotCapture.test.ts` drives the state machine against a fake
+MediaRecorder: committing opens a segment, the cadence cannot split a live shot,
+rest closes and banks it, a cancelled swing leaves nothing behind and releases
+the recorder, and `stop()` clears the bank so the next round starts clean.

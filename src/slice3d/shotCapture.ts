@@ -56,6 +56,20 @@ export class ShotCapture {
    *  shadow/mirror freeze) so a rotation can never land mid-swing and cost the
    *  bar a frame — recording keeps rolling throughout, only the SWAP waits. */
   private rotationPaused = false;
+  /** True while the in-flight segment IS a shot — opened at the swing, closed
+   *  when the ball comes to rest. */
+  private shotOpen = false;
+  /** The last COMPLETE shot: opened at a swing, closed at rest. This is what
+   *  the save button exports, which is what makes a clip mean "my last shot"
+   *  rather than "the last few seconds, whenever they happened to start". */
+  private shotBlob: Blob | null = null;
+  /** Set for exactly one rotation: the segment about to close is the shot. */
+  private captureNextAsShot = false;
+  /** Ceiling on a shot segment. A flight plus rollout plus slow-motion can run
+   *  ~20s on a long par 5, so this is well clear of any real shot; it exists
+   *  only so a swing that never resolves (a stuck state, a bug) cannot record
+   *  forever. */
+  private readonly shotCeilingMs = 45000;
 
   constructor(canvas: HTMLCanvasElement, opts: CaptureOpts = {}) {
     this.canvas = canvas;
@@ -127,6 +141,9 @@ export class ShotCapture {
     }
     this.chunks = [];
     this.prevBlob = null;
+    this.shotBlob = null;
+    this.shotOpen = false;
+    this.captureNextAsShot = false;
   }
 
   /**
@@ -137,14 +154,16 @@ export class ShotCapture {
     if (!this.supported || !this.running || this.saving || !this.recorder) return false;
     this.saving = true;
     try {
-      const ageMs = performance.now() - this.segmentStartMs;
+      // WHICH SEGMENT IS "THE LAST SHOT".
+      //   - mid-shot: the in-flight segment, which opened at the swing, so it
+      //     runs from the strike to now.
+      //   - after the ball has rested: the segment endShotClip closed, which is
+      //     the whole shot from the swing to the stop.
+      // Only with neither (the player has not swung since capture started) does
+      // this fall back to the old "recent seconds" behaviour.
+      const midShot = this.shotOpen;
       const currentBlob = await this.finalizeCurrent();
-      // Prefer the current segment once it has matured past the halfway mark
-      // (so the exported clip runs ~5-10s); otherwise fall back to the previous
-      // full ~10s segment, whose window still overlaps the recent shot.
-      const minKeepMs = this.segmentMs * 0.5;
-      const chosen =
-        currentBlob && ageMs >= minKeepMs ? currentBlob : this.prevBlob ?? currentBlob;
+      const chosen = midShot ? currentBlob ?? this.shotBlob : this.shotBlob ?? currentBlob ?? this.prevBlob;
       // Resume rolling capture for the next shot.
       if (this.running) this.beginSegment();
       if (!chosen || chosen.size === 0) return false;
@@ -191,6 +210,59 @@ export class ShotCapture {
     this.rotationPaused = paused;
   }
 
+  /**
+   * THE SWING IS THE CLIP BOUNDARY.
+   *
+   * Called the moment the player commits to a swing: close whatever idle
+   * segment was running and open a fresh one right here, then hold rotation so
+   * nothing splits the shot in half.
+   *
+   * Without this the boundary fell wherever a fixed 10s timer happened to leave
+   * it, and `saveClip` exported whichever segment was more than half-grown — so
+   * the same button gave three seconds one time and ten the next, sometimes
+   * without the strike in it at all (owner: "sometimes it records three
+   * seconds. sometimes ten. it doesn't seem to have any rhyme or reason").
+   *
+   * The rotation cost lands HERE, at address, rather than mid-flight: the
+   * player is about to start the meter, the camera is parked and nothing is
+   * animating, which is the quietest moment in the whole shot.
+   */
+  beginShotClip(): void {
+    if (!this.running) return;
+    // Cancel the pending cadence rotation FIRST. `rotate()` only nulls the
+    // timer handle — it never cleared the timeout, which was harmless while the
+    // timer was its only caller. Rotating directly without this leaves that
+    // timeout armed, and it fires mid-flight: the precise split this exists to
+    // prevent.
+    this.clearRotateTimer();
+    this.rotationPaused = false; // let this rotation through…
+    this.rotate();
+    this.shotOpen = true;
+    this.rotationPaused = true; // …then hold the rest of the shot together
+  }
+
+  /**
+   * The ball has come to rest. Close the shot's segment so it is a complete,
+   * self-contained recording, keep it as THE clip, and let the idle cadence
+   * resume. Safe to call when no shot is open (a hole ending, a scene
+   * teardown), which is why every turn boundary can call it unconditionally.
+   */
+  endShotClip(): void {
+    this.rotationPaused = false;
+    if (!this.running || !this.shotOpen) return;
+    this.shotOpen = false;
+    this.captureNextAsShot = true;
+    this.clearRotateTimer(); // same reason as beginShotClip
+    this.rotate();
+  }
+
+  /** The swing was abandoned (too small a trace, a cancelled meter). The
+   *  segment stays as an ordinary idle one — there is no shot in it. */
+  cancelShotClip(): void {
+    this.rotationPaused = false;
+    this.shotOpen = false;
+  }
+
   /** Close the current segment (stashing it as prevBlob) and open a fresh one. */
   private rotate(): void {
     this.rotateTimer = null;
@@ -204,17 +276,26 @@ export class ShotCapture {
       // worth of time. A segment can never run away past ~2×segmentMs; a
       // small risk of a mid-swing hitch beats an unbounded clip length (bug
       // report: "one clip was 43 seconds").
-      const overdueMs = performance.now() - (this.segmentStartMs + this.segmentMs);
-      if (overdueMs < this.segmentMs) {
+      // A shot in progress gets a far longer rope than the ordinary mid-swing
+      // hold: splitting a clip mid-flight is the exact failure this is all for.
+      const graceMs = this.shotOpen ? this.shotCeilingMs : this.segmentMs;
+      const overdueMs = performance.now() - (this.segmentStartMs + graceMs);
+      if (overdueMs < 0) {
         if (this.running) this.rotateTimer = setTimeout(() => this.rotate(), 250);
         return;
       }
     }
     const finished = this.recorder;
     if (!this.running || !finished || finished.state === 'inactive') return;
+    const wasShot = this.captureNextAsShot;
+    this.captureNextAsShot = false;
     finished.onstop = (): void => {
       if (this.chunks.length) {
-        this.prevBlob = new Blob(this.chunks, { type: this.mimeType || 'video/webm' });
+        const blob = new Blob(this.chunks, { type: this.mimeType || 'video/webm' });
+        this.prevBlob = blob;
+        // A segment that held a whole shot is kept separately, so the ordinary
+        // idle cadence cannot overwrite it before the player taps save.
+        if (wasShot) this.shotBlob = blob;
       }
       if (this.running) this.beginSegment();
     };

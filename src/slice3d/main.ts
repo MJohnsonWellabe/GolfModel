@@ -2295,7 +2295,10 @@ class HoleScene {
     // animate live under the moving camera.
     renderPacing.meterActive = false;
     renderPacing.cameraParked = false;
-    shotCapture.setRotationPaused(false);
+    // The ball has come to rest and the next turn is starting: close the shot's
+    // segment so the clip button has a complete recording of it. A no-op when
+    // no shot is open (the first turn of a hole, a resumed round).
+    shotCapture.endShotClip();
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     this.hideTrueVision(); // clear any stale reveal from the previous shot
     if (this.tm.isScramble) {
@@ -2919,7 +2922,10 @@ class HoleScene {
     // through the flight.
     renderPacing.meterActive = false;
     renderPacing.cameraParked = false;
-    shotCapture.setRotationPaused(false);
+    // NOTE: the capture segment stays OPEN across the flight — it is closed at
+    // rest by beginTurn. Releasing it here (as this used to) let the idle
+    // cadence rotate mid-flight and cut the clip in half at the one moment
+    // there is something worth watching.
     // The address-time fire vignette ends the moment the shot launches.
     document.documentElement.classList.remove('fire-vignette');
     this.pal?.setAiming(false); // stop the address dance once the swing starts
@@ -3506,9 +3512,9 @@ class HoleScene {
       // stay deferred for however long a deliberate player spent aiming, so a
       // segment (and therefore a saved clip) could balloon to 30-40+ seconds
       // (bug report: "one clip was 43 seconds") and land the boundary right
-      // at the swing instead of a fixed ~10s cadence. Un-paused on shot
-      // execution and on cancel below.
-      shotCapture.setRotationPaused(!isFrozen());
+      // at the swing instead of a fixed ~10s cadence. Closed at rest by
+      // beginTurn, or dropped by the cancel paths below.
+      if (!isFrozen()) shotCapture.beginShotClip();
       meter.handleTap();
     };
     swingBtn.addEventListener('pointerdown', this.onSwingTap);
@@ -3521,9 +3527,9 @@ class HoleScene {
       e.preventDefault();
       startAmbience();
       if (!meter.isArmed) this.armMeter();
-      // Same rationale as the tap path: defer the capture recorder's segment
-      // swap across the swing only, not across the whole aiming window.
-      shotCapture.setRotationPaused(!isFrozen());
+      // Same as the tap path: the clip starts HERE, at the swing, and is held
+      // together until the ball stops.
+      if (!isFrozen()) shotCapture.beginShotClip();
       // The guide dot's clock starts on the PRESS, so tempo is measured from
       // the moment the player commits rather than from when the pad appeared.
       tracePad.begin(performance.now());
@@ -3555,7 +3561,7 @@ class HoleScene {
       if (!drag.state.engaged || !this.swingCtx) {
         // Too small to be a swing — treat it as a cancel, not a duffed shot.
         promptEl.textContent = 'Drag to aim — trace the pad to swing';
-        shotCapture.setRotationPaused(false);
+        shotCapture.cancelShotClip();
         return;
       }
       // The finished trace stays on the pad until the next swing begins: a
@@ -3677,7 +3683,7 @@ class HoleScene {
     // the shot entirely — no stroke, no swing. Re-arm immediately so the bar
     // is right back up ready to go, and the player can drag to re-aim.
     meter.onCancel = () => {
-      shotCapture.setRotationPaused(false);
+      shotCapture.cancelShotClip();
       if (this.state.phase !== 'aiming' || this.ai) return;
       showMsg('Cancelled — re-aim', 700);
       this.armMeter();
