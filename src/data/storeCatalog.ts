@@ -119,9 +119,9 @@ const BALL_ART_ITEMS: StoreItem[] = [
     price: 300,
     rarity: 'special',
     color: 0xf7f7f2,
-    // A saturated ink wash marbled across one side of the cover, violet
-    // bleeding through the blue, with flicks and spots thrown off it.
-    ballArt: { style: 'splatter', base: 0xf7f7f2, ink: [0x2438d6, 0x7d21c8], amount: 0.62, seed: 0x9e3779b9 }
+    // TaylorMade SpeedSoft Ink (owner reference): bold ragged brush strokes
+    // sweeping the cover — heavy black, with one colour riding alongside.
+    ballArt: { style: 'ink', base: 0xf7f7f2, ink: [0x14161a, 0x1f7ae0], amount: 0.6, seed: 0x9e3779b9 }
   },
   {
     id: 'ball_sightline',
@@ -130,19 +130,22 @@ const BALL_ART_ITEMS: StoreItem[] = [
     price: 200,
     rarity: 'rare',
     color: 0xf7f7f2,
-    // A wide equatorial putting stripe with flanking guide lines.
-    ballArt: { style: 'alignment', base: 0xf7f7f2, ink: [0xe0392e, 0x1e2630], amount: 0.24, seed: 1 }
+    // Maxfli Max Align 360 (owner reference): a tight stack of stripes wrapping
+    // the whole ball — solid rails with finer hatched lines between them.
+    ballArt: { style: 'align360', base: 0xf7f7f2, ink: [0x14352b, 0x4a6b5c], amount: 0.5, seed: 1 }
   },
   {
     id: 'ball_cavity',
     kind: 'ball',
-    name: 'Cavity Copper',
+    // The id stays `ball_cavity` — saved profiles reference it, and renaming a
+    // catalog id would silently un-own the ball for anyone who bought it.
+    name: 'Split Shot',
     price: 200,
     rarity: 'rare',
-    color: 0xece5d6,
-    // The retro two-tone: a copper cavity band hairlined in black on an ivory
-    // cover.
-    ballArt: { style: 'band', base: 0xece5d6, ink: [0xb4682c, 0x23252b], amount: 0.3, seed: 2 }
+    color: 0xf05a1e,
+    // Ping Eye2 (owner reference): two solid halves split down a great circle
+    // through the poles. The orange/yellow pair is the one everybody pictures.
+    ballArt: { style: 'twoTone', base: 0xf05a1e, ink: [0xf05a1e, 0xf5d312], amount: 1, seed: 2 }
   },
   {
     id: 'ball_paintfall',
@@ -155,9 +158,9 @@ const BALL_ART_ITEMS: StoreItem[] = [
     price: 0,
     rarity: 'special',
     color: 0xf7f7f2,
-    // Blue and red poured over the crown and running down, the two drifting
-    // into each other where they meet.
-    ballArt: { style: 'drip', base: 0xf7f7f2, ink: [0x2f6fe0, 0xd8342f], amount: 0.55, seed: 0x5bf03635 }
+    // Vice Pro Air Drip (owner reference). Despite the name it is not running
+    // paint at all — it is a fine red-and-black FLECK spread over a white cover.
+    ballArt: { style: 'speckle', base: 0xf7f7f2, ink: [0xe8112d, 0x15161a], amount: 0.6, seed: 0x5bf03635 }
   }
 ];
 

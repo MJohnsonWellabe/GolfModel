@@ -2230,3 +2230,47 @@ pass in isolation. Two unit files flaked the same way for the same reason. Do
 not run the two suites at once on this container and then believe either — the
 frame-time and pixel gates are contention-sensitive by construction, and a
 contended run is worse than no run because it looks like evidence.
+
+## 38. The balls, redrawn from the real thing
+
+Owner, with four reference photos: *"use these balls as references to redo the
+balls we designed earlier."*
+
+The originals were designed from their NAMES. Put beside the photographs, three
+of the four were wrong about what the ball actually looks like:
+
+| ball | was | the reference actually is |
+| --- | --- | --- |
+| Paintfall | paint poured over the pole, running down and blending | Vice Pro Air **Drip** — a fine red/black **fleck**, no runs at all |
+| Split Shot (was Cavity Copper) | a thin copper belt with a sheen and hairlines | Ping **Eye2** — two solid halves, split pole to pole |
+| Sightline | one wide equatorial stripe with two guides | Maxfli **Max Align 360** — a stack of stripes, solid rails with hatched lines between |
+| Inkwash | a marbled continent of ink on one side | TaylorMade **SpeedSoft Ink** — bold ragged brush strokes sweeping the cover |
+
+"Drip" is the instructive one: the name describes running paint, the ball has
+none. The old painter took the name literally, so it drew something that had
+never existed. All four painters are rewritten, and the style names go with them
+— `drip → speckle`, `band → twoTone`, `alignment → align360`, `splatter → ink`
+— because a style called `drip` that paints flecks is a comment that lies.
+
+Catalog **ids are unchanged** (`ball_paintfall`, `ball_cavity`, …). A saved
+profile references the id, so renaming one would silently un-own the ball for
+anyone who had bought it. Only the display name moved: "Cavity Copper" made no
+sense for an orange/yellow two-tone.
+
+### Two things the rewrite forced
+
+**The texture doubled to 256x128.** At 128x64 a fleck is about one texel, so the
+Vice spatter rendered as a grid of little squares rather than as flecks. 128 KB
+is still 0.6% of the ground bake, and this is now the DEFAULT ball on every shot.
+
+**Density had to stop being measured in pixels.** The first attempt at the
+larger canvas kept the fleck count and the pixel radii, which quartered the
+density and halved the apparent size — the ball came out sparse. Both are now
+expressed against the canvas (`density`, `px`), so the pattern looks the same at
+any resolution. Worth remembering before anyone changes `BALL_ART_W` again.
+
+Verified by rendering all four through the real painter and projecting them onto
+a sphere, rather than by reading the code — the first pass looked right in
+source and wrong on a ball. The op-count assertion in the catalog test was also
+dropped: two-tone is two rectangles and that IS the design, so counting ops
+punished the simplest pattern for being simple.

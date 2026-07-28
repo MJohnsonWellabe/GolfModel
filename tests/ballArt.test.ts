@@ -80,10 +80,10 @@ const signature = (ctx: RecordingCtx): string =>
   ctx.ops.map((o) => `${o.op}(${o.args.map((n) => n.toFixed(4)).join(',')})${o.fill}`).join(';');
 
 const ART: Record<string, BallArt> = {
-  splatter: { style: 'splatter', base: 0xf7f7f2, ink: [0x2438d6, 0x7d21c8], amount: 0.62, seed: 0x9e3779b9 },
-  alignment: { style: 'alignment', base: 0xf7f7f2, ink: [0xe0392e, 0x1e2630], amount: 0.24, seed: 1 },
-  band: { style: 'band', base: 0xece5d6, ink: [0xb4682c, 0x23252b], amount: 0.3, seed: 2 },
-  drip: { style: 'drip', base: 0xf7f7f2, ink: [0x2f6fe0, 0xd8342f], amount: 0.55, seed: 0x5bf03635 }
+  ink: { style: 'ink', base: 0xf7f7f2, ink: [0x14161a, 0x1f7ae0], amount: 0.6, seed: 0x9e3779b9 },
+  align360: { style: 'align360', base: 0xf7f7f2, ink: [0x14352b, 0x4a6b5c], amount: 0.5, seed: 1 },
+  twoTone: { style: 'twoTone', base: 0xf05a1e, ink: [0xf05a1e, 0xf5d312], amount: 1, seed: 2 },
+  speckle: { style: 'speckle', base: 0xf7f7f2, ink: [0xe8112d, 0x15161a], amount: 0.6, seed: 0x5bf03635 }
 };
 
 describe('ball art painter', () => {
@@ -103,12 +103,12 @@ describe('ball art painter', () => {
   });
 
   it('a different seed re-scatters the scattering styles (and only those)', () => {
-    for (const style of ['splatter', 'drip'] as const) {
+    for (const style of ['ink', 'speckle'] as const) {
       const a = signature(paint(ART[style]));
       const b = signature(paint({ ...ART[style], seed: ART[style].seed + 1 }));
       expect(a, style).not.toBe(b);
     }
-    for (const style of ['alignment', 'band'] as const) {
+    for (const style of ['align360', 'twoTone'] as const) {
       const a = signature(paint(ART[style]));
       const b = signature(paint({ ...ART[style], seed: ART[style].seed + 1 }));
       expect(a, style).toBe(b); // deterministic geometry, seed is irrelevant
@@ -131,44 +131,63 @@ describe('ball art painter', () => {
     }
   });
 
-  it('the alignment stripe is a great circle — full-width bars, centred', () => {
-    const ctx = paint(ART.alignment);
-    const stripe = ctx.ops.find((o) => o.op === 'fillRect' && o.fill === cssColor(ART.alignment.ink[0]))!;
-    expect(stripe.args[0]).toBe(0);
-    expect(stripe.args[2]).toBe(BALL_ART_W); // spans a full turn
-    expect(stripe.args[1] + stripe.args[3] / 2).toBeCloseTo(BALL_ART_H / 2, 6); // on the equator
-    // Guide lines either side, in the second ink, also full width.
-    const guides = ctx.ops.filter((o) => o.op === 'fillRect' && o.fill === cssColor(ART.alignment.ink[1]));
-    expect(guides.filter((g) => g.args[2] === BALL_ART_W).length).toBe(4);
+  it('the 360 alignment stripes are great circles — full-width, stacked, centred', () => {
+    // Maxfli Max Align 360 (owner reference): a stack of stripes wrapping the
+    // whole ball. On a lat-long map a full-width bar IS a great circle, so
+    // every line here must span the canvas — a bar that stops short would read
+    // as a dash on the ball, not a stripe round it.
+    const ctx = paint(ART.align360);
+    const bars = ctx.ops.filter((o) => o.op === 'fillRect' && o.args[2] === BALL_ART_W);
+    const solid = bars.filter((o) => o.fill === cssColor(ART.align360.ink[0]));
+    expect(solid.length, 'solid rails').toBe(3);
+    // One of them is the equator itself; the others straddle it symmetrically.
+    const mids = solid.map((o) => o.args[1] + o.args[3] / 2).sort((a, b) => a - b);
+    expect(mids[1]).toBeCloseTo(BALL_ART_H / 2, 6);
+    expect(mids[0] + mids[2]).toBeCloseTo(BALL_ART_H, 6);
+    // The finer lines are HATCHED — drawn as repeated short segments, which is
+    // what the reference's thin lines actually are.
+    const dashes = ctx.ops.filter((o) => o.op === 'fillRect' && o.fill === cssColor(ART.align360.ink[1]));
+    expect(dashes.length, 'hatched segments').toBeGreaterThan(20);
+    expect(Math.max(...dashes.map((o) => o.args[2])), 'a dash is short').toBeLessThan(BALL_ART_W);
   });
 
-  it('the cavity band is a metal belt with a sheen and black hairlines', () => {
-    const ctx = paint(ART.band);
-    expect(ctx.ops.some((o) => o.op === 'linearGradient')).toBe(true);
-    const stops = ctx.ops.filter((o) => o.op === 'gradientStop');
-    expect(stops.length).toBe(3);
-    expect(new Set(stops.map((s) => s.fill)).size).toBe(3); // lit → base → shadowed
-    const hairlines = ctx.ops.filter((o) => o.op === 'fillRect' && o.fill === cssColor(ART.band.ink[1]));
-    expect(hairlines.length).toBeGreaterThanOrEqual(3);
+  it('the two-tone ball is exactly two solid halves, no shell showing', () => {
+    // Ping Eye2 (owner reference): two colours meeting on a great circle
+    // through the poles. `base` must NOT show through anywhere — an Eye2 has
+    // no white on it, and a sliver of cover would be the tell.
+    const ctx = paint(ART.twoTone);
+    const [a, b] = ART.twoTone.ink;
+    // Exactly half-width, which excludes the full-canvas shell fill underneath.
+    const halves = ctx.ops.filter(
+      (o) => o.op === 'fillRect' && o.args[3] === BALL_ART_H && Math.abs(o.args[2] - BALL_ART_W / 2) < 1e-6
+    );
+    expect(halves.length).toBe(2);
+    expect(halves.map((o) => o.fill).sort()).toEqual([cssColor(a), cssColor(b)].sort());
+    // Together they cover the full width, leaving no gap for the shell.
+    expect(halves.reduce((sum, o) => sum + o.args[2], 0)).toBeCloseTo(BALL_ART_W, 6);
   });
 
-  it('the drip blends its two colours where they meet, and runs off the pole', () => {
-    const ctx = paint(ART.drip);
-    const [blue, red] = ART.drip.ink;
-    const fills = new Set(ctx.ops.filter((o) => o.op === 'fillRect').map((o) => o.fill));
-    expect(fills.has(cssColor(blue))).toBe(true);
+  it('the speckle is a fine two-colour fleck, dense and off the poles', () => {
+    // Vice Pro Air Drip (owner reference) — a fleck, NOT running paint. The
+    // painter that took the name literally is gone.
+    const ctx = paint(ART.speckle);
+    const [red, black] = ART.speckle.ink;
+    const flecks = ctx.ops.filter((o) => o.op.startsWith('fill:'));
+    expect(flecks.length, 'a busy spatter').toBeGreaterThan(300);
+    const fills = new Set(flecks.map((o) => o.fill));
     expect(fills.has(cssColor(red))).toBe(true);
-    // Between them sit genuine mixtures — colours that are neither ink.
-    const blended = [...fills].filter((f) => f !== cssColor(blue) && f !== cssColor(red) && f !== cssColor(ART.drip.base));
-    expect(blended.length).toBeGreaterThan(8);
-    // The cap starts at the pole (y = 0) and the runs hang below it.
-    const cap = ctx.ops.filter((o) => o.op === 'fillRect' && o.args[1] === 0);
-    expect(cap.length).toBeGreaterThan(BALL_ART_W); // a column per texel, plus the runs
-    expect(Math.max(...cap.map((o) => o.args[1] + o.args[3]))).toBeGreaterThan(BALL_ART_H * 0.25);
+    expect(fills.has(cssColor(black))).toBe(true);
+    // Only the two inks — no blended mid-tones, which is what separates a
+    // fleck from the old poured-paint blend.
+    expect(fills.size).toBe(2);
+    // Nothing pressed into the pole, where a lat-long map pinches it to a smear.
+    const ys = flecks.map((o) => o.args[1]);
+    expect(Math.min(...ys)).toBeGreaterThan(BALL_ART_H * 0.03);
+    expect(Math.max(...ys)).toBeLessThan(BALL_ART_H * 0.97);
   });
 
   it('the scattering styles draw three seam copies so nothing is clipped at u=0', () => {
-    for (const style of ['splatter', 'drip'] as const) {
+    for (const style of ['ink', 'speckle'] as const) {
       const ellipses = paint(ART[style]).ops.filter((o) => o.op.startsWith('fill:') || o.op === 'fillRect');
       const left = ellipses.filter((o) => o.args[0] < 0).length;
       const right = ellipses.filter((o) => o.args[0] > BALL_ART_W).length;
@@ -186,7 +205,14 @@ describe('the catalog’s balls', () => {
     expect(patterned.length).toBe(4);
     for (const b of patterned) {
       const ctx = paint(b.ballArt!);
-      expect(ctx.ops.length, b.id).toBeGreaterThan(10);
+      // The shell goes down first, covering everything…
+      const first = ctx.ops.find((o) => o.op === 'fillRect')!;
+      expect(first.args, b.id).toEqual([0, 0, BALL_ART_W, BALL_ART_H]);
+      // …and then SOMETHING is drawn on it. Deliberately not an op-count
+      // threshold: two-tone is two rectangles and that is the whole design,
+      // so counting ops would punish the simplest pattern for being simple.
+      expect(ctx.ops.length, b.id).toBeGreaterThan(1);
+      expect(ctx.ops.slice(1).some((o) => o.fill !== cssColor(b.ballArt!.base)), b.id).toBe(true);
     }
   });
 

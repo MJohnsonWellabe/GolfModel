@@ -185,12 +185,14 @@ describe('the first ball drop', () => {
     // The gift is priced at zero, which is what makes `isOwned` true for
     // everyone regardless of what their save says.
     expect(STORE_BY_ID.get('ball_paintfall')!.price).toBe(0);
-    // The four are one of each style — the set is a range, not four variants.
+    // One of each style — the set is a range, not four variants. Redrawn from
+    // the owner's reference photos: brush-stroke ink, the 360 stripe stack, the
+    // two-tone Eye2 split, and a fine fleck (which the name "Drip" belies).
     expect(DESIGNED_BALLS.map((id) => STORE_BY_ID.get(id)!.ballArt!.style)).toEqual([
-      'splatter',
-      'alignment',
-      'band',
-      'drip'
+      'ink',
+      'align360',
+      'twoTone',
+      'speckle'
     ]);
   });
 });

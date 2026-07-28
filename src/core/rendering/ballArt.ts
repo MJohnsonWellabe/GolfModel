@@ -16,13 +16,17 @@
  * wrapper lives beside the renderer in `slice3d/ballArt3d.ts`. That keeps the
  * pattern maths unit-testable in node.
  *
- * COST. The canvas is 128x64 — 8k texels, 32 KB uploaded, painted once per
- * hole for ONE mesh. That is 0.15% of the ground bake the adaptive quality
+ * COST. The canvas is 256x128 — 32k texels, 128 KB uploaded, painted once per
+ * hole for ONE mesh. That is 0.6% of the ground bake the adaptive quality
  * governor spends its budget on (`core/rendering/quality.ts`), so ball art is
  * deliberately absent from the tier table: there is nothing here worth scaling.
- * The ball is a 1-unit sphere that is usually a few dozen pixels tall, so
- * anything finer would only alias. For the same reason there are no dimples —
- * at ball scale a dimple field is noise, not detail.
+ * It was half this until the ball art was redrawn from the owner's reference
+ * photos: at 128x64 a speckle fleck is barely one texel, so the Vice-style
+ * spatter rendered as a grid of little SQUARES rather than as flecks. 256x128
+ * is still nothing next to the ground bake, and it is now the default ball
+ * every player sees on every shot. Finer than this would only alias — the ball
+ * is a 1-unit sphere usually a few dozen pixels tall. For the same reason there
+ * are no dimples: at ball scale a dimple field is noise, not detail.
  *
  * MAPPING. Babylon's UV sphere is a lat-long map: `u` runs once around the
  * ball, `v` from pole to pole. So a full-width horizontal bar is a great
@@ -35,10 +39,9 @@
  */
 
 import { mulberry32 } from '../../utils/Random';
-import { shade } from './Theme';
 
 /** How a patterned ball is drawn. `ink` is style-specific — see each painter. */
-export type BallArtStyle = 'splatter' | 'alignment' | 'band' | 'drip';
+export type BallArtStyle = 'ink' | 'align360' | 'twoTone' | 'speckle';
 
 export interface BallArt {
   style: BallArtStyle;
@@ -54,8 +57,8 @@ export interface BallArt {
 }
 
 /** Lat-long canvas size. 2:1 because `u` wraps a full circle and `v` half. */
-export const BALL_ART_W = 128;
-export const BALL_ART_H = 64;
+export const BALL_ART_W = 256;
+export const BALL_ART_H = 128;
 
 const TAU = Math.PI * 2;
 
@@ -74,7 +77,6 @@ function mixColor(a: number, b: number, t: number): number {
   return (c(16) << 16) | (c(8) << 8) | c(0);
 }
 
-const smoothstep = (t: number): number => t * t * (3 - 2 * t);
 
 /** Draw once per u-seam copy so a shape straddling the seam is never clipped. */
 function wrapped(w: number, draw: (dx: number) => void): void {
@@ -93,217 +95,209 @@ export function paintBallArt(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.fillStyle = cssColor(art.base);
   ctx.fillRect(0, 0, w, h);
   switch (art.style) {
-    case 'splatter':
-      paintSplatter(ctx, w, h, art);
+    case 'ink':
+      paintInk(ctx, w, h, art);
       break;
-    case 'alignment':
-      paintAlignment(ctx, w, h, art);
+    case 'align360':
+      paintAlign360(ctx, w, h, art);
       break;
-    case 'band':
-      paintBand(ctx, w, h, art);
+    case 'twoTone':
+      paintTwoTone(ctx, w, h, art);
       break;
-    case 'drip':
-      paintDrip(ctx, w, h, art);
+    case 'speckle':
+      paintSpeckle(ctx, w, h, art);
       break;
   }
   ctx.restore();
 }
 
-// --------------------------------------------------------------- splatter
+// ------------------------------------------------------------------- ink
 
 /**
- * A bold ink wash over part of the shell: one marbled continent of `ink[0]`
- * with `ink[1]` bleeding through it, a soft halo where the ink has run into
- * the cover, and a scatter of flicks and satellite spots around it. Everything
- * is held inside a latitude band so the poles stay clean cover.
+ * TaylorMade SpeedSoft INK, from the owner's reference: bold, ragged brush
+ * strokes sweeping across the cover — heavy black ones plus one accent colour —
+ * with the odd flick where the brush left the surface.
+ *
+ * The strokes are drawn as tapered quadratic curves rather than fixed-width
+ * lines: a real brush stroke is thick where it lands and thin where it leaves,
+ * and a constant-width line reads as a cable instead. Each stroke is stamped in
+ * segments whose width follows a curve, which is also why they can straddle the
+ * u-seam without a break.
  */
-function paintSplatter(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
+function paintInk(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
   const rng = mulberry32(art.seed);
   const [inkA, inkB] = art.ink;
-  const cx = w * 0.5;
-  const cy = h * 0.5;
-  // The wash claims `amount` of the circumference, and never the last 12% of
-  // latitude at either pole.
-  const reachX = w * 0.5 * art.amount;
-  const reachY = h * 0.34;
-  const blob = (x: number, y: number, rx: number, ry: number, rot: number): void =>
+
+  /** One tapered stroke from (x0,y0) to (x1,y1), bowed through a control point. */
+  const stroke = (x0: number, y0: number, x1: number, y1: number, cx: number, cy: number, width: number, color: number): void => {
     wrapped(w, (dx) => {
+      ctx.fillStyle = cssColor(color);
+      const STEPS = 26;
+      for (let i = 0; i < STEPS; i++) {
+        const t = i / (STEPS - 1);
+        const mt = 1 - t;
+        const x = mt * mt * (x0 + dx) + 2 * mt * t * (cx + dx) + t * t * (x1 + dx);
+        const y = mt * mt * y0 + 2 * mt * t * cy + t * t * y1;
+        // Thick in the middle, tapering to nothing at both ends — a brush
+        // landing and leaving. The jitter keeps the edge ragged, not printed.
+        const taper = Math.sin(t * Math.PI);
+        const r = width * (0.25 + 0.75 * taper) * (0.8 + rng() * 0.4);
+        if (r <= 0.15) continue;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r, r * (0.7 + rng() * 0.5), rng() * TAU, 0, TAU);
+        ctx.fill();
+      }
+    });
+  };
+
+  // Two or three heavy black sweeps across the equator band, then the accent
+  // colour riding alongside them — the reference reads as one gesture repeated,
+  // not a random scatter, so they share a rough direction.
+  const bandTop = h * 0.16;
+  const bandH = h * 0.68;
+  const sweeps = 6;
+  for (let i = 0; i < sweeps; i++) {
+    const y0 = bandTop + bandH * (0.15 + rng() * 0.7);
+    const y1 = bandTop + bandH * (0.15 + rng() * 0.7);
+    const x0 = w * (i / sweeps) + rng() * w * 0.1;
+    const x1 = x0 + w * (0.34 + rng() * 0.3);
+    const cx = (x0 + x1) * 0.5;
+    const cy = (y0 + y1) * 0.5 + (rng() - 0.5) * h * 0.3;
+    stroke(x0, y0, x1, y1, cx, cy, h * (0.028 + art.amount * 0.022), inkA);
+    // The accent runs with the black stroke, offset and thinner.
+    const off = (rng() - 0.5) * h * 0.22;
+    stroke(x0 + w * 0.05, y0 + off, x1 - w * 0.04, y1 + off, cx, cy + off, h * (0.016 + art.amount * 0.014), inkB);
+  }
+
+  // Flicks: where the brush skipped. Small, both colours, off the poles.
+  const flicks = 54;
+  for (let i = 0; i < flicks; i++) {
+    const x = rng() * w;
+    const y = bandTop + rng() * bandH;
+    const r = (0.5 + rng() * 1.4) * (h / 64);
+    const color = rng() < 0.6 ? inkA : inkB;
+    wrapped(w, (dx) => {
+      ctx.fillStyle = cssColor(color);
       ctx.beginPath();
-      ctx.ellipse(x + dx, y, rx, ry, rot, 0, TAU);
+      ctx.ellipse(x + dx, y, r, r * (0.6 + rng() * 0.8), rng() * TAU, 0, TAU);
       ctx.fill();
     });
+  }
+}
 
-  // 1. The bleed halo — the same mass, larger and translucent.
-  ctx.globalAlpha = 0.22;
+// -------------------------------------------------------------- align360
+
+/**
+ * Maxfli Max Align 360, from the owner's reference: a tight band of thin
+ * stripes wrapping the whole ball — a couple of solid lines with finer hatched
+ * ones between them, so the group reads as an alignment aid from any angle.
+ *
+ * On a lat-long map a full-width horizontal line IS a great circle, so these
+ * are literally `fillRect`s across the canvas. The hatched lines are the same
+ * rect drawn as dashes, which is what the reference's finer lines actually are.
+ */
+function paintAlign360(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
+  const [inkA, inkB] = art.ink;
+  const mid = h * 0.5;
+  // The whole group spans `amount` of the ball's height, centred on the equator.
+  const spread = h * 0.34 * (0.6 + art.amount);
+  const solid = Math.max(1, h * 0.035);
+  const fine = Math.max(0.6, h * 0.018);
+
+  const line = (cy: number, thick: number, color: number, dashed: boolean): void => {
+    ctx.fillStyle = cssColor(color);
+    if (!dashed) {
+      ctx.fillRect(0, cy - thick * 0.5, w, thick);
+      return;
+    }
+    // Dashes: ~6px on, 5px off, which at ball scale reads as the reference's
+    // hatched lines rather than as a dotted line.
+    for (let x = 0; x < w; x += 11) ctx.fillRect(x, cy - thick * 0.5, 6, thick);
+  };
+
+  // Two heavy rails top and bottom of the group, a solid centre line, and
+  // hatched fillers between — the reference's exact stack.
+  line(mid, solid, inkA, false);
+  line(mid - spread * 0.5, solid * 0.8, inkA, false);
+  line(mid + spread * 0.5, solid * 0.8, inkA, false);
+  line(mid - spread * 0.26, fine, inkB, true);
+  line(mid + spread * 0.26, fine, inkB, true);
+  line(mid - spread * 0.75, fine, inkB, true);
+  line(mid + spread * 0.75, fine, inkB, true);
+}
+
+// --------------------------------------------------------------- twoTone
+
+/**
+ * Ping Eye2, from the owner's reference: the ball is simply two solid colours,
+ * split down a great circle through the poles.
+ *
+ * On a lat-long map that split is a pair of vertical edges — u < 0.5 is one
+ * hemisphere, u >= 0.5 the other — so this is two `fillRect`s and nothing else.
+ * `base` is deliberately unused: an Eye2 has no shell colour showing through,
+ * it IS the two halves, and pretending otherwise would leave a sliver of white
+ * that the reference does not have.
+ */
+function paintTwoTone(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
+  const [inkA, inkB] = art.ink;
   ctx.fillStyle = cssColor(inkA);
-  for (let i = 0; i < 7; i++) {
-    const x = cx + (rng() - 0.5) * reachX * 1.1;
-    const y = cy + (rng() - 0.5) * reachY * 1.1;
-    blob(x, y, reachX * (0.34 + rng() * 0.22), reachY * (0.40 + rng() * 0.26), rng() * TAU);
-  }
-  // 2. The solid mass.
-  ctx.globalAlpha = 1;
-  for (let i = 0; i < 11; i++) {
-    const x = cx + (rng() - 0.5) * reachX * 0.95;
-    const y = cy + (rng() - 0.5) * reachY * 0.95;
-    blob(x, y, reachX * (0.24 + rng() * 0.20), reachY * (0.28 + rng() * 0.24), rng() * TAU);
-  }
-  // 3. The second ink marbling through it.
+  ctx.fillRect(0, 0, w * 0.5, h);
   ctx.fillStyle = cssColor(inkB);
-  for (let i = 0; i < 6; i++) {
-    const x = cx + (rng() - 0.5) * reachX * 0.7;
-    const y = cy + (rng() - 0.5) * reachY * 0.7;
-    blob(x, y, reachX * (0.10 + rng() * 0.14), reachY * (0.12 + rng() * 0.18), rng() * TAU);
-  }
-  // 4. Flicks: elongated streaks thrown off the mass, along the surface.
-  ctx.fillStyle = cssColor(inkA);
-  for (let i = 0; i < 9; i++) {
-    const ang = rng() * TAU;
-    const dist = reachX * (0.55 + rng() * 0.55);
-    const x = cx + Math.cos(ang) * dist;
-    const y = clamp(cy + Math.sin(ang) * dist * 0.55, h * 0.14, h * 0.86);
-    blob(x, y, 1.2 + rng() * 3.4, 0.7 + rng() * 1.3, ang);
-  }
-  // 5. Satellite spots.
-  for (let i = 0; i < 16; i++) {
-    const ang = rng() * TAU;
-    const dist = reachX * (0.5 + rng() * 0.85);
-    const x = cx + Math.cos(ang) * dist;
-    const y = clamp(cy + Math.sin(ang) * dist * 0.6, h * 0.12, h * 0.88);
-    ctx.fillStyle = cssColor(rng() < 0.3 ? inkB : inkA);
-    const r = 0.6 + rng() * 1.6;
-    blob(x, y, r, r, 0);
-  }
+  ctx.fillRect(w * 0.5, 0, w - w * 0.5, h);
+  // The real balls are dipped, so the join is a clean hard edge with a hint of
+  // the paint sitting proud. A single darker pixel column at each seam keeps
+  // the boundary legible once the sphere shades it away to almost nothing.
+  ctx.fillStyle = cssColor(mixColor(inkA, inkB, 0.5));
+  ctx.globalAlpha = 0.55;
+  ctx.fillRect(w * 0.5 - 0.5, 0, 1, h);
+  ctx.fillRect(0, 0, 0.5, h);
+  ctx.fillRect(w - 0.5, 0, 0.5, h);
+  ctx.globalAlpha = 1;
 }
 
-// -------------------------------------------------------------- alignment
+// --------------------------------------------------------------- speckle
 
 /**
- * A putting-alignment ball: one wide equatorial stripe in `ink[0]` with a
- * flanking guide line in `ink[1]` either side, a finer outer pair, and two
- * cross ticks so the eye finds a target down the line rather than just a belt.
- * Every element is a full-width bar, i.e. a great circle — line the ball up
- * and the stripe points where you aim from any rotation about the poles.
+ * Vice Pro Air DRIP, from the owner's reference — which, despite the name, is
+ * not paint running down the ball at all. It is a fine two-colour FLECK spread
+ * evenly over a white cover, like confetti pressed into the surface.
+ *
+ * The previous painter took the name literally and ran paint off the pole; the
+ * reference shows nothing of the kind, so this is a full rewrite rather than a
+ * tweak. Flecks are small, irregular and dense, in both colours at once, and
+ * kept off the last few percent of latitude where a lat-long map pinches them
+ * into a smear at the pole.
  */
-function paintAlignment(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
-  const [stripe, guide] = art.ink;
-  const band = Math.max(4, h * art.amount);
-  const y0 = (h - band) / 2;
-  ctx.fillStyle = cssColor(stripe);
-  ctx.fillRect(0, y0, w, band);
-  // A darker lip top and bottom keeps the stripe from washing out under the
-  // scene's key light (the ball is lit, not emissive).
-  ctx.fillStyle = cssColor(shade(stripe, 0.78));
-  ctx.fillRect(0, y0, w, Math.max(1, h * 0.02));
-  ctx.fillRect(0, y0 + band - Math.max(1, h * 0.02), w, Math.max(1, h * 0.02));
-
-  const guideW = Math.max(1.5, h * 0.035);
-  const gap = Math.max(2, h * 0.055);
-  ctx.fillStyle = cssColor(guide);
-  ctx.fillRect(0, y0 - gap - guideW, w, guideW);
-  ctx.fillRect(0, y0 + band + gap, w, guideW);
-  const fineW = Math.max(1, h * 0.02);
-  ctx.fillRect(0, y0 - gap * 2.2 - guideW - fineW, w, fineW);
-  ctx.fillRect(0, y0 + band + gap * 2.2 + guideW, w, fineW);
-  // Two cross ticks, half a turn apart, so one is always facing the player.
-  const tick = Math.max(1.5, w * 0.02);
-  for (const u of [0.25, 0.75]) {
-    ctx.fillRect(w * u - tick / 2, y0, tick, band);
-  }
-}
-
-// ------------------------------------------------------------------- band
-
-/**
- * The retro two-tone: a pale cover with a metallic cavity band sitting just
- * below the equator, hairlined top and bottom in `ink[1]`, with a single
- * narrow ring echoing it higher up. The band carries a vertical sheen so the
- * metal reads as metal rather than as a flat sticker.
- */
-function paintBand(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
-  const [metal, line] = art.ink;
-  const band = Math.max(5, h * art.amount);
-  const y0 = h * 0.44;
-  const sheen = ctx.createLinearGradient(0, y0, 0, y0 + band);
-  sheen.addColorStop(0, cssColor(shade(metal, 1.28)));
-  sheen.addColorStop(0.42, cssColor(metal));
-  sheen.addColorStop(1, cssColor(shade(metal, 0.72)));
-  ctx.fillStyle = sheen;
-  ctx.fillRect(0, y0, w, band);
-
-  const hair = Math.max(1, h * 0.03);
-  ctx.fillStyle = cssColor(line);
-  ctx.fillRect(0, y0 - hair, w, hair);
-  ctx.fillRect(0, y0 + band, w, hair);
-  // The echo ring, up toward the crown.
-  ctx.fillRect(0, h * 0.2, w, Math.max(1, h * 0.025));
-  ctx.fillStyle = cssColor(metal);
-  ctx.fillRect(0, h * 0.2 + Math.max(1, h * 0.025), w, Math.max(1, h * 0.02));
-}
-
-// ------------------------------------------------------------------- drip
-
-/**
- * Paint poured over the crown and running down: a solid cap at the pole, then
- * runs of varying width and length ending in a rounded bulb. `ink[0]` owns one
- * half of the circumference and `ink[1]` the other, and the two blend through
- * each other across a window at BOTH meridians where they meet — so however
- * the ball is turned, one of the two blends is somewhere on the visible face.
- */
-function paintDrip(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
+function paintSpeckle(ctx: CanvasRenderingContext2D, w: number, h: number, art: BallArt): void {
   const rng = mulberry32(art.seed);
   const [inkA, inkB] = art.ink;
-  const cap = Math.max(3, h * art.amount * 0.34);
-  const colourAt = (u: number): number => mixColor(inkA, inkB, blendWeight(u, 0.1));
-
-  // The cap, column by column: 128 one-pixel bars is the cheapest exact way to
-  // lay a two-colour blend around a full turn.
-  for (let x = 0; x < w; x++) {
-    ctx.fillStyle = cssColor(colourAt((x + 0.5) / w));
-    ctx.fillRect(x, 0, 1, cap);
-  }
-  // A slightly darker lip along the bottom of the cap reads as the paint's
-  // leading edge rather than a hard cut.
-  for (let x = 0; x < w; x++) {
-    ctx.fillStyle = cssColor(shade(colourAt((x + 0.5) / w), 0.82));
-    ctx.fillRect(x, cap - Math.max(1, h * 0.02), 1, Math.max(1, h * 0.02));
-  }
-
-  const runs = 17;
-  for (let i = 0; i < runs; i++) {
-    const u = (i + 0.15 + rng() * 0.7) / runs;
-    const x = u * w;
-    const runW = 1.4 + rng() * 3.6;
-    const len = cap + h * (0.10 + rng() * 0.36) * (0.5 + art.amount);
-    const colour = colourAt(u);
-    ctx.fillStyle = cssColor(colour);
+  // Density scales with `amount`; the reference is busy, so even a low amount
+  // stays clearly speckled rather than sparse. Both the COUNT and the fleck
+  // RADIUS are expressed against the canvas size rather than in raw pixels —
+  // otherwise raising the texture resolution silently thins the pattern out
+  // (doubling each edge quartered the density the first time it was tried).
+  const density = (w * h) / (128 * 64);
+  const px = h / 64;
+  const count = Math.round((130 + art.amount * 220) * density);
+  const poleGuard = h * 0.07;
+  for (let i = 0; i < count; i++) {
+    const x = rng() * w;
+    const y = poleGuard + rng() * (h - poleGuard * 2);
+    // Mostly small, with a few larger blots — an even dot size reads printed.
+    const big = rng() < 0.11;
+    const r = (big ? 0.75 + rng() * 0.8 : 0.24 + rng() * 0.42) * px;
+    const color = rng() < 0.5 ? inkA : inkB;
+    const rot = rng() * TAU;
+    const squash = 0.5 + rng() * 0.9;
     wrapped(w, (dx) => {
-      ctx.fillRect(x - runW / 2 + dx, 0, runW, len - runW * 0.5);
+      ctx.fillStyle = cssColor(color);
       ctx.beginPath();
-      ctx.arc(x + dx, len - runW * 0.5, runW * 0.58, 0, TAU);
+      ctx.ellipse(x + dx, y, r, r * squash, rot, 0, TAU);
       ctx.fill();
     });
   }
 }
 
-/**
- * How much of `ink[1]` sits at longitude `u`. `ink[0]` owns [0, 0.5) and
- * `ink[1]` owns [0.5, 1); both meridians (0.5, and the 0/1 seam) get a
- * half-window smooth blend either side, so the seam is a 50/50 mix rather than
- * a hard edge and the mapping is continuous across it.
- */
-function blendWeight(u: number, halfWindow: number): number {
-  const hw = Math.min(halfWindow, 0.24);
-  if (u < hw) return 0.5 * (1 - smoothstep(u / hw));
-  if (u < 0.5 - hw) return 0;
-  if (u < 0.5 + hw) return smoothstep((u - (0.5 - hw)) / (2 * hw));
-  if (u < 1 - hw) return 1;
-  return 0.5 + 0.5 * smoothstep((1 - u) / hw);
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return v < lo ? lo : v > hi ? hi : v;
-}
 
 /**
  * A CSS `background` shorthand that previews `art` on a store/locker card.
@@ -315,27 +309,35 @@ export function ballArtSwatchCss(art: BallArt): string {
   const base = cssColor(art.base);
   const [a, b] = art.ink.map(cssColor);
   switch (art.style) {
-    case 'splatter':
+    // Brush strokes: two bold diagonals of ink with the accent riding alongside.
+    case 'ink':
       return (
-        `radial-gradient(circle at 34% 62%, ${b} 0 14%, transparent 15%),` +
-        `radial-gradient(circle at 76% 24%, ${a} 0 11%, transparent 12%),` +
-        `radial-gradient(circle at 58% 46%, ${a} 0 33%, transparent 34%),` +
+        `linear-gradient(118deg, transparent 0 30%, ${a} 30% 40%, transparent 40% 100%),` +
+        `linear-gradient(118deg, transparent 0 52%, ${b} 52% 58%, transparent 58% 100%),` +
+        `linear-gradient(118deg, transparent 0 68%, ${a} 68% 79%, transparent 79% 100%),` +
         `linear-gradient(${base}, ${base})`
       );
-    case 'alignment':
+    // The 360 stack: two solid rails, a solid centre, hatched lines between.
+    case 'align360':
       return (
-        `linear-gradient(180deg, ${base} 0 30%, ${b} 30% 34%, ${base} 34% 38%,` +
-        `${a} 38% 62%, ${base} 62% 66%, ${b} 66% 70%, ${base} 70% 100%)`
+        `linear-gradient(180deg, ${base} 0 26%, ${a} 26% 31%, ${base} 31% 40%,` +
+        `${b} 40% 43%, ${base} 43% 48%, ${a} 48% 54%, ${base} 54% 59%,` +
+        `${b} 59% 62%, ${base} 62% 71%, ${a} 71% 76%, ${base} 76% 100%)`
       );
-    case 'band':
+    // Two solid halves, split down the middle — no shell colour shows.
+    case 'twoTone':
+      return `linear-gradient(90deg, ${a} 0 50%, ${b} 50% 100%)`;
+    // Fine two-colour fleck. Small hard-stopped dots on a plain cover.
+    case 'speckle':
       return (
-        `linear-gradient(180deg, ${base} 0 20%, ${b} 20% 24%, ${base} 24% 42%,` +
-        `${b} 42% 45%, ${a} 45% 70%, ${b} 70% 73%, ${base} 73% 100%)`
-      );
-    case 'drip':
-      return (
-        `linear-gradient(180deg, transparent 0 46%, ${base} 46% 100%),` +
-        `linear-gradient(90deg, ${a} 0 32%, ${b} 68% 100%)`
+        `radial-gradient(circle at 22% 28%, ${a} 0 8%, transparent 9%),` +
+        `radial-gradient(circle at 63% 18%, ${b} 0 6%, transparent 7%),` +
+        `radial-gradient(circle at 81% 52%, ${a} 0 7%, transparent 8%),` +
+        `radial-gradient(circle at 38% 60%, ${b} 0 9%, transparent 10%),` +
+        `radial-gradient(circle at 15% 78%, ${b} 0 6%, transparent 7%),` +
+        `radial-gradient(circle at 70% 84%, ${a} 0 7%, transparent 8%),` +
+        `radial-gradient(circle at 48% 40%, ${a} 0 5%, transparent 6%),` +
+        `linear-gradient(${base}, ${base})`
       );
   }
 }
