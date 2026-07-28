@@ -345,13 +345,20 @@ const CRASH_QUIET_DAYS = 7;
  * cheapest tier and the recorder running — every lever spent, and this still
  * outside the budget.
  *
- * So: on a device drawing at the floor, or one that has actually lost a context
- * this week, the recorder stands down. It is an optional keepsake feature; the
- * round is not optional. It comes back on its own once the device climbs off
- * the floor and a quiet week passes.
+ * So: on a device the governor MEASURED down to the floor, or one that has
+ * actually lost a context this week, the recorder stands down. It is an
+ * optional keepsake feature; the round is not optional. It comes back on its
+ * own once the device climbs off the floor and a quiet week passes.
+ *
+ * A floor the player PINNED does not count. Someone who chooses Performance may
+ * simply want the battery back on hardware that copes fine, and the governor's
+ * own rule is that "being overruled by the game after asking for a setting is
+ * the thing a setting is supposed to prevent". A measured floor is the device
+ * reporting a fact; a pinned one is the player stating a preference.
  */
 function captureBlocked(): boolean {
-  if (qualityStatus().floor >= 3) return true;
+  const q = qualityStatus();
+  if (!q.pinned && q.floor >= 3) return true;
   const last = deviceSettings.crashes[0];
   return !!last && Date.now() - last.at < CRASH_QUIET_DAYS * 86_400_000;
 }
@@ -1223,6 +1230,12 @@ class HoleScene {
 
     this.puff = this.makePuff();
     this.fireworks = this.makeFireworks();
+    // Pay the strike's shader bill NOW, not when the ball is struck. See
+    // `warmStrikeShaders`.
+    void this.bodiesReady.then(
+      () => this.warmStrikeShaders(),
+      () => this.warmStrikeShaders()
+    );
 
     // Aim guide: a row of ground dots from the ball toward the aim point,
     // capped by a target ring — the shot line you're setting up
@@ -1347,6 +1360,57 @@ class HoleScene {
       markPerf(round.course.name, this.hole.number, `address-shaders-warm:${Math.round(performance.now() - warmT0)}ms`);
     } catch {
       /* best-effort warm-up — a shot must never depend on it */
+    }
+  }
+
+  /**
+   * COMPILE THE STRIKE'S SHADERS BEFORE THE STRIKE.
+   *
+   * Measured (drain.spec's strike gate, and a per-frame probe): the first frame
+   * after the ball is struck intermittently costs 590-1000ms instead of ~25ms,
+   * and the slow frames are exactly the ones that compile new GPU programs. The
+   * two that show up are `shadowMap` and `particles`:
+   *
+   *  - the shadow map is FROZEN while the camera is parked at address
+   *    (renderPacing.cameraParked), so its depth program is not compiled until
+   *    the freeze lifts — which `executeShot` does at the moment of the strike;
+   *  - the impact puff's particle shader is not created until a particle first
+   *    draws, which is the same instant.
+   *
+   * Shader compilation is a synchronous driver call, so both land in one frame,
+   * on top of the drain resuming at full budget and a fresh trail uploading.
+   * That pile-up IS the owner's "I lagged out with the ball in the air".
+   *
+   * The work cannot be avoided — but it can be moved. Both are warmed here,
+   * during the intro flyover, where the camera is already travelling and the
+   * governor's sample window is deliberately reset. `forceCompilation` is
+   * incremental (it retries on a 16ms timer rather than blocking), and
+   * `isReady()` creates the particle effect as a side effect, which is the
+   * whole point of calling it and discarding the answer.
+   *
+   * Numbers are from headless software GL, where a compile is far dearer than
+   * on a real GPU — the phone's stall is smaller. Moving it is free either way.
+   *
+   * Called at BOTH ends of the window: once the golfer bodies are in (the intro
+   * flyover, where there is time to spare) and again at the start of every turn
+   * (which the player cannot skip, and by which point everything that will be
+   * on screen at the strike exists). One pass at a time — `forceCompilation`
+   * runs its own retry loop — and a completed pass costs only a readiness check
+   * on the next turn.
+   */
+  private warmingStrike = false;
+  private warmStrikeShaders(): void {
+    if (this.warmingStrike || this.disposed || this.scene.isDisposed) return;
+    this.warmingStrike = true;
+    try {
+      this.course3d.shadows.forceCompilation(() => {
+        this.warmingStrike = false;
+      });
+      // Creates the particle effect as a side effect; the answer is not the point.
+      this.puff.isReady();
+    } catch {
+      // A warm-up that fails must never cost the hole it was warming.
+      this.warmingStrike = false;
     }
   }
 
@@ -2330,6 +2394,12 @@ class HoleScene {
     // segment so the clip button has a complete recording of it. A no-op when
     // no shot is open (the first turn of a hole, a resumed round).
     shotCapture.endShotClip();
+    // Warm the strike's shaders again now that the turn — and everything it
+    // brought into the scene — is settled. The intro pass can miss (the player
+    // may skip it, and casters arrive asynchronously); this one has the whole
+    // aim to finish in, and costs a readiness check per turn when there is
+    // nothing left to compile. See `warmStrikeShaders`.
+    this.warmStrikeShaders();
     skipBtn.style.display = 'none'; // the flyover is over (skipped or finished)
     this.hideTrueVision(); // clear any stale reveal from the previous shot
     if (this.tm.isScramble) {

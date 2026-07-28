@@ -165,22 +165,40 @@ test('the strike frame does not stack the drain on top of everything else', asyn
     { timeout: 120_000 }
   );
 
-  const worst = (await page.evaluate(() => {
+  const { worst, compiledAtStrike } = (await page.evaluate(() => {
     const s = (window as never as { __slice3d: any }).__slice3d;
     const scene = s.scene;
+    const engine = scene.getEngine();
+    const programs = (): string[] => Object.keys((engine as any)._compiledEffects ?? {});
     const times: number[] = [];
+    const before = programs();
     s.playSkilledShot();
+    let compiled: string[] = [];
     for (let f = 0; f < 240; f++) {
       const a = performance.now();
       scene.render();
       times.push(performance.now() - a);
+      if (f === 0) compiled = programs().filter((k) => !before.includes(k));
       if (s.state.phase !== 'flying' && f > 30) break;
     }
-    return Math.max(...times);
-  })) as number;
+    return { worst: Math.max(...times), compiledAtStrike: compiled.map((k) => k.split('@')[0]) };
+  })) as { worst: number; compiledAtStrike: string[] };
 
-  console.log(`[drain] wildvalley strike: worst frame ${worst.toFixed(1)}ms`);
+  console.log(`[drain] wildvalley strike: worst frame ${worst.toFixed(1)}ms, compiled [${compiledAtStrike.join(', ')}]`);
   // The strike is a single moment rather than a progressive build, so its tail
   // IS meaningful here — no new batches appear to compile shaders for.
   expect(worst, `worst frame across the strike ${worst.toFixed(1)}ms`).toBeLessThan(400);
+  // AND the structural version of the same thing, which a busy machine cannot
+  // wash out. The stall this gate kept catching was shader COMPILATION landing
+  // on the strike frame: the shadow map is frozen while the camera is parked,
+  // so its depth program was compiled the instant executeShot unfroze it, and
+  // the impact puff's particle shader was created the first time a particle
+  // drew. Measured at 592-1002ms on the frames that compiled them, against
+  // ~25ms on the frames that did not. `warmStrikeShaders` now pays that bill
+  // during the intro flyover. If either name returns here, the warm-up has
+  // stopped reaching them — which is a 1-second hitch on the swing, whatever
+  // the timing threshold happens to say on the machine of the day.
+  for (const banned of ['shadowMap', 'particles']) {
+    expect(compiledAtStrike, `${banned} compiled on the strike frame`).not.toContain(banned);
+  }
 });

@@ -162,6 +162,39 @@ Timberline West's 1.9M. They are wide and open — sky, water and unoccluded
 ground — which costs fill rate and bandwidth rather than geometry. Any future
 fix aimed at "the slow courses" should start from that, not from mesh counts.
 
+## Shader compilation must never land on an input frame
+
+Compiling a GPU program is a synchronous driver call. Anything that defers a
+compile to a moment the player is *acting* converts a load-time cost into a
+gameplay stall.
+
+The measured case: the first frame after the ball is struck intermittently cost
+**592–1002 ms** instead of ~25 ms, and the slow frames were exactly the ones
+that compiled new programs — `shadowMap` and `particles`. Both were deferred by
+design and met at the same instant:
+
+- the shadow map is **frozen while the camera is parked at address**
+  (`renderPacing.cameraParked`), so its depth program was not compiled until
+  `executeShot` unfroze it;
+- the impact puff's particle shader is not created until a particle first draws,
+  which is the same frame.
+
+On top of that frame the scatter drain resumes at full budget and a fresh trail
+uploads. That pile-up is the owner's *"I lagged out with the ball in the air"*.
+
+`HoleScene.warmStrikeShaders()` pays the bill during the intro flyover instead —
+`ShadowGenerator.forceCompilation()` (incremental: it retries on a 16 ms timer
+rather than blocking) and `ParticleSystem.isReady()`, which creates the effect
+as a side effect. After: worst strike frame **30 ms across six runs**, and
+neither program appears at the strike. (Numbers are headless software GL, where
+a compile is far dearer than on a real GPU — the phone's stall is smaller, and
+moving it is free either way.)
+
+`tests/visual/drain.spec.ts`'s strike gate asserts both the frame budget and,
+structurally, that neither `shadowMap` nor `particles` compiles on the strike
+frame — a machine under load can wash out a timing threshold, but not that.
+**Any new effect introduced at a moment of input must be warmed the same way.**
+
 ## WebGL context loss
 
 `webglcontextlost` must be `preventDefault()`-ed (otherwise the context can
@@ -232,8 +265,11 @@ return:
   full-frame copy off the GPU plus a live encode, every frame. The device that
   produced the readout above lost its context with the governor already pinned
   to tier 3 — every lever spent — and the recorder running. So `captureBlocked()`
-  refuses to start it on a device drawing at the floor, or one that has actually
-  lost a context in the last week; the player's setting is left untouched,
+  refuses to start it on a device the governor *measured* down to the floor, or
+  one that has actually lost a context in the last week. A floor the player
+  **pinned** does not count: that is a preference, not a device reporting a
+  fact, and the governor's own rule is that a setting must not be silently
+  overruled. The player's setting is left untouched,
   because this is the device standing down rather than the player opting out,
   and the button and Settings both say so. **Anything else added outside the
   tier budget must answer the same question: what turns it off on the device
