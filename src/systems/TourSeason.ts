@@ -490,10 +490,15 @@ export function recomputeSeasonPoints(
 /**
  * One finished event's leaderboard, rebuilt from the stored result: the local
  * player, the ten AI scores, and every shared-season partner who has posted
- * THAT event. Shared by the points math and the season countback so the two
- * can never disagree about who finished where.
+ * THAT event. Shared by the points math, the season countback and the
+ * schedule's per-event drill-down, so none of them can disagree about who
+ * finished where.
+ *
+ * Exported because the schedule screen shows this table to the player: a second
+ * implementation for display would be free to drift from the one that pays the
+ * points, and the whole reason this function exists is that it must not.
  */
-function eventRowsFor(
+export function eventRowsFor(
   res: TourEventResult,
   s: TourSeasonState,
   rivals: readonly TourRival[]

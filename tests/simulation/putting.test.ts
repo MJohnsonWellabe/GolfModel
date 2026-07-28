@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { PX_PER_YARD, PHYSICS } from '../../src/config';
+import { PX_PER_YARD, PHYSICS, SWING } from '../../src/config';
+import { bandFor, deliveredPower, goodHalf, perfectHalf, targetBar } from '../../src/systems/swingModel';
 import { PhysicsEngine } from '../../src/systems/PhysicsEngine';
 import { clubById } from '../../src/data/clubs';
 import { mulberry32 } from '../../src/utils/Random';
@@ -368,5 +369,75 @@ describe('putting — fringe-transition pace scales with fringe distance, not a 
     }
     // And the deepest sampled crossing is still a small loss, never a cliff.
     expect(Math.max(...shorts.map(Math.abs))).toBeLessThan(3);
+  });
+});
+
+/**
+ * PUTT PACE HAS TO HAVE A MIDDLE.
+ *
+ * Owner: "why does every putt that is a miss on distance perfect zone go way
+ * too far. there's no small misses on distance. it's either perfect or way off."
+ *
+ * They were right, and the cause was arithmetic rather than feel.
+ * `deliveredPower` passed the raw cursor error through and clamped it at
+ * `puttGoodErrorFrac · target`. On a short putt that cap is tiny in BAR units —
+ * at a target of 0.10 it is 0.015, smaller than the perfect band's own
+ * half-width — so the clamp was saturated the moment the cursor left perfect.
+ * Measured before the fix, at putting stat 80 on a 0.10 target: one notch
+ * outside the band delivered the FULL 15% overshoot, and so did every larger
+ * miss. There was no value in between to hit.
+ */
+describe('a missed putt misses by how much you missed', () => {
+  const ctxFor = (stat: number, target: number) =>
+    ({ stat, powerTarget: target, isPutt: true }) as never;
+  /** Delivered power as a signed fraction of the intended pace. */
+  const errAt = (stat: number, target: number, offset: number): number => {
+    const ctx = ctxFor(stat, target);
+    const cursor = target + offset;
+    const band = bandFor(cursor, targetBar(ctx), perfectHalf(ctx), goodHalf(ctx));
+    return (deliveredPower(ctx, cursor, band) - target) / target;
+  };
+
+  it('leaves a gradient on a SHORT putt — the case that had none', () => {
+    // The exact reported failure. A hair outside perfect must be a hair long,
+    // not the full cap.
+    const justOut = errAt(80, 0.1, perfectHalf(ctxFor(80, 0.1)) + 0.001);
+    expect(justOut, 'a barely-missed short putt should be barely long').toBeLessThan(0.02);
+    // …and missing it properly still punishes.
+    expect(errAt(80, 0.1, 0.05)).toBeGreaterThan(0.05);
+  });
+
+  it('grows monotonically with the size of the miss, at every putt length', () => {
+    for (const stat of [40, 70, 100]) {
+      for (const target of [0.1, 0.25, 0.5, 0.85]) {
+        let prev = -1;
+        for (const off of [0.02, 0.03, 0.04, 0.06, 0.09]) {
+          const e = errAt(stat, target, off);
+          expect(e, `stat ${stat} target ${target} offset ${off}`).toBeGreaterThanOrEqual(prev);
+          prev = e;
+        }
+      }
+    }
+  });
+
+  it('is continuous at the edge of perfect — no step off the band', () => {
+    for (const target of [0.1, 0.4, 0.85]) {
+      const ctx = ctxFor(75, target);
+      const edge = perfectHalf(ctx);
+      // Inside the band is exact; a whisker outside must still be near-exact.
+      expect(errAt(75, target, edge - 0.0005)).toBe(0);
+      expect(errAt(75, target, edge + 0.0005), `target ${target}`).toBeLessThan(0.01);
+    }
+  });
+
+  it('still honours the cap, and still misses SHORT as readily as long', () => {
+    for (const target of [0.1, 0.5]) {
+      expect(errAt(60, target, 0.3)).toBeCloseTo(SWING.puttGoodErrorFrac, 5);
+      expect(errAt(60, target, -0.3)).toBeCloseTo(-SWING.puttGoodErrorFrac, 5);
+    }
+  });
+
+  it('keeps a perfect stroke exact', () => {
+    for (const target of [0.1, 0.5, 0.85]) expect(errAt(90, target, 0)).toBe(0);
   });
 });

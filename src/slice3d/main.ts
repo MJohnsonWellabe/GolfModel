@@ -53,7 +53,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -6899,7 +6899,15 @@ async function syncCoopSeason(repaint = false): Promise<void> {
   applyCoopSnapshot(t, coopPartnersFrom(doc, t.coop.playerId), tourCourseIds());
   settleFinishedCoopSeason(t);
   persistProfile();
-  if (repaint && document.getElementById('tourHub')?.style.display === 'flex') renderTourHub();
+  // Repaint whatever the player is actually looking at. A partner's score
+  // changes the points table and can re-rank a finished event, so the schedule
+  // and the event drill-down want the update as much as the hub does — but
+  // drawing the hub over one of them is how this button came to look broken.
+  // The records screen is per-Pro history, untouched by a partner's post.
+  if (!repaint || document.getElementById('tourHub')?.style.display !== 'flex') return;
+  if (tourView === 'hub') renderTourHub(true);
+  else if (tourView === 'schedule') renderTourSchedule();
+  else if (tourView === 'event') renderTourEventResult(tourEventView);
 }
 
 /**
@@ -7544,16 +7552,34 @@ function applyQuitSeason(): void {
 }
 
 /**
+ * Which screen the `#tourHub` overlay is currently showing.
+ *
+ * Four screens share that one element, and a shared season repaints it from the
+ * background whenever a partner's score arrives. Without knowing which one is
+ * up, that repaint always drew the HUB — so in a co-op season, opening
+ * "Schedule & standings" painted the schedule and the in-flight sync replaced it
+ * with the hub a moment later. From the player's side the button simply did
+ * nothing (owner: "the schedule and standings button doesn't work in a
+ * multiplayer season"). Solo seasons never saw it because `syncCoopSeason`
+ * returns immediately when there is no partner.
+ */
+type TourView = 'hub' | 'schedule' | 'event' | 'records';
+let tourView: TourView = 'hub';
+/** The event the drill-down is showing, so a background sync can repaint it. */
+let tourEventView = 0;
+
+/**
  * THE TOUR HUB (owner: "when you click into the tour season you should be
  * able to go to all past results, standings, schedule and play next event").
  * The gold tile opens this; playing the next event is the button on top,
  * the season points table and the full schedule — past finishes included —
  * read beneath it.
  */
-function renderTourHub(): void {
+function renderTourHub(fromSync = false): void {
   const el = document.getElementById('tourHub');
   if (!el) return;
   el.style.display = 'flex';
+  tourView = 'hub';
   // Belt and braces: the tile routes a career-less player to the Locker, but
   // the hub can still be reached with a career that a merge later lost.
   if (!flag('careerMode') || !careerStarted(profile.career)) {
@@ -7687,7 +7713,13 @@ function renderTourHub(): void {
     if (id) void shareOrCopy('Play a golf season with me — same schedule, same rivals. Join: ', coopUrl(id, `${location.origin}${location.pathname}`));
   });
   // A partner may have posted since the last paint; refresh in the background.
-  void syncCoopSeason(true);
+  //
+  // NOT when this paint WAS the sync's repaint. `syncCoopSeason(true)` calls
+  // back into here, so syncing on every paint made the two call each other for
+  // as long as the hub stayed open — an unbounded loop of Firebase reads that
+  // also rebuilt this screen's DOM every time a read landed, dropping taps
+  // aimed at buttons that had just been replaced.
+  if (!fromSync) void syncCoopSeason(true);
   el.querySelector('#thPlay')?.addEventListener('pointerdown', () => {
     if (flag('audio')) play('ui');
     el.style.display = 'none';
@@ -7706,6 +7738,7 @@ function renderTourSchedule(): void {
   const t = profile.tour;
   if (!el || !t) return;
   el.style.display = 'flex';
+  tourView = 'schedule';
   const ids = tourCourseIds();
   const sched = tourSchedule(t.seed, ids);
   const def = currentEvent(t, ids);
@@ -7715,7 +7748,13 @@ function renderTourSchedule(): void {
     .map((e) => {
       const res = t.results.find((r) => r.idx === e.idx);
       const cur = def && e.idx === def.idx;
-      const cls = `thEv${res ? ' done' : ''}${cur ? ' cur' : ''}${e.major ? ' major' : ''}`;
+      // A finished event opens its full leaderboard (owner: "once I'm in the
+      // schedule, I should be able to click an event and see the full
+      // results"). Only finished ones — an event with no result has no
+      // leaderboard to show, and a row that looks tappable and does nothing is
+      // worse than one that plainly is not.
+      const open = !!res;
+      const cls = `thEv${res ? ' done' : ''}${cur ? ' cur' : ''}${e.major ? ' major' : ''}${open ? ' thEvOpen' : ''}`;
       const name =
         escapeHtml(tourEventName(e)) +
         (res && res.playerRank !== 1 && res.winnerId ? ` — 🏆 ${escapeHtml(tourEntrantName(res.winnerId))}` : '');
@@ -7731,9 +7770,9 @@ function renderTourSchedule(): void {
             ? '3 rounds'
             : '';
       return (
-        `<div class="${cls}"><span class="thNo">E${e.idx + 1}</span>` +
+        `<div class="${cls}"${open ? ` data-ev="${e.idx}"` : ''}><span class="thNo">E${e.idx + 1}</span>` +
         `<span class="thName">${name}</span>` +
-        `<span class="thRes">${right}</span></div>`
+        `<span class="thRes">${right}${open ? ' <span class="thGo">›</span>' : ''}</span></div>`
       );
     })
     .join('');
@@ -7744,6 +7783,80 @@ function renderTourSchedule(): void {
     `<div class="thSched">${rows}</div>` +
     `<button id="thSchedBack" class="ghostBtn">Back</button></div>`;
   el.querySelector('#thSchedBack')?.addEventListener('click', () => renderTourHub());
+  // One delegated listener on the list rather than sixteen on the rows — the
+  // list is rebuilt on every partner sync, and per-row bindings would have to
+  // be re-attached each time.
+  el.querySelector('.thSched')?.addEventListener('click', (ev) => {
+    const row = (ev.target as HTMLElement | null)?.closest<HTMLElement>('[data-ev]');
+    if (row) renderTourEventResult(Number(row.dataset.ev));
+  });
+}
+
+/**
+ * ONE FINISHED EVENT, in full (owner: "once I'm in the schedule, I should be
+ * able to click an event and see the full results").
+ *
+ * The schedule could only ever say where the player finished and what it paid;
+ * who else was up there, and by how much, was gone the moment the summary
+ * closed. This is the whole leaderboard — the player, the ten rivals, and any
+ * shared-season partner who has posted this event — with the points each one
+ * took from it.
+ *
+ * The table comes from `eventRowsFor`, the same function that decides the
+ * season's points, rather than a display-only rebuild: a second implementation
+ * would be free to disagree with the standings on the previous screen, and on a
+ * shared event that re-ranks when a partner posts, it eventually would.
+ */
+function renderTourEventResult(idx: number): void {
+  const el = document.getElementById('tourHub');
+  const t = profile.tour;
+  if (!el || !t) return;
+  const res = t.results.find((r) => r.idx === idx);
+  const def = tourSchedule(t.seed, tourCourseIds())[idx];
+  // Only finished events are reachable, but a sync can settle a season out from
+  // under this screen — fall back to the schedule rather than an empty card.
+  if (!res || !def) {
+    renderTourSchedule();
+    return;
+  }
+  el.style.display = 'flex';
+  tourView = 'event';
+  tourEventView = idx;
+
+  const rows = eventRowsFor(res, t, TOUR_RIVALS);
+  // A result banked before shared seasons existed carries no `field`, so the
+  // rebuilt table is the player alone. Say so instead of showing a one-row
+  // leaderboard that looks like a bug.
+  const rebuilt = rows.length > 1;
+  const awarded = rebuilt ? pointsForStandings(rows, def.major) : {};
+  const par = (n: number): string => (n === 0 ? 'E' : n > 0 ? `+${n}` : `${n}`);
+  const body = rows
+    .map((r, i) => {
+      const rank = i === 0 ? '🏆' : `${i + 1}.`;
+      const pts = awarded[r.id] ?? 0;
+      return (
+        `<div class="recRow${r.isPlayer ? ' you' : ''}"><span class="recRk">${rank}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}</span>` +
+        `<span class="thEvPar">${par(r.toPar)}</span>` +
+        `<span class="recTot">${pts} pts</span></div>`
+      );
+    })
+    .join('');
+
+  el.innerHTML =
+    `<div class="recInner"><h2>${def.major ? '👑' : '⛳'} ${escapeHtml(tourEventName(def))}</h2>` +
+    `<div class="recSub">Event ${idx + 1} of ${TOUR_EVENTS} · ${def.rounds} round${def.rounds > 1 ? 's' : ''}` +
+    `${def.major ? ' · major, double points' : ''} · you finished ${ordinal(res.playerRank)} at ${par(res.toPar)}</div>` +
+    (rebuilt
+      ? `<div class="tourResult">${body}</div>`
+      : `<div class="recSub">This event was played before full leaderboards were kept, so only your own` +
+        ` finish is on record: ${ordinal(res.playerRank)}, ${par(res.toPar)}, +${res.points} pts.</div>`) +
+    (t.coop
+      ? `<div class="recSub">Shared season — a partner who has not posted this event yet will appear here` +
+        ` once they do, and the points above will re-settle around them.</div>`
+      : '') +
+    `<button id="thEvBack" class="ghostBtn">Back to the schedule</button></div>`;
+  el.querySelector('#thEvBack')?.addEventListener('click', () => renderTourSchedule());
 }
 
 /**
@@ -7758,6 +7871,7 @@ function renderTourGolferRecords(): void {
   const el = document.getElementById('tourHub');
   if (!el) return;
   el.style.display = 'flex';
+  tourView = 'records';
   const hist = profile.tourHistory;
   const pros = profile.career.pros;
   // The stable in creation order, then record-book-only Pros (deleted from

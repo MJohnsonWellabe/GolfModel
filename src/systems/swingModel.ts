@@ -79,8 +79,28 @@ export function deliveredPower(ctx: SwingCtx, lockedCursor: number, band: Band):
   const c = lockedCursor;
   if (ctx.isPutt) {
     if (band === 'perfect') return ctx.powerTarget;
+    // HOW BADLY you missed, not how far the cursor is from the target.
+    //
+    // This used to pass the raw cursor error straight through and clamp it at
+    // `puttGoodErrorFrac · target`. On a short putt that cap is TINY in bar
+    // units — at a target of 0.10 it is 0.015, which is smaller than the
+    // perfect band's own half-width — so the clamp was already saturated the
+    // instant the cursor left perfect. Every miss delivered the full 15%
+    // overshoot and nothing in between: exactly one frame either side of the
+    // band was the difference between holed and racing past (owner: "there's
+    // no small misses on distance. it's either perfect or way off").
+    //
+    // Scaling by how far PAST the perfect edge you stopped, relative to the
+    // good band, restores the gradient at every putt length: 0 at the edge of
+    // perfect, the full cap at the edge of good, and the cap beyond that. The
+    // cap itself is unchanged — it was never the problem.
+    const pHalf = perfectHalf(ctx);
+    const gHalf = goodHalf(ctx);
+    const err = c - t;
+    const beyond = Math.abs(err) - pHalf;
+    const frac = clamp(beyond / Math.max(1e-6, gHalf - pHalf), 0, 1);
     const errCap = t * SWING.puttGoodErrorFrac;
-    return clamp(t + clamp(c - t, -errCap, errCap), 0.03, 1);
+    return clamp(t + Math.sign(err) * errCap * frac, 0.03, 1);
   }
   if (band === 'perfect') return ctx.powerTarget;
   if (c <= t) {

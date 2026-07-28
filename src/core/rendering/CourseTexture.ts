@@ -107,6 +107,19 @@ const ID_SURFACE: Surface[] = ['rough', 'fairway', 'green', 'fringe', 'sand', 'w
  *
  * Grid cell (gx, gy) covers world point (originX + gx*cell, originY + gy*cell).
  */
+/**
+ * Cells needed to cover `span` world px at `step` world px per cell, such that
+ * indexing `(x / step) | 0` for any x in [0, span] lands INSIDE the grid.
+ *
+ * `+ 1`, not `ceil`: at x exactly `span` the index is `span / step`, which
+ * `ceil` leaves one past the end. The consumer clamps, so the miss costs a
+ * smeared cell rather than a crash — and a silently smeared edge is precisely
+ * the failure this arithmetic exists to prevent.
+ */
+export function classGridCells(span: number, step: number): number {
+  return Math.floor(Math.max(0, span) / step) + 1;
+}
+
 function rasterizeClassGrid(
   hole: HoleData,
   gw: number,
@@ -354,12 +367,26 @@ export function renderCourseCanvas(
   const w = Math.round((hole.world.width + pad * 2) * scale);
   const h = Math.round((hole.world.height + pad * 2) * scale);
 
-  // Coarse classification grid (2 world px per cell), rasterized with native
+  // Coarse classification grid (2 WORLD px per cell), rasterized with native
   // canvas fills — see rasterizeClassGrid (the old per-cell surfaceAt() pass
   // froze the main thread for seconds on every hole build).
+  //
+  // SIZED FROM THE WORLD, NOT THE CANVAS. `rasterizeClassGrid` is handed `step`
+  // as world px per cell and `classAt` indexes it with world coordinates, so
+  // the grid has to span the padded WORLD. Deriving gw/gh from the scaled
+  // canvas instead only agreed with that at scale exactly 1 — which is all the
+  // bake ever used until its floor dropped below 1 for low-end devices. Under
+  // that floor the grid stopped short of the world's right/bottom edge, every
+  // point past it clamped to the last column, and whatever class sat there was
+  // smeared to the boundary: a fairway ribbon near the edge repainted the whole
+  // remainder of the hole as fairway (owner, Sable Bay 3: "everything renders
+  // as fairway all the way to the farthest right the hole goes").
+  //
+  // Classification resolution is also simply not the texture's business — what
+  // surface a texel IS must not change because the albedo was baked smaller.
   const step = 2;
-  const gw = Math.ceil(w / step);
-  const gh = Math.ceil(h / step);
+  const gw = classGridCells(hole.world.width + pad * 2, step);
+  const gh = classGridCells(hole.world.height + pad * 2, step);
   const grid = rasterizeClassGrid(hole, gw, gh, step, -pad, -pad);
   const classAt = (x: number, y: number): number => {
     const gx = Math.max(0, Math.min(gw - 1, ((x + pad) / step) | 0));

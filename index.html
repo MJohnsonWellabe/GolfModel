@@ -3365,6 +3365,30 @@
         font-weight: 900;
         letter-spacing: 0.6px;
       }
+      /* A finished event opens its full leaderboard. Only those rows get the
+         chevron and the pointer, so what is tappable is obvious without a
+         legend — an unplayed event has no results to show. */
+      .thEv.thEvOpen {
+        cursor: pointer;
+        opacity: 1;
+      }
+      .thEv.thEvOpen:active {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .thEv .thGo {
+        color: #8fb598;
+        font-weight: 900;
+        margin-left: 3px;
+      }
+      /* The to-par column in a single event's leaderboard, between the name and
+         the points it paid. */
+      .recRow .thEvPar {
+        flex: none;
+        width: 44px;
+        text-align: right;
+        font-weight: 800;
+        color: #a9c9b0;
+      }
       /* Full-width footer CTA into the public marketing/about page (press kit,
          course gallery, roster, gameplay clips) — a real link, not a ghost
          text button, since it's the one menu item meant to invite tapping. */

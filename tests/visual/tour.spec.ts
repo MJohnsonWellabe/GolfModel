@@ -162,6 +162,28 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await expect(hubAfter.locator('.thEv.done')).toHaveCount(1);
   await expect(hubAfter.locator('.thEv.done')).toContainText(/pts/);
   await expect(hubAfter.locator('.thEv.cur')).toContainText('E2');
+
+  // A FINISHED EVENT OPENS ITS FULL LEADERBOARD (owner: "once I'm in the
+  // schedule, I should be able to click an event and see the full results").
+  // The schedule could only say where the player finished and what it paid —
+  // who else was up there, and by how much, was gone once the summary closed.
+  await expect(hubAfter.locator('.thEv.thEvOpen'), 'only the played event opens').toHaveCount(1);
+  await hubAfter.locator('.thEv.done').dispatchEvent('click');
+  // Every entrant, with a to-par and the points that finish paid.
+  await expect(hubAfter.locator('.tourResult .recRow')).toHaveCount(11);
+  await expect(hubAfter.locator('.recRow.you')).toHaveCount(1);
+  await expect(hubAfter.locator('.recRow .thEvPar').first()).toHaveText(/^(E|[+-]\d+)$/);
+  await expect(hubAfter).toContainText('Rex Calloway'); // the field, by name
+  await expect(hubAfter).toContainText(/Event 1 of 16/);
+  // Back lands on the schedule it was opened from, not the hub.
+  await hubAfter.locator('#thEvBack').dispatchEvent('click');
+  await expect(hubAfter.locator('.thEv')).toHaveCount(16);
+
+  // An event that has NOT been played has no leaderboard, so it must not look
+  // tappable — and tapping it must not blank the screen.
+  await hubAfter.locator('.thEv.cur').dispatchEvent('click');
+  await expect(hubAfter.locator('.thEv')).toHaveCount(16);
+
   await hubAfter.locator('#thSchedBack').dispatchEvent('click');
   await expect(page.locator('#landing')).toHaveClass(/on/);
   expect(errors, errors.join('\n')).toHaveLength(0);

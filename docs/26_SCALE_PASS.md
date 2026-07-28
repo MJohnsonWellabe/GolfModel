@@ -2043,3 +2043,132 @@ it to be the ball players are actually using, so the equip is an explicit
 one-time act marked by `dripGranted`, following `season.cpDenominated` and
 `career.cpPerPro`. It OR-merges, so a stale cloud copy cannot un-mark it and
 drag a player off a ball they picked afterwards.
+
+## 35. One element, four screens, and a sync that always drew the wrong one
+
+Owner: *"the schedule and standings button doesn't work in a multiplayer
+season. also once I'm in the schedule, I should be able to click an event and
+see the full results."*
+
+### It was never the button
+
+`#tourHub` is a single overlay element that four screens render into — the
+career landing, schedule & standings, the per-Pro record book, and now a single
+event's leaderboard. `renderTourHub` ends by kicking off a background partner
+sync, and that sync's completion repainted the overlay **as the hub**, whatever
+was actually on screen.
+
+So in a shared season: tap "Schedule & standings", the schedule paints, the
+in-flight read lands a moment later and draws the hub over it. From the player's
+side, a button that does nothing. A solo season never showed it, because
+`syncCoopSeason` returns immediately when there is no partner — which is exactly
+why it survived to a real player.
+
+The same three lines held a second bug. The repaint called `renderTourHub`,
+which started another sync, which repainted, which started another: an unbounded
+loop of Firebase reads for as long as the hub stayed open, rebuilding the
+screen's DOM on every one. That alone can eat a tap, because a press landing
+between one `innerHTML` teardown and the next rebind hits an element that no
+longer exists.
+
+Both are fixed by making the overlay know what it is showing (`tourView`) and by
+`renderTourHub(fromSync)` not re-arming the sync it was called by. The repaint
+now redraws **the current screen** — a partner's score changes the points table
+and can re-rank a finished event, so the schedule and the event view want the
+update as much as the hub does. The record book is per-Pro history and is left
+alone.
+
+`tests/visual/tourCoop.spec.ts` opens the schedule in a shared season, waits
+four seconds, and asserts it is still there — and counts the partner reads, so
+the loop is measured rather than assumed. Both assertions fail against the old
+code (the schedule comes back with zero rows).
+
+### Clicking an event
+
+A finished row now opens the whole leaderboard: the player, the ten rivals, and
+any shared-season partner who has posted that event, each with a to-par and the
+points that finish paid. Rows for unplayed events are deliberately inert and
+carry no chevron — a row that looks tappable and does nothing is worse than one
+that plainly is not.
+
+The table comes from `eventRowsFor`, which was already private in `TourSeason`
+and is the function the season's **points** are computed from; it is now
+exported rather than reimplemented for display. That matters most in exactly the
+case this feature exists for: a shared event re-ranks when a partner posts late,
+and a display-only rebuild would be free to disagree with the standings on the
+previous screen.
+
+Results banked before shared seasons existed carry no `field`, so no leaderboard
+can be rebuilt for them. Those say so plainly and show the player's own finish,
+rather than rendering a one-row table that reads as a bug.
+
+## 36. Two things the quality pass broke, and one it exposed
+
+### The ground bake smeared its right-hand edge
+
+Owner, with screenshots: *"sable bay number 3 is also not rendering right.
+everything renders as fairway all the way to the farthest right the hole goes"*
+— and, decisively, *"never did that before."*
+
+`renderCourseCanvas` rasterizes a coarse surface-class grid at **2 world px per
+cell** and reads it back with `(worldX + pad) / step | 0`, clamped to the grid.
+It sized that grid from the **scaled canvas**:
+
+```
+const w  = Math.round((hole.world.width + pad * 2) * scale);
+const gw = Math.ceil(w / step);
+```
+
+which equals the world-derived size only at `scale === 1`. And 1 was the only
+value the bake ever produced — until §32 gave the budget a quality multiplier
+and dropped its floor:
+
+```
+- const BAKE_TEXEL_BUDGET = 4_000_000;
+- const bakeScale = Math.max(1, Math.min(2, Math.sqrt(BUDGET / bakeArea)));
++ const BAKE_TEXEL_BUDGET = 4_000_000 * quality.bakeScale;
++ const bakeScale = Math.max(0.5, Math.min(2, Math.sqrt(BUDGET / bakeArea)));
+```
+
+Below a scale of 1 the grid stopped short of the world's right and bottom
+edges, every point past it clamped to the final column, and whatever class sat
+there was smeared to the boundary. On Sable Bay 3 — a hole deliberately authored
+as an all-waste sand sea with thin turf ribbons — a fairway ribbon near the edge
+repainted the rest of the hole as fairway, while the physics still played it as
+the sand it really was.
+
+Two things make this worse than a cosmetic slip. The albedo and `surfaceAt`
+disagreed about **where the fairway was**, which is close to the worst class of
+bug this renderer can have. And it only appeared on devices the governor had
+demoted — the low-end phones least able to report it, and the ones §32 made far
+more likely to be demoted in the first place.
+
+The grid is now sized from the world (`classGridCells`), because classification
+resolution is not the texture's business: what surface a texel IS must not
+change because the albedo was baked smaller. Gated by
+`tests/simulation/courseTextureGrid.test.ts`, which pins the invariant directly
+— no point in the padded world may clamp, at any scale.
+
+### A missed putt had no middle
+
+Owner: *"why does every putt that is a miss on distance perfect zone go way too
+far. there's no small misses on distance. it's either perfect or way off."*
+
+`deliveredPower` passed the raw cursor error through and clamped it at
+`puttGoodErrorFrac · target` (15%). In BAR units that cap is tiny on a short
+putt — at a target of 0.10 it is 0.015, **smaller than the perfect band's own
+half-width** — so the clamp was already saturated the instant the cursor left
+perfect. Measured at putting stat 80 on a 0.10 target: one notch outside the
+band delivered the full 15% overshoot, and so did every larger miss. There was
+no value in between to hit, which is exactly what the owner described.
+
+The error now scales with how far past the perfect edge the cursor stopped,
+relative to the good band: zero at the edge of perfect, the full cap at the edge
+of good, the cap beyond. Continuous, monotonic, and the same proportional feel
+at every putt length. The 15% cap is unchanged — it was never the problem.
+
+Left alone deliberately: `puttPaceQualityMult` still triples the random pace
+sigma the moment a stroke stops being perfect. That is authored intent
+("mishits scatter hard"), and it is zero-mean, so it does not push putts
+systematically long the way the saturated cap did. Worth revisiting only if the
+gradient above turns out not to be enough on a real green.

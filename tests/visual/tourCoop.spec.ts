@@ -130,3 +130,76 @@ test('start a shared season, then join it from the invite link', async ({ page }
   expect(errors, errors.join('\n')).toHaveLength(0);
   await ctx.close();
 });
+
+/**
+ * THE SCHEDULE BUTTON IN A SHARED SEASON (owner: "the schedule and standings
+ * button doesn't work in a multiplayer season").
+ *
+ * It was never the button. Four screens share the `#tourHub` element, and
+ * `renderTourHub` kicked off a background partner sync whose completion
+ * repainted — always as the HUB, whatever was actually on screen. So the
+ * schedule painted and was overwritten a moment later, which from the player's
+ * side is a button that does nothing. Worse, the repaint re-entered
+ * `renderTourHub`, which started another sync: an unbounded read loop that
+ * rebuilt this screen's DOM every time a read landed.
+ *
+ * A solo season never showed either symptom — `syncCoopSeason` returns
+ * immediately when there is no partner — which is exactly why it reached the
+ * owner.
+ */
+test('the schedule opens and STAYS open in a shared season', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  const store: Record<string, unknown> = {};
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await mockRtdb(page, store);
+  // Count the partner reads, so the read loop is measured rather than inferred.
+  await page.addInitScript(() => {
+    (window as never as Record<string, unknown>).__coopReads = 0;
+  });
+  await page.route('**rtdb.test/coopSeasons/**', async (route) => {
+    if (route.request().method() === 'GET') {
+      await page.evaluate(() => {
+        (window as never as { __coopReads: number }).__coopReads++;
+      }).catch(() => undefined);
+    }
+    await route.fallback();
+  });
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: () => Promise.resolve(), configurable: true });
+  });
+  await page.goto('/?lb=https://rtdb.test&freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+  await startCareer(page, 'Host Pro');
+
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await hub.locator('#thCoop').dispatchEvent('click');
+  await expect(hub.locator('#thCoopShare')).toBeVisible({ timeout: 20_000 });
+  await expect(hub).toContainText('Shared season');
+
+  // Open the schedule and leave it alone for long enough that several syncs
+  // would have landed on top of it.
+  await hub.locator('#thSched').dispatchEvent('click');
+  await expect(hub.locator('.thEv')).toHaveCount(16);
+  await page.waitForTimeout(4000);
+
+  // Still the schedule — not the hub wearing its clothes.
+  await expect(hub.locator('.thEv'), 'a background sync repainted over the schedule').toHaveCount(16);
+  await expect(hub.locator('#thSchedBack')).toBeVisible();
+  await expect(hub.locator('#thPlay')).toHaveCount(0);
+
+  // And the reads are bounded. The loop issued one per repaint for as long as
+  // the hub was open; a handful over four seconds is fine, dozens is the bug.
+  const reads = await page.evaluate(() => (window as never as { __coopReads: number }).__coopReads);
+  expect(reads, `partner reads ran away (${reads}) — the sync/repaint loop is back`).toBeLessThan(12);
+
+  // Back still returns to the hub.
+  await hub.locator('#thSchedBack').dispatchEvent('click');
+  await expect(hub.locator('#thPlay')).toBeVisible();
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
