@@ -400,7 +400,13 @@ export function buildCourse(
   );
   sun.intensity = 0.78;
   sun.position = w2b(hole.tee.x, hole.tee.y - 400, 600);
-  const shadows = new ShadowGenerator(quality.shadowSize, sun);
+  // The 5th argument is `useRedTextureType`: a single-channel colour
+  // attachment instead of RGBA16F. PCF reads the hardware depth-stencil
+  // texture, not this attachment, so nothing changes visually — but the map
+  // drops from 12 MiB to ~6 at tier 0 (8 MiB RGBA16F colour → 2 MiB R16F,
+  // plus the unavoidable 4 MiB DEPTH32F), on every course, at every tier.
+  // Found while inventorying the owner's Pixel 8 graphics-memory crash.
+  const shadows = new ShadowGenerator(quality.shadowSize, sun, undefined, undefined, true);
   shadows.usePercentageCloserFiltering = true;
   shadows.darkness = 0.35;
 
@@ -803,6 +809,12 @@ export function buildCourse(
     const patchTex = new DynamicTexture('greenPatch', { width: patch.canvas.width, height: patch.canvas.height }, scene, true);
     patchTex.getContext().drawImage(patch.canvas, 0, 0);
     patchTex.update(false);
+    // Release the source canvas the moment its pixels are uploaded — the same
+    // deterministic free the ground bake gets above, which this path forgot: a
+    // 1452² patch is an ~8 MiB backing store, and on a phone the collector is
+    // not what decides whether the tab survives the next allocation.
+    patch.canvas.width = 0;
+    patch.canvas.height = 0;
     patchTex.updateSamplingMode(Texture.TRILINEAR_SAMPLINGMODE);
     patchTex.anisotropicFilteringLevel = 8;
     const gm = new StandardMaterial('greenComplexMat', scene);

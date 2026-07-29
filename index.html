@@ -2407,6 +2407,38 @@
         padding: 7px 9px;
         margin-top: 0;
       }
+      /* The persistent way out after the GPU process dies (main.ts
+         showGpuReloadBanner). Fixed to the top so it cannot be scrolled away,
+         above the landing but below nothing that matters — once the context is
+         gone the only meaningful tap on the page is this one. */
+      #gpuReload {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 60;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 10px 14px;
+        /* Under a phone notch the banner is the topmost element on the page. */
+        padding-top: calc(10px + env(safe-area-inset-top, 0px));
+        background: rgba(122, 32, 24, 0.96);
+        color: #ffe9e4;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      #gpuReload button {
+        flex: 0 0 auto;
+        padding: 8px 16px;
+        border: none;
+        border-radius: 10px;
+        background: #ffd54f;
+        color: #3a2a00;
+        font-size: 14px;
+        font-weight: 800;
+      }
       /* Four graphics choices have to fit a phone row without shrinking the
          label column to nothing. */
       .setRow .setSeg .segBtn {

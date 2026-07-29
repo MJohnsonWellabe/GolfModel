@@ -353,6 +353,15 @@ export interface CrashRecord {
   dpr: number;
   /** navigator.deviceMemory (GB), where the browser reports it. */
   deviceMemory: number | null;
+  /**
+   * Set when this crash happened under a PLAYER-PINNED graphics tier and the
+   * crash handler stepped the pin down to this tier. A pinned tier used to
+   * survive a context loss untouched — `demoteQuality` no-ops when pinned —
+   * so a device pinned to Full rebuilt the exact scene that had just run out
+   * of memory, and crashed again (the owner's Pixel 8, twice in one day).
+   * Recording WHERE the pin moved lets the Settings note explain what changed.
+   */
+  pinnedTo?: 0 | 1 | 2 | 3;
 }
 
 export interface DeviceSettings {
@@ -451,7 +460,8 @@ function readCrash(v: unknown): CrashRecord | undefined {
     canvasW: num(c.canvasW),
     canvasH: num(c.canvasH),
     dpr: num(c.dpr),
-    deviceMemory: typeof c.deviceMemory === 'number' && Number.isFinite(c.deviceMemory) ? c.deviceMemory : null
+    deviceMemory: typeof c.deviceMemory === 'number' && Number.isFinite(c.deviceMemory) ? c.deviceMemory : null,
+    ...(c.pinnedTo === 0 || c.pinnedTo === 1 || c.pinnedTo === 2 || c.pinnedTo === 3 ? { pinnedTo: c.pinnedTo } : {})
   };
 }
 

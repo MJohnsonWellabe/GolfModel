@@ -422,6 +422,25 @@ describe('device settings (persistent audio/motion preferences)', () => {
     ...over
   });
 
+  it('round-trips the pin-step field, and omits it when absent', () => {
+    // `pinnedTo` records that the crash handler moved a player-pinned tier
+    // down — the loop breaker for the pinned-Full crash cycle. It is optional:
+    // an auto-tier crash writes no such field, and the coercion must not
+    // invent one (a phantom 0 would render as "moved the pin to Full").
+    const s = memStorage();
+    const stepped = crashRecord({ tier: 0, pinnedTo: 1 });
+    saveDeviceSettings({ ...loadDeviceSettings(s)!, crashes: [stepped] } as never, s);
+    expect(loadDeviceSettings(s)!.crashes[0].pinnedTo).toBe(1);
+
+    const auto = crashRecord();
+    saveDeviceSettings({ ...loadDeviceSettings(s)!, crashes: [auto] } as never, s);
+    expect('pinnedTo' in loadDeviceSettings(s)!.crashes[0]).toBe(false);
+
+    // Junk in the field is dropped, not passed through to the renderer.
+    s.setItem('johnsons-golf-device-settings-v1', JSON.stringify({ crashes: [{ at: 5, pinnedTo: 'yes' }] }));
+    expect(loadDeviceSettings(s)!.crashes[0].pinnedTo).toBeUndefined();
+  });
+
   it('keeps a crash record it can trust, and drops one it cannot', () => {
     const s = memStorage();
     const crash = crashRecord();

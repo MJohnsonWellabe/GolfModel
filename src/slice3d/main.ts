@@ -201,8 +201,32 @@ const needsReadableBuffer =
 // rejected as the more dangerous option — it would have failed later, somewhere
 // subtler.
 let engine3d: Engine | null = null;
+/**
+ * MEMORY MARGIN for a device that recently ran out of graphics memory.
+ *
+ * Read straight off localStorage here because the engine is built at module
+ * top, long before `deviceSettings` is initialised — `loadDeviceSettings` is a
+ * pure read and calling it twice is harmless. The 7-day window is the same one
+ * `captureRisky()` uses (CRASH_QUIET_DAYS, declared later in module order,
+ * hence not referenced here).
+ *
+ * What the margin buys: the engine's 2nd argument is `antialias`. MSAA on the
+ * default framebuffer was the single largest UNKNOWN in the GPU-memory
+ * inventory of the owner's Pixel 8 crash — up to ~45 MiB if the driver backs
+ * the multisample buffers in main memory. A device that just OOM'd is the one
+ * place where trading edge smoothing for that headroom is obviously right;
+ * healthy devices keep MSAA, and the margin expires with the crash record.
+ */
+const recentGpuCrash = ((): boolean => {
+  try {
+    const last = loadDeviceSettings()?.crashes?.[0];
+    return !!last && Date.now() - last.at < 7 * 86_400_000;
+  } catch {
+    return false;
+  }
+})();
 try {
-  engine3d = new Engine(canvas, true, {
+  engine3d = new Engine(canvas, !recentGpuCrash, {
     adaptToDeviceRatio: true,
     preserveDrawingBuffer: needsReadableBuffer
   });
@@ -334,7 +358,10 @@ const captureBtn = document.getElementById('captureBtn') as HTMLButtonElement;
 // First tap on the clip button switches it on (persisted device-locally);
 // after that, taps save the last few seconds. Degrades to a hidden button
 // where the browser can't record.
-const shotCapture = new ShotCapture(canvas);
+// 24fps under the memory margin: a fifth less encode pressure on a device
+// that recently lost its context, and the Settings note already tells the
+// player recording is the risky feature there. 30 everywhere else.
+const shotCapture = new ShotCapture(canvas, recentGpuCrash ? { fps: 24 } : {});
 /** How long a recorded context loss keeps the recorder off. A device that has
  *  gone a week without losing its context has earned the feature back. */
 const CRASH_QUIET_DAYS = 7;
@@ -5834,8 +5861,13 @@ function crashNote(): string {
   const floor = c.floor !== c.tier ? ` (session floor ${c.floor})` : '';
   const why = c.reason ? ` · ${escapeHtml(c.reason)}` : '';
   const earlier = log.length > 1 ? ` · +${log.length - 1} earlier` : '';
+  // The crash moved a player-pinned tier down — say so, or the player pins it
+  // back up without ever learning why their setting changed underneath them.
+  const label = (t: number): string => GRAPHICS_CHOICES.find(([v]) => v === t)?.[1] ?? `tier ${t}`;
+  const stepped =
+    c.pinnedTo !== undefined ? ` · moved the ${label(c.tier)} pin to ${label(c.pinnedTo)}` : '';
   return (
-    `Last graphics failure ${when}: ${escapeHtml(c.course)}${hole} at tier ${c.tier}${floor}${why}` +
+    `Last graphics failure ${when}: ${escapeHtml(c.course)}${hole} at tier ${c.tier}${floor}${why}${stepped}` +
     `<br />${c.props.toLocaleString()} props · ${c.meshes} meshes · ${c.textures} textures` +
     ` · ${c.engineTextures} engine textures${heap}${buffer}${mem}` +
     (context ? `<br />${context}` : '') +
@@ -8858,6 +8890,33 @@ function abandonAfterContextLoss(): void {
   summaryEl.style.display = 'none';
   showLanding();
   showMsg('The graphics ran out of memory. Your card is saved — finish the round from the menu.', 4200);
+  showGpuReloadBanner();
+}
+
+/**
+ * A PERSISTENT way out after the GPU process dies — not a toast.
+ *
+ * Once `contextGone` is set, this page can never start another round
+ * (`gpuBlocked()` refuses), and the only thing that fixes it is a reload. That
+ * used to be communicated by a transient toast shown IF the player happened to
+ * tap Play — miss it and the game simply looks broken (owner: "had another
+ * crash"). The banner stays until the reload, or until a late
+ * `webglcontextrestored` proves the context came back after all.
+ *
+ * `#gpuReload`, deliberately NOT `#jgReload`: the no-WebGL boot fallback
+ * asserts that id never exists (tests/visual/webglFallback.spec.ts), and that
+ * contract is about a different situation — a device that never had a context,
+ * where reloading cannot help. Here a reload genuinely fixes it.
+ */
+function showGpuReloadBanner(): void {
+  if (document.getElementById('gpuReload')) return;
+  const bar = document.createElement('div');
+  bar.id = 'gpuReload';
+  bar.innerHTML =
+    `<span>Graphics stopped — reload to keep playing. Your round is saved.</span>` +
+    `<button id="gpuReloadBtn">Reload</button>`;
+  document.body.appendChild(bar);
+  document.getElementById('gpuReloadBtn')?.addEventListener('click', () => location.reload());
 }
 
 /**
@@ -8883,7 +8942,7 @@ function abandonAfterContextLoss(): void {
  * what the device looked like.
  */
 let crashSeq = 0;
-function recordCrash(): void {
+function recordCrash(pinnedTo?: 0 | 1 | 2 | 3): void {
   try {
     crashSeq += 1;
     const scene = current?.scene ?? null;
@@ -8941,7 +9000,10 @@ function recordCrash(): void {
       canvasW: canvas.width,
       canvasH: canvas.height,
       dpr: window.devicePixelRatio || 1,
-      deviceMemory: (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? null
+      deviceMemory: (navigator as unknown as { deviceMemory?: number }).deviceMemory ?? null,
+      // Present only when the loss handler is about to move a player-pinned
+      // tier down — recorded here so the Settings note can say what changed.
+      ...(pinnedTo !== undefined ? { pinnedTo } : {})
     };
     updateDeviceSettings({ crashes: [record, ...deviceSettings.crashes].slice(0, CRASH_LOG_MAX) });
   } catch {
@@ -8957,16 +9019,38 @@ const CONTEXT_RESTORE_GRACE_MS = 8000;
 
 canvas.addEventListener('webglcontextlost', (e) => {
   e.preventDefault(); // without this the context is never eligible for restore
-  // DEMOTE HERE, NOT ON RESTORE. A lost context is the GPU reporting it ran out
-  // of room, and `remember()` writes the tier to localStorage synchronously —
-  // so doing it now means the setting survives even if the tab is killed a
-  // moment later. Doing it in the restored handler (as this first shipped)
-  // meant the one path that actually happens — the GPU process dying, with no
-  // restore ever — left the device to relaunch at the budget that killed it.
-  demoteQuality('webgl context lost');
-  // Snapshot BEFORE the demote takes effect on anything and before the scene is
-  // dropped — this is the only moment the failing hole's numbers still exist.
-  recordCrash();
+  // RECORD FIRST, so the crash record carries the tier the scene actually
+  // died at. This used to demote first and record second, which stamped
+  // unpinned records with the tier the device LANDED on rather than the one
+  // that crashed — and pinned records looked right only because the demote
+  // was silently a no-op (see below).
+  //
+  // THE PIN STEPS DOWN TOO. `demoteQuality` respects a player pin absolutely
+  // — right for frame-time evidence, wrong for a lost context, because a
+  // pinned device rebuilt the exact scene that had just run out of memory and
+  // died again (the owner's Pixel 8: two crashes in one day, both pinned Full
+  // at tier 0). A lost context is the device overruling the preference, so
+  // the PIN moves one tier down — still pinned, still the player's setting,
+  // persisted through the same path the Settings buttons use, and announced
+  // both here and in the Settings crash note. Set it straight back if you
+  // want: nothing hides Full.
+  const g = deviceSettings.graphics;
+  const stepTo = g !== 'auto' && g < 3 ? ((g + 1) as 0 | 1 | 2 | 3) : undefined;
+  recordCrash(stepTo);
+  if (stepTo !== undefined) {
+    updateDeviceSettings({ graphics: stepTo });
+    // Refuses under automation/url overrides — exactly right; the stored
+    // setting above is what a real device reads at its next boot either way.
+    setQualityPreference(stepTo);
+    const name = (t: 0 | 1 | 2 | 3): string => GRAPHICS_CHOICES.find(([v]) => v === t)?.[1] ?? `tier ${t}`;
+    showMsg(`Graphics ran out of memory at ${name(g as 0 | 1 | 2 | 3)} — moved to ${name(stepTo)}. Set it back in Settings if you want.`, 4600);
+  } else {
+    // Auto (or already at Performance): the governor's demote — a lost context
+    // is stronger evidence than any frame median, and `remember()` writes the
+    // landing tier to localStorage synchronously so it survives even if the
+    // tab is killed a moment later.
+    demoteQuality('webgl context lost');
+  }
   // The veil is raised here and lifted by the restore handler, or by the
   // timeout below — never by playHole itself.
   showLoading('Rebuilding the hole…');
@@ -8990,11 +9074,16 @@ canvas.addEventListener('webglcontextrestored', () => {
   }
   // There is a context again, so rounds are allowed again — this matters when
   // restore arrives LATE, after the grace period already gave up and sent the
-  // player back to the menu.
+  // player back to the menu. The reload banner goes with it: its one claim
+  // ("reload to keep playing") stopped being necessary.
   contextGone = false;
+  document.getElementById('gpuReload')?.remove();
   // The lost context took every GPU resource with it; the JS-side scene is
-  // rubble. The tier already sank in the lost handler above, so the rebuild
-  // below comes back cheaper than the scene that just died.
+  // rubble. The lost handler above already moved the budget down — a pinned
+  // tier stepped its PIN one notch, an auto tier took the governor's demote —
+  // so the rebuild below genuinely comes back cheaper than the scene that
+  // just died. (Under a pin that claim used to be false: demoteQuality no-ops
+  // when pinned, and the rebuild came back at the killing budget.)
   if (!current) {
     hideLoading();
     return;
