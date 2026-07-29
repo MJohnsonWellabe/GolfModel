@@ -3269,12 +3269,15 @@
       }
       /* The locker room is the one overlay that is a PLACE rather than a list,
          so it gets the room behind it (assets/marketing/img/locker-room.png,
-         built by scripts/gen-locker-art.mjs from a CC0 plank photo). The scrim
-         is heavier than #setup's because the locker panels are light timber and
-         the card that floats over them is dark-on-light text. */
+         built by scripts/gen-locker-art.mjs from a CC0 plank photo).
+         The scrim is deliberately LIGHT. The first pass ran 0.62 → 0.88 and the
+         captured screen showed a black rectangle with a hint of timber in it —
+         which is not a locker room, it is a wasted asset. The card floating over
+         it carries its own background, so the scrim only has to keep the loose
+         text legible; the room gets to be visible. */
       #lockerRoom {
         background:
-          linear-gradient(180deg, rgba(4, 10, 6, 0.62), rgba(3, 8, 5, 0.88)),
+          linear-gradient(180deg, rgba(4, 10, 6, 0.22), rgba(3, 8, 5, 0.66)),
           url('assets/marketing/img/locker-room.png') center / cover no-repeat,
           linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
       }

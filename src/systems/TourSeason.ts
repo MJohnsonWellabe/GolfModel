@@ -1242,7 +1242,24 @@ export function activeTour(c: TourCollection): TourSeasonState | null {
  */
 export function putTour(c: TourCollection, t: TourSeasonState): TourCollection {
   const key = tourKey(t);
-  return { ...c, seasons: { ...c.seasons, [key]: t }, activeId: key };
+  const seasons: Record<string, TourSeasonState> = {};
+  for (const [k, v] of Object.entries(c.seasons)) {
+    // A season can be RE-KEYED: `startCoopSeason` takes the untouched solo
+    // season already in progress, attaches a coop link to it, and puts it back
+    // — which moves it from `solo:<seed>` to `co:<sid>`. Without dropping the
+    // old key the same season would sit in the map twice and the picker would
+    // offer it as two.
+    //
+    // The identity that survives a re-key is (seed, seasonNo), not the object:
+    // the caller may hand back a spread copy rather than the same reference.
+    // A season that genuinely differs keeps a different seed — `startCoopSeason`
+    // mints a fresh one whenever the existing season has events banked, and
+    // that case SHOULD keep both.
+    const sameSeason = v === t || (v.seed === t.seed && v.seasonNo === t.seasonNo);
+    if (k !== key && !sameSeason) seasons[k] = v;
+  }
+  seasons[key] = t;
+  return { ...c, seasons, activeId: key };
 }
 
 /** Switch to an existing season. A key that is not in the map is ignored

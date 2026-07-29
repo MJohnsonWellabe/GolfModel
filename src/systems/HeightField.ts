@@ -68,6 +68,23 @@ export interface TerrainCut {
   /** Shore ramp (world px) outside the outline over which the cut fades back
    *  to the natural ground, so a carved channel has banks rather than walls. */
   blend: number;
+  /**
+   * Ground the cut must NOT lower — the putting surface.
+   *
+   * This is not defensive coding, it is a shipped bug. Sable Bay h1's green
+   * lies inside the bounding outline of the bay, so the first version of this
+   * carve pulled the green itself down: the pin at (410,338) dropped from 12 to
+   * 10.1 while the green's centre stayed at 12, tilting the putting surface and
+   * turning a routine hole into a 14. The bunker dish already refuses to crater
+   * a green two ways (`GREEN_KEEPOUT` on the rim, and no dish at all for a
+   * bunker centred on the green); water is no different. You cannot carve a
+   * channel through a putting surface.
+   *
+   * The protection RAMPS rather than switching off, over the same `blend`
+   * distance the shore uses, so the green meets the carved bed on a bank
+   * instead of a cliff the terrain gates would (rightly) reject.
+   */
+  protect?: (x: number, y: number) => boolean;
 }
 
 const CELL = 8; // grid resolution, world px — smooth macro terrain only
@@ -143,6 +160,41 @@ function addFlankingMounds(hole: HoleData, cx: number, cy: number, r: number, pt
     if (clampedR <= 0) continue;
     const h = 1.5 + hash2(cx + k * 3, cy - k * 5) * 1.0; // 1.5-2.5, matches Port Johnson's examples
     pts.push({ x: mx, y: my, h, r: clampedR });
+  }
+}
+
+/**
+ * In-place chamfer distance transform, in CELL units: two sweeps with a 1 / √2
+ * neighbourhood over a field pre-seeded with 0 at the sources and a large value
+ * elsewhere. Not exact euclidean, but the error is under 4% over a 4-cell ramp
+ * — invisible in a shoreline — and it is linear in the number of cells rather
+ * than quadratic, which is what lets the daily-hole gate build a field per
+ * simulated round.
+ */
+function chamfer(d: Float32Array, bw: number, bh: number): void {
+  const D1 = 1;
+  const D2 = 1.41421356;
+  for (let y = 0; y < bh; y++) {
+    for (let x = 0; x < bw; x++) {
+      const i = y * bw + x;
+      let v = d[i];
+      if (x > 0) v = Math.min(v, d[i - 1] + D1);
+      if (y > 0) v = Math.min(v, d[i - bw] + D1);
+      if (x > 0 && y > 0) v = Math.min(v, d[i - bw - 1] + D2);
+      if (x < bw - 1 && y > 0) v = Math.min(v, d[i - bw + 1] + D2);
+      d[i] = v;
+    }
+  }
+  for (let y = bh - 1; y >= 0; y--) {
+    for (let x = bw - 1; x >= 0; x--) {
+      const i = y * bw + x;
+      let v = d[i];
+      if (x < bw - 1) v = Math.min(v, d[i + 1] + D1);
+      if (y < bh - 1) v = Math.min(v, d[i + bw] + D1);
+      if (x < bw - 1 && y < bh - 1) v = Math.min(v, d[i + bw + 1] + D2);
+      if (x > 0 && y < bh - 1) v = Math.min(v, d[i + bw - 1] + D2);
+      d[i] = v;
+    }
   }
 }
 
@@ -281,38 +333,39 @@ export class HeightField {
     const FAR = 1e9;
     const d = new Float32Array(bw * bh);
     for (let i = 0; i < d.length; i++) d[i] = inside[i] ? 0 : FAR;
-    const D1 = 1;
-    const D2 = 1.41421356;
-    for (let y = 0; y < bh; y++) {
-      for (let x = 0; x < bw; x++) {
-        const i = y * bw + x;
-        let v = d[i];
-        if (x > 0) v = Math.min(v, d[i - 1] + D1);
-        if (y > 0) v = Math.min(v, d[i - bw] + D1);
-        if (x > 0 && y > 0) v = Math.min(v, d[i - bw - 1] + D2);
-        if (x < bw - 1 && y > 0) v = Math.min(v, d[i - bw + 1] + D2);
-        d[i] = v;
+    chamfer(d, bw, bh);
+
+    // ...and a SECOND distance field, out from the protected ground, by the
+    // same two sweeps. `keep` is 1 on the green and falls to 0 over `blend`, so
+    // the carve is scaled to nothing as it approaches a putting surface.
+    let keep: Float32Array | null = null;
+    if (cut.protect) {
+      keep = new Float32Array(bw * bh);
+      let any = false;
+      for (let y = 0; y < bh; y++) {
+        for (let x = 0; x < bw; x++) {
+          const on = cut.protect((gx0 + x) * CELL, (gy0 + y) * CELL);
+          keep[y * bw + x] = on ? 0 : FAR;
+          if (on) any = true;
+        }
       }
-    }
-    for (let y = bh - 1; y >= 0; y--) {
-      for (let x = bw - 1; x >= 0; x--) {
-        const i = y * bw + x;
-        let v = d[i];
-        if (x < bw - 1) v = Math.min(v, d[i + 1] + D1);
-        if (y < bh - 1) v = Math.min(v, d[i + bw] + D1);
-        if (x < bw - 1 && y < bh - 1) v = Math.min(v, d[i + bw + 1] + D2);
-        if (x > 0 && y < bh - 1) v = Math.min(v, d[i + bw - 1] + D2);
-        d[i] = v;
-      }
+      if (!any) keep = null;
+      else chamfer(keep, bw, bh);
     }
 
     const reach = cut.blend / CELL;
     for (let y = 0; y < bh; y++) {
       for (let x = 0; x < bw; x++) {
-        const dist = d[y * bw + x];
+        const i = y * bw + x;
+        const dist = d[i];
         if (dist >= reach) continue;
         const s = reach > 0 ? dist / reach : 0;
-        const t = s * s * (3 - 2 * s); // 0 in the water, 1 at the top of the bank
+        let t = s * s * (3 - 2 * s); // 0 in the water, 1 at the top of the bank
+        if (keep) {
+          // Distance from the nearest protected cell, on the same 0..1 ramp.
+          const p = reach > 0 ? Math.min(1, keep[i] / reach) : 1;
+          t = Math.max(t, 1 - p * p * (3 - 2 * p));
+        }
         const gi = (gy0 + y) * this.gw + (gx0 + x);
         const g = this.grid[gi];
         const target = g * t + cut.floor * (1 - t);
@@ -379,7 +432,11 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
         polygon: hz.polygon,
         surface,
         floor: surface - WATER_BED_DEPTH,
-        blend: WATER_SHORE_BLEND
+        blend: WATER_SHORE_BLEND,
+        // The same clearance the bunker dish keeps. A coastal green often sits
+        // inside the SEA's bounding outline (Sable Bay h1) — without this the
+        // carve tilts the putting surface.
+        protect: (x, y) => pointInGreens(x, y, hole.green, hole.green2, GREEN_KEEPOUT)
       });
       continue;
     }

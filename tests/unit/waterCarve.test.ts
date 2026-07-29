@@ -155,3 +155,35 @@ describe('water sits in carved ground, not on top of it', () => {
     expect(buildHeightField(flat)).toBeNull();
   });
 });
+
+/**
+ * THE GREEN IS NOT CARVEABLE.
+ *
+ * Sable Bay h1's green lies inside the bounding outline of the bay, so the
+ * first version of this carve pulled the putting surface itself down — the pin
+ * dropped ~2 units below the green's centre, tilting it, and a routine hole
+ * replayed as a 14. `tests/simulation/roundRecording.test.ts` is what caught
+ * it; this is the gate that names the cause.
+ */
+describe('a water carve never lowers a putting surface', () => {
+  const bay = loadCourse(sablebay as unknown as CourseAuthoring);
+
+  it('leaves every green as flat as it was authored, on every hole', () => {
+    for (const hole of bay.holes) {
+      const withWater = buildHeightField(hole, 1, 0);
+      // The same hole with its water removed — the terrain the carve must not
+      // have departed from ON THE GREEN.
+      const dry = buildHeightField({ ...hole, hazards: hole.hazards.filter((h) => h.type !== 'water') }, 1, 0);
+      const g = hole.green;
+      let worst = 0;
+      for (let a = 0; a < 16; a++) {
+        for (const f of [0, 0.5, 1]) {
+          const x = g.cx + Math.cos((a / 16) * Math.PI * 2) * g.rx * f;
+          const y = g.cy + Math.sin((a / 16) * Math.PI * 2) * g.ry * f;
+          worst = Math.max(worst, Math.abs((withWater?.heightAt(x, y) ?? 0) - (dry?.heightAt(x, y) ?? 0)));
+        }
+      }
+      expect(worst, `hole ${hole.number}: the water carve moved the green by ${worst.toFixed(2)}`).toBeLessThan(0.01);
+    }
+  });
+})

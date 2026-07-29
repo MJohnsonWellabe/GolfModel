@@ -12396,6 +12396,36 @@ else {
   };
 };
 
+/**
+ * Test hook for the SEASON COLLECTION (Stage 5). Forges a second season and a
+ * finished one so a spec can reach the picker and the archive without playing
+ * thirty-two events, then reports what the collection holds.
+ *
+ * The screens themselves are real — this only supplies the state.
+ */
+(window as unknown as { __seasons: unknown }).__seasons = (stage = false) => {
+  if (stage) {
+    const solo = newSeason(910001);
+    const friend = { ...newSeason(910002), coop: { id: 'demo', playerId: 'me', partners: [{ playerId: 'f', name: 'Dana', results: {} }] } };
+    const done = { ...newSeason(910003), played: TOUR_EVENTS, points: { player: 2400, rex: 3100, dutch: 1800 } };
+    profile.tours = putTour(putTour(profile.tours, done), friend);
+    profile.tours = archiveTour(profile.tours, done, { proId: 'p', proName: 'Demo', at: 1, ended: 'finale' });
+    profile.tours = putTour(profile.tours, solo);
+    persistProfile();
+  }
+  return {
+    keys: Object.keys(profile.tours.seasons),
+    activeId: profile.tours.activeId,
+    archive: profile.tours.archive.map((a) => ({ key: a.key, rank: a.playerRank, rows: a.standings.length }))
+  };
+};
+(window as unknown as { __seasonView: unknown }).__seasonView = (which: string) => {
+  if (which === 'picker') renderSeasonPicker();
+  else if (which === 'history') renderSeasonHistory();
+  else if (which === 'past') renderPastSeason(0);
+  else renderTourHub();
+};
+
 // Test hooks for the sudden-death playoff (tests/visual/tourPlayoff.spec.ts).
 // __stagePlayoff forges a regulation-complete event with the player and the
 // first `tied` rivals level on top — the only practical way a spec reaches a

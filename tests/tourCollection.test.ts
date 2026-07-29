@@ -234,3 +234,37 @@ describe('merging across devices', () => {
     }
   });
 });
+
+/**
+ * RE-KEYING. `startCoopSeason` attaches a coop link to the solo season already
+ * in progress and puts it back, which moves it from `solo:<seed>` to
+ * `co:<sid>`. It has to MOVE, not copy.
+ */
+describe('sharing the season already in progress', () => {
+  it('moves it rather than leaving a duplicate under the old key', () => {
+    const solo = newSeason(9);
+    let c = putTour(emptyTours(), solo);
+    expect(Object.keys(c.seasons)).toEqual(['solo:9']);
+    const shared = { ...solo, coop: { id: 'sid', playerId: 'me', partners: [] } };
+    c = putTour(c, shared);
+    expect(Object.keys(c.seasons), 'one season, one entry').toEqual(['co:sid']);
+    expect(c.activeId).toBe('co:sid');
+  });
+
+  it('...and mutating the same object in place is still one entry', () => {
+    const solo = newSeason(9);
+    let c = putTour(emptyTours(), solo);
+    // This is what startCoopSeason literally does: assign onto `base`.
+    (solo as TourSeasonState).coop = { id: 'sid2', playerId: 'me', partners: [] };
+    c = putTour(c, solo);
+    expect(Object.keys(c.seasons)).toEqual(['co:sid2']);
+  });
+
+  it('does not disturb the OTHER seasons in the map', () => {
+    const other = newSeason(1);
+    const solo = newSeason(9);
+    let c = putTour(putTour(emptyTours(), other), solo);
+    c = putTour(c, { ...solo, coop: { id: 'sid', playerId: 'me', partners: [] } });
+    expect(Object.keys(c.seasons).sort()).toEqual(['co:sid', 'solo:1']);
+  });
+});

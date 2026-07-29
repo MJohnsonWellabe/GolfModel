@@ -1,4 +1,4 @@
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 /**
  * ONE CONTACT SHEET FOR STAGES 2-6.
@@ -115,14 +115,46 @@ test('menus · locker room, feats, seasons', async ({ page }) => {
   await page.goto('/');
   await page.waitForFunction(() => !!(window as unknown as { __startRound?: unknown }).__startRound);
   if (await open('landingProfile')) {
-    // The feats live under the Progress tab of the profile pane.
-    await page.evaluate(() => {
-      document.querySelectorAll('.profTab').forEach((t) => {
-        if ((t.textContent ?? '').toLowerCase().includes('progress')) (t as HTMLElement).click();
-      });
-    });
-    await page.waitForTimeout(600);
+    await shot(page, 'menu-settings');
+    // The feats live under the Progress tab. Select it by data-tab, not by the
+    // label text — the labels carry emoji and are a display concern.
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>('.profTab[data-tab="progress"]')?.click()
+    );
+    await page.waitForTimeout(900);
     await shot(page, 'menu-feats');
+  }
+  if (errors.length) throw new Error(errors.join('\n'));
+});
+
+/**
+ * The two screens Stage 5 added. The state is forged by `__seasons(true)` —
+ * reaching a second season and a finished one by playing is thirty-two events
+ * — but the screens are the real ones, so this is a capture of what a player
+ * sees plus a real assertion that the collection holds what it should.
+ */
+test('seasons · picker and past-season history', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as { __seasons?: unknown }).__seasons);
+
+  type Probe = { keys: string[]; activeId: string | null; archive: Array<{ rank: number; rows: number }> };
+  const state = (await page.evaluate(
+    () => (window as unknown as { __seasons: (s: boolean) => Probe }).__seasons(true)
+  )) as Probe;
+  // Two live seasons and one archived — the thing that was impossible before.
+  expect(state.keys.length, `keys: ${state.keys.join(',')}`).toBe(2);
+  expect(state.archive).toHaveLength(1);
+  // The archived season kept its WHOLE table, not one summary line.
+  expect(state.archive[0].rows).toBeGreaterThan(1);
+  expect(state.archive[0].rank, 'the player finished 2nd on 2400 behind 3100').toBe(2);
+
+  for (const view of ['picker', 'history', 'past']) {
+    await page.evaluate((v) => (window as unknown as { __seasonView: (x: string) => void }).__seasonView(v), view);
+    await page.waitForTimeout(700);
+    await shot(page, `season-${view}`);
   }
   if (errors.length) throw new Error(errors.join('\n'));
 });

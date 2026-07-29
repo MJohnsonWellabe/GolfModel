@@ -23,7 +23,7 @@
  * (scripts/optimize-marketing.mjs enforces MAX_W = 1600).
  */
 
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import sharp from 'sharp';
 
@@ -85,8 +85,8 @@ function roomSvg() {
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
     <!-- Wall above the lockers, and the deep shadow they sit in -->
-    <rect x="0" y="0" width="${W}" height="${H}" fill="#2a1b10"/>
-    <rect x="0" y="0" width="${W}" height="${doorTop}" fill="#1d130b"/>
+    <rect x="0" y="0" width="${W}" height="${H}" fill="#3d2716"/>
+    <rect x="0" y="0" width="${W}" height="${doorTop}" fill="#2b1c10"/>
     ${doors}
     <!-- Bench rail and seat, in front -->
     <rect x="0" y="${doorBot}" width="${W}" height="14" fill="#3d2716"/>
@@ -98,8 +98,8 @@ function roomSvg() {
     <rect x="0" y="${H * 0.2}" width="${W}" height="${H * 0.18}" fill="#ffcf7a" opacity="0.07"/>
     <!-- Corner falloff so the panel of UI floating over it stays readable -->
     <radialGradient id="v" cx="50%" cy="42%" r="72%">
-      <stop offset="55%" stop-color="#000" stop-opacity="0"/>
-      <stop offset="100%" stop-color="#000" stop-opacity="0.62"/>
+      <stop offset="60%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.45"/>
     </radialGradient>
     <rect x="0" y="0" width="${W}" height="${H}" fill="url(#v)"/>
   </svg>`;
@@ -117,7 +117,10 @@ mkdirSync(dirname(OUT), { recursive: true });
 // reads as timber under lamplight, then the room is painted on top of it.
 const grain = await sharp(src)
   .resize(400, 400, { fit: 'cover' })
-  .modulate({ brightness: 0.62, saturation: 0.7 })
+  // Lifted from 0.62 after the first in-game capture: behind the overlay's
+  // scrim the room read as a black rectangle with a hint of timber in it. The
+  // backdrop has to survive being dimmed, so it is authored bright.
+  .modulate({ brightness: 0.95, saturation: 0.85 })
   .toBuffer();
 
 const tiles = [];
@@ -125,7 +128,7 @@ for (let y = 0; y < H; y += 400) {
   for (let x = 0; x < W; x += 400) tiles.push({ input: grain, left: x, top: y });
 }
 
-await sharp({ create: { width: W, height: H, channels: 3, background: { r: 40, g: 26, b: 15 } } })
+await sharp({ create: { width: W, height: H, channels: 3, background: { r: 61, g: 39, b: 22 } } })
   .composite([
     ...tiles,
     // `overlay` keeps the plank grain visible THROUGH the flat shapes — the
@@ -142,4 +145,6 @@ await sharp({ create: { width: W, height: H, channels: 3, background: { r: 40, g
   .toFile(OUT);
 
 const meta = await sharp(OUT).metadata();
-console.log(`locker-room.png ${meta.width}x${meta.height} ${(meta.size / 1024).toFixed(0)} KB`);
+// statSync, not meta.size — sharp only reports `size` for buffers, so reading
+// it back off a file printed "NaN KB".
+console.log(`locker-room.png ${meta.width}x${meta.height} ${(statSync(OUT).size / 1024).toFixed(0)} KB`);

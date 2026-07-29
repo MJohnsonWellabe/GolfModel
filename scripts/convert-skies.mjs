@@ -145,8 +145,14 @@ const STYLES = [
     // seam — see HAZE_BANDS.
     haze: '#d3e7f2',
     src: 'kloofendal_misty_morning_puresky',
+    // Captured in-game and it was a WHITE SHEET — the misty source is already
+    // near the top of the range, so a 1.05 lift pushed the mid bands
+    // (#f0f0f8) brighter than the zenith and the dome read as an overexposed
+    // void rather than sea haze. Pulled down and saturated instead: haze that
+    // is unmistakably pale BLUE is the look; haze that is white is a missing
+    // texture.
     note: 'Sable Bay — sea haze: the ramp barely changes hue, it just goes pale and keeps going.',
-    bands: 14, sat: 1.02, lift: 1.05,
+    bands: 14, sat: 1.35, lift: 0.84,
     cumEl: [4, 40], cirEl: [38, 72],
     cloudTiers: [0.24, 0.46, 0.68], cover: 0.34
   },
