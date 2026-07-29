@@ -82,6 +82,22 @@ function mat(scene: Scene, name: string, diffuse: number, opts?: { emissive?: nu
   return m;
 }
 
+/** Linear blend between two packed RGB colours. */
+function mix(a: number, b: number, t: number): number {
+  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
+  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
+  return (
+    (Math.round(ar + (br - ar) * t) << 16) |
+    (Math.round(ag + (bg - ag) * t) << 8) |
+    Math.round(ab + (bb - ab) * t)
+  );
+}
+
+/** `rgb(r,g,b)` for a packed colour — canvas fill strings. */
+function rgbStr(hex: number): string {
+  return `rgb(${(hex >> 16) & 255},${(hex >> 8) & 255},${hex & 255})`;
+}
+
 /** Smooth two-octave noise for cosmetic terrain undulation. */
 function smoothNoise(x: number, y: number): number {
   return (
@@ -590,6 +606,7 @@ export function buildCourse(
   }
   groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
+
   // Compile the ground shader NOW (during the loading veil) instead of lazily on
   // the first visible frame. The ground material is heavy (bake diffuse +
   // detailMap + bumpTexture) and, until its shader is ready, the ground mesh is
@@ -1243,38 +1260,136 @@ export function buildCourse(
      * precisely so a styled course never builds — and never has to dispose — a
      * canvas it would not use.
      */
-    const softCloudTex = (name: string, tw: number, th: number, paint: (ctx: CanvasRenderingContext2D) => void): Texture => {
-      if (theme.skyStyle) {
-        // invertY false for the same reason the ramp needs it — these sheets
-        // are cel-shaded by depth below the top of each cloud, so a flip puts
-        // the lit face underneath.
-        const t = new Texture(`textures/sky/${theme.skyStyle}_${name}.png`, scene, false, false);
-        t.hasAlpha = true;
-        t.wrapU = Texture.CLAMP_ADDRESSMODE;
-        t.wrapV = Texture.CLAMP_ADDRESSMODE;
-        return t;
-      }
+    /**
+     * CLOUD COLOUR, PER COURSE — the half of the painted skies that worked.
+     *
+     * The owner's verdict on Stage 6 was precise: "I'm liking the color changes
+     * on the sky so they look unique but the clouds look bad." The DOME ramps
+     * are measured off real skies and he likes them; they are untouched. The
+     * cloud SHEETS were cut out of the same photographs, and cutting a
+     * photographic cloud out of an equirect and posterising it produces —
+     * reliably, on every source we tried — either a smooth ellipse with a lens
+     * in the middle (Sable Bay's "soap bubbles"), a torn scrap with rectangular
+     * blocks in it (Wildwood), or a grey smear (Timberline). None of them is a
+     * cloud, and none of them belongs in a flat-shaded low-poly game anyway:
+     * photoreal clouds are the wrong LANGUAGE for this art, which is why every
+     * attempt to fix them by adjusting the posterise made a different bad cloud.
+     *
+     * A CC0 cloud pack was evaluated and rejected for the same reason — the ten
+     * 2K alphas in OpenGameArt's fx_cloudalphas are VFX smoke plumes, which is
+     * the exact word the owner used for what he did not want.
+     *
+     * So the shapes go back to the hand-painted `puff` cauliflower that shipped
+     * before Stage 6 and that nobody ever complained about, and they take their
+     * COLOUR from the course instead of from a photograph: lit toward the
+     * course's own measured `sunTint`, shaded toward its own sky and haze. Wild
+     * Prairie's clouds are gold-lit at its golden hour, Timberline's are cool,
+     * Red Hollow's are storm-bruised — unique per course, which is the part he
+     * asked to keep, with no photograph anywhere near them.
+     */
+    const cloudLit = mix(0xffffff, theme.sunTint ?? 0xffffff, 0.34);
+    const cloudShade = shade(mix(theme.skyTop, theme.haze, 0.5), 0.82);
+    /**
+     * Give a painted cloud VOLUME: a top-lit, bottom-shaded ramp laid over the
+     * silhouette in `source-atop`, so it tints only where the puffs already put
+     * alpha. One gradient across the WHOLE sheet rather than one per blob —
+     * per-blob shading makes each lump read as its own sphere, which is what the
+     * photo pipeline's cel-shading pass did and why those sheets looked lumpy.
+     */
+    const shadeCloud = (ctx: CanvasRenderingContext2D, tw: number, th: number): void => {
+      ctx.globalCompositeOperation = 'source-atop';
+      const g = ctx.createLinearGradient(0, 0, 0, th);
+      g.addColorStop(0, rgbStr(cloudLit));
+      g.addColorStop(0.5, rgbStr(mix(cloudLit, cloudShade, 0.4)));
+      g.addColorStop(1, rgbStr(cloudShade));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, tw, th);
+      ctx.globalCompositeOperation = 'source-over';
+    };
+    /**
+     * One cloud layer's texture: a committed CC0 silhouette, tinted for this
+     * course, with the coded puff painting standing in until it loads.
+     *
+     * `sheet` is a GREYSCALE png — `scripts/convert-clouds.mjs` throws the
+     * source photograph's grey-brown smoke colour away and keeps only the
+     * shape, so luminance here IS the alpha. Turning it back into alpha and
+     * laying the course's own lit/shade ramp over it happens in this one canvas
+     * pass, which is why the five sheets can be SHARED by all eight courses and
+     * still give each of them a different sky.
+     *
+     * Drawn synchronously first with `paint`, so the sky is never empty while
+     * the image is in flight and a course with no committed sheet (the daily
+     * hole) simply keeps the painted version.
+     */
+    const softCloudTex = (
+      name: string,
+      tw: number,
+      th: number,
+      paint: (ctx: CanvasRenderingContext2D) => void,
+      sheet?: string
+    ): Texture => {
       const tex = new DynamicTexture(`${name}Tex`, { width: tw, height: th }, scene, true);
       const ctx = tex.getContext() as CanvasRenderingContext2D;
       ctx.clearRect(0, 0, tw, th);
       paint(ctx);
+      shadeCloud(ctx, tw, th);
       tex.update(false);
       tex.hasAlpha = true;
+      if (sheet) {
+        const img = new Image();
+        img.onload = () => {
+          // The hole may have been torn down while this was loading; drawing
+          // into a disposed texture's context throws.
+          if (scene.isDisposed || !tex.getContext()) return;
+          ctx.clearRect(0, 0, tw, th);
+          ctx.drawImage(img, 0, 0, tw, th);
+          const d = ctx.getImageData(0, 0, tw, th);
+          for (let i = 0; i < d.data.length; i += 4) {
+            const lum = d.data[i];
+            d.data[i] = 255;
+            d.data[i + 1] = 255;
+            d.data[i + 2] = 255;
+            d.data[i + 3] = lum;
+          }
+          ctx.putImageData(d, 0, 0);
+          shadeCloud(ctx, tw, th);
+          tex.update(false);
+        };
+        img.src = sheet;
+      }
       return tex;
     };
     // Puffy cumulus: a rounded cauliflower mound — near-circular bumps all the
     // way around (domed crown on top, bumpy base below, shoulders on the sides)
     // so there's no flat top line and the whole silhouette reads soft & round.
-    const cumulusTex = softCloudTex('cumulus', 512, 320, (ctx) => {
+    /**
+     * A cumulus mound: a rounded cauliflower — near-circular bumps all the way
+     * around (domed crown on top, bumpy base below, shoulders on the sides) so
+     * there is no flat top line and the silhouette reads soft and round.
+     *
+     * THREE OF THEM, deterministically varied. One shared sheet on every
+     * billboard was the "sable bay is just the same cloud on repeat" report, and
+     * that part of the diagnosis was right even though the sheets themselves
+     * were wrong: `v` re-proportions the mound (wider/taller, crown pushed left
+     * or right, base bumps re-spaced) so the three read as different clouds in
+     * the same weather. Same painter, so they cannot drift apart in style.
+     */
+    const cumulusShape = (v: number) => (ctx: CanvasRenderingContext2D): void => {
+      const wide = 1 + (v - 1) * 0.16; // 0.84 / 1.00 / 1.16
+      const tallish = 1 - (v - 1) * 0.12;
+      const lean = (v - 1) * 34; // crown drifts off-centre
       const blobs: Array<[number, number, number, number, number]> = [
         [0, 0, 120, 104, 0.85], // core
-        [-42, -60, 76, 70, 0.8], [42, -66, 80, 72, 0.82], [0, -86, 68, 62, 0.78], // domed crown
+        [-42 + lean, -60, 76, 70, 0.8], [42 + lean, -66, 80, 72, 0.82], [lean * 1.4, -86, 68, 62, 0.78], // domed crown
         [-98, -18, 88, 80, 0.8], [98, -20, 90, 80, 0.8], // upper flanks
         [-142, 22, 78, 70, 0.72], [142, 24, 80, 68, 0.72], // shoulders
         [-70, 58, 84, 68, 0.7], [72, 60, 86, 66, 0.7], [0, 70, 92, 64, 0.74] // rounded base bumps
       ];
-      for (const [dx, dy, rx, ry, a] of blobs) puff(ctx, 256 + dx, 180 + dy, rx, ry, a);
-    });
+      for (const [dx, dy, rx, ry, a] of blobs) {
+        puff(ctx, 256 + dx * wide, 180 + dy * tallish, rx * wide, ry * tallish, a);
+      }
+    };
+    const cumulusTex = softCloudTex('cumulus', 512, 320, cumulusShape(1), 'textures/sky/cloud_cumulus1.png');
     // Cirrus: a thin feathered streak that fades in and out along its length.
     const cirrusTex = softCloudTex('cirrus', 512, 96, (ctx) => {
       for (let i = 0; i < 30; i++) {
@@ -1288,7 +1403,7 @@ export function buildCourse(
           0.55 * (0.3 + 0.7 * Math.sin(t * Math.PI))
         );
       }
-    });
+    }, 'textures/sky/cloud_cirrus1.png');
     const cloudMat = (name: string, tex: Texture): StandardMaterial => {
       const m = new StandardMaterial(name, scene);
       m.emissiveTexture = tex;
@@ -1313,8 +1428,11 @@ export function buildCourse(
      * cloud to the eye and costs one extra material, not one extra texture.
      */
     const cumulusMats: StandardMaterial[] = [];
-    for (let v = 0; v < (theme.skyStyle ? CUMULUS_VARIANTS : 1); v++) {
-      const tex = v === 0 ? cumulusTex : softCloudTex(`cumulus${v + 1}`, 512, 320, () => {});
+    for (let v = 0; v < CUMULUS_VARIANTS; v++) {
+      const tex =
+        v === 0
+          ? cumulusTex
+          : softCloudTex(`cumulus${v + 1}`, 512, 320, cumulusShape(v + 1), `textures/sky/cloud_cumulus${v + 1}.png`);
       cumulusMats.push(cloudMat(`cumulusMat${v}`, tex));
       // The mirror shares the TEXTURE and only re-scales its own copy's uv, so
       // this is a material clone, not a second upload.
@@ -1323,7 +1441,12 @@ export function buildCourse(
       flipTex.uOffset = 1;
       cumulusMats.push(cloudMat(`cumulusMatF${v}`, flipTex));
     }
-    const cirrusMat = cloudMat('cirrusMat', cirrusTex);
+    // Two cirrus sheets, alternated. A single streak repeated across the dome is
+    // the same "one cloud on repeat" complaint one layer up.
+    const cirrusMats = [
+      cloudMat('cirrusMat0', cirrusTex),
+      cloudMat('cirrusMat1', softCloudTex('cirrus2', 512, 96, () => {}, 'textures/sky/cloud_cirrus2.png'))
+    ];
 
     const drift: Array<{ mesh: Mesh; v: number }> = [];
     const wrapMin = hole.tee.x - 3600;
@@ -1368,7 +1491,7 @@ export function buildCourse(
       const pw = 860 + j * 540;
       // 0.72, not 0.5 — same reasoning as the cumulus above, kept lower because
       // cirrus IS thin. Airy, not absent.
-      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / cirrusCount) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.72, 3.2 + j * 1.8, `cirrus${i}`);
+      place(cirrusMats[i % cirrusMats.length], pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / cirrusCount) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.72, 3.2 + j * 1.8, `cirrus${i}`);
     }
     scene.onBeforeRenderObservable.add(() => {
       if (isFrozen()) return;
@@ -1870,15 +1993,6 @@ export function buildCourse(
       // mesas opt OUT of fog and pre-mix the haze into their color instead —
       // stable warm red-rock silhouettes with atmospheric depth per row.
       const peakKeys = theme.peakKeys;
-      const mix = (a: number, b: number, t: number): number => {
-        const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
-        const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
-        return (
-          (Math.round(ar + (br - ar) * t) << 16) |
-          (Math.round(ag + (bg - ag) * t) << 8) |
-          Math.round(ab + (bb - ab) * t)
-        );
-      };
       // Tinted-silhouette rows (the Wild Prairie sand dunes are the only user).
       // The haze-mix and emissive are kept LOW so the dunes stay a darker
       // yellow/brown/green blend (owner: they read too bright/washed) rather

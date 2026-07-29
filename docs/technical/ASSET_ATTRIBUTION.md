@@ -8,7 +8,10 @@ recorded here before use.
 
 Downloaded 2026-07-29 (owner: "I want courses to have their own unique skies
 and clouds", stylised from CC0 sources). Eight `*_puresky` HDRIs — sky only, no
-ground — are the STRUCTURAL SOURCE for the per-course skies. Nothing
+ground — are the STRUCTURAL SOURCE for each course's sky DOME. (They were the
+source for the clouds too until the clouds were rebuilt from the CC0 pack
+below; `convert-skies.mjs` still measures a cloud's lit/shade colours when
+checking a new style, but writes only the ramp.) Nothing
 photographic ships: `scripts/convert-skies.mjs` reads each equirect, measures
 its real horizon ramp, cloud field and solar aureole, and repaints them as flat
 posterised bands (see the script header for the recipe). The committed outputs
@@ -40,6 +43,41 @@ License: every Poly Haven HDRI is released CC0 1.0
 (https://polyhaven.com/license, http://creativecommons.org/publicdomain/zero/1.0/)
 — no attribution required; the authors are credited here as good practice, as
 with the Kenney packs below.
+
+## OpenGameArt cloud alphas — CC0 (public domain)
+
+Downloaded 2026-07-29. `fx_cloudalphas` by **WickedInsignia** — ten 2048x2048
+cloud alphas, released CC0 ("I hereby release these assets into the public
+domain under the CC0 license"): <https://opengameart.org/content/clouds-with-transparency>
+
+These are the cloud BILLBOARDS on every course. The Poly Haven skies above give
+each course its dome ramp and still do; the clouds used to be cut out of the
+same HDRIs and posterised, and that was the one part of the painted skies that
+did not work (owner: "I'm liking the color changes on the sky so they look
+unique but the clouds look bad"). A posterised photo crop came out as a smooth
+ellipse, a torn scrap with rectangular blocks in it, or a grey smear, depending
+on the source — the approach was wrong, not the tuning.
+
+`scripts/convert-clouds.mjs` keeps **only the alpha** of each source and throws
+the photograph's colour away: the pack is VFX smoke, grey-brown, and the owner's
+note was "just make the clouds whiter instead of grey smoke". What ships is five
+quantised GREYSCALE silhouettes (~80KB total, shared by all eight courses);
+`src/slice3d/course3d.ts` turns luminance back into alpha and lays that course's
+own lit/shade ramp over it, so the clouds are tinted from the course's `sunTint`,
+`skyTop` and `haze` and never from a photograph.
+
+| File (assets/textures/sky/) | Source | Role |
+|---|---|---|
+| `cloud_cumulus1.png` | FX_CloudAlpha03 | the densest, most cloud-like of the ten |
+| `cloud_cumulus2.png` | FX_CloudAlpha06 | a broader, more broken mass |
+| `cloud_cumulus3.png` | FX_CloudAlpha09 | the airiest of the three |
+| `cloud_cirrus1.png` | FX_CloudAlpha07 | thin high streak |
+| `cloud_cirrus2.png` | FX_CloudAlpha02 | thin high streak |
+
+The 28MB source zip is never committed; `convert-clouds.mjs` caches it in
+`node_modules/.cache/golf-clouds/` and re-downloads on demand. CC0 requires no
+attribution; the author is credited here as good practice, as elsewhere in this
+file.
 
 ## Kenney (www.kenney.nl) — CC0 (public domain)
 

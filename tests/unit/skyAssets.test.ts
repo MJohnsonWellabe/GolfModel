@@ -32,14 +32,20 @@ const ROOT = join(__dirname, '..', '..');
 const SKY = join(ROOT, 'assets', 'textures', 'sky');
 
 /**
- * The cumulus sheets each style ships. Must agree with `CUMULUS_VARIANTS` in
- * BOTH `scripts/convert-skies.mjs` (which writes them) and
- * `src/slice3d/course3d.ts` (which loads them by name) — a course3d that asks
- * for one more than the script emits is three 404s and a black billboard, and
- * nothing else in the build would see it.
+ * The per-style sheets. Only the DOME RAMP is per course now.
+ *
+ * The clouds used to be cut from each course's own HDRI, and they were the one
+ * part of the painted skies that failed: "the clouds look bad". They are now
+ * five shared CC0 silhouettes (scripts/convert-clouds.mjs) tinted per course at
+ * runtime from that course's own sunTint/skyTop/haze — so the sky stays unique
+ * per course, which is the part that worked, without a photographed cloud in it.
  */
-const CUMULUS_PARTS = ['cumulus', 'cumulus2', 'cumulus3'];
-const PARTS = ['ramp', 'cirrus', ...CUMULUS_PARTS];
+const PARTS = ['ramp'];
+
+/** The shared cloud silhouettes, loaded BY NAME from course3d.ts. A rename or a
+ *  missing variant is a 404 and an invisible billboard, and nothing else in the
+ *  build would notice. */
+const CLOUD_SHEETS = ['cloud_cumulus1', 'cloud_cumulus2', 'cloud_cumulus3', 'cloud_cirrus1', 'cloud_cirrus2'];
 
 const COURSES: Array<[string, unknown]> = [
   ['wildwood', wildwood],
@@ -64,7 +70,7 @@ describe('per-course painted skies', () => {
     }
   });
 
-  it('every named style has all its committed textures on disk', () => {
+  it('every named style has its committed ramp on disk', () => {
     for (const [id, course] of COURSES) {
       const style = theme(course).skyStyle as string;
       for (const part of PARTS) {
@@ -75,25 +81,30 @@ describe('per-course painted skies', () => {
   });
 
   /**
-   * THE CUMULUS VARIANTS HAVE TO BE DIFFERENT CLOUDS.
+   * THE CLOUD SHEETS HAVE TO EXIST, AND HAVE TO BE DIFFERENT CLOUDS.
    *
-   * Every billboard shared one material and one sheet, so a sky "full of
-   * clouds" was one cloud stamped six times (owner: "sable bay is just the same
-   * cloud on repeat"). convert-skies.mjs cuts each variant from a DIFFERENT
-   * connected cloud in the same HDRI — but the fallback path, for a sky with
-   * too few components, could quietly emit the same crop three times and
-   * nothing else in the build would notice.
+   * One sheet on every billboard was the "sable bay is just the same cloud on
+   * repeat" report, and that half of the diagnosis survived the rebuild even
+   * though the sheets themselves were replaced.
    */
-  it('ships three DISTINCT cumulus sheets per style', () => {
-    for (const [id, course] of COURSES) {
-      const style = theme(course).skyStyle as string;
-      const digests = new Set(
-        CUMULUS_PARTS.map((p) => createHash('sha1').update(readFileSync(join(SKY, `${style}_${p}.png`))).digest('hex'))
-      );
-      expect(digests.size, `${id} (${style}): only ${digests.size} distinct cumulus sheets`).toBe(
-        CUMULUS_PARTS.length
-      );
+  it('ships five distinct shared cloud silhouettes', () => {
+    const digests = new Set<string>();
+    for (const n of CLOUD_SHEETS) {
+      const f = join(SKY, `${n}.png`);
+      expect(existsSync(f), `missing ${n}.png — course3d loads it by name`).toBe(true);
+      digests.add(createHash('sha1').update(readFileSync(f)).digest('hex'));
     }
+    expect(digests.size, 'two cloud sheets are byte-identical').toBe(CLOUD_SHEETS.length);
+  });
+
+  it('keeps the shared cloud sheets inside their own budget', () => {
+    // Shared by all eight courses, so this is paid ONCE — but it is paid on
+    // every hole, and the slow courses are already fill-rate bound on sky
+    // pixels. 120KB is roughly twice what the five sheets weigh today; blowing
+    // past it means somebody shipped them at full alpha depth again (236KB) or
+    // dropped the quantisation.
+    const bytes = CLOUD_SHEETS.map((n) => statSync(join(SKY, `${n}.png`)).size).reduce((a, b) => a + b, 0);
+    expect(bytes, `cloud sheets weigh ${(bytes / 1024).toFixed(1)}KB`).toBeLessThan(120 * 1024);
   });
 
   it('stays inside the sky budget', () => {

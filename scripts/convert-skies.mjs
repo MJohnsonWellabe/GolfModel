@@ -650,6 +650,10 @@ async function buildCloud(file, style, name, band, outW, outH, opts) {
       out[o + 3] = Math.round(a * 255);
     }
   }
+  // The lit/shade pair is the useful output now — see the note at the call
+  // site. Everything below this line paints a SHEET, and no sheet is written
+  // any more, so measuring callers stop here.
+  if (opts.measureOnly) return { lit: litC, shade: shdC };
   // FILL THE SHEET. Framing the cloud in the source still leaves it floating in
   // a mostly-empty rectangle — a real sky's clouds do not conveniently match a
   // 512x320 frame — and a small cloud in a big transparent sheet renders as a
@@ -745,16 +749,6 @@ async function sunTint(file) {
 
 // ---------------------------------------------------------------------- main
 
-/** How many distinct cumulus sheets each style ships. Mirrored in
- *  src/slice3d/course3d.ts (CUMULUS_VARIANTS) and gated in
- *  tests/unit/skyAssets.test.ts — all three must agree. */
-export const CUMULUS_VARIANTS = 3;
-/** Their filename stems, in the order course3d loads them. The first keeps the
- *  original un-numbered name so no existing reference breaks. */
-export const CUMULUS_NAMES = Array.from({ length: CUMULUS_VARIANTS }, (_, i) =>
-  i === 0 ? 'cumulus' : `cumulus${i + 1}`
-);
-
 const only = process.argv.slice(2);
 await fsp.mkdir(OUT, { recursive: true });
 
@@ -764,36 +758,39 @@ for (const style of STYLES) {
   console.log(`  ${style.note}`);
   const file = await source(style);
   const bands = await buildRamp(file, style);
-  // THREE CUMULUS, NOT ONE. Every billboard shared a single sheet, so a sky
-  // full of clouds was one cloud stamped six times (owner: "sable bay is just
-  // the same cloud on repeat"). Each variant is cut from a DIFFERENT connected
-  // cloud in the same HDRI, so they belong to the same weather while having
-  // genuinely different silhouettes. The extra two cost ~2KB per style against
-  // a 60KB budget currently running at 2-5KB.
-  let cum = null;
-  for (let v = 0; v < CUMULUS_VARIANTS; v++) {
-    const c = await buildCloud(file, style, v === 0 ? 'cumulus' : `cumulus${v + 1}`, style.cumEl, 512, 320, {
-      cyFrac: 0.52,
-      rxFrac: 0.5,
-      ryFrac: 0.52,
-      gain: 1.05,
-      rank: v
-    });
-    if (v === 0) cum = c;
-  }
-  await buildCloud(file, style, 'cirrus', style.cirEl, 512, 96, {
-    cyFrac: 0.5,
+  // NO CLOUD SHEETS — this script owns the DOME only.
+  //
+  // It used to cut the cumulus and cirrus billboards out of the same HDRI and
+  // posterise them into three alpha tiers, and that is the one part of the
+  // painted skies that failed. It failed DIFFERENTLY on every source (a smooth
+  // ellipse with a lens in the middle, a torn scrap with rectangular blocks in
+  // it, a grey smear), which is the tell that the approach was wrong rather
+  // than the tuning: a photographic cloud reduced to three alpha tiers is not a
+  // cloud, and photoreal clouds are the wrong language for a flat-shaded
+  // low-poly game in any case. The owner: "I'm liking the color changes on the
+  // sky so they look unique but the clouds look bad."
+  //
+  // The RAMPS were the success and are untouched. Clouds are now five shared
+  // CC0 silhouettes (scripts/convert-clouds.mjs) tinted per course at runtime,
+  // so each course keeps its own sky with no photographed cloud in it.
+  //
+  // The measurement stays: the lit/shade pair this reports is what a human
+  // wants when checking a NEW style against its source, and it costs one crop.
+  // Nothing is written to disk.
+  const cum = await buildCloud(file, style, 'cumulus', style.cumEl, 512, 320, {
+    cyFrac: 0.52,
     rxFrac: 0.5,
-    ryFrac: 0.62,
-    gain: 0.85
+    ryFrac: 0.52,
+    gain: 1.05,
+    measureOnly: true
   });
   const sun = await sunTint(file);
   const hex = (c) => `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
   console.log(`  ramp   zenith ${hex(bands[0])} → horizon ${hex(bands[bands.length - 1])} (${style.bands} bands)`);
-  console.log(`  cloud  lit ${hex(cum.lit)}  shade ${hex(cum.shade)}`);
+  console.log(`  cloud  lit ${hex(cum.lit)}  shade ${hex(cum.shade)}   (measured only — not shipped)`);
   console.log(`  sunTint ${hex(sun)}   <- paste into the course theme`);
   let total = 0;
-  for (const n of ['ramp', 'cirrus', ...CUMULUS_NAMES]) {
+  for (const n of ['ramp']) {
     total += fs.statSync(path.join(OUT, `${style.id}_${n}.png`)).size;
   }
   console.log(`  ${(total / 1024).toFixed(1)}KB on disk`);
