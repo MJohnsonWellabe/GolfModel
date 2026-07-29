@@ -82,3 +82,60 @@ test('a difficulty chosen mid-round does not resize the meter under the player',
   expect(after.chosen).toBe('beginner');
   expect(after.round, 'the round in progress keeps the difficulty it teed off at').toBe('pro');
 });
+
+/**
+ * THE SEQUENCE THAT ACTUALLY FAILED.
+ *
+ * Owner: "it doesn't reset after you pick easy and my game stayed on the easy
+ * setting when I went back to hard." Choosing, playing, and choosing again is
+ * the ordinary way anybody uses this setting, and no test covered it — the
+ * Stage 1 gates each started from a fresh page, so the stale-value path was
+ * never exercised.
+ */
+test('choosing again after a round really does change the next round', async ({ page }) => {
+  test.setTimeout(240_000);
+
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as { __difficulty?: unknown }).__difficulty);
+
+  const pick = (d: string): Promise<Probe> =>
+    page.evaluate(
+      (x) => (window as unknown as { __difficulty: (s: string) => Probe }).__difficulty(x),
+      d
+    ) as Promise<Probe>;
+  const startRound = async (): Promise<Probe> => {
+    await page.evaluate(() =>
+      (window as unknown as { __startRound: (o: unknown) => void }).__startRound({
+        name: 'Diff',
+        courseId: 'sablebay'
+      })
+    );
+    await page.waitForFunction(() => !!(window as unknown as { __slice3d?: unknown }).__slice3d);
+    await page.evaluate(() => (window as unknown as { __slice3d: { skipIntro: () => void } }).__slice3d.skipIntro());
+    await page.waitForFunction(
+      () => (window as unknown as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+      undefined,
+      { timeout: 60_000 }
+    );
+    return page.evaluate(() => (window as unknown as { __difficulty: () => Probe }).__difficulty()) as Promise<Probe>;
+  };
+
+  await pick('beginner');
+  const easyRound = await startRound();
+  expect(easyRound.round).toBe('beginner');
+  const easyBand = Math.max(...easyRound.perfectPx);
+
+  // ...back to Settings, pick the hardest, tee off again. THIS is the step that
+  // was handing back the old choice.
+  await pick('expert');
+  const hardRound = await startRound();
+  expect(hardRound.chosen, 'the stored choice moved').toBe('expert');
+  expect(hardRound.effective, 'the effective difficulty moved').toBe('expert');
+  expect(hardRound.round, 'the NEW round teed off at the new choice').toBe('expert');
+
+  const hardBand = Math.max(...hardRound.perfectPx);
+  expect(
+    easyBand / hardBand,
+    `beginner ${easyBand.toFixed(1)}px then expert ${hardBand.toFixed(1)}px`
+  ).toBeGreaterThan(1.5);
+});

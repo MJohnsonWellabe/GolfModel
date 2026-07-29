@@ -318,6 +318,19 @@ export function buildCourse(
   // change mid-hole cannot leave one scene half-budgeted; the governor's next
   // effect lands on the next hole. See src/core/rendering/quality.ts.
   const quality = renderQuality();
+  /**
+   * THE COLOUR THE GROUND CARRIES OUT TO THE HORIZON — the course's own turf,
+   * slightly darkened.
+   *
+   * Every plane in the far field resolves to this: the void floor, the peak
+   * apron, the ground bake's own edge fade, and the walls that seal the gaps
+   * between the backdrop hills. They used to be three different colours in three
+   * different exposures, so the horizon was a stack of bands (owner: "a weird
+   * yellow vale behind the playable area ... why can't you just continue the
+   * actual course colors out to the horizon?"). One colour, and EXP2 fog carries
+   * the whole far field into the haze over distance, which is what fog is for.
+   */
+  const groundFarC = theme.apronTint ?? shade(theme.rough, 0.9);
   /** Multiply any decorative-scatter GRID PITCH by this to reach the tier's
    *  density. Counts go as 1/step², so a 0.45x density is a 1.49x pitch.
    *  Trees, hazards and every collision hitbox are outside this — only the
@@ -404,7 +417,16 @@ export function buildCourse(
   // past the authored cliffs and corridor. Placed just below the lowest terrain
   // so it never occludes an in-view canyon/blowout, and skipped on sea courses
   // (their ocean plane already owns the horizon).
-  if (boundary && theme.backdrop !== 'sea') {
+  // ONE PLANE IN THE FAR FIELD, NOT TWO.
+  //
+  // A peaks course builds its own apron below, and this void floor is BIGGER
+  // (16000 square against 16000x9000) — so it showed past the apron as a strip
+  // of a different colour and a different fog depth between the treeline and the
+  // hills. That strip is what survived every attempt to recolour it, and hiding
+  // this mesh is what finally made the horizon read right (owner: "the picture
+  // before that one looked good" — the frame with this hidden). The apron is
+  // grown to this one's footprint below and does the whole job.
+  if (boundary && theme.backdrop !== 'sea' && theme.backdrop !== 'peaks') {
     const voidFloor = MeshBuilder.CreateGround(
       'voidFloor',
       { width: 16000, height: 16000, subdivisions: 1 },
@@ -413,8 +435,20 @@ export function buildCourse(
     const floorY = (Number.isFinite(minMeshY) ? minMeshY : 0) - 5;
     voidFloor.position = new Vector3(w / 2, floorY, -h / 2);
     const vMat = new StandardMaterial('voidFloorMat', scene);
-    vMat.diffuseColor = c3(theme.haze);
-    vMat.emissiveColor = c3(shade(theme.haze, 0.55));
+    // THE FAR-GROUND COLOUR, exposed to render as itself.
+    //
+    // This was `theme.haze` at a full diffuse plus a 0.55 emissive — 1.85x on an
+    // up-facing plane, so a pale haze saturated every channel and painted a
+    // near-white strip. And it is BIGGER than the peak apron (16000 square
+    // against 16000x9000), so it showed past it as a band of a different colour
+    // between the treeline and the hills. Isolating it by hiding meshes one at a
+    // time is what finally identified it: hide the apron and the band stayed;
+    // hide this and the ground ran clean to the mountains.
+    //
+    // 0.58 x 1.298 + 0.25 = 1.003, so it renders exactly `groundFarC` and fog
+    // takes it to the haze from there.
+    vMat.diffuseColor = c3(shade(groundFarC, 0.58));
+    vMat.emissiveColor = c3(shade(groundFarC, 0.25));
     vMat.specularColor = new Color3(0, 0, 0);
     voidFloor.material = vMat;
     voidFloor.applyFog = true;
@@ -1337,16 +1371,37 @@ export function buildCourse(
     // and the distant dune line (owner: "what is the white space before the sand
     // hills. Get rid of that."). A large fogged ground plane at grade fills that
     // gap so the foreground reads as continuous sandy ground out to the dunes.
-    // A GROUND colour, not a light colour. This used to read `theme.hemiGround`
-    // first — but that key is the hemispheric light's BOUNCE colour
-    // (`hemi.groundColor`), which has no reason to match the turf. Maple Vale is
-    // the only peaks course that sets it (#8a6a3c, a dark brown), so its horizon
-    // put three unrelated colours side by side: tan rough, brown apron, cream
-    // haze (owner: "the background to the horizon on maple vale is terrible").
-    // Every other peaks course fell through to the shade-of-rough default and
-    // looked right, so the default was always the correct rule.
-    const apronC = theme.apronTint ?? shade(theme.rough, 0.9);
-    const apron = MeshBuilder.CreateGround('peakApron', { width: 16000, height: 9000, subdivisions: 1 }, scene);
+    // THE APRON CONTINUES THE GROUND, SO IT IS THE COLOUR THE GROUND ACTUALLY
+    // ENDS ON — which is `theme.haze`, not the turf.
+    //
+    // Owner: "a weird yellow vale behind the playable area before the mountains
+    // ... why can't you just continue the actual course colors out to the
+    // horizon?" The answer turned out to be that the apron was never the colour
+    // it was abutting. The ground bake runs a HORIZON HAZE FADE across its pad
+    // skirt (CourseTexture's fadeTexel): weight 1 at 175 px out, so the ground's
+    // outermost ~45 px of albedo is 100% `theme.haze`. The apron meanwhile took
+    // `shade(rough, 0.9)` and then — like the sea plane before it was rebalanced
+    // one function below — added a 0.5x EMISSIVE on top of a full-strength
+    // diffuse. On Maple Vale that arithmetic saturates: 186*1.298 + 93 and
+    // 144*1.298 + 72 both clamp, and the plane renders a flat #ffff8b. Literally
+    // yellow. Wild Prairie clamps the same way; the darker green courses did not,
+    // which is why only these two were ever reported.
+    //
+    // So the colour stays the COURSE'S OWN GROUND — the owner asked to "continue
+    // the actual course colors out to the horizon", and the apron already has
+    // `applyFog = true`, so fog fades it into the haze over distance all by
+    // itself. What has to change is the EXPOSURE, so the plane renders AS that
+    // colour instead of clamping: diffuse and emissive are pre-scaled to sum to
+    // 1.0 under this scene's lighting (hemi 0.62 + sun 0.78 x N.L 0.86 = 1.298
+    // on an up-facing plane). This is the same rebalance the sea plane got one
+    // function below after it painted "a flat cyan stripe" along the horizon;
+    // the apron simply never received it.
+    const apronC = groundFarC;
+    // 16000 square, centred on the WORLD — the footprint the void floor used to
+    // cover, because on a peaks course this plane now IS the void floor (see the
+    // note above it). At 16000x9000 behind the pin it left the void floor
+    // showing around it, which is the band the owner kept seeing.
+    const apron = MeshBuilder.CreateGround('peakApron', { width: 16000, height: 16000, subdivisions: 1 }, scene);
     // The apron is a flat backdrop plane; it must sit BELOW all in-play terrain
     // or it OCCLUDES anything that dips beneath it. Red Hollow h3's green is a
     // metaball plateau sunk in a −10 depression (green top ≈ −9.45): a fixed
@@ -1366,8 +1421,28 @@ export function buildCourse(
     // a vertical lip against a differently-coloured plane. That ledge is the
     // "doesn't meet the ground" seam.
     const apronY = minMeshY - 2;
-    apron.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, apronY);
-    const apronMat = mat(scene, 'peakApronM', apronC, { emissive: shade(apronC, 0.5) });
+    apron.position = new Vector3(w / 2, apronY, -h / 2);
+    // 0.58 x 1.298 + 0.25 = 1.003 — the plane renders the authored colour, and
+    // nothing in a warm palette can saturate a channel any more.
+    const apronMat = mat(scene, 'peakApronM', shade(apronC, 0.58), { emissive: shade(apronC, 0.25) });
+    apronMat.specularColor = new Color3(0, 0, 0);
+    // ...AND THE SAME GRAIN THE GROUND WEARS. Matching the colour is only half
+    // of "continue the actual course colors out to the horizon": a flat fill
+    // beside a ground carrying a tiling detail map still reads as a painted
+    // band, because the eye finds the edge where the texture stops, not where
+    // the hue changes. Same 128px noise texture, re-scaled so its tiles are the
+    // same WORLD size out here as they are underfoot — the ground runs 110
+    // tiles across its padded width, so the apron needs that frequency over its
+    // own 16000x9000. A clone rather than a second bake: 128 squared is nothing,
+    // and uScale lives on the texture, not the material.
+    const apronDetail = detailTex.clone();
+    if (apronDetail) {
+      apronDetail.uScale = (16000 * 110) / (w + pad * 2);
+      apronDetail.vScale = (16000 * 110) / (h + pad * 2);
+      apronMat.detailMap.texture = apronDetail;
+      apronMat.detailMap.isEnabled = true;
+      apronMat.detailMap.diffuseBlendLevel = 0.24;
+    }
     apron.material = apronMat;
     apron.applyFog = true;
     apron.isPickable = false;
@@ -1655,9 +1730,20 @@ export function buildCourse(
           // benches, and an elevated camera sees over the finite ground
           // mesh's far edge — sky showed as a blue band UNDER the ranges
           // until the wall extended well below the horizon line.
-          const bsC = mix(hillBase, theme.haze, 0.5);
+          // Mixed from the far GROUND colour, not from `hillBase` — which is
+          // the hill tint, and on a course that sets none (Maple Vale) falls
+          // back to a shade of the SKY. A wall built out of sky-blue cannot
+          // read as "far hazy ground"; it reads as another strip of sky sitting
+          // on the horizon, which is the last band the owner could still see
+          // after the apron was fixed. Half-way to the haze keeps it receding.
+          const bsC = mix(groundFarC, theme.haze, 0.5);
           const bs = MeshBuilder.CreatePlane('rangeBackstop', { width: 16000, height: 600 }, scene);
-          const bsMat = mat(scene, 'rangeBackstopM', bsC, { emissive: shade(bsC, 0.85) });
+          // EXPOSED to render the colour it was mixed to be. A full-strength
+          // diffuse plus a heavy emissive saturates every channel on a warm
+          // haze, so the wall that exists to read as "far hazy ground" painted a
+          // near-white strip along the horizon instead — the same arithmetic
+          // that clamped the apron to yellow. 0.58 x 1.298 + 0.25 = 1.003.
+          const bsMat = mat(scene, 'rangeBackstopM', shade(bsC, 0.58), { emissive: shade(bsC, 0.25) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
           // Top stays LOW (+60): the wall only seals the under-horizon gap —
@@ -1816,13 +1902,18 @@ export function buildCourse(
         // reads as far dune haze, not blue sky. Kept low + narrow-tall like the
         // range backstop so its flat top never slabs above the dune crests.
         if (tintedKeys.length && !texturedKeys.length) {
-          const bsC = mix(hillBase, theme.haze, 0.22);
+          const bsC = mix(groundFarC, theme.haze, 0.22);
           // Kept LOW (top just under the dune crests) so it never slabs above
           // them — the sky gaps are sealed by DENSER, overlapping dune rows
           // (below) instead of a taller wall. Bottom still drops under the
           // horizon so no pale strip shows in front of the dune bases.
           const bs = MeshBuilder.CreatePlane('duneBackstop', { width: 16000, height: 520 }, scene);
-          const bsMat = mat(scene, 'duneBackstopM', bsC, { emissive: shade(bsC, 0.52) });
+          // EXPOSED to render the colour it was mixed to be. A full-strength
+          // diffuse plus a heavy emissive saturates every channel on a warm
+          // haze, so the wall that exists to read as "far hazy ground" painted a
+          // near-white strip along the horizon instead — the same arithmetic
+          // that clamped the apron to yellow. 0.58 x 1.298 + 0.25 = 1.003.
+          const bsMat = mat(scene, 'duneBackstopM', shade(bsC, 0.58), { emissive: shade(bsC, 0.25) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
           bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -170, 0));
@@ -1905,12 +1996,21 @@ export function buildCourse(
   /**
    * How far a mass lifts the ground at (x, y), above `heightAt`.
    *
-   * A rock prototype is scaled to height `h` and its radius tracks its height
-   * (scripts/courselib's ROCK_R_PER_H = 1), so a parabolic dome of radius `h`
-   * approximates its silhouette closely enough to seat a prop on. The 0.9
-   * factor sinks the prop a touch into the mass: a prop floating a pixel above
-   * a boulder reads far worse than one bedded into it, and the lighthouse's
-   * base flare hides the join.
+   * A rock prototype is scaled uniformly to height `h`, and the stone meshes are
+   * wide slabs rather than domes — measured, `stone_a/b/c` run 1.1-1.4x wider
+   * than tall on the long axis and 0.58-0.80x on the short one, with a
+   * deterministic random yaw. A parabolic dome of radius `h` is therefore only a
+   * rough stand-in for the silhouette, which is exactly why the supporting mass
+   * has to be authored as a RING that spans the prop's whole footprint rather
+   * than one boulder under its centre: no seat height can close a gap where
+   * there is simply no rock (see the skerry comments in
+   * scripts/courses/sablebay_v2.mjs and portjohnson_v2.mjs).
+   *
+   * The 0.78 factor SEATS the prop into the mass rather than on its peak. A prop
+   * resting on the highest point of an uneven plinth floats everywhere else;
+   * bedded a couple of units in, the stones close around its base and the join
+   * disappears. The lighthouse's flare is 4.5 units tall at the authored scale,
+   * so it stays partly proud.
    */
   const massLiftAt = (x: number, y: number): number => {
     let lift = 0;
@@ -1919,7 +2019,7 @@ export function buildCourse(
       const d = Math.hypot(x - m.x, y - m.y);
       if (d >= r) continue;
       const t = 1 - (d / r) ** 2;
-      lift = Math.max(lift, m.h * t * 0.9);
+      lift = Math.max(lift, m.h * t * 0.78);
     }
     return lift;
   };

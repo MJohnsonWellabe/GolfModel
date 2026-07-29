@@ -821,17 +821,32 @@ export function renderCourseCanvas(
       data[i + 3] = 255;
     }
   }
-  // HORIZON HAZE FADE: the ground mesh carries the hole's albedo all the way to
+  // HORIZON EDGE FADE: the ground mesh carries the hole's albedo all the way to
   // its padded edge, so on the compact (bounded) world the tint reached the
-  // world edge before the EXP2 fog could dissolve it — a colored band sat at the
-  // skyline (Red Hollow red, Wild Prairie tan, water horizons). Fade the outer
-  // MARGIN band (the region beyond the authored [0,w]x[0,h] play rectangle, i.e.
-  // the TEXTURE_PAD skirt no shot ever reaches) toward theme.haze so the terrain
-  // dissolves into the same haze the void-floor + fog use, before the horizon.
-  // The play rectangle itself is untouched (fade weight is 0 at the world edge),
-  // so nothing inside the boundary shifts color.
+  // world edge as an abrupt step. Fade the outer MARGIN band (beyond the
+  // authored [0,w]x[0,h] play rectangle — the TEXTURE_PAD skirt no shot ever
+  // reaches) so the terrain hands over smoothly. The play rectangle itself is
+  // untouched (fade weight is 0 at the world edge), so nothing inside the
+  // boundary shifts colour.
+  //
+  // IT FADES TO THE APRON, NOT TO HAZE. It used to dissolve into `theme.haze`,
+  // which put a pale cream rim around every bounded course — and since the apron
+  // beyond it is the course's own turf, that rim was a band of a THIRD colour
+  // sitting between two matching ones (owner: "why can't you just continue the
+  // actual course colors out to the horizon?"). Handing over to the apron colour
+  // instead makes ground and apron continuous, and EXP2 fog then carries the
+  // whole thing into the haze over distance — which is what fog is for.
   {
-    const [hzR, hzG, hzB] = rgb(theme.haze);
+    // Exposed for the scene's lighting, not set to the raw colour. `groundMat`
+    // has no emissive, so an up-facing vertex is lit at hemi 0.62 + sun 0.78 x
+    // N.L 0.86 = 1.298 — a pale target multiplied by that saturates every
+    // channel and the skirt renders pure white, drawing a bright rim exactly
+    // where it is meant to be disappearing.
+    const EXPOSURE = 1 / 1.298;
+    const [hzR0, hzG0, hzB0] = rgb(theme.apronTint ?? shade(theme.rough, 0.9));
+    const hzR = hzR0 * EXPOSURE;
+    const hzG = hzG0 * EXPOSURE;
+    const hzB = hzB0 * EXPOSURE;
     const worldW = hole.world.width;
     const worldH = hole.world.height;
     const FADE_SPAN = 175; // world px; completes inside the 220 px pad skirt

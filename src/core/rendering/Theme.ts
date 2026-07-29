@@ -237,11 +237,12 @@ export interface CourseTheme {
   hemiGround?: number;
   /** Colour of the huge ground plane that fills the gap between the bounded
    *  world's edge and the distant hills ('peaks' backdrop). Unset =
-   *  shade(rough, 0.9), which is what every course wants: the apron is far-off
-   *  GROUND and should read as more of the same turf. Exists only so a course
-   *  can deliberately differ — it must NOT be conflated with `hemiGround`,
-   *  which is a light colour and made Maple Vale's horizon three clashing
-   *  bands when the apron borrowed it. */
+   *  shade(rough, 0.9): the apron is far-off GROUND and continues the course's
+   *  own turf, with fog fading it into the haze over distance. The plane's
+   *  material pre-scales this so it renders as the authored colour — do NOT add
+   *  a full-strength diffuse plus emissive here, which is what clamped Maple
+   *  Vale's horizon to flat yellow. It must also never be set from `hemiGround`,
+   *  which is a LIGHT colour, not a ground one. */
   apronTint?: number;
   /** Tint for the far-horizon backdrop hills ('peaks' backdrop). Unset keeps
    *  the classic sky-hazed domes; a desert course sets terracotta so the

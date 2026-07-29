@@ -79,6 +79,19 @@ export interface RoundCheckpoint {
    */
   ball?: { x: number; y: number };
   strokes?: number;
+  /**
+   * The difficulty this round teed off at.
+   *
+   * A round LOCKS its difficulty at the tee so a mid-round settings change
+   * cannot resize the meter under a card already half written — but a resume
+   * re-locks from the current setting, which broke that promise across the one
+   * gap where it matters most: a round started at Pro and finished after a
+   * switch to Beginner would silently change bands mid-card AND flip whether it
+   * could set a record. Carried here so the resume restores the round it was.
+   * Absent on checkpoints written before this shipped; those resume at the
+   * player's current setting, which is what they already did.
+   */
+  diff?: string;
   /** Epoch ms of the last checkpoint write. */
   at: number;
   /** Times a resume of THIS record was attempted (or its round died mid-build
@@ -191,6 +204,7 @@ export function checkpointFor(input: {
   at: number;
   ball?: { x: number; y: number };
   strokes?: number;
+  diff?: string;
 }): RoundCheckpoint {
   return {
     v: VERSION,
@@ -201,6 +215,7 @@ export function checkpointFor(input: {
     scores: input.scores.slice(0, input.holeIdx),
     parSoFar: input.parSoFar,
     at: input.at,
+    ...(input.diff ? { diff: input.diff } : {}),
     // Both or neither, and only when there is genuinely a shot in the ground:
     // resuming "on the tee having played 0" is just starting the hole.
     ...(input.ball && (input.strokes ?? 0) > 0

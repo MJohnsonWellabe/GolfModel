@@ -3,6 +3,12 @@ import { clamp } from '../utils/Geometry';
 import { Band, SwingResult } from '../core/types';
 import * as swing from '../systems/swingModel';
 
+/** The perfect band's fill, and the hairline that marks its exact centre. The
+ *  mark is dark rather than white so it reads against the green without adding
+ *  to the white chrome that made every difficulty look the same. */
+const PERFECT = '#43d05c';
+const PERFECT_MARK = 'rgba(8,32,16,0.85)';
+
 /** Fixed accuracy target (fraction of the bar) — same as the 2D meter. */
 const ACCURACY_TARGET = swing.ACCURACY_TARGET;
 
@@ -168,10 +174,8 @@ export class DomMeter {
   private zoneEls: {
     overswing: HTMLElement;
     powerGood: HTMLElement;
-    powerLine: HTMLElement;
     powerPerfect: HTMLElement;
     accGood: HTMLElement;
-    accLine: HTMLElement;
     accPerfect: HTMLElement;
   };
 
@@ -182,37 +186,22 @@ export class DomMeter {
     this.markerEl = document.createElement('div');
     this.markerEl.className = 'lockMark';
     this.markerEl.style.display = 'none';
-    const zone = (color: string, z: number): HTMLElement => {
+    const zone = (color: string, z: number, cls = ''): HTMLElement => {
       const d = document.createElement('div');
-      d.className = 'zone';
+      d.className = cls ? `zone ${cls}` : 'zone';
       d.style.background = color;
       d.style.zIndex = String(z);
       this.el.appendChild(d);
       return d;
     };
-    // THE TARGET LINE SITS UNDER THE PERFECT BAND, NOT OVER IT.
-    //
-    // It used to be the topmost layer, so a 2px white line was painted down the
-    // middle of a band that is only 5-13px wide to begin with. Between that and
-    // the outline there was no green left to see, and Beginner and Expert drew
-    // the same white tick. The perfect band IS the target, so the line only has
-    // to be legible against the GOOD band — one layer below it is enough.
-    const line = (color: string): HTMLElement => {
-      const l = zone(color, 3);
-      l.style.width = '2px';
-      return l;
-    };
     this.zoneEls = {
       overswing: zone('rgba(196,58,58,0.4)', 1),
       powerGood: zone('rgba(201,162,39,0.55)', 2),
-      powerLine: line('#fff'),
-      // Colorblind cue: the perfect band gets a bright outline so it reads as a
-      // distinct notch, not just a green-vs-gold hue difference. Its WIDTH is
-      // set per arm from the band's own size (see outlinePx).
-      powerPerfect: zone('#43d05c', 4),
+      // The perfect band carries BOTH its outline and its centre mark, sized
+      // per arm from its own width — see perfectFill/outlinePx.
+      powerPerfect: zone('', 3, 'perfect'),
       accGood: zone('rgba(201,162,39,0.4)', 2),
-      accLine: line('#fff'),
-      accPerfect: zone('#43d05c', 4)
+      accPerfect: zone('', 3, 'perfect')
     };
     this.el.appendChild(this.markerEl);
     this.el.appendChild(this.cursorEl);
@@ -416,33 +405,51 @@ export class DomMeter {
       const g = bandGeometry(center, half);
       place(el, g.left, g.width);
     };
-    /** The perfect band, plus an outline sized so it never swallows the band. */
+    /**
+     * The perfect band: its fill, its centre hairline and its outline, all
+     * sized from its own width.
+     *
+     * The centre mark used to be a separate 2px white element drawn OVER the
+     * band, which on a 5px band left nothing to see. Moving it under the band
+     * fixed that and deleted the mark entirely (owner: "the swing meter lost
+     * the middle of the perfect zone line that it used to have"). Painting it
+     * INTO the band's own background is the way to have both: always exactly
+     * centred, always 1px however narrow the band gets, and no extra layer to
+     * out-rank the fill.
+     */
     const perfectBand = (el: HTMLElement, center: number, half: number): void => {
       const g = bandGeometry(center, half);
       place(el, g.left, g.width);
-      el.style.boxShadow = `inset 0 0 0 ${outlinePx(g.width * barPx)}px rgba(255,255,255,0.92)`;
-    };
-    const line = (el: HTMLElement, at: number): void => {
-      el.style.display = 'block';
-      el.style.left = `${at * 100}%`;
-      el.style.width = '2px';
+      const px = g.width * barPx;
+      // The hairline is placed off the band's own centre, which is only the
+      // target when the band has not been clipped by the bar's edge.
+      const mid = px > 0 ? ((center - g.left) / (g.width || 1)) * 100 : 50;
+      const halfLine = px > 0 ? (0.5 / px) * 100 : 0;
+      el.style.background =
+        `linear-gradient(90deg, ${PERFECT} ${mid - halfLine}%, ${PERFECT_MARK} ${mid - halfLine}%, ` +
+        `${PERFECT_MARK} ${mid + halfLine}%, ${PERFECT} ${mid + halfLine}%)`;
+      el.style.boxShadow = `inset 0 0 0 ${outlinePx(px)}px rgba(255,255,255,0.92)`;
     };
     const z = this.zoneEls;
     const pTarget = this.targetBar();
     const perfect = this.perfectHalf();
     const good = this.goodHalf();
     // Overswing danger zone above the power target (non-putts only)
-    if (!this.ctx.isPutt && pTarget < 1) {
-      place(z.overswing, pTarget + good, 1 - (pTarget + good));
+    // A wide enough good band reaches the top of the bar and leaves no
+    // overswing zone at all. `place` would then be handed a NEGATIVE width,
+    // which is invalid CSS — the declaration is dropped and the element silently
+    // keeps whatever width the previous arm gave it. Hide it instead of writing
+    // a value the browser will ignore.
+    const overswingFrom = pTarget + good;
+    if (!this.ctx.isPutt && overswingFrom < 1) {
+      place(z.overswing, overswingFrom, 1 - overswingFrom);
     } else {
       z.overswing.style.display = 'none';
     }
     band(z.powerGood, pTarget, good);
     perfectBand(z.powerPerfect, pTarget, perfect);
-    line(z.powerLine, pTarget);
     // Accuracy target
     band(z.accGood, ACCURACY_TARGET, good);
     perfectBand(z.accPerfect, ACCURACY_TARGET, perfect);
-    line(z.accLine, ACCURACY_TARGET);
   }
 }

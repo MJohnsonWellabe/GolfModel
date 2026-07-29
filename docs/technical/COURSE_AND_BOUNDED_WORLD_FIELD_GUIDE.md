@@ -465,3 +465,46 @@ Two related traps, both found alongside it:
 - **Nothing gates a mass against a prop's footprint.** The rock footprint gate
   (§8) only checks that the *ground* under a rock is flat. Co-locating a mass
   with a prop passes every test in the repo, so this one is on the author.
+
+## 11. ONE far-field surface, in ONE colour, at ONE exposure
+
+The horizon is built from several huge planes, and for a long time each was a
+different colour at a different exposure. Stacked, they read as bands — which is
+what the owner kept seeing after each individual fix ("I can still see the haze
+color in both courses").
+
+The rules now:
+
+- **Everything in the far field resolves to `groundFarC`** (`theme.apronTint ??
+  shade(rough, 0.9)`): the apron, the ground bake's own edge fade, and the walls
+  that seal gaps between the backdrop hills. Fog carries the whole thing into the
+  haze over distance, which is what fog is for. The edge fade used to target
+  `theme.haze`, which put a pale rim of a THIRD colour between two matching ones.
+- **Expose every one of them.** `groundMat` has no emissive and an up-facing
+  plane is lit at hemi 0.62 + sun 0.78 × N·L 0.86 = **1.298**. A full-strength
+  diffuse plus an emissive (the apron ran 1.0 + 0.5, the range backstop 1.0 +
+  0.85, the void floor 1.0 + 0.55) saturates every channel on a warm palette:
+  Maple Vale's apron rendered a flat **`#ffff8b`** — literally yellow. The fix is
+  `diffuse × 0.58` and `emissive × 0.25`, which sums to 1.003 and renders the
+  authored colour. **The sea plane was rebalanced for exactly this reason years
+  earlier ("a flat cyan stripe"); nothing else in the file had been.**
+- **A peaks course has ONE far-field plane.** The void floor is 16000², the apron
+  was 16000×9000 — so the void floor showed *past* the apron as a strip of a
+  different colour and a different fog depth between the treeline and the hills.
+  That strip survived every recolour, and hiding the mesh is what identified it.
+  The apron is now 16000² centred on the world and the void floor is skipped for
+  `backdrop: 'peaks'`. **If you add another masking plane, ask what it overlaps.**
+- **The far field carries the ground's grain.** Matching the colour is only half
+  of it: a flat fill beside a ground wearing a tiling detail map still reads as a
+  painted band, because the eye finds the edge where the TEXTURE stops. The apron
+  clones `detailTex` and rescales it so its tiles are the same world size out
+  there as underfoot.
+- **Do not fog a backdrop layer, and do not unfog the ground under one.** Both
+  were tried. Fogging the hills washed them to pale slabs; unfogging the far
+  ground put an unfogged plane against a fogged one. The hills stay unfogged, the
+  ground stays fogged, and they meet without a seam because they now share a
+  colour.
+
+Debugging technique worth reusing: when a band will not go away, stop guessing
+and **hide meshes one at a time** through the scene from a Playwright evaluate.
+Three recolours failed before that found the void floor in one run.

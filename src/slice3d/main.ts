@@ -665,11 +665,21 @@ const round: RoundState = {
  * they have not chosen (Beginner before the lesson, Amateur after it).
  */
 function playerDifficulty(): Difficulty {
-  // Profile first (it syncs with the account and decides record eligibility),
-  // device second (it is the copy that survives a reload for a signed-out
-  // player — persistProfile only writes when signed in).
+  // THIS DEVICE'S EXPLICIT CHOICE WINS, the account's is the fallback.
+  //
+  // It used to read the profile first, and that is how "I went back to hard and
+  // it stayed easy" happened: `persistProfile()` only writes when signed in, so
+  // in a guest or pre-sign-in session `profile.updatedAt` never left 0 — every
+  // merge then treated the OTHER copy as newer and handed its stale difficulty
+  // straight back, where it masked the correct value sitting in device
+  // settings. Difficulty now follows the same rule the volumes and reduced
+  // motion already do (`applyDeviceSettings`: "this device's preferences always
+  // win locally"), which is immune to that by construction.
+  //
+  // The profile copy is still written and still syncs — it is what a NEW device
+  // inherits, and what makes the choice visible to the account.
   return effectiveDifficulty(
-    profile.settings.difficulty ?? deviceSettings.difficulty,
+    deviceSettings.difficulty ?? profile.settings.difficulty,
     deviceSettings.tutorialDone
   );
 }
@@ -686,6 +696,16 @@ function playerDifficulty(): Difficulty {
  * Everything else uses the player's own setting.
  */
 function lockRoundDifficulty(): void {
+  // A RESUMED round keeps the difficulty it teed off at. The whole point of
+  // locking at the tee is that a settings change cannot resize the meter under
+  // a card already half written — re-locking on resume broke that across the
+  // one gap where it matters most, and silently flipped whether the round could
+  // set a record.
+  const resumed = asDifficulty(resumingFrom?.diff);
+  if (resumed) {
+    round.difficulty = resumed;
+    return;
+  }
   // A tour EVENT and its sudden-death playoff are both part of the season, so
   // both inherit the season's locked difficulty; everything else is the
   // player's own setting.
@@ -4769,7 +4789,8 @@ function checkpointRound(): void {
       parSoFar: round.course.holes.slice(0, round.holeIdx).reduce((a, h) => a + h.par, 0),
       at: Date.now(),
       ball,
-      strokes
+      strokes,
+      diff: round.difficulty
     })
   );
 }
@@ -5932,7 +5953,12 @@ function renderProfile(tab?: ProfileTab): void {
       }
       const note = document.getElementById('diffNote');
       if (note) note.textContent = difficultyNote();
-      if (current) showMsg('Difficulty saved — it applies from your next round', 2600);
+      showMsg(
+        current
+          ? 'Difficulty saved — it applies from your next round'
+          : `Difficulty set to ${difficultyProfile(d).label}`,
+        2600
+      );
     });
   }
   // Graphics takes effect immediately for the render resolution and from the
@@ -8648,10 +8674,11 @@ document.documentElement.classList.toggle('ff-delight', flag('delight'));
     profile.settings.difficulty = chosen;
     updateDeviceSettings({ difficulty: chosen });
   }
-  const zones = Array.from(meterEl.querySelectorAll<HTMLElement>('.zone'));
-  // The perfect bands are the two topmost layers (see meter3d's zoneEls).
-  const perfectPx = zones
-    .filter((z) => z.style.zIndex === '4' && z.style.display !== 'none')
+  // Selected by CLASS, not by z-index: the first version of this probe keyed on
+  // the layer number and silently returned nothing the moment the layering
+  // changed — a probe that fails open is worse than none.
+  const perfectPx = Array.from(meterEl.querySelectorAll<HTMLElement>('.zone.perfect'))
+    .filter((z) => z.style.display !== 'none')
     .map((z) => z.getBoundingClientRect().width);
   return {
     chosen: profile.settings.difficulty ?? null,
@@ -8791,10 +8818,15 @@ const nextBtn = document.getElementById('nextBtn') as HTMLButtonElement;
 function applyCloudMerge(live: PlayerProfile, cloud: PlayerProfile): void {
   Object.assign(live, mergeProfiles(live, cloud));
   // The merge may have taken the other copy's settings (newer updatedAt) —
-  // this device's audio/motion preferences always win locally.
+  // this device's audio/motion/difficulty preferences always win locally.
   applyDeviceSettings();
   backfillTourHistory(live);
   persistProfile();
+  // A merge lands ASYNCHRONOUSLY, long after the screen was drawn. If the
+  // Settings pane is open it is now showing values that may no longer be true —
+  // and a segmented control still highlighting the choice the merge just undid
+  // is indistinguishable from the setting being broken. Redraw it.
+  if (recordsEl.style.display !== 'none' && profileTab === 'settings') renderProfile('settings');
 }
 
 /**
@@ -8874,6 +8906,10 @@ function applyDeviceSettings(): void {
   profile.settings.sound = deviceSettings.sound;
   profile.settings.ambience = deviceSettings.ambience;
   profile.settings.reducedMotion = deviceSettings.reducedMotion;
+  // ...and the difficulty, once this device has actually chosen one. This runs
+  // immediately after every cloud merge (applyCloudMerge, adoptCloudAccount),
+  // so a stale synced value can never survive on top of a local choice.
+  if (deviceSettings.difficulty) profile.settings.difficulty = deviceSettings.difficulty;
   applyAmbienceVolume();
   // Mirror the in-game Reduced Motion preference onto the root element so the
   // CSS delight (screen fade-ins, transitions) can honor it alongside the OS
@@ -8947,8 +8983,12 @@ async function adoptCloudAccount(): Promise<void> {
     cloudSyncProfile(profile),
     new Promise<CloudSaveResultLike>((resolve) => setTimeout(() => resolve({ profile, status: 'offline' }), 12000))
   ]);
-  Object.assign(profile, res.profile);
-  applyDeviceSettings(); // this device's audio/motion prefs win over the cloud copy
+  // Through the guarded merge, NOT a blind Object.assign. `cloudSyncProfile`
+  // does a full network round trip between reading the remote copy and
+  // resolving, and the player can change a setting during it — this was the one
+  // call site that would overwrite that fresh local change wholesale, which is
+  // precisely the hazard applyCloudMerge's own comment warns about.
+  applyCloudMerge(profile, res.profile);
   saveProfile(profile); // cache the account locally for offline/reload
   showCloudStatus(res.status);
   syncSelFromProfile();

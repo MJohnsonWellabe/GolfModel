@@ -150,11 +150,25 @@ const sablebayV2 = {
         // (x~402, not 362) so it rises through the green's opening framed by the
         // corridor pines — off to the left it hid behind the left treeline
         // (owner: must be viewable from the tee and the middle of the fairway).
-        // Clustered TIGHT (±11px) directly under the lighthouse base at (402,292)
-        // so it reads as the lighthouse standing ON the rocks, not rocks scattered
-        // beside it (owner: "rocks at the lighthouse base need to sit underneath it").
-        seawall(402, 293, 16, 'stone_a', 221), seawall(413, 298, 13, 'stone_c', 222),
-        seawall(391, 298, 13, 'stone_b', 223)
+        // THE SKERRY THE LIGHTHOUSE STANDS ON.
+        //
+        // The tower's base is a FLAT DISC — gen-lighthouse.mjs flares it out to
+        // radius 0.56 of a 2.28-tall model, so at len 86 it is a 42 px disc,
+        // the widest part of the whole prop. A flat disc cannot sit on a dome:
+        // three tight boulders under its centre left ~80% of the rim floating 14
+        // units in clear air (owner: "there can't be a gap between the bottom of
+        // the lighthouse and the rocks it's sitting on").
+        //
+        // So the plinth is authored as a RING that actually spans the footprint —
+        // eight stones on a radius-16 circle plus one in the middle. `stone_c` is
+        // the widest slab in the set (5.15 x 2.79 native), so at h18 each covers
+        // ~19 x 10 px; every rock is yawed randomly by the renderer, so the ring
+        // has to close the azimuthal gaps on the SHORT axis — eight does, five
+        // does not. Measured against the real meshes: rock under 100% of the rim,
+        // versus 20% before.
+        seawall(402, 292, 18, 'stone_c'), seawall(418, 292, 18, 'stone_c'), seawall(413, 303, 18, 'stone_a'),
+        seawall(402, 308, 18, 'stone_c'), seawall(391, 303, 18, 'stone_b'), seawall(386, 292, 18, 'stone_c'),
+        seawall(391, 281, 18, 'stone_a'), seawall(402, 276, 18, 'stone_c'), seawall(413, 281, 18, 'stone_b')
       ],
       // Coastal landmarks (CC0 Kenney props, upright): a tall LIGHTHOUSE on the
       // stone point behind the green (a clear skyline landmark from the tee and
@@ -223,7 +237,7 @@ const sablebayV2 = {
         // The island BEACH collar pulled SOUTH (owner: "just water behind the
         // green"): its north edge tucks at the green's BACK edge so water laps
         // directly behind the green, apron stays a front/side bail-out.
-        { type: 'bunker', beach: true, polygon: blob(474, 452, 90, 66, 30, 0.04, 221) },
+        { type: 'bunker', beach: true, polygon: blob(474, 452, 90, 66, 30, 0.04) },
         // Causeway base — firm waste-sand strip, widened so edge stones sit on sand.
         { type: 'bunker', waste: true, polygon: [[452, 486], [496, 486], [496, 714], [452, 714]] },
         // TEE-SURROUND WASTE — sandy sand-hills around the tee and the near bank

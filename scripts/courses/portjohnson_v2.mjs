@@ -301,12 +301,26 @@ const portjohnsonV2 = {
       // landmark from the tee and every approach. A ring of granite skerry
       // rocks grounds it in the sea.
       props: [{ key: 'lighthouse', x: 760, y: 232, rot: 0.5, len: 88, upright: true }],
-      // The tallest of these sits under the tower on purpose — an upright prop
-      // now stands ON the masses beneath it (course3d's massLiftAt), so the
-      // lighthouse rides the skerry instead of the rocks growing through it.
       landforms: [
-        shoreRock(760, 232, 15, 'stone_e'), shoreRock(736, 250, 12, 'stone_d'),
-        shoreRock(786, 248, 12, 'stone_f'), shoreRock(760, 262, 11, 'stone_a')
+        // THE SKERRY THE LIGHTHOUSE STANDS ON.
+        //
+        // The tower's base is a FLAT DISC — gen-lighthouse.mjs flares it out to
+        // radius 0.56 of a 2.28-tall model, so at len 88 it is a 43 px disc,
+        // the widest part of the whole prop. A flat disc cannot sit on a dome:
+        // three tight boulders under its centre left ~80% of the rim floating 14
+        // units in clear air (owner: "there can't be a gap between the bottom of
+        // the lighthouse and the rocks it's sitting on").
+        //
+        // So the plinth is authored as a RING that actually spans the footprint —
+        // eight stones on a radius-16 circle plus one in the middle. `stone_c` is
+        // the widest slab in the set (5.15 x 2.79 native), so at h18 each covers
+        // ~19 x 10 px; every rock is yawed randomly by the renderer, so the ring
+        // has to close the azimuthal gaps on the SHORT axis — eight does, five
+        // does not. Measured against the real meshes: rock under 100% of the rim,
+        // versus 20% before.
+        shoreRock(760, 232, 18, 'stone_c'), shoreRock(776, 232, 18, 'stone_c'), shoreRock(771, 243, 18, 'stone_a'),
+        shoreRock(760, 248, 18, 'stone_c'), shoreRock(749, 243, 18, 'stone_b'), shoreRock(744, 232, 18, 'stone_c'),
+        shoreRock(749, 221, 18, 'stone_a'), shoreRock(760, 216, 18, 'stone_c'), shoreRock(771, 221, 18, 'stone_b')
       ],
       // Second-leg lay-up target pulled to y958 — just SHORT of the first
       // cross-strip (band y900) so the AI lays up to the sand wall instead of
