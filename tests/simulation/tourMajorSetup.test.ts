@@ -103,6 +103,12 @@ describe('major setup escalation', () => {
     }
   });
 
+  // 30s, not the 5s default. This walks a whole season to its first major and
+  // then re-simulates every rival's three major rounds — real physics, not a
+  // fixture — and it measured 4.04s ALONE against that 5s limit, so it failed
+  // whenever the suite ran it under load. The terrain compiler getting ~2ms
+  // slower per hole (the water-bed carve) is what finally tipped it. The
+  // headroom is for scheduling, not for the assertion.
   it('the rival field plays the SAME escalated course as the player', () => {
     // Walk a season to its first major on a one-course rotation, then verify
     // each major round's recorded field scores are exactly simulateEntrantRound
@@ -143,5 +149,5 @@ describe('major setup escalation', () => {
       const row = final.standings.find((x) => x.id === TOUR_RIVALS[i].id)!;
       expect(row.total).toBe(perRival[0][i] + perRival[1][i] + perRival[2][i]);
     }
-  });
+  }, 30_000);
 });
