@@ -12,6 +12,9 @@ import {
   RETIRED_FEAT_IDS
 } from '../src/systems/Feats';
 import { defaultProfile, mergeProfiles, PlayerProfile } from '../src/profile/Profile';
+import { careerOvr, emptyCareer } from '../src/data/career';
+import { applyClubUpgrades, upgradeStatBonus } from '../src/data/storeCatalog';
+import type { GolferStats } from '../src/core/types';
 
 /**
  * FEATS replaced the achievement table, and the thing they add is the tracker.
@@ -182,5 +185,99 @@ describe('the per-course feat ledger', () => {
     expect(featDone(featById('eagle_every_par5')!, p)).toBe(true);
     expect(featById('ace_every_par3')!.progress(p)).toEqual({ have: 1, need: FEAT_COURSE_IDS.length });
     expect(featDone(featById('drive_a_par4')!, p)).toBe(true);
+  });
+});
+
+/**
+ * THE ZENITH HAS TO BE WINNABLE.
+ *
+ * `career.raiseAttr` refuses a CP point once `base + upgradeStatBonus >= 100`,
+ * because past that the engine's clamp means the point changes nothing the
+ * player can feel. Correct — but it caps the BASE driving stats at
+ * `100 - 3 * tier`, and the career-overall feats used to be graded on the base
+ * attributes. So buying a driver permanently made "Max a Pro at 99 overall"
+ * unreachable, account-wide (owner: "my guy is only 97 even though he's maxed
+ * in everything"), while his own Locker card showed him 100.
+ *
+ * These gates walk the REAL spend rule to its ceiling rather than asserting a
+ * hand-computed number, so they stay honest if the bonus or the cap moves.
+ */
+describe('the career-overall feats vs. club upgrades', () => {
+  /** Raise every attribute as far as `raiseAttr`'s own rule allows. */
+  const maxedAttrs = (clubUpgrades: Record<string, number>): GolferStats => {
+    const attrs = { ...defaultProfile().career.pros[0]?.attrs } as GolferStats;
+    const base: GolferStats = attrs.drivingPower
+      ? attrs
+      : { drivingPower: 65, drivingAccuracy: 65, approach: 65, chipping: 65, putting: 65 };
+    const out = { ...base };
+    for (const k of Object.keys(out) as Array<keyof GolferStats>) {
+      // The exact condition raiseAttr guards with.
+      while (out[k] + upgradeStatBonus(k, clubUpgrades) < 100) out[k] += 1;
+    }
+    return out;
+  };
+
+  const withPro = (attrs: GolferStats, clubUpgrades: Record<string, number>): PlayerProfile => {
+    const p = defaultProfile();
+    p.clubUpgrades = clubUpgrades;
+    p.career = {
+      ...emptyCareer(),
+      pros: [
+        {
+          id: 'pro1',
+          name: 'Maxed',
+          styleId: p.career.pros[0]?.styleId ?? 'allround',
+          character: 'chip',
+          attrs,
+          createdAt: 0
+        } as never
+      ],
+      activeProId: 'pro1'
+    };
+    return p;
+  };
+
+  const TIERS = [0, 1, 2, 3];
+
+  for (const tier of TIERS) {
+    it(`a fully maxed Pro reaches The Zenith with a tier-${tier} driver`, () => {
+      const ups: Record<string, number> = tier ? { driver: tier } : {};
+      const attrs = maxedAttrs(ups);
+      const p = withPro(attrs, ups);
+      expect(
+        featDone(featById('career_99')!, p),
+        `tier ${tier}: base reads ${careerOvr(attrs)}, effective ${careerOvr(
+          applyClubUpgrades(attrs, ups)
+        )}`
+      ).toBe(true);
+      expect(featDone(featById('career_80')!, p)).toBe(true);
+      expect(featDone(featById('career_90')!, p)).toBe(true);
+    });
+  }
+
+  it('the BASE rating a maxed Pro can reach falls as the driver improves', () => {
+    // The defect itself, stated as the relationship rather than as numbers:
+    // every driver tier buys effective power at the cost of base rating, and
+    // grading the feat on the base is what made the upgrade a punishment. (It
+    // survives to exactly 99 at tier 1 only because the average rounds up.)
+    const bases = TIERS.map((t) => careerOvr(maxedAttrs(t ? { driver: t } : ({} as Record<string, number>))));
+    for (let i = 1; i < bases.length; i++) {
+      expect(bases[i], `tier ${i} base ${bases[i]} vs tier ${i - 1} base ${bases[i - 1]}`).toBeLessThanOrEqual(
+        bases[i - 1]
+      );
+    }
+    expect(bases[0], 'with no upgrade the base rating reaches the feat').toBeGreaterThanOrEqual(99);
+    expect(bases[bases.length - 1], 'and the top tier drops it below').toBeLessThan(99);
+  });
+
+  it('a rookie has not earned any of them', () => {
+    const p = withPro(
+      { drivingPower: 65, drivingAccuracy: 65, approach: 65, chipping: 65, putting: 65 },
+      { driver: 2 }
+    );
+    expect(featDone(featById('career_80')!, p)).toBe(false);
+    // The driver lifts power AND accuracy by 3/tier, so a tier-2 driver adds
+    // 12 across five stats: 65 + 12/5 = 67.4.
+    expect(featById('career_99')!.progress(p).have).toBe(67);
   });
 });

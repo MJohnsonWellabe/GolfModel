@@ -37,7 +37,8 @@
  */
 
 import type { PlayerProfile } from '../profile/Profile';
-import { bestProOvr, emptyCareer } from '../data/career';
+import { careerOvr, emptyCareer } from '../data/career';
+import { applyClubUpgrades } from '../data/storeCatalog';
 import { starCount } from './Mastery';
 import { hasGrandSlam, SEASON_LIMIT, TourProRecord } from './TourSeason';
 import { COURSE_LIST } from '../data/courseRoster';
@@ -179,6 +180,34 @@ const upTo =
   (need: number, have: (p: PlayerProfile) => number) =>
   (p: PlayerProfile): FeatProgress => ({ have: Math.max(0, Math.min(need, Math.floor(have(p)))), need });
 
+/**
+ * The best overall across the stable, **as the game displays it** — base
+ * attributes plus what the purchased clubs add.
+ *
+ * This used to be `bestProOvr(career)`, which reads the BASE attributes only,
+ * and that made "The Zenith" (99 overall) unwinnable for anybody who had
+ * bought a driver. `career.raiseAttr` refuses a point once
+ * `base + upgradeStatBonus >= 100`, because past that the engine's clamp means
+ * the point buys nothing — correct on its own terms, but it caps the BASE
+ * power/accuracy at `100 - 3 * tier`. So a fully maxed Pro reads 98 with a
+ * tier-1 driver and 97 with a tier-2 (owner: "the achievement for maxing a pro
+ * at 99 overall is impossible with the upgrades ... my guy is only 97 even
+ * though he's maxed in everything"). Buying an upgrade permanently destroyed a
+ * feat, account-wide.
+ *
+ * It also meant one Pro had two different overalls on screen at once: the
+ * Locker card already shows `ovr(applyClubUpgrades(...))`, the hub showed the
+ * base. Grading on the effective number fixes the feat and settles that
+ * disagreement in favour of the one the player is shown on their own card.
+ */
+function bestProOvrEffective(p: PlayerProfile): number {
+  const pros = (p.career ?? emptyCareer()).pros;
+  return pros.reduce(
+    (best, pro) => Math.max(best, careerOvr(applyClubUpgrades(pro.attrs, p.clubUpgrades ?? {}))),
+    0
+  );
+}
+
 /** The best any single Pro has done on one record-book counter. Career feats
  *  are per-GOLFER ("4 majors with one Pro"), never a lifetime total across a
  *  stable of them. */
@@ -215,8 +244,8 @@ export const FEATS: Feat[] = [
   // satisfy it. It asks the same question of every course on the roster now.
   { id: 'course_master', name: 'Course Master', desc: 'Earn all 9 mastery stars on one course', tier: 'pro', cp: 8, coins: 100, progress: upTo(9, (p) => Math.max(0, ...FEAT_COURSE_IDS.map((c) => starCount(mastery(p), c)))) },
   { id: 'under_par_all', name: 'Round the Roster', desc: `Finish under par at all ${ALL} courses`, tier: 'pro', cp: 10, coins: 125, progress: upTo(ALL, (p) => coursesUnder(p, -1)) },
-  { id: 'career_80', name: 'Rising Star', desc: 'Raise a Pro to 80 overall', tier: 'pro', cp: 6, coins: 75, progress: upTo(80, (p) => bestProOvr(p.career ?? emptyCareer())) },
-  { id: 'career_90', name: 'World Class', desc: 'Raise a Pro to 90 overall', tier: 'pro', cp: 10, coins: 100, progress: upTo(90, (p) => bestProOvr(p.career ?? emptyCareer())) },
+  { id: 'career_80', name: 'Rising Star', desc: 'Raise a Pro to 80 overall', tier: 'pro', cp: 6, coins: 75, progress: upTo(80, (p) => bestProOvrEffective(p)) },
+  { id: 'career_90', name: 'World Class', desc: 'Raise a Pro to 90 overall', tier: 'pro', cp: 10, coins: 100, progress: upTo(90, (p) => bestProOvrEffective(p)) },
   { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', tier: 'pro', cp: 8, coins: 100, progress: once((p) => p.stats.tournamentWins >= 1) },
   { id: 'first_major', name: 'Major Winner', desc: 'Win your first major championship', tier: 'pro', cp: 12, coins: 150, progress: once((p) => bestTourStat(p, (r) => r.majorWins) >= 1) },
   { id: 'season_champion', name: 'Season Champion', desc: 'Top the Tour Season points table', tier: 'pro', cp: 12, coins: 150, progress: once((p) => (p.stats.seasonChampionships ?? 0) >= 1) },
@@ -227,7 +256,7 @@ export const FEATS: Feat[] = [
   { id: 'eagle_every_par5', name: 'The Eagle Circuit', desc: `Eagle the par 5 at all ${ALL} courses`, tier: 'legend', cp: 30, coins: 400, progress: upTo(ALL, (p) => feats(p).eagledPar5.length) },
   { id: 'ace_every_par3', name: 'The Ace Circuit', desc: `Ace the par 3 at all ${ALL} courses`, tier: 'legend', cp: 60, coins: 750, progress: upTo(ALL, (p) => feats(p).acedPar3.length) },
   { id: 'drive_a_par4', name: 'Driveable', desc: 'Drive a par 4 green off the tee', tier: 'legend', cp: 20, coins: 250, progress: once((p) => feats(p).drivenPar4.length >= 1) },
-  { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', tier: 'legend', cp: 16, coins: 200, progress: upTo(99, (p) => bestProOvr(p.career ?? emptyCareer())) },
+  { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', tier: 'legend', cp: 16, coins: 200, progress: upTo(99, (p) => bestProOvrEffective(p)) },
   { id: 'majors_4', name: 'Major Force', desc: 'Win 4 majors with one Pro', tier: 'legend', cp: 24, coins: 300, progress: upTo(4, (p) => bestTourStat(p, (r) => r.majorWins)) },
   { id: 'tour_wins_10', name: 'Tour Veteran', desc: 'Win 10 tour events with one Pro', tier: 'legend', cp: 20, coins: 250, progress: upTo(10, (p) => bestTourStat(p, (r) => r.wins)) },
   { id: 'grand_slam', name: 'Career Grand Slam', desc: 'Win all four majors with one Pro', tier: 'legend', cp: 40, coins: 500, progress: upTo(4, (p) => Math.max(0, ...Object.values(p.tourHistory ?? {}).map((r) => (hasGrandSlam(r) ? 4 : Math.min(3, r.majorWins))))) },

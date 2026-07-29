@@ -2226,6 +2226,23 @@
         gap: 5px;
         margin-bottom: 9px;
       }
+      /* THE MEDALS NEED THEIR OWN RULE. `.chip` is not a base class in this
+         stylesheet — every other use of it is scoped (`#hud .chip`,
+         `.chHead .chip`, `.profMastery .chip`), so these earned-feat chips
+         matched NOTHING and inherited the panel's dark body text onto a dark
+         surface (owner: "the menu text for the new challenges should be white
+         not black"). Gold like the other trophy chips, but with a white label:
+         a feat name is a sentence, not a number, and has to stay readable at
+         12px. */
+      .featGot .chip {
+        background: rgba(255, 213, 79, 0.12);
+        border: 1px solid rgba(255, 213, 79, 0.28);
+        border-radius: 999px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 700;
+        color: #fff;
+      }
       .featRow {
         padding: 7px 4px 9px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -2657,9 +2674,18 @@
         color: #6f9578;
       }
       /* Character step */
+      /* TWO FULL ROWS ON A PHONE. At `repeat(3, 1fr)` with 3/4 portraits the
+         card ran ~174px tall inside the Locker's `min(86dvh, 620px)` shell, so
+         barely one row and a sliver of the next were ever visible (owner: "the
+         golfer select screen ... feels really cramped, can we make their
+         pictures a little smaller to at least have two full rows").
+         `auto-fill` + a floor keeps 3 columns on a narrow phone (so nobody's
+         portrait shrinks to a thumbnail) and takes a 4th when the screen can
+         afford one; the height comes off the PICTURE instead — see the 1/1
+         crop below. */
       .charGrid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
         gap: 10px;
       }
       .charCard {
@@ -2694,25 +2720,36 @@
         border-radius: 8px;
         pointer-events: none;
       }
+      /* A SQUARE CROP, NOT A SHORTER GRID. This is where the ~40px per row
+         comes from: 3/4 made every card taller than it needed to be to show a
+         face. `object-position` moves up with the crop so the head stays in
+         frame rather than the chest filling it. */
       .charCard img {
         width: 100%;
-        aspect-ratio: 3 / 4;
+        aspect-ratio: 1 / 1;
         object-fit: cover;
-        object-position: 50% 22%;
+        object-position: 50% 16%;
         border-radius: 9px;
         background: linear-gradient(180deg, #123f24, #0b2c17);
         display: block;
       }
       .charCard .cn {
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 700;
         color: #cfe3ca;
         margin-top: 4px;
+        /* One line. A wrapped two-word name re-taller-ed every card in its row
+           and put the second row back off-screen. */
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       /* Pals wizard step: emoji tile in place of the character portrait. */
       .charCard .palPickIcon {
         width: 100%;
-        aspect-ratio: 3 / 4;
+        /* Matches .charCard img — the Pal and Perk tabs reuse .charGrid, so a
+           stale 3/4 here would make those tiles taller than the portraits. */
+        aspect-ratio: 1 / 1;
         border-radius: 9px;
         background: linear-gradient(180deg, #123f24, #0b2c17);
         display: flex;

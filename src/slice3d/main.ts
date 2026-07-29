@@ -8220,7 +8220,14 @@ function renderTourHub(fromSync = false): void {
     (hubPro
       ? `<button id="thTrain" class="careerNavBtn${cpToSpend > 0 ? ' hot' : ''}"><span class="cnIcon">💪</span>` +
         `<span class="cnName">Improve your Pro</span>` +
-        `<span class="cnSub">${escapeHtml(hubPro.name)} · ${careerOvr(hubPro.attrs)} OVR · ${
+        // THE SAME OVR THE LOCKER CARD SHOWS. `careerOvr(hubPro.attrs)` is the
+        // BASE rating, and the Locker renders `ovr(applyClubUpgrades(...))` —
+        // so one Pro read 97 here and 100 there, and the player had no way to
+        // know which one a feat was grading (it was this one, and that is what
+        // made "The Zenith" unwinnable; see Feats.bestProOvrEffective).
+        `<span class="cnSub">${escapeHtml(hubPro.name)} · ${ovr(
+          applyClubUpgrades(hubPro.attrs, profile.clubUpgrades)
+        )} OVR · ${
           cpToSpend > 0 ? `${cpToSpend} CP to spend` : 'no CP banked'
         }</span></button>`
       : '') +
