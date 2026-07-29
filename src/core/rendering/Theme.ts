@@ -235,6 +235,14 @@ export interface CourseTheme {
    *  course sets a warm sand tint here so the ambient bounce reads as beach,
    *  not dead field. Unset = shade(rough, 0.9) as before. */
   hemiGround?: number;
+  /** Colour of the huge ground plane that fills the gap between the bounded
+   *  world's edge and the distant hills ('peaks' backdrop). Unset =
+   *  shade(rough, 0.9), which is what every course wants: the apron is far-off
+   *  GROUND and should read as more of the same turf. Exists only so a course
+   *  can deliberately differ — it must NOT be conflated with `hemiGround`,
+   *  which is a light colour and made Maple Vale's horizon three clashing
+   *  bands when the apron borrowed it. */
+  apronTint?: number;
   /** Tint for the far-horizon backdrop hills ('peaks' backdrop). Unset keeps
    *  the classic sky-hazed domes; a desert course sets terracotta so the
    *  horizon reads as red-rock mesas (Red Hollow). */
@@ -402,6 +410,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'bunkerLipFescue'
     | 'horizonTint'
     | 'hemiGround'
+    | 'apronTint'
     | 'hillTint'
     | 'peakKeys'
     | 'wasteRimKeys'
@@ -522,6 +531,7 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   t.horizonTint =
     spec.horizonTint !== undefined ? parseColor(spec.horizonTint, 0xe8ddc4) : shade(t.skyBottom, 1.04);
   if (spec.hemiGround !== undefined) t.hemiGround = parseColor(spec.hemiGround, t.sand);
+  if (spec.apronTint !== undefined) t.apronTint = parseColor(spec.apronTint, shade(t.rough, 0.9));
   if (spec.hillTint !== undefined) t.hillTint = parseColor(spec.hillTint, shade(t.skyTop, 1.06));
   if (spec.stoneTint !== undefined) t.stoneTint = parseColor(spec.stoneTint, 0x7e7c72);
   if (spec.bareRough === true) t.bareRough = true;

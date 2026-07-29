@@ -149,19 +149,6 @@ export class TutorialCoach {
     if (ctx.firstTee) {
       this.enqueueOnce([
         {
-          // No `step`: like the lie and recovery cards this is context, not a
-          // control to learn, so it stays out of the "3 / 7" count.
-          key: 'difficulty',
-          card: {
-            title: `Playing at ${difficultyProfile(this.difficulty).label}`,
-            body:
-              `${difficultyProfile(this.difficulty).blurb} ` +
-              `Everything else is the real game — only the timing windows change. ` +
-              `Settings → Difficulty moves it any time.`,
-            cta: 'Got it'
-          }
-        },
-        {
           key: 'aim',
           card: {
             title: 'Aim',
@@ -306,6 +293,28 @@ export class TutorialCoach {
         ? ''
         : ` From here rounds play at ${difficultyProfile(DEFAULT_DIFFICULTY).label} — Settings → Difficulty if you'd rather they didn't.`;
     this.enqueueOnce([
+      {
+        // AFTER the hole, not before it (owner). On the first tee this meant
+        // nothing — the player had not yet swung, so "timing window" named a
+        // thing they had never seen. Now it lands when they have hit five or
+        // six shots and know exactly what the green band on the bar is, and it
+        // RINGS that band while it says so.
+        //
+        // No `step`: like the lie and recovery cards this is context, not a
+        // control to learn, so it stays out of the "3 / 8" count.
+        key: 'difficulty',
+        card: {
+          title: `You played that at ${difficultyProfile(this.difficulty).label}`,
+          body:
+            `${difficultyProfile(this.difficulty).blurb} ` +
+            `Everything else is the real game — the hole, the wind and the ball are the same at ` +
+            `every setting. Settings → Difficulty moves it any time.`,
+          // The bar the sentence is about. The traced swing has no meter, so
+          // ring its pad instead — same branch the `hit` card makes.
+          highlight: traceSwingActive() ? 'tracePad' : 'meter',
+          cta: 'Got it'
+        }
+      },
       {
         key: 'done',
         card: {

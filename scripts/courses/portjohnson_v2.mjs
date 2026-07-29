@@ -16,7 +16,18 @@ import { blob } from '../courselib.mjs';
 
 const legacyTheme = JSON.parse(readFileSync('src/data/courses/portjohnson.json', 'utf8')).theme;
 const pot = (cx, cy, r, seed) => ({ type: 'bunker', wall: true, polygon: blob(cx, cy, r, r * 0.82, 9, 0.25, seed) });
-const shoreRock = (cx, cy, h, key, seed) => ({ type: 'rock', cx, cy, r: h, height: h, key, polygon: blob(cx, cy, h, h, 8, 0, seed) });
+// Collidable coastal boulder helper (skerry granite). Emitted as a decorative
+// `{key,x,y,h}` landform: the landform renderer reads x/y/h, and PhysicsEngine
+// caroms any non-tree landform with h >= landformCollideMinH (12) as a boulder
+// (r = h).
+//
+// This used to write a rock-HAZARD shape (`type/cx/cy/r/height/polygon`) into
+// the `landforms` array. The landform renderer reads `l.x`/`l.y`/`l.h`, so it
+// drew every one of these at `undefined` — i.e. the skerry rocks under the
+// lighthouse have never actually rendered — and the collider never ingested
+// them either. Sable Bay hit and fixed the identical bug (see
+// scripts/courses/sablebay_v2.mjs's `seawall`); this is the same fix.
+const shoreRock = (cx, cy, h, key) => ({ key, x: cx, y: cy, h });
 
 const portjohnsonV2 = {
   name: 'Port Johnson Links',
@@ -290,9 +301,12 @@ const portjohnsonV2 = {
       // landmark from the tee and every approach. A ring of granite skerry
       // rocks grounds it in the sea.
       props: [{ key: 'lighthouse', x: 760, y: 232, rot: 0.5, len: 88, upright: true }],
+      // The tallest of these sits under the tower on purpose — an upright prop
+      // now stands ON the masses beneath it (course3d's massLiftAt), so the
+      // lighthouse rides the skerry instead of the rocks growing through it.
       landforms: [
-        shoreRock(760, 232, 15, 'stone_e', 971), shoreRock(736, 250, 12, 'stone_d', 972),
-        shoreRock(786, 248, 12, 'stone_f', 973), shoreRock(760, 262, 11, 'stone_a', 974)
+        shoreRock(760, 232, 15, 'stone_e'), shoreRock(736, 250, 12, 'stone_d'),
+        shoreRock(786, 248, 12, 'stone_f'), shoreRock(760, 262, 11, 'stone_a')
       ],
       // Second-leg lay-up target pulled to y958 — just SHORT of the first
       // cross-strip (band y900) so the AI lays up to the sand wall instead of

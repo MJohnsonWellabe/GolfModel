@@ -51,7 +51,16 @@ export interface DifficultyProfile {
    * game as shipped; above 1 is wider (easier), below 1 narrower.
    */
   zoneMult: number;
-  /** One line for the settings screen — what it actually changes. */
+  /**
+   * One line saying what this difficulty actually changes.
+   *
+   * Written for somebody who has played one hole: it appears in Settings AND on
+   * the tutorial's after-the-hole card. It must not lean on vocabulary the game
+   * has not taught yet — the first draft said Beginner was "the same width the
+   * Fire streak gives you", which is meaningless to a player who has never
+   * caught fire (owner: "don't say it's the same as fire, that won't mean
+   * anything to them").
+   */
   blurb: string;
   /** True when a round at this difficulty may set a course record. */
   ranked: boolean;
@@ -62,28 +71,28 @@ const PROFILES: Readonly<Record<Difficulty, DifficultyProfile>> = {
     id: 'beginner',
     label: 'Beginner',
     zoneMult: 1.4,
-    blurb: 'Widest timing windows — the same width the Fire streak gives you.',
+    blurb: 'The widest green band on the swing bar — the most room to flush a shot.',
     ranked: false
   },
   amateur: {
     id: 'amateur',
     label: 'Amateur',
     zoneMult: 1.2,
-    blurb: 'A little more room on the meter. The default once the lesson is done.',
+    blurb: 'A little more room on the swing bar than the real thing.',
     ranked: false
   },
   pro: {
     id: 'pro',
     label: 'Pro',
     zoneMult: 1,
-    blurb: 'The real thing. Course records are only set at Pro or Expert.',
+    blurb: 'The real thing — the band the game is built around. Course records need Pro or Expert.',
     ranked: true
   },
   expert: {
     id: 'expert',
     label: 'Expert',
     zoneMult: 0.8,
-    blurb: 'Narrower than Pro. Flushing one has to be earned.',
+    blurb: 'A narrower band than Pro. Flushing one has to be earned.',
     ranked: true
   }
 };

@@ -4346,10 +4346,17 @@
         font-size: 17px;
         font-weight: 800;
       }
-      /* "Learn to play" landing entry (dev-only, tutorial flag). */
+      /* "Learn to play" landing entry (dev-only, tutorial flag).
+         The bottom margin is not decoration: `.landingPlay` deliberately
+         carries none (it has to sit tight under the cards when nothing is above
+         it), so every gap above Quick Start comes from the bottom margin of
+         whatever precedes it. `.heroLearn` and `.landingPlay.accountCta` both
+         have one — this quiet state did not, so a signed-in player who had
+         finished the lesson got Learn to play welded to Quick Start. */
       #landingLearn {
         width: 100%;
         margin-top: 10px;
+        margin-bottom: 10px;
         padding: 13px;
         border-radius: 16px;
         border: 1.5px solid rgba(255, 213, 79, 0.55);

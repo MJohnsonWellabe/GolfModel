@@ -361,6 +361,18 @@ export interface DeviceSettings {
    *  both inputs resolve through the same swingModel, so this never changes
    *  difficulty, only the gesture. */
   swingType: 'tap' | 'trace';
+  /**
+   * Local mirror of the chosen swing difficulty.
+   *
+   * The AUTHORITATIVE copy is `profile.settings.difficulty`, because difficulty
+   * decides whether a round can set a record and records sync with the account.
+   * But `persistProfile()` only writes the profile when signed in, so without
+   * this a signed-out player's choice lived in memory and died on reload — they
+   * would pick Expert, play, reload, and silently be back on the default. Device
+   * settings persist for everyone, guests included, so this is the copy that
+   * survives. Read profile-first, device-second.
+   */
+  difficulty?: Difficulty;
   /** Graphics budget. 'auto' (the default) lets the adaptive governor pick the
    *  tier from the frame times this device actually achieves — see
    *  src/core/rendering/quality.ts. A number pins it, for a player who would
@@ -454,6 +466,7 @@ export function loadDeviceSettings(storage: KVStorage | null = defaultStorage())
       tutorialDone: !!p.tutorialDone,
       lastCourseId: typeof p.lastCourseId === 'string' ? p.lastCourseId : '',
       swingType: p.swingType === 'trace' ? 'trace' : 'tap',
+      difficulty: asDifficulty(p.difficulty),
       graphics: p.graphics === 0 || p.graphics === 1 || p.graphics === 2 || p.graphics === 3 ? p.graphics : 'auto',
       storeSeenWeek: typeof p.storeSeenWeek === 'number' && Number.isFinite(p.storeSeenWeek) ? p.storeSeenWeek : -1,
       crashes: readCrashes(p.crashes, (p as { lastCrash?: unknown }).lastCrash)
@@ -730,6 +743,7 @@ export function clearLocalProfile(storage: KVStorage | null = defaultStorage()):
  */
 export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile {
   const newer = a.updatedAt >= b.updatedAt ? a : b;
+  const older = newer === a ? b : a;
   const aStats = a.stats ?? emptyCareerStats();
   const bStats = b.stats ?? emptyCareerStats();
   const aClub = a.clubUpgrades ?? {};
@@ -758,6 +772,16 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
   const coinsSpent = Math.max(a.coinsSpent ?? 0, b.coinsSpent ?? 0);
   return {
     ...newer,
+    // `...newer` takes settings wholesale, which is fine for the three that are
+    // also mirrored on DeviceSettings and re-asserted at boot — but `difficulty`
+    // has no such backstop on the profile side. A remote copy with a newer
+    // updatedAt (a second device, clock skew, an offline-queued write) would
+    // silently drop a choice the player had just made. Absent means "never
+    // chosen", so either side having chosen wins over neither.
+    settings: {
+      ...newer.settings,
+      difficulty: newer.settings?.difficulty ?? older.settings?.difficulty
+    },
     coinsEarned,
     coinsSpent,
     coins: Math.max(0, coinsEarned - coinsSpent),

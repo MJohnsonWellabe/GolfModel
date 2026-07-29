@@ -606,6 +606,17 @@ multiply into.
 | Pro | **1.0x** | yes | The game as it shipped. Every course record is set here |
 | Expert | 0.8x | yes | Narrower than Pro |
 
+**A difficulty you cannot see is a difficulty that does not exist.** The bands
+are 5-13px wide on a phone, so the meter's own decoration can swallow the whole
+difference — it did: a 2px white inset ring on each edge plus a 2px white target
+line drawn *over* the band left no green to compare, and every tier read as the
+same white tick. The target line now sits UNDER the perfect band (the band is
+the target), the outline is sized from the band rather than fixed, drawn bands
+are clamped to the bar so `overflow: hidden` cannot silently crop them, and
+`tests/visual/difficulty.spec.ts` measures the rendered pixel width at Beginner
+against Expert. Any future change to the meter's chrome has to keep that gate
+green.
+
 Rules that make it coherent:
 
 - **Pro is defined as 1.0.** Nothing else is retuned to compensate, so "the game
@@ -621,6 +632,9 @@ Rules that make it coherent:
   shared doc (`firebase/CoopSeason`), because it is a property of the contest
   rather than of a participant: two people comparing totals have to have been
   swinging at the same-sized band. The invite banner says which.
+- **The round says which difficulty it was played at**, on the summary card —
+  so "did that setting do anything?" has an answer without a debugger, and a
+  round that cannot set a record says so at the moment it matters.
 - **Course records need Pro or Expert.** The per-course best, the best round
   anywhere, the par-or-better run, the weekly best and the shared record boards
   all ignore an easier round — and an easier round does not BREAK a run built at

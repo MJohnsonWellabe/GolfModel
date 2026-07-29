@@ -407,3 +407,61 @@ and the terrain tests **concurrently**. Practices that kept it sane:
   are now `prod:true` (shipped). `devTools`, `newCourses`, `boundedWorld` stay
   dev-only. (Visual CI runs in dev where these were already on, so no baseline
   churn; production now gets the polish.)
+
+## 9. Backdrop rules learned the hard way (Maple Vale)
+
+Four independent faults met on one course and read as a single "the background
+to the horizon is terrible". Each is now a rule:
+
+- **The apron is GROUND, so it takes a ground colour.** It used to read
+  `theme.hemiGround` first — a *light* bounce colour with no reason to match the
+  turf. Maple Vale was the only `peaks` course that set it (a dark brown), so
+  its horizon put tan rough, brown apron and cream haze side by side. The apron
+  now defaults to `shade(rough, 0.9)`, with `theme.apronTint` for a course that
+  genuinely wants to differ. **Never conflate the two keys.**
+- **A masking plane tracks the terrain in BOTH directions.** `apronY` was
+  `Math.min(-4, minMeshY - 2)` — a ceiling that only pushed the apron down. That
+  is right for a course that dips (the Red Hollow h3 sunken-green fix that added
+  it) and wrong for one that sits high: Maple Vale h2/h3 have no authored point
+  below +7, so the apron sat 11-26 units below the playing surface and the
+  finite ground mesh ended on a vertical lip. It is now `minMeshY - 2`, full
+  stop.
+- **A backdrop outside the sky dome does not exist.** The sky is a Ø9000
+  BACKSIDE sphere centred on the world's middle, so anything past 4500 units
+  from that centre loses the depth test. The range backstop is placed by
+  pin-relative offsets and drifted out on long holes — 4529 on Maple Vale h1 and
+  4627 on h3 — so on two of three holes the wall that seals the saddle gaps
+  never drew and sky showed through the mountains. `backdropAnchor()` now pulls
+  any backdrop position back inside the dome along its own sightline. The code
+  had warned about this since it was written; nothing enforced it.
+- **Every horizon composition ends in a curtain.** The `mountain_range` branch
+  finishes with a full-width layer (`wMul` 4.2-4.5) so no gap shows between or
+  beside the nearer massifs. The non-range massif branch had none, and Maple
+  Vale — the only course on `mountain_alps` — got five isolated peaks with open
+  sky between them. All three of its compositions now end in a curtain too.
+- **Do not fog a backdrop layer.** Tried and reverted: fogging the deepest
+  curtain for atmospheric perspective washed it to near-haze at that distance,
+  so it read as a pale slab sitting on the ground between the darker peaks. A
+  backdrop layer's job is to be an unbroken silhouette; it does that best in the
+  same material as the layers in front of it.
+
+## 10. An upright prop stands on what is under it
+
+Landforms and rock hazards are grounded at `heightAt(x, y)` and rise `h` from
+there. Upright props were grounded at the same datum, so a rock authored *under*
+a prop came up *through* it — Sable Bay's lighthouse had three 13-16 unit
+boulders inside a tower whose base flare is only ~21px across (owner: "rocks
+inside of it rather than under it"), which is the opposite of what the authoring
+comment asked for. `course3d`'s `massLiftAt()` now raises an upright prop by the
+tallest authored mass inside its own footprint, so the tower rides the skerry.
+
+Two related traps, both found alongside it:
+
+- **A landform is `{key, x, y, h}`.** Writing a rock-HAZARD shape
+  (`type/cx/cy/r/height/polygon`) into a `landforms` array makes the renderer
+  draw it at `undefined` and the collider ignore it — invisible *and*
+  pass-through. Sable Bay hit this and fixed it; Port Johnson still had it, so
+  its skerry rocks had never once rendered.
+- **Nothing gates a mass against a prop's footprint.** The rock footprint gate
+  (§8) only checks that the *ground* under a rock is flat. Co-locating a mass
+  with a prop passes every test in the repo, so this one is on the author.

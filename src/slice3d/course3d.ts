@@ -1298,6 +1298,33 @@ export function buildCourse(
 
   // ------------------------------------------------------------ backdrop
   const peakDist = 2500;
+  /**
+   * A backdrop position, pulled in if it would fall OUTSIDE the sky dome.
+   *
+   * The sky is a Ø9000 BACKSIDE sphere centred on the world's middle, so
+   * anything more than 4500 units from that centre is behind the dome's surface
+   * and loses the depth test — the sky simply paints over it. The range
+   * backstop is placed by pin-relative offsets, so on a long hole whose pin
+   * sits far from the world centre it drifts out: Maple Vale lands at 4529 on
+   * hole 1 and 4627 on hole 3, so on two of its three holes the wall that
+   * exists to seal the saddle gaps never draws at all and sky-blue shows
+   * through the mountains. The code has warned about exactly this since it was
+   * written ("any farther and the sky mesh wins the depth test and the wall
+   * never shows"); nothing enforced it.
+   *
+   * Scales the offset from the dome centre rather than clamping an axis, so a
+   * pulled-in backstop stays on the same sightline — just nearer.
+   */
+  const backdropAnchor = (wx: number, wy: number, wz: number): Vector3 => {
+    const pos = w2b(wx, wy, wz);
+    const centre = new Vector3(w / 2, 0, -h / 2);
+    const off = pos.subtract(centre);
+    // 4300 of the dome's 4500 radius: enough margin that the fog-faded wall is
+    // never grazing the surface at an oblique camera angle.
+    const SAFE = 4300;
+    const d = off.length();
+    return d <= SAFE ? pos : centre.add(off.scaleInPlace(SAFE / d));
+  };
   // Resolves once the sailboat ship glb has swapped in (or immediately when
   // the hole has no boats / the load fails) — folded into the returned
   // natureReady so the intro flyover can't sweep past placeholder hulls that
@@ -1310,7 +1337,15 @@ export function buildCourse(
     // and the distant dune line (owner: "what is the white space before the sand
     // hills. Get rid of that."). A large fogged ground plane at grade fills that
     // gap so the foreground reads as continuous sandy ground out to the dunes.
-    const apronC = theme.hemiGround ?? shade(theme.rough, 0.9);
+    // A GROUND colour, not a light colour. This used to read `theme.hemiGround`
+    // first — but that key is the hemispheric light's BOUNCE colour
+    // (`hemi.groundColor`), which has no reason to match the turf. Maple Vale is
+    // the only peaks course that sets it (#8a6a3c, a dark brown), so its horizon
+    // put three unrelated colours side by side: tan rough, brown apron, cream
+    // haze (owner: "the background to the horizon on maple vale is terrible").
+    // Every other peaks course fell through to the shade-of-rough default and
+    // looked right, so the default was always the correct rule.
+    const apronC = theme.apronTint ?? shade(theme.rough, 0.9);
     const apron = MeshBuilder.CreateGround('peakApron', { width: 16000, height: 9000, subdivisions: 1 }, scene);
     // The apron is a flat backdrop plane; it must sit BELOW all in-play terrain
     // or it OCCLUDES anything that dips beneath it. Red Hollow h3's green is a
@@ -1319,10 +1354,18 @@ export function buildCourse(
     // cameras the whole putting surface read as flat sand-tan apron, not green
     // ("last green is still broken and brown"). Same lesson as the void floor
     // (§4a): a masking plane never overrides authored terrain. Anchor it just
-    // under the lowest terrain vertex (minMeshY), keeping −4 as the ceiling so a
-    // course that never dips is visually unchanged; it stays distant + fogged so
-    // dropping a few units is invisible on the horizon.
-    const apronY = Math.min(-4, minMeshY - 2);
+    // under the lowest terrain vertex (minMeshY); it stays distant + fogged so a
+    // couple of units either way is invisible on the horizon.
+    //
+    // This tracks the terrain in BOTH directions now. It used to be
+    // `Math.min(-4, minMeshY - 2)` — a ceiling that only ever pushed the apron
+    // DOWN. That is right for a course that dips (Red Hollow h3's sunken green,
+    // which is why the clamp was added) and wrong for one that sits high: Maple
+    // Vale h2/h3 have no authored point below +7, so the apron pinned at −4 sat
+    // 11–26 units BELOW the playing surface and the finite ground mesh ended on
+    // a vertical lip against a differently-coloured plane. That ledge is the
+    // "doesn't meet the ground" seam.
+    const apronY = minMeshY - 2;
     apron.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1400, apronY);
     const apronMat = mat(scene, 'peakApronM', apronC, { emissive: shade(apronC, 0.5) });
     apron.material = apronMat;
@@ -1621,7 +1664,9 @@ export function buildCourse(
           // any higher and its flat cream top shows above the range layers'
           // low saddles as a slab (playtest zoom). Bottom reaches -540 so
           // elevated tees can't see under it either.
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(new Vector3(0, -240, 0));
+          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(
+            new Vector3(0, -240, 0)
+          );
           bs.applyFog = false;
           bs.freezeWorldMatrix();
           // These packs are full RANGE DIORAMAS (many peaks arranged by the
@@ -1693,13 +1738,23 @@ export function buildCourse(
                 // (short h, wide wMul, close dx spacing so silhouettes merge into
                 // a continuous ridgeline) instead of two tall isolated spikes.
                 // Per-hole recomposition keeps repeats from reading as copies.
+                //
+                // Each of these ends in the same full-width CURTAIN layer the
+                // range compositions use (wMul 4.3+ at the deepest depth). It
+                // was missing here, so the only course on these keys — Maple
+                // Vale — had five isolated massifs with open sky between and
+                // beside them, and on two of its holes the backstop that would
+                // otherwise have sealed the gaps was outside the sky dome too
+                // (see backdropAnchor). Both halves of "the background to the
+                // horizon on maple vale is terrible" met here.
                 holeMod === 0
                 ? [
                     { dx: -1450, dy: 40, h: 210, mirror: true, wMul: 1.9 },
                     { dx: -720, dy: -140, h: 250, mirror: false, wMul: 1.7 },
                     { dx: 40, dy: -40, h: 230, mirror: true, wMul: 1.8 },
                     { dx: 780, dy: -180, h: 270, mirror: false, wMul: 1.7 },
-                    { dx: 1520, dy: -60, h: 220, mirror: true, wMul: 2.0 }
+                    { dx: 1520, dy: -60, h: 220, mirror: true, wMul: 2.0 },
+                    { dx: -200, dy: -1400, h: 190, mirror: false, wMul: 4.4 }
                   ]
                 : holeMod === 1
                   ? [
@@ -1707,14 +1762,16 @@ export function buildCourse(
                       { dx: -640, dy: -20, h: 250, mirror: true, wMul: 1.7 },
                       { dx: 120, dy: 90, h: 300, mirror: false, wMul: 1.6 },
                       { dx: 860, dy: -30, h: 245, mirror: true, wMul: 1.7 },
-                      { dx: 1580, dy: -150, h: 215, mirror: false, wMul: 1.9 }
+                      { dx: 1580, dy: -150, h: 215, mirror: false, wMul: 1.9 },
+                      { dx: 150, dy: -1450, h: 185, mirror: true, wMul: 4.5 }
                     ]
                   : [
                       { dx: -1500, dy: -60, h: 200, mirror: true, wMul: 2.1 },
                       { dx: -760, dy: -170, h: 235, mirror: false, wMul: 1.8 },
                       { dx: 0, dy: -70, h: 215, mirror: true, wMul: 1.9 },
                       { dx: 760, dy: -190, h: 240, mirror: false, wMul: 1.8 },
-                      { dx: 1520, dy: -50, h: 205, mirror: true, wMul: 2.1 }
+                      { dx: 1520, dy: -50, h: 205, mirror: true, wMul: 2.1 },
+                      { dx: -100, dy: -1500, h: 180, mirror: false, wMul: 4.3 }
                     ];
             for (let si = 0; si < spots.length; si++) {
               const spot = spots[si];
@@ -1735,6 +1792,13 @@ export function buildCourse(
                 const cl = part.clone(`hillRange${ki}_${si}`);
                 cl.position = anchor.add(off);
                 cl.scaling = new Vector3(sx, sMul, sMul);
+                // NO FOG ON A BACKDROP LAYER. Tried and reverted: fogging the
+                // deepest curtain to give it atmospheric perspective washed it
+                // to near-haze at this distance, so instead of receding it read
+                // as a pale slab sitting on the ground between the darker
+                // peaks. The curtain's job is to be an unbroken silhouette
+                // behind the gaps; it does that best in the same material as
+                // the layers in front of it.
                 cl.applyFog = false;
                 cl.setEnabled(true);
                 cl.freezeWorldMatrix();
@@ -1819,6 +1883,47 @@ export function buildCourse(
   // model keeps its own textured materials (the wood IS the look); its long
   // axis is measured and scaled to the authored `len`, then yawed by `rot`.
   const propWaterPolys = (hole.hazards ?? []).filter((hz) => hz.type === 'water').map((hz) => hz.polygon);
+  /**
+   * AUTHORED MASSES A PROP MIGHT BE STANDING ON.
+   *
+   * Landforms and rock hazards are both grounded at `heightAt(x, y)` and rise
+   * `h` from there (placeProto below). An upright prop was grounded at the very
+   * same datum, so a rock authored UNDER a prop came up THROUGH it: Sable Bay's
+   * lighthouse has three 13-16 unit boulders clustered within 11px of its
+   * centre, and its own base flare is ~21px across at the authored scale, so
+   * all three stood inside the tower (owner: "rocks inside of it rather than
+   * under it"). The authoring comment in scripts/courses/sablebay_v2.mjs asks
+   * for the opposite — "the lighthouse standing ON the rocks" — so the fix is
+   * to let the prop stand on them, not to push the rocks aside.
+   */
+  const authoredMassList: Array<{ x: number; y: number; h: number }> = [
+    ...(hole.landforms ?? []),
+    ...hole.hazards
+      .filter((hz) => hz.type === 'rock')
+      .map((hz) => ({ x: hz.cx ?? 0, y: hz.cy ?? 0, h: hz.height ?? 10 }))
+  ];
+  /**
+   * How far a mass lifts the ground at (x, y), above `heightAt`.
+   *
+   * A rock prototype is scaled to height `h` and its radius tracks its height
+   * (scripts/courselib's ROCK_R_PER_H = 1), so a parabolic dome of radius `h`
+   * approximates its silhouette closely enough to seat a prop on. The 0.9
+   * factor sinks the prop a touch into the mass: a prop floating a pixel above
+   * a boulder reads far worse than one bedded into it, and the lighthouse's
+   * base flare hides the join.
+   */
+  const massLiftAt = (x: number, y: number): number => {
+    let lift = 0;
+    for (const m of authoredMassList) {
+      const r = Math.max(1, m.h);
+      const d = Math.hypot(x - m.x, y - m.y);
+      if (d >= r) continue;
+      const t = 1 - (d / r) ** 2;
+      lift = Math.max(lift, m.h * t * 0.9);
+    }
+    return lift;
+  };
+
   for (const pr of hole.props ?? []) {
     // A fence must never march through water (Wildwood #3 ran its rail along the
     // creek and straight across it). Skip any fence post whose base sits inside a
@@ -1850,7 +1955,9 @@ export function buildCourse(
           const s = (pr.len ?? 20) / maxExt;
           merged.scaling = new Vector3(s, s, s);
           merged.rotation = new Vector3(0, pr.rot ?? 0, 0);
-          merged.position = w2b(pr.x, pr.y, gh - bb.minimum.y * s);
+          // ...and rest that base on whatever authored mass is under it, not on
+          // the bare terrain (see massLiftAt).
+          merged.position = w2b(pr.x, pr.y, gh + massLiftAt(pr.x, pr.y) - bb.minimum.y * s);
         } else {
           // BRIDGE path: source packs arrive in arbitrary up-conventions (this
           // one stood its bridges on end), so orient by MEASURED extents: lay

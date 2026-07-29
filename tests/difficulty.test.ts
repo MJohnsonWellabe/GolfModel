@@ -12,6 +12,7 @@ import {
   zoneMultFor
 } from '../src/systems/Difficulty';
 import { goodHalf, perfectHalf } from '../src/systems/swingModel';
+import { bandGeometry, outlinePx } from '../src/slice3d/meter3d';
 import { applyRoundRecords, emptyRecords, RoundRecordInput } from '../src/systems/Records';
 import { rankedRound } from '../src/systems/RecordBoards';
 import { RoundStats } from '../src/data/progression';
@@ -153,5 +154,66 @@ describe('the shared record boards', () => {
       expect(p.label.length).toBeGreaterThan(0);
       expect(p.blurb.length).toBeGreaterThan(10);
     }
+  });
+});
+
+/**
+ * THE PIXELS, NOT JUST THE MODEL.
+ *
+ * The difficulty setting shipped correct and looked broken: every tier drew a
+ * band a few pixels wide with ~6px of white chrome painted over it, so Beginner
+ * and Expert were indistinguishable on the bar. Every test we had measured the
+ * model, and the model was right — so nothing failed. These measure what is
+ * actually drawn.
+ */
+describe('the drawn band', () => {
+  const BAR_PX = 356; // #meter at left:5%/right:5% on a 400px-wide phone
+  const ctx = (d: (typeof DIFFICULTIES)[number]) => ({
+    stat: 70,
+    powerTarget: 0.8,
+    isPutt: false,
+    perfectMult: zoneMultFor(d)
+  });
+  const drawnPx = (d: (typeof DIFFICULTIES)[number]): number =>
+    bandGeometry(0.5, perfectHalf(ctx(d))).width * BAR_PX;
+
+  it('gets visibly wider as the difficulty gets easier', () => {
+    const widths = DIFFICULTIES.map(drawnPx);
+    for (let i = 1; i < widths.length; i++) expect(widths[i]).toBeLessThan(widths[i - 1]);
+    // Not a rounding difference — the easiest band is nearly twice the hardest.
+    expect(drawnPx('beginner') / drawnPx('expert')).toBeCloseTo(1.4 / 0.8, 6);
+  });
+
+  it('leaves green visible inside the outline at every difficulty', () => {
+    // The worst case in the game: Expert, driver, from the fairway.
+    const worst = bandGeometry(0.5, perfectHalf({ ...ctx('expert'), difficultyMult: 0.68 })).width * BAR_PX;
+    const green = worst - outlinePx(worst) * 2;
+    expect(green, `only ${green.toFixed(1)}px of band left inside the outline`).toBeGreaterThan(1.5);
+  });
+
+  it('never lets the outline outgrow its band', () => {
+    for (const px of [3, 5, 8, 13, 14, 20, 40]) expect(outlinePx(px) * 2).toBeLessThan(px);
+  });
+});
+
+describe('bandGeometry clamps to the bar', () => {
+  it('reports the VISIBLE width when a band runs off the left edge', () => {
+    // The accuracy bands sit at 0.08, so an easy difficulty's good band starts
+    // at a negative offset — `#meter` is overflow:hidden, so the drawn band has
+    // to say how much of it can actually be seen.
+    const g = bandGeometry(0.08, 0.106);
+    expect(g.left).toBe(0);
+    expect(g.width).toBeCloseTo(0.186, 6);
+  });
+
+  it('clamps the right edge too, and never returns a negative width', () => {
+    expect(bandGeometry(0.95, 0.2)).toEqual({ left: 0.75, width: 0.25 });
+    expect(bandGeometry(1.5, 0.1).width).toBe(0);
+  });
+
+  it('is untouched when the band fits', () => {
+    const g = bandGeometry(0.5, 0.02);
+    expect(g.left).toBeCloseTo(0.48, 10);
+    expect(g.width).toBeCloseTo(0.04, 10);
   });
 });

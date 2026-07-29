@@ -11,6 +11,43 @@ const ACCURACY_TARGET = swing.ACCURACY_TARGET;
 export const normalizedAccuracyOffset = swing.normalizedAccuracyOffset;
 
 /**
+ * The geometry a band is actually DRAWN with: where it starts on the bar and
+ * how wide it is, both as bar fractions, clamped to the bar.
+ *
+ * `#meter` is `overflow: hidden`, so a band that runs off either end is
+ * silently cropped — and the accuracy bands are centred at ACCURACY_TARGET
+ * (0.08), which is close enough to the left edge that the good band's left half
+ * hangs off it. Worse, it hangs off FURTHER the easier the difficulty, which
+ * quietly compressed the very difference the setting exists to show. Clamping
+ * here makes the drawn width equal the visible width, so what the player reads
+ * off the bar is the truth.
+ *
+ * Pure and exported so the drawn width is testable without a browser — the
+ * difficulty regression this was written for was invisible to every test we
+ * had, because every test measured the model and nothing measured the pixels.
+ */
+export function bandGeometry(center: number, half: number): { left: number; width: number } {
+  const left = clamp(center - half, 0, 1);
+  const right = clamp(center + half, 0, 1);
+  return { left, width: Math.max(0, right - left) };
+}
+
+/**
+ * Width of the perfect band's white outline, in px, for a band that is
+ * `bandPx` wide.
+ *
+ * THE OUTLINE MUST NOT EAT THE BAND. A fixed 2px inset ring is 4px of an
+ * unconditionally white band — which on a narrow perfect band (an Expert
+ * difficulty driver from the fairway draws ~5px) is the whole thing. Every
+ * difficulty then reads as the same white tick and the setting looks broken,
+ * which is exactly the report this fixes. The ring earns its 2px only once
+ * there is a band left to outline.
+ */
+export function outlinePx(bandPx: number): number {
+  return bandPx >= 14 ? 2 : 1;
+}
+
+/**
  * Advance a sweeping meter cursor by dtMs. Pure, so the per-frame renderer and
  * the tap sampler share ONE integrator: a tap reads the cursor at the exact
  * tap instant instead of the last rendered frame. Sampling only at frame
@@ -131,11 +168,11 @@ export class DomMeter {
   private zoneEls: {
     overswing: HTMLElement;
     powerGood: HTMLElement;
-    powerPerfect: HTMLElement;
     powerLine: HTMLElement;
+    powerPerfect: HTMLElement;
     accGood: HTMLElement;
-    accPerfect: HTMLElement;
     accLine: HTMLElement;
+    accPerfect: HTMLElement;
   };
 
   constructor(container: HTMLElement) {
@@ -145,30 +182,37 @@ export class DomMeter {
     this.markerEl = document.createElement('div');
     this.markerEl.className = 'lockMark';
     this.markerEl.style.display = 'none';
-    const zone = (color: string, z: number, outline = false): HTMLElement => {
+    const zone = (color: string, z: number): HTMLElement => {
       const d = document.createElement('div');
       d.className = 'zone';
       d.style.background = color;
       d.style.zIndex = String(z);
-      // Colorblind cue: the perfect band gets a bright outline so it reads as a
-      // distinct notch, not just a green-vs-gold hue difference.
-      if (outline) d.style.boxShadow = 'inset 0 0 0 2px rgba(255,255,255,0.92)';
       this.el.appendChild(d);
       return d;
     };
+    // THE TARGET LINE SITS UNDER THE PERFECT BAND, NOT OVER IT.
+    //
+    // It used to be the topmost layer, so a 2px white line was painted down the
+    // middle of a band that is only 5-13px wide to begin with. Between that and
+    // the outline there was no green left to see, and Beginner and Expert drew
+    // the same white tick. The perfect band IS the target, so the line only has
+    // to be legible against the GOOD band — one layer below it is enough.
     const line = (color: string): HTMLElement => {
-      const l = zone(color, 4);
+      const l = zone(color, 3);
       l.style.width = '2px';
       return l;
     };
     this.zoneEls = {
       overswing: zone('rgba(196,58,58,0.4)', 1),
       powerGood: zone('rgba(201,162,39,0.55)', 2),
-      powerPerfect: zone('#43d05c', 3, true),
       powerLine: line('#fff'),
+      // Colorblind cue: the perfect band gets a bright outline so it reads as a
+      // distinct notch, not just a green-vs-gold hue difference. Its WIDTH is
+      // set per arm from the band's own size (see outlinePx).
+      powerPerfect: zone('#43d05c', 4),
       accGood: zone('rgba(201,162,39,0.4)', 2),
-      accPerfect: zone('#43d05c', 3, true),
-      accLine: line('#fff')
+      accLine: line('#fff'),
+      accPerfect: zone('#43d05c', 4)
     };
     this.el.appendChild(this.markerEl);
     this.el.appendChild(this.cursorEl);
@@ -358,13 +402,26 @@ export class DomMeter {
   /** Lay the fixed zone nodes out for the current context (in place — no DOM
    *  teardown; see zoneEls). */
   private renderZones(): void {
+    // Read the bar's width BEFORE any style writes, so sizing the perfect
+    // band's outline costs one layout read per arm rather than forcing a
+    // synchronous reflow in the middle of an aim drag (this runs on every
+    // pointermove — see the zoneEls comment).
+    const barPx = this.el.clientWidth || 0;
     const place = (el: HTMLElement, left: number, width: number): void => {
       el.style.display = 'block';
       el.style.left = `${left * 100}%`;
       el.style.width = `${width * 100}%`;
     };
-    const band = (el: HTMLElement, center: number, half: number): void =>
-      place(el, center - half, half * 2);
+    const band = (el: HTMLElement, center: number, half: number): void => {
+      const g = bandGeometry(center, half);
+      place(el, g.left, g.width);
+    };
+    /** The perfect band, plus an outline sized so it never swallows the band. */
+    const perfectBand = (el: HTMLElement, center: number, half: number): void => {
+      const g = bandGeometry(center, half);
+      place(el, g.left, g.width);
+      el.style.boxShadow = `inset 0 0 0 ${outlinePx(g.width * barPx)}px rgba(255,255,255,0.92)`;
+    };
     const line = (el: HTMLElement, at: number): void => {
       el.style.display = 'block';
       el.style.left = `${at * 100}%`;
@@ -381,11 +438,11 @@ export class DomMeter {
       z.overswing.style.display = 'none';
     }
     band(z.powerGood, pTarget, good);
-    band(z.powerPerfect, pTarget, perfect);
+    perfectBand(z.powerPerfect, pTarget, perfect);
     line(z.powerLine, pTarget);
     // Accuracy target
     band(z.accGood, ACCURACY_TARGET, good);
-    band(z.accPerfect, ACCURACY_TARGET, perfect);
+    perfectBand(z.accPerfect, ACCURACY_TARGET, perfect);
     line(z.accLine, ACCURACY_TARGET);
   }
 }

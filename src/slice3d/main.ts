@@ -665,7 +665,13 @@ const round: RoundState = {
  * they have not chosen (Beginner before the lesson, Amateur after it).
  */
 function playerDifficulty(): Difficulty {
-  return effectiveDifficulty(profile.settings.difficulty, deviceSettings.tutorialDone);
+  // Profile first (it syncs with the account and decides record eligibility),
+  // device second (it is the copy that survives a reload for a signed-out
+  // player — persistProfile only writes when signed in).
+  return effectiveDifficulty(
+    profile.settings.difficulty ?? deviceSettings.difficulty,
+    deviceSettings.tutorialDone
+  );
 }
 
 /**
@@ -5101,6 +5107,17 @@ function showSummary(): void {
   const protectionLine = adv.usedProtection
     ? `<div class="rwLine daily">🛡 Streak protected — you missed a day, the weekly token covered it</div>`
     : '';
+  // WHICH DIFFICULTY THIS ROUND WAS ACTUALLY PLAYED AT.
+  //
+  // The setting only widens the swing bands by a few pixels, so "did it even do
+  // anything?" is a fair question and the card is the honest place to answer
+  // it. It also explains, at the moment it matters, why a good round did or did
+  // not go in the record book.
+  const diffProfile = difficultyProfile(round.difficulty);
+  const difficultyLine =
+    `<div class="rwLine">🎚 Played at ${escapeHtml(diffProfile.label)}` +
+    (diffProfile.ranked ? '' : ` · ${escapeHtml(UNRANKED_RECORDS_MSG)}`) +
+    `</div>`;
   analytics.track('round_completed', {
     course: courseId,
     mode: round.mode,
@@ -5309,6 +5326,7 @@ function showSummary(): void {
     rewardStripHtml(events) +
     streakRewardLine +
     protectionLine +
+    difficultyLine +
     purseLine +
     tourCpLine +
     signInNudge +
@@ -5903,6 +5921,10 @@ function renderProfile(tab?: ProfileTab): void {
   for (const d of DIFFICULTIES) {
     document.getElementById(`setDiff-${d}`)?.addEventListener('click', () => {
       profile.settings.difficulty = d;
+      // Written to BOTH stores on purpose: the profile is the synced,
+      // record-deciding copy, and the device copy is the one a signed-out
+      // player still has after a reload.
+      updateDeviceSettings({ difficulty: d });
       persistProfile();
       if (signedIn) void cloudSyncProfile(profile).then((res) => applyCloudMerge(profile, res.profile));
       for (const other of DIFFICULTIES) {
@@ -8610,6 +8632,35 @@ document.documentElement.classList.toggle('ff-delight', flag('delight'));
 
 // Perf probe for the Playwright FPS baseline (Phase 9).
 (window as unknown as { __fps: () => number }).__fps = () => engine3d?.getFps() ?? 0;
+
+/**
+ * Difficulty probe: set the stored choice, and read back what the METER is
+ * actually drawing.
+ *
+ * The difficulty setting shipped correct in the model and invisible on the bar,
+ * and every test we had passed — because they all measured `perfectHalf()` and
+ * none of them measured a pixel. This exposes both ends of the chain so a spec
+ * can assert that choosing Expert really does narrow the green band on screen.
+ */
+(window as unknown as { __difficulty: unknown }).__difficulty = (set?: string) => {
+  const chosen = asDifficulty(set);
+  if (chosen) {
+    profile.settings.difficulty = chosen;
+    updateDeviceSettings({ difficulty: chosen });
+  }
+  const zones = Array.from(meterEl.querySelectorAll<HTMLElement>('.zone'));
+  // The perfect bands are the two topmost layers (see meter3d's zoneEls).
+  const perfectPx = zones
+    .filter((z) => z.style.zIndex === '4' && z.style.display !== 'none')
+    .map((z) => z.getBoundingClientRect().width);
+  return {
+    chosen: profile.settings.difficulty ?? null,
+    effective: playerDifficulty(),
+    round: round.difficulty,
+    perfectPx,
+    barPx: meterEl.clientWidth
+  };
+};
 
 /** Adaptive-quality probe: what tier the device settled on, why, and what that
  *  tier is currently spending. Read by the perf spec and by support requests
@@ -11752,6 +11803,10 @@ async function startShotCapture(): Promise<void> {
   round.players = [
     { golfer: assembleGolfer('Shot', CHARACTERS[0].key, ARCHETYPES[0].id), isAI: false, scores: [] }
   ];
+  // The capture harness is the one start path that used to skip this, so a
+  // reference screenshot silently drew the module default rather than the
+  // difficulty being captured. "Exactly one rule" has to mean every path.
+  lockRoundDifficulty();
   setupEl.style.display = 'none';
   // Real play always passes through the menu, giving the grain images time to
   // decode before the first synchronous bake; this direct boot must wait for
