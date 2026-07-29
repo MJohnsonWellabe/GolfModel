@@ -54,7 +54,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { activeTour, archiveTour, clearActiveTour, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -7360,7 +7360,9 @@ function startTourEvent(): void {
     return;
   }
   if (!tourNow()) {
-    setTour(newSeason(Math.floor(Math.random() * 1e9)));
+    // nextSeasonNo, not the default 1: a player who has archived seasons (or
+    // is running one alongside) must not be handed a duplicate number.
+    setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
     persistProfile();
   }
   // The tour is played AS the Pro — entering selects the career style.
@@ -8165,7 +8167,9 @@ function renderTourHub(fromSync = false): void {
   }
   // First visit: the season is born HERE, so the schedule has a seed to show.
   if (!tourNow()) {
-    setTour(newSeason(Math.floor(Math.random() * 1e9)));
+    // nextSeasonNo, not the default 1: a player who has archived seasons (or
+    // is running one alongside) must not be handed a duplicate number.
+    setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
     persistProfile();
   }
   const t = tourNow()!;
@@ -8247,12 +8251,24 @@ function renderTourHub(fromSync = false): void {
     `<button id="thRecords" class="careerNavBtn"><span class="cnIcon">🏅</span>` +
     `<span class="cnName">Career records</span>` +
     `<span class="cnSub">Wins, majors and every season placement</span></button>` +
-    // MORE THAN ONE SEASON (Stage 5). Both rows are conditional: a player with
-    // one season and nothing finished sees the hub exactly as it was.
-    (otherSeasons.length
+    // MORE THAN ONE SEASON.
+    //
+    // This row used to be gated on `otherSeasons.length`, which made the whole
+    // feature unreachable: the picker only appeared once a second season
+    // existed, and NO SOLO PATH EVER CREATED ONE. Every route either guarded
+    // `if (!tourNow())` or archived-and-replaced, so only the co-op flow could
+    // ever add to the map — and the owner, playing solo, correctly reported
+    // that there was still no way to run more than one season. The row now
+    // shows whenever another season could be started OR switched to, and the
+    // screen it opens is where both happen.
+    (otherSeasons.length || canAddSeason(profile.tours)
       ? `<button id="thSwitch" class="careerNavBtn"><span class="cnIcon">🔀</span>` +
-        `<span class="cnName">Switch season</span>` +
-        `<span class="cnSub">${otherSeasons.length} other season${otherSeasons.length === 1 ? '' : 's'} on the go</span></button>`
+        `<span class="cnName">${otherSeasons.length ? 'Your seasons' : 'Run another season'}</span>` +
+        `<span class="cnSub">${
+          otherSeasons.length
+            ? `${otherSeasons.length + 1} on the go · switch between them`
+            : 'Keep this one and start a second alongside it'
+        }</span></button>`
       : '') +
     (profile.tours.archive.length
       ? `<button id="thHistory" class="careerNavBtn"><span class="cnIcon">📖</span>` +
@@ -8570,11 +8586,23 @@ function renderSeasonPicker(): void {
       );
     })
     .join('');
+  // START ANOTHER ONE, ALONGSIDE. The missing half of this screen: the picker
+  // could always switch between seasons, but nothing solo could ever create a
+  // second, so it had nothing to switch between. `putTour` already inserts
+  // WITHOUT archiving — the collection supported this from the start; there was
+  // simply no button.
+  const room = canAddSeason(profile.tours);
+  const addRow = room
+    ? `<button id="thAddSeason" class="careerNavBtn"><span class="cnIcon">➕</span>` +
+      `<span class="cnName">Start another season</span>` +
+      `<span class="cnSub">A fresh schedule and a fresh table. The ones above keep going.</span></button>`
+    : `<div class="recSub">That is ${LIVE_SEASON_CAP} seasons at once — as many as you can keep straight. ` +
+      `Finish or leave one to start another.</div>`;
   el.innerHTML =
     `<div class="recInner"><h2>🔀 Your seasons</h2>` +
     `<div class="recSub">The next event you play belongs to whichever season is selected here. ` +
     `Nothing else moves — each one keeps its own schedule, its own field and its own table.</div>` +
-    `<div class="careerNav">${rows}</div>` +
+    `<div class="careerNav">${rows}${addRow}</div>` +
     `<button id="thPickBack" class="ghostBtn">Back</button></div>`;
   el.querySelectorAll('.seasonPick[data-season]').forEach((b) =>
     b.addEventListener('click', () => {
@@ -8584,6 +8612,21 @@ function renderSeasonPicker(): void {
       renderTourHub();
     })
   );
+  el.querySelector('#thAddSeason')?.addEventListener('click', () => {
+    // Guard again at the click: the screen may have been open while a co-op
+    // join landed and filled the last slot.
+    if (!canAddSeason(profile.tours)) {
+      renderSeasonPicker();
+      return;
+    }
+    profile.tours = putTour(
+      profile.tours,
+      newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours))
+    );
+    persistProfile();
+    analytics.track('season_started', { live: Object.keys(profile.tours.seasons).length });
+    renderTourHub();
+  });
   el.querySelector('#thPickBack')?.addEventListener('click', () => renderTourHub());
 }
 

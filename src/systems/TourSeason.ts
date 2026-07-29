@@ -1262,6 +1262,36 @@ export function putTour(c: TourCollection, t: TourSeasonState): TourCollection {
   return { ...c, seasons, activeId: key };
 }
 
+/**
+ * How many seasons may be LIVE at once.
+ *
+ * Not a design flourish — a bound. The collection is cloud-synced and merges by
+ * union, so an unbounded map grows forever across devices, and a picker with
+ * fifteen rows is not a choice anybody makes. Three is a solo season plus the
+ * two shared ones the co-op flow can already create.
+ */
+export const LIVE_SEASON_CAP = 3;
+
+/** True when another season may be started alongside the ones already live. */
+export function canAddSeason(c: TourCollection): boolean {
+  return Object.keys(c.seasons).length < LIVE_SEASON_CAP;
+}
+
+/**
+ * The number to give a season starting NOW: one past the highest this player
+ * has ever held, live or archived.
+ *
+ * Seasons used to be strictly sequential — one at a time, each rollover
+ * incrementing — so `seasonNo` could just be `previous + 1`. With two running
+ * side by side that would mint two "Season 2"s and the picker would show the
+ * player the same name twice.
+ */
+export function nextSeasonNo(c: TourCollection): number {
+  const live = Object.values(c.seasons).map((t) => t.seasonNo);
+  const past = c.archive.map((a) => a.seasonNo);
+  return Math.max(0, ...live, ...past) + 1;
+}
+
 /** Switch to an existing season. A key that is not in the map is ignored
  *  rather than blanking the active season. */
 export function selectTour(c: TourCollection, key: string): TourCollection {

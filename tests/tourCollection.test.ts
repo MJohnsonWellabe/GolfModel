@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   activeTour,
   archiveTour,
+  canAddSeason,
   clearActiveTour,
+  LIVE_SEASON_CAP,
+  nextSeasonNo,
   emptyTours,
   mergeTours,
   migrateTours,
@@ -266,5 +269,76 @@ describe('sharing the season already in progress', () => {
     let c = putTour(putTour(emptyTours(), other), solo);
     c = putTour(c, { ...solo, coop: { id: 'sid', playerId: 'me', partners: [] } });
     expect(Object.keys(c.seasons).sort()).toEqual(['co:sid', 'solo:1']);
+  });
+});
+
+/**
+ * RUNNING TWO SEASONS AT ONCE — the half of Stage 5 that shipped unreachable.
+ *
+ * The collection could always hold several seasons and the picker could always
+ * switch between them, but no SOLO path ever added one: every route guarded
+ * `if (!tourNow())` or archived-and-replaced, so only the co-op flow could grow
+ * the map. The owner, playing solo, reported (twice) that there was still no
+ * way to run more than one season, and he was right — the feature had no door.
+ */
+describe('starting a second season alongside the first', () => {
+  it('adds without archiving, and the first season is untouched', () => {
+    let c: TourCollection = putTour(emptyTours(), { ...newSeason(1, 1), played: 5, points: { player: 300 } });
+    const firstKey = c.activeId!;
+    c = putTour(c, newSeason(2, nextSeasonNo(c)));
+
+    expect(Object.keys(c.seasons)).toHaveLength(2);
+    expect(c.archive, 'nothing was closed out').toHaveLength(0);
+    expect(activeTour(c)!.seasonNo, 'the new one is the one being played').toBe(2);
+    // The season that was already running kept every event it had banked.
+    expect(c.seasons[firstKey].played).toBe(5);
+    expect(c.seasons[firstKey].points.player).toBe(300);
+    // ...and switching back reaches it whole.
+    expect(activeTour(selectTour(c, firstKey))!.played).toBe(5);
+  });
+
+  it('numbers each season once, counting the ones already finished', () => {
+    // Sequential seasons could take `previous + 1`; concurrent ones cannot, or
+    // the picker offers the player two rows both called "Season 2".
+    let c: TourCollection = putTour(emptyTours(), newSeason(1, nextSeasonNo(emptyTours())));
+    expect(activeTour(c)!.seasonNo).toBe(1);
+    c = putTour(c, newSeason(2, nextSeasonNo(c)));
+    c = putTour(c, newSeason(3, nextSeasonNo(c)));
+    const nos = Object.values(c.seasons).map((t) => t.seasonNo).sort();
+    expect(nos).toEqual([1, 2, 3]);
+
+    // An archived season still holds its number — the next one goes past it.
+    const closed = archiveTour(c, c.seasons[tourKey(newSeason(1, 1))], {
+      proId: 'p',
+      proName: 'Pro',
+      at: 1,
+      ended: 'finale'
+    });
+    expect(nextSeasonNo(closed), 'does not re-issue an archived number').toBe(4);
+  });
+
+  it('is capped, so a synced collection cannot grow without bound', () => {
+    let c: TourCollection = emptyTours();
+    for (let i = 0; i < LIVE_SEASON_CAP; i++) {
+      expect(canAddSeason(c), `slot ${i} is free`).toBe(true);
+      c = putTour(c, newSeason(i + 1, nextSeasonNo(c)));
+    }
+    expect(canAddSeason(c), 'full').toBe(false);
+    expect(Object.keys(c.seasons)).toHaveLength(LIVE_SEASON_CAP);
+    // Closing one out frees a slot again.
+    const [key] = Object.keys(c.seasons);
+    const freed = archiveTour(c, c.seasons[key], { proId: 'p', proName: 'Pro', at: 1, ended: 'quit' });
+    expect(canAddSeason(freed)).toBe(true);
+  });
+
+  it('archiving one leaves its siblings alone', () => {
+    let c: TourCollection = putTour(emptyTours(), newSeason(1, 1));
+    const keep = c.activeId!;
+    c = putTour(c, newSeason(2, 2));
+    const closing = activeTour(c)!;
+    c = archiveTour(c, closing, { proId: 'p', proName: 'Pro', at: 1, ended: 'finale' });
+    expect(Object.keys(c.seasons), 'the sibling survives').toEqual([keep]);
+    expect(c.archive).toHaveLength(1);
+    expect(c.archive[0].seasonNo).toBe(2);
   });
 });
