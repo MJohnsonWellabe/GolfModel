@@ -1,4 +1,5 @@
-import { existsSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
@@ -30,6 +31,16 @@ import portjohnsonV2 from '../../src/data/courses/v2/portjohnson.json';
 const ROOT = join(__dirname, '..', '..');
 const SKY = join(ROOT, 'assets', 'textures', 'sky');
 
+/**
+ * The cumulus sheets each style ships. Must agree with `CUMULUS_VARIANTS` in
+ * BOTH `scripts/convert-skies.mjs` (which writes them) and
+ * `src/slice3d/course3d.ts` (which loads them by name) — a course3d that asks
+ * for one more than the script emits is three 404s and a black billboard, and
+ * nothing else in the build would see it.
+ */
+const CUMULUS_PARTS = ['cumulus', 'cumulus2', 'cumulus3'];
+const PARTS = ['ramp', 'cirrus', ...CUMULUS_PARTS];
+
 const COURSES: Array<[string, unknown]> = [
   ['wildwood', wildwood],
   ['sablebay', sablebay],
@@ -53,13 +64,35 @@ describe('per-course painted skies', () => {
     }
   });
 
-  it('every named style has its three committed textures on disk', () => {
+  it('every named style has all its committed textures on disk', () => {
     for (const [id, course] of COURSES) {
       const style = theme(course).skyStyle as string;
-      for (const part of ['ramp', 'cumulus', 'cirrus']) {
+      for (const part of PARTS) {
         const file = join(SKY, `${style}_${part}.png`);
         expect(existsSync(file), `${id}: missing ${style}_${part}.png`).toBe(true);
       }
+    }
+  });
+
+  /**
+   * THE CUMULUS VARIANTS HAVE TO BE DIFFERENT CLOUDS.
+   *
+   * Every billboard shared one material and one sheet, so a sky "full of
+   * clouds" was one cloud stamped six times (owner: "sable bay is just the same
+   * cloud on repeat"). convert-skies.mjs cuts each variant from a DIFFERENT
+   * connected cloud in the same HDRI — but the fallback path, for a sky with
+   * too few components, could quietly emit the same crop three times and
+   * nothing else in the build would notice.
+   */
+  it('ships three DISTINCT cumulus sheets per style', () => {
+    for (const [id, course] of COURSES) {
+      const style = theme(course).skyStyle as string;
+      const digests = new Set(
+        CUMULUS_PARTS.map((p) => createHash('sha1').update(readFileSync(join(SKY, `${style}_${p}.png`))).digest('hex'))
+      );
+      expect(digests.size, `${id} (${style}): only ${digests.size} distinct cumulus sheets`).toBe(
+        CUMULUS_PARTS.length
+      );
     }
   });
 
@@ -71,9 +104,7 @@ describe('per-course painted skies', () => {
     // suddenly weighs 200KB means somebody shipped a photo by accident.
     for (const [id, course] of COURSES) {
       const style = theme(course).skyStyle as string;
-      const bytes = ['ramp', 'cumulus', 'cirrus']
-        .map((p) => statSync(join(SKY, `${style}_${p}.png`)).size)
-        .reduce((a, b) => a + b, 0);
+      const bytes = PARTS.map((p) => statSync(join(SKY, `${style}_${p}.png`)).size).reduce((a, b) => a + b, 0);
       expect(bytes, `${id}: ${style} is ${(bytes / 1024).toFixed(1)}KB`).toBeLessThan(60 * 1024);
     }
   });

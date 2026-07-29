@@ -423,7 +423,7 @@ async function buildRamp(file, style) {
  * the largest by area, and frame ITS bounding box. Nothing here is a per-source
  * magic number, so swapping a source in the table above just works.
  */
-async function findCloud(file, style, [elLo, elHi], outW, outH) {
+async function findCloud(file, style, [elLo, elHi], outW, outH, rank = 0) {
   const meta = await sharp(file, { limitInputPixels: 400e6 }).metadata();
   const SW = meta.width;
   const SH = meta.height;
@@ -440,8 +440,11 @@ async function findCloud(file, style, [elLo, elHi], outW, outH) {
   const thr = Float64Array.from(f).sort()[Math.floor(f.length * style.cover)];
 
   const label = new Int32Array(GW * GH).fill(-1);
-  let bestArea = 0;
-  let bestBox = null;
+  // EVERY component, not just the biggest. `rank` picks the Nth-largest, which
+  // is how one HDRI yields several genuinely DIFFERENT cumulus silhouettes
+  // instead of the same one on every billboard (owner: "sable bay is just the
+  // same cloud on repeat").
+  const boxes = [];
   const stack = [];
   for (let seed = 0; seed < f.length; seed++) {
     if (label[seed] >= 0 || f[seed] <= thr) continue;
@@ -481,15 +484,39 @@ async function findCloud(file, style, [elLo, elHi], outW, outH) {
         stack.push(q);
       }
     }
-    if (area > bestArea) {
-      bestArea = area;
-      bestBox = { cx: sx + (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0 + 1, h: y1 - y0 + 1 };
-    }
+    boxes.push({ area, cx: sx + (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+  }
+  boxes.sort((a, b) => b.area - a.area);
+  // COMPONENTS THAT FRAME THE SAME PATCH OF SKY ARE ONE CLOUD, whatever the
+  // flood fill thinks. The crop is padded ~18% and then clamped inside the
+  // image, so two neighbouring components can resolve to the identical
+  // rectangle: prairie_gold's ranks 1 and 2 produced byte-identical PNGs, which
+  // is the very repetition these variants exist to end. Keep the larger of any
+  // near-coincident pair — the distinctness gate in tests/unit/skyAssets.test.ts
+  // is what caught this and is what will catch the next source that does it.
+  const apart = [];
+  for (const b of boxes) {
+    const near = apart.some(
+      (k) => Math.abs(((k.cx - b.cx + GW * 1.5) % GW) - GW / 2) < GW / 12 && Math.abs(k.cy - b.cy) < GH / 3
+    );
+    if (!near) apart.push(b);
   }
 
   // A sky with genuinely no cloud (alpine clear) yields nothing worth framing —
-  // fall back to the middle of the band rather than inventing one.
-  const box = bestBox ?? { cx: GW / 2, cy: GH / 2, w: GW / 6, h: GH / 2 };
+  // fall back to the middle of the band rather than inventing one. A style with
+  // FEWER distinct components than variants asked for reuses the ones it has,
+  // panned along the band, so a thin sky still gets three different frames
+  // rather than three copies of one.
+  const fallback = { cx: ((rank + 1) * GW) / 4, cy: GH / 2, w: GW / 6, h: GH / 2 };
+  // Ranks past the last well-separated component wrap around and PAN — a third
+  // of the band per step, so even a sky with one real cloud yields three
+  // different frames rather than three copies of one.
+  const panned = rank >= apart.length;
+  const box =
+    apart[rank] ??
+    (apart.length
+      ? { ...apart[rank % apart.length], cx: apart[rank % apart.length].cx + (rank * GW) / 3 }
+      : { ...fallback, cx: fallback.cx + (rank * GW) / 3 });
 
   // Frame it with ~18% breathing room, in degrees, then aspect-match. The
   // minimum stops a single wisp being magnified into a blurry cloud-shaped
@@ -508,10 +535,20 @@ async function findCloud(file, style, [elLo, elHi], outW, outH) {
   const height = Math.round((spanEl / 180) * SH);
   const width = Math.min(SW, Math.round((spanLon / 360) * SW));
   const left = Math.round((((centreLon - spanLon / 2) % 360) + 360) % 360 / 360 * SW);
+  // sharp cannot extract across the seam, so a crop that would run off the
+  // right edge has to come back inside the image. A REAL component is nudged
+  // back (it stays next to the cloud it framed); a PANNED one wraps modulo the
+  // legal travel instead.
+  //
+  // That distinction is the whole fix: the crop is ~3400 of 8192 columns wide,
+  // so the travel is only 4779 and BOTH panned ranks clamped to it — which is
+  // how prairie_gold and alpine_clear emitted byte-identical variants twice in
+  // a row. A wrap keeps every rank on a different window of the same sky, and a
+  // panned crop has no cloud to stay adjacent to anyway.
+  const travel = Math.max(0, SW - width);
+  const at = panned && travel > 0 ? ((left % travel) + travel) % travel : Math.max(0, Math.min(travel, left));
   return {
-    // sharp cannot extract across the seam, so a crop that would wrap is nudged
-    // back inside the image; a few degrees of pan costs nothing here.
-    left: Math.max(0, Math.min(SW - width, left)),
+    left: at,
     top: Math.max(0, Math.min(Math.floor(SH / 2) - height, top)),
     width,
     height
@@ -520,7 +557,7 @@ async function findCloud(file, style, [elLo, elHi], outW, outH) {
 
 /** Cut one cloud billboard out of the source, posterised into flat tiers. */
 async function buildCloud(file, style, name, band, outW, outH, opts) {
-  const crop = await findCloud(file, style, band, outW, outH);
+  const crop = await findCloud(file, style, band, outW, outH, opts.rank ?? 0);
   const { data } = await raw(file, crop, outW, outH, opts.blur ?? 3);
 
   // Cloudiness field, auto-levelled between its own 8th and 97th percentiles so
@@ -708,6 +745,16 @@ async function sunTint(file) {
 
 // ---------------------------------------------------------------------- main
 
+/** How many distinct cumulus sheets each style ships. Mirrored in
+ *  src/slice3d/course3d.ts (CUMULUS_VARIANTS) and gated in
+ *  tests/unit/skyAssets.test.ts — all three must agree. */
+export const CUMULUS_VARIANTS = 3;
+/** Their filename stems, in the order course3d loads them. The first keeps the
+ *  original un-numbered name so no existing reference breaks. */
+export const CUMULUS_NAMES = Array.from({ length: CUMULUS_VARIANTS }, (_, i) =>
+  i === 0 ? 'cumulus' : `cumulus${i + 1}`
+);
+
 const only = process.argv.slice(2);
 await fsp.mkdir(OUT, { recursive: true });
 
@@ -717,12 +764,23 @@ for (const style of STYLES) {
   console.log(`  ${style.note}`);
   const file = await source(style);
   const bands = await buildRamp(file, style);
-  const cum = await buildCloud(file, style, 'cumulus', style.cumEl, 512, 320, {
-    cyFrac: 0.52,
-    rxFrac: 0.5,
-    ryFrac: 0.52,
-    gain: 1.05
-  });
+  // THREE CUMULUS, NOT ONE. Every billboard shared a single sheet, so a sky
+  // full of clouds was one cloud stamped six times (owner: "sable bay is just
+  // the same cloud on repeat"). Each variant is cut from a DIFFERENT connected
+  // cloud in the same HDRI, so they belong to the same weather while having
+  // genuinely different silhouettes. The extra two cost ~2KB per style against
+  // a 60KB budget currently running at 2-5KB.
+  let cum = null;
+  for (let v = 0; v < CUMULUS_VARIANTS; v++) {
+    const c = await buildCloud(file, style, v === 0 ? 'cumulus' : `cumulus${v + 1}`, style.cumEl, 512, 320, {
+      cyFrac: 0.52,
+      rxFrac: 0.5,
+      ryFrac: 0.52,
+      gain: 1.05,
+      rank: v
+    });
+    if (v === 0) cum = c;
+  }
   await buildCloud(file, style, 'cirrus', style.cirEl, 512, 96, {
     cyFrac: 0.5,
     rxFrac: 0.5,
@@ -735,7 +793,7 @@ for (const style of STYLES) {
   console.log(`  cloud  lit ${hex(cum.lit)}  shade ${hex(cum.shade)}`);
   console.log(`  sunTint ${hex(sun)}   <- paste into the course theme`);
   let total = 0;
-  for (const n of ['ramp', 'cumulus', 'cirrus']) {
+  for (const n of ['ramp', 'cirrus', ...CUMULUS_NAMES]) {
     total += fs.statSync(path.join(OUT, `${style.id}_${n}.png`)).size;
   }
   console.log(`  ${(total / 1024).toFixed(1)}KB on disk`);

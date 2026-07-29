@@ -32,10 +32,13 @@ const maplevale = {
     // CC0 Poly Haven source by scripts/convert-skies.mjs; see
     // docs/technical/ASSET_ATTRIBUTION.md.
     //
-    // This course KEEPS its mesh clouds (cloudKeys below) rather than taking
-    // the style's cumulus/cirrus sheets: real volumetric puffs are Maple Vale's
-    // authored identity and the dome change should not quietly delete them.
-    // cloudCover just packs a few more of them in under the lid.
+    // NO MESH CLOUDS. This course kept `cloudKeys` when the painted skies
+    // landed, on the grounds that volumetric puffs were its authored identity.
+    // In the sky they read as flat white cut-outs — the owner's "maple vale is
+    // too much like white construction paper" — because the low-poly cloud
+    // models are untextured hard-edged geometry, and an overcast LID is the one
+    // sky they suit least. It takes the style's own cumulus/cirrus sheets like
+    // every other course now, with cloudCover packing them into a lid.
     skyStyle: 'autumn_overcast', cloudCover: 1.35, sunTint: '#fffefc',
     haze: '#e4ddce', hazeStrength: 0.5,
     // The season lives in the ground: readable warm-green mown surfaces cut
@@ -62,8 +65,6 @@ const maplevale = {
     // materials (grey stone, white caps) — the only true snow in the asset
     // library, unused by any course until this one.
     backdrop: 'peaks', peakKeys: ['mountain_alps', 'mountain_alps_b'],
-    // PUFFY mesh clouds — an entirely unclaimed sky identity.
-    cloudStyle: 'puffy', cloudKeys: ['cloud_a', 'cloud_c', 'cloud_e', 'cloud_g', 'cloud_i'],
     // The wood: maple/oak/aspen/poplar carrying the fire, white-trunked
     // birches as accents that pop against it.
     treeKeys: ['tree_maple', 'tree_oak', 'tree_aspen', 'tree_poplar'],

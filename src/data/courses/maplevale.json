@@ -31,14 +31,6 @@
       "mountain_alps",
       "mountain_alps_b"
     ],
-    "cloudStyle": "puffy",
-    "cloudKeys": [
-      "cloud_a",
-      "cloud_c",
-      "cloud_e",
-      "cloud_g",
-      "cloud_i"
-    ],
     "treeKeys": [
       "tree_maple",
       "tree_oak",

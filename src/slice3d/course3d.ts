@@ -305,6 +305,15 @@ function onTeePlatform(x: number, y: number, hole: HoleData): boolean {
  * pond water, sky dome + sun + clouds, distant mountain ridge, instanced
  * low-poly trees, and the pin flag.
  */
+/**
+ * How many distinct cumulus sheets a painted sky ships, and therefore how many
+ * `<style>_cumulus*.png` files must exist. Mirrored in
+ * `scripts/convert-skies.mjs` (CUMULUS_VARIANTS) and gated in
+ * `tests/unit/skyAssets.test.ts` — all three have to agree, and the test is
+ * what notices when they do not.
+ */
+const CUMULUS_VARIANTS = 3;
+
 export function buildCourse(
   scene: Scene,
   hole: HoleData,
@@ -331,6 +340,32 @@ export function buildCourse(
    * the whole far field into the haze over distance, which is what fog is for.
    */
   const groundFarC = theme.apronTint ?? shade(theme.rough, 0.9);
+  /**
+   * THE SKY DOME'S RADIUS — and therefore the hard limit on how far away any
+   * backdrop is allowed to be.
+   *
+   * The dome is a real BACKSIDE sphere with `infiniteDistance: false`, so it is
+   * depth-tested like any other mesh: anything further from the world centre
+   * than this simply loses to it and the sky paints over it. It was 4500, and
+   * the backdrops do not fit inside 4500. Measured, with the pin-relative
+   * offsets the backdrop code actually uses:
+   *
+   *   - Wild Prairie h3's outer right-hand dune rows land at 4662-4970, so they
+   *     were painted over from the right edge inward — the owner's "weird sky
+   *     taking over the background sand hills on the right side";
+   *   - Red Hollow h3's `rangeBackstop` sits at 4482, where the dome clips a
+   *     16000-wide wall down to a visible half-window of ~1329 units. Under
+   *     2700 of 16000 ever drew, and everything outside that window was raw
+   *     sky — "sky bleeding through everywhere";
+   *   - the massif CURTAIN layer (dy -1400..-1500, wMul 4.2) reaches ~4490, so
+   *     its stretched wings ran through the dome surface.
+   *
+   * 6000 clears the furthest of them with room to spare, and costs nothing: the
+   * dome is one unlit sphere covering the same screen pixels whatever its
+   * radius, the camera's maxZ is 12000, and `applyFog = false` means its
+   * shading does not depend on distance either.
+   */
+  const DOME_R = 6000;
   /** Multiply any decorative-scatter GRID PITCH by this to reach the tier's
    *  density. Counts go as 1/step², so a 0.45x density is a 1.49x pitch.
    *  Trees, hazards and every collision hitbox are outside this — only the
@@ -1076,7 +1111,7 @@ export function buildCourse(
   const skyDrift = featureFlag('atmosphere') ? (hash2(hole.number * 7.3, hole.number * 3.1) - 0.5) * 0.16 : 0;
   const skyTopHole = shade(theme.skyTop, 1 + skyDrift);
   const skyBottomHole = shade(theme.skyBottom, 1 + skyDrift * 0.5);
-  const sky = MeshBuilder.CreateSphere('sky', { diameter: 9000, sideOrientation: Mesh.BACKSIDE }, scene);
+  const sky = MeshBuilder.CreateSphere('sky', { diameter: DOME_R * 2, sideOrientation: Mesh.BACKSIDE }, scene);
   sky.position = new Vector3(w / 2, 0, -h / 2);
   // A course with a painted sky style (theme.skyStyle) swaps the four-stop
   // gradient for its own measured, posterised ramp — same 8x256 texel budget,
@@ -1262,7 +1297,32 @@ export function buildCourse(
       m.backFaceCulling = false;
       return m;
     };
-    const cumulusMat = cloudMat('cumulusMat', cumulusTex);
+    /**
+     * THREE CUMULUS SHEETS, NOT ONE.
+     *
+     * Every cumulus billboard shared a single StandardMaterial, so a sky "full
+     * of clouds" was literally one cloud stamped six times — the owner's "sable
+     * bay is just the same cloud on repeat". `scripts/convert-skies.mjs` now
+     * cuts three different connected clouds out of each HDRI, so they share the
+     * weather without sharing a silhouette.
+     *
+     * Only the painted-sky path has variants; the coded fallback keeps its one
+     * canvas (it is the daily hole and any future styleless course, and
+     * painting three canvases for it would cost more than it buys). Mirrored-U
+     * copies double the count again for free — a flipped cloud is a different
+     * cloud to the eye and costs one extra material, not one extra texture.
+     */
+    const cumulusMats: StandardMaterial[] = [];
+    for (let v = 0; v < (theme.skyStyle ? CUMULUS_VARIANTS : 1); v++) {
+      const tex = v === 0 ? cumulusTex : softCloudTex(`cumulus${v + 1}`, 512, 320, () => {});
+      cumulusMats.push(cloudMat(`cumulusMat${v}`, tex));
+      // The mirror shares the TEXTURE and only re-scales its own copy's uv, so
+      // this is a material clone, not a second upload.
+      const flipTex = tex.clone()!;
+      flipTex.uScale = -1;
+      flipTex.uOffset = 1;
+      cumulusMats.push(cloudMat(`cumulusMatF${v}`, flipTex));
+    }
     const cirrusMat = cloudMat('cirrusMat', cirrusTex);
 
     const drift: Array<{ mesh: Mesh; v: number }> = [];
@@ -1290,14 +1350,25 @@ export function buildCourse(
       // touch firmer than the softest pass so they read as real clouds.
       const j = hash2(i * 12.1 + skySeed, i * 4.7);
       const pw = 520 + j * 340;
-      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / cumulusCount) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
+      // Walk the variants rather than picking at random: 6 cumulus over 6
+      // materials means a sky never repeats a sheet at all, and the same hole
+      // always looks the same (the whole scene is seeded).
+      const cm = cumulusMats[(i + Math.round(skySeed)) % cumulusMats.length];
+      // 0.95, not 0.8. At 0.8 the CORE of every cloud was see-through, which is
+      // what read as smoke rather than cloud (owner: "others are just too much
+      // like smoke instead of clouds"). The softness belongs in the sheet's own
+      // alpha, which already feathers the rim — a global multiplier thins the
+      // rim and the core by the same amount, so it can only wash the cloud out.
+      place(cm, pw, pw * (0.56 + j * 0.14), hole.tee.x - 2000 + i * (4000 / cumulusCount) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.95, 5 + j * 2.5, `cumulus${i}`);
     }
     for (let i = 0; i < cirrusCount; i++) {
       // Thin cirrus streaks — more of them, wide across the dome at varied
       // heights, kept low-opacity so they stay airy waves.
       const j = hash2(i * 7.9 + 2 + skySeed, i * 9.3);
       const pw = 860 + j * 540;
-      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / cirrusCount) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
+      // 0.72, not 0.5 — same reasoning as the cumulus above, kept lower because
+      // cirrus IS thin. Airy, not absent.
+      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / cirrusCount) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.72, 3.2 + j * 1.8, `cirrus${i}`);
     }
     scene.onBeforeRenderObservable.add(() => {
       if (isFrozen()) return;
@@ -1401,8 +1472,8 @@ export function buildCourse(
   /**
    * A backdrop position, pulled in if it would fall OUTSIDE the sky dome.
    *
-   * The sky is a Ø9000 BACKSIDE sphere centred on the world's middle, so
-   * anything more than 4500 units from that centre is behind the dome's surface
+   * The sky is a BACKSIDE sphere of radius DOME_R centred on the world's
+   * middle, so anything further from that centre is behind the dome's surface
    * and loses the depth test — the sky simply paints over it. The range
    * backstop is placed by pin-relative offsets, so on a long hole whose pin
    * sits far from the world centre it drifts out: Maple Vale lands at 4529 on
@@ -1419,9 +1490,9 @@ export function buildCourse(
     const pos = w2b(wx, wy, wz);
     const centre = new Vector3(w / 2, 0, -h / 2);
     const off = pos.subtract(centre);
-    // 4300 of the dome's 4500 radius: enough margin that the fog-faded wall is
-    // never grazing the surface at an oblique camera angle.
-    const SAFE = 4300;
+    // 95% of the dome radius: enough margin that a fog-faded wall is never
+    // grazing the surface at an oblique camera angle.
+    const SAFE = DOME_R * 0.95;
     const d = off.length();
     return d <= SAFE ? pos : centre.add(off.scaleInPlace(SAFE / d));
   };
@@ -1972,7 +2043,11 @@ export function buildCourse(
             for (let si = 0; si < spots.length; si++) {
               const spot = spots[si];
               const sMul = spot.h / proto.height;
-              const anchor = w2b(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
+              // ANCHORED, like the range backstop. The curtain layer reaches
+            // ~4490 from the world centre and its wMul-4.2 wings reach further
+            // still, so an unanchored massif could run through the dome even
+            // now that DOME_R is 6000 — on a long hole with an off-centre pin.
+            const anchor = backdropAnchor(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
               // Mirroring negates local X, so the recentering offset's X
               // component flips sign with it. The width stretch widens each
               // layer so adjacent silhouettes overlap (high saddles between
@@ -2026,7 +2101,9 @@ export function buildCourse(
           const bsMat = mat(scene, 'duneBackstopM', shade(bsC, 0.58), { emissive: shade(bsC, 0.25) });
           bsMat.backFaceCulling = false;
           bs.material = bsMat;
-          bs.position = w2b(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -170, 0));
+          // backdropAnchor, not raw w2b — this wall is 16000 wide and the one
+          // thing it must never do is stop short of the dunes it is sealing.
+          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - peakDist - 980, 0).add(new Vector3(0, -170, 0));
           bs.applyFog = false;
           bs.freezeWorldMatrix();
         }
@@ -2049,7 +2126,14 @@ export function buildCourse(
             if (!proto) continue;
             const j = hash2(i * 3.7 + 11 + ri * 7, i * 8.9);
             const targetH = (105 + Math.abs(i) * 15 + j * 70) * row.hMul;
-            const pos = w2b(
+            // THE SANDHILLS THE SKY WAS EATING. These rows spread up to
+            // i*430 laterally from a pin that is itself off-centre, so on
+            // Wild Prairie h3 (pin x 748 of a 1200-wide world) the outer
+            // right-hand dunes measured 4662-4970 from the dome centre and
+            // were painted over one by one from the edge inward. DOME_R now
+            // clears them; anchoring keeps the guarantee on any future hole
+            // whose pin sits further out still.
+            const pos = backdropAnchor(
               hole.pin.x + i * row.spread + (j - 0.5) * 300 + 120,
               hole.pin.y - peakDist - 260 - row.dy - j * 160,
               -16
@@ -2074,7 +2158,7 @@ export function buildCourse(
         dome.material = hillMat;
         // Very flat (wide, low) so it's a soft swell, not a peak; parked far back.
         dome.scaling = new Vector3(1.4, 0.16 + ((Math.abs(i) * 7) % 5) * 0.01, 1);
-        dome.position = w2b(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
+        dome.position = backdropAnchor(hole.pin.x + i * 660 + 120, hole.pin.y - peakDist - 200 - Math.abs(i) * 120, -60);
       }
     }
   }
