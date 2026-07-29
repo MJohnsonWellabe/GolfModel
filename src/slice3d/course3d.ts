@@ -428,11 +428,47 @@ export function buildCourse(
   // rather than a blue map edge. (An earlier pass dropped the mesh into a trench
   // here; that sank the rim rocks and exposed the sky dome — removed.)
   const boundary = hole.boundary;
+  /**
+   * How far a world point lies OUTSIDE the padded ground rectangle, in world
+   * units — 0 anywhere the real ground mesh covers.
+   *
+   * Chebyshev, not Euclidean, because that is the shape the far-field skirt
+   * grows in: concentric rectangles expanding uniformly from this rectangle's
+   * edge. The two have to agree or the scatter planted on the skirt sits at a
+   * different height than the skirt itself.
+   */
+  const outsideBy = (wx: number, wy: number): number =>
+    Math.max(0, -pad - wx, wx - (w + pad), -pad - wy, wy - (h + pad));
+  /**
+   * The far field's rolling relief at a world point: 0 over the real ground,
+   * ramping in past its edge.
+   *
+   * THE ONE SOURCE OF TRUTH for the skirt's shape. The skirt mesh and every
+   * fescue card planted out there read their height through this, so they
+   * cannot disagree — a card grounded on a flat assumption floats or sinks the
+   * moment the ground rolls.
+   *
+   * `engine.groundAt` is unaffected, so PHYSICS never sees any of it: this is
+   * all outside the world rectangle, where no ball can finish (owner: "don't
+   * introduce major playability issues").
+   */
+  const farLift = (wx: number, wy: number): number => {
+    const e = outsideBy(wx, wy);
+    if (e <= 0) return 0;
+    // A sea course must not raise land past its shoreline — that ramp reads as
+    // a false shore behind an island green.
+    if (theme.backdrop === 'sea') return 0;
+    const t = Math.min(1, e / 900);
+    const ramp = t * t * (3 - 2 * t);
+    return ramp * (7 + smoothNoise(wx * 0.6, wy * 0.6) * 4.5 + smoothNoise(wx * 0.17, wy * 0.17) * 9);
+  };
   const heightAt = (wx: number, wy: number): number => {
     const terrain = engine.groundAt(wx, wy);
-    // Bounded world: authored terrain straight out to the mesh edge — no scenery
-    // mound beyond the world edge (the void floor + fog own the horizon).
-    if (boundary) return terrain;
+    // Bounded world: authored terrain out to the mesh edge, plus the far-field
+    // roll beyond it. `farLift` is 0 over the whole padded ground, so every
+    // ground-mesh vertex is exactly what it always was; it only has an effect
+    // for points on the skirt (and for the scatter planted there).
+    if (boundary) return terrain + farLift(wx, wy);
     // Playable interior: the authored heightfield (the SAME terrain physics
     // rolls on — engine.groundAt), plus scenery mounds that ramp up smoothly
     // beyond the world edge only.
@@ -606,6 +642,131 @@ export function buildCourse(
   }
   groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
+
+  /**
+   * THE FAR-FIELD SKIRT — the rough, actually rolling back toward the hills.
+   *
+   * The owner has asked for this in five different wordings across four
+   * passes, most recently: "I just want the background areas before those
+   * things to not look like crap between the mountains/hills/horizon and the
+   * back of the green." Every previous attempt answered with PAINT —
+   * recolouring the flat apron plane, matching its grain, giving it a normal
+   * map — and none of it worked, because past the ground mesh there was no
+   * GEOMETRY: one 16000-square quad at `subdivisions: 1`, dead level, seen at
+   * a grazing angle. A flat sheet reads as a flat sheet however it is painted.
+   *
+   * So: a ring of real rolling ground, from the mesh edge out to just short of
+   * the (now closer) backdrops. A RING, not a bigger `TEXTURE_PAD`, for two
+   * reasons. It never overlaps the playable terrain — no z-fighting, no
+   * masking plane that could draw over a sunken green. And widening the pad is
+   * a measured trap: the bake budget's 0.5 floor stops being a budget past
+   * ~1000 of pad (4.0M texels → 10.2M at 2500, class grid ×12, near-field
+   * albedo still halves, and the fixed 140 subdivisions drop to 44 units per
+   * quad, losing the very relief this is for).
+   *
+   * COST, deliberately bounded (owner: "don't introduce ... graphic loading
+   * issues"): ~10 shells × 144 points ≈ 3k triangles, ONE StandardMaterial
+   * with the 128px detail canvas and NO normal map — the previous cut carried
+   * the ground's bump texture out here and it was the single biggest line in
+   * its frame cost, for relief the fog swallows anyway. The mesh is frozen,
+   * casts no shadows, receives none, and is skipped entirely on sea courses
+   * (their horizon is water, which is already correct).
+   */
+  if (theme.backdrop !== 'sea') {
+    /** How far past the ground mesh's edge the real geometry reaches — just
+     *  short of the pulled-in backdrops, so the hand-off happens where the
+     *  ranges and the fog already own the frame. */
+    const SKIRT_OUT = 1600;
+    const SHELLS = quality.tier >= 2 ? 7 : 10;
+    const AROUND = quality.tier >= 2 ? 96 : 144;
+    const gx0 = -pad;
+    const gy0 = -pad;
+    const gx1 = w + pad;
+    const gy1 = h + pad;
+
+    /** A point on the padded ground rectangle expanded by `e`, at parameter
+     *  `u` in [0,1) going round it. */
+    const shellPoint = (u: number, e: number): [number, number] => {
+      const x0 = gx0 - e;
+      const y0 = gy0 - e;
+      const x1 = gx1 + e;
+      const y1 = gy1 + e;
+      const sw = x1 - x0;
+      const sh = y1 - y0;
+      const per = 2 * (sw + sh);
+      let d = u * per;
+      if (d < sw) return [x0 + d, y0];
+      d -= sw;
+      if (d < sh) return [x1, y0 + d];
+      d -= sh;
+      if (d < sw) return [x1 - d, y1];
+      d -= sw;
+      return [x0, y1 - d];
+    };
+
+    /** The same height the ground mesh's outer vertices take, so the seam is
+     *  watertight — that hard horizontal line behind Timberline West's second
+     *  green was the whole complaint. See `farLift`. */
+    const skirtY = (wx: number, wy: number): number => engine.groundAt(wx, wy) + farLift(wx, wy);
+
+    const pos: number[] = [];
+    const uvs: number[] = [];
+    const idx: number[] = [];
+    for (let s = 0; s <= SHELLS; s++) {
+      // Squared spacing: fine where it meets the real ground (so the seam is
+      // smooth), coarse far out (where fog owns it anyway).
+      const e = Math.pow(s / SHELLS, 1.7) * SKIRT_OUT;
+      for (let a = 0; a <= AROUND; a++) {
+        const [wx, wy] = shellPoint((a % AROUND) / AROUND, e);
+        pos.push(wx, skirtY(wx, wy), -wy);
+        // The detail map is the only texture on this surface, so the uv just
+        // has to be continuous and world-scaled.
+        uvs.push(wx / 220, wy / 220);
+      }
+    }
+    const row = AROUND + 1;
+    for (let s = 0; s < SHELLS; s++) {
+      for (let a = 0; a < AROUND; a++) {
+        const i0 = s * row + a;
+        const i1 = i0 + 1;
+        const i2 = i0 + row;
+        const i3 = i2 + 1;
+        idx.push(i0, i2, i1, i1, i2, i3);
+      }
+    }
+    const skirt = new Mesh('groundSkirt', scene);
+    const vd = new VertexData();
+    vd.positions = pos;
+    vd.indices = idx;
+    vd.uvs = uvs;
+    const normals: number[] = [];
+    VertexData.ComputeNormals(pos, idx, normals);
+    vd.normals = normals;
+    vd.applyToMesh(skirt, false);
+    // The apron's colour, grain and exposure — this surface and the apron
+    // behind it must be the same ground, and the ground bake's own edge
+    // already fades to exactly this colour (CourseTexture's FADE_SPAN), so all
+    // three meet without a step.
+    const skirtMat = mat(scene, 'groundSkirtM', shade(groundFarC, 0.58), { emissive: shade(groundFarC, 0.25) });
+    skirtMat.specularColor = new Color3(0, 0, 0);
+    const skirtDetail = new DynamicTexture('turfDetailSkirt', { width: 128, height: 128 }, scene, true);
+    skirtDetail.getContext().drawImage(detailCanvas, 0, 0);
+    skirtDetail.update(false);
+    skirtDetail.wrapU = Texture.WRAP_ADDRESSMODE;
+    skirtDetail.wrapV = Texture.WRAP_ADDRESSMODE;
+    // Same WORLD tile size as underfoot: the ground runs 110 tiles across its
+    // padded width, and the uv above is world/220.
+    skirtDetail.uScale = (220 * 110) / (w + pad * 2);
+    skirtDetail.vScale = (220 * 110) / (h + pad * 2);
+    skirtMat.detailMap.texture = skirtDetail;
+    skirtMat.detailMap.isEnabled = true;
+    skirtMat.detailMap.diffuseBlendLevel = 0.24;
+    skirt.material = skirtMat;
+    skirt.applyFog = true;
+    skirt.receiveShadows = false;
+    skirt.isPickable = false;
+    skirt.freezeWorldMatrix();
+  }
 
   // Compile the ground shader NOW (during the loading veil) instead of lazily on
   // the first visible frame. The ground material is heavy (bake diffuse +
@@ -1616,7 +1777,19 @@ export function buildCourse(
   }
 
   // ------------------------------------------------------------ backdrop
-  const peakDist = 2500;
+  //
+  // CLOSER ON LAND, on the owner's explicit instruction: "I don't need assets
+  // going all the way back ... you can even move those in closer if it makes
+  // it easier. I just want the background areas before those things to not
+  // look like crap between the mountains/hills/horizon and the back of the
+  // green." At 2500 the gap between the last real ground and the first
+  // mountain was 700-1100 yards of flat apron — an area no amount of paint
+  // ever fixed. At 1900 the ranges stand a third larger and the gap shrinks to
+  // what the rolling skirt (below, at the ground mesh) plus fog genuinely
+  // covers. The sea keeps 2500: its plane geometry and dune line are tuned to
+  // it, its near edge is pinned relative to this number, and open water TO the
+  // horizon is correct for a links course anyway.
+  const peakDist = theme.backdrop === 'sea' ? 2500 : 1900;
   /**
    * A backdrop position, pulled in if it would fall OUTSIDE the sky dome.
    *
@@ -3194,6 +3367,60 @@ export function buildCourse(
                 if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
                 place(grasses, jx, jy, cap * (0.5 + hash2(jx, jy) * 0.35), 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
               }
+            }
+          });
+        }
+      }
+    }
+
+    /**
+     * FAR-FIELD FESCUE — sparse grass on the ground between the corridor and
+     * the hills, because the reference the owner keeps pointing at is scatter
+     * on rolling ground, not a texture.
+     *
+     * THIS IS NOT THE FRAMING BAND THAT WAS REMOVED. `FRAME_BAND = 0` stays 0
+     * and the corridor families still stop dead at the playable boundary — the
+     * owner asked for that explicitly ("don't put grass or bush assets outside
+     * the playable area") and it stands. This is a different thing in a
+     * different place: it starts a clear FAR_GAP outside the boundary (so the
+     * corridor edge stays clean), it is only ever low grass — never bushes or
+     * props — and it thins to nothing toward the fog. Landscape, not
+     * furniture.
+     *
+     * COST, deliberately bounded. The first cut ran a 78-unit grid to 1500 —
+     * ~1500 extra cards per hole — and the perf gate caught it at once
+     * (Wildwood h3's worst armed frame went 80ms-ceiling → 567ms while the
+     * plant queue drained). This grid is 130 units to 900, roughly a fifth of
+     * the cards, tier 0/1 only, honouring scatterPitch: the first decoration a
+     * struggling device stops paying for.
+     */
+    if (theme.backdrop !== 'sea' && quality.tier <= 1) {
+      const farSet = pick(theme.heatherKeys ?? theme.grassKeys ?? []);
+      if (farSet.length) {
+        const farCap = theme.tallGrass?.cap ?? 5;
+        const FAR_GAP = 150;
+        const farGap = hole.boundary ? computeBoundary(hole, DEFAULT_MARGIN + FAR_GAP) : null;
+        const FAR_STEP = 130 * scatterPitch;
+        const REACH = 900;
+        for (let yy = -pad - REACH; yy < h + pad + REACH; yy += FAR_STEP) {
+          const yRow = yy;
+          popQueue.push(() => {
+            for (let xx = -pad - REACH; xx < w + pad + REACH; xx += FAR_STEP) {
+              if (farGap && pointInBoundary(xx, yRow, farGap)) continue;
+              const e = outsideBy(xx, yRow);
+              if (e <= 0) {
+                // Inside the world the real surface is knowable: rough OR sand
+                // (on a links the exposed waste is where fescue belongs), never
+                // water or a mown surface the boundary happens not to reach.
+                const surf = engine.surfaceAt(xx, yRow);
+                if (surf !== 'rough' && surf !== 'sand') continue;
+              }
+              // Thin toward the fog so the field fades out, never ends on a line.
+              const fade = 1 - Math.min(1, e / REACH);
+              if (hash2(xx * 1.7, yRow * 1.3) > 0.2 + fade * 0.45) continue;
+              const jx = xx + (hash2(xx + 21, yRow) - 0.5) * FAR_STEP * 0.9;
+              const jy = yRow + (hash2(yRow + 21, xx) - 0.5) * FAR_STEP * 0.9;
+              place(farSet, jx, jy, farCap * (0.7 + hash2(jx + 4, jy - 4) * 0.6), 9);
             }
           });
         }
