@@ -196,7 +196,13 @@ const STYLES = [
     haze: '#cfe0e6',
     src: 'rocky_ridge_puresky',
     note: 'Timberline West — the same mountains, a different hour: high cirrus fans over a warmer, paler dome. East and West MUST NOT MATCH, which is half of what the owner reported; rustig_koppie_puresky was rejected precisely because it measured almost identically to Drakensberg.',
-    bands: 15, sat: 1.1, lift: 1.03,
+    // Lifted and saturated after the first in-game capture: at 1.10/1.03 the
+    // measured zenith came out #6878a0, a grey-violet that read as dusk rather
+    // than as a bright broken-cloud day, and under the West pine canopy the
+    // whole hole went muddy — the dullest course on the roster. It has to stay
+    // DISTINCT from East's deep blue, so the answer is a paler, warmer dome
+    // rather than a bluer one.
+    bands: 15, sat: 1.22, lift: 1.16,
     cumEl: [4, 44], cirEl: [42, 76],
     cloudTiers: [0.3, 0.62, 0.92], cover: 0.5
   },

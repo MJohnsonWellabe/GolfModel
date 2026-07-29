@@ -149,6 +149,16 @@ Rules it must keep obeying:
   when the GPU process dies, restore never fires, and the device relaunches at
   the budget that just killed it.
 
+**Auto can reach Full on a phone.** It could not until Stage 7: `bootTier` ended
+`if (coarsePointer) return 1`, so no touch device on earth started at tier 0 —
+and the boot GUESS was then installed as the promotion floor and persisted, so
+one bad session (or one lost WebGL context) pinned a device forever, in every
+later session. A coarse pointer now costs a tier only alongside modest hardware
+or a dpr>=3 display; the floor is a within-session anti-oscillation guard that
+starts open; and what persists is the tier the device SETTLED at, as a starting
+hint. Clip recording no longer reads that floor at all — it advises and the
+player decides.
+
 Measured facts behind the tier table (per-course texture inventory, phone
 viewport):
 

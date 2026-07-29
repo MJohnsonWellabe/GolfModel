@@ -413,6 +413,22 @@ posterised bands** in the game's own flat-shaded language. No photograph ships;
 the committed output is 2-5KB of painted bands per style. Sources and licences
 are in `docs/technical/ASSET_ATTRIBUTION.md`; the recipe is in the script header.
 
+**A style's `haze` must be the haze of the JSON THE GAME LOADS.** The bottom
+bands ramp onto `theme.haze` so the dome meets the EXP2 fog invisibly; get it
+wrong and a pale band sits above the horizon on every hole of that course. Three
+styles shipped with the value from `src/data/courses/<id>.json` when production
+runs `courseRebuilds` and loads `v2/<id>.json` — Port Johnson's was 24/28/30 out.
+`tests/unit/skyAssets.test.ts` now resolves every course through `coursesFor`,
+the same roster the game builds from, and reads the shipped PNG's bottom row.
+
+**Course-card art is re-shot from the game**, not painted:
+`tests/visual/courseArt.spec.ts` boots each course at a chosen hole at
+1600x1000 with quality pinned to Full, hides the HUD and writes a contact sheet
+to `tests/visual/__shots__/art/`. Re-run it whenever the skies, the far field or
+a hole's composition changes, then `node scripts/optimize-marketing.mjs`.
+Timberline West has its own picture now — it reused East's, which made the two
+Timberlines look like the same course on the card.
+
 A course opts in with three theme keys:
 
 | Key | What it does |

@@ -60,7 +60,7 @@ export function rosterFor(flags: RosterFlags): RosterEntry[] {
     // sibling "Timberline West" joins; in production the id stays "timberline".
     { id: 'timberline', name: rebuilds ? 'Timberline East' : 'Timberline', tag: 'Forest · granite doglegs, a downhill tarn, a two-route par 5', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' },
     ...(rebuilds
-      ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberline-pond.png', difficulty: 'Tight' }]
+      ? [{ id: 'timberlinewest', name: 'Timberline West', tag: 'Forest · a pine-alley dogleg, a tree-ringed hollow, a dogleg-right gauntlet', icon: '🌲', art: 'marketing/img/timberlinewest-gauntlet.png', difficulty: 'Tight' }]
       : []),
     { id: 'portjohnson', name: 'Port Johnson Links', tag: 'Links · treeless, windy, revetted pots by the sea', icon: '🏴', art: 'marketing/img/portjohnson-bunker.png', difficulty: 'Windy' },
     { id: 'redhollow', name: 'Red Hollow', tag: 'Desert canyon · emerald fairways over red-rock carries', icon: '🏜️', art: 'marketing/img/redhollow-chasm.png', difficulty: 'Daring' },
