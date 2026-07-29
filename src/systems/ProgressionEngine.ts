@@ -51,16 +51,6 @@ export function applyRound(
   if (r.won) coins += COINS.tournamentWin;
   let dailyDone = false;
 
-  // Daily streak — consecutive days with at least one COMPLETED ROUND. The
-  // streak used to extend only when the daily challenge succeeded, so a single
-  // hard challenge day (eagle, chip-in…) reset it and it never climbed past
-  // 1–2 for a daily player. Playing every day is the habit the streak rewards;
-  // the challenge below stays a separate XP/coin bonus.
-  if (dateKey && profile.lastDailyDate !== dateKey) {
-    profile.dailyStreak = profile.lastDailyDate === prevDay(dateKey) ? profile.dailyStreak + 1 : 1;
-    profile.lastDailyDate = dateKey;
-  }
-
   // Daily challenge — completed at most once per day, pays a bonus
   if (dateKey && !(profile.daily.date === dateKey && profile.daily.done)) {
     const challenge = challengeOverride ?? dailyChallengeFor(dateKey);
@@ -69,8 +59,30 @@ export function applyRound(
       profile.daily.done = true;
       dailyDone = true;
       coins += COINS.daily;
-      events.push({ kind: 'daily', name: challenge.name, streak: profile.dailyStreak });
     }
+  }
+
+  // DAILY STREAK — consecutive days the DAILY CHALLENGE was completed.
+  //
+  // This briefly counted any completed round instead, so that a brutal
+  // challenge (eagle, chip-in) could not wipe a long streak. It made the number
+  // meaningless: the owner skipped a chip-in daily and kept a 12-day "daily
+  // streak". The protection token in systems/Streak.ts is the right cover for a
+  // brutal day, and it already exists — so the streak means what it says again.
+  //
+  // Ordered AFTER the challenge block because it now depends on its outcome.
+  // `systems/Streak.ts` owns the real state (cycle, token, rewards); this pair
+  // is the flat legacy mirror, kept in step by the caller.
+  if (dateKey && dailyDone && profile.lastDailyDate !== dateKey) {
+    profile.dailyStreak = profile.lastDailyDate === prevDay(dateKey) ? profile.dailyStreak + 1 : 1;
+    profile.lastDailyDate = dateKey;
+  }
+  if (dailyDone) {
+    events.push({
+      kind: 'daily',
+      name: (challengeOverride ?? dailyChallengeFor(dateKey)).name,
+      streak: profile.dailyStreak
+    });
   }
 
   // CP — the career currency the round pays (data/career.ts owns the table).

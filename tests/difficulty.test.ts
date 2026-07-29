@@ -115,12 +115,29 @@ describe('records are ranked-only', () => {
     expect(rec.bestRoundToPar).toBe(2);
   });
 
-  it('an unranked round does not END a par-or-better run built at Pro', () => {
+  // ASYMMETRIC, ON PURPOSE. An unranked round cannot EXTEND the run — a wider
+  // swing band is a real scoring advantage and must not buy a longer streak.
+  // But it does END it, which it used to not do. Beginner and Amateur are the
+  // defaults, so under the old rule most players' rounds could not break the
+  // run however they scored, and the counter became unfalsifiable: the owner
+  // was still carrying 224 "rounds at par or better" after shooting over. The
+  // counter states a fact, and shooting over par at Beginner falsifies it just
+  // as completely as shooting over par at Pro.
+  it('an unranked round cannot extend a par-or-better run', () => {
     const rec = emptyRecords();
-    applyRoundRecords(rec, round(11, true)); // under par, run = 1
+    applyRoundRecords(rec, round(11, true)); // under par at Pro, run = 1
     expect(rec.parOrBetterRun).toBe(1);
-    applyRoundRecords(rec, round(20, false)); // a loose Beginner round
+    applyRoundRecords(rec, round(11, false)); // under par at Beginner
+    expect(rec.parOrBetterRun, 'a relaxed round is not comparable').toBe(1);
+  });
+
+  it('...but an over-par round ENDS it at any difficulty', () => {
+    const rec = emptyRecords();
+    applyRoundRecords(rec, round(11, true)); // under par at Pro, run = 1
     expect(rec.parOrBetterRun).toBe(1);
+    applyRoundRecords(rec, round(20, false)); // a loose Beginner round, +8
+    expect(rec.parOrBetterRun).toBe(0);
+    expect(rec.bestParOrBetterRun, 'the record it set still stands').toBe(1);
   });
 
   it('still counts the round, so play at any difficulty is play', () => {

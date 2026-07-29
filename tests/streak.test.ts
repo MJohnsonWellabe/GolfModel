@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   advanceStreak,
   claimStreakReward,
+  currentStreak,
   cycleDay,
   emptyStreak,
   mergeStreak,
@@ -111,5 +112,59 @@ describe('streak rewards', () => {
     expect(migrateStreak(null)).toEqual(emptyStreak());
     expect(migrateStreak({ current: -3, claimedDays: 'x' }).current).toBe(0);
     expect(migrateStreak({ current: 4.7 }).current).toBe(4);
+  });
+});
+
+/**
+ * A STREAK IS A STATEMENT ABOUT TODAY.
+ *
+ * `advanceStreak` only ever ran at ROUND END, so a player who simply stopped
+ * playing kept their number forever — the menus went on rendering a 12-day
+ * streak weeks after the last round, because nothing had happened to
+ * re-evaluate it. `currentStreak` computes it against today instead.
+ */
+describe('currentStreak — lazy expiry on read', () => {
+  const at = (lastDate: string, over: Partial<StreakState> = {}): StreakState => ({
+    ...emptyStreak(),
+    current: 12,
+    best: 12,
+    lastDate,
+    ...over
+  });
+
+  it('holds when the last counted day is today or yesterday', () => {
+    expect(currentStreak(at('2026-07-29'), '2026-07-29')).toBe(12);
+    expect(currentStreak(at('2026-07-28'), '2026-07-29')).toBe(12);
+  });
+
+  it('holds one day further back only while the protection token is held', () => {
+    // Exactly the gap advanceStreak would spend the token on.
+    expect(currentStreak(at('2026-07-27'), '2026-07-29')).toBe(12);
+    expect(currentStreak(at('2026-07-27', { protectionAvailable: false }), '2026-07-29')).toBe(0);
+  });
+
+  it('is gone once the gap is past saving — this is the owner-reported bug', () => {
+    expect(currentStreak(at('2026-07-26'), '2026-07-29')).toBe(0);
+    expect(currentStreak(at('2026-06-01'), '2026-07-29')).toBe(0);
+  });
+
+  it('does not mutate, and never touches `best`', () => {
+    const s = at('2026-06-01');
+    expect(currentStreak(s, '2026-07-29')).toBe(0);
+    // The stored history is intact, so the next round can still spend the
+    // token and `best` still reports what was actually achieved.
+    expect(s.current).toBe(12);
+    expect(s.best).toBe(12);
+  });
+
+  it('a clock behind the last recorded day never deletes a streak', () => {
+    // Travel, or a device with the wrong date. Losing months of progress to a
+    // timezone is not an acceptable failure mode.
+    expect(currentStreak(at('2026-07-29'), '2026-07-27')).toBe(12);
+  });
+
+  it('reads zero for a player who has never had one', () => {
+    expect(currentStreak(emptyStreak(), '2026-07-29')).toBe(0);
+    expect(currentStreak(at('2026-07-29', { current: 0 }), '2026-07-29')).toBe(0);
   });
 });

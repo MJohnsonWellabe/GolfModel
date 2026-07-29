@@ -3,9 +3,17 @@
  * schedule; no DOM, no timers, no countdowns.
  *
  * Principles:
- *  - the streak advances when the player COMPLETES A ROUND on a new day (the
- *    same rule the existing dailyStreak uses) — never for merely opening the
- *    app;
+ *  - the streak advances when the player COMPLETES THAT DAY'S DAILY CHALLENGE
+ *    — never for merely opening the app, and (since this pass) never for
+ *    playing an ordinary round either. It briefly counted any completed round,
+ *    on the theory that a brutal challenge day would otherwise wipe a long
+ *    streak; the owner's report is that this made it meaningless ("yesterday's
+ *    daily was chip in from off the green, I didn't do it and now I still have
+ *    a 12 day streak"). The protection token below is the right answer to the
+ *    brutal-challenge day, and it already exists;
+ *  - the streak is EVALUATED AGAINST TODAY on every read (`currentStreak`), not
+ *    only when a round ends — otherwise a player who stops playing keeps their
+ *    number forever;
  *  - the DAY REWARD is granted when the Daily Challenge is completed that day
  *    (claimable exactly once per day — idempotent by date key);
  *  - one streak-protection token per seven-day cycle: missing a SINGLE day
@@ -125,6 +133,36 @@ export function advanceStreak(prev: StreakState, dateKey: string): StreakAdvance
     s.protectionUsedOn = '';
   }
   return { state: s, advanced: true, usedProtection, restarted };
+}
+
+/**
+ * THE STREAK AS OF `todayKey` — what every readout must show.
+ *
+ * `advanceStreak` is the only thing that ever moved `current`, and it runs at
+ * ROUND END. So a player who simply stopped playing kept their number forever:
+ * the menus went on rendering a 12-day streak weeks after the last round,
+ * because nothing had happened to re-evaluate it (owner: "Daily streaks don't
+ * stop ... I didn't do it and now I still have a 12 day streak"). There was no
+ * expiry, only a gap check that a future round might one day perform.
+ *
+ * A streak is a statement about TODAY, so it is computed against today rather
+ * than stored. Alive when the last counted day is today or yesterday; alive one
+ * day further back when the protection token is still held, since that is
+ * exactly the gap the token exists to bridge and `advanceStreak` would spend it
+ * on the next round; dead after that.
+ *
+ * Pure and cheap — safe to call on every render. It does NOT mutate: the stored
+ * state is left alone so the next `advanceStreak` still sees the real history
+ * (and can still spend the token), and `best` is never touched by any of this.
+ */
+export function currentStreak(s: StreakState, todayKey: string): number {
+  if (s.current <= 0 || !s.lastDate || !todayKey) return Math.max(0, s.current);
+  // A clock behind the last recorded day (travel, a device with the wrong
+  // date) must never silently delete a streak.
+  if (s.lastDate >= todayKey) return s.current;
+  if (s.lastDate === prevDay(todayKey)) return s.current;
+  if (s.protectionAvailable && s.lastDate === prevDay(prevDay(todayKey))) return s.current;
+  return 0;
 }
 
 /** 1..7 position inside the repeating weekly cycle for a streak count ≥ 1. */

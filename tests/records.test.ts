@@ -98,3 +98,71 @@ describe('personal records', () => {
     expect(migrateRecords({ longestPuttFt: 'nope' }).longestPuttFt).toBe(0);
   });
 });
+
+/**
+ * THE PAR-OR-BETTER RUN HAS TO BE ABLE TO FALL.
+ *
+ * It is the one field in PersonalRecords that is not a record — it is a live
+ * counter — and it was merged with the same grow-only `Math.max` as everything
+ * around it. That made it monotonic by construction: a device reset it, the
+ * next cloud sync handed the old number straight back and re-uploaded it, and
+ * a 224-round run survived a round over par forever (owner: "I shot over a
+ * while ago and still have a 224 round streak").
+ */
+describe('the par-or-better run', () => {
+  it('an over-par round ends it AT ANY DIFFICULTY', () => {
+    // Beginner and Amateur are the defaults and the tutorial's setting, and
+    // they are `ranked: false` — under the old rule they could not end a run
+    // no matter how the player scored.
+    for (const ranked of [true, false]) {
+      const rec = emptyRecords();
+      rec.parOrBetterRun = 224;
+      rec.bestParOrBetterRun = 224;
+      round(rec, 15, {}, { ranked }); // +3
+      expect(rec.parOrBetterRun, `ranked=${ranked}`).toBe(0);
+      // The BEST run is a record and survives, as it always did.
+      expect(rec.bestParOrBetterRun).toBe(224);
+    }
+  });
+
+  it('but only a RANKED round can extend it', () => {
+    const rec = emptyRecords();
+    round(rec, 12, {}, { ranked: false }); // level par at Beginner
+    expect(rec.parOrBetterRun, 'a relaxed round cannot buy a longer run').toBe(0);
+    round(rec, 12, {}, { ranked: true });
+    expect(rec.parOrBetterRun).toBe(1);
+  });
+
+  it('a reset survives a cloud merge instead of being resurrected', () => {
+    // The device that played the over-par round.
+    const local = emptyRecords();
+    local.parOrBetterRun = 224;
+    local.bestParOrBetterRun = 224;
+    local.totalRounds = 400;
+    round(local, 15); // +3 → run resets, and stamps its ordinal
+    expect(local.parOrBetterRun).toBe(0);
+
+    // What the cloud still holds: the pre-reset snapshot, stamped EARLIER.
+    const cloud = migrateRecords({ ...local, parOrBetterRun: 224, parOrBetterRunAt: 300 });
+
+    for (const merged of [mergeRecords(local, cloud), mergeRecords(cloud, local)]) {
+      expect(merged.parOrBetterRun, 'the newer write wins, in both directions').toBe(0);
+      expect(merged.bestParOrBetterRun, 'the record itself is never lost').toBe(224);
+    }
+  });
+
+  it('still takes the larger when neither side can be ordered', () => {
+    // Two devices with the same ordinal genuinely cannot be interleaved; the
+    // old behaviour is the safer guess there, and it errs toward keeping a run.
+    const a = migrateRecords({ parOrBetterRun: 5, parOrBetterRunAt: 10 });
+    const b = migrateRecords({ parOrBetterRun: 9, parOrBetterRunAt: 10 });
+    expect(mergeRecords(a, b).parOrBetterRun).toBe(9);
+  });
+
+  it('a profile stored before the ordinal existed still merges', () => {
+    const old = migrateRecords({ parOrBetterRun: 17, bestParOrBetterRun: 17 });
+    expect(old.parOrBetterRunAt).toBe(0);
+    const fresh = migrateRecords({ parOrBetterRun: 0, parOrBetterRunAt: 5 });
+    expect(mergeRecords(old, fresh).parOrBetterRun, 'the stamped side is newer').toBe(0);
+  });
+});

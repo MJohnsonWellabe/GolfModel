@@ -95,25 +95,38 @@ describe('daily challenges', () => {
     expect(p.dailyStreak).toBe(1);
   });
 
-  // Regression: the streak used to extend only when the daily CHALLENGE
-  // succeeded, so one hard challenge day (eagle, chip-in…) reset it and it
-  // never climbed past 1–2 for a daily player ("streak maxes out at 2").
-  it('streak counts consecutive days PLAYED even when the challenge fails', () => {
+  /** A fixed, always-clearable challenge, so a streak test can use consecutive
+   *  calendar days without hunting for a date whose real challenge fits. */
+  const EASY = { id: 'under_par', name: 'Finish the round under par', test: (r: ReturnType<typeof roundOf>) => r.toPar < 0 };
+
+  // THE DAILY STREAK COUNTS DAILIES, NOT DAYS PLAYED.
+  //
+  // This briefly counted any completed round, so that a brutal challenge could
+  // not wipe a long streak — and that made the number meaningless: the owner
+  // skipped a chip-in daily and still had a 12-day "daily streak". The
+  // protection token in systems/Streak.ts is what covers a brutal day.
+  it('a round that FAILS the challenge does not extend the streak', () => {
     const p = defaultProfile();
-    // +3 with no birdies/eagles/chip-ins/long stats fails every challenge
+    const good = () => roundOf({ toPar: -1, strokes: 11 });
     const dud = () => roundOf({ toPar: 3, strokes: 15 });
-    applyRound(p, dud(), '2026-07-10');
+    applyRound(p, good(), '2026-07-10', EASY);
     expect(p.dailyStreak).toBe(1);
-    applyRound(p, dud(), '2026-07-11');
+    applyRound(p, good(), '2026-07-11', EASY);
     expect(p.dailyStreak).toBe(2);
-    applyRound(p, dud(), '2026-07-12');
-    expect(p.dailyStreak).toBe(3);
-    // A second round the same day doesn't double-count…
-    applyRound(p, dud(), '2026-07-12');
-    expect(p.dailyStreak).toBe(3);
-    // …and skipping a day resets to 1.
-    applyRound(p, dud(), '2026-07-14');
+    // Played, but did not clear the challenge: the streak holds where it is
+    // rather than climbing.
+    applyRound(p, dud(), '2026-07-12', EASY);
+    expect(p.dailyStreak).toBe(2);
+    // And the missed day BREAKS the chain: clearing it again the next day is a
+    // new streak, not a resumed one. (systems/Streak.ts holds the protection
+    // token that can bridge exactly one such gap; this flat mirror does not.)
+    applyRound(p, good(), '2026-07-13', EASY);
     expect(p.dailyStreak).toBe(1);
+    // A second round the same day doesn't double-count.
+    applyRound(p, good(), '2026-07-13', EASY);
+    expect(p.dailyStreak).toBe(1);
+    applyRound(p, good(), '2026-07-14', EASY);
+    expect(p.dailyStreak).toBe(2);
   });
 
   // Helper: find a day in 2026 whose challenge is "under par" (a −1 round clears it).
@@ -175,8 +188,9 @@ describe('daily challenges', () => {
 
   it('the streak carries across month boundaries', () => {
     const p = defaultProfile();
-    applyRound(p, roundOf({ toPar: 3, strokes: 15 }), '2026-01-31');
-    applyRound(p, roundOf({ toPar: 3, strokes: 15 }), '2026-02-01');
+    const easy = { id: 'under_par', name: 'Finish the round under par', test: (r: ReturnType<typeof roundOf>) => r.toPar < 0 };
+    applyRound(p, roundOf({ toPar: -1, strokes: 11 }), '2026-01-31', easy);
+    applyRound(p, roundOf({ toPar: -1, strokes: 11 }), '2026-02-01', easy);
     expect(p.dailyStreak).toBe(2);
   });
 });

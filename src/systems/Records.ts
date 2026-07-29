@@ -35,6 +35,20 @@ export interface PersonalRecords {
   mostBirdiesRound: number;
   /** Current run of consecutive rounds at par or better. */
   parOrBetterRun: number;
+  /**
+   * `totalRounds` at the moment `parOrBetterRun` was last written — the
+   * ordinal that lets {@link mergeRecords} tell a NEWER run from a BIGGER one.
+   *
+   * Without it the merge could only take `Math.max`, which is a grow-only rule
+   * applied to a value whose whole job is to fall: a device that correctly
+   * reset the run to 0 had its old number handed straight back by the next
+   * cloud sync and re-uploaded, so the counter was mathematically incapable of
+   * ever going down (owner: "I shot over a while ago and still have a 224
+   * round streak"). `Streak.mergeStreak` solves the identical problem with
+   * `lastDate`; this is the same fix with the counter this record already
+   * keeps.
+   */
+  parOrBetterRunAt: number;
   /** Best such run ever. */
   bestParOrBetterRun: number;
   /** Longest Fire streak (consecutive all-perfect swings while on fire). */
@@ -54,6 +68,7 @@ export function emptyRecords(): PersonalRecords {
     closestApproachFt: null,
     mostBirdiesRound: 0,
     parOrBetterRun: 0,
+    parOrBetterRunAt: 0,
     bestParOrBetterRun: 0,
     longestFireStreak: 0,
     bestWeekly: {},
@@ -87,6 +102,7 @@ export function migrateRecords(raw: unknown): PersonalRecords {
     closestApproachFt: typeof r.closestApproachFt === 'number' ? r.closestApproachFt : null,
     mostBirdiesRound: num(r.mostBirdiesRound, 0),
     parOrBetterRun: num(r.parOrBetterRun, 0),
+    parOrBetterRunAt: num(r.parOrBetterRunAt, 0),
     bestParOrBetterRun: num(r.bestParOrBetterRun, 0),
     longestFireStreak: num(r.longestFireStreak, 0),
     bestWeekly,
@@ -110,9 +126,19 @@ export function mergeRecords(a: PersonalRecords, b: PersonalRecords): PersonalRe
   out.longestDriveYds = Math.max(a.longestDriveYds, b.longestDriveYds);
   out.closestApproachFt = minOrNull(a.closestApproachFt, b.closestApproachFt);
   out.mostBirdiesRound = Math.max(a.mostBirdiesRound, b.mostBirdiesRound);
-  // The CURRENT run is device-temporal — take the larger (can't reconstruct
-  // interleaving); the BEST run merges grow-only.
-  out.parOrBetterRun = Math.max(a.parOrBetterRun, b.parOrBetterRun);
+  // THE CURRENT RUN IS THE ONE FIELD HERE THAT IS ALLOWED TO FALL, so it is the
+  // one field that must not merge grow-only. `Math.max` made it monotonic by
+  // construction: a device reset it to 0, the next cloud sync handed the old
+  // number back and re-uploaded it, and 224 rounds survived a round over par
+  // forever. Take the LATER write instead, ranked by the round ordinal each
+  // side stamped — the same shape as `Streak.mergeStreak`'s `lastDate`
+  // tiebreak. Equal ordinals means two devices genuinely can't be ordered, and
+  // there the larger is the safer guess (it is what shipped, and it errs toward
+  // keeping a run rather than deleting one).
+  const later = a.parOrBetterRunAt === b.parOrBetterRunAt ? null : a.parOrBetterRunAt > b.parOrBetterRunAt ? a : b;
+  out.parOrBetterRun = later ? later.parOrBetterRun : Math.max(a.parOrBetterRun, b.parOrBetterRun);
+  out.parOrBetterRunAt = Math.max(a.parOrBetterRunAt, b.parOrBetterRunAt);
+  // The BEST run is a record and does merge grow-only, exactly as before.
   out.bestParOrBetterRun = Math.max(a.bestParOrBetterRun, b.bestParOrBetterRun);
   out.longestFireStreak = Math.max(a.longestFireStreak, b.longestFireStreak);
   const weeks = new Set([...Object.keys(a.bestWeekly), ...Object.keys(b.bestWeekly)]);
@@ -248,10 +274,24 @@ export function applyRoundRecords(rec: PersonalRecords, input: RoundRecordInput)
     }
   }
 
-  // Consecutive rounds at par or better (see the scoring-records note above).
-  if (ranked) {
-    if (stats.toPar <= 0) {
+  // CONSECUTIVE ROUNDS AT PAR OR BETTER — asymmetric on difficulty, on purpose.
+  //
+  // EXTENDING it stays ranked-only, for the reason the scoring-records note
+  // above gives: a relaxed Beginner round is not comparable with a Pro one and
+  // must not be able to buy a longer streak.
+  //
+  // BREAKING it is not gated at all, and used to be. Beginner and Amateur are
+  // the DEFAULTS (and the tutorial's), so under the old rule most players'
+  // rounds could not end the run no matter how they scored — which is half of
+  // why the owner's counter looked immortal (the other half was the merge; see
+  // `parOrBetterRunAt`). The counter makes a factual claim — "224 rounds
+  // without shooting over par" — and shooting over par at Beginner falsifies
+  // it just as completely as shooting over par at Pro. A record you cannot
+  // lose is not a record.
+  if (stats.toPar <= 0) {
+    if (ranked) {
       rec.parOrBetterRun += 1;
+      rec.parOrBetterRunAt = rec.totalRounds;
       if (rec.parOrBetterRun > rec.bestParOrBetterRun) {
         rec.bestParOrBetterRun = rec.parOrBetterRun;
         if (rec.parOrBetterRun >= 3) {
@@ -262,9 +302,10 @@ export function applyRoundRecords(rec: PersonalRecords, input: RoundRecordInput)
           });
         }
       }
-    } else {
-      rec.parOrBetterRun = 0;
     }
+  } else {
+    rec.parOrBetterRun = 0;
+    rec.parOrBetterRunAt = rec.totalRounds;
   }
 
   // Longest fire streak

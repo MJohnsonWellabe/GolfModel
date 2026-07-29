@@ -97,7 +97,7 @@ import {
 } from '../firebase/Challenges';
 import { applyRoundRecords, RecordEvent } from '../systems/Records';
 import { asDifficulty, Difficulty, DIFFICULTIES, difficultyProfile, effectiveDifficulty, recordsAllowed, UNRANKED_RECORDS_MSG, zoneMultFor } from '../systems/Difficulty';
-import { advanceStreak, claimStreakReward, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
+import { advanceStreak, claimStreakReward, currentStreak, cycleDay, emptyStreak, streakRewardFor } from '../systems/Streak';
 import {
   calibrateRivalSkill,
   hasRival,
@@ -5122,19 +5122,27 @@ function showSummary(): void {
           ? `<div class="rwLine ach">⚔ Tied ${who}'s ${round.challenge.total} — one more stroke next time</div>`
           : `<div class="rwLine ach">⚔ ${who}'s ${round.challenge.total} stands — replay and take it down</div>`;
   }
-  // Streak: consecutive days with a completed round, with the once-per-cycle
-  // protection token. profile.dailyStreak mirrors it for the legacy UI spots.
-  const adv = advanceStreak(profile.retention.streak, todayKey());
-  profile.retention.streak = adv.state;
-  profile.dailyStreak = adv.state.current;
-  if (adv.advanced) analytics.track('streak_advanced', { streak_length: adv.state.current });
-  if (adv.usedProtection) analytics.track('streak_protection_used', { streak_length: adv.state.current });
-  // Daily challenge completed this round → the day's streak reward (claimable
-  // exactly once per date; cross-device claims union so it can never re-pay).
   for (const a of events) {
     if (a.kind === 'achievement') analytics.track('achievement_earned', { achievement_id: a.id });
   }
   const dailyEvent = events.find((e) => e.kind === 'daily');
+  // THE STREAK ADVANCES ON THE DAILY CHALLENGE, NOT ON PLAYING.
+  //
+  // It used to advance on any completed round, which is why the owner could
+  // skip a daily and keep a 12-day streak. Read `profile.daily` rather than
+  // `dailyEvent` so a SECOND round on a day whose challenge is already done
+  // still sees the streak as earned (the event only fires on the round that
+  // completes it); `advanceStreak` is idempotent within a day either way.
+  const dailyDoneToday = profile.daily.date === todayKey() && profile.daily.done;
+  const adv = dailyDoneToday
+    ? advanceStreak(profile.retention.streak, todayKey())
+    : { state: profile.retention.streak, advanced: false, usedProtection: false, restarted: false };
+  profile.retention.streak = adv.state;
+  // The legacy mirror the older UI spots read. Stamped from the LIVE value so
+  // it cannot outlive the streak it mirrors.
+  profile.dailyStreak = currentStreak(adv.state, todayKey());
+  if (adv.advanced) analytics.track('streak_advanced', { streak_length: adv.state.current });
+  if (adv.usedProtection) analytics.track('streak_protection_used', { streak_length: adv.state.current });
   let streakRewardLine = '';
   if (dailyEvent) {
     analytics.track('daily_completed', { course: courseId, streak_length: adv.state.current });
@@ -5899,7 +5907,12 @@ function renderProfile(tab?: ProfileTab): void {
         statCell(Math.round(s.longestDriveYds), 'Long drive') +
         statCell(s.chipIns, 'Chip-ins') +
         statCell(s.wins, 'Wins') +
-        statCell(p.dailyStreak > 0 ? `🔥 ${p.dailyStreak}` : '—', 'Daily streak') +
+        (() => {
+          // LIVE, not stored: a streak that lapsed while the player was away
+          // must read as lapsed the moment they open this pane.
+          const st = currentStreak(p.retention.streak, todayKey());
+          return statCell(st > 0 ? `🔥 ${st}` : '—', 'Daily streak');
+        })() +
         statCell(`⭐ ${starCount(p.retention.mastery)}`, 'Mastery stars') +
         `</div>`
     ) +
@@ -10575,7 +10588,7 @@ function updateProgressStrip(newPlayer: boolean): void {
     return;
   }
   const { level } = levelProgress(SEASON_1, profile.season.xp);
-  const streak = profile.retention.streak.current;
+  const streak = currentStreak(profile.retention.streak, todayKey());
   // BUTTONS, not readouts. Each chip is the front door to the thing it
   // reports: the level to the pass that pays it, the streak to today's
   // challenge that feeds it, the coins to the store that spends them. Bound on
@@ -11864,17 +11877,21 @@ function updateDailyBanner(): void {
   const doneToday = profile.daily.date === key && profile.daily.done;
   const banner = document.getElementById('dailyBanner');
   if (banner) {
-    const streak = profile.dailyStreak > 0 ? ` · 🔥 ${profile.dailyStreak}` : '';
+    const live = currentStreak(profile.retention.streak, key);
+    const streak = live > 0 ? ` · 🔥 ${live}` : '';
     banner.innerHTML = `<span class="dcLabel">DAILY${streak}</span><span class="dcName">${doneToday ? '✅ ' : ''}${escapeHtml(ch.name)}</span>`;
   }
   const card = document.getElementById('dailyCard');
   if (card) {
     const s = profile.retention.streak;
+    // The live value, so a lapsed streak reads "Start a streak today" rather
+    // than still advertising a number the next round will not honour.
+    const cur = currentStreak(s, key);
     const streakBit =
-      s.current > 0
-        ? `<span class="dcStreak">🔥 ${s.current} day${s.current > 1 ? 's' : ''} · day ${cycleDay(s.current)}/7${s.protectionAvailable ? ' 🛡' : ''}</span>`
+      cur > 0
+        ? `<span class="dcStreak">🔥 ${cur} day${cur > 1 ? 's' : ''} · day ${cycleDay(cur)}/7${s.protectionAvailable ? ' 🛡' : ''}</span>`
         : `<span class="dcStreak">Start a streak today</span>`;
-    const reward = streakRewardFor(Math.max(1, s.lastDate === key ? s.current : s.current + 1));
+    const reward = streakRewardFor(Math.max(1, s.lastDate === key ? cur : cur + 1));
     const rewardBits = [
       `+${COINS.daily} 🪙 +${XP.daily} XP`,
       reward.coins ? `+${reward.coins} 🪙 streak` : '',
