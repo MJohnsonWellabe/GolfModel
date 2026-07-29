@@ -149,6 +149,36 @@ describe('where a cold boot starts', () => {
     expect(bootTier({ dpr: 3, cores: 2, memoryGb: 1, remembered: 0 as QualityTier })).toBe(0);
   });
 
+  /**
+   * THE PIXEL 8 CASE.
+   *
+   * Owner: "Explain why my phone has to run the lowest graphics. It's a
+   * relatively new Google Pixel 8. If I can't run high graphics then I'm
+   * guessing no one can?"
+   *
+   * They were right. `bootTier` ended `if (coarsePointer) return 1` with no
+   * second condition, so no phone or tablet on earth could reach Full on Auto,
+   * regardless of hardware — and the governor never identifies the GPU, so a
+   * 2023 flagship and a budget handset were the same "phone" to it.
+   *
+   * A coarse pointer now only costs a tier when the hardware ALSO looks modest.
+   * The frame-time governor still measures the real scene and takes it down
+   * within a couple of seconds if this guess was generous.
+   */
+  it('lets a flagship phone start at Full — a coarse pointer is not a verdict', () => {
+    const pixel8 = { dpr: 2.625, cores: 8, memoryGb: 8, coarsePointer: true };
+    expect(bootTier(pixel8)).toBe(0);
+    // ...and a tablet-shaped device likewise.
+    expect(bootTier({ dpr: 2, cores: 8, memoryGb: 8, coarsePointer: true })).toBe(0);
+  });
+
+  it('still starts a MODEST touch device one step down', () => {
+    expect(bootTier({ dpr: 2, cores: 4, memoryGb: 8, coarsePointer: true })).toBe(1);
+    expect(bootTier({ dpr: 2, cores: 8, memoryGb: 4, coarsePointer: true })).toBe(1);
+    // The dense-display rule is unchanged and still bites first.
+    expect(bootTier({ dpr: 3, cores: 6, memoryGb: 8, coarsePointer: true })).toBe(1);
+  });
+
   it('does not punish Safari for withholding deviceMemory', () => {
     // navigator.deviceMemory is Chrome-only, and Safari is where the reported
     // crashes happen — its absence must never itself cost a tier.
@@ -225,10 +255,16 @@ describe('the first demotion actually sheds the dominant cost', () => {
   });
 });
 
-describe('a phone is a phone whatever it claims about its CPU', () => {
-  it('never boots a touch device at full price', () => {
+describe('a DENSE-DISPLAY phone is protected whatever it claims about its CPU', () => {
+  it('never boots a dpr-3 touch device at full price', () => {
     // The reported crash device: a modern Android reporting 8 cores and dpr 3,
     // which sailed through the core-count test straight to tier 0.
+    //
+    // This used to read "never boots a TOUCH device at full price" and hold for
+    // every phone — which is what stopped the owner's Pixel 8 (dpr 2.625) from
+    // ever reaching Full. The protection is now scoped to the shape that
+    // actually earned it: a dense display, where this fill-rate-bound engine
+    // pays 2.25x the pixels of a dpr-2 phone.
     expect(bootTier({ dpr: 3, cores: 8, coarsePointer: true })).toBeGreaterThan(0);
   });
 
@@ -238,5 +274,49 @@ describe('a phone is a phone whatever it claims about its CPU', () => {
 
   it('still honours what the device already proved', () => {
     expect(bootTier({ dpr: 3, cores: 8, coarsePointer: true, remembered: 0 as QualityTier })).toBe(0);
+  });
+});
+
+
+/**
+ * A BAD PATCH MUST NOT BE A LIFE SENTENCE.
+ *
+ * Owner: "Explain why my phone has to run the lowest graphics." The answer had
+ * two halves. The boot guess was one (above); this is the other.
+ *
+ * `floor` gates promotion (`current > floor`). It was seeded from the BOOT
+ * GUESS rather than from measured failure, and then persisted — and `bootTier`
+ * returns the persisted value ahead of every heuristic, where it became both
+ * the tier AND the floor again. So a device that dipped once — including from a
+ * single lost WebGL context — had `current > floor` false forever, in every
+ * future session, on every course. Nothing lowered it but a dev-only hook.
+ *
+ * The floor is now a within-session anti-oscillation guard only.
+ */
+describe('a demoted device can climb back', () => {
+  const frames = (n: number, ms: number): number[] => Array.from({ length: n }, () => ms);
+
+  it('promotes once the frames genuinely recover', () => {
+    // Sitting at tier 2 with an OPEN floor — a fresh session after a bad one.
+    const good = frames(400, 10); // 100fps median, well under PROMOTE_MS
+    const d = nextTier(2 as QualityTier, good, 0 as QualityTier);
+    expect(d.changed, 'a recovered device is allowed back up').toBe(true);
+    expect(d.tier).toBe(1);
+  });
+
+  it('but not past a floor it earned THIS session', () => {
+    // Same evidence, floor raised by a measured demote: held, so a quiet hole
+    // cannot undo a failure that already happened.
+    expect(nextTier(2 as QualityTier, frames(400, 10), 2 as QualityTier).changed).toBe(false);
+  });
+
+  it('climbs all the way back given enough good play', () => {
+    let tier = 3 as QualityTier;
+    for (let step = 0; step < 5 && tier > 0; step++) {
+      const d = nextTier(tier, frames(400, 10), 0 as QualityTier);
+      if (!d.changed) break;
+      tier = d.tier;
+    }
+    expect(tier, 'a device that recovers reaches Full again').toBe(0);
   });
 });

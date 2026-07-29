@@ -139,3 +139,57 @@ test('choosing again after a round really does change the next round', async ({ 
     `beginner ${easyBand.toFixed(1)}px then expert ${hardBand.toFixed(1)}px`
   ).toBeGreaterThan(1.5);
 });
+
+/**
+ * THE CENTRE LINE HAS TO BE THERE ON THE FIRST SWING OF THE TURN.
+ *
+ * Owner: "middle line for the power meter perfect zone is still not there
+ * sometimes. Usually it is but I've had some shots where it doesn't show up.
+ * May depend on lie or position on the course."
+ *
+ * It did not depend on the lie. `arm()` rendered the zones BEFORE it set
+ * `display:block`, and `renderZones` measures `clientWidth` — which is 0 on a
+ * hidden element. The hairline was sized as a percentage derived from that
+ * width, so it collapsed to zero and the band painted solid green. Dragging to
+ * re-aim re-armed the meter while it was visible and the line came back, which
+ * is why it looked positional.
+ *
+ * So this arms the meter and reads the band WITHOUT aiming first — the exact
+ * path that failed. It fails on the old code.
+ */
+test('the perfect band keeps its centre line without aiming first', async ({ page }) => {
+  test.setTimeout(240_000);
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as { __startRound?: unknown }).__startRound);
+  await page.evaluate(() =>
+    (window as unknown as { __startRound: (o: unknown) => void }).__startRound({ name: 'Line', courseId: 'sablebay' })
+  );
+  await page.waitForFunction(() => !!(window as unknown as { __slice3d?: unknown }).__slice3d);
+  await page.evaluate(() => (window as unknown as { __slice3d: { skipIntro: () => void } }).__slice3d.skipIntro());
+  await page.waitForFunction(
+    () => (window as unknown as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 60_000 }
+  );
+
+  // NO aim drag, NO club cycle — straight to reading the band.
+  const bands = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('.zone.perfect')).map((z) => {
+      const el = z as HTMLElement;
+      return {
+        bg: getComputedStyle(el).backgroundImage,
+        size: getComputedStyle(el).backgroundSize,
+        w: el.getBoundingClientRect().width
+      };
+    })
+  );
+
+  expect(bands.length, 'the meter is armed and drawing its perfect bands').toBeGreaterThan(0);
+  for (const b of bands) {
+    expect(b.w, 'the band itself has width').toBeGreaterThan(2);
+    // The mark is its own layer: a 1px-wide background image over the fill.
+    // The old bug produced a single gradient whose stops all sat at one place.
+    expect(b.bg, `no centre mark layer in: ${b.bg}`).toContain('gradient');
+    expect(b.size, `centre mark is not 1px wide: ${b.size}`).toContain('1px');
+  }
+});

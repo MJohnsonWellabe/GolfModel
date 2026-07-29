@@ -1,6 +1,8 @@
 import { existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
+import { coursesFor } from '../../src/data/courseRoster';
 import { resolveTheme } from '../../src/core/rendering/Theme';
 import { CourseData } from '../../src/core/types';
 import wildwood from '../../src/data/courses/wildwood.json';
@@ -92,6 +94,55 @@ describe('per-course painted skies', () => {
     expect(styleOf('sablebay')).toBe(styleOf('v2/sablebay'));
     expect(styleOf('timberline')).toBe(styleOf('v2/timberline'));
     expect(styleOf('portjohnson')).toBe(styleOf('v2/portjohnson'));
+  });
+
+  /**
+   * THE DOME HAS TO END ON THE FOG COLOUR.
+   *
+   * The scene runs EXP2 fog at `scene.fogColor = theme.haze`, so everything
+   * distant dissolves into that colour. `scripts/convert-skies.mjs` therefore
+   * ramps each style's bottom bands onto its course's haze; if the two disagree
+   * a pale band sits above the horizon on every hole of that course.
+   *
+   * Which is exactly what shipped. The haze values were read from
+   * `src/data/courses/<id>.json`, but production runs `courseRebuilds`, which
+   * loads `src/data/courses/v2/<id>.json` — and Sable Bay, Timberline East and
+   * Port Johnson differ between the two. Port Johnson's dome ended 24/28/30
+   * above its own fog.
+   *
+   * So this resolves every course through `coursesFor` — THE SAME ROSTER THE
+   * GAME BUILDS FROM — rather than a hand-maintained import list, which is how
+   * the mistake got in. Reading the shipped PNG rather than the script's table
+   * also means a stale ramp (edited constant, never regenerated) fails here.
+   */
+  it('every painted dome ends on its own course fog colour', async () => {
+    const roster = coursesFor({ newCourses: true, courseRebuilds: true });
+    let checked = 0;
+    for (const [id, course] of Object.entries(roster)) {
+      const t = theme(course);
+      if (!t.skyStyle) continue;
+      const { data, info } = await sharp(join(SKY, `${t.skyStyle}_ramp.png`))
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      // Row 0 is the zenith, so the LAST row is the horizon — the texel that
+      // abuts the fog. (course3d loads the ramp with invertY:false to match the
+      // DynamicTexture it replaced, so row order here is dome order.)
+      const i = (info.height - 1) * info.width * info.channels;
+      const got = [data[i], data[i + 1], data[i + 2]];
+      const want = [(t.haze >> 16) & 255, (t.haze >> 8) & 255, t.haze & 255];
+      const hex = (c: number[]): string => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+      // Tolerance is for the palette quantizer, not for authoring slack: the
+      // three real defects were 13-30 per channel.
+      for (let k = 0; k < 3; k++) {
+        expect(
+          Math.abs(got[k] - want[k]),
+          `${id} (${t.skyStyle}): dome ends ${hex(got)} but fog is ${hex(want)}`
+        ).toBeLessThanOrEqual(2);
+      }
+      checked++;
+    }
+    // Guard the guard: an empty roster or a renamed field would pass vacuously.
+    expect(checked, 'no course resolved to a sky style').toBeGreaterThanOrEqual(8);
   });
 
   it('rejects a style id that could escape the sky folder', () => {

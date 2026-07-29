@@ -242,8 +242,11 @@ export class DomMeter {
     this.cursor = 0;
     this.dirSign = 1;
     this.markerEl.style.display = 'none';
-    this.renderZones();
+    // VISIBLE FIRST. renderZones() measures `clientWidth`, and a display:none
+    // element measures 0 — see the perfectBand note. The mark no longer depends
+    // on that number, but the outline width still does.
     this.el.style.display = 'block';
+    this.renderZones();
     this.cursorEl.style.left = '0%';
   }
 
@@ -416,19 +419,31 @@ export class DomMeter {
      * INTO the band's own background is the way to have both: always exactly
      * centred, always 1px however narrow the band gets, and no extra layer to
      * out-rank the fill.
+     *
+     * IT MUST NOT DEPEND ON A MEASUREMENT. The first version expressed the mark
+     * as a percentage of the band, derived from `barPx` — and `barPx` is read
+     * from `clientWidth` while the meter is STILL HIDDEN (arm() renders zones
+     * before it sets display:block, and hide() runs after every swing), so it
+     * was 0 on the first arm of every turn. That collapsed all four gradient
+     * stops onto one position and painted a solid green band: the owner's
+     * "middle line ... is still not there sometimes. Usually it is". It came
+     * back only if they dragged to re-aim, which is why it looked like it
+     * depended on the lie.
+     *
+     * So the mark is its own background LAYER sized in px. `mid` is a pure
+     * fraction of the band and needs no pixel width, so this is exactly 1px on
+     * every device, at every band width, and it survives a resize — which the
+     * old form did not, since renderZones never re-runs on one.
      */
     const perfectBand = (el: HTMLElement, center: number, half: number): void => {
       const g = bandGeometry(center, half);
       place(el, g.left, g.width);
-      const px = g.width * barPx;
-      // The hairline is placed off the band's own centre, which is only the
-      // target when the band has not been clipped by the bar's edge.
-      const mid = px > 0 ? ((center - g.left) / (g.width || 1)) * 100 : 50;
-      const halfLine = px > 0 ? (0.5 / px) * 100 : 0;
+      // The hairline sits at the band's own centre, which is the target unless
+      // the band has been clipped by the bar's edge.
+      const mid = ((center - g.left) / (g.width || 1)) * 100;
       el.style.background =
-        `linear-gradient(90deg, ${PERFECT} ${mid - halfLine}%, ${PERFECT_MARK} ${mid - halfLine}%, ` +
-        `${PERFECT_MARK} ${mid + halfLine}%, ${PERFECT} ${mid + halfLine}%)`;
-      el.style.boxShadow = `inset 0 0 0 ${outlinePx(px)}px rgba(255,255,255,0.92)`;
+        `linear-gradient(90deg, ${PERFECT_MARK}, ${PERFECT_MARK}) calc(${mid}% - 0.5px) 0 / 1px 100% no-repeat, ${PERFECT}`;
+      el.style.boxShadow = `inset 0 0 0 ${outlinePx(g.width * barPx)}px rgba(255,255,255,0.92)`;
     };
     const z = this.zoneEls;
     const pTarget = this.targetBar();

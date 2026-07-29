@@ -124,6 +124,7 @@ export function emit(course, id, dir = 'src/data/courses') {
         ...(h.gardens ? { gardens: h.gardens } : {}),
         ...(h.props ? { props: h.props } : {}),
         ...(h.sailboats ? { sailboats: h.sailboats } : {}),
+        ...(h.sailboatSpots ? { sailboatSpots: h.sailboatSpots } : {}),
         ...(h.recoveryZones ? { recoveryZones: h.recoveryZones } : {})
       };
     })

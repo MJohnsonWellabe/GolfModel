@@ -348,38 +348,41 @@ const CRASH_QUIET_DAYS = 7;
  * cheapest tier and the recorder running — every lever spent, and this still
  * outside the budget.
  *
- * So: on a device the governor MEASURED down to the floor, or one that has
- * actually lost a context this week, the recorder stands down. It is an
- * optional keepsake feature; the round is not optional. It comes back on its
- * own once the device climbs off the floor and a quiet week passes.
+ * So a device that has actually lost a context this week gets the recorder OFF
+ * BY DEFAULT — but this ADVISES, it does not forbid.
  *
- * A floor the player PINNED does not count. Someone who chooses Performance may
- * simply want the battery back on hardware that copes fine, and the governor's
- * own rule is that "being overruled by the game after asking for a setting is
- * the thing a setting is supposed to prevent". A measured floor is the device
- * reporting a fact; a pinned one is the player stating a preference.
+ * It used to forbid, and it also fired on `!pinned && floor >= 3`. Both were
+ * wrong. The doc said it "comes back on its own once the device climbs off the
+ * floor", and the floor could never fall: it was seeded from the boot guess and
+ * persisted across sessions, so on Auto this was permanent. The Settings
+ * checkbox rendered `disabled`, the 🎥 button refused, and the only escape was
+ * to pin Performance — the SAME tier — because a pinned floor was read as a
+ * preference. Nothing said so anywhere. Owner: "Don't turn clip recording off
+ * or at least let people turn it back on."
+ *
+ * Now: the game may start it off and say why, and the player may always
+ * override. An explicit opt-in wins, on any device, at any tier.
  */
-function captureBlocked(): boolean {
-  const q = qualityStatus();
-  if (!q.pinned && q.floor >= 3) return true;
+function captureRisky(): boolean {
   const last = deviceSettings.crashes[0];
   return !!last && Date.now() - last.at < CRASH_QUIET_DAYS * 86_400_000;
 }
-/** Why the recorder is off, in the player's terms. Never a silent no-op — a
- *  button that does nothing is indistinguishable from a broken one. */
-const CAPTURE_BLOCKED_MSG =
-  'Clip recording is paused on this device — recording costs graphics memory, and this device has run out of it. It comes back once graphics are steady again.';
+/** Shown when the player switches recording on against advice — never as a
+ *  refusal. A button that does nothing is indistinguishable from a broken one,
+ *  and a button that scolds and then obeys is better than one that only scolds. */
+const CAPTURE_RISKY_MSG =
+  'Clip recording ON — heads up, this device ran out of graphics memory recently and recording costs more of it.';
 if (captureBtn) {
   captureBtn.addEventListener('pointerdown', () => {
-    if (captureBlocked()) {
-      showMsg(CAPTURE_BLOCKED_MSG, 4200);
-      return;
-    }
     if (!deviceSettings.clipCapture) {
       updateDeviceSettings({ clipCapture: true });
       shotCapture.start();
       captureBtn.textContent = '🎥 REC';
-      showMsg('Clip recording ON — tap 🎥 again to save your last shot', 2600);
+      // Warn, then obey — the tap always turns it on.
+      showMsg(
+        captureRisky() ? CAPTURE_RISKY_MSG : 'Clip recording ON — tap 🎥 again to save your last shot',
+        captureRisky() ? 4200 : 2600
+      );
       return;
     }
     void onSaveShotClip();
@@ -1681,8 +1684,11 @@ class HoleScene {
     // The drag swing (`dragSwing`) resolves against the SAME context, so both
     // control schemes share one definition of a perfect strike.
     this.swingCtx = swingCtx;
-    meter.arm(swingCtx);
+    // Show it BEFORE arming: arm() lays the zones out and measures the bar, and
+    // a display:none bar measures 0 (see meter3d's perfectBand note — that is
+    // the bug that ate the centre line).
     meterEl.style.display = 'block';
+    meter.arm(swingCtx);
     meterEl.classList.toggle('onFire', fire.isOnFire);
     // TRACED SWING (`dragSwing`): the pad IS the swing surface, and it marks
     // the point on the route this club is asking for — the same `targetBar` the
@@ -3709,8 +3715,9 @@ class HoleScene {
       startAmbience();
       if (this.state.phase !== 'aiming') return;
       promptEl.textContent = '';
-      if (!meter.isArmed) this.armMeter();
+      // Same ordering rule as armMeter's: visible first, then armed.
       meterEl.style.display = 'block';
+      if (!meter.isArmed) this.armMeter();
       // Defer the shot-capture recorder's segment swap only across the brief
       // mid-swing tap sequence (a couple seconds) — NOT the whole addressing/
       // aiming window before it. Pausing from armMeter() onward let rotation
@@ -3870,15 +3877,14 @@ class HoleScene {
     // "save my last shot" always has the recent seconds ready — but ONLY when
     // the player has opted in (continuous MediaRecorder encode is real
     // per-frame work; see the capture button wiring).
-    // …and NOT on a device that has already shown it has no headroom for it
-    // (`captureBlocked`). The setting is left alone: this is the device
-    // standing down, not the player changing their mind, so it resumes by
-    // itself when the device recovers.
-    const capBlocked = captureBlocked();
-    if (deviceSettings.clipCapture && !capBlocked) shotCapture.start();
+    // The opt-in is honoured on EVERY device. This used to stand the recorder
+    // down on hardware the governor had measured to its floor, which read as
+    // "the game turned my clips off and won't let me turn them back on"
+    // (owner). Advice belongs in Settings; the switch belongs to the player.
+    if (deviceSettings.clipCapture) shotCapture.start();
     if (captureBtn) {
       captureBtn.style.display = shotCapture.supported ? 'block' : 'none';
-      captureBtn.textContent = capBlocked ? '🎥 OFF' : deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP';
+      captureBtn.textContent = deviceSettings.clipCapture ? '🎥 REC' : '🎥 CLIP';
     }
 
     meter.onComplete = (result) => this.executeShot(result);
@@ -5740,9 +5746,13 @@ const PROFILE_TAB_LABELS: Record<ProfileTab, string> = {
 /** Settings → Graphics. 'Auto' is the default and the one anybody should need;
  *  the pinned tiers exist for a player who would rather choose than be
  *  measured, and for diagnosing a report of lag on a specific device. */
+// All four tiers, plus Auto. 'High' was missing — which was odd, because until
+// this pass Auto put EVERY phone on exactly that tier and offered no way to ask
+// for it by name.
 const GRAPHICS_CHOICES: ReadonlyArray<[DeviceSettings['graphics'], string]> = [
   ['auto', 'Auto'],
   [0, 'Full'],
+  [1, 'High'],
   [2, 'Balanced'],
   [3, 'Performance']
 ];
@@ -5967,11 +5977,14 @@ function renderProfile(tab?: ProfileTab): void {
             `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
             (shotCapture.supported
               ? `<label class="setRow"><span>Record shot clips</span>` +
-                `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''}` +
-                `${captureBlocked() ? ' disabled' : ''} /></label>` +
-                // The checkbox keeps the player's answer; this says why the
-                // device is overruling it, so a dead toggle never reads as a bug.
-                (captureBlocked() ? `<div class="setNote">${CAPTURE_BLOCKED_MSG}</div>` : '')
+                `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''} /></label>` +
+                // NEVER `disabled`. The note warns; the checkbox still works.
+                // A greyed-out toggle with no way to reach it is the complaint
+                // this row exists to answer.
+                (captureRisky()
+                  ? `<div class="setNote">This device ran out of graphics memory recently. ` +
+                    `Recording costs more of it — switch it on if you want it anyway.</div>`
+                  : '')
               : '') +
             // Graphics: Auto measures this device and picks a budget for it; the
             // rest pin one. Whatever is showing, the readout underneath says what
@@ -6078,9 +6091,10 @@ function renderProfile(tab?: ProfileTab): void {
     updateDeviceSettings({ clipCapture: on });
     // Take effect immediately: start the rolling recorder if a hole is live,
     // stop + release the stream outright when switched off.
-    if (on && current && !captureBlocked()) shotCapture.start();
+    if (on && current) shotCapture.start();
     else if (!on) shotCapture.stop();
-    if (captureBtn) captureBtn.textContent = captureBlocked() ? '🎥 OFF' : on ? '🎥 REC' : '🎥 CLIP';
+    if (captureBtn) captureBtn.textContent = on ? '🎥 REC' : '🎥 CLIP';
+    if (on && captureRisky()) showMsg(CAPTURE_RISKY_MSG, 4200);
   });
   // Destructive: fire on a deliberate tap (down+up on the button), not on
   // finger-down — a scroll flick that starts on this button used to open the

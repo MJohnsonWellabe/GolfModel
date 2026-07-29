@@ -270,11 +270,19 @@ test('a second context loss cannot erase the first one’s numbers', async ({ pa
  * its context with the governor already pinned to its cheapest tier and this
  * running. Every lever spent, and this still outside the budget.
  *
- * So a device that has actually lost a context this week does not record. The
- * setting is untouched — this is the device standing down, not the player
- * changing their mind — and the button says so rather than going quietly dead.
+ * So a device that has lost a context this week is WARNED — and that is all.
+ *
+ * It used to stand the recorder down outright, and the Settings checkbox went
+ * `disabled` with it. The same predicate also fired on a measured quality
+ * floor, which could never fall (it was seeded from the boot guess and
+ * persisted), so on Auto it was permanent and the only escape — pinning
+ * Performance, the same tier — was written down nowhere. Owner: "Don't turn
+ * clip recording off or at least let people turn it back on."
+ *
+ * The player's setting is now honoured on every device at every tier. The game
+ * gets to say the device is a poor bet; it does not get to overrule the answer.
  */
-test('a device that has crashed does not run the canvas recorder', async ({ page }) => {
+test('a device that has crashed warns about recording but still obeys', async ({ page }) => {
   test.setTimeout(300_000);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.addInitScript(() => {
@@ -319,15 +327,23 @@ test('a device that has crashed does not run the canvas recorder', async ({ page
   await page.evaluate(() => (window as never as { __startRound: (o: unknown) => void }).__startRound({ name: 'Rec' }));
   await page.waitForFunction(() => !!(window as never as { __slice3d?: unknown }).__slice3d, undefined, { timeout: 120_000 });
 
-  // The button says what happened instead of pretending to record.
-  await expect(page.locator('#captureBtn')).toHaveText('🎥 OFF', { timeout: 30_000 });
-  // And tapping it explains, rather than doing nothing.
-  await page.locator('#captureBtn').dispatchEvent('pointerdown');
-  await expect(page.locator('#msg')).toContainText(/paused/i, { timeout: 15_000 });
+  // The opt-in is honoured: the recorder is RUNNING, not stood down.
+  await expect(page.locator('#captureBtn')).toHaveText('🎥 REC', { timeout: 30_000 });
 
-  // The player's preference is preserved — it comes back when the device does.
+  // The player's preference is untouched.
   const kept = await page.evaluate(
     () => JSON.parse(localStorage.getItem('johnsons-golf-device-settings-v1') || '{}').clipCapture
   );
-  expect(kept, 'the device stood down; the player did not opt out').toBe(true);
+  expect(kept, 'the player opted in and stayed opted in').toBe(true);
+
+  // ...and Settings warns without taking the switch away. A disabled checkbox
+  // with no way to reach it is the exact complaint this behaviour answers.
+  await page.evaluate(() => document.getElementById('landingProfile')?.click());
+  await page.evaluate(() =>
+    document.querySelector<HTMLElement>('.profTab[data-tab="settings"]')?.dispatchEvent(new Event('pointerdown'))
+  );
+  const box = page.locator('#setClipCapture');
+  await expect(box).toBeVisible({ timeout: 15_000 });
+  await expect(box, 'the toggle is never disabled').toBeEnabled();
+  await expect(page.locator('.setNote').filter({ hasText: /graphics memory/i }).first()).toBeVisible();
 });

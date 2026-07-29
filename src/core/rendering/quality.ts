@@ -265,8 +265,12 @@ export function bootTier(opts: {
    *  signal that reliably says "phone" regardless of what the CPU reports. */
   coarsePointer?: boolean;
 }): QualityTier {
-  // A device that has already proved what it can take gets that answer back —
-  // this is the whole point of persisting it. Never boot better than earned.
+  // A device that has already measured itself starts where it left off, so its
+  // first seconds are not a rerun of the same jank. This is a STARTING HINT
+  // ONLY — the governor's floor no longer inherits it, so a device that was
+  // having a bad day (a background app, a hot phone, one lost context) can earn
+  // its way back up. It used to be installed as a permanent ceiling, which is
+  // why a device that dipped once never recovered in any later session.
   if (opts.remembered !== undefined) return opts.remembered;
   const cores = opts.cores ?? 8;
   const mem = opts.memoryGb ?? 8;
@@ -276,11 +280,24 @@ export function bootTier(opts: {
   // A dense-display phone (dpr 3) on a modest core count is the common iPhone
   // shape in the wild: start it one step down and let it climb.
   if (opts.dpr >= 3 && cores <= 6) return 1;
-  // ANY touch-first device starts one step down. The core-count test above
-  // misses the phones that matter most: a modern Android reports 8 cores and
-  // dpr 3 and sailed straight through to tier 0 — full price on the hardware
-  // least able to pay it, which is how the reported crash device booted. A
-  // phone that can hold tier 0 climbs back within seconds and loses nothing.
-  if (opts.coarsePointer) return 1;
+  // A touch device that ALSO looks modest starts one step down. This used to be
+  // `if (coarsePointer) return 1` with no second condition, and that one line
+  // meant no phone or tablet on earth could ever run Full on Auto — the owner
+  // worked it out from their own Pixel 8 and asked "if I can't run high
+  // graphics then I'm guessing no one can?". They were right.
+  //
+  // A coarse pointer says "phone", not "slow phone". A 2023 flagship reports 8
+  // cores and 8 GB and holds tier 0 comfortably; a budget handset reports 4 and
+  // 4 and does not. Judge the hardware, and let the frame-time governor — which
+  // measures the actual scene rather than guessing from a media query — take it
+  // down within a couple of seconds if the guess was generous.
+  //
+  // dpr >= 3 stays a tier on its own for a touch device, whatever its core
+  // count. That is not caution, it is the one shape with a REPORTED crash
+  // behind it (a modern Android at dpr 3 / 8 cores), and it is the shape this
+  // engine is least able to afford: the slow courses are fill-rate bound, and
+  // dpr 3 is 2.25x the pixels of dpr 2 at the same physical size. The owner's
+  // Pixel 8 is dpr 2.625, so it clears this and starts at Full.
+  if (opts.coarsePointer && (cores <= 4 || mem <= 4 || opts.dpr >= 3)) return 1;
   return 0;
 }

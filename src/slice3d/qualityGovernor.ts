@@ -132,7 +132,14 @@ export function startQualityGovernor(
       coarsePointer:
         typeof matchMedia === 'function' ? matchMedia('(pointer: coarse)').matches : (nav.maxTouchPoints ?? 0) > 0
     });
-    state.floor = state.tier;
+    // THE FLOOR STARTS OPEN. It used to be seeded from `state.tier` — a boot
+    // GUESS, not a measured failure — which pinned the device to that ceiling
+    // before a single frame had been drawn. Combined with `bootTier` returning
+    // the remembered value first, one bad session became a permanent cap in
+    // every future session: promotion needs `current > floor`, so `floor` at the
+    // boot tier meant the device could never climb. Only an EARNED demote raises
+    // it now (see sampleFrame and demoteQuality).
+    state.floor = 0;
   }
   onApply(qualityProfile(state.tier));
 }
@@ -168,14 +175,20 @@ export function sampleFrame(deltaMs: number): void {
   if (!decision.changed) return;
   state.tier = decision.tier;
   state.lastReason = decision.reason;
-  // The floor only ever sinks: a device that failed here must not be sent back
-  // by a quiet stretch on a cheap hole.
+  // Within a SESSION the floor only ever sinks: a device that failed here must
+  // not be sent back by a quiet stretch on a cheap hole. Across sessions it
+  // resets (see setQualityApplier), so a bad afternoon is not a life sentence.
   if (decision.tier > state.floor) state.floor = decision.tier;
   // Start the evidence over — the samples that justified the move describe the
   // OLD budget and would immediately justify it again.
   state.samples.length = 0;
   state.sinceDecision = 0;
-  remember(state.floor);
+  // Remember WHERE IT SETTLED, not the worst it ever saw. This used to persist
+  // `floor`, which — now that the floor is a per-session guard rather than a
+  // permanent cap — would have written 0 back on the first promotion and thrown
+  // the memory away. The settled tier is the useful hint: next boot starts
+  // there instead of re-running the same jank, and climbs from there if it can.
+  remember(state.tier);
   state.onApply?.(qualityProfile(state.tier));
 }
 
@@ -193,16 +206,22 @@ export function resetQualitySamples(): void {
  * Step down a tier on hard evidence rather than on frame times — a lost WebGL
  * context is the GPU telling us it ran out of memory, which is a stronger
  * signal than any median and must not wait for the 90-frame window. Also sinks
- * the floor, so the device never climbs back to the budget that killed it.
+ * the session floor, so the device does not climb back within this session to
+ * the budget that killed it — but the next session starts fresh, because one
+ * lost context should not cost a tier forever.
  */
 export function demoteQuality(reason: string): void {
   if (state.pinned || state.tier >= 3) return;
   state.tier = (state.tier + 1) as QualityTier;
+  // An earned demote, so it raises the session floor — unlike the boot guess,
+  // which no longer does.
   state.floor = state.tier;
   state.lastReason = reason;
   state.samples.length = 0;
   state.sinceDecision = 0;
-  remember(state.floor);
+  // Same rule as sampleFrame: remember where it settled, which after a demote
+  // IS the floor — but say it in the terms the boot path reads it in.
+  remember(state.tier);
   state.onApply?.(qualityProfile(state.tier));
 }
 

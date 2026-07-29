@@ -1501,14 +1501,51 @@ export function buildCourse(
     // tiles across its padded width, so the apron needs that frequency over its
     // own 16000x9000. A clone rather than a second bake: 128 squared is nothing,
     // and uScale lives on the texture, not the material.
-    const apronDetail = detailTex.clone();
-    if (apronDetail) {
-      apronDetail.uScale = (16000 * 110) / (w + pad * 2);
-      apronDetail.vScale = (16000 * 110) / (h + pad * 2);
-      apronMat.detailMap.texture = apronDetail;
-      apronMat.detailMap.isEnabled = true;
-      apronMat.detailMap.diffuseBlendLevel = 0.24;
-    }
+    //
+    // NOT `detailTex.clone()`. In Babylon 9 `DynamicTexture.clone()` allocates a
+    // new texture and copies `hasAlpha`/`level`/`wrapU`/`wrapV` and NOTHING ELSE
+    // — it never draws the source canvas (dynamicTexture.pure.js). The clone
+    // sampled (0,0,0,0), and the detail blend is
+    // `base * 2 * mix(0.5, detail.r, 0.24)`, so a zero detail is a flat x0.76 on
+    // diffuse. The apron rendered at exposure 0.822 instead of 1.003 — ~18%
+    // DARKER than the ground bake's skirt, which fades to exactly this colour at
+    // full exposure — and carried no grain at all. A dark, flat, untextured
+    // plane meeting the turf on a dead-level line is what the owner reported as
+    // Maple Vale's "gross brown glass pond"; every peaks course had it.
+    //
+    // So: paint the same 128px canvas again. It is still in scope and costs
+    // nothing (128 squared), and it restores the grain AND the exposure at once.
+    const apronDetail = new DynamicTexture('turfDetailApron', { width: 128, height: 128 }, scene, true);
+    apronDetail.getContext().drawImage(detailCanvas, 0, 0);
+    apronDetail.update(false);
+    apronDetail.wrapU = Texture.WRAP_ADDRESSMODE;
+    apronDetail.wrapV = Texture.WRAP_ADDRESSMODE;
+    // Same WORLD tile size as underfoot: the ground runs 110 tiles across its
+    // padded width, so the apron needs that frequency over its own 16000.
+    apronDetail.uScale = (16000 * 110) / (w + pad * 2);
+    apronDetail.vScale = (16000 * 110) / (h + pad * 2);
+    apronMat.detailMap.texture = apronDetail;
+    apronMat.detailMap.isEnabled = true;
+    apronMat.detailMap.diffuseBlendLevel = 0.24;
+    // ...AND THE SUN RESPONSE. Matching colour and grain still leaves a
+    // perfectly uniform lambert sheet, because the ground carries a normal map
+    // (groundMat.bumpTexture) and the apron carried none. Share the very same
+    // texture instance — one upload, and it is disposed with the scene like any
+    // other scene texture — at the apron's own world-matched frequency. The
+    // bump's uv scale lives on the texture, so a shared instance cannot take a
+    // second scale; a light clone of the coded normal is used when the course
+    // has no purchased turf art, and the purchased one is re-loaded by key.
+    const apronNormal = theme.turfNormalKey
+      ? new Texture(theme.turfNormalKey, scene)
+      : makeTurfNormalTexture(scene);
+    apronNormal.wrapU = Texture.WRAP_ADDRESSMODE;
+    apronNormal.wrapV = Texture.WRAP_ADDRESSMODE;
+    apronNormal.uScale = (16000 * 90) / (w + pad * 2);
+    apronNormal.vScale = (16000 * 90) / (h + pad * 2);
+    // Softer than the ground's 0.55: this plane is seen at grazing angles from
+    // hundreds of units away, where a full-strength normal reads as noise.
+    apronNormal.level = 0.35;
+    apronMat.bumpTexture = apronNormal;
     apron.material = apronMat;
     apron.applyFog = true;
     apron.isPickable = false;
@@ -1598,7 +1635,14 @@ export function buildCourse(
         const clearOfGreen = (px: number, py: number): boolean =>
           Math.hypot(px - hole.green.cx, py - hole.green.cy) >= greenKeepout &&
           (!hole.green2 || Math.hypot(px - hole.green2.cx, py - hole.green2.cy) >= greenKeepout);
-        if (waterBoxes.length) {
+        // An authored spot wins outright: the hole placed this boat deliberately
+        // (see HoleData.sailboatSpots), and second-guessing it would undo the
+        // framing it exists for.
+        const spot = hole.sailboatSpots?.[i];
+        if (spot) {
+          bx = spot[0];
+          by = spot[1];
+        } else if (waterBoxes.length) {
           for (let a = 0; a < 48; a++) {
             const box = waterBoxes[(i + a) % waterBoxes.length];
             const cx = box.minX + hash2(i * 7 + a * 3 + 1, a * 5 + 2) * (box.maxX - box.minX);

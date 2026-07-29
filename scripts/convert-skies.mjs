@@ -131,6 +131,14 @@ const STYLES = [
     // The fog colour of the course that uses this sky (its theme.haze). The
     // bottom bands ramp into it so the dome and the EXP2 fog meet without a
     // seam — see HAZE_BANDS.
+    //
+    // READ IT FROM THE JSON THE GAME ACTUALLY LOADS. Under `courseRebuilds`
+    // (which production runs) Sable Bay, Timberline East and Port Johnson come
+    // from src/data/courses/V2/*.json, not the v1 file of the same name — and
+    // the two disagree. All three were first authored from the v1 haze and shipped
+    // a pale band above the horizon; Port Johnson's was +24/+28/+30 off.
+    // `tests/unit/skyAssets.test.ts` now resolves every course through the real
+    // roster and fails if a ramp's bottom row is not its course's haze.
     haze: '#f0d9c0',
     src: 'table_mountain_1_puresky',
     note: 'Red Hollow — storm light over the canyon: deep bruised blue with torn, stacked cloud and a hot sunset horizon. (wasteland_clouds_puresky was the first pick on its name alone and measured as a plain clear blue desert sky — no storm in it.)',
@@ -143,7 +151,7 @@ const STYLES = [
     // The fog colour of the course that uses this sky (its theme.haze). The
     // bottom bands ramp into it so the dome and the EXP2 fog meet without a
     // seam — see HAZE_BANDS.
-    haze: '#d3e7f2',
+    haze: '#e6ecec',
     src: 'kloofendal_misty_morning_puresky',
     // Captured in-game and it was a WHITE SHEET — the misty source is already
     // near the top of the range, so a 1.05 lift pushed the mid bands
@@ -161,7 +169,7 @@ const STYLES = [
     // The fog colour of the course that uses this sky (its theme.haze). The
     // bottom bands ramp into it so the dome and the EXP2 fog meet without a
     // seam — see HAZE_BANDS.
-    haze: '#dfeaf0',
+    haze: '#c7ced2',
     src: 'aristea_wreck_puresky',
     note: 'Port Johnson — a blown grey coastal midday. Deliberately the least blue sky on the roster: the links theme is already grey-blue (#7d8fa0) and the wreck source measures almost neutral, which is exactly the weather this course is about.',
     bands: 14, sat: 1.3, lift: 1.02,
@@ -173,7 +181,7 @@ const STYLES = [
     // The fog colour of the course that uses this sky (its theme.haze). The
     // bottom bands ramp into it so the dome and the EXP2 fog meet without a
     // seam — see HAZE_BANDS.
-    haze: '#dcecf5',
+    haze: '#cfe0e6',
     src: 'drakensberg_solitary_mountain_puresky',
     note: 'Timberline East — alpine clarity: deep zenith, very little cloud.',
     bands: 16, sat: 1.16, lift: 1.0,

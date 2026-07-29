@@ -436,6 +436,24 @@ export interface HoleData {
   /** Number of decorative sailboats to scatter on the sea behind the green
    *  (sea-backdrop holes only, e.g. Sable Bay's island green). No collision. */
   sailboats?: number;
+  /**
+   * Where those boats go, in world coordinates — an AUTHORED composition
+   * instead of a sampled one.
+   *
+   * Without it `course3d` rejection-samples the hole's water polygons, which
+   * puts each boat somewhere legal but nowhere in particular. On Sable Bay #2
+   * that landed them at x 131 / 700 / 628 against a tee-camera window of
+   * roughly x 263-673 — one off-frame left, one off-frame right, one clinging
+   * to the edge (owner: "move the sailboats to the left so they're in view
+   * behind the green from the tee"). Framing is a composition decision, so it
+   * belongs in the hole, not in a hash.
+   *
+   * Entries are used in order and any beyond `sailboats` are ignored; any
+   * shortfall falls back to sampling, so a partial list still works. Positions
+   * are used as authored — they are art, and the renderer does not second-guess
+   * them.
+   */
+  sailboatSpots?: Array<[number, number]>;
   /** Decorative static props: model key under assets/models/props/, world
    *  position, yaw, and the world-unit LENGTH the model's long axis scales
    *  to (e.g. Sable Bay h2's wooden footbridge out to the island green).

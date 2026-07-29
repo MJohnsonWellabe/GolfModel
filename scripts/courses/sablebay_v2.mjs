@@ -16,7 +16,7 @@
 //      shoreline rock, bare-trunk pines standing in the sand, ships on the sea.
 //      Placement HOOKS for future coastal props (lighthouse / pier) are marked.
 // Emitted to src/data/courses/v2/sablebay.json, dev-only behind `courseRebuilds`.
-import { blob } from '../courselib.mjs';
+import { blob, stream } from '../courselib.mjs';
 
 // Collidable coastal boulder helper (seawall stone). Emitted as a decorative
 // `{key,x,y,h}` landform: the landform renderer reads x/y/h, and PhysicsEngine
@@ -258,9 +258,25 @@ const sablebayV2 = {
       ],
       aiTargets: [],
       recoveryZones: [[[402, 724], [546, 724], [546, 792], [402, 792]]],
-      // Three boats — ALL forced behind the green (see the behind-green water
-      // columns above), sitting on open water, never in front of the flag.
+      // Three boats — ALL behind the green, sitting on open water, never in
+      // front of the flag.
       sailboats: 3,
+      // AUTHORED, not sampled. Rejection-sampling the three behind-green water
+      // columns put them at x 131 / 700 / 628, and the tee camera's window at
+      // that depth is only about x 263-673 (a 1.05-rad VERTICAL fov on a
+      // portrait phone is ~36 degrees across): one off-frame left, one
+      // off-frame right, one on the edge. Owner: "move the sailboats to the
+      // left so they're in view behind the green from the tee."
+      //
+      // So: left-of-centre and staggered in depth, so they read as a small
+      // fleet standing off the point rather than a row. All three are >= 174px
+      // from the green centre (474,424), which is the ship-sized keep-out
+      // course3d enforces so a mast never sits on the putting surface.
+      sailboatSpots: [
+        [330, 190],
+        [455, 140],
+        [560, 225]
+      ],
       // THE STONE CAUSEWAY — a tight, staggered line of shore stones laid down the
       // walkway strip out to the island (owner: rebuild the walkway as a real
       // stone path, not the flat brown mulch strip). A dense border of LITTLE
@@ -325,9 +341,31 @@ const sablebayV2 = {
         // THE TIDAL CHANNEL — moved OUT to a ~250-yard carry (owner): its near
         // edge sits ≈470-500px (≈235-250yd, PX_PER_YARD=2) up the line from the
         // tee, cutting across the corridor at the F1→F2 turn. Now a real decision
-        // — a big drive carries it, else lay up short in F1 and cross next. The
-        // right flank (x>810) stays dry sand, so the hole is always completable.
+        // — a big drive carries it, else lay up short in F1 and cross next.
+        //
+        // The old promise that "the right flank (x>810) stays dry sand" is gone:
+        // the creek below now runs up that flank. The hole stays completable by
+        // a LONGER route — the sand east of the creek (x>860) runs unbroken to
+        // the green's beach, through the dune spine and the treeline, which
+        // costs a stroke or two rather than the hole.
         { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[420, 1160], [560, 1150], [700, 1120], [800, 1080], [810, 1030], [720, 1040], [600, 1085], [480, 1120], [400, 1140]] },
+        // THE CREEK (owner: "make the little creek that's at the beginning of
+        // the fairway continue up the right side before looping back across
+        // into the Bay inlet that's at the end of the fairway").
+        //
+        // It leaves the tidal channel's right tip, runs the length of F2 in the
+        // gap between the fairway's right shoulder and the treeline — measured
+        // at 53-80px the whole way, so a 32px creek clears both — and then bends
+        // west to meet the cove's east edge at (806,648). That last bend is the
+        // point of the whole thing: cove + creek together close the corridor, so
+        // the approach to the point green is a CARRY rather than a walk up the
+        // dry right.
+        //
+        // It is a creek, not a second channel: narrow enough to read as running
+        // water against the sand, wide enough that clipping it is a penalty.
+        // No hand-authored hollow — buildHeightField carves a bed under any
+        // water that would otherwise be buried, and keeps the cut off the green.
+        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: stream([[812, 1030], [826, 985], [836, 930], [843, 875], [844, 820], [840, 762], [836, 714], [826, 678], [808, 652]], 32, 771) },
         // THE OPEN BAY down the west, and the CHANNEL the reach carries to the
         // point green (a cove biting in front of the green).
         { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[40, 720], [244, 736], [312, 872], [292, 1060], [212, 1200], [40, 1220]] },
