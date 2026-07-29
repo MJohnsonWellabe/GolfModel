@@ -116,11 +116,10 @@ test('menus · locker room, feats, seasons', async ({ page }) => {
   await page.waitForFunction(() => !!(window as unknown as { __startRound?: unknown }).__startRound);
   if (await open('landingProfile')) {
     await shot(page, 'menu-settings');
-    // The feats live under the Progress tab. Select it by data-tab, not by the
-    // label text — the labels carry emoji and are a display concern.
-    await page.evaluate(() =>
-      document.querySelector<HTMLElement>('.profTab[data-tab="progress"]')?.click()
-    );
+    // The feats live under the Progress tab. Select it by data-tab (the labels
+    // carry emoji), and dispatch POINTERDOWN — that is what the tab binds, so a
+    // .click() silently does nothing and the capture comes back as Settings.
+    await page.locator('.profTab[data-tab="progress"]').dispatchEvent('pointerdown');
     await page.waitForTimeout(900);
     await shot(page, 'menu-feats');
   }
