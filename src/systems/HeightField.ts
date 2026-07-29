@@ -1,4 +1,4 @@
-import { HoleData } from '../core/types';
+import { HoleData, Polygon } from '../core/types';
 import { pointInGreens } from '../utils/Geometry';
 import { hash2 } from './treeField';
 
@@ -36,7 +36,51 @@ export interface ElevationPoint {
   skirt?: number;
 }
 
+/**
+ * A polygon the finished terrain is CUT DOWN to — never raised. Water uses it:
+ * a pond or creek renders as a flat plane at `surface`, so any ground inside
+ * its outline that stands at or above that plane simply BURIES the water.
+ *
+ * This is a real, shipped defect, not a hypothetical: Maple Vale h3 authors a
+ * creek across y917–1033 and then a `+8` dome at (510,1000) r300 directly on
+ * top of it, so the creek is eight units under a hill and invisible. Every
+ * generated daily hole that pairs water with elevation would hit the same
+ * thing, which is why the fix lives in the terrain compiler rather than in one
+ * course file.
+ *
+ * A cut is applied AFTER every dome/plateau has been summed, because the
+ * heightfield is additive — you cannot express "at most this high" with a
+ * negative bump, only "this much lower", and how much lower depends on
+ * whatever else happens to overlap. `min()` after the sum is exact, is
+ * idempotent, and can never dig a hole deeper than asked no matter how many
+ * points overlap.
+ */
+export interface TerrainCut {
+  /** World-px outline the cut applies inside. */
+  polygon: Polygon;
+  /** The water plane. A cut is SKIPPED entirely unless some ground inside the
+   *  outline reaches this height — water lying on ground that is already below
+   *  its surface is not buried, and re-bedding it would move terrain (and the
+   *  shorelines of every shipped coastal hole) for no reason. */
+  surface: number;
+  /** Height the bed is pulled down to where the cut bites. */
+  floor: number;
+  /** Shore ramp (world px) outside the outline over which the cut fades back
+   *  to the natural ground, so a carved channel has banks rather than walls. */
+  blend: number;
+}
+
 const CELL = 8; // grid resolution, world px — smooth macro terrain only
+
+/** How far below its own surface a buried water body's bed is carved, world
+ *  units (≈1.5 ft each). Deep enough to read as a channel from the tee camera,
+ *  shallow enough that the banks stay walkable rough rather than a trench. */
+export const WATER_BED_DEPTH = 1.6;
+
+/** Shore ramp width (world px) for a carved water bed. 1.6 units over 30 px is
+ *  a gentle bank — the same order as a bunker dish's rim, and well inside the
+ *  fairway-continuity step budget (≤3 per 8 px) the terrain gates enforce. */
+export const WATER_SHORE_BLEND = 30;
 
 /** Keep-clear buffer (world px) beyond the green/fringe a bunker's dish rim
  *  must respect — a greenside trap is common, and its pothole must never
@@ -106,8 +150,13 @@ export class HeightField {
   private grid: Float32Array;
   private gw: number;
   private gh: number;
+  /** True when nothing ever wrote a non-zero height — a field that is flat
+   *  everywhere is indistinguishable from having no field at all, and
+   *  `buildHeightField` returns null for it so the flat-engine regression
+   *  gate keeps its meaning (see the note there). */
+  private everBent = false;
 
-  constructor(points: ElevationPoint[], width: number, height: number) {
+  constructor(points: ElevationPoint[], width: number, height: number, cuts: TerrainCut[] = []) {
     this.gw = Math.ceil(width / CELL) + 1;
     this.gh = Math.ceil(height / CELL) + 1;
     this.grid = new Float32Array(this.gw * this.gh);
@@ -154,6 +203,125 @@ export class HeightField {
         }
       }
     }
+    this.everBent = points.length > 0;
+    for (const cut of cuts) this.applyCut(cut);
+  }
+
+  /** Nothing in this field departs from the zero plane. */
+  get flat(): boolean {
+    return !this.everBent;
+  }
+
+  /**
+   * Cut the summed grid down inside one outline (see `TerrainCut`).
+   *
+   * Cost matters here — `buildHeightField` runs once per SIMULATED ROUND, and
+   * the daily-hole gate plays every candidate 140 times. So this is O(cells),
+   * not O(cells × edges): a scanline fill marks the interior, then a two-pass
+   * chamfer distance transform grows the shore ramp outward. Rejected: calling
+   * `distToPolygon` per cell (correct, but ~40× the work and it showed up as
+   * whole seconds on the daily search); and a per-cell point-in-polygon test
+   * (same problem, one order of magnitude smaller).
+   */
+  private applyCut(cut: TerrainCut): void {
+    const poly = cut.polygon;
+    if (poly.length < 3) return;
+    const pad = Math.ceil(cut.blend / CELL) + 1;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (const [x, y] of poly) {
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    const gx0 = Math.max(0, Math.floor(minX / CELL) - pad);
+    const gx1 = Math.min(this.gw - 1, Math.ceil(maxX / CELL) + pad);
+    const gy0 = Math.max(0, Math.floor(minY / CELL) - pad);
+    const gy1 = Math.min(this.gh - 1, Math.ceil(maxY / CELL) + pad);
+    const bw = gx1 - gx0 + 1;
+    const bh = gy1 - gy0 + 1;
+    if (bw <= 0 || bh <= 0) return;
+
+    // Scanline fill: for each grid row, the sorted x-crossings of the outline
+    // bracket the interior spans. One pass over the edges per row.
+    const inside = new Uint8Array(bw * bh);
+    let buried = false;
+    const xs: number[] = [];
+    for (let gy = gy0; gy <= gy1; gy++) {
+      const wy = gy * CELL;
+      xs.length = 0;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i];
+        const [xj, yj] = poly[j];
+        if (yi > wy !== yj > wy) xs.push(((xj - xi) * (wy - yi)) / (yj - yi) + xi);
+      }
+      if (xs.length < 2) continue;
+      xs.sort((a, b) => a - b);
+      const row = (gy - gy0) * bw;
+      for (let k = 0; k + 1 < xs.length; k += 2) {
+        const a = Math.max(gx0, Math.ceil(xs[k] / CELL));
+        const b = Math.min(gx1, Math.floor(xs[k + 1] / CELL));
+        for (let gx = a; gx <= b; gx++) {
+          inside[row + (gx - gx0)] = 1;
+          if (this.grid[gy * this.gw + gx] >= cut.surface) buried = true;
+        }
+      }
+    }
+    // Nothing inside the outline reaches the water plane: the body is already
+    // sitting in ground below its own surface, so leave the terrain alone.
+    if (!buried) return;
+
+    // Chamfer distance transform out from the interior, in CELL units: two
+    // sweeps with a 1 / √2 neighbourhood. Not exact euclidean, but the error
+    // is under 4% over a 4-cell ramp — invisible in a shoreline, and linear
+    // in the number of cells rather than quadratic.
+    const FAR = 1e9;
+    const d = new Float32Array(bw * bh);
+    for (let i = 0; i < d.length; i++) d[i] = inside[i] ? 0 : FAR;
+    const D1 = 1;
+    const D2 = 1.41421356;
+    for (let y = 0; y < bh; y++) {
+      for (let x = 0; x < bw; x++) {
+        const i = y * bw + x;
+        let v = d[i];
+        if (x > 0) v = Math.min(v, d[i - 1] + D1);
+        if (y > 0) v = Math.min(v, d[i - bw] + D1);
+        if (x > 0 && y > 0) v = Math.min(v, d[i - bw - 1] + D2);
+        if (x < bw - 1 && y > 0) v = Math.min(v, d[i - bw + 1] + D2);
+        d[i] = v;
+      }
+    }
+    for (let y = bh - 1; y >= 0; y--) {
+      for (let x = bw - 1; x >= 0; x--) {
+        const i = y * bw + x;
+        let v = d[i];
+        if (x < bw - 1) v = Math.min(v, d[i + 1] + D1);
+        if (y < bh - 1) v = Math.min(v, d[i + bw] + D1);
+        if (x < bw - 1 && y < bh - 1) v = Math.min(v, d[i + bw + 1] + D2);
+        if (x > 0 && y < bh - 1) v = Math.min(v, d[i + bw - 1] + D2);
+        d[i] = v;
+      }
+    }
+
+    const reach = cut.blend / CELL;
+    for (let y = 0; y < bh; y++) {
+      for (let x = 0; x < bw; x++) {
+        const dist = d[y * bw + x];
+        if (dist >= reach) continue;
+        const s = reach > 0 ? dist / reach : 0;
+        const t = s * s * (3 - 2 * s); // 0 in the water, 1 at the top of the bank
+        const gi = (gy0 + y) * this.gw + (gx0 + x);
+        const g = this.grid[gi];
+        const target = g * t + cut.floor * (1 - t);
+        if (target < g) {
+          this.grid[gi] = target;
+          this.everBent = true;
+        }
+      }
+    }
   }
 
   /** Bilinear height at a world point (clamped at the field edges). */
@@ -195,7 +363,26 @@ export class HeightField {
  *  ground-level sand, not a dug trap. */
 export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDepthScale = 0): HeightField | null {
   const pts: ElevationPoint[] = [...(hole.elevation ?? [])];
+  // Water gets a BED, by the same argument the bunker dish is built on: sand
+  // painted on level turf reads as a disc, and a pond painted on level turf
+  // reads as a puddle — worse, a pond under a hill reads as nothing at all.
+  // See `TerrainCut` for why this is a post-sum cut and not another negative
+  // dome, and for the Maple Vale h3 report that forced it.
+  const cuts: TerrainCut[] = [];
   for (const hz of hole.hazards) {
+    if (hz.type === 'water') {
+      // course3d renders a water plane at `hz.level ?? 0.35`; the bed must
+      // agree with the surface the player actually sees, so the same default
+      // is used here rather than a second constant.
+      const surface = hz.level ?? 0.35;
+      cuts.push({
+        polygon: hz.polygon,
+        surface,
+        floor: surface - WATER_BED_DEPTH,
+        blend: WATER_SHORE_BLEND
+      });
+      continue;
+    }
     if (hz.type !== 'bunker') continue;
     const xs = hz.polygon.map((p) => p[0]);
     const ys = hz.polygon.map((p) => p[1]);
@@ -255,8 +442,12 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
       addFlankingMounds(hole, cx, cy, r, pts);
     }
   }
-  if (pts.length === 0) return null;
-  return new HeightField(pts, hole.world.width, hole.world.height);
+  if (pts.length === 0 && cuts.length === 0) return null;
+  const hf = new HeightField(pts, hole.world.width, hole.world.height, cuts);
+  // A hole whose only terrain input was water that turned out NOT to be buried
+  // is still dead flat, and must keep returning null: that is the pre-elevation
+  // engine behaviour the original (flat) test suite is the regression gate for.
+  return hf.flat ? null : hf;
 }
 
 /** Depth (world units) a revetted bunker floor sinks below the turf rim. */

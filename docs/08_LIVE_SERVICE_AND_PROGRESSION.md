@@ -490,6 +490,69 @@ XP
 
 Profile recognition
 
+## IMPLEMENTATION RECORD — achievements shipped as **Feats** (`src/systems/Feats.ts`)
+
+The curated achievement table above is implemented as one **Feats** list, and
+the thing it adds is the tracker the design never specified: every feat exposes
+`progress(profile) => { have, need }`, and the profile pane renders that with
+the same `.xpBar` the season pass uses. A goal is a bar that fills, not a
+sentence you either have or have not satisfied.
+
+- **Rewards are CP + coins**, not XP + coins — XP was frozen when CP replaced it
+  as the progression currency. The amounts are the old `xp` values
+  re-denominated through the same ~25:1 conversion that was already paying them.
+- **Three tiers**: `starter` (a round or two), `pro` (a season's work), `legend`.
+  The legend tier is the owner's hard tier: **−5 at every course**, **eagle the
+  par 5 at every course**, **ace the par 3 at every course**, **drive a par 4**.
+  On a three-hole round "−5 at each course" means −5 across a par 4, a par 3 and
+  a par 5, eight times over.
+- **Ids are permanent.** `profile.achievements` stores completed feat ids, so
+  every feat carried over from the achievement table keeps its original id and a
+  player who earned a badge keeps it.
+- **Retired**: `wins_10` ("Win 10 head-to-head rounds") — `CareerStats.wins`
+  only increments in 1v1, which the `focusedGame` flag hides, so it was
+  unreachable and advertised. `course_master` was hardcoded to four of the eight
+  courses and now asks the same question of the whole roster.
+- **New persisted state**: `retention.feats` — three sets of course ids
+  (`eagledPar5` / `acedPar3` / `drivenPar4`), merged by union like every other
+  grow-only record. `HoleFacts.droveGreen` is set in `accumulateShotStats` when
+  a par-4 tee shot finishes on the green; nothing else in the round could
+  evidence it.
+
+Gates: `tests/feats.test.ts`, `tests/progression.test.ts`.
+
+## IMPLEMENTATION RECORD — more than one Tour Season (`profile.tours`)
+
+The profile held exactly one season in `profile.tour`, and three consequences
+followed:
+
+1. A finished shared season's standings **could not be reached** — the rollover
+   replaced the whole object, taking the points table, all sixteen event results
+   and the entire `coop` block (partner name, their scores, the shared doc id).
+2. `receiveCoopInvite` **assigned straight over it**, so joining a friend's
+   season silently discarded the season already in progress.
+3. You could not play two.
+
+It is now a keyed collection (`TourCollection` in `systems/TourSeason.ts`):
+`seasons` by key, `activeId`, and an `archive` of finished seasons carrying
+their **full final standings** and every event line. The key is derived —
+`co:<sharedDocId>` or `solo:<seed>` — so two devices in one shared season land
+on the same entry and merge rather than accumulating duplicates.
+
+- Merging is **per key**, the pattern `mergeTourHistory` and `mergeMastery`
+  already use. An archived season is never resurrected as live by a device that
+  missed the finale.
+- A stored single `tour` folds into a one-entry map on load and stays active.
+  The legacy field is frozen, never written.
+- The hub gains **Switch season** (only when there is more than one) and **Past
+  seasons** (only when one has finished), and `main.ts` reaches the collection
+  through exactly two accessors — `tourNow()` / `setTour()` — plus
+  `closeOutSeason()`, which replaced three copies of
+  `profile.tour = retired ? null : rollover(t)`.
+
+Gates: `tests/tourCollection.test.ts`, plus the existing
+`tests/simulation/tour*.test.ts` suites.
+
 ---
 
 # Career Statistics

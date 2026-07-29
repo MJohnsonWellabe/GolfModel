@@ -16,6 +16,11 @@ const wildvalley = {
     // rolling SAND-DUNE horizon (peakKeys 'dunes_sandhill', tinted warm via
     // hillTint) instead of the old bare-sky 'none'.
     skyTop: '#5aa6e0', skyBottom: '#f4e6bd', sunX: 430, sunY: 110,
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Wild Prairie: golden hour. Built from a CC0
+    // Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    skyStyle: 'prairie_gold', cloudCover: 0.8, sunTint: '#ffe391',
     fairway: '#83b84e', fairwayDark: '#6fa53f',
     rough: '#d8a94e', roughDark: '#bd8c34',
     fringe: '#9cbe54', green: '#71ae46', greenLight: '#8fca5b',

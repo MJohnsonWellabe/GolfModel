@@ -2189,24 +2189,70 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
-      .achList {
+      /* FEATS. Every unfinished one carries a tracker (main.ts featsHtml), so a
+         row is taller than the old one-line achievement and the list scrolls in
+         its own box rather than pushing the pane. */
+      .featList {
         text-align: left;
-        max-height: 34dvh;
+        max-height: 46dvh;
         overflow-y: auto;
         margin-bottom: 14px;
       }
-      .achRow {
-        padding: 7px 4px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        font-size: 13px;
-        color: #7f9a82;
+      .featTier {
+        margin-bottom: 12px;
       }
-      .achRow.got {
+      .featTierHead {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: #8fb598;
+        padding-bottom: 5px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        margin-bottom: 8px;
+      }
+      .featTierN {
+        color: #eef5ea;
+        letter-spacing: 0.04em;
+      }
+      /* Earned feats collapse to a row of medals: a trophy shelf, not a
+         to-do list competing with the things still to do. */
+      .featGot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-bottom: 9px;
+      }
+      .featRow {
+        padding: 7px 4px 9px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .featTop {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 13px;
         color: #eef5ea;
       }
-      .achRow span {
-        color: #8fb598;
+      .featN {
+        flex: 0 0 auto;
+        font-size: 12px;
+        font-weight: 800;
+        color: #8ec5ff;
+        font-variant-numeric: tabular-nums;
+      }
+      .featDesc {
         font-size: 11px;
+        color: #8fb598;
+        margin: 2px 0 6px;
+      }
+      .featRow .xpBar {
+        height: 6px;
+        margin-bottom: 0;
       }
       #profBack {
         width: 100%;
@@ -2242,6 +2288,68 @@
         width: 55%;
         accent-color: #35a558;
         height: 26px;
+      }
+      /* A labelled group of settings rows. The pane used to be one flat stack
+         with no headings at all, so nothing separated "changes my game" from
+         "changes this phone". */
+      /* The Pro's CP balance, stated once above the spend chips instead of
+         repeated on every one of them. */
+      .cpBank {
+        margin: 10px 0 4px;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.4px;
+        color: #ffd76a;
+      }
+      /* A spend chip: the stat, the +1, and its price stacked so five of them
+         fit one phone row instead of wrapping to three lines. */
+      .cpSpend .cpsK {
+        font-weight: 900;
+      }
+      .cpSpend .cpsV {
+        opacity: 0.9;
+      }
+      .cpSpend .cpsC {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        opacity: 0.62;
+      }
+      .careerNewFoot {
+        margin-top: 10px;
+        display: block;
+      }
+      /* One quiet line at the top of a locker tab saying what it is acting on
+         — the Character grid means the career Pro's face when one is active. */
+      /* A kind heading inside the folded Cosmetics tab. */
+      .lkSubHead {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: rgba(219, 232, 214, 0.5);
+        padding: 10px 4px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 6px;
+      }
+      .lkTabNote {
+        font-size: 12px;
+        line-height: 1.35;
+        color: rgba(219, 232, 214, 0.72);
+        padding: 2px 4px 8px;
+      }
+      .setGroup {
+        margin: 0 0 14px;
+      }
+      .setGroupHead {
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: rgba(219, 232, 214, 0.5);
+        padding: 0 2px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 2px;
       }
       /* Swing-type segmented choice (Settings): two labelled halves, the
          selected one filled — a control scheme is a choice, not a toggle. */
@@ -2719,20 +2827,8 @@
       .proNameInput::placeholder {
         color: rgba(255, 225, 161, 0.45);
       }
-      .proLookRow {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 10px;
-      }
-      .proLookRow .plLabel {
-        font-size: 11px;
-        font-weight: 800;
-        letter-spacing: 0.08em;
-        color: #ffe1a1;
-        margin-right: 2px;
-      }
+      /* .proLook lives on the Character tab's grid now, not in a wrapping strip
+         under the Pro's name — the .proLookRow that held it there is gone. */
       .proLook {
         width: 44px;
         height: 44px;
@@ -2842,6 +2938,7 @@
         font-weight: 700;
       }
       .stat .sbar {
+        position: relative;
         flex: 1 1 auto;
         height: 5px;
         border-radius: 3px;
@@ -2852,6 +2949,20 @@
         display: block;
         height: 100%;
         background: linear-gradient(90deg, #4a8f5f, #7fd48c);
+      }
+      /* CP preview: how far the unspent bank would take THIS stat. Striped and
+         translucent so it reads as "not yours yet" next to the solid fill —
+         the bar is the same width either way, so nothing shifts when it is
+         spent, the fill just grows into the ghost. */
+      .stat .sbar u {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        background-image: repeating-linear-gradient(
+          45deg,
+          rgba(255, 225, 161, 0.55) 0 3px,
+          rgba(255, 225, 161, 0.16) 3px 6px
+        );
       }
       .stat.sig .sl {
         color: #ffd54f;
@@ -3155,6 +3266,17 @@
         justify-content: center;
         z-index: 25;
         overflow-y: auto;
+      }
+      /* The locker room is the one overlay that is a PLACE rather than a list,
+         so it gets the room behind it (assets/marketing/img/locker-room.png,
+         built by scripts/gen-locker-art.mjs from a CC0 plank photo). The scrim
+         is heavier than #setup's because the locker panels are light timber and
+         the card that floats over them is dark-on-light text. */
+      #lockerRoom {
+        background:
+          linear-gradient(180deg, rgba(4, 10, 6, 0.62), rgba(3, 8, 5, 0.88)),
+          url('assets/marketing/img/locker-room.png') center / cover no-repeat,
+          linear-gradient(180deg, #0d3f22 0%, #072a15 100%);
       }
       /* Store and Season Pass can be opened FROM the locker room; with all
          three at 25, DOM order decided, and the locker (last in the DOM)

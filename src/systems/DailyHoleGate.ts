@@ -6,12 +6,15 @@
  * candidate is PLAYED, hundreds of times, by the same headless simulator the
  * balance gates use, and only holes that land in a human band are served.
  *
- * The band (`DAILY_BAND`) is not about taste — it rejects the three ways a
+ * The band (`bandForPar`) is not about taste — it rejects the three ways a
  * generated hole is actually bad:
  *
  *   - **unfair**: casual players blow up on it (triple bogey or worse) too
  *     often, or average far over par;
- *   - **pointless**: nobody can miss, so the score carries no information;
+ *   - **pointless**: nobody can miss, so the score carries no information —
+ *     the band has a difficulty FLOOR as well as a ceiling, because a daily
+ *     that everybody pars is not worth the share button (owner: dailies should
+ *     be "harder to score AND dramatic");
  *   - **broken**: the ball cannot reach the green, so par is unreachable — the
  *     failure mode a purely geometric validator misses entirely, because the
  *     geometry looks fine.
@@ -24,7 +27,7 @@
 import { simulateHole } from './RoundSimulator';
 import { uniformGolfer } from './SkillSimulator';
 import { mulberry32 } from '../utils/Random';
-import { DAILY_BAND } from './DailyHole';
+import { bandForPar } from './DailyHole';
 import type { CourseData, HoleData } from '../core/types';
 
 export interface HoleGrade {
@@ -70,11 +73,16 @@ export function gradeHole(course: CourseData, holeIdx = 0): HoleGrade {
   const blowupRate = blowups / SAMPLES;
   const parRate = pars / SAMPLES;
 
+  // PER-PAR band: a brutal par 5 must not be judged by a par 3's yardstick.
+  // One band for all three shapes is what made every dramatic candidate look
+  // "too hard" and left the daily hole a fairway and three bunkers.
+  const band = bandForPar(hole.par);
   let reason: string | undefined;
-  if (meanToPar > DAILY_BAND.maxMeanToPar) reason = `too hard (mean +${meanToPar.toFixed(2)})`;
-  else if (meanToPar < DAILY_BAND.minMeanToPar) reason = `too easy (mean ${meanToPar.toFixed(2)})`;
-  else if (blowupRate > DAILY_BAND.maxBlowupRate) reason = `punishing (${Math.round(blowupRate * 100)}% blow up)`;
-  else if (parRate < DAILY_BAND.minParRate) reason = `par unreachable (${Math.round(parRate * 100)}% par or better)`;
+  if (meanToPar > band.maxMeanToPar) reason = `too hard for a par ${hole.par} (mean +${meanToPar.toFixed(2)})`;
+  else if (meanToPar < band.minMeanToPar) reason = `too easy (mean ${meanToPar.toFixed(2)})`;
+  else if (blowupRate > band.maxBlowupRate) reason = `punishing (${Math.round(blowupRate * 100)}% blow up)`;
+  else if (parRate < band.minParRate) reason = `par unreachable (${Math.round(parRate * 100)}% par or better)`;
+  else if (parRate > band.maxParRate) reason = `a formality (${Math.round(parRate * 100)}% par or better)`;
 
   return { ok: !reason, meanToPar, blowupRate, parRate, reason };
 }

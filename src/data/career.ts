@@ -296,6 +296,36 @@ export function pointCost(value: number): number {
   return 2;
 }
 
+/**
+ * How many points `bank` CP would buy on ONE attribute currently at `value`,
+ * spending the whole bank on it and nothing else.
+ *
+ * This is what the card's ghost segment previews. A single "+1" preview would
+ * be one percent of a 100-wide bar — invisible, and not the question the player
+ * is asking anyway. What they want to know standing in front of five buttons is
+ * "how far does what I have take me", so the ghost shows exactly that, per
+ * attribute, and the brackets in {@link pointCost} make the answer differ
+ * sharply between a 78 and a 92.
+ *
+ * `upgradeBonus` is what club upgrades already add to this attribute's
+ * effective value, because {@link buyProAttrPoint} refuses a point that would
+ * push base+bonus past 100 — a preview that ignored the same ceiling would
+ * promise points the spend button will not sell.
+ */
+export function pointsAffordable(value: number, bank: number, upgradeBonus = 0): number {
+  let at = value;
+  let left = bank;
+  let bought = 0;
+  while (at < ATTR_CAP && at + upgradeBonus < 100) {
+    const cost = pointCost(at);
+    if (!Number.isFinite(cost) || cost > left) break;
+    left -= cost;
+    at += 1;
+    bought += 1;
+  }
+  return bought;
+}
+
 /** Overall rating — same definition as types.overallRating, kept local so the
  *  data module has no runtime import needs. */
 export function careerOvr(attrs: GolferStats): number {

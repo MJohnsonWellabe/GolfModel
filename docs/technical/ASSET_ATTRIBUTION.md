@@ -4,6 +4,43 @@ Third-party art used in Bite-Sized Golf, with source and license. All entries
 are CC0 (public domain) or CC-BY (attribution required). New assets must be
 recorded here before use.
 
+## Poly Haven skies (polyhaven.com) — CC0 (public domain)
+
+Downloaded 2026-07-29 (owner: "I want courses to have their own unique skies
+and clouds", stylised from CC0 sources). Eight `*_puresky` HDRIs — sky only, no
+ground — are the STRUCTURAL SOURCE for the per-course skies. Nothing
+photographic ships: `scripts/convert-skies.mjs` reads each equirect, measures
+its real horizon ramp, cloud field and solar aureole, and repaints them as flat
+posterised bands (see the script header for the recipe). The committed outputs
+in `assets/textures/sky/` are a few KB of painted bands, not a photo.
+
+The raw 8192×4096 tonemapped JPGs (~17MB each) are NEVER committed; the script
+caches them in `node_modules/.cache/golf-skies/` and re-downloads on demand.
+
+| Sky style | Poly Haven asset | Authors | Used by |
+|---|---|---|---|
+| `storm_canyon` | [Table Mountain 1 (Pure Sky)](https://polyhaven.com/a/table_mountain_1_puresky) | Greg Zaal, Jarod Guest | Red Hollow |
+| `sea_haze` | [Kloofendal Misty Morning (Pure Sky)](https://polyhaven.com/a/kloofendal_misty_morning_puresky) | Greg Zaal | Sable Bay |
+| `links_coast` | [Aristea Wreck (Pure Sky)](https://polyhaven.com/a/aristea_wreck_puresky) | Greg Zaal, Jarod Guest | Port Johnson Links |
+| `alpine_clear` | [Drakensberg Solitary Mountain (Pure Sky)](https://polyhaven.com/a/drakensberg_solitary_mountain_puresky) | Dimitrios Savva, Jarod Guest | Timberline East |
+| `alpine_broken` | [Rocky Ridge (Pure Sky)](https://polyhaven.com/a/rocky_ridge_puresky) | Greg Zaal, Jarod Guest | Timberline West |
+| `prairie_gold` | [Qwantani Sunset (Pure Sky)](https://polyhaven.com/a/qwantani_sunset_puresky) | Greg Zaal, Jarod Guest | Wild Prairie |
+| `autumn_overcast` | [Overcast Soil (Pure Sky)](https://polyhaven.com/a/overcast_soil_puresky) | Jarod Guest, Sergej Majboroda | Maple Vale |
+| `parkland_bright` | [Kloofendal 48d Partly Cloudy (Pure Sky)](https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky) | Greg Zaal, Jarod Guest | Wildwood Glen |
+
+Asset ids and author lists above were read back from `api.polyhaven.com/info/<id>`
+and checked against the `src:` fields in `scripts/convert-skies.mjs` — that
+script is the only thing that decides which file is used, so it is the authority
+here. Several sources were tried and dropped during authoring (wasteland_clouds,
+rustig_koppie, farm_field, sunflowers, kloppenheim_05); the script header records
+why. Crediting one of those would credit the wrong artists, which is worse than
+no entry at all.
+
+License: every Poly Haven HDRI is released CC0 1.0
+(https://polyhaven.com/license, http://creativecommons.org/publicdomain/zero/1.0/)
+— no attribution required; the authors are credited here as good practice, as
+with the Kenney packs below.
+
 ## Kenney (www.kenney.nl) — CC0 (public domain)
 
 CC0 requires no attribution; credited here as good practice. Downloaded
@@ -67,3 +104,23 @@ logcabin.glb` and used as the giant landmark behind Wild Prairie h2's green.
 
 License text: Creative Commons Attribution (CC-BY 4.0),
 https://creativecommons.org/licenses/by/4.0/ — attribution to Poly by Google.
+
+## Locker Room backdrop (ambientCG Planks023A) — CC0
+
+Downloaded 2026-07-29 (owner: "the locker room button once you go into that menu
+needs a graphic of one of the historic golf locker rooms"). Photographs of the
+real champions locker rooms are all copyrighted, so the backdrop is a CC0 wood
+plank photo used as the actual timber GRAIN with the room painted over it in the
+game's own flat-shaded language (owner chose "photo base, painted over").
+
+| File | Source | License |
+|---|---|---|
+| `assets/marketing/img/locker-room.png` | Built by `scripts/gen-locker-art.mjs` from ambientCG "Planks023A" (https://ambientcg.com/view?id=Planks023A), `Planks023A_1K-JPG_Color.jpg` only | **CC0 1.0** |
+
+Regenerate with `node scripts/gen-locker-art.mjs <Planks023A_1K-JPG_Color.jpg>`;
+the script is deterministic, so a re-run reproduces the committed file. Output is
+1600x900 and palette-quantised, matching the cap `scripts/optimize-marketing.mjs`
+enforces on every other menu backdrop.
+
+License text: Creative Commons Zero (CC0 1.0),
+http://creativecommons.org/publicdomain/zero/1.0/

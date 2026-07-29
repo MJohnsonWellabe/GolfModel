@@ -398,6 +398,57 @@ block (see `src/data/courses/*.json`, rendered by `src/slice3d/course3d.ts`):
   `peaks`, `sea` or `none` backdrop. Sable Bay and **Port Johnson Links** use the
   `sea` backdrop (a horizon sea plane + low dunes) — the ocean is the scenery.
 
+## Painted skies — one weather per course
+
+Owner report: *"I want courses to have their own unique skies and clouds."*
+Everything above still described **one** sky: a single four-stop gradient shape
+and a single canvas-painted cloud set, differing only by eleven colour tuples —
+Timberline East and West were byte-identical. Every course now has its own.
+
+The owner's choice was **stylised, built from CC0 sources** — not photoreal.
+`scripts/convert-skies.mjs` downloads a CC0 Poly Haven sky HDRI, MEASURES three
+things out of it — the clear-sky ramp at every elevation, the cloud field, and
+the colour temperature of the solar aureole — and repaints them as **flat
+posterised bands** in the game's own flat-shaded language. No photograph ships;
+the committed output is 2-5KB of painted bands per style. Sources and licences
+are in `docs/technical/ASSET_ATTRIBUTION.md`; the recipe is in the script header.
+
+A course opts in with three theme keys:
+
+| Key | What it does |
+|---|---|
+| `skyStyle` | Names the style. Loads `assets/textures/sky/<style>_ramp.png` (8×256 dome ramp), `_cumulus.png` (512×320) and `_cirrus.png` (512×96). |
+| `cloudCover` | How cloudy — 1 = the historical 6 cumulus + 10 cirrus billboards. |
+| `sunTint` | Sun-disc colour, measured off the source's aureole. |
+
+The eight styles, and the weather each course now gets:
+
+| Course | Style | The look |
+|---|---|---|
+| Red Hollow | `storm_canyon` | Storm light over the canyon: bruised blue, torn stacked cloud. |
+| Sable Bay | `sea_haze` | Sea haze — the ramp barely changes hue, it just goes pale. |
+| Port Johnson Links | `links_coast` | A blown grey coast: deliberately the least blue sky on the roster. |
+| Timberline East | `alpine_clear` | Alpine clarity, deep zenith, almost no cloud (`cloudCover: 0.5`). |
+| Timberline West | `alpine_broken` | The same range at a different hour: high cirrus fans, warmer light. |
+| Wild Prairie | `prairie_gold` | Golden hour — blue zenith over a gold horizon band. |
+| Maple Vale | `autumn_overcast` | A low grey autumn lid with almost no ramp in it. |
+| Wildwood Glen | `parkland_bright` | Bright parkland noon, the friendliest sky here. |
+
+Three rules the system keeps:
+
+- **The procedural sky remains the fallback.** A course (or the daily hole) that
+  names no `skyStyle` renders exactly what it always did.
+- **The GPU cost does not move.** The three PNGs are the exact dimensions of the
+  DynamicTextures they replace, because the reported-slow courses are already
+  fill-rate bound on sky pixels (`docs/technical/PERFORMANCE_AND_QUALITY_GATES.md`).
+- **`skyStyle` governs the DOME, not the cloud system.** A course that claimed
+  the mesh clouds keeps them — Maple Vale flies its volumetric puffs under the
+  new autumn dome rather than losing an authored identity.
+
+`tests/unit/skyAssets.test.ts` fails if a course names a style whose files are
+missing, if a style outgrows its budget, or if two different places end up
+sharing a sky.
+
 ---
 
 # Camera Philosophy

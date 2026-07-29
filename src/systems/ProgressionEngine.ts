@@ -1,5 +1,6 @@
 import { PlayerProfile } from '../profile/Profile';
-import { achievementCp, ACHIEVEMENTS, COINS, DailyChallenge, dailyChallengeFor, RoundStats } from '../data/progression';
+import { COINS, DailyChallenge, dailyChallengeFor, RoundStats } from '../data/progression';
+import { featDone, FEATS } from './Feats';
 import { cpForRound } from '../data/career';
 import { grantCareerCp } from './CareerWallet';
 
@@ -106,16 +107,18 @@ export function applyRound(
   s.longestPuttFt = Math.max(s.longestPuttFt, r.longestPuttMadeFt);
   s.bestRoundToPar = s.bestRoundToPar === null ? r.toPar : Math.min(s.bestRoundToPar, r.toPar);
 
-  // Achievements (checked after stats so counters can fire; their legacy xp
-  // rewards pay out re-denominated in CP — achievementCp).
-  for (const a of ACHIEVEMENTS) {
-    if (profile.achievements.includes(a.id)) continue;
-    if (a.test(s, profile)) {
-      profile.achievements.push(a.id);
-      grantCareerCp(profile, achievementCp(a.xp));
-      profile.coins += a.coins;
-      profile.coinsEarned += a.coins; // grow-only lifetime tally
-      events.push({ kind: 'achievement', id: a.id, name: a.name, desc: a.desc });
+  // Feats (checked after the stats fold so this round's counters can complete
+  // one). `profile.achievements` is still the completed-id list — the ids were
+  // carried over deliberately, so a player who earned a badge under the old
+  // achievement table keeps it (systems/Feats.ts).
+  for (const f of FEATS) {
+    if (profile.achievements.includes(f.id)) continue;
+    if (featDone(f, profile)) {
+      profile.achievements.push(f.id);
+      grantCareerCp(profile, f.cp);
+      profile.coins += f.coins;
+      profile.coinsEarned += f.coins; // grow-only lifetime tally
+      events.push({ kind: 'achievement', id: f.id, name: f.name, desc: f.desc });
     }
   }
   return events;

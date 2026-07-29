@@ -4,6 +4,9 @@
   "theme": {
     "skyTop": "#5a97d0",
     "skyBottom": "#d8e8f0",
+    "skyStyle": "parkland_bright",
+    "cloudCover": 1.0,
+    "sunTint": "#ecf0ff",
     "sunX": 210,
     "sunY": 150,
     "fairway": "#4fae54",

@@ -1,10 +1,7 @@
-import { CareerStats, PlayerProfile } from '../profile/Profile';
-import { bestProOvr, emptyCareer } from './career';
-import { starCount } from '../systems/Mastery';
-import { hasGrandSlam, SEASON_LIMIT, TourProRecord } from '../systems/TourSeason';
 
 /**
- * Progression tuning — XP, coins, levels, achievements and daily challenges,
+ * Progression tuning — XP, coins, levels and daily challenges (the feats
+ * moved to systems/Feats.ts),
  * all straight from `docs/08_LIVE_SERVICE_AND_PROGRESSION.md`. Config only:
  * the pure `ProgressionEngine` consumes these. XP/levels NEVER affect
  * gameplay (docs 08) — nothing here is read by physics or the AI.
@@ -13,6 +10,13 @@ import { hasGrandSlam, SEASON_LIMIT, TourProRecord } from '../systems/TourSeason
 /** LEGACY XP table — frozen with the xp/level fields it fed (career mode: CP
  *  replaced XP as the progression currency, data/career.ts). Kept only so an
  *  old profile's numbers still mean what they meant; nothing grants from it. */
+/** A legacy `xp` reward re-denominated in CP (the tables were authored at
+ *  ~25 XP : 1 CP). Floor of 2 so no reward pays zero. Still live: the season
+ *  pass and the streak ladder both grant from xp-denominated reward tables. */
+export function achievementCp(xp: number): number {
+  return Math.max(2, Math.round(xp / 25));
+}
+
 export const XP = {
   round: 100,
   birdie: 25,
@@ -21,12 +25,6 @@ export const XP = {
   tournamentWin: 200,
   daily: 50
 } as const;
-
-/** An achievement's legacy `xp` reward re-denominated in CP (the tables were
- *  authored at ~25 XP : 1 CP). Floor of 2 so no badge pays zero. */
-export function achievementCp(xp: number): number {
-  return Math.max(2, Math.round(xp / 25));
-}
 
 export const COINS = {
   // Per-round earnings halved (owner) to slow the coin economy so the coin
@@ -58,72 +56,10 @@ export function levelForXp(xp: number): number {
   return n;
 }
 
-export interface Achievement {
-  id: string;
-  name: string;
-  desc: string;
-  xp: number;
-  coins: number;
-  /** True once the career stats (and level) satisfy the achievement. */
-  test: (stats: CareerStats, profile: PlayerProfile) => boolean;
-}
-
-/**
- * Curated achievement set (retention Part 6): deliberately limited — one
- * meaningful goal per skill surface, not hundreds of checkbox fillers.
- * Categories: scoring, putting, driving, accuracy, recovery, course mastery,
- * consistency, Fire Mode, Daily Challenge, competitive, rare. Deterministic
- * and testable: every test reads only career stats / profile state.
- */
-export const ACHIEVEMENTS: Achievement[] = [
-  // Firsts (scoring / rare)
-  { id: 'first_birdie', name: 'First Birdie', desc: 'Make your first birdie', xp: 50, coins: 25, test: (s) => s.birdies >= 1 },
-  { id: 'first_eagle', name: 'First Eagle', desc: 'Make your first eagle', xp: 100, coins: 50, test: (s) => s.eagles >= 1 },
-  { id: 'first_ace', name: 'Hole-in-One!', desc: 'Record a hole-in-one', xp: 250, coins: 100, test: (s) => s.holeInOnes >= 1 },
-  // Scoring depth
-  { id: 'birdies_25', name: 'Birdie Machine', desc: 'Make 25 birdies', xp: 100, coins: 50, test: (s) => s.birdies >= 25 },
-  { id: 'deep_red', name: 'Deep Red', desc: 'Finish a round 3+ under par', xp: 150, coins: 75, test: (s) => s.bestRoundToPar !== null && s.bestRoundToPar <= -3 },
-  // Putting
-  { id: 'bomb_putt', name: 'Bomb Dropper', desc: 'Hole a putt of 30+ feet', xp: 100, coins: 50, test: (s) => s.longestPuttFt >= 30 },
-  // Driving
-  { id: 'big_stick', name: 'Big Stick', desc: 'Drive one 320+ yards', xp: 100, coins: 50, test: (s) => s.longestDriveYds >= 320 },
-  // Accuracy
-  // Recovery
-  { id: 'chip_ins_10', name: 'Short-Game Wizard', desc: 'Hole out 10 chip-ins', xp: 150, coins: 75, test: (s) => s.chipIns >= 10 },
-  // Course mastery (retention Part 5 stars)
-  { id: 'course_master', name: 'Course Master', desc: 'Earn all 9 stars on one course', xp: 200, coins: 100, test: (_s, p) => ['sablebay', 'wildwood', 'timberline', 'portjohnson'].some((c) => starCount(p.retention?.mastery ?? { v: 1, stars: {} }, c) >= 9) },
-  { id: 'stars_18', name: 'Constellation', desc: 'Earn 18 mastery stars', xp: 200, coins: 100, test: (_s, p) => starCount(p.retention?.mastery ?? { v: 1, stars: {} }) >= 18 },
-  // Consistency
-  { id: 'rounds_25', name: 'Regular', desc: 'Play 25 rounds', xp: 100, coins: 50, test: (s) => s.rounds >= 25 },
-  // Fire Mode
-  { id: 'fire_5', name: 'Blazing', desc: 'Reach a 5-swing Fire streak', xp: 150, coins: 75, test: (_s, p) => (p.retention?.records?.longestFireStreak ?? 0) >= 5 },
-  // Daily Challenge (also the day-7 streak badge)
-  { id: 'streak_7', name: 'Committed', desc: 'Reach a 7-day streak', xp: 100, coins: 50, test: (_s, p) => Math.max(p.dailyStreak, p.retention?.streak?.best ?? 0) >= 7 },
-  // Career (the level_10 badge retired with the XP levels it read)
-  { id: 'career_80', name: 'Rising Star', desc: 'Raise a Pro to 80 overall', xp: 150, coins: 75, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 80 },
-  { id: 'career_90', name: 'World Class', desc: 'Raise a Pro to 90 overall', xp: 250, coins: 100, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 90 },
-  { id: 'career_99', name: 'The Zenith', desc: 'Max a Pro at 99 overall', xp: 400, coins: 200, test: (_s, p) => bestProOvr(p.career ?? emptyCareer()) >= 99 },
-  { id: 'wins_10', name: 'Rival Slayer', desc: 'Win 10 head-to-head rounds', xp: 150, coins: 75, test: (s) => s.wins >= 10 },
-  { id: 'win_tournament', name: 'Champion', desc: 'Win a tournament', xp: 200, coins: 100, test: (s) => s.tournamentWins >= 1 },
-  { id: 'season_champion', name: 'Season Champion', desc: 'Top the Tour Season points table', xp: 300, coins: 150, test: (s) => (s.seasonChampionships ?? 0) >= 1 },
-  // THE TOUR CAREER (owner pass 9). These read the per-golfer record book
-  // (profile.tourHistory) rather than CareerStats, because that is where a
-  // Pro's majors and season placements actually live — and it survives the
-  // season rollover that discards the season state itself.
-  { id: 'first_major', name: 'Major Winner', desc: 'Win your first major championship', xp: 300, coins: 150, test: (_s, p) => bestTourStat(p, (r) => r.majorWins) >= 1 },
-  { id: 'majors_4', name: 'Major Force', desc: 'Win 4 majors with one Pro', xp: 600, coins: 300, test: (_s, p) => bestTourStat(p, (r) => r.majorWins) >= 4 },
-  { id: 'tour_wins_10', name: 'Tour Veteran', desc: 'Win 10 tour events with one Pro', xp: 500, coins: 250, test: (_s, p) => bestTourStat(p, (r) => r.wins) >= 10 },
-  { id: 'grand_slam', name: 'Career Grand Slam', desc: 'Win all four majors with one Pro', xp: 1000, coins: 500, test: (_s, p) => Object.values(p.tourHistory ?? {}).some(hasGrandSlam) },
-  { id: 'hall_of_fame', name: 'Hall of Fame', desc: `Play out all ${SEASON_LIMIT} seasons with one Pro`, xp: 800, coins: 400, test: (_s, p) => bestTourStat(p, (r) => r.seasons.length) >= SEASON_LIMIT }
-];
-
-/** The best any single Pro has done on one record-book counter. Career
- *  achievements are per-GOLFER ("4 majors with one Pro"), never a lifetime
- *  total across a stable of them. */
-function bestTourStat(p: PlayerProfile, pick: (r: TourProRecord) => number): number {
-  const recs = Object.values(p.tourHistory ?? {});
-  return recs.length ? Math.max(...recs.map(pick)) : 0;
-}
+/* The curated achievement table used to live here. It is now
+ * `systems/Feats.ts` — same ids, same rewards (re-denominated from the legacy
+ * `xp` field into the CP those rewards already paid), plus the one thing it
+ * could never do: report how far along each one the player is. */
 
 /**
  * Round-level results the daily challenges and reward math read. Built by the

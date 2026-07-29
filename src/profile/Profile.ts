@@ -1,6 +1,6 @@
 import { ArchetypeId } from '../data/archetypes';
 import { CareerState, emptyCareer, mergeCareers, migrateCareer } from '../data/career';
-import { mergeTour, mergeTourHistory, migrateTour, migrateTourHistory, TourHistory, TourSeasonState } from '../systems/TourSeason';
+import { emptyTours, mergeTourHistory, mergeTours, migrateTourHistory, migrateTours, TourCollection, TourHistory, TourSeasonState } from '../systems/TourSeason';
 import { CharacterKey } from '../data/characters';
 import { DEFAULT_EQUIPPED, DEFAULT_OWNED } from '../data/storeCatalog';
 import { asDifficulty, Difficulty } from '../systems/Difficulty';
@@ -8,6 +8,7 @@ import { emptyRecords, mergeRecords, migrateRecords, PersonalRecords } from '../
 import { emptyStreak, mergeStreak, migrateStreak, StreakState } from '../systems/Streak';
 import { emptyRival, mergeRival, migrateRival, RivalState } from '../systems/Rival';
 import { emptyMastery, mergeMastery, migrateMastery, MasteryState } from '../systems/Mastery';
+import { emptyFeats, FeatState, mergeFeats, migrateFeats } from '../systems/Feats';
 
 /**
  * The player's persistent identity: selections, currency, progression and
@@ -156,10 +157,24 @@ export interface PlayerProfile {
    *  there when you go back to them. Merges via mergeCareers (per-Pro
    *  grow-only pairs, pros union by id, per-stat max attrs). */
   career: CareerState;
-  /** TOUR SEASON (career round 2): the Pro's season against the named rival
-   *  field (systems/TourSeason.ts). Null until the first event is entered.
-   *  Merges whole — the further-progressed copy wins (mergeTour). */
-  tour: TourSeasonState | null;
+  /**
+   * TOUR SEASONS (career round 2, Stage 5): every season the player has going,
+   * keyed, plus which one is active and an archive of the finished ones with
+   * their full final standings (systems/TourSeason.ts).
+   *
+   * Merges PER KEY, so joining a friend's season on one device can no longer
+   * erase the solo season on another — which is exactly what the single
+   * `tour` field below did.
+   */
+  tours: TourCollection;
+  /**
+   * LEGACY single season. Frozen: nothing writes it, and `migrateTours` folds
+   * a stored one into `tours` on load. Kept on the type so an old save still
+   * migrates and a profile written by an older build still parses.
+   *
+   * @deprecated use `tours` (activeTour / putTour / archiveTour).
+   */
+  tour?: TourSeasonState | null;
   /** PER-GOLFER TOUR RECORDS (pass 8): every Pro's career wins, major wins
    *  and season placements — the season state is discarded at rollover, so
    *  this is the record book. Keyed by Pro id; survives Pro deletion.
@@ -185,6 +200,9 @@ export interface RetentionState {
   challenges: ChallengeRef[];
   /** The player's current rival and the running head-to-head (`rival`). */
   rival: RivalState;
+  /** Which courses have given up an eagle / an ace / a driven par 4 — the
+   *  ledger the legend-tier feats read (systems/Feats.ts). */
+  feats: FeatState;
 }
 
 export function emptyRetention(): RetentionState {
@@ -193,7 +211,8 @@ export function emptyRetention(): RetentionState {
     streak: emptyStreak(),
     mastery: emptyMastery(),
     challenges: [],
-    rival: emptyRival()
+    rival: emptyRival(),
+    feats: emptyFeats()
   };
 }
 
@@ -222,7 +241,8 @@ function migrateRetention(raw: unknown): RetentionState {
     streak: migrateStreak(r.streak),
     mastery: migrateMastery(r.mastery),
     challenges: migrateChallengeRefs(r.challenges),
-    rival: migrateRival(r.rival)
+    rival: migrateRival(r.rival),
+    feats: migrateFeats(r.feats)
   };
 }
 
@@ -234,7 +254,8 @@ function mergeRetention(a: RetentionState | undefined, b: RetentionState | undef
     streak: mergeStreak(ma.streak, mb.streak),
     mastery: mergeMastery(ma.mastery, mb.mastery),
     challenges: mergeChallengeRefs(ma.challenges, mb.challenges),
-    rival: mergeRival(ma.rival, mb.rival)
+    rival: mergeRival(ma.rival, mb.rival),
+    feats: mergeFeats(ma.feats, mb.feats)
   };
 }
 
@@ -542,7 +563,7 @@ export function defaultProfile(now = 0): PlayerProfile {
     dripGranted: true,
     retention: emptyRetention(),
     career: emptyCareer(),
-    tour: null,
+    tours: emptyTours(),
     tourHistory: {},
     updatedAt: now
   };
@@ -685,7 +706,8 @@ export function migrateProfile(parsed: Partial<PlayerProfile>): PlayerProfile {
       name: typeof parsed.name === 'string' ? parsed.name : '',
       character: (parsed.character as PlayerProfile['character']) ?? 'chip'
     }),
-    tour: migrateTour(parsed.tour),
+    // The legacy `tour` is folded in here and nowhere else — see migrateTours.
+    tours: migrateTours(parsed.tours, parsed.tour),
     tourHistory: migrateTourHistory(parsed.tourHistory)
   };
 }
@@ -818,11 +840,12 @@ export function mergeProfiles(a: PlayerProfile, b: PlayerProfile): PlayerProfile
       newer.career ?? emptyCareer(),
       (newer === a ? b.career : a.career) ?? emptyCareer()
     ),
-    // The tour merges whole: the further-progressed season wins (newer first
-    // breaks exact ties toward the most recent copy).
-    tour: mergeTour(
-      migrateTour(newer.tour),
-      migrateTour(newer === a ? b.tour : a.tour)
+    // Seasons merge PER KEY: each season resolves against its own counterpart
+    // (the further-progressed copy wins), the archives union, and a season one
+    // device has archived is never resurrected as live by the other.
+    tours: mergeTours(
+      migrateTours(newer.tours, newer.tour),
+      migrateTours(newer === a ? b.tours : a.tours, newer === a ? b.tour : a.tour)
     ),
     // The record book merges per Pro: larger tallies win (two copies of one
     // timeline — summing would double-count), seasons union by seasonNo.

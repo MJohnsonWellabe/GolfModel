@@ -158,6 +158,7 @@ viewport):
 | green patch | 3-11 MB | scales with green size |
 | putt grid | 5.4 MB | fixed 1024² |
 | shadow map | 4 MB | fixed 1024² until the governor |
+| sky (dome ramp + 2 cloud sheets) | 0.84 MB | **unchanged by the per-course skies.** They ship as three PNGs (8×256 ramp, 512×320 cumulus, 512×96 cirrus) at the exact dimensions of the `DynamicTexture`s they replace — 100 KB on disk for all eight styles, same GPU bytes, same dome, same shader, same billboard geometry. `cloudCover` moves billboard COUNT: Timberline East went 6+10 → 3+5 (a fill-rate saving), Port Johnson 7+12 is the only rise. Gated by `tests/unit/skyAssets.test.ts` (60 KB per style). |
 | whole scene | 37-146 MB | Red Hollow's 96-98 loaded tree/rock textures are the outlier |
 
 The reported-slow courses are **not** the heaviest scenes: Sable Bay, Port

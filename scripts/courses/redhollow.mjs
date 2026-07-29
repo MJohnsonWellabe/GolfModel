@@ -10,6 +10,11 @@ const redhollow = {
   version: 2,
   theme: {
     skyTop: '#4f9bd9', skyBottom: '#f2d9b8', sunX: 520, sunY: 120,
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Red Hollow: storm light over the canyon. Built from a CC0
+    // Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    skyStyle: 'storm_canyon', cloudCover: 1.1, sunTint: '#fcfff9',
     fairway: '#3e8f4a', fairwayDark: '#357c40',
     rough: '#bc6f42', roughDark: '#9a5530',
     fringe: '#5d9a52', green: '#3f9150', greenLight: '#57a962',

@@ -1153,3 +1153,233 @@ export function mergeTour(a: TourSeasonState | null, b: TourSeasonState | null):
     (x.coop?.partners ?? []).reduce((n, p) => n + Object.keys(p.results).length, 0);
   return known(b) > known(a) ? b : a;
 }
+
+/* ========================================================================== *
+ * MORE THAN ONE SEASON, AND A RECORD OF THE FINISHED ONES
+ * ========================================================================== */
+
+/**
+ * Until Stage 5 the profile held exactly one season, in `profile.tour`, and
+ * three things followed from that which the owner ran into:
+ *
+ *  1. **A finished shared season was unreachable.** At rollover the whole
+ *     object was REPLACED, taking the points table, all 16 event results and
+ *     the entire `coop` block — partner name, their scores, the shared doc's
+ *     `sid` — with it. Only a one-line record survived, in `tourHistory`. So
+ *     "let me look at how that season with my friend finished" had no answer.
+ *  2. **Joining a friend's season silently destroyed your own.**
+ *     `receiveCoopInvite` assigned straight over `profile.tour`.
+ *  3. **You could not play two.** Which is the same fact as (2) stated kindly.
+ *
+ * A season is now one entry in a keyed map with an `activeId` alongside it, and
+ * a finished one is ARCHIVED with its full final standings rather than
+ * discarded. Every existing rule is unchanged — one season is active at a time,
+ * a round still belongs to whichever season is active when it tees off — but
+ * the others are still there, and the finished ones can still be read.
+ *
+ * The key is derived, never random ({@link tourKey}): a shared season keys on
+ * the shared doc's id, so two devices that join the same season land on the
+ * same key and merge into one entry rather than accumulating duplicates; a solo
+ * season keys on its seed, which is fixed at creation and survives rollover
+ * into a new seed (the new season is a NEW entry, which is exactly right).
+ */
+
+/** The stable map key for a season. Shared seasons key on the shared doc so
+ *  two devices in the same season merge into one entry. */
+export function tourKey(t: TourSeasonState): string {
+  return t.coop?.id ? `co:${t.coop.id}` : `solo:${t.seed}`;
+}
+
+/** A season that is over, with enough kept to show what happened. */
+export interface ArchivedTourSeason {
+  key: string;
+  seasonNo: number;
+  /** The Pro who played it, so the history reads as a career. */
+  proId: string;
+  proName: string;
+  /** Epoch ms it closed. */
+  at: number;
+  /** How it ended. A quit season is still a season that happened. */
+  ended: 'finale' | 'quit' | 'retired';
+  playerRank: number;
+  playerPoints: number;
+  /** The FULL final points table, ranked — the thing that used to be thrown
+   *  away, and the whole reason this exists. */
+  standings: TourStandingRow[];
+  /** Every event line, so the schedule can still be read back. */
+  results: TourEventResult[];
+  /** Present when it was a shared season: who it was played with. */
+  coop?: { id: string; partnerNames: string[] };
+}
+
+/** Archive cap. Ten seasons is the career limit per Pro (SEASON_LIMIT), so this
+ *  holds several Pros' worth before anything is dropped. */
+export const TOUR_ARCHIVE_CAP = 40;
+
+export interface TourCollection {
+  v: 1;
+  /** key → season. Every season the player has going. */
+  seasons: Record<string, TourSeasonState>;
+  /** Which one rounds are played into. Null when none is started. */
+  activeId: string | null;
+  /** Finished seasons, newest first, capped at {@link TOUR_ARCHIVE_CAP}. */
+  archive: ArchivedTourSeason[];
+}
+
+export function emptyTours(): TourCollection {
+  return { v: 1, seasons: {}, activeId: null, archive: [] };
+}
+
+/** The active season, or null. */
+export function activeTour(c: TourCollection): TourSeasonState | null {
+  return (c.activeId && c.seasons[c.activeId]) || null;
+}
+
+/**
+ * Insert or replace a season and make it the active one. Returns a NEW
+ * collection — the caller assigns it, so a caller that forgets cannot leave the
+ * map and the active id disagreeing.
+ */
+export function putTour(c: TourCollection, t: TourSeasonState): TourCollection {
+  const key = tourKey(t);
+  return { ...c, seasons: { ...c.seasons, [key]: t }, activeId: key };
+}
+
+/** Switch to an existing season. A key that is not in the map is ignored
+ *  rather than blanking the active season. */
+export function selectTour(c: TourCollection, key: string): TourCollection {
+  return c.seasons[key] ? { ...c, activeId: key } : c;
+}
+
+/** Drop the active season without archiving it — for the paths that used to
+ *  assign `profile.tour = null`. */
+export function clearActiveTour(c: TourCollection): TourCollection {
+  if (!c.activeId) return c;
+  const seasons = { ...c.seasons };
+  delete seasons[c.activeId];
+  return { ...c, seasons, activeId: null };
+}
+
+/**
+ * Close a season out: build its archive entry from the final state and remove
+ * it from the live map.
+ *
+ * Called at the finale, at a quit, and when the Pro who was playing it retires
+ * — the three ways a season ends. Idempotent by key: closing the same season
+ * twice replaces the entry rather than stacking two.
+ */
+export function archiveTour(
+  c: TourCollection,
+  t: TourSeasonState,
+  meta: { proId: string; proName: string; at: number; ended: ArchivedTourSeason['ended'] },
+  rivals: readonly TourRival[] = TOUR_RIVALS
+): TourCollection {
+  const key = tourKey(t);
+  const standings = t.coop ? coopSeasonStandings(t, rivals) : seasonStandings(t, rivals);
+  const rank = Math.max(1, standings.findIndex((r) => r.isPlayer) + 1);
+  const entry: ArchivedTourSeason = {
+    key,
+    seasonNo: t.seasonNo,
+    proId: meta.proId,
+    proName: meta.proName,
+    at: meta.at,
+    ended: meta.ended,
+    playerRank: rank,
+    playerPoints: t.points['player'] ?? 0,
+    standings,
+    results: t.results,
+    ...(t.coop ? { coop: { id: t.coop.id, partnerNames: t.coop.partners.map((p) => p.name) } } : {})
+  };
+  const seasons = { ...c.seasons };
+  delete seasons[key];
+  const archive = [entry, ...c.archive.filter((a) => a.key !== key)]
+    .sort((a, b) => b.at - a.at)
+    .slice(0, TOUR_ARCHIVE_CAP);
+  return { ...c, seasons, archive, activeId: c.activeId === key ? null : c.activeId };
+}
+
+function migrateArchiveEntry(raw: unknown): ArchivedTourSeason | null {
+  const a = raw as Partial<ArchivedTourSeason> | null;
+  if (!a || typeof a.key !== 'string' || typeof a.seasonNo !== 'number') return null;
+  return {
+    key: a.key,
+    seasonNo: a.seasonNo,
+    proId: typeof a.proId === 'string' ? a.proId : '',
+    proName: typeof a.proName === 'string' ? a.proName : '',
+    at: typeof a.at === 'number' ? a.at : 0,
+    ended: a.ended === 'quit' || a.ended === 'retired' ? a.ended : 'finale',
+    playerRank: typeof a.playerRank === 'number' ? a.playerRank : 0,
+    playerPoints: typeof a.playerPoints === 'number' ? a.playerPoints : 0,
+    standings: Array.isArray(a.standings) ? a.standings : [],
+    results: Array.isArray(a.results) ? a.results : [],
+    ...(a.coop && typeof a.coop.id === 'string'
+      ? { coop: { id: a.coop.id, partnerNames: Array.isArray(a.coop.partnerNames) ? a.coop.partnerNames : [] } }
+      : {})
+  };
+}
+
+/**
+ * Read a stored collection, and — the migration that matters — fold a
+ * pre-Stage-5 single `profile.tour` into a one-entry map. `legacy` is that
+ * stored season; it is used only when the map has nothing under its key, so a
+ * profile that has already migrated is never overwritten by its own stale
+ * `tour` field.
+ */
+export function migrateTours(raw: unknown, legacy?: unknown): TourCollection {
+  const c = (raw ?? {}) as Partial<TourCollection>;
+  const seasons: Record<string, TourSeasonState> = {};
+  for (const v of Object.values(c.seasons ?? {})) {
+    const t = migrateTour(v);
+    // Re-key on migrate rather than trusting the stored key: a season whose
+    // coop link was added later would otherwise sit under its old solo key and
+    // never merge with the partner's copy.
+    if (t) seasons[tourKey(t)] = t;
+  }
+  const old = migrateTour(legacy);
+  if (old && !seasons[tourKey(old)]) seasons[tourKey(old)] = old;
+  const archive = (Array.isArray(c.archive) ? c.archive : [])
+    .map(migrateArchiveEntry)
+    .filter((a): a is ArchivedTourSeason => !!a)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, TOUR_ARCHIVE_CAP);
+  let activeId = typeof c.activeId === 'string' && seasons[c.activeId] ? c.activeId : null;
+  // A migrated legacy season becomes the active one when nothing else claims
+  // it — otherwise a player who had a season in progress would come back to no
+  // season in progress.
+  if (!activeId && old && seasons[tourKey(old)]) activeId = tourKey(old);
+  if (!activeId) activeId = Object.keys(seasons)[0] ?? null;
+  return { v: 1, seasons, activeId, archive };
+}
+
+/**
+ * Merge two collections PER KEY — the pattern mergeTourHistory and mergeMastery
+ * already use. Whole-object merge was the bug: it meant one device's season map
+ * replacing the other's, which is how joining a friend's season on a phone
+ * could erase the solo season on a laptop.
+ */
+export function mergeTours(a: TourCollection | undefined, b: TourCollection | undefined): TourCollection {
+  const ma = migrateTours(a);
+  const mb = migrateTours(b);
+  const seasons: Record<string, TourSeasonState> = {};
+  for (const k of new Set([...Object.keys(ma.seasons), ...Object.keys(mb.seasons)])) {
+    const m = mergeTour(ma.seasons[k] ?? null, mb.seasons[k] ?? null);
+    if (m) seasons[k] = m;
+  }
+  const byKey = new Map<string, ArchivedTourSeason>();
+  for (const e of [...ma.archive, ...mb.archive]) {
+    const cur = byKey.get(e.key);
+    // The fuller record wins a tie: an archive entry written before a partner's
+    // last result landed has a shorter standings table than one written after.
+    if (!cur || e.at > cur.at || (e.at === cur.at && e.standings.length > cur.standings.length)) byKey.set(e.key, e);
+  }
+  // An ARCHIVED season is finished, and finished beats in-progress: a device
+  // that has not heard about the finale must not resurrect it as live.
+  for (const key of byKey.keys()) delete seasons[key];
+  const archive = [...byKey.values()].sort((x, y) => y.at - x.at).slice(0, TOUR_ARCHIVE_CAP);
+  const activeId =
+    (ma.activeId && seasons[ma.activeId] && ma.activeId) ||
+    (mb.activeId && seasons[mb.activeId] && mb.activeId) ||
+    Object.keys(seasons)[0] ||
+    null;
+  return { v: 1, seasons, activeId, archive };
+}

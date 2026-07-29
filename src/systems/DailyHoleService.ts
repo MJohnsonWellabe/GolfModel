@@ -12,14 +12,37 @@
  * cached for the rest of the session, off the gameplay path.
  */
 
-import { courseForHole, DailyHoleSpec, generateHole, seedForDate, themeForDate } from './DailyHole';
+import {
+  archetypeForDate,
+  courseForHole,
+  DAILY_ARCHETYPES,
+  DailyArchetype,
+  DailyHoleSpec,
+  generateHole,
+  seedForDate,
+  themeForDate
+} from './DailyHole';
 import { gradeHole, HoleGrade } from './DailyHoleGate';
 import type { CourseData } from '../core/types';
 
 /** Attempts before giving up on a day. In practice the first few pass; the cap
  *  exists so a future generator change that produces mostly-rejected holes
- *  degrades to "no daily hole today" instead of hanging the boot. */
-const MAX_ATTEMPTS = 24;
+ *  degrades to "no daily hole today" instead of hanging the boot.
+ *
+ *  Raised from 24 with the Stage 4 rebuild: the generator now draws far more
+ *  dramatic holes (water carries, canyon rims, 640-yard three-shotters), and a
+ *  dramatic hole is rejected more often even against the widened per-par band.
+ *  A day with no hole at all is a visible hole in the product, so the search
+ *  gets more room. Cost is bounded and paid at most once per day, off the
+ *  gameplay path — a rejection is ~140 rounds of pure arithmetic. */
+const MAX_ATTEMPTS = 60;
+
+/** After this many failures the search stops insisting on the day's archetype
+ *  and starts cycling through the others. The archetype is what gives a day its
+ *  identity, so it is held as long as it is plausibly findable — but a day with
+ *  an archetype that simply cannot be made fair (a par-3-only island green on a
+ *  bad seed run) must still produce SOME hole rather than none. */
+const ARCHETYPE_LOCK_ATTEMPTS = 24;
 
 export interface DailyHoleResult {
   spec: DailyHoleSpec | null;
@@ -44,6 +67,7 @@ export function dailyHole(dateKey: string, themeCourses: Record<string, CourseDa
   const themeId = themeForDate(dateKey, available);
   const themeCourse = themeCourses[themeId] ?? Object.values(themeCourses)[0];
   const base = seedForDate(dateKey);
+  const dayArchetype = archetypeForDate(dateKey);
   const rejected: Array<{ seed: number; reason: string }> = [];
 
   let result: DailyHoleResult = { spec: null, grade: null, rejected };
@@ -51,7 +75,11 @@ export function dailyHole(dateKey: string, themeCourses: Record<string, CourseDa
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       // Distinct, deterministic seed per attempt.
       const seed = (base + attempt * 0x9e3779b1) >>> 0;
-      const hole = generateHole(seed, 1);
+      const archetype: DailyArchetype =
+        attempt < ARCHETYPE_LOCK_ATTEMPTS
+          ? dayArchetype
+          : DAILY_ARCHETYPES[(attempt - ARCHETYPE_LOCK_ATTEMPTS) % DAILY_ARCHETYPES.length];
+      const hole = generateHole(seed, 1, archetype);
       let course: CourseData;
       try {
         course = courseForHole(hole, themeCourse, `Daily · ${dateKey}`);
@@ -70,6 +98,7 @@ export function dailyHole(dateKey: string, themeCourses: Record<string, CourseDa
           dateKey,
           themeId,
           seed,
+          archetype,
           par: course.holes[0].par,
           yardage: course.holes[0].yardage,
           attempts: attempt + 1,

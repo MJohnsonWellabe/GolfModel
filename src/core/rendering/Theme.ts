@@ -205,6 +205,42 @@ export interface CourseTheme {
    */
   cloudStyle?: 'puffy' | 'wispy';
   /**
+   * PAINTED SKY STYLE — the course's own sky, built from a CC0 source by
+   * `scripts/convert-skies.mjs` (see docs/technical/ASSET_ATTRIBUTION.md).
+   *
+   * Owner report: "I want courses to have their own unique skies and clouds."
+   * Before this every theme drew the same four-stop gradient and the same
+   * canvas-painted puffs, eleven colour tuples deep, with Timberline East and
+   * West byte-identical. A style names three committed PNGs:
+   *
+   *   assets/textures/sky/<skyStyle>_ramp.png      8x256   the dome ramp
+   *   assets/textures/sky/<skyStyle>_cumulus.png   512x320 the low cloud
+   *   assets/textures/sky/<skyStyle>_cirrus.png    512x96  the high streak
+   *
+   * Those are the exact dimensions of the DynamicTextures they replace, so the
+   * sky's VRAM and fill-rate cost do not move (the slow courses are already
+   * fill-rate bound on sky pixels — PERFORMANCE_AND_QUALITY_GATES.md).
+   *
+   * Unset keeps the procedural sky, unchanged and byte-identical — it stays the
+   * fallback for the daily hole and for any course that never gets a style.
+   * Setting it also implies the billboard cloud path (cloudKeys mesh clouds are
+   * skipped), because a course cannot have two cloud systems at once.
+   *
+   * tests/unit/skyAssets.test.ts fails the build if a course names a style
+   * whose files are not on disk.
+   */
+  skyStyle?: string;
+  /** Multiplier on how many cloud billboards a `skyStyle` sky plants (1 =
+   *  the historical 6 cumulus + 10 cirrus). An overcast lid goes above 1; an
+   *  alpine bluebird day goes well below. Ignored without skyStyle. */
+  cloudCover?: number;
+  /** Sun-disc colour. Measured off the source sky's solar AUREOLE by
+   *  convert-skies.mjs (a tonemapped sun disc is clipped to white; the 3-9°
+   *  ring around it is where the colour temperature actually lives), which is
+   *  why Wild Prairie's sun is a gold coin and Timberline's is white. Unset =
+   *  the historical cream. */
+  sunTint?: number;
+  /**
    * Real turf grain: a texture path (assets/textures/*.jpg) sampled by the
    * ground bake instead of coded procedural noise. Undefined = the original
    * coded grain(). Always paired with fairwayGrainTile/roughGrainTile.
@@ -400,6 +436,9 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
     | 'greenMowPattern'
     | 'cloudKeys'
     | 'cloudStyle'
+    | 'skyStyle'
+    | 'cloudCover'
+    | 'sunTint'
     | 'turfGrainKey'
     | 'turfNormalKey'
     | 'fairwayGrainTile'
@@ -485,6 +524,11 @@ export function resolveTheme(course: CourseData | null): CourseTheme {
   }
   t.cloudKeys = strings(spec.cloudKeys);
   if (spec.cloudStyle === 'wispy' || spec.cloudStyle === 'puffy') t.cloudStyle = spec.cloudStyle;
+  // Style ids are filenames, so refuse anything that could escape the sky
+  // folder — course JSON is data, and data never gets to name a path.
+  if (typeof spec.skyStyle === 'string' && /^[a-z0-9_]+$/.test(spec.skyStyle)) t.skyStyle = spec.skyStyle;
+  if (typeof spec.cloudCover === 'number') t.cloudCover = spec.cloudCover;
+  if (spec.sunTint !== undefined) t.sunTint = parseColor(spec.sunTint, 0xfffcdc);
   if (typeof spec.lushGrass === 'boolean') t.lushGrass = spec.lushGrass;
   if (typeof spec.edgeWobble === 'number') t.edgeWobble = spec.edgeWobble;
   if (typeof spec.stripeStrength === 'number') t.stripeStrength = spec.stripeStrength;

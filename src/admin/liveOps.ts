@@ -10,7 +10,8 @@
  * conditions and achievement definitions are economy/correctness surfaces and
  * deliberately cannot be edited from here (retention plan, Part 14).
  */
-import { DAILY_CHALLENGES, ACHIEVEMENTS, dailyChallengeFor } from '../data/progression';
+import { DAILY_CHALLENGES, dailyChallengeFor } from '../data/progression';
+import { FEAT_TIERS, FEATS } from '../systems/Feats';
 import { MASTERY_CHALLENGES } from '../data/masteryChallenges';
 import { streakRewardFor } from '../systems/Streak';
 import { weeklyEventFor, WEEKLY_ROTATION } from '../systems/WeeklyFeatured';
@@ -168,8 +169,11 @@ function readOnlySections(): string {
       m.stars.map((s) => esc(s.desc)).join(' · ') +
       `</td></tr>`
   ).join('');
-  const ach = ACHIEVEMENTS.map(
-    (a) => `<tr><td><code>${esc(a.id)}</code></td><td><b>${esc(a.name)}</b></td><td>${esc(a.desc)}</td><td>+${a.xp} XP · +${a.coins} 🪙</td></tr>`
+  const tierLabel = new Map(FEAT_TIERS.map((t) => [t.id, t.label]));
+  const ach = FEATS.map(
+    (f) =>
+      `<tr><td><code>${esc(f.id)}</code></td><td><b>${esc(f.name)}</b></td><td>${esc(f.desc)}</td>` +
+      `<td>${esc(tierLabel.get(f.tier) ?? f.tier)}</td><td>+${f.cp} CP · +${f.coins} 🪙</td></tr>`
   ).join('');
   const daily = DAILY_CHALLENGES.map((c) => `<tr><td><code>${esc(c.id)}</code></td><td>${esc(c.name)}</td></tr>`).join('');
   return `
@@ -178,7 +182,7 @@ function readOnlySections(): string {
       <h3>Daily challenge roster</h3><table>${daily}</table>
       <h3>Streak reward cycle</h3><table>${streak}</table>
       <h3>Hole mastery third stars</h3><table>${mastery}</table>
-      <h3>Achievements</h3><table>${ach}</table>
+      <h3>Feats</h3><table>${ach}</table>
     </section>`;
 }
 

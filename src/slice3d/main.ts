@@ -48,12 +48,13 @@ import { GhostRun } from '../systems/GhostRun';
 import { pinForSeed, shotRngSeed } from '../systems/RoundConditions';
 import { recordBoards } from '../systems/RecordBoards';
 import { dailyHole, shareText } from '../systems/DailyHoleService';
+import { ARCHETYPE_NAMES } from '../systems/DailyHole';
 import { loadDailyPlay, saveDailyPlay } from '../systems/DailyHoleStore';
 import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, clearActiveTour, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -62,8 +63,9 @@ import { mulberry32 } from '../utils/Random';
 import { authConfigured, authState, CloudSaveStatus, cloudEmail, cloudSyncProfile, cloudUid, giftSeasonReward, linkedAccountName, onAccountAppeared, signInWithGoogle, signOutAccount, submitRoundForVerification } from '../firebase/FirebaseClient';
 import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, CRASH_LOG_MAX, CrashRecord, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
-import { ACHIEVEMENTS, achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
-import { activePro, careerOvr, careerStarted, CP, pointCost, setActivePro, setProLook, startPro } from '../data/career';
+import { achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
+import { featById, FEAT_TIERS, FEATS, recordHoleFeats } from '../systems/Feats';
+import { activePro, careerOvr, careerStarted, CP, pointCost, pointsAffordable, setActivePro, setProLook, startPro } from '../data/career';
 // CP belongs to the Pro who earned it — every grant/spend goes through the
 // wallet so a rookie starts at zero and a retired Pro's balance is frozen
 // rather than nagging from the landing (systems/CareerWallet.ts).
@@ -710,7 +712,7 @@ function lockRoundDifficulty(): void {
   // both inherit the season's locked difficulty; everything else is the
   // player's own setting.
   const inSeason = tourRoundLive || !!tourPlayoff;
-  const shared = inSeason ? asDifficulty(profile.tour?.coop?.diff) : undefined;
+  const shared = inSeason ? asDifficulty(tourNow()?.coop?.diff) : undefined;
   round.difficulty = shared ?? playerDifficulty();
 }
 
@@ -728,6 +730,10 @@ interface HoleFacts {
   approachFt: number | null;
   onFire: boolean;
   windSpeed: number;
+  /** True when the TEE SHOT finished on the green — the only evidence a par 4
+   *  was driven, and not derivable from anything else the round records
+   *  (systems/Feats.ts, 'drive_a_par4'). */
+  droveGreen: boolean;
 }
 function freshHoleFacts(): HoleFacts {
   return {
@@ -738,7 +744,8 @@ function freshHoleFacts(): HoleFacts {
     longestPuttFt: 0,
     approachFt: null,
     onFire: false,
-    windSpeed: 0
+    windSpeed: 0,
+    droveGreen: false
   };
 }
 
@@ -3547,6 +3554,12 @@ class HoleScene {
         facts.fairway = true;
       }
     }
+    // Driving the green: the tee shot itself finished on the putting surface.
+    // `holed` counts too — an albatross off a par 4 tee is emphatically driving
+    // it. The fringe does not: the feat says green.
+    if (teeShot && this.hole.par === 4 && (outcome.surface === 'green' || outcome.holed)) {
+      facts.droveGreen = true;
+    }
     if (teeShot && (club.id === 'driver' || club.id === '3w' || club.id === '5w')) {
       shotAcc.longestDriveYds = Math.max(shotAcc.longestDriveYds, dist(origin, outcome.finalPos) / PX_PER_YARD);
     }
@@ -4741,6 +4754,16 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
       roundToPar,
       roundPutts
     };
+    // The legend-tier feat ledger asks a different question from the mastery
+    // stars — "which COURSES have given this up" rather than "what has this
+    // hole given up" — so it is recorded alongside rather than derived from
+    // them (systems/Feats.ts).
+    profile.retention.feats = recordHoleFeats(profile.retention.feats, {
+      courseId,
+      par: hole.par,
+      strokes,
+      droveGreen: facts.droveGreen
+    });
     const res = applyHoleMastery(profile.retention.mastery, input, thirdStarFor(courseId, hole.number));
     for (const star of res.newStars) {
       roundNewStars.push({ hole: hole.number, star });
@@ -5240,10 +5263,11 @@ function showSummary(): void {
   let tourSeasonPrimary = '';
   let tourCpLine = '';
   let tourEventJustDone = false;
-  if (tourRoundLive && profile.tour) {
+  const liveSeason = tourNow();
+  if (tourRoundLive && liveSeason) {
     tourRoundLive = false;
     const ids = tourCourseIds();
-    const t = profile.tour;
+    const t = liveSeason;
     const def = currentEvent(t, ids);
     const outcome = def ? completeTourRound(t, COURSES, totals[0], totals[0] - totalPar, ids) : null;
     if (def && outcome) {
@@ -5597,6 +5621,59 @@ function rewardStripHtml(events: RewardEvent[]): string {
   return html;
 }
 
+/**
+ * FEATS, WITH A TRACKER ON EVERY ONE.
+ *
+ * The old list showed the earned ones, three arbitrary locked ones and the
+ * sentence "… 14 more to discover" — so the goals a player was closest to were
+ * usually the ones they could not see, and the ones they could see said nothing
+ * about how close they were (owner: "the challenges need to be redone ... with
+ * trackers").
+ *
+ * Now: three tiers, every feat listed, and every unfinished one carries the bar
+ * and the raw numbers. Within a tier the nearly-done sort to the top, because
+ * "2 of 3" is the row worth reading. Done feats collapse into a single line of
+ * medals per tier — they are a trophy, not a to-do.
+ */
+function featsHtml(p: PlayerProfile): string {
+  const done = new Set(p.achievements);
+  return (
+    `<div class="featList">` +
+    FEAT_TIERS.map((tier) => {
+      const mine = FEATS.filter((f) => f.tier === tier.id);
+      if (!mine.length) return '';
+      const got = mine.filter((f) => done.has(f.id));
+      const todo = mine
+        .filter((f) => !done.has(f.id))
+        .map((f) => ({ f, ...f.progress(p) }))
+        // Closest first. A feat with nothing on it yet sorts last inside its
+        // tier rather than sitting above one that is two thirds finished.
+        .sort((a, b) => b.have / b.need - a.have / a.need);
+      const rows = todo
+        .map(({ f, have, need }) => {
+          const pct = Math.round((have / need) * 100);
+          // A 0/1 feat has nothing useful to count, so it shows the goal
+          // instead of the arithmetic — "0 of 1" tells a player nothing.
+          const count = need === 1 ? '' : `<span class="featN">${have} / ${need}</span>`;
+          return (
+            `<div class="featRow"><div class="featTop"><b>${escapeHtml(f.name)}</b>${count}</div>` +
+            `<div class="featDesc">${escapeHtml(f.desc)}</div>` +
+            `<div class="xpBar"><i style="width:${pct}%"></i></div></div>`
+          );
+        })
+        .join('');
+      const gotLine = got.length
+        ? `<div class="featGot">${got.map((f) => `<span class="chip">🏅 ${escapeHtml(f.name)}</span>`).join('')}</div>`
+        : '';
+      return (
+        `<div class="featTier"><div class="featTierHead">${escapeHtml(tier.label)}` +
+        `<span class="featTierN">${got.length} / ${mine.length}</span></div>${gotLine}${rows}</div>`
+      );
+    }).join('') +
+    `</div>`
+  );
+}
+
 /** Per-course, per-hole mastery breakdown for the profile drill-down: each
  *  hole lists its three authored challenges (easiest → hardest) shown filled
  *  or empty, so the player sees exactly what's completed and what remains. */
@@ -5677,6 +5754,13 @@ function graphicsNote(): string {
   const q = qualityStatus();
   const detail = q.reason ? ` · ${q.reason}` : '';
   return q.pinned ? `Drawing at ${q.label}${detail}` : `Auto chose ${q.label} for this device${detail}`;
+}
+
+/** One labelled section of the Settings pane. A heading and a hairline are all
+ *  it takes to turn a flat list into "these change my game, those change this
+ *  phone" — the pane had neither. */
+function setGroup(title: string, body: string): string {
+  return `<div class="setGroup"><div class="setGroupHead">${title}</div>${body}</div>`;
 }
 
 /**
@@ -5827,71 +5911,85 @@ function renderProfile(tab?: ProfileTab): void {
           : '') +
         // Achievements: earned first, then a FEW useful next targets — never the
         // whole locked wall (Part 6).
-        `<div class="achList">` +
-        (() => {
-          const earned = ACHIEVEMENTS.filter((a) => p.achievements.includes(a.id));
-          const nextUp = ACHIEVEMENTS.filter((a) => !p.achievements.includes(a.id)).slice(0, 3);
-          const hidden = ACHIEVEMENTS.length - earned.length - nextUp.length;
-          return (
-            earned.map((a) => `<div class="achRow got">🏅 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
-            nextUp.map((a) => `<div class="achRow">🎯 <b>${a.name}</b> <span>${a.desc}</span></div>`).join('') +
-            (hidden > 0 ? `<div class="achRow"><span>… ${hidden} more to discover</span></div>` : '')
-          );
-        })() +
-        `</div>`
+        featsHtml(p)
     ) +
     pane(
       'settings',
+      // SETTINGS, IN GROUPS.
+      //
+      // This was a flat stack of thirteen rows with no headings, in the order
+      // they happened to be added: audio, then a control scheme, then a
+      // recorder, then the one setting that changes how the game PLAYS, then a
+      // graphics budget, then a diagnostic, then a destructive button. Nothing
+      // told you which of those touched your game and which touched this phone
+      // (owner: "reorganize the settings tab so it makes more sense").
+      //
+      // Four groups, in the order a player cares: who you are, how it plays,
+      // how it sounds, what this device does. Every row keeps its element id,
+      // so every handler below is untouched.
       `<div class="profSettings">` +
         (authConfigured()
-          ? `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
-            `<button id="linkGoogle" class="ghostBtn">Sign in with Google</button></div>`
+          ? setGroup(
+              'Account',
+              `<div class="acctRow"><span id="acctStatus" class="acctStatus">Checking account…</span>` +
+                `<button id="linkGoogle" class="ghostBtn">Sign in with Google</button></div>`
+            )
           : '') +
-        `<label class="setRow"><span>Sound</span>` +
-        `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
-        `<label class="setRow"><span>Ambience</span>` +
-        `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>` +
-        `<label class="setRow"><span>Reduced motion</span>` +
-        `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
-        (flag('dragSwing')
-          ? `<div class="setRow"><span>Swing</span><div class="setSeg">` +
-            `<button id="setSwingTap" class="segBtn${deviceSettings.swingType === 'tap' ? ' sel' : ''}">Three-click</button>` +
-            `<button id="setSwingTrace" class="segBtn${deviceSettings.swingType === 'trace' ? ' sel' : ''}">Drag &amp; trace</button>` +
-            `</div></div>`
-          : '') +
-        (shotCapture.supported
-          ? `<label class="setRow"><span>Record shot clips</span>` +
-            `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''}` +
-            `${captureBlocked() ? ' disabled' : ''} /></label>` +
-            // The checkbox keeps the player's answer; this says why the device
-            // is overruling it, so a dead toggle never reads as a bug.
-            (captureBlocked() ? `<div class="setNote">${CAPTURE_BLOCKED_MSG}</div>` : '')
-          : '') +
-        // Difficulty: the ONE gameplay setting, and it only resizes the swing
-        // meter's bands. It sits above Graphics deliberately — a player looking
-        // for "make this easier" should meet the setting that means it before
-        // the one that means "draw less".
-        `<div class="setRow"><span>Difficulty</span><div class="setSeg">` +
-        DIFFICULTIES.map((d) => {
-          const sel = playerDifficulty() === d;
-          return `<button id="setDiff-${d}" class="segBtn${sel ? ' sel' : ''}">${difficultyProfile(d).label}</button>`;
-        }).join('') +
-        `</div></div>` +
-        `<div class="setNote" id="diffNote">${difficultyNote()}</div>` +
-        // Graphics: Auto measures this device and picks a budget for it; the
-        // rest pin one. Whatever is showing, the readout underneath says what
-        // the game is ACTUALLY drawing right now, so "it's laggy" has an
-        // answer that does not require a debugger.
-        `<div class="setRow"><span>Graphics</span><div class="setSeg">` +
-        GRAPHICS_CHOICES.map(
-          ([value, label]) =>
-            `<button id="setGfx${value}" class="segBtn${deviceSettings.graphics === value ? ' sel' : ''}">${label}</button>`
-        ).join('') +
-        `</div></div>` +
-        `<div class="setNote" id="gfxNote">${graphicsNote()}</div>` +
-        // Only rendered once this device has actually lost a context, so it is
-        // invisible to everyone whose hardware copes.
-        (crashNote() ? `<div class="setNote setNoteWarn" id="crashNote">${crashNote()}</div>` : '') +
+        setGroup(
+          'Game',
+          // Difficulty leads: it is the only setting here that changes how the
+          // game plays, so somebody looking for "make this easier" meets it
+          // before anything about drawing or volume.
+          `<div class="setRow"><span>Difficulty</span><div class="setSeg">` +
+            DIFFICULTIES.map((d) => {
+              const sel = playerDifficulty() === d;
+              return `<button id="setDiff-${d}" class="segBtn${sel ? ' sel' : ''}">${difficultyProfile(d).label}</button>`;
+            }).join('') +
+            `</div></div>` +
+            `<div class="setNote" id="diffNote">${difficultyNote()}</div>` +
+            (flag('dragSwing')
+              ? `<div class="setRow"><span>Swing</span><div class="setSeg">` +
+                `<button id="setSwingTap" class="segBtn${deviceSettings.swingType === 'tap' ? ' sel' : ''}">Three-click</button>` +
+                `<button id="setSwingTrace" class="segBtn${deviceSettings.swingType === 'trace' ? ' sel' : ''}">Drag &amp; trace</button>` +
+                `</div></div>`
+              : '')
+        ) +
+        setGroup(
+          'Sound',
+          `<label class="setRow"><span>Sound</span>` +
+            `<input id="setSound" type="range" min="0" max="1" step="0.05" value="${p.settings.sound}" /></label>` +
+            `<label class="setRow"><span>Ambience</span>` +
+            `<input id="setAmbience" type="range" min="0" max="1" step="0.05" value="${p.settings.ambience}" /></label>`
+        ) +
+        setGroup(
+          'This device',
+          `<label class="setRow"><span>Reduced motion</span>` +
+            `<input id="setReducedMotion" type="checkbox" ${p.settings.reducedMotion ? 'checked' : ''} /></label>` +
+            (shotCapture.supported
+              ? `<label class="setRow"><span>Record shot clips</span>` +
+                `<input id="setClipCapture" type="checkbox" ${deviceSettings.clipCapture ? 'checked' : ''}` +
+                `${captureBlocked() ? ' disabled' : ''} /></label>` +
+                // The checkbox keeps the player's answer; this says why the
+                // device is overruling it, so a dead toggle never reads as a bug.
+                (captureBlocked() ? `<div class="setNote">${CAPTURE_BLOCKED_MSG}</div>` : '')
+              : '') +
+            // Graphics: Auto measures this device and picks a budget for it; the
+            // rest pin one. Whatever is showing, the readout underneath says what
+            // the game is ACTUALLY drawing right now, so "it's laggy" has an
+            // answer that does not require a debugger.
+            `<div class="setRow"><span>Graphics</span><div class="setSeg">` +
+            GRAPHICS_CHOICES.map(
+              ([value, label]) =>
+                `<button id="setGfx${value}" class="segBtn${deviceSettings.graphics === value ? ' sel' : ''}">${label}</button>`
+            ).join('') +
+            `</div></div>` +
+            `<div class="setNote" id="gfxNote">${graphicsNote()}</div>` +
+            // Only rendered once this device has actually lost a context, so it
+            // is invisible to everyone whose hardware copes.
+            (crashNote() ? `<div class="setNote setNoteWarn" id="crashNote">${crashNote()}</div>` : '')
+        ) +
+        // Outside the groups, at the bottom: one link out and one destructive
+        // button, kept well clear of anything a player taps by habit.
         `<a class="ghostBtn aboutGameRow" href="marketing.html">ℹ️ About the game</a>` +
         `<div id="resetZone" class="resetZone">` +
         `<button id="resetRecords" class="dangerBtn">Reset Records</button></div>` +
@@ -7139,11 +7237,50 @@ function showAiTourBoard(): void {
 
 // ----- TOUR SEASON (career round 2): the Pro's own-pace season — sixteen
 // events against the ten named rivals, majors at 4/8/12/16, a PGA-style
-// points table. State lives on the PROFILE (profile.tour) so a major's
+// points table. State lives on the PROFILE (`profile.tours`) so a major's
 // completed rounds survive closing the game; this flag only marks that the
 // round currently in play belongs to the tour.
 
 let tourRoundLive = false;
+
+/**
+ * THE ACTIVE SEASON.
+ *
+ * The profile used to hold exactly one season in `profile.tour`, and every
+ * caller here read and assigned it directly. It now holds a keyed collection
+ * (systems/TourSeason.ts, Stage 5), and these two functions are the only way
+ * this file touches it — so the map, the active id and the archive can never
+ * be left disagreeing by a caller that assigned one and forgot the others.
+ */
+function tourNow(): TourSeasonState | null {
+  return activeTour(profile.tours);
+}
+
+/** Insert-or-replace the season and make it active; null drops the active one
+ *  WITHOUT archiving it (for the paths that never had a season to close). */
+function setTour(t: TourSeasonState | null): void {
+  profile.tours = t ? putTour(profile.tours, t) : clearActiveTour(profile.tours);
+}
+
+/**
+ * End a season properly: archive it with its full final standings, then roll
+ * the next one out unless the Pro who played it has retired.
+ *
+ * This replaces three copies of `profile.tour = retired ? null : rollover(t)`.
+ * Each of them destroyed the points table, all sixteen event results and the
+ * whole shared-season block — which is why a finished co-op season's standings
+ * could not be looked at afterwards.
+ */
+function closeOutSeason(t: TourSeasonState, ended: 'finale' | 'retired'): void {
+  const pro = activePro(profile.career);
+  profile.tours = archiveTour(profile.tours, t, {
+    proId: pro?.id ?? '',
+    proName: pro?.name ?? '',
+    at: Date.now(),
+    ended
+  });
+  if (ended !== 'retired') setTour(rolloverTourSeason(t, Math.floor(Math.random() * 1e9)));
+}
 
 // ----- SUDDEN DEATH (owner pass 8): a player tied for an event's lead plays
 // extra holes against the tied rivals' BALLS AT REST — each rival's hole is
@@ -7195,8 +7332,8 @@ function startTourEvent(): void {
     renderLockerRoom();
     return;
   }
-  if (!profile.tour) {
-    profile.tour = newSeason(Math.floor(Math.random() * 1e9));
+  if (!tourNow()) {
+    setTour(newSeason(Math.floor(Math.random() * 1e9)));
     persistProfile();
   }
   // The tour is played AS the Pro — entering selects the career style.
@@ -7206,7 +7343,7 @@ function startTourEvent(): void {
   }
   // A tie waiting on sudden death resumes THERE, not into a fresh round —
   // the regulation rounds are banked and the event can only end via playoff.
-  if (playoffPending(profile.tour, tourCourseIds())) {
+  if (playoffPending(tourNow()!, tourCourseIds())) {
     startTourPlayoffHole();
     return;
   }
@@ -7245,10 +7382,10 @@ function coopPartnersFrom(doc: CoopSeasonDoc, myId: string): TourCoopPartner[] {
 /** Pull the shared doc and re-settle the points table. Safe to call on any
  *  hub paint: bounded, failure-tolerant, and a no-op for a solo season. */
 async function syncCoopSeason(repaint = false): Promise<void> {
-  const t = profile.tour;
+  const t = tourNow();
   if (!t?.coop) return;
   const doc = await fetchCoopSeason(t.coop.id);
-  if (!doc || profile.tour !== t) return;
+  if (!doc || tourNow() !== t) return;
   applyCoopSnapshot(t, coopPartnersFrom(doc, t.coop.playerId), tourCourseIds());
   settleFinishedCoopSeason(t);
   persistProfile();
@@ -7261,6 +7398,10 @@ async function syncCoopSeason(repaint = false): Promise<void> {
   if (tourView === 'hub') renderTourHub(true);
   else if (tourView === 'schedule') renderTourSchedule();
   else if (tourView === 'event') renderTourEventResult(tourEventView);
+  // The picker and the archive read the collection, not the live season, so a
+  // partner's result landing mid-view must not throw them back to the hub.
+  else if (tourView === 'picker') renderSeasonPicker();
+  else if (tourView === 'history') renderSeasonHistory();
 }
 
 /**
@@ -7282,10 +7423,10 @@ function settleFinishedCoopSeason(t: TourSeasonState): void {
   } else {
     showMsg(`Season ${t.seasonNo} settled: ${escapeHtml(fin.championName)} takes it.`, 3200);
   }
-  // The season has done its job; the next one can roll now.
-  profile.tour = proRetired(profile.tourHistory, pro.id)
-    ? null
-    : rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+  // The season has done its job; the next one can roll now. It is ARCHIVED
+  // first (Stage 5) — the points table, the sixteen event lines and the shared
+  // season's partners all used to go in the bin at this exact line.
+  closeOutSeason(t, proRetired(profile.tourHistory, pro.id) ? 'retired' : 'finale');
 }
 
 /** Start a shared season and hand the player a link to text. Uses the season
@@ -7294,7 +7435,7 @@ function settleFinishedCoopSeason(t: TourSeasonState): void {
 async function startCoopSeason(): Promise<void> {
   if (!careerStarted(profile.career)) return;
   const myId = challengePlayerId();
-  const existing = profile.tour;
+  const existing = tourNow();
   const seasonNo = existing?.seasonNo ?? 1;
   // A season with events already banked can't be shared retroactively — the
   // partner would be joining a race already run — so that case starts fresh.
@@ -7319,7 +7460,7 @@ async function startCoopSeason(): Promise<void> {
     return;
   }
   base.coop = { id: sid, playerId: myId, partners: [], diff };
-  profile.tour = base;
+  setTour(base);
   persistProfile();
   const url = coopUrl(sid, `${location.origin}${location.pathname}`);
   await shareOrCopy(`Play a golf season with me — same schedule, same rivals. Join: `, url);
@@ -7372,7 +7513,10 @@ async function receiveCoopInvite(raw: string): Promise<void> {
         partners: coopPartnersFrom(fresh, myId),
         ...(fresh.diff ? { diff: fresh.diff } : {})
       };
-      profile.tour = season;
+      // An INSERT, not an overwrite: joining a friend's season used to assign
+      // straight over profile.tour and silently discard the season the player
+      // already had going (Stage 5).
+      setTour(season);
       persistProfile();
       renderTourHub();
     })();
@@ -7393,7 +7537,7 @@ function publishCoopResult(t: TourSeasonState, res: TourEventResult): void {
  *  precedent: round.mode stays 'solo', the summary spots the live tour round
  *  and swaps its footer for standings + the event's next step. */
 function startTourRound(): void {
-  const t = profile.tour;
+  const t = tourNow();
   const def = t ? currentEvent(t, tourCourseIds()) : null;
   if (!t || !def) return;
   round.course = courseFallback(def.courseId);
@@ -7456,7 +7600,7 @@ function startTourRound(): void {
  * parks their balls and advances them with the player's stroke count.
  */
 function startTourPlayoffHole(): void {
-  const t = profile.tour;
+  const t = tourNow();
   const ids = tourCourseIds();
   const pending = t ? playoffPending(t, ids) : null;
   if (!t || !pending) return;
@@ -7539,7 +7683,7 @@ function startTourPlayoffHole(): void {
   showMsg(`⚔ Sudden death, hole ${pending.holesPlayed + 1} — beat ${names} outright`, 3200);
 }
 function tourSeasonTableHtml(): string {
-  const t = profile.tour;
+  const t = tourNow();
   if (!t) return '';
   // HOT STREAKS, MADE VISIBLE (owner: "give some ais random hot streaks where
   // they play higher than their level (+5) for a few weeks"). A streak that
@@ -7602,7 +7746,7 @@ function tourStandingRowsHtml(standings: TourRoundOutcome['standings']): string 
  *  they have posted this event, a DNP row if they have not. The scored array
  *  itself is left untouched; see `eventBoardRows`. */
 function tourEventBoardHtml(standings: TourRoundOutcome['standings'], eventIdx: number): string {
-  const t = profile.tour;
+  const t = tourNow();
   return tourStandingRowsHtml(t ? eventBoardRows(standings, t, eventIdx) : standings);
 }
 
@@ -7685,13 +7829,13 @@ function tourEventOutcomeUi(
     // starts a new Pro, and this one's record book page stands as their
     // career. Their look and stats stay playable in casual rounds.
     if (recordPro && proRetired(profile.tourHistory, recordPro.id)) {
-      profile.tour = null;
+      closeOutSeason(t, 'retired');
       cpLine +=
         `<div class="rwLine ach">🏛 ${escapeHtml(recordPro.name)} retires to the Hall of Fame — ` +
         `${SEASON_LIMIT} seasons, ${profile.tourHistory[recordPro.id]?.wins ?? 0} wins, ` +
         `${profile.tourHistory[recordPro.id]?.majorWins ?? 0} majors. Start a new Pro to tour again.</div>`;
     } else if (settled) {
-      profile.tour = rolloverTourSeason(t, Math.floor(Math.random() * 1e9));
+      closeOutSeason(t, 'finale');
     }
     // …and when it ISN'T settled the season stays put: `played` is already 16
     // so there is nothing left to play, the hub says who it is waiting on, and
@@ -7722,9 +7866,9 @@ function awardSeasonChampion(t: TourSeasonState): void {
   profile.stats.seasonChampionships += 1;
   if (!profile.achievements.includes('season_champion')) {
     profile.achievements.push('season_champion');
-    const champ = ACHIEVEMENTS.find((a) => a.id === 'season_champion');
+    const champ = featById('season_champion');
     if (champ) {
-      grantCareerCp(profile, achievementCp(champ.xp));
+      grantCareerCp(profile, champ.cp);
       profile.coins += champ.coins;
       profile.coinsEarned += champ.coins;
     }
@@ -7758,7 +7902,7 @@ function renderPlayoffSummary(): void {
   pauseBtn.style.display = 'none';
   promptEl.textContent = '';
   aimReadoutEl.style.display = 'none';
-  const t = profile.tour;
+  const t = tourNow();
   const ids = tourCourseIds();
   const def = t ? currentEvent(t, ids) : null;
   const playerStrokes = round.players[0]?.scores[0] ?? 0;
@@ -7840,7 +7984,7 @@ function renderPlayoffSummary(): void {
  * and the purse it forfeits.
  */
 function confirmQuitSeason(): void {
-  const t = profile.tour;
+  const t = tourNow();
   const pro = activePro(profile.career);
   if (!t || !pro) return;
   const started = t.played > 0;
@@ -7905,7 +8049,7 @@ function confirmQuitSeason(): void {
  *  the Pro if that was their tenth), and drop the round-scoped tour state the
  *  same way startRound does. */
 function applyQuitSeason(): void {
-  const t = profile.tour;
+  const t = tourNow();
   const pro = activePro(profile.career);
   if (!t || !pro) return;
   // Moving on from a COMPLETE shared season freezes the title where it
@@ -7915,7 +8059,10 @@ function applyQuitSeason(): void {
   const freezing = t.played >= TOUR_EVENTS && !!t.coop;
   const champOnFreeze = freezing && coopSeasonStandings(t).findIndex((r) => r.isPlayer) === 0;
   const out = quitSeason(t, profile.tourHistory, pro.id, pro.name, Math.floor(Math.random() * 1e9));
-  profile.tour = out.next;
+  // Quitting is still a season that happened: it is archived with whatever
+  // standings it had reached, not erased.
+  profile.tours = archiveTour(profile.tours, t, { proId: pro.id, proName: pro.name, at: Date.now(), ended: 'quit' });
+  if (out.next) profile.tours = putTour(profile.tours, out.next);
   if (champOnFreeze) awardSeasonChampion(t);
   // A season in progress can own a live round, a live playoff hole, and an
   // AI-tournament left over from another mode — none of them survive it.
@@ -7954,7 +8101,7 @@ function applyQuitSeason(): void {
  * multiplayer season"). Solo seasons never saw it because `syncCoopSeason`
  * returns immediately when there is no partner.
  */
-type TourView = 'hub' | 'schedule' | 'event' | 'records';
+type TourView = 'hub' | 'schedule' | 'event' | 'records' | 'picker' | 'history' | 'past';
 let tourView: TourView = 'hub';
 /** The event the drill-down is showing, so a background sync can repaint it. */
 let tourEventView = 0;
@@ -7990,11 +8137,11 @@ function renderTourHub(fromSync = false): void {
     return;
   }
   // First visit: the season is born HERE, so the schedule has a seed to show.
-  if (!profile.tour) {
-    profile.tour = newSeason(Math.floor(Math.random() * 1e9));
+  if (!tourNow()) {
+    setTour(newSeason(Math.floor(Math.random() * 1e9)));
     persistProfile();
   }
-  const t = profile.tour;
+  const t = tourNow()!;
   const ids = tourCourseIds();
   const def = currentEvent(t, ids);
   const roundsIn = eventRoundsPlayed(t);
@@ -8007,6 +8154,8 @@ function renderTourHub(fromSync = false): void {
   const hubPro = activePro(profile.career);
   const hubRetired = !!hubPro && proRetired(profile.tourHistory, hubPro.id);
   const cpToSpend = spendableCp(profile);
+  const activeKey = profile.tours.activeId;
+  const otherSeasons = Object.entries(profile.tours.seasons).filter(([k]) => k !== activeKey);
   // A finished shared season that is waiting on the friend: nothing left to
   // play, and the title is not final yet.
   const awaiting = t.played >= TOUR_EVENTS && !!t.coop && !coopSeasonSettled(t, Date.now());
@@ -8064,6 +8213,18 @@ function renderTourHub(fromSync = false): void {
     `<button id="thRecords" class="careerNavBtn"><span class="cnIcon">🏅</span>` +
     `<span class="cnName">Career records</span>` +
     `<span class="cnSub">Wins, majors and every season placement</span></button>` +
+    // MORE THAN ONE SEASON (Stage 5). Both rows are conditional: a player with
+    // one season and nothing finished sees the hub exactly as it was.
+    (otherSeasons.length
+      ? `<button id="thSwitch" class="careerNavBtn"><span class="cnIcon">🔀</span>` +
+        `<span class="cnName">Switch season</span>` +
+        `<span class="cnSub">${otherSeasons.length} other season${otherSeasons.length === 1 ? '' : 's'} on the go</span></button>`
+      : '') +
+    (profile.tours.archive.length
+      ? `<button id="thHistory" class="careerNavBtn"><span class="cnIcon">📖</span>` +
+        `<span class="cnName">Past seasons</span>` +
+        `<span class="cnSub">${profile.tours.archive.length} finished · final tables kept</span></button>`
+      : '') +
     (hubRetired
       ? ''
       : `<button id="thQuit" class="careerNavBtn"><span class="cnIcon">${
@@ -8086,6 +8247,8 @@ function renderTourHub(fromSync = false): void {
     refreshProgressSurfaces();
   });
   el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+  el.querySelector('#thSwitch')?.addEventListener('click', () => renderSeasonPicker());
+  el.querySelector('#thHistory')?.addEventListener('click', () => renderSeasonHistory());
   el.querySelector('#thSched')?.addEventListener('click', () => renderTourSchedule());
   // Straight to the stat-spend screen — the Locker's Style tab IS that screen,
   // so this is one tap instead of Back → Locker → Style.
@@ -8100,7 +8263,7 @@ function renderTourHub(fromSync = false): void {
   el.querySelector('#thQuit')?.addEventListener('click', () => confirmQuitSeason());
   el.querySelector('#thCoop')?.addEventListener('click', () => void startCoopSeason());
   el.querySelector('#thCoopShare')?.addEventListener('click', () => {
-    const id = profile.tour?.coop?.id;
+    const id = tourNow()?.coop?.id;
     if (id) void shareOrCopy('Play a golf season with me — same schedule, same rivals. Join: ', coopUrl(id, `${location.origin}${location.pathname}`));
   });
   // A partner may have posted since the last paint; refresh in the background.
@@ -8126,7 +8289,7 @@ function renderTourHub(fromSync = false): void {
  */
 function renderTourSchedule(): void {
   const el = document.getElementById('tourHub');
-  const t = profile.tour;
+  const t = tourNow();
   if (!el || !t) return;
   el.style.display = 'flex';
   tourView = 'schedule';
@@ -8200,7 +8363,7 @@ function renderTourSchedule(): void {
  */
 function renderTourEventResult(idx: number): void {
   const el = document.getElementById('tourHub');
-  const t = profile.tour;
+  const t = tourNow();
   if (!el || !t) return;
   const res = t.results.find((r) => r.idx === idx);
   const def = tourSchedule(t.seed, tourCourseIds())[idx];
@@ -8285,7 +8448,7 @@ function renderTourGolferRecords(): void {
   // The stable in creation order, then record-book-only Pros (deleted from
   // the stable, but their wins are still theirs).
   const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
-  const t = profile.tour;
+  const t = tourNow();
   const liveNote =
     t && Object.keys(t.points).length
       ? `<div class="recSub">Season ${t.seasonNo} is in progress — its placement joins the book when it ends.</div>`
@@ -8332,6 +8495,139 @@ function renderTourGolferRecords(): void {
   el.querySelector('#thRecBack')?.addEventListener('click', () => renderTourHub());
 }
 
+/** One line describing a season, for the picker and the history list. */
+function seasonBlurb(t: TourSeasonState): string {
+  const bits = [`${t.played}/${TOUR_EVENTS} events`];
+  if (t.coop) {
+    const names = t.coop.partners.map((x) => x.name).filter(Boolean);
+    bits.push(names.length ? `👥 with ${names.join(', ')}` : '👥 shared — nobody has joined yet');
+  }
+  if (Object.keys(t.points).length) {
+    const rank = (t.coop ? coopSeasonStandings(t) : seasonStandings(t)).findIndex((r) => r.isPlayer) + 1;
+    if (rank) bits.push(`${ordinal(rank)} in points`);
+  }
+  return bits.join(' · ');
+}
+
+/**
+ * THE SEASON PICKER (Stage 5).
+ *
+ * There was nothing to pick from before: the profile held one season, and
+ * joining a friend's overwrote it. Now a player can have a solo season and one
+ * shared season with each of two friends going at once, and this is where they
+ * say which one the next round belongs to.
+ */
+function renderSeasonPicker(): void {
+  const el = document.getElementById('tourHub');
+  if (!el) return;
+  el.style.display = 'flex';
+  tourView = 'picker';
+  const entries = Object.entries(profile.tours.seasons).sort(
+    (a, b) => Number(b[0] === profile.tours.activeId) - Number(a[0] === profile.tours.activeId)
+  );
+  const rows = entries
+    .map(([key, t]) => {
+      const live = key === profile.tours.activeId;
+      return (
+        `<button class="careerNavBtn seasonPick${live ? ' hot' : ''}" data-season="${escapeHtml(key)}">` +
+        `<span class="cnIcon">${t.coop ? '👥' : '⛳'}</span>` +
+        `<span class="cnName">Season ${t.seasonNo}${live ? ' — playing now' : ''}</span>` +
+        `<span class="cnSub">${escapeHtml(seasonBlurb(t))}</span></button>`
+      );
+    })
+    .join('');
+  el.innerHTML =
+    `<div class="recInner"><h2>🔀 Your seasons</h2>` +
+    `<div class="recSub">The next event you play belongs to whichever season is selected here. ` +
+    `Nothing else moves — each one keeps its own schedule, its own field and its own table.</div>` +
+    `<div class="careerNav">${rows}</div>` +
+    `<button id="thPickBack" class="ghostBtn">Back</button></div>`;
+  el.querySelectorAll('.seasonPick[data-season]').forEach((b) =>
+    b.addEventListener('click', () => {
+      const key = (b as HTMLElement).dataset.season!;
+      profile.tours = selectTour(profile.tours, key);
+      persistProfile();
+      renderTourHub();
+    })
+  );
+  el.querySelector('#thPickBack')?.addEventListener('click', () => renderTourHub());
+}
+
+/**
+ * PAST SEASONS (Stage 5).
+ *
+ * Owner: a shared season could not be looked at once it finished. It could not
+ * — the rollover replaced the whole season object, so the points table, all
+ * sixteen event lines and the partner's name went with it. They are archived
+ * now, and this is where they are read.
+ */
+function renderSeasonHistory(): void {
+  const el = document.getElementById('tourHub');
+  if (!el) return;
+  el.style.display = 'flex';
+  tourView = 'history';
+  const rows = profile.tours.archive
+    .map((a, i) => {
+      const how = a.ended === 'quit' ? 'left part-way' : a.ended === 'retired' ? 'final season' : 'played out';
+      const who = a.coop?.partnerNames.length ? ` · 👥 ${a.coop.partnerNames.join(', ')}` : '';
+      return (
+        `<button class="careerNavBtn pastSeason" data-past="${i}">` +
+        `<span class="cnIcon">${a.playerRank === 1 ? '🏆' : a.coop ? '👥' : '📖'}</span>` +
+        `<span class="cnName">Season ${a.seasonNo}${a.proName ? ` · ${escapeHtml(a.proName)}` : ''}</span>` +
+        `<span class="cnSub">${a.playerRank === 1 ? 'Season champion' : `${ordinal(a.playerRank)} in points`} · ` +
+        `${a.playerPoints} pts · ${how}${escapeHtml(who)}</span></button>`
+      );
+    })
+    .join('');
+  el.innerHTML =
+    `<div class="recInner"><h2>📖 Past seasons</h2>` +
+    (rows
+      ? `<div class="careerNav">${rows}</div>`
+      : `<div class="recSub">No season has finished yet.</div>`) +
+    `<button id="thHistBack" class="ghostBtn">Back</button></div>`;
+  el.querySelectorAll('.pastSeason[data-past]').forEach((b) =>
+    b.addEventListener('click', () => renderPastSeason(Number((b as HTMLElement).dataset.past)))
+  );
+  el.querySelector('#thHistBack')?.addEventListener('click', () => renderTourHub());
+}
+
+/** One finished season in full: the final table exactly as it stood, and every
+ *  event line. This is the screen the owner could not reach. */
+function renderPastSeason(idx: number): void {
+  const el = document.getElementById('tourHub');
+  const a = profile.tours.archive[idx];
+  if (!el || !a) return;
+  el.style.display = 'flex';
+  tourView = 'past';
+  const board = a.standings
+    .map(
+      (r, i) =>
+        `<div class="recRow${r.isPlayer ? ' me' : ''}"><span class="recRk">${i + 1}</span>` +
+        `<span class="recNm">${escapeHtml(r.name)}</span><span class="recTot">${r.total} pts</span></div>`
+    )
+    .join('');
+  const events = a.results.length
+    ? a.results
+        .map(
+          (r) =>
+            `<div class="recRow"><span class="recRk">E${r.idx + 1}</span>` +
+            `<span class="recNm">${r.playerRank === 1 ? '🏆 won it' : `${ordinal(r.playerRank)}`} · ${
+              r.toPar > 0 ? `+${r.toPar}` : r.toPar
+            }</span><span class="recTot">${r.points} pts</span></div>`
+        )
+        .join('')
+    : `<div class="recSub">No event was completed.</div>`;
+  el.innerHTML =
+    `<div class="recInner"><h2>📖 Season ${a.seasonNo}</h2>` +
+    `<div class="recSub">${escapeHtml(a.proName || 'Your Pro')} · ${
+      a.playerRank === 1 ? 'season champion' : `${ordinal(a.playerRank)} in points`
+    }${a.coop?.partnerNames.length ? ` · shared with ${escapeHtml(a.coop.partnerNames.join(', '))}` : ''}</div>` +
+    `<div class="tourResult"><div class="tourHeadRow">Final table</div>${board}</div>` +
+    `<div class="tourResult"><div class="tourHeadRow">Every event</div>${events}</div>` +
+    `<button id="thPastBack" class="ghostBtn">Back</button></div>`;
+  el.querySelector('#thPastBack')?.addEventListener('click', () => renderSeasonHistory());
+}
+
 /** The shared-season row on the hub: an invite when the season is solo, or
  *  where your partner has got to when it isn't. */
 function coopHubHtml(t: TourSeasonState): string {
@@ -8362,7 +8658,7 @@ function coopHubHtml(t: TourSeasonState): string {
   // The season's locked difficulty, stated where the standings are read: the
   // totals in this table are only comparable BECAUSE everyone played at it, and
   // a joiner's own Settings choice does not apply inside the season.
-  const diff = asDifficulty(profile.tour?.coop?.diff);
+  const diff = asDifficulty(tourNow()?.coop?.diff);
   const diffLine = diff
     ? `<div class="recSub">Everyone plays this season at ${difficultyProfile(diff).label} — the difficulty whoever started it chose.</div>`
     : '';
@@ -8377,7 +8673,7 @@ function coopHubHtml(t: TourSeasonState): string {
 /** Mid-round board for a tour round (the 🏆 HUD button): where the event
  *  stands through the rounds banked so far, and the season table. */
 function showTourBoard(): void {
-  const t = profile.tour;
+  const t = tourNow();
   if (!t) return;
   const def = currentEvent(t, tourCourseIds());
   const modal = document.createElement('div');
@@ -8844,7 +9140,7 @@ function majorNameForIdx(idx: number): string | undefined {
 }
 
 function backfillTourHistory(p: PlayerProfile): void {
-  const t = p.tour;
+  const t = activeTour(p.tours);
   const pro = activePro(p.career);
   if (!t || !pro || Object.keys(p.tourHistory).length > 0) return;
   for (const r of t.results) {
@@ -9352,17 +9648,36 @@ const STAT_UPGRADE_FAMILY: Record<string, string> = {
  *  "++" (tier 2) so a purchase is visible on the screen where the player picks
  *  their build — including the iron/wedge/putter upgrades, which lift no stat
  *  (playtest: "my putter/iron/wedge +3 aren't showing up in my stats"). The bar
- *  always shows the true (capped) width. */
-function statBars(stats: GolferStats, signature?: StatKey, clubUpgrades?: Record<string, number>): string {
+ *  always shows the true (capped) width.
+ *
+ *  `cp`, when given, draws a GHOST SEGMENT past the filled bar showing how far
+ *  the unspent CP would take that one attribute if it all went there — so
+ *  spending is a visible decision made against the bar rather than arithmetic
+ *  done against five buttons (Stage 2.3). It is a preview only; nothing is
+ *  spent until a `.cpSpend` button is tapped. It carries the Pro's BASE
+ *  attributes because `stats` here is already club-upgraded, and the cost
+ *  brackets are charged against the base value, not the effective one. */
+function statBars(
+  stats: GolferStats,
+  signature?: StatKey,
+  clubUpgrades?: Record<string, number>,
+  cp?: { bank: number; base: GolferStats }
+): string {
   return (
     `<div class="stats">` +
     STAT_KEYS.map(([k, label]) => {
       const tier = clubUpgrades ? clubUpgrades[STAT_UPGRADE_FAMILY[k]] ?? 0 : 0;
       const badge = tier > 0 ? `<span class="svup">${'+'.repeat(Math.min(2, tier))}</span>` : '';
       const shown = Math.min(100, stats[k]);
+      // The ghost starts where the fill ends and cannot run past 100, because
+      // pointsAffordable stops at the same base+bonus ceiling the buy does.
+      const buys = cp ? pointsAffordable(cp.base[k], cp.bank, upgradeStatBonus(k, clubUpgrades ?? {})) : 0;
+      const ghostW = Math.max(0, Math.min(100 - shown, buys));
+      const ghost =
+        ghostW > 0 ? `<u style="left:${shown}%;width:${ghostW}%" title="+${buys} if you spend ${cp?.bank} CP here"></u>` : '';
       return (
         `<div class="stat${k === signature ? ' sig' : ''}"><span class="sl">${label}</span>` +
-        `<span class="sbar"><i style="width:${shown}%"></i></span>` +
+        `<span class="sbar"><i style="width:${shown}%"></i>${ghost}</span>` +
         `<span class="sv">${shown}${badge}</span></div>`
       );
     }).join('') +
@@ -9539,7 +9854,7 @@ function renderOpponent(): void {
 // ---------------------------------------------------------- Locker Room
 const lockerEl = document.getElementById('lockerRoom')!;
 /** Active Locker Room tab. */
-let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'outfit' | 'ball' | 'trail' | 'clubskin' | 'upgrades' =
+let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'cosmetics' | 'upgrades' =
   'char';
 /** Club-upgrade item id awaiting the Locker's own "Spend X coins?"
  *  confirmation — separate from the Store's `pendingBuy` so the two overlays
@@ -9565,14 +9880,31 @@ function renderLockerRoom(): void {
   const p = profile;
   const ownedChars = CHARACTERS.filter((ch) => p.cosmetics.owned.includes(`char_${ch.key}`));
   if (!ownedChars.some((c) => c.key === sel.character)) sel.character = ownedChars[0]?.key ?? CHARACTERS[0].key;
-  const charCards = ownedChars
-    .map(
-      (ch) =>
-        `<div class="charCard${sel.character === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
-        `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" loading="lazy" />` +
-        `<div class="cn">${ch.name}</div></div>`
-    )
-    .join('');
+  // THE CHARACTER TAB MEANS "WHO AM I", whoever that is right now.
+  //
+  // Playing a career Pro, it sets THAT PRO's face; on a preset style it sets
+  // `sel.character` as it always did. One grid, one meaning — and it is what
+  // frees the Style card, whose cramped LOOK row (a wrapping strip of 44px
+  // portraits under the Pro's name, inside a scroll box ~380px tall) the owner
+  // asked to be rid of: "feels like we don't need the look part under the name
+  // that way there's more space to see".
+  const careerPro =
+    flag('careerMode') && sel.archetype === 'career'
+      ? p.career.pros.find((pr) => pr.id === p.career.activeProId) ?? null
+      : null;
+  const shownChar = careerPro ? careerPro.character : sel.character;
+  const charCards =
+    (careerPro
+      ? `<div class="lkTabNote">Choosing the face for <b>${escapeHtml(careerPro.name)}</b>, your career Pro.</div>`
+      : '') +
+    ownedChars
+      .map(
+        (ch) =>
+          `<div class="charCard${shownChar === ch.key ? ' sel' : ''}" data-ch="${ch.key}">` +
+          `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" loading="lazy" />` +
+          `<div class="cn">${ch.name}</div></div>`
+      )
+      .join('');
   // CAREER MODE: your Pro leads the Style tab — a rookie you start once and
   // grow with CP, selectable exactly like the five presets beneath it.
   const STAT_SHORT: Record<keyof GolferStats, string> = {
@@ -9607,13 +9939,25 @@ function renderLockerRoom(): void {
         `<div class="ahead"><span class="an">${retired ? '🏛' : '🎓'} ${escapeHtml(pro.name)}</span>` +
         `<span class="atag">${tag}</span>` +
         `<span class="aovr">OVR ${ovr(upgraded)}</span></div>` +
-        statBars(upgraded, sig, p.clubUpgrades);
+        // The ghost preview only belongs on the Pro you can actually spend on:
+        // a retired Pro's attributes are frozen, and a stabled one is not the
+        // one the CP buys for.
+        statBars(
+          upgraded,
+          sig,
+          p.clubUpgrades,
+          isActive && !retired ? { bank: spendableCp(p), base: pro.attrs } : undefined
+        );
       if (isActive && retired) {
         inner +=
           `<div class="recSub">${escapeHtml(pro.name)} has played out all ${SEASON_LIMIT} seasons. ` +
           `Start a new Pro to tour again — this career is in the books.</div>`;
       }
       if (isActive && !retired) {
+        // THE BALANCE ONCE, AT THE TOP — not repeated on five buttons. Five
+        // chips each ending "· 8 CP" wrapped to three lines on a phone and
+        // still never said how much you HAD.
+        const bank = spendableCp(p);
         const spendRow = (Object.keys(STAT_SHORT) as Array<keyof GolferStats>)
           .map((k) => {
             const cost = pointCost(pro.attrs[k]);
@@ -9622,37 +9966,44 @@ function renderLockerRoom(): void {
             // point past base+bonus=100 buys literally nothing (owner, with a
             // screenshot of PWR 100 still selling points for 10 CP).
             const maxed = !Number.isFinite(cost) || pro.attrs[k] + upgradeStatBonus(k, p.clubUpgrades) >= 100;
-            const can = !maxed && spendableCp(p) >= cost;
-            const label = maxed ? 'MAX' : `+1 · ${cost} CP`;
-            return `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'}>${STAT_SHORT[k]} ${label}</button>`;
+            const can = !maxed && bank >= cost;
+            const label = maxed ? 'MAX' : `+1`;
+            const title = maxed ? 'Already at the ceiling' : `${cost} CP`;
+            return (
+              `<button class="cpSpend" data-cspend="${k}"${can ? '' : ' disabled'} title="${title}">` +
+              `<span class="cpsK">${STAT_SHORT[k]}</span><span class="cpsV">${label}</span>` +
+              (maxed ? '' : `<span class="cpsC">${cost}</span>`) +
+              `</button>`
+            );
           })
           .join('');
-        const lookRow = ownedChars
-          .map(
-            (ch) =>
-              `<button class="proLook${pro.character === ch.key ? ' sel' : ''}" data-look="${ch.key}">` +
-              `<img src="ui/characters/${ch.key}.png" alt="${ch.name}" loading="lazy" /></button>`
-          )
-          .join('');
         inner +=
-          `<div class="careerSpendRow">${spendRow}</div>` +
-          `<div class="proLookRow"><span class="plLabel">LOOK</span>${lookRow}</div>`;
+          `<div class="cpBank">${bank} CP to spend</div>` +
+          `<div class="careerSpendRow">${spendRow}</div>`;
+        // The LOOK row is gone from here — it lives on the Character tab now,
+        // in a proper grid rather than a wrapping strip of 44px thumbnails
+        // squeezed under the Pro's name (owner: "it's too [cramped] in the
+        // style menu ... we don't need the look part under the name that way
+        // there's more space to see").
       }
       return `<div class="archCard careerCard${selected ? ' sel' : ''}" data-pro="${pro.id}" style="--accent:#d9a441">${inner}</div>`;
     };
     // The New Pro card: name them, pick a style. Doubles as the start-a-career
     // card when the stable is empty.
     const opts = ARCHETYPES.map((a) => `<button class="careerStart" data-cstart="${a.id}">${a.name}</button>`).join('');
-    const head = c.pros.length
-      ? `<span class="an">➕ New Pro</span>` +
-        `<span class="atag">a fresh rookie at 65 — unspent CP carries over, and your current Pro stays in the stable. Name them, pick a style:</span>`
-      : `<span class="an">🎓 Your Pro — start a career</span>` +
-        `<span class="atag">a rookie at 65 overall who grows every round YOU play. Name them, pick a starting style:</span>`;
+    // NAME FIRST, EXPLANATION UNDER THE CHOICE. The card used to open with a
+    // paragraph and bury the input below it, so the first thing a new player
+    // met was prose rather than the field they had to fill in.
+    const head = c.pros.length ? `<span class="an">➕ New Pro</span>` : `<span class="an">🎓 Your Pro — start a career</span>`;
+    const foot = c.pros.length
+      ? 'A fresh rookie at 65. Unspent CP carries over, and your current Pro stays in the stable.'
+      : 'A rookie at 65 overall who grows every round YOU play.';
     const newCard =
       `<div class="archCard careerNew" style="--accent:#d9a441">` +
       `<div class="ahead">${head}</div>` +
       `<input id="proName" class="proNameInput" type="text" maxlength="18" placeholder="Pro name" autocomplete="off" />` +
-      `<div class="careerStartRow">${opts}</div></div>`;
+      `<div class="careerStartRow">${opts}</div>` +
+      `<div class="atag careerNewFoot">${foot}</div></div>`;
     return c.pros.map(proCard).join('') + newCard;
   })();
   const archCards =
@@ -9737,15 +10088,17 @@ function renderLockerRoom(): void {
     : '';
   // Tabbed content (only the active tab renders in the scroll area) so the
   // screen is short and the top of the character cards is never clipped.
+  // SIX TABS, NOT NINE. Outfit / Ball / Trail / Skin are four tabs of the same
+  // thing — colours you own — and on a phone nine tabs wrap to two rows and eat
+  // the scroll area the cards need. They fold into one Cosmetics tab with the
+  // four kinds stacked under their own headings; nothing is lost, and the tab
+  // bar fits one line again.
   const tabs: Array<[typeof lkTab, string]> = [
     ['char', 'Character'],
     ['style', 'Style'],
     ['pal', 'Pal'],
     ['perk', 'Perk'],
-    ['outfit', 'Outfit'],
-    ['ball', 'Ball'],
-    ['trail', 'Trail'],
-    ['clubskin', 'Skin'],
+    ['cosmetics', 'Cosmetics'],
     ['upgrades', 'Upgrades']
   ];
   const tabBar = tabs
@@ -9765,8 +10118,24 @@ function renderLockerRoom(): void {
             : lkTab === 'upgrades'
               ? `<div class="storeGrid">${upgradeItems.map(upgradeCard).join('')}</div>${upgradeConfirmPanel}`
               : (() => {
-                  const kind = lkTab as 'outfit' | 'ball' | 'trail' | 'clubskin';
-                  return `<div class="charGrid">${cosmeticTabs[kind].map((i) => cosmeticCard(kind, i)).join('')}</div>`;
+                  // All four cosmetic kinds, each under its own heading, in one
+                  // scroll. A kind you own nothing in says so rather than
+                  // rendering an empty grid.
+                  const KINDS: Array<[typeof lkTab & string, 'outfit' | 'ball' | 'trail' | 'clubskin', string]> = [
+                    ['cosmetics', 'outfit', 'Outfit'],
+                    ['cosmetics', 'ball', 'Ball'],
+                    ['cosmetics', 'trail', 'Trail'],
+                    ['cosmetics', 'clubskin', 'Club skin']
+                  ];
+                  return KINDS.map(([, kind, label]) => {
+                    const items = cosmeticTabs[kind];
+                    return (
+                      `<div class="lkSubHead">${label}</div>` +
+                      (items.length
+                        ? `<div class="charGrid">${items.map((i) => cosmeticCard(kind, i)).join('')}</div>`
+                        : `<div class="lkEmpty">Nothing here yet — the Store and the Season Pass stock these.</div>`)
+                    );
+                  }).join('');
                 })();
 
   lockerEl.style.display = 'flex';
@@ -9807,8 +10176,22 @@ function renderLockerRoom(): void {
   );
   lockerEl.querySelectorAll('.charCard[data-ch]').forEach((el) =>
     onTap(el, () => {
-      sel.character = (el as HTMLElement).dataset.ch as CharacterKey;
-      syncLoadout();
+      const key = (el as HTMLElement).dataset.ch as CharacterKey;
+      // Career Pro active → this is that Pro's face (see charCards). Otherwise
+      // it is the preset loadout's character, exactly as before.
+      const c = profile.career;
+      if (flag('careerMode') && sel.archetype === 'career' && c.activeProId) {
+        profile.career = setProLook(c, c.activeProId, key);
+        persistProfile();
+        if (signedIn)
+          void cloudSyncProfile(profile).then((res) => {
+            applyCloudMerge(profile, res.profile);
+            showCloudStatus(res.status, true);
+          });
+      } else {
+        sel.character = key;
+        syncLoadout();
+      }
       renderLockerRoom();
     })
   );
@@ -10253,7 +10636,7 @@ function updateDestinations(newPlayer: boolean): void {
       } else if (tilePro && proRetired(profile.tourHistory, tilePro.id)) {
         sub.textContent = `🏛 ${tilePro.name} retired — start a new Pro`;
       } else {
-        const t = profile.tour;
+        const t = tourNow();
         const def = t ? currentEvent(t, tourCourseIds()) : null;
         if (!t) {
           sub.textContent = `16 events · 4 majors · Event 1/${TOUR_EVENTS}`;
@@ -10273,7 +10656,7 @@ function updateDestinations(newPlayer: boolean): void {
       }
     }
     // A major mid-play is the one thing here worth a glow.
-    const t = profile.tour;
+    const t = tourNow();
     const majorLive = !!t && !!currentEvent(t, tourCourseIds())?.major;
     tourTile.classList.toggle('hasNews', showTour && majorLive);
   }
@@ -10736,10 +11119,11 @@ function updateDailyHoleCard(): void {
   void refreshFriendRival(key);
   if (played) {
     const toPar = played.strokes - par;
+    const doneArch = res.spec.archetype ? ARCHETYPE_NAMES[res.spec.archetype] : '';
     el.innerHTML =
       `<span class="dhLabel">⛳ HOLE OF THE DAY · DONE</span>` +
       `<div class="dhName">You shot ${played.strokes} (${toPar === 0 ? 'par' : toPar > 0 ? `+${toPar}` : toPar})` +
-      ` on today's par ${par}. One attempt a day — back tomorrow.</div>` +
+      ` on today's par ${par}${doneArch ? ` — <b>${escapeHtml(doneArch)}</b>` : ''}. One attempt a day — back tomorrow.</div>` +
       rivalLine(rivalRec, key) +
       `<button id="dhShare" class="dhPlay">Share result</button>` +
       rivalInviteRow();
@@ -10753,10 +11137,16 @@ function updateDailyHoleCard(): void {
     return;
   }
   const rivalName = flag('rival') && rivalRec ? profile.retention.rival.name : '';
+  const archName = res.spec.archetype ? ARCHETYPE_NAMES[res.spec.archetype] : '';
   el.innerHTML =
     `<span class="dhLabel">⛳ HOLE OF THE DAY</span>` +
-    `<div class="dhName">A brand-new par ${par}, ${yardage} yd${themeName ? ` at ${escapeHtml(themeName)}` : ''}` +
-    ` — same hole for everyone, one attempt.</div>` +
+    // The archetype is the day's IDENTITY, not decoration: a daily is now
+    // built to a shape ("Island Green", "Canyon Carry") rather than being
+    // whatever the seed happened to produce, and naming it is what tells a
+    // player today's is a different KIND of hole from yesterday's.
+    `<div class="dhName">${archName ? `<b>${escapeHtml(archName)}</b> — a` : 'A'} brand-new par ${par}, ${yardage} yd${
+      themeName ? ` at ${escapeHtml(themeName)}` : ''
+    } — same hole for everyone, one attempt.</div>` +
     rivalLine(rivalRec) +
     `<button id="dhPlay" class="dhPlay">${rivalName ? `Play — beat ${escapeHtml(rivalName)}` : "Play today's hole"}</button>` +
     rivalInviteRow() +
@@ -11991,7 +12381,7 @@ else {
 // event is up, whether the round in play belongs to the tour, and that
 // entering really did force-select the career Pro.
 (window as unknown as { __tour: unknown }).__tour = () => {
-  const t = profile.tour;
+  const t = tourNow();
   const def = t ? currentEvent(t, tourCourseIds()) : null;
   return {
     started: !!t,
@@ -12013,8 +12403,8 @@ else {
 // hole's simulated rivals, and the scene's parked balls.
 (window as unknown as { __stagePlayoff: unknown }).__stagePlayoff = (tied = 2) => {
   if (!flag('careerMode') || !careerStarted(profile.career)) return false;
-  if (!profile.tour) profile.tour = newSeason(555001);
-  const t = profile.tour;
+  if (!tourNow()) setTour(newSeason(555001));
+  const t = tourNow()!;
   const def = currentEvent(t, tourCourseIds());
   if (!def) return false;
   const fill = (v: number): number[] => Array.from({ length: def.rounds }, () => v);
@@ -12052,7 +12442,7 @@ else {
 // playing every event shot by shot. Scores are plausible but synthetic — the
 // real scoring path has its own specs.
 (window as unknown as { __seasonProgress: unknown }).__seasonProgress = (n: number) => {
-  const t = profile.tour;
+  const t = tourNow();
   if (!t) return false;
   const ids = tourCourseIds();
   const sched = tourSchedule(t.seed, ids);
@@ -12075,7 +12465,7 @@ else {
   return true;
 };
 (window as unknown as { __playoffProbe: unknown }).__playoffProbe = () => {
-  const t = profile.tour;
+  const t = tourNow();
   const pend = t ? playoffPending(t, tourCourseIds()) : null;
   return {
     pending: pend ? { tied: [...pend.tiedRivalIds], holesPlayed: pend.holesPlayed } : null,

@@ -40,6 +40,11 @@ const portjohnsonV2 = {
     // heather pushing through the fescue.
     skyTop: '#7d8fa0',
     skyBottom: '#ccd3d6',
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Port Johnson: a blown grey coast. Built from a CC0
+    // Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    skyStyle: 'links_coast', cloudCover: 1.15, sunTint: '#fffcf7',
     haze: '#c7ced2',
     hazeStrength: 0.64,
     horizonTint: '#b9c4c9',

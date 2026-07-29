@@ -14,6 +14,7 @@ import {
   setActivePro,
   spendCpFrom,
   startPro,
+  pointsAffordable,
   UNCLAIMED_CP
 } from '../src/data/career';
 import { defaultProfile, KVStorage, loadProfile, mergeProfiles, saveProfile } from '../src/profile/Profile';
@@ -315,5 +316,54 @@ describe('a retired Pro', () => {
     expect(spendableCp(p)).toBe(2);
     expect(buyProAttrPoint(p, 'putting')).toBe(true);
     expect(proCpBalance(p, 'vet')).toBe(60);
+  });
+});
+
+/**
+ * THE CP PREVIEW ON THE STAT BAR (Stage 2.3).
+ *
+ * The ghost segment promises "this is what your bank buys here". It has to be
+ * charged through the same cost brackets and stop at the same ceiling as the
+ * buy button, or the card advertises points `buyProAttrPoint` will refuse.
+ */
+describe('pointsAffordable', () => {
+  it('charges the same brackets pointCost does', () => {
+    // Under 80: 2 CP a point.
+    expect(pointsAffordable(65, 10)).toBe(5);
+    // Across the 80 boundary: 78 -> 80 costs 2+2, then 4 a point.
+    expect(pointsAffordable(78, 4)).toBe(2);
+    expect(pointsAffordable(78, 8)).toBe(3);
+    // Across the 90 boundary: 89 -> 90 costs 4, then 10 a point.
+    expect(pointsAffordable(89, 4)).toBe(1);
+    expect(pointsAffordable(89, 13)).toBe(1);
+    expect(pointsAffordable(89, 14)).toBe(2);
+  });
+
+  it('buys nothing with an empty bank, and never goes negative', () => {
+    expect(pointsAffordable(65, 0)).toBe(0);
+    expect(pointsAffordable(65, 1)).toBe(0);
+  });
+
+  it('stops at the 99 base cap', () => {
+    expect(pointsAffordable(99, 10_000)).toBe(0);
+    expect(pointsAffordable(97, 10_000)).toBe(2);
+  });
+
+  it('stops at the EFFECTIVE 100 ceiling the buy stops at', () => {
+    // 94 base + a +6 club bonus is already at the clamp: the buy refuses, so
+    // the preview must not draw a ghost either.
+    expect(pointsAffordable(94, 10_000, 6)).toBe(0);
+    expect(pointsAffordable(92, 10_000, 6)).toBe(2);
+  });
+
+  it('agrees with actually spending the bank one point at a time', () => {
+    const p = defaultProfile();
+    p.career = startPro(emptyCareer(), { name: 'Ghost', styleId: 'bigHitter', character: 'chip', now: 1, id: 'p1' });
+    grantCareerCp(p, 30);
+    const pro = activePro(p.career)!;
+    const predicted = pointsAffordable(pro.attrs.putting, spendableCp(p));
+    let bought = 0;
+    while (buyProAttrPoint(p, 'putting')) bought += 1;
+    expect(bought).toBe(predicted);
   });
 });

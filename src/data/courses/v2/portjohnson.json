@@ -4,6 +4,9 @@
   "theme": {
     "skyTop": "#7d8fa0",
     "skyBottom": "#ccd3d6",
+    "skyStyle": "links_coast",
+    "cloudCover": 1.15,
+    "sunTint": "#fffcf7",
     "sunX": 520,
     "sunY": 110,
     "fairway": "#8fa356",

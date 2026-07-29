@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { MAJOR_NAMES, SEASON_LIMIT, TourProRecord } from '../src/systems/TourSeason';
 import { defaultProfile, mergeProfiles, PlayerProfile } from '../src/profile/Profile';
-import { ACHIEVEMENTS, COINS, dailyChallengeFor, emptyRoundStats, levelForXp, xpForLevel } from '../src/data/progression';
+import { COINS, dailyChallengeFor, emptyRoundStats, levelForXp, xpForLevel } from '../src/data/progression';
+import { featById, featDone, FEATS } from '../src/systems/Feats';
 import { CP } from '../src/data/career';
 import { applyRound, RewardEvent } from '../src/systems/ProgressionEngine';
 
@@ -184,7 +185,7 @@ describe('fairness', () => {
   it('progression is never imported by physics or AI', () => {
     // Grep-style guard: these modules must not reference the progression layer.
     // (Import-time check — if they did, this test file would pull them in too.)
-    expect(ACHIEVEMENTS.length).toBeGreaterThan(0);
+    expect(FEATS.length).toBeGreaterThan(0);
   });
 });
 
@@ -195,7 +196,7 @@ function achievementCpPaid(events: RewardEvent[]): number {
     .reduce((sum, e) => sum + (e.name === 'First Birdie' ? 2 : e.name === 'First Eagle' ? 4 : 0), 0);
 }
 
-describe('career achievements (owner pass 9)', () => {
+describe('career feats (owner pass 9)', () => {
   const withHistory = (rec: Partial<TourProRecord>): PlayerProfile => {
     const p = defaultProfile();
     p.tourHistory = {
@@ -204,9 +205,9 @@ describe('career achievements (owner pass 9)', () => {
     return p;
   };
   const fires = (id: string, p: PlayerProfile): boolean => {
-    const a = ACHIEVEMENTS.find((x) => x.id === id);
-    expect(a, `${id} is missing from ACHIEVEMENTS`).toBeTruthy();
-    return a!.test(p.stats, p);
+    const f = featById(id);
+    expect(f, `${id} is missing from FEATS`).toBeTruthy();
+    return featDone(f!, p);
   };
 
   it('the tour badges read the per-golfer record book', () => {
@@ -245,8 +246,10 @@ describe('career achievements (owner pass 9)', () => {
   });
 
   it('the retired grind counters are gone', () => {
-    for (const id of ['putts_50', 'fairways_100', 'gir_100', 'pars_100', 'rounds_100']) {
-      expect(ACHIEVEMENTS.find((a) => a.id === id), `${id} should have been retired`).toBeUndefined();
+    // 'wins_10' joined them in Stage 3: CareerStats.wins only increments in
+    // 1v1, which the focusedGame flag hides, so it was unreachable.
+    for (const id of ['putts_50', 'fairways_100', 'gir_100', 'pars_100', 'rounds_100', 'wins_10']) {
+      expect(featById(id), `${id} should have been retired`).toBeUndefined();
     }
   });
 });

@@ -26,6 +26,17 @@ const maplevale = {
   theme: {
     // Cold clear autumn morning: pale blue overhead falling to cream mist.
     skyTop: '#7fb2d9', skyBottom: '#efe3cf', sunX: 380, sunY: 130,
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Maple Vale: a low autumn overcast DOME — a grey lid
+    // with almost no ramp in it, measured off a real overcast sky. Built from a
+    // CC0 Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    //
+    // This course KEEPS its mesh clouds (cloudKeys below) rather than taking
+    // the style's cumulus/cirrus sheets: real volumetric puffs are Maple Vale's
+    // authored identity and the dome change should not quietly delete them.
+    // cloudCover just packs a few more of them in under the lid.
+    skyStyle: 'autumn_overcast', cloudCover: 1.35, sunTint: '#fffefc',
     haze: '#e4ddce', hazeStrength: 0.5,
     // The season lives in the ground: readable warm-green mown surfaces cut
     // through RUSSET rough — redder and browner than Wild Prairie's honey

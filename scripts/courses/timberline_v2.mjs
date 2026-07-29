@@ -73,6 +73,11 @@ const timberlineV2 = {
   version: 2,
   theme: {
     skyTop: '#5f86a8', skyBottom: '#cfe0e6', sunX: 460, sunY: 150,
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Timberline EAST: alpine clarity, barely any cloud. Built from a CC0
+    // Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    skyStyle: 'alpine_clear', cloudCover: 0.5, sunTint: '#deedff',
     fairway: '#3f7f46', fairwayDark: '#356b3c',
     rough: '#4a6b41', roughDark: '#3a5533',
     fringe: '#54924e', green: '#438a47', greenLight: '#5aa25c',

@@ -34,6 +34,11 @@ const sablebayV2 = {
     // --- WARM COASTAL LINKS palette (owner: "the colours are off; warm,
     //     cohesive coastal"). Before→after recorded in the handoff report.
     skyTop: '#58a6dc', skyBottom: '#e3eef0', sunX: 520, sunY: 120,
+    // Painted sky (Stage 6, owner: "I want courses to have their own unique
+    // skies and clouds"). Sable Bay: sea haze. Built from a CC0
+    // Poly Haven source by scripts/convert-skies.mjs; see
+    // docs/technical/ASSET_ATTRIBUTION.md.
+    skyStyle: 'sea_haze', cloudCover: 0.9, sunTint: '#fbfeff',
     // Healthy links turf — pulled back from the old neon/blue green toward a
     // warmer, sun-touched fairway so it reads as real grass against the sand.
     fairway: '#57a251', fairwayDark: '#47893f',

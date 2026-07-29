@@ -1078,44 +1078,77 @@ export function buildCourse(
   const skyBottomHole = shade(theme.skyBottom, 1 + skyDrift * 0.5);
   const sky = MeshBuilder.CreateSphere('sky', { diameter: 9000, sideOrientation: Mesh.BACKSIDE }, scene);
   sky.position = new Vector3(w / 2, 0, -h / 2);
-  const skyTex = new DynamicTexture('skyTex', { width: 8, height: 256 }, scene, true);
-  const sctx = skyTex.getContext();
-  const grad = (sctx as CanvasRenderingContext2D).createLinearGradient(0, 0, 0, 256);
-  const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
-  if (theme.horizonTint !== undefined) {
-    // Richer dome: an extra mid stop smooths the zenith falloff and a warm
-    // band glows just above the treeline before dissolving into the haze.
-    grad.addColorStop(0, hex(skyTopHole));
-    grad.addColorStop(0.3, hex(shade(skyTopHole, 1.16)));
-    grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
-    grad.addColorStop(0.76, hex(skyBottomHole));
-    grad.addColorStop(0.88, hex(theme.horizonTint));
-    grad.addColorStop(1, hex(theme.haze));
-  } else {
-    grad.addColorStop(0, hex(skyTopHole));
-    grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
-    grad.addColorStop(0.8, hex(skyBottomHole));
-    grad.addColorStop(1, hex(theme.haze));
-  }
-  (sctx as CanvasRenderingContext2D).fillStyle = grad;
-  sctx.fillRect(0, 0, 8, 256);
-  skyTex.update(false);
+  // A course with a painted sky style (theme.skyStyle) swaps the four-stop
+  // gradient for its own measured, posterised ramp — same 8x256 texel budget,
+  // so the dome costs exactly what it did. The per-hole drift survives as the
+  // texture's `level`, which is the emissive shader's scalar multiplier
+  // (vEmissiveInfos.y): the same "a few percent lighter/darker per hole" the
+  // gradient got from shade(), without re-encoding the image.
   const skyMat = new StandardMaterial('skyMat', scene);
-  skyMat.emissiveTexture = skyTex;
+  if (theme.skyStyle) {
+    // invertY FALSE, and it is not a detail. The DynamicTexture this replaces
+    // uploads with `skyTex.update(false)` — no Y flip — so its canvas row 0
+    // (the zenith stop) lands at v=0. A file Texture defaults to invertY TRUE,
+    // which puts image row 0 at v=1 and hangs the whole dome upside down: the
+    // pale horizon band ends up at the zenith where nothing can see it, and the
+    // sky meets the fog on a mid-blue that does not match it. That is the
+    // horizon seam this course set has already been through twice.
+    const ramp = new Texture(`textures/sky/${theme.skyStyle}_ramp.png`, scene, false, false);
+    ramp.wrapU = Texture.CLAMP_ADDRESSMODE;
+    ramp.wrapV = Texture.CLAMP_ADDRESSMODE;
+    ramp.level = 1 + skyDrift;
+    skyMat.emissiveTexture = ramp;
+  } else {
+    skyMat.emissiveTexture = proceduralSkyRamp();
+  }
   skyMat.disableLighting = true;
   skyMat.backFaceCulling = false;
   sky.material = skyMat;
   sky.applyFog = false;
   sky.infiniteDistance = false;
 
-  // Sun disc + clouds: emissive billboards high in the sky
+  /** The original coded dome gradient. Still the fallback for any course (and
+   *  the daily hole) that names no sky style — byte-identical to what shipped. */
+  function proceduralSkyRamp(): DynamicTexture {
+    const skyTex = new DynamicTexture('skyTex', { width: 8, height: 256 }, scene, true);
+    const sctx = skyTex.getContext();
+    const grad = (sctx as CanvasRenderingContext2D).createLinearGradient(0, 0, 0, 256);
+    const hex = (n: number): string => `#${n.toString(16).padStart(6, '0')}`;
+    if (theme.horizonTint !== undefined) {
+      // Richer dome: an extra mid stop smooths the zenith falloff and a warm
+      // band glows just above the treeline before dissolving into the haze.
+      grad.addColorStop(0, hex(skyTopHole));
+      grad.addColorStop(0.3, hex(shade(skyTopHole, 1.16)));
+      grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
+      grad.addColorStop(0.76, hex(skyBottomHole));
+      grad.addColorStop(0.88, hex(theme.horizonTint));
+      grad.addColorStop(1, hex(theme.haze));
+    } else {
+      grad.addColorStop(0, hex(skyTopHole));
+      grad.addColorStop(0.55, hex(shade(skyTopHole, 1.35)));
+      grad.addColorStop(0.8, hex(skyBottomHole));
+      grad.addColorStop(1, hex(theme.haze));
+    }
+    (sctx as CanvasRenderingContext2D).fillStyle = grad;
+    sctx.fillRect(0, 0, 8, 256);
+    skyTex.update(false);
+    return skyTex;
+  }
+
+  // Sun disc + clouds: emissive billboards high in the sky. The disc's colour
+  // is the course's `sunTint` — measured off the source sky's solar aureole by
+  // convert-skies.mjs — so a golden-hour course gets a bronze coin and an
+  // alpine one a white star, instead of the one cream disc every course shared.
   const sunBillboard = MeshBuilder.CreatePlane('sunDisc', { size: 260 }, scene);
   const sunTex = new DynamicTexture('sunTex', { width: 128, height: 128 }, scene, true);
   const suctx = sunTex.getContext() as CanvasRenderingContext2D;
   const rg = suctx.createRadialGradient(64, 64, 6, 64, 64, 64);
-  rg.addColorStop(0, 'rgba(255,252,220,1)');
-  rg.addColorStop(0.35, 'rgba(255,243,196,0.85)');
-  rg.addColorStop(1, 'rgba(255,243,196,0)');
+  const sunRGB = (c: number): string => `${(c >> 16) & 255},${(c >> 8) & 255},${c & 255}`;
+  const sunCore = theme.sunTint !== undefined ? sunRGB(shade(theme.sunTint, 1.12)) : '255,252,220';
+  const sunHalo = theme.sunTint !== undefined ? sunRGB(theme.sunTint) : '255,243,196';
+  rg.addColorStop(0, `rgba(${sunCore},1)`);
+  rg.addColorStop(0.35, `rgba(${sunHalo},0.85)`);
+  rg.addColorStop(1, `rgba(${sunHalo},0)`);
   suctx.fillStyle = rg;
   suctx.fillRect(0, 0, 128, 128);
   sunTex.update(false);
@@ -1133,7 +1166,13 @@ export function buildCourse(
   );
   sunBillboard.applyFog = false;
 
-  if (theme.cloudStyle === 'wispy') {
+  // A painted sky style brings its own cumulus/cirrus SHEETS, so a styled
+  // course takes the billboard path — unless it has explicitly claimed the mesh
+  // clouds (cloudKeys). Maple Vale is the one that does: real volumetric puffs
+  // are its authored identity, and giving it the autumn dome should not quietly
+  // delete them. skyStyle governs the DOME; the cloud SYSTEM is still the
+  // course's own choice.
+  if ((theme.skyStyle && !theme.cloudKeys) || theme.cloudStyle === 'wispy') {
     // Reference-style sky: soft, feathered, SEE-THROUGH clouds painted onto
     // billboards. The low-poly mesh clouds read as hard white blobs no amount
     // of stretching fixes, so this course paints its own. Two layers: soft
@@ -1162,8 +1201,25 @@ export function buildCourse(
       ctx.fill();
       ctx.restore();
     };
-    const softCloudTex = (name: string, tw: number, th: number, paint: (ctx: CanvasRenderingContext2D) => void): DynamicTexture => {
-      const tex = new DynamicTexture(name, { width: tw, height: th }, scene, true);
+    /**
+     * One cloud layer's texture: the course's committed sheet if it has a sky
+     * style, else the coded puff painting (identical dimensions, so this is a
+     * straight swap and the VRAM cost does not move). The painter is a callback
+     * precisely so a styled course never builds — and never has to dispose — a
+     * canvas it would not use.
+     */
+    const softCloudTex = (name: string, tw: number, th: number, paint: (ctx: CanvasRenderingContext2D) => void): Texture => {
+      if (theme.skyStyle) {
+        // invertY false for the same reason the ramp needs it — these sheets
+        // are cel-shaded by depth below the top of each cloud, so a flip puts
+        // the lit face underneath.
+        const t = new Texture(`textures/sky/${theme.skyStyle}_${name}.png`, scene, false, false);
+        t.hasAlpha = true;
+        t.wrapU = Texture.CLAMP_ADDRESSMODE;
+        t.wrapV = Texture.CLAMP_ADDRESSMODE;
+        return t;
+      }
+      const tex = new DynamicTexture(`${name}Tex`, { width: tw, height: th }, scene, true);
       const ctx = tex.getContext() as CanvasRenderingContext2D;
       ctx.clearRect(0, 0, tw, th);
       paint(ctx);
@@ -1174,7 +1230,7 @@ export function buildCourse(
     // Puffy cumulus: a rounded cauliflower mound — near-circular bumps all the
     // way around (domed crown on top, bumpy base below, shoulders on the sides)
     // so there's no flat top line and the whole silhouette reads soft & round.
-    const cumulusTex = softCloudTex('cumulusTex', 512, 320, (ctx) => {
+    const cumulusTex = softCloudTex('cumulus', 512, 320, (ctx) => {
       const blobs: Array<[number, number, number, number, number]> = [
         [0, 0, 120, 104, 0.85], // core
         [-42, -60, 76, 70, 0.8], [42, -66, 80, 72, 0.82], [0, -86, 68, 62, 0.78], // domed crown
@@ -1185,7 +1241,7 @@ export function buildCourse(
       for (const [dx, dy, rx, ry, a] of blobs) puff(ctx, 256 + dx, 180 + dy, rx, ry, a);
     });
     // Cirrus: a thin feathered streak that fades in and out along its length.
-    const cirrusTex = softCloudTex('cirrusTex', 512, 96, (ctx) => {
+    const cirrusTex = softCloudTex('cirrus', 512, 96, (ctx) => {
       for (let i = 0; i < 30; i++) {
         const t = i / 29;
         puff(
@@ -1198,7 +1254,7 @@ export function buildCourse(
         );
       }
     });
-    const cloudMat = (name: string, tex: DynamicTexture): StandardMaterial => {
+    const cloudMat = (name: string, tex: Texture): StandardMaterial => {
       const m = new StandardMaterial(name, scene);
       m.emissiveTexture = tex;
       m.opacityTexture = tex;
@@ -1222,19 +1278,26 @@ export function buildCourse(
       cl.visibility = vis;
       drift.push({ mesh: cl, v });
     };
-    for (let i = 0; i < 6; i++) {
+    // How much sky the course's weather covers. 1 = the historical 6 cumulus +
+    // 10 cirrus; an autumn overcast lid asks for more, an alpine bluebird day
+    // for barely any. Clamped so a bad number in a course JSON can never plant
+    // a hundred transparent billboards over a fill-rate-bound sky.
+    const cover = Math.max(0.15, Math.min(2, theme.cloudCover ?? 1));
+    const cumulusCount = Math.max(1, Math.round(6 * cover));
+    const cirrusCount = Math.max(1, Math.round(10 * cover));
+    for (let i = 0; i < cumulusCount; i++) {
       // Rounded cumulus mounds at varied heights (no flat band). Smaller and a
       // touch firmer than the softest pass so they read as real clouds.
       const j = hash2(i * 12.1 + skySeed, i * 4.7);
       const pw = 520 + j * 340;
-      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / 6) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
+      place(cumulusMat, pw, pw * 0.625, hole.tee.x - 2000 + i * (4000 / cumulusCount) + j * 260, hole.tee.y - 2600 - (i % 3) * 260, 430 + (i % 3) * 130 + j * 240, 0.8, 5 + j * 2.5, `cumulus${i}`);
     }
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < cirrusCount; i++) {
       // Thin cirrus streaks — more of them, wide across the dome at varied
       // heights, kept low-opacity so they stay airy waves.
       const j = hash2(i * 7.9 + 2 + skySeed, i * 9.3);
       const pw = 860 + j * 540;
-      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / 10) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
+      place(cirrusMat, pw, pw * 0.1875, hole.tee.x - 3200 + i * (6400 / cirrusCount) + j * 280, hole.tee.y - 2900 - (i % 3) * 300, 780 + (i % 4) * 160 + j * 170, 0.5, 3.2 + j * 1.8, `cirrus${i}`);
     }
     scene.onBeforeRenderObservable.add(() => {
       if (isFrozen()) return;
@@ -1252,7 +1315,10 @@ export function buildCourse(
     // with the theme's shape variety.
     const cloudDrift: Array<{ mesh: Mesh; v: number }> = [];
     const keys = theme.cloudKeys;
-    const count = Math.min(10, 4 + keys.length);
+    // cloudCover works here too, so "how cloudy is this course" is one knob
+    // whichever cloud system the course runs. Still capped at 10 — these are
+    // mesh CLONES, not billboards, and each one is real geometry.
+    const count = Math.min(10, Math.max(1, Math.round((4 + keys.length) * Math.min(2, theme.cloudCover ?? 1))));
     void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
       for (let i = 0; i < count; i++) {
         const proto = protos.get(keys[i % keys.length]);
