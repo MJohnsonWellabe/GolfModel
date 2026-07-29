@@ -297,38 +297,66 @@ function rowPercentile(data, w, y, p) {
 
 // -------------------------------------------------------------------- ramp
 //
-// Elevation → ramp row. The dome ramp is NOT a linear map of elevation: it
-// reproduces the stop layout the hand-authored gradient already used (zenith,
-// mid, sky-bottom, horizon glow, haze at 0 / .55 / .80 / .88 / 1.0), because
-// that layout is empirically tuned to where the Ø9000 sphere's texels actually
-// land on screen. Feeding a linear 90°→0° map instead puts the entire horizon
-// band below the dome's equator where the terrain hides it. So: keep the
-// proven placement, replace the invented colours with measured ones.
-const RAMP_STOPS = [
-  [0.0, 90],
-  [0.55, 35],
-  [0.8, 10],
-  [0.88, 6],
-  // NOT 0°. A `*_puresky` HDRI still carries a smear of the original ground at
-  // the very bottom rows, and sampling it painted an olive-brown band along
-  // every horizon (measured: storm's horizon came out #a8a888). 2.5° is above
-  // the smear and still unmistakably horizon.
-  [1.0, 2.5]
-];
+// ELEVATION → RAMP ROW, matching what the dome ACTUALLY does.
+//
+// This used to run a hand-tuned stop layout (90° at t=0, 35° at .55, 10° at .8,
+// 2.5° at 1.0) on the stated grounds that a linear map "puts the entire horizon
+// band below the dome's equator where the terrain hides it". That reasoning was
+// backwards, and it is the cause of the owner's "Wildwood sky ... changes from a
+// light to a dark blue in a weird abrupt way. There's a little bit of this on
+// the other courses."
+//
+// Babylon's CreateSphere emits v directly from the polar angle, and course3d
+// centres the dome at y = 0 and loads the ramp with invertY:false. So the dome
+// maps row → elevation LINEARLY over the full sphere: row 0 = +90° (zenith),
+// row 128 = 0° (the horizon), row 255 = −90° (straight down). Under the old
+// stops that meant:
+//
+//   - the whole VISIBLE sky (90°→0°) was painted with colours measured from
+//     only 90°→40° of real sky, so the dome never showed the pale horizon glow
+//     that makes a sky read as a sky;
+//   - the colour arriving at the visible horizon was row ~128, measured at 40°
+//     elevation — for Wildwood #6080b8, the DARKEST colour in the visible half,
+//     which is why the sky got darker toward the horizon instead of paler;
+//   - and the three HAZE_BANDS, whose entire job is to let the dome meet
+//     `scene.fogColor` without a seam, sat at −50°…−90°: pointing at the
+//     ground, never rendered, for every course on the roster.
+//
+// So the map is linear now, and the bands are laid out over the VISIBLE half
+// only — all `style.bands` of them between the zenith and the horizon, which
+// keeps each band the same angular size it used to be instead of doubling it.
+// Everything below the horizon is the haze colour, because that is what the fog
+// is and nothing else down there is ever seen except from an elevated tee.
+//
+// 2.5°, not 0°, is still where sampling stops: a `*_puresky` HDRI carries a
+// smear of the original ground in its bottom rows, and sampling it painted an
+// olive-brown band along every horizon (measured: storm's came out #a8a888).
 
+/** Ramp row fraction (0..1 over the full sphere) of the true horizon. */
+const HORIZON_T = 0.5;
+/** Elevation below which the source is ground smear, not sky. */
+const MIN_EL = 2.5;
+
+/** Elevation in degrees for a row fraction, matching the dome's linear map. */
 function elevationAt(t) {
-  for (let i = 1; i < RAMP_STOPS.length; i++) {
-    const [t0, e0] = RAMP_STOPS[i - 1];
-    const [t1, e1] = RAMP_STOPS[i];
-    if (t <= t1) return e0 + ((e1 - e0) * (t - t0)) / (t1 - t0);
-  }
-  return 0;
+  return 90 - 180 * t;
 }
 
-/** How many of the lowest bands ramp into the course's fog colour. Three of
- *  13–16 is roughly the bottom 20% of the dome — the part the terrain does not
- *  cover and the fog owns. */
+/** How many of the lowest VISIBLE bands ramp into the course's fog colour — the
+ *  bands just above the horizon, which is where the dome and the fog now
+ *  actually meet. */
 const HAZE_BANDS = 3;
+
+/** Cross-fade, in rows, applied at each band boundary.
+ *
+ *  The bands were perfectly flat plateaus with nothing between them. One texel
+ *  row is 0.703° of arc and the camera FOV is 60°, so a band edge is ~12 screen
+ *  pixels on a 1080-tall canvas — a step of 48 levels across 12px on a flat
+ *  area with no texture to hide it, which the eye exaggerates further by Mach
+ *  banding. Feathering the junction spreads it over ~3.5° instead and the
+ *  posterised look survives: the core of every band is still flat, only the
+ *  shoulders move. */
+const BAND_FEATHER = 5;
 
 /** '#rrggbb' → [r,g,b]. */
 function hexRgb(h) {
@@ -337,7 +365,13 @@ function hexRgb(h) {
 }
 
 function mixRgb(a, hex, k) {
-  const b = hexRgb(hex);
+  return mixArr(a, hexRgb(hex), k);
+}
+
+/** Blend two [r,g,b] triples. `mixRgb` takes a hex STRING for its second
+ *  argument, which is right at the call sites that mix toward `style.haze` and
+ *  wrong for blending two measured band colours together. */
+function mixArr(a, b, k) {
   return [0, 1, 2].map((i) => Math.round(a[i] + (b[i] - a[i]) * k));
 }
 
@@ -348,15 +382,20 @@ async function buildRamp(file, style) {
   const H = 256;
   const px = Buffer.alloc(H * 8 * 3);
   const bandColors = [];
+  // The bands cover the VISIBLE half only (zenith → horizon); below the horizon
+  // the dome is the haze colour. See the note above elevationAt.
+  const VIS = Math.round(H * HORIZON_T);
+  const hazeRgb = hexRgb(style.haze);
+
   for (let b = 0; b < style.bands; b++) {
+    const y0 = Math.floor((b * VIS) / style.bands);
+    const y1 = Math.floor(((b + 1) * VIS) / style.bands);
     // Average the measured colours across the band, then stylise ONCE — doing
     // it per-row and averaging afterwards drifts the hue.
-    const y0 = Math.floor((b * H) / style.bands);
-    const y1 = Math.floor(((b + 1) * H) / style.bands);
     let acc = [0, 0, 0];
     for (let y = y0; y < y1; y++) {
+      const el = Math.max(MIN_EL, elevationAt((y + 0.5) / H));
       // Upper hemisphere occupies rows 0..511 of the 1024-row decode.
-      const el = elevationAt((y + 0.5) / H);
       const src = Math.min(511, Math.round(((90 - el) / 180) * 1024));
       // The percentile has to WALK. High in the sky the dark pixels around a
       // ring are the clear sky between the clouds, which is what the dome
@@ -369,39 +408,66 @@ async function buildRamp(file, style) {
       const c = rowPercentile(data, w, src, 0.35 + 0.4 * k * k);
       acc = [acc[0] + c[0], acc[1] + c[1], acc[2] + c[2]];
     }
-    const n = y1 - y0;
+    const n = Math.max(1, y1 - y0);
     let col = stylise([acc[0] / n, acc[1] / n, acc[2] / n], style.sat, style.lift);
     // THE HORIZON HAS TO MEET THE FOG.
     //
-    // The hand-authored gradient this replaces ended its last stop on
-    // `theme.haze` EXACTLY, and that was not decoration: the scene runs EXP2
-    // fog at `scene.fogColor = theme.haze`, so every distant thing dissolves
-    // into that colour. A dome that ends on some other colour draws a hard
-    // line across the bottom of the sky where the two meet — which is the
-    // "weird band at the horizon" defect this course set has already been
-    // through once (course3d.ts groundFarC).
+    // The scene runs EXP2 fog at `scene.fogColor = theme.haze`, so every
+    // distant thing dissolves into that colour. A dome that arrives at the
+    // horizon on some other colour draws a hard line across the bottom of the
+    // sky where the two meet — the "weird band at the horizon" this course set
+    // has already been through twice.
     //
-    // The measured colours are right for the sky and wrong for the seam, so
-    // the bottom HAZE_BANDS are ramped into the haze rather than replaced:
-    // the sky keeps its own character all the way down and still arrives on
-    // the fog colour at the last row.
-    const fromBottom = style.bands - 1 - b;
-    if (fromBottom < HAZE_BANDS) {
-      const k = (HAZE_BANDS - fromBottom) / HAZE_BANDS;
+    // The measured colours are right for the sky and wrong for the seam, so the
+    // lowest visible bands ramp into the haze rather than being replaced: the
+    // sky keeps its own character all the way down and still arrives on the fog
+    // colour AT THE HORIZON — which, before the mapping was fixed, is not where
+    // this landed at all.
+    const fromHorizon = style.bands - 1 - b;
+    if (fromHorizon < HAZE_BANDS) {
+      const k = (HAZE_BANDS - fromHorizon) / HAZE_BANDS;
       col = mixRgb(col, style.haze, k * k);
     }
     bandColors.push(col);
-    for (let y = y0; y < y1; y++) {
-      for (let x = 0; x < 8; x++) {
-        const i = (y * 8 + x) * 3;
-        px[i] = col[0];
-        px[i + 1] = col[1];
-        px[i + 2] = col[2];
-      }
+  }
+
+  /** The band colour at a row, feathered across each boundary. */
+  const rowColor = (y) => {
+    if (y >= VIS) return hazeRgb;
+    const bandH = VIS / style.bands;
+    const fb = y / bandH; // fractional band index
+    const b = Math.min(style.bands - 1, Math.floor(fb));
+    const within = (fb - b) * bandH; // rows into this band
+    const feather = Math.min(BAND_FEATHER, bandH / 2);
+    // Blend with the PREVIOUS band over the first `feather` rows and with the
+    // NEXT over the last `feather`, so each junction is one continuous ramp and
+    // the middle of every band stays exactly its measured colour.
+    if (within < feather && b > 0) {
+      const t = 0.5 + (within / feather) * 0.5;
+      return mixArr(bandColors[b - 1], bandColors[b], t);
+    }
+    if (within > bandH - feather) {
+      const next = b + 1 < style.bands ? bandColors[b + 1] : hazeRgb;
+      const t = ((within - (bandH - feather)) / feather) * 0.5;
+      return mixArr(bandColors[b], next, t);
+    }
+    return bandColors[b];
+  };
+
+  for (let y = 0; y < H; y++) {
+    const col = rowColor(y);
+    for (let x = 0; x < 8; x++) {
+      const i = (y * 8 + x) * 3;
+      px[i] = col[0];
+      px[i + 1] = col[1];
+      px[i + 2] = col[2];
     }
   }
+  // No `palette: true` any more. The feathered junctions are the whole point of
+  // this pass and a 256-colour palette with dither:0 snaps them straight back
+  // into the hard steps they exist to remove.
   await sharp(px, { raw: { width: 8, height: H, channels: 3 } })
-    .png({ palette: true, dither: 0, compressionLevel: 9 })
+    .png({ compressionLevel: 9 })
     .toFile(path.join(OUT, `${style.id}_ramp.png`));
   return bandColors;
 }

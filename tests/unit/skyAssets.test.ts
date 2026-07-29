@@ -157,7 +157,7 @@ describe('per-course painted skies', () => {
    * the mistake got in. Reading the shipped PNG rather than the script's table
    * also means a stale ramp (edited constant, never regenerated) fails here.
    */
-  it('every painted dome ends on its own course fog colour', async () => {
+  it('every painted dome meets its own course fog colour AT THE HORIZON', async () => {
     const roster = coursesFor({ newCourses: true, courseRebuilds: true });
     let checked = 0;
     for (const [id, course] of Object.entries(roster)) {
@@ -166,10 +166,20 @@ describe('per-course painted skies', () => {
       const { data, info } = await sharp(join(SKY, `${t.skyStyle}_ramp.png`))
         .raw()
         .toBuffer({ resolveWithObject: true });
-      // Row 0 is the zenith, so the LAST row is the horizon — the texel that
-      // abuts the fog. (course3d loads the ramp with invertY:false to match the
-      // DynamicTexture it replaced, so row order here is dome order.)
-      const i = (info.height - 1) * info.width * info.channels;
+      // THE HORIZON IS THE MIDDLE ROW, NOT THE LAST ONE.
+      //
+      // Babylon's CreateSphere emits v from the polar angle and course3d
+      // centres the dome at y = 0 with invertY:false, so row 0 is the ZENITH
+      // (+90°), the middle row is the HORIZON (0°) and the last row points
+      // straight DOWN (−90°). This used to read the last row, which is the one
+      // texel of this texture that can never be seen — so it was asserting that
+      // a colour under the player's feet matched the fog, and every course
+      // passed while the visible horizon sat on whatever the ramp happened to
+      // reach. Wildwood's arrived at #6080b8, a dark saturated blue, against a
+      // near-white fog: the owner's "changes from a light to a dark blue in a
+      // weird abrupt way".
+      const horizonRow = Math.floor(info.height / 2) - 1;
+      const i = horizonRow * info.width * info.channels;
       const got = [data[i], data[i + 1], data[i + 2]];
       const want = [(t.haze >> 16) & 255, (t.haze >> 8) & 255, t.haze & 255];
       const hex = (c: number[]): string => '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
@@ -178,12 +188,59 @@ describe('per-course painted skies', () => {
       for (let k = 0; k < 3; k++) {
         expect(
           Math.abs(got[k] - want[k]),
-          `${id} (${t.skyStyle}): dome ends ${hex(got)} but fog is ${hex(want)}`
+          `${id} (${t.skyStyle}): dome reaches ${hex(got)} at the horizon but fog is ${hex(want)}`
         ).toBeLessThanOrEqual(2);
       }
       checked++;
     }
     // Guard the guard: an empty roster or a renamed field would pass vacuously.
+    expect(checked, 'no course resolved to a sky style').toBeGreaterThanOrEqual(8);
+  });
+
+  /**
+   * NO HARD STEP IN THE SKY THE PLAYER LOOKS AT.
+   *
+   * The ramp was 13-16 perfectly flat plateaus with nothing between them. One
+   * texel row is 0.703° of arc against a 60° camera FOV, so a band edge is ~12
+   * screen pixels on a 1080-tall canvas — and Wildwood's worst edge was a
+   * 48-level swing, because its walking percentile hit cumulus in the source
+   * and produced a pale band sandwiched between two dark ones. That is exactly
+   * what the owner reported, and he was right that it was everywhere: four of
+   * the eight styles had a double-digit step somewhere in the visible half.
+   *
+   * The band boundaries are feathered now. This is the number that has to stay
+   * small, and it is measured only over the UPPER half — below the horizon the
+   * ramp steps straight to the haze colour on purpose, and nothing sees it.
+   */
+  it('has no hard step in the visible half of any dome', async () => {
+    const roster = coursesFor({ newCourses: true, courseRebuilds: true });
+    let checked = 0;
+    for (const [id, course] of Object.entries(roster)) {
+      const t = theme(course);
+      if (!t.skyStyle) continue;
+      const { data, info } = await sharp(join(SKY, `${t.skyStyle}_ramp.png`))
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const row = (y: number): number[] => {
+        const i = y * info.width * info.channels;
+        return [data[i], data[i + 1], data[i + 2]];
+      };
+      let worst = 0;
+      let at = 0;
+      for (let y = 1; y < Math.floor(info.height / 2); y++) {
+        const a = row(y - 1);
+        const b = row(y);
+        const d = Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+        if (d > worst) {
+          worst = d;
+          at = y;
+        }
+      }
+      // 12 is generous: the eight styles measure 5-7 after the fix, and they
+      // measured up to 48 before it.
+      expect(worst, `${id} (${t.skyStyle}): ${worst}-level step at row ${at}`).toBeLessThanOrEqual(12);
+      checked++;
+    }
     expect(checked, 'no course resolved to a sky style').toBeGreaterThanOrEqual(8);
   });
 

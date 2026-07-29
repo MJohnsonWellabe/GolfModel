@@ -47,6 +47,46 @@ test('menu · locker character grid fits two full rows', async ({ page }) => {
   expect(fit!.rows, `only ${fit!.rows.toFixed(2)} rows fit (${JSON.stringify(fit)})`).toBeGreaterThan(2);
 });
 
+test('menu · the locker cards stand off the room behind them', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  await page.waitForFunction(() => !!(window as unknown as { __startRound?: unknown }).__startRound);
+  await page.evaluate(() => (document.getElementById('landingLocker') as HTMLElement)?.click());
+  await page.waitForTimeout(900);
+  await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown');
+  await page.waitForTimeout(700);
+  await page.screenshot({ path: 'tests/visual/__shots__/menu/locker-style.png' });
+
+  // The panel used to declare no background AT ALL — `.storeInner` has none and
+  // `.lockerInner` only set a height — so every card composited straight onto a
+  // photograph of planks (owner: "they're hard to see on the locker
+  // background"). Assert the panel is actually opaque enough to sit on.
+  const panel = await page.evaluate(() => {
+    const el = document.querySelector('.lockerInner') as HTMLElement | null;
+    if (!el) return null;
+    const bg = getComputedStyle(el).backgroundImage + ' ' + getComputedStyle(el).backgroundColor;
+    return bg;
+  });
+  expect(panel, 'locker panel missing').not.toBeNull();
+  expect(panel, `locker panel has no background: ${panel}`).not.toMatch(/^none rgba\(0, 0, 0, 0\)$/);
+
+  // ...and each card carries its own fill on top of it.
+  const cardAlpha = await page.evaluate(() => {
+    const card = document.querySelector('#lockerRoom .archCard') as HTMLElement | null;
+    if (!card) return null;
+    const img = getComputedStyle(card).backgroundImage;
+    const m = img.match(/rgba?\([^)]*\)/g) ?? [];
+    // Highest alpha among the gradient stops.
+    return Math.max(0, ...m.map((c) => {
+      const parts = c.match(/[\d.]+/g) ?? [];
+      return parts.length > 3 ? parseFloat(parts[3]) : 1;
+    }));
+  });
+  expect(cardAlpha, 'no .archCard in the Locker Style tab').not.toBeNull();
+  expect(cardAlpha!, `card fill is only ${cardAlpha} opaque`).toBeGreaterThanOrEqual(0.12);
+});
+
 test('menu · earned challenge medals are white', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 390, height: 844 });

@@ -1326,12 +1326,26 @@ export function buildCourse(
       tw: number,
       th: number,
       paint: (ctx: CanvasRenderingContext2D) => void,
-      sheet?: string
+      sheet?: string,
+      mirror = false
     ): Texture => {
       const tex = new DynamicTexture(`${name}Tex`, { width: tw, height: th }, scene, true);
       const ctx = tex.getContext() as CanvasRenderingContext2D;
+      /** Draw flipped when this is the mirrored copy. On the CANVAS, never by
+       *  cloning the texture — see the note at the call site. */
+      const flipped = (draw: () => void): void => {
+        if (!mirror) {
+          draw();
+          return;
+        }
+        ctx.save();
+        ctx.translate(tw, 0);
+        ctx.scale(-1, 1);
+        draw();
+        ctx.restore();
+      };
       ctx.clearRect(0, 0, tw, th);
-      paint(ctx);
+      flipped(() => paint(ctx));
       shadeCloud(ctx, tw, th);
       tex.update(false);
       tex.hasAlpha = true;
@@ -1342,7 +1356,7 @@ export function buildCourse(
           // into a disposed texture's context throws.
           if (scene.isDisposed || !tex.getContext()) return;
           ctx.clearRect(0, 0, tw, th);
-          ctx.drawImage(img, 0, 0, tw, th);
+          flipped(() => ctx.drawImage(img, 0, 0, tw, th));
           const d = ctx.getImageData(0, 0, tw, th);
           for (let i = 0; i < d.data.length; i += 4) {
             const lum = d.data[i];
@@ -1434,12 +1448,23 @@ export function buildCourse(
           ? cumulusTex
           : softCloudTex(`cumulus${v + 1}`, 512, 320, cumulusShape(v + 1), `textures/sky/cloud_cumulus${v + 1}.png`);
       cumulusMats.push(cloudMat(`cumulusMat${v}`, tex));
-      // The mirror shares the TEXTURE and only re-scales its own copy's uv, so
-      // this is a material clone, not a second upload.
-      const flipTex = tex.clone()!;
-      flipTex.uScale = -1;
-      flipTex.uOffset = 1;
-      cumulusMats.push(cloudMat(`cumulusMatF${v}`, flipTex));
+      // A MIRRORED COPY, PAINTED — not `tex.clone()`.
+      //
+      // `DynamicTexture.clone()` in Babylon 9 allocates a new texture and
+      // copies `hasAlpha`/`level`/`wrapU`/`wrapV` and NOTHING ELSE; it never
+      // draws the source canvas. This file already documents that trap for the
+      // peak apron, where a cloned detail map sampled (0,0,0,0) and turned the
+      // far field into Maple Vale's "gross brown glass pond" — and the first
+      // cut of these mirrors walked straight back into it. The clones were
+      // blank AND permanently un-ready, so half the cumulus billboards drew
+      // nothing and `scene.isReady(true)` stayed false for the whole hole,
+      // which is also what made the capture harness hang.
+      //
+      // 512x320 twice is nothing; painting the flip is correct and cheap.
+      const mirrorSheet = v === 0 ? 'textures/sky/cloud_cumulus1.png' : `textures/sky/cloud_cumulus${v + 1}.png`;
+      cumulusMats.push(
+        cloudMat(`cumulusMatF${v}`, softCloudTex(`cumulusF${v}`, 512, 320, cumulusShape(v + 1), mirrorSheet, true))
+      );
     }
     // Two cirrus sheets, alternated. A single streak repeated across the dome is
     // the same "one cloud on repeat" complaint one layer up.

@@ -6716,6 +6716,7 @@ function renderStore(): void {
   document.getElementById('storeBack')!.addEventListener('click', () => {
     pendingBuy = null;
     storeEl.style.display = 'none';
+    goBack(() => {});
   });
 }
 
@@ -6996,6 +6997,7 @@ function renderSeasonPass(): void {
   document.getElementById('spBack')!.addEventListener('click', () => {
     spPage = -1;
     seasonEl.style.display = 'none';
+    goBack(() => {});
   });
 }
 
@@ -8160,6 +8162,7 @@ function renderTourHub(fromSync = false): void {
     });
     el.querySelector('#thLocker')?.addEventListener('click', () => {
       el.style.display = 'none';
+      pushReturn(() => renderTourHub());
       lkTab = 'style';
       renderLockerRoom();
     });
@@ -8304,6 +8307,8 @@ function renderTourHub(fromSync = false): void {
   // so this is one tap instead of Back → Locker → Style.
   el.querySelector('#thTrain')?.addEventListener('click', () => {
     el.style.display = 'none';
+    // The hub hid itself, so the Locker's Back has to bring it back.
+    pushReturn(() => renderTourHub());
     lkTab = 'style';
     renderLockerRoom();
   });
@@ -10236,12 +10241,16 @@ function renderLockerRoom(): void {
   // Leave the room first: with the locker left open it painted OVER the
   // overlay it had just launched (all three shared z-index 25 and the locker
   // is last in the DOM), so these two buttons looked dead until Done.
+  // Same bug, one level down: the Locker hides itself to open these, so their
+  // Back used to land on the landing rather than back in the Locker.
   lockerEl.querySelector('#lkSeason')!.addEventListener('click', () => {
     lockerEl.style.display = 'none';
+    pushReturn(() => renderLockerRoom());
     renderSeasonPass();
   });
   lockerEl.querySelector('#lkStore')!.addEventListener('click', () => {
     lockerEl.style.display = 'none';
+    pushReturn(() => renderLockerRoom());
     renderStore();
   });
 
@@ -10424,11 +10433,17 @@ function renderLockerRoom(): void {
     syncLoadout();
     lkPendingBuy = null;
     lockerEl.style.display = 'none';
+    // Confirming is still LEAVING the Locker, so it owes the same return as Done.
+    goBack(() => {});
   });
   document.getElementById('lkEditName')!.addEventListener('pointerdown', () => promptName(true));
   document.getElementById('lkBack')!.addEventListener('click', () => {
     lkPendingBuy = null;
     lockerEl.style.display = 'none';
+    // Back to whoever opened the Locker — the tour hub, usually — instead of
+    // whatever happens to be underneath (which is the landing, because the
+    // caller hid itself on the way in).
+    goBack(() => {});
   });
 }
 
@@ -10489,10 +10504,61 @@ function goStep(n: number): void {
   updateNav();
 }
 
+/**
+ * WHERE "BACK" GOES.
+ *
+ * Every overlay in this file closes the same way — hide myself, and whatever is
+ * underneath becomes visible again. That works only while a screen has exactly
+ * ONE caller, and the Locker Room has seven: the landing, the landing nav, the
+ * Tour tile, the tour hub's "Improve your Pro", the retired-Pro deep link, the
+ * co-op invite, and the career-less hub. Six of those hide their own screen on
+ * the way in, so hiding the Locker on the way out drops the player on the
+ * LANDING rather than where they were (owner: "the menus when you improve your
+ * pro always go back to the main menu rather than where you came from. Any
+ * going back should always take you back to where you came from").
+ *
+ * So a screen that can be reached from more than one place records how to get
+ * back before it opens, and its Back button runs that instead of just hiding.
+ * A stack, not a single slot, because the Locker can open the Store and the
+ * Season Pass and those have the same bug for the same reason.
+ *
+ * Deliberately small: no router, no history integration, no per-screen state.
+ * It holds closures that RE-RENDER a screen, so a stale entry can only ever
+ * repaint something from live profile data.
+ */
+const navReturn: Array<() => void> = [];
+
+/** Record where Back should go, then open the next screen. */
+function pushReturn(back: () => void): void {
+  navReturn.push(back);
+  // A player who wanders in circles must not grow this forever. Six is deeper
+  // than any real path in the game.
+  if (navReturn.length > 6) navReturn.shift();
+}
+
+/**
+ * Run the most recent return, or `fallback` when there is none (the screen was
+ * opened from the landing, where hiding it IS going back).
+ *
+ * MUST be bound on 'click', never 'pointerdown' — hiding a full-screen overlay
+ * on the down-stroke lets the release hit-test onto whatever is underneath and
+ * opens a screen the player never asked for. The whole file documents this.
+ */
+function goBack(fallback: () => void): void {
+  const back = navReturn.pop();
+  (back ?? fallback)();
+}
+
+/** Drop any recorded returns — the landing is the root, so nothing above it. */
+function clearReturns(): void {
+  navReturn.length = 0;
+}
+
 function showLanding(): void {
   // The boot watchdog (index.html) shows a reload panel if NOTHING paints —
   // the menus being up is the definition of a healthy boot.
   (window as unknown as { __booted?: boolean }).__booted = true;
+  clearReturns(); // the landing is the root of navigation
   endPractice();
   tutorialCoach.stop(); // returning home ends any in-progress lesson + overlay
   setupEl.style.display = 'none';

@@ -4292,6 +4292,39 @@
          footer pinned; only .lkScroll grows/scrolls in between. */
       .lockerInner {
         height: min(86dvh, 620px);
+        /* A REAL PANEL, at last. The scrim note above says "the card floating
+           over it carries its own background" — and that was simply not true:
+           `.storeInner` declares no background at all, and `.archCard` is a
+           10%→4.5% white gradient, so every card in here was compositing
+           straight onto a photograph of planks. Hence the owner's "the place
+           where you improve your golfer needs each card to have a background.
+           They're hard to see on the locker background."
+           Scoped to .lockerInner, so the Store and Season Pass — which share
+           .storeInner and sit on flat backdrops that never had this problem —
+           are untouched. */
+        background: linear-gradient(180deg, rgba(6, 22, 12, 0.86), rgba(4, 16, 9, 0.92));
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 18px;
+        box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+      }
+      /* ...AND EACH CARD READS AS A CARD ON IT. Scoped to #lockerRoom so the
+         setup wizard's mode/course/opponent steps — which share .archCard and
+         .charCard but sit on their own backdrops — keep their current look. */
+      #lockerRoom .archCard,
+      #lockerRoom .charCard {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.13), rgba(255, 255, 255, 0.07));
+        border-color: rgba(255, 255, 255, 0.20);
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+      }
+      #lockerRoom .archCard.sel,
+      #lockerRoom .charCard.sel {
+        border-color: var(--accent, #ffd54f);
+        background: linear-gradient(180deg, rgba(255, 213, 79, 0.26), rgba(255, 255, 255, 0.08));
+      }
+      /* The two career cards keep their gold edge, now over the readable fill. */
+      #lockerRoom .careerCard,
+      #lockerRoom .careerNew {
+        border-color: rgba(217, 164, 65, 0.6);
       }
       .lockerInner .lkTop {
         display: flex;

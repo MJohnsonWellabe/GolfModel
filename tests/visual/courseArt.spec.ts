@@ -100,10 +100,62 @@ for (const { course, hole, out, subject } of ART) {
       { timeout: 120_000 }
     );
 
-    // MODELS LOAD LATE. A capture at 10s caught the lighthouse and the golfer
-    // rendering pure white — the GLBs had not swapped in. 22s is what it takes
-    // on the heaviest course here.
-    await page.waitForTimeout(22_000);
+    // WAIT FOR THE ACTUAL SIGNAL, NOT A NUMBER.
+    //
+    // This used to be a flat 22s, chosen because a 10s capture had caught the
+    // lighthouse and the golfer rendering pure white with their GLBs not yet
+    // swapped in. A fixed wait is a guess about a machine, and the guess
+    // expired: on a cold dev server two of the eight came back with a CYAN
+    // golfer and a WHITE pal — models present, textures not. Pulling the
+    // previously SHIPPED cards showed the same defect had already gone out
+    // once, on Wildwood's pal, unnoticed.
+    //
+    // `scene.isReady(false)` is the signal that actually covers it. Probing a
+    // live scene showed the not-ready meshes are exactly `Clone of Fox` (the
+    // pal) and `Clone of m_5_primitive0/1` (the golfer), and the one not-ready
+    // texture is `EnvironmentBRDFTexture` — the lookup table every PBRMaterial
+    // needs before it can render. Until Babylon has generated it, those
+    // characters draw as untextured placeholders. That is the whole defect.
+    //
+    // `false`, NOT `true`: the argument is checkRenderTargets, and this scene
+    // keeps a water mirror and a shadow map that re-render every frame and
+    // never report ready. Asking for `true` waits forever — it is what made
+    // this spec crawl and then time out.
+    await page.waitForFunction(
+      () => (window as unknown as { __slice3d: { scene: { isReady: (rt?: boolean) => boolean } } }).__slice3d.scene.isReady(false),
+      undefined,
+      { timeout: 120_000 }
+    );
+
+    // ...AND the two load promises, each CAPPED. `bodiesReady` resolves when
+    // every competitor's body has loaded (main.ts:895) and `natureReady` when
+    // the population queue has drained; between them they cover the props the
+    // scene-ready check cannot see because they are not in the scene yet.
+    //
+    // Capped because natureReady CAN hang — the game races it against
+    // MAX_NATURE_WAIT_MS for exactly that reason (main.ts:2201), and an
+    // unguarded await here spent Timberline West's entire 5-minute test budget
+    // waiting for a promise that never settled. A camera must degrade to a
+    // slightly early photo, never to no photo at all.
+    await page.evaluate(async () => {
+      const w = window as unknown as {
+        __slice3d: { bodiesReady: Promise<void>; natureReady: () => Promise<void> };
+      };
+      const cap = (p: Promise<unknown>, ms: number): Promise<unknown> =>
+        Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
+      await cap(w.__slice3d.bodiesReady, 60_000);
+      await cap(w.__slice3d.natureReady(), 60_000);
+    });
+
+    // The equipped PAL is deliberately outside `bodiesReady` — a slow pal fetch
+    // must never hold up a shot (main.ts:1293) — so give the last uploads a
+    // moment to land, then re-confirm the scene is still ready.
+    await page.waitForTimeout(4_000);
+    await page.waitForFunction(
+      () => (window as unknown as { __slice3d: { scene: { isReady: (rt?: boolean) => boolean } } }).__slice3d.scene.isReady(false),
+      undefined,
+      { timeout: 60_000 }
+    );
 
     // A STYLESHEET, not inline styles. The aim readout re-shows itself on every
     // aim tick (`aimReadoutEl.style.display = 'flex'`), so an inline `none` is
