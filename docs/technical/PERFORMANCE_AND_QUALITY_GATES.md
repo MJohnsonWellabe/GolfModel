@@ -158,6 +158,7 @@ viewport):
 | green patch | 3-11 MB | scales with green size |
 | putt grid | 5.4 MB | fixed 1024² |
 | shadow map | 4 MB | fixed 1024² until the governor |
+| terrain compile (`buildHeightField`) | **3.2 / 2.4 / 2.0 ms** per hole on Sable Bay, up from 1.5 / 0.8 / 1.6 | The water-bed carve. It is a distance transform per water body, and the field is rebuilt once per SIMULATED round — so this lands on the daily-hole gate and `critiqueHole`, not on the frame budget. Held down by cutting the working box to where terrain actually breaks the water plane, and by scoping the green-protection pass to the green's own neighbourhood; without either it was 4.0 ms and `tests/holeCritique` went 8.4 s → 22.8 s. |
 | sky (dome ramp + 2 cloud sheets) | 0.84 MB | **unchanged by the per-course skies.** They ship as three PNGs (8×256 ramp, 512×320 cumulus, 512×96 cirrus) at the exact dimensions of the `DynamicTexture`s they replace — 100 KB on disk for all eight styles, same GPU bytes, same dome, same shader, same billboard geometry. `cloudCover` moves billboard COUNT: Timberline East went 6+10 → 3+5 (a fill-rate saving), Port Johnson 7+12 is the only rise. Gated by `tests/unit/skyAssets.test.ts` (60 KB per style). |
 | whole scene | 37-146 MB | Red Hollow's 96-98 loaded tree/rock textures are the outlier |
 

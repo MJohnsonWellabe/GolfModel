@@ -85,6 +85,14 @@ export interface TerrainCut {
    * instead of a cliff the terrain gates would (rightly) reject.
    */
   protect?: (x: number, y: number) => boolean;
+  /**
+   * World bounds `protect` can possibly return true inside, as
+   * [minX, minY, maxX, maxY]. REQUIRED for `protect` to take effect: it is what
+   * keeps the protection pass proportional to the green rather than to the
+   * water, and a cut without it would run the predicate over every cell of a
+   * sea that spans the world.
+   */
+  protectBox?: [number, number, number, number];
 }
 
 const CELL = 8; // grid resolution, world px — smooth macro terrain only
@@ -289,10 +297,62 @@ export class HeightField {
       if (y < minY) minY = y;
       if (y > maxY) maxY = y;
     }
-    const gx0 = Math.max(0, Math.floor(minX / CELL) - pad);
-    const gx1 = Math.min(this.gw - 1, Math.ceil(maxX / CELL) + pad);
-    const gy0 = Math.max(0, Math.floor(minY / CELL) - pad);
-    const gy1 = Math.min(this.gh - 1, Math.ceil(maxY / CELL) + pad);
+    // The OUTER box: everything the outline plus its shore could touch.
+    const ox0 = Math.max(0, Math.floor(minX / CELL) - pad);
+    const ox1 = Math.min(this.gw - 1, Math.ceil(maxX / CELL) + pad);
+    const oy0 = Math.max(0, Math.floor(minY / CELL) - pad);
+    const oy1 = Math.min(this.gh - 1, Math.ceil(maxY / CELL) + pad);
+    if (ox1 < ox0 || oy1 < oy0) return;
+
+    // THE WORKING BOX IS SMALLER, and this is what makes the carve affordable.
+    //
+    // A cut exists to stop terrain BURYING water. Where the ground inside the
+    // outline already lies below the water plane there is nothing to fix — that
+    // is the same judgement the whole-polygon `buried` check makes, applied per
+    // region instead of once. So: find where the ground actually reaches the
+    // surface, and do the distance transform over THAT plus its shore, rather
+    // than over the outline's bounding box.
+    //
+    // It matters because a sea is not a pond. Sable Bay's two water polygons
+    // between them span most of the world, while the ground that pokes through
+    // them is a fraction of it; transforming the full box took buildHeightField
+    // from 1.5ms to 4.0ms, and the field is rebuilt once per SIMULATED ROUND —
+    // tests/holeCritique went 8.4s to 22.8s.
+    let bx0 = Infinity;
+    let bx1 = -Infinity;
+    let by0 = Infinity;
+    let by1 = -Infinity;
+    const xsScan: number[] = [];
+    for (let gy = oy0; gy <= oy1; gy++) {
+      const wy = gy * CELL;
+      xsScan.length = 0;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i];
+        const [xj, yj] = poly[j];
+        if (yi > wy !== yj > wy) xsScan.push(((xj - xi) * (wy - yi)) / (yj - yi) + xi);
+      }
+      if (xsScan.length < 2) continue;
+      xsScan.sort((a, b) => a - b);
+      for (let k = 0; k + 1 < xsScan.length; k += 2) {
+        const a = Math.max(ox0, Math.ceil(xsScan[k] / CELL));
+        const b = Math.min(ox1, Math.floor(xsScan[k + 1] / CELL));
+        for (let gx = a; gx <= b; gx++) {
+          if (this.grid[gy * this.gw + gx] < cut.surface) continue;
+          if (gx < bx0) bx0 = gx;
+          if (gx > bx1) bx1 = gx;
+          if (gy < by0) by0 = gy;
+          if (gy > by1) by1 = gy;
+        }
+      }
+    }
+    // Nothing inside the outline reaches the water plane: the body is already
+    // sitting in ground below its own surface, so leave the terrain alone.
+    if (bx1 < bx0) return;
+
+    const gx0 = Math.max(ox0, bx0 - pad);
+    const gx1 = Math.min(ox1, bx1 + pad);
+    const gy0 = Math.max(oy0, by0 - pad);
+    const gy1 = Math.min(oy1, by1 + pad);
     const bw = gx1 - gx0 + 1;
     const bh = gy1 - gy0 + 1;
     if (bw <= 0 || bh <= 0) return;
@@ -300,7 +360,6 @@ export class HeightField {
     // Scanline fill: for each grid row, the sorted x-crossings of the outline
     // bracket the interior spans. One pass over the edges per row.
     const inside = new Uint8Array(bw * bh);
-    let buried = false;
     const xs: number[] = [];
     for (let gy = gy0; gy <= gy1; gy++) {
       const wy = gy * CELL;
@@ -318,39 +377,62 @@ export class HeightField {
         const b = Math.min(gx1, Math.floor(xs[k + 1] / CELL));
         for (let gx = a; gx <= b; gx++) {
           inside[row + (gx - gx0)] = 1;
-          if (this.grid[gy * this.gw + gx] >= cut.surface) buried = true;
         }
       }
     }
-    // Nothing inside the outline reaches the water plane: the body is already
-    // sitting in ground below its own surface, so leave the terrain alone.
-    if (!buried) return;
-
     // Chamfer distance transform out from the interior, in CELL units: two
     // sweeps with a 1 / √2 neighbourhood. Not exact euclidean, but the error
     // is under 4% over a 4-cell ramp — invisible in a shoreline, and linear
     // in the number of cells rather than quadratic.
+    //
+    // An exact alternative was tried and rejected: walking each EDGE and taking
+    // the point-to-segment distance for the cells within reach of it is
+    // O(perimeter x reach) rather than O(area), which sounds better — but these
+    // outlines carry enough vertices that it measured SLOWER than the two
+    // sweeps (Sable Bay h1: 3.78ms against 2.91ms). The box is already cut down
+    // to the buried region above, which is where the real saving came from.
     const FAR = 1e9;
     const d = new Float32Array(bw * bh);
     for (let i = 0; i < d.length; i++) d[i] = inside[i] ? 0 : FAR;
     chamfer(d, bw, bh);
 
     // ...and a SECOND distance field, out from the protected ground, by the
-    // same two sweeps. `keep` is 1 on the green and falls to 0 over `blend`, so
-    // the carve is scaled to nothing as it approaches a putting surface.
+    // same two sweeps. `keep` is 0 on the green and grows outward, so the carve
+    // is scaled to nothing as it approaches a putting surface.
+    //
+    // Computed over a SUB-RECT, not the whole water box. Protection can only
+    // reach `blend` past the green, so everything beyond `protectBox` grown by
+    // that much is provably unprotected — and a green is tiny next to Sable
+    // Bay's sea, which spans most of the world. Doing this over the full box
+    // cost ~2.4ms a build, and the field is rebuilt once per SIMULATED ROUND
+    // (tests/holeCritique went 8.4s → 22.8s before this).
+    const reachCells = Math.ceil(cut.blend / CELL);
     let keep: Float32Array | null = null;
-    if (cut.protect) {
-      keep = new Float32Array(bw * bh);
-      let any = false;
-      for (let y = 0; y < bh; y++) {
-        for (let x = 0; x < bw; x++) {
-          const on = cut.protect((gx0 + x) * CELL, (gy0 + y) * CELL);
-          keep[y * bw + x] = on ? 0 : FAR;
-          if (on) any = true;
+    let px0 = 0;
+    let py0 = 0;
+    let pw = 0;
+    let ph = 0;
+    if (cut.protect && cut.protectBox) {
+      const [bx0, by0, bx1, by1] = cut.protectBox;
+      px0 = Math.max(gx0, Math.floor(bx0 / CELL) - reachCells);
+      py0 = Math.max(gy0, Math.floor(by0 / CELL) - reachCells);
+      const px1 = Math.min(gx1, Math.ceil(bx1 / CELL) + reachCells);
+      const py1 = Math.min(gy1, Math.ceil(by1 / CELL) + reachCells);
+      pw = px1 - px0 + 1;
+      ph = py1 - py0 + 1;
+      if (pw > 0 && ph > 0) {
+        keep = new Float32Array(pw * ph);
+        let any = false;
+        for (let y = 0; y < ph; y++) {
+          for (let x = 0; x < pw; x++) {
+            const on = cut.protect((px0 + x) * CELL, (py0 + y) * CELL);
+            keep[y * pw + x] = on ? 0 : FAR;
+            if (on) any = true;
+          }
         }
+        if (!any) keep = null;
+        else chamfer(keep, pw, ph);
       }
-      if (!any) keep = null;
-      else chamfer(keep, bw, bh);
     }
 
     const reach = cut.blend / CELL;
@@ -363,8 +445,13 @@ export class HeightField {
         let t = s * s * (3 - 2 * s); // 0 in the water, 1 at the top of the bank
         if (keep) {
           // Distance from the nearest protected cell, on the same 0..1 ramp.
-          const p = reach > 0 ? Math.min(1, keep[i] / reach) : 1;
-          t = Math.max(t, 1 - p * p * (3 - 2 * p));
+          // Outside the protection sub-rect the answer is provably "far".
+          const kx = gx0 + x - px0;
+          const ky = gy0 + y - py0;
+          if (kx >= 0 && kx < pw && ky >= 0 && ky < ph) {
+            const p = reach > 0 ? Math.min(1, keep[ky * pw + kx] / reach) : 1;
+            t = Math.max(t, 1 - p * p * (3 - 2 * p));
+          }
         }
         const gi = (gy0 + y) * this.gw + (gx0 + x);
         const g = this.grid[gi];
@@ -422,6 +509,33 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
   // See `TerrainCut` for why this is a post-sum cut and not another negative
   // dome, and for the Maple Vale h3 report that forced it.
   const cuts: TerrainCut[] = [];
+  // A cheap outer bound on "could this point possibly be on a green".
+  //
+  // The cut's protection predicate is evaluated PER CELL over the water's
+  // bounding box, and Sable Bay's two sea polygons between them cover most of
+  // the world — ~11k pointInGreens calls per field build, and the field is
+  // rebuilt once per SIMULATED ROUND. Unguarded it took tests/holeCritique
+  // from 8.4s to 22.8s. A green is a small wobbled ellipse, so four
+  // comparisons reject the overwhelming majority of cells before the real
+  // (rotated, wobbled, metaball-unioned) test is ever called.
+  const greenBoxes: Array<[number, number, number, number]> = [hole.green, hole.green2]
+    .filter((g): g is NonNullable<typeof g> => !!g)
+    .map((g) => {
+      // Rotation and wobble both stay inside max(rx, ry), so a square of that
+      // half-extent plus the keep-out is a sound outer bound.
+      const k = Math.max(g.rx, g.ry) + GREEN_KEEPOUT;
+      return [g.cx - k, g.cy - k, g.cx + k, g.cy + k];
+    });
+  const nearAGreen = (x: number, y: number): boolean =>
+    greenBoxes.some((b) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]);
+  const greensBox: [number, number, number, number] | undefined = greenBoxes.length
+    ? [
+        Math.min(...greenBoxes.map((b) => b[0])),
+        Math.min(...greenBoxes.map((b) => b[1])),
+        Math.max(...greenBoxes.map((b) => b[2])),
+        Math.max(...greenBoxes.map((b) => b[3]))
+      ]
+    : undefined;
   for (const hz of hole.hazards) {
     if (hz.type === 'water') {
       // course3d renders a water plane at `hz.level ?? 0.35`; the bed must
@@ -436,7 +550,8 @@ export function buildHeightField(hole: HoleData, bunkerDepthScale = 1, wasteDept
         // The same clearance the bunker dish keeps. A coastal green often sits
         // inside the SEA's bounding outline (Sable Bay h1) — without this the
         // carve tilts the putting surface.
-        protect: (x, y) => pointInGreens(x, y, hole.green, hole.green2, GREEN_KEEPOUT)
+        protect: (x, y) => nearAGreen(x, y) && pointInGreens(x, y, hole.green, hole.green2, GREEN_KEEPOUT),
+        protectBox: greensBox
       });
       continue;
     }
