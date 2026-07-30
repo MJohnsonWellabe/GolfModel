@@ -5745,7 +5745,15 @@ function featsHtml(p: PlayerProfile): string {
         })
         .join('');
       const gotLine = got.length
-        ? `<div class="featGot">${got.map((f) => `<span class="chip" data-id="${escapeHtml(f.id)}">🏅 ${escapeHtml(f.name)}</span>`).join('')}</div>`
+        ? `<div class="featGot">${got.map((f) => `<span class="chip" data-id="${escapeHtml(f.id)}">🏅 ${escapeHtml(f.name)}</span>`).join('')}</div>` +
+          // Hidden until a medal is tapped, then filled with that feat's own
+          // name + desc — one shared slot per tier, not a toast. `showMsg()`
+          // was the first attempt; it renders behind the full-screen profile
+          // overlay (#records, z-index 25) with no way to see it, so a
+          // completed feat looked unclickable even though the handler fired.
+          // Inline, in the same list a todo feat's `.featDesc` already uses,
+          // has nothing to occlude and reads as one consistent list.
+          `<div class="featGotDesc" style="display:none"></div>`
         : '';
       return (
         `<div class="featTier"><div class="featTierHead">${escapeHtml(tier.label)}` +
@@ -6108,12 +6116,23 @@ function renderProfile(tab?: ProfileTab): void {
   // description that explains what it actually was only exists in the TODO
   // row markup, so finishing one made it permanently unreadable (owner: "I
   // completed it and now all I can see is it's done and the title, I can't
-  // click it and see what it was"). Look the id back up in FEATS rather than
-  // re-rendering, since the chip already carries everything needed.
+  // click it and see what it was"). Toggle the tier's own hidden
+  // `.featGotDesc` slot rather than a toast: `showMsg()` was the first
+  // attempt, and it renders behind this very panel (`#records` is a
+  // full-screen, opaque, z-index:25 overlay; `#msg` has no z-index at all),
+  // so the handler fired but nothing was ever visible — tapping a badge
+  // looked like it did nothing. Inline has nothing to occlude.
   for (const el of Array.from(recordsEl.querySelectorAll<HTMLElement>('.featGot .chip'))) {
     el.addEventListener('pointerdown', () => {
       const f = featById(el.dataset.id ?? '');
-      if (f) showMsg(`🏅 ${f.name} — ${f.desc}`, 3200);
+      const desc = el.closest('.featTier')?.querySelector<HTMLElement>('.featGotDesc');
+      if (!f || !desc) return;
+      const text = `${f.name} — ${f.desc}`;
+      // Tapping the same medal again collapses it; tapping a different one
+      // in the same tier swaps the text rather than stacking two open.
+      const reopening = desc.style.display === 'none' || desc.textContent !== text;
+      desc.textContent = text;
+      desc.style.display = reopening ? 'block' : 'none';
     });
   }
   // 'click' (not 'pointerdown') — see the #lkLock comment in renderLockerRoom:
