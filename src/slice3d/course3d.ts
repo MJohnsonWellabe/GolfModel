@@ -681,8 +681,23 @@ export function buildCourse(
   if (theme.backdrop !== 'sea') {
     /** How far past the ground mesh's edge the real geometry reaches — just
      *  short of the pulled-in backdrops, so the hand-off happens where the
-     *  ranges and the fog already own the frame. */
-    const SKIRT_OUT = 1600;
+     *  ranges and the fog already own the frame.
+     *
+     * Raised from 1600: the flat `peakApron` quad picks up past this radius,
+     * and on a warm-rough course (Wild Prairie #d8a94e, Maple Vale #cfa055)
+     * that dead-level plane still read as a lake even after two rounds of
+     * pure repaint (`6bd9a78`'s exposure/detail-map fix, this ring's own
+     * introduction in `b4f08a5`) — this comment block's own conclusion was
+     * "a flat sheet reads as a flat sheet however it is painted," but the
+     * ring it justified only ever covered a third of the distance out to the
+     * pulled-in backdrops. Pushing it most of the rest of the way there
+     * removes the flat stretch for every peaks course, not just a retint of
+     * the two that got reported — cooler-rough courses (Wildwood #5d6b3a)
+     * were never broken, so they're unaffected either way. Shell count is
+     * unchanged (same triangle budget); the squared spacing already goes
+     * coarse near the outer edge, so the added ground is cheap and the ring
+     * still gives way to fog before the backdrops themselves. */
+    const SKIRT_OUT = 3200;
     const SHELLS = quality.tier >= 2 ? 7 : 10;
     const AROUND = quality.tier >= 2 ? 96 : 144;
     const gx0 = -pad;
