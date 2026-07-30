@@ -5745,7 +5745,7 @@ function featsHtml(p: PlayerProfile): string {
         })
         .join('');
       const gotLine = got.length
-        ? `<div class="featGot">${got.map((f) => `<span class="chip">🏅 ${escapeHtml(f.name)}</span>`).join('')}</div>`
+        ? `<div class="featGot">${got.map((f) => `<span class="chip" data-id="${escapeHtml(f.id)}">🏅 ${escapeHtml(f.name)}</span>`).join('')}</div>`
         : '';
       return (
         `<div class="featTier"><div class="featTierHead">${escapeHtml(tier.label)}` +
@@ -6103,6 +6103,18 @@ function renderProfile(tab?: ProfileTab): void {
   // values), and a stale pane behind a tab is worse than a repaint.
   for (const el of Array.from(recordsEl.querySelectorAll<HTMLElement>('.profTab'))) {
     el.addEventListener('pointerdown', () => renderProfile(el.dataset.tab as ProfileTab));
+  }
+  // A completed feat collapses to a bare medal chip (`featGot`, above) — the
+  // description that explains what it actually was only exists in the TODO
+  // row markup, so finishing one made it permanently unreadable (owner: "I
+  // completed it and now all I can see is it's done and the title, I can't
+  // click it and see what it was"). Look the id back up in FEATS rather than
+  // re-rendering, since the chip already carries everything needed.
+  for (const el of Array.from(recordsEl.querySelectorAll<HTMLElement>('.featGot .chip'))) {
+    el.addEventListener('pointerdown', () => {
+      const f = featById(el.dataset.id ?? '');
+      if (f) showMsg(`🏅 ${f.name} — ${f.desc}`, 3200);
+    });
   }
   // 'click' (not 'pointerdown') — see the #lkLock comment in renderLockerRoom:
   // hiding this full-screen overlay on the down-stroke lets the release land
