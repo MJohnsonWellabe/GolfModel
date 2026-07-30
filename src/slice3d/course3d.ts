@@ -2324,10 +2324,20 @@ export function buildCourse(
                     { dx: -300, dy: -1400, h: 260, mirror: true, wMul: 4.2 }
                   ]
                 : holeMod === 1
-                  ? [
+                  ? // h2 — ONE DOMINANT CENTRAL MASSIF (the signature): the
+                    // centerpiece dwarfs both flanks the way h1/h3's does, and
+                    // the flanks themselves are asymmetric in both distance
+                    // and height — mirror-equal dx (±1950, both close to the
+                    // centre's own 430) was the actual bug (owner: "sky on
+                    // two... takes over the background mountains"): two
+                    // near-equal supporting peaks read as a competing pair,
+                    // not support for a signature, and sat proportionally far
+                    // wider than h1/h3's own flanks relative to this hole's
+                    // smaller world. Pulled in and staggered to match.
+                    [
                       { dx: 0, dy: 320, h: 430, mirror: false, wMul: 1.15 },
-                      { dx: -1950, dy: -700, h: 280, mirror: true, wMul: 1.3 },
-                      { dx: 1950, dy: -800, h: 300, mirror: false, wMul: 1.3 },
+                      { dx: -1300, dy: -600, h: 250, mirror: true, wMul: 1.25 },
+                      { dx: 1550, dy: -820, h: 275, mirror: false, wMul: 1.4 },
                       { dx: 250, dy: -1500, h: 245, mirror: false, wMul: 4.5 }
                     ]
                   : // h3 — a tall LEFT-weighted signature peak close behind the
