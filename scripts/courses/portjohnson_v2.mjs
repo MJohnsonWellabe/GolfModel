@@ -125,7 +125,12 @@ const portjohnsonV2 = {
       // aiming landmark straight up the hole. rot ~PI turns the gatehouse to face
       // the green/tee. Kept OFF a raised motte and short of the green's back edge
       // so its footprint never bends the green's putting gradient (gate-checked).
-      props: [{ key: 'castle', x: 500, y: 118, rot: 3.14, len: 230, upright: true }],
+      // Pushed further back (owner: "move the castle back a little into the
+      // background more") — y118 sat only 182 units behind the green; y-40 is a
+      // further ~158 units into the padded skirt's flat terrain (still short of
+      // the true pad edge at -220), reading as a background landmark rather than
+      // a structure crowding the putting surface.
+      props: [{ key: 'castle', x: 500, y: -40, rot: 3.14, len: 230, upright: true }],
       elevation: [
         // Tee shelf.
         { x: 500, y: 1170, h: 1.8, r: 120, shape: 'plateau' },
