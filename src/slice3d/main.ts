@@ -234,21 +234,53 @@ try {
   // Keep going. Everything below this point is either GPU-free or guarded.
   console.error('[boot] no WebGL context — menus only', err);
 }
-/** True when there is a GPU to draw a hole with. False means menus-only. */
-const gpuReady = engine3d !== null;
+/**
+ * True when there is a GPU to draw a hole with — retried live, not decided
+ * once at boot. Chrome refuses a fresh WebGL context for a short cooldown
+ * right after a GPU-process death, which is exactly the state a
+ * crash-triggered reload boots into: a boot-only flag would latch false for
+ * that page's entire life even though the browser recovers moments later.
+ * Every `gpuBlocked()` call is a player's actual tap on Play — cheap to
+ * retry construction right there instead of trusting a snapshot taken before
+ * the player did anything. A separate try/catch from the boot one above (not
+ * a shared helper) so TypeScript keeps narrowing `engine3d` from its boot-time
+ * assignment — wrapping that first assignment in a function opaques it from
+ * control-flow analysis and every `if (engine3d)` below would narrow to
+ * `never`.
+ */
+function ensureEngine(): boolean {
+  if (engine3d) return true;
+  try {
+    engine3d = new Engine(canvas, !recentGpuCrash, {
+      adaptToDeviceRatio: true,
+      preserveDrawingBuffer: needsReadableBuffer
+    });
+  } catch (err) {
+    console.error('[gpu] retry failed — still no WebGL context', err);
+  }
+  return engine3d !== null;
+}
 /**
  * Set once a lost context has failed to come back (see
  * `abandonAfterContextLoss`), cleared if one ever does.
  *
- * `gpuReady` is decided once at boot and cannot answer this: the engine object
- * still exists after its context dies, so without this flag the menus would
- * cheerfully accept "resume the round" and build a scene against a dead
- * engine — a black canvas, which is the outcome the refusal exists to prevent.
- * Declared up here beside `gpuReady`, not beside the handler that sets it,
- * because `gpuBlocked` reads it thousands of lines earlier and a `let` in
- * temporal dead zone would throw.
+ * `ensureEngine()` decides whether a NEW context is obtainable and cannot
+ * answer this: the engine object still exists after its context dies, so
+ * without this flag the menus would cheerfully accept "resume the round" and
+ * build a scene against a dead engine — a black canvas, which is the outcome
+ * the refusal exists to prevent. Declared up here, not beside the handler
+ * that sets it, because `gpuBlocked` reads it thousands of lines earlier and
+ * a `let` in temporal dead zone would throw.
  */
 let contextGone = false;
+/**
+ * Whether the round `abandonAfterContextLoss` last tore down actually got a
+ * checkpoint written for it (see `checkpointRound`'s deliberately narrow
+ * scope — Tour/versus/weekly/challenge rounds never do). Read by the
+ * `gpuBlocked` messaging below so a Tour player isn't told "your round is
+ * saved" when nothing was.
+ */
+let roundWasCheckpointed = false;
 /** The engine, asserted present. Safe ONLY from code reachable inside a live
  *  hole: `playHole` refuses to build one without a context, so anything running
  *  under a HoleScene is guaranteed a GPU. Never call it at module scope. */
@@ -4812,8 +4844,13 @@ function applyRoundMasteryForHuman(holes: HoleData[], scores: number[], roundToP
  * weekly / tournament / challenge rounds are excluded — and never during the
  * tutorial, which is its own guided thing with its own entry point.
  */
-function checkpointRound(): void {
-  if (!flag('resumeRound') || practiceMode) return;
+/**
+ * Returns whether a checkpoint was actually written — callers that tell the
+ * player their round was saved (see `abandonAfterContextLoss`) must not say
+ * so for the round types this deliberately skips.
+ */
+function checkpointRound(): boolean {
+  if (!flag('resumeRound') || practiceMode) return false;
   if (
     round.mode !== 'solo' ||
     aiTour ||
@@ -4824,17 +4861,17 @@ function checkpointRound(): void {
     tutorialCoach.isActive() ||
     round.seed === undefined
   ) {
-    return;
+    return false;
   }
   const holes = holesThisRound();
-  if (round.holeIdx < 0 || round.holeIdx >= holes) return;
+  if (round.holeIdx < 0 || round.holeIdx >= holes) return false;
   // WHERE THE BALL IS, AND WHAT IT HAS COST. Without these "finish the round"
   // sent a player who was three shots into a par 5 back to the tee, which is a
   // worse offer than starting a new round.
   const live = current;
   const strokes = live?.state.strokes ?? 0;
   const ball = live && strokes > 0 ? { x: live.state.ballPos.x, y: live.state.ballPos.y } : undefined;
-  if (round.holeIdx <= 0 && !ball) return;
+  if (round.holeIdx <= 0 && !ball) return false;
   saveCheckpoint(
     checkpointFor({
       courseId: courseIdByName(round.course.name),
@@ -4849,6 +4886,7 @@ function checkpointRound(): void {
       diff: round.difficulty
     })
   );
+  return true;
 }
 
 /**
@@ -4865,7 +4903,7 @@ function checkpointRound(): void {
  * staring at a veil for the four seconds its safety cap takes to lift.
  */
 function gpuBlocked(): boolean {
-  if (gpuReady && !contextGone) return false;
+  if (ensureEngine() && !contextGone) return false;
   // Put the player back where they can act. Several callers hide the landing
   // (or the wizard) BEFORE they ask for a round, so refusing without this
   // leaves them on a blank screen with nothing to press — the failure this
@@ -4877,11 +4915,14 @@ function gpuBlocked(): boolean {
   // Name the fix. `contextGone` is the common case here — the GPU died during a
   // round — and a page reload gets a fresh context, so telling the player only
   // that graphics are "unavailable" leaves them stuck on a screen that would
-  // work again after one pull-to-refresh. The card is already checkpointed, so
-  // reloading costs them nothing.
+  // work again after one pull-to-refresh. Only claim the card is saved when it
+  // actually is — `roundWasCheckpointed` reflects the same narrow scope
+  // `checkpointRound` applies (see `abandonAfterContextLoss`).
   showMsg(
     contextGone
-      ? 'Graphics stopped on this device. Reload the page to play on — your round is saved.'
+      ? roundWasCheckpointed
+        ? 'Graphics stopped on this device. Reload the page to play on — your round is saved.'
+        : 'Graphics stopped on this device. Reload the page to play on — this round couldn’t be saved.'
       : 'This device can’t start a round right now — its graphics are unavailable.',
     4200
   );
@@ -8845,11 +8886,12 @@ function abandonAfterContextLoss(): void {
   // reaching a menu — that is the entire purpose of the function, and a throw
   // halfway through would recreate the trap it exists to open.
   const hadRound = current !== null;
+  roundWasCheckpointed = false;
   if (hadRound) {
     // Save the card BEFORE dropping the scene — checkpointRound reads the ball
     // and stroke count, which are plain state and safe to touch.
     try {
-      checkpointRound();
+      roundWasCheckpointed = checkpointRound();
     } catch {
       /* best-effort — a lost card is better than a stuck screen */
     }
@@ -8889,7 +8931,12 @@ function abandonAfterContextLoss(): void {
   aimReadoutEl.style.display = 'none';
   summaryEl.style.display = 'none';
   showLanding();
-  showMsg('The graphics ran out of memory. Your card is saved — finish the round from the menu.', 4200);
+  showMsg(
+    roundWasCheckpointed
+      ? 'The graphics ran out of memory. Your card is saved — finish the round from the menu.'
+      : "The graphics ran out of memory. This round couldn't be saved, but your tour progress is safe — reload and start it again from the hub.",
+    4200
+  );
   showGpuReloadBanner();
 }
 

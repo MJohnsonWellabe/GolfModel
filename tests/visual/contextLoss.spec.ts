@@ -100,6 +100,28 @@ test('context loss · a pinned tier steps down and the reload banner appears', a
   );
   expect(after.graphics).toBe(1);
 
+  // "Reload got a working page back" was never the whole promise — the owner's
+  // report was that reload didn't let them get INTO a round at all. `gpuBlocked`
+  // used to read a `gpuReady` flag latched false at module load, so on a device
+  // slow to hand back a context this exact reload could come back to a live
+  // page that still refused every round forever. `ensureEngine()` retries
+  // construction at the point of the click instead of trusting a boot-time
+  // snapshot — assert a round genuinely starts on the reloaded page, not just
+  // that the banner is gone.
+  await page.evaluate(
+    (o) => (window as unknown as { __startRound: (x: unknown) => void }).__startRound(o),
+    { name: 'Crash test', courseId: 'portjohnson', hole: 1, seed: 20260729 }
+  );
+  await page.waitForFunction(() => !!(window as unknown as { __slice3d?: unknown }).__slice3d, undefined, {
+    timeout: 120_000
+  });
+  await page.evaluate(() => (window as unknown as { __slice3d: { skipIntro: () => void } }).__slice3d.skipIntro());
+  await page.waitForFunction(
+    () => (window as unknown as { __slice3d: { state: { phase: string } } }).__slice3d.state.phase === 'aiming',
+    undefined,
+    { timeout: 120_000 }
+  );
+
   if (errors.length) throw new Error(errors.join('\n'));
 });
 
