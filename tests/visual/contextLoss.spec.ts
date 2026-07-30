@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { PNG } from 'pngjs';
 
 /**
  * A LOST CONTEXT MUST NOT REBUILD THE SCENE THAT KILLED IT.
@@ -121,6 +122,23 @@ test('context loss · a pinned tier steps down and the reload banner appears', a
     undefined,
     { timeout: 120_000 }
   );
+
+  // The reload above rebuilds the WHOLE module — `armRenderLoop()` used to be
+  // a boot-time-only top-level statement, so a page whose FIRST engine
+  // construction failed (this exact reload, timed right) could reach
+  // "aiming" with every JS-side system correct (HUD, meter, physics) and
+  // still never paint a frame: the canvas stayed the page's own background
+  // colour forever, with a fully working HUD on top of it (owner: "the whole
+  // screen stayed green"). A phase/DOM check alone can't catch that — it has
+  // to look at actual pixels.
+  await page.waitForTimeout(400);
+  const png = PNG.sync.read(await page.locator('#scene').screenshot());
+  const seen = new Set<string>();
+  for (let i = 0; i < png.data.length; i += 4 * 97 /* sample, not every pixel */) {
+    seen.add(`${png.data[i]},${png.data[i + 1]},${png.data[i + 2]}`);
+    if (seen.size > 1) break;
+  }
+  expect(seen.size, 'canvas rendered more than one flat colour').toBeGreaterThan(1);
 
   if (errors.length) throw new Error(errors.join('\n'));
 });

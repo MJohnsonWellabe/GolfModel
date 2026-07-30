@@ -248,6 +248,30 @@ try {
  * control-flow analysis and every `if (engine3d)` below would narrow to
  * `never`.
  */
+/**
+ * Start (or restart) the render loop on whichever engine is currently live.
+ *
+ * Pulled out of the boot-time top-level statement it used to be so
+ * `ensureEngine()` can call it again after constructing a REPLACEMENT
+ * engine. Without this, a boot that failed and later recovered via
+ * `ensureEngine()` built a scene that worked in every JS sense — HUD, meter,
+ * physics, the lot — and never rendered a single frame: `runRenderLoop` was
+ * only ever armed once, closed over the `engine3d` that existed (or didn't)
+ * at module load, so a fresh engine built afterward had no render loop at
+ * all. The canvas painted nothing and the page's own dark-green background
+ * (`index.html`'s `html, body`) showed through underneath a fully working
+ * HUD — exactly "the whole screen stayed green" after a reload landed in
+ * that cooldown window.
+ */
+function armRenderLoop(): void {
+  engine3d?.runRenderLoop(() => {
+    current?.render();
+    // Only frames that actually drew a hole are evidence about rendering cost —
+    // a menu frame is nearly free and would flatter a struggling device.
+    if (current) sampleFrame(gpu().getDeltaTime());
+  });
+}
+
 function ensureEngine(): boolean {
   if (engine3d) return true;
   try {
@@ -255,6 +279,7 @@ function ensureEngine(): boolean {
       adaptToDeviceRatio: true,
       preserveDrawingBuffer: needsReadableBuffer
     });
+    armRenderLoop();
   } catch (err) {
     console.error('[gpu] retry failed — still no WebGL context', err);
   }
@@ -8882,12 +8907,7 @@ function showTourBoard(): void {
   modal.querySelector<HTMLButtonElement>('#tourBoardClose')!.addEventListener('pointerdown', () => modal.remove());
 }
 
-engine3d?.runRenderLoop(() => {
-  current?.render();
-  // Only frames that actually drew a hole are evidence about rendering cost —
-  // a menu frame is nearly free and would flatter a struggling device.
-  if (current) sampleFrame(gpu().getDeltaTime());
-});
+armRenderLoop();
 window.addEventListener('resize', () => engine3d?.resize());
 
 // WEBGL CONTEXT LOSS. On iOS the GPU process reclaims contexts under memory
@@ -8912,6 +8932,19 @@ window.addEventListener('resize', () => engine3d?.resize());
  * picked up again from the menu.
  */
 function abandonAfterContextLoss(): void {
+  // A lost context is routinely followed by a SECOND loss event (see the
+  // `webglcontextlost` handler below) — the grace timer that calls this can
+  // fire twice for one incident. The first call already told the truth about
+  // whether a card was saved; running the full teardown again with `current`
+  // now null would recompute `hadRound` as false and overwrite a correct
+  // "your card is saved" with an incorrect "this round couldn't be saved" —
+  // the exact thing that makes an owner distrust a message that was right
+  // the first time. Once fully abandoned, later calls only need to make sure
+  // the reload banner is still up.
+  if (contextGone) {
+    showGpuReloadBanner();
+    return;
+  }
   // This runs BECAUSE the GPU already died, so treat every step before the
   // chrome reset as able to fail. None of it may be allowed to stop the player
   // reaching a menu — that is the entire purpose of the function, and a throw
