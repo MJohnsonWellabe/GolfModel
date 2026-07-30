@@ -388,6 +388,29 @@ export function renderCourseCanvas(
   const gw = classGridCells(hole.world.width + pad * 2, step);
   const gh = classGridCells(hole.world.height + pad * 2, step);
   const grid = rasterizeClassGrid(hole, gw, gh, step, -pad, -pad);
+  // SEA-BACKDROP PAD IS OCEAN, NOT UNCLAIMED ROUGH. rasterizeClassGrid's grid
+  // starts every cell at 'rough' (id 0) and only an authored fairway/green/
+  // hazard polygon overwrites it — there is no backdrop awareness in that
+  // function, so any padded-skirt cell a hazard polygon doesn't reach bakes
+  // as ordinary land. For a course whose backdrop past the hole IS the open
+  // sea, that strip of land was what actually rendered "behind the green in
+  // front of the horizon" (owner report, Port Johnson h3 / Sable Bay h1) —
+  // not a misplaced asset, the ground mesh's own texture. Authored polygons
+  // still win first (checked === 0, not overwritten), and only cells outside
+  // the hole's own [0,w]x[0,h] play rectangle are touched.
+  if (theme.backdrop === 'sea') {
+    const WATER_ID = ID_SURFACE.indexOf('water');
+    for (let gy = 0; gy < gh; gy++) {
+      const wy = -pad + gy * step;
+      const outY = wy < 0 || wy > hole.world.height;
+      const rowBase = gy * gw;
+      for (let gx = 0; gx < gw; gx++) {
+        if (grid[rowBase + gx] !== 0) continue;
+        const wx = -pad + gx * step;
+        if (outY || wx < 0 || wx > hole.world.width) grid[rowBase + gx] = WATER_ID;
+      }
+    }
+  }
   const classAt = (x: number, y: number): number => {
     const gx = Math.max(0, Math.min(gw - 1, ((x + pad) / step) | 0));
     const gy = Math.max(0, Math.min(gh - 1, ((y + pad) / step) | 0));
@@ -836,6 +859,11 @@ export function renderCourseCanvas(
   // actual course colors out to the horizon?"). Handing over to the apron colour
   // instead makes ground and apron continuous, and EXP2 fog then carries the
   // whole thing into the haze over distance — which is what fog is for.
+  //
+  // EXCEPT a sea backdrop has no apron past the hole at all — it's open ocean
+  // — so fading to a LAND tone here undid the classification fix above the
+  // moment the fade ran: the pad would bake as water, then blend right back
+  // toward turf on top of it. Fade to `theme.water` instead for that case.
   {
     // Exposed for the scene's lighting, not set to the raw colour. `groundMat`
     // has no emissive, so an up-facing vertex is lit at hemi 0.62 + sun 0.78 x
@@ -843,7 +871,9 @@ export function renderCourseCanvas(
     // channel and the skirt renders pure white, drawing a bright rim exactly
     // where it is meant to be disappearing.
     const EXPOSURE = 1 / 1.298;
-    const [hzR0, hzG0, hzB0] = rgb(theme.apronTint ?? shade(theme.rough, 0.9));
+    const [hzR0, hzG0, hzB0] = rgb(
+      theme.apronTint ?? (theme.backdrop === 'sea' ? theme.water : shade(theme.rough, 0.9))
+    );
     const hzR = hzR0 * EXPOSURE;
     const hzG = hzG0 * EXPOSURE;
     const hzB = hzB0 * EXPOSURE;
