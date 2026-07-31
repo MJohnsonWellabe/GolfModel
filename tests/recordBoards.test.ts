@@ -95,15 +95,38 @@ describe('who is eligible', () => {
     expect(byId('drive')(boards).entries.map((e) => e.name)).toEqual(['Ace']);
   });
 
-  it('shows the name somebody goes by NOW', () => {
-    // People rename themselves, and a board showing who they used to be is a
-    // small betrayal.
+  it('freezes a single-moment best to whoever set it, like a course record', () => {
+    // The 300yd drive was hit under 'Old Name' — a rename afterward must not
+    // repaint that record under the name the player wears today.
     const boards = recordBoards([
       round({ uid: 'a', names: 'Old Name', drive: 300 }),
       round({ uid: 'a', names: 'New Name', drive: 250 })
     ]);
-    expect(byId('drive')(boards).entries[0].name).toBe('New Name');
+    expect(byId('drive')(boards).entries[0].name).toBe('Old Name');
     expect(byId('drive')(boards).entries[0].value).toBe(300);
+  });
+
+  it('shows the running tallies (aces, chip-ins, average) under the CURRENT name', () => {
+    // Unlike a single-moment best, these totals are updated by every round
+    // played — "as of now" is already honest, so a rename should follow them.
+    const boards = recordBoards([
+      round({ uid: 'a', names: 'Old Name', holes: [1, 4, 4], chipIns: 1, toPar: 0 }),
+      round({ uid: 'a', names: 'New Name', holes: [4, 4, 4], chipIns: 0, toPar: 0 })
+    ]);
+    expect(byId('aces')(boards).entries[0].name).toBe('New Name');
+    expect(byId('chipins')(boards).entries[0].name).toBe('New Name');
+  });
+
+  it('freezes the lowest round and fewest putts the same way, whichever round came first', () => {
+    // The best round and the fewest-putts round land on DIFFERENT rounds here
+    // (order swapped from the drive test) — each must freeze independently to
+    // its own round's name, not just "whichever round happened to be last".
+    const boards = recordBoards([
+      round({ uid: 'a', names: 'New Name', toPar: 1, putts: 30 }),
+      round({ uid: 'a', names: 'Old Name', toPar: -4, putts: 22 })
+    ]);
+    expect(byId('best')(boards).entries[0].name).toBe('Old Name');
+    expect(byId('putts')(boards).entries[0].name).toBe('Old Name');
   });
 
   it('says how many rounds an entry rests on', () => {

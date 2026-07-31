@@ -81,14 +81,24 @@ export const MIN_ROUNDS_FOR_AVERAGE = 5;
 
 interface Career {
   uid: string;
+  /** Current display name — the running-tally boards (aces, chip-ins,
+   *  average) use this, since those totals are updated by every round played
+   *  and so are honestly "as of now" already. */
   name: string;
   rounds: number;
   toParSum: number;
   aces: number;
   chipIns: number;
   bestDrive: number;
+  /** Name on the round that hit `bestDrive` — a single-moment record, unlike
+   *  the running tallies above, so it freezes to whoever set it rather than
+   *  drifting to whoever the player is called today (owner: course records
+   *  already freeze the name; the stat boards should match). */
+  bestDriveName: string;
   bestRound: number;
+  bestRoundName: string;
   fewestPutts: number;
+  fewestPuttsName: string;
 }
 
 /** Fold the shared round history into one row per player. */
@@ -113,21 +123,36 @@ function careers(rounds: readonly RoundRecord[]): Career[] {
         aces: 0,
         chipIns: 0,
         bestDrive: 0,
+        bestDriveName: r.names || 'Golfer',
         bestRound: Infinity,
-        fewestPutts: Infinity
+        bestRoundName: r.names || 'Golfer',
+        fewestPutts: Infinity,
+        fewestPuttsName: r.names || 'Golfer'
       };
       by.set(r.uid, c);
     }
-    // The most recent name wins — people rename themselves, and a board
-    // showing who they used to be is a small betrayal.
+    // The most recent name wins on the RUNNING TALLIES (aces, chip-ins,
+    // average) — those totals are updated by every round played, so "as of
+    // now" is already honest. The single-moment bests below (best drive,
+    // lowest round, fewest putts) freeze to whoever's round actually set
+    // them instead, matching how course leaderboards freeze the name.
     if (r.names) c.name = r.names;
     c.rounds += 1;
     c.toParSum += r.toPar;
     for (const s of r.holes) if (s === 1) c.aces += 1;
-    if (typeof r.drive === 'number') c.bestDrive = Math.max(c.bestDrive, r.drive);
+    if (typeof r.drive === 'number' && r.drive > c.bestDrive) {
+      c.bestDrive = r.drive;
+      c.bestDriveName = r.names || c.bestDriveName;
+    }
     if (typeof r.chipIns === 'number') c.chipIns += r.chipIns;
-    c.bestRound = Math.min(c.bestRound, r.toPar);
-    if (typeof r.putts === 'number' && r.putts > 0) c.fewestPutts = Math.min(c.fewestPutts, r.putts);
+    if (r.toPar < c.bestRound) {
+      c.bestRound = r.toPar;
+      c.bestRoundName = r.names || c.bestRoundName;
+    }
+    if (typeof r.putts === 'number' && r.putts > 0 && r.putts < c.fewestPutts) {
+      c.fewestPutts = r.putts;
+      c.fewestPuttsName = r.names || c.fewestPuttsName;
+    }
   }
   return [...by.values()];
 }
@@ -145,7 +170,10 @@ function board(
   title: string,
   blurb: string,
   rows: Career[],
-  pick: (c: Career) => { value: number; label: string } | null,
+  // `name`, when given, overrides `c.name` — the single-moment boards (drive,
+  // best round, putts) pass the name frozen on the round that set them
+  // instead of the player's current name.
+  pick: (c: Career) => { value: number; label: string; name?: string } | null,
   order: 'high' | 'low',
   viewerUid: string | null,
   limit = BOARD_TOP
@@ -156,7 +184,7 @@ function board(
     if (!v || !Number.isFinite(v.value)) continue;
     entries.push({
       uid: c.uid,
-      name: c.name,
+      name: v.name ?? c.name,
       value: v.value,
       label: v.label,
       rounds: c.rounds,
@@ -195,7 +223,10 @@ export function recordBoards(rounds: readonly RoundRecord[], viewerUid: string |
       '🚀 Longest drive',
       'The furthest tee shot anybody has hit.',
       rows,
-      (c) => (c.bestDrive > 0 ? { value: c.bestDrive, label: `${Math.round(c.bestDrive)} yd` } : null),
+      (c) =>
+        c.bestDrive > 0
+          ? { value: c.bestDrive, label: `${Math.round(c.bestDrive)} yd`, name: c.bestDriveName }
+          : null,
       'high',
       viewerUid
     ),
@@ -234,7 +265,8 @@ export function recordBoards(rounds: readonly RoundRecord[], viewerUid: string |
       '🏆 Lowest round',
       'The single best card anybody has posted.',
       rows,
-      (c) => (Number.isFinite(c.bestRound) ? { value: c.bestRound, label: toPar(c.bestRound) } : null),
+      (c) =>
+        Number.isFinite(c.bestRound) ? { value: c.bestRound, label: toPar(c.bestRound), name: c.bestRoundName } : null,
       'low',
       viewerUid
     ),
@@ -243,7 +275,10 @@ export function recordBoards(rounds: readonly RoundRecord[], viewerUid: string |
       '🥍 Fewest putts',
       'The tidiest day on the greens.',
       rows,
-      (c) => (Number.isFinite(c.fewestPutts) ? { value: c.fewestPutts, label: `${c.fewestPutts}` } : null),
+      (c) =>
+        Number.isFinite(c.fewestPutts)
+          ? { value: c.fewestPutts, label: `${c.fewestPutts}`, name: c.fewestPuttsName }
+          : null,
       'low',
       viewerUid
     )

@@ -10136,7 +10136,7 @@ function renderOpponent(): void {
 // ---------------------------------------------------------- Locker Room
 const lockerEl = document.getElementById('lockerRoom')!;
 /** Active Locker Room tab. */
-let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'cosmetics' | 'upgrades' =
+let lkTab: 'char' | 'style' | 'pal' | 'perk' | 'outfit' | 'ball' | 'trail' | 'clubskin' | 'upgrades' =
   'char';
 /** Club-upgrade item id awaiting the Locker's own "Spend X coins?"
  *  confirmation — separate from the Store's `pendingBuy` so the two overlays
@@ -10286,7 +10286,14 @@ function renderLockerRoom(): void {
       `<input id="proName" class="proNameInput" type="text" maxlength="18" placeholder="Pro name" autocomplete="off" />` +
       `<div class="careerStartRow">${opts}</div>` +
       `<div class="atag careerNewFoot">${foot}</div></div>`;
-    return c.pros.map(proCard).join('') + newCard;
+    // The ACTIVE Pro leads the stable — the one you're actually playing and
+    // spending CP on, not wherever they happen to sit in creation order
+    // (owner: "it's annoying when they're the third one down"). Sort a copy;
+    // c.pros is persisted profile state.
+    const orderedPros = [...c.pros].sort(
+      (a, b) => Number(b.id === c.activeProId) - Number(a.id === c.activeProId)
+    );
+    return orderedPros.map(proCard).join('') + newCard;
   })();
   const archCards =
     careerCards +
@@ -10371,16 +10378,21 @@ function renderLockerRoom(): void {
   // Tabbed content (only the active tab renders in the scroll area) so the
   // screen is short and the top of the character cards is never clipped.
   // SIX TABS, NOT NINE. Outfit / Ball / Trail / Skin are four tabs of the same
-  // thing — colours you own — and on a phone nine tabs wrap to two rows and eat
-  // the scroll area the cards need. They fold into one Cosmetics tab with the
-  // four kinds stacked under their own headings; nothing is lost, and the tab
-  // bar fits one line again.
+  // thing — colours you own — but folding them into one Cosmetics tab buried
+  // Ball two taps deep under a heading in a long scroll (owner: "there isn't
+  // even a tab in the locker for ball. it's buried in cosmetics. those
+  // should all be split"). Split back out; `.recTabs` already wraps to a
+  // second row on a phone (see its `flex-wrap`), so nine tabs cost a row of
+  // height, not breakage.
   const tabs: Array<[typeof lkTab, string]> = [
     ['char', 'Character'],
     ['style', 'Style'],
     ['pal', 'Pal'],
     ['perk', 'Perk'],
-    ['cosmetics', 'Cosmetics'],
+    ['outfit', 'Outfit'],
+    ['ball', 'Ball'],
+    ['trail', 'Trail'],
+    ['clubskin', 'Club skin'],
     ['upgrades', 'Upgrades']
   ];
   const tabBar = tabs
@@ -10399,26 +10411,18 @@ function renderLockerRoom(): void {
               : `<div class="lkEmpty">Earn perks on the Season Pass — a one-round skill boost you equip here.</div>`
             : lkTab === 'upgrades'
               ? `<div class="storeGrid">${upgradeItems.map(upgradeCard).join('')}</div>${upgradeConfirmPanel}`
-              : (() => {
-                  // All four cosmetic kinds, each under its own heading, in one
-                  // scroll. A kind you own nothing in says so rather than
-                  // rendering an empty grid.
-                  const KINDS: Array<[typeof lkTab & string, 'outfit' | 'ball' | 'trail' | 'clubskin', string]> = [
-                    ['cosmetics', 'outfit', 'Outfit'],
-                    ['cosmetics', 'ball', 'Ball'],
-                    ['cosmetics', 'trail', 'Trail'],
-                    ['cosmetics', 'clubskin', 'Club skin']
-                  ];
-                  return KINDS.map(([, kind, label]) => {
+              : lkTab === 'outfit' || lkTab === 'ball' || lkTab === 'trail' || lkTab === 'clubskin'
+                ? // One cosmetic kind per tab now — a kind you own nothing in
+                  // says so rather than rendering an empty grid. `lkTab` is a
+                  // mutable outer `let`, so TS won't narrow it inside this
+                  // closure — capture it in a local const first.
+                  ((kind: 'outfit' | 'ball' | 'trail' | 'clubskin'): string => {
                     const items = cosmeticTabs[kind];
-                    return (
-                      `<div class="lkSubHead">${label}</div>` +
-                      (items.length
-                        ? `<div class="charGrid">${items.map((i) => cosmeticCard(kind, i)).join('')}</div>`
-                        : `<div class="lkEmpty">Nothing here yet — the Store and the Season Pass stock these.</div>`)
-                    );
-                  }).join('');
-                })();
+                    return items.length
+                      ? `<div class="charGrid">${items.map((i) => cosmeticCard(kind, i)).join('')}</div>`
+                      : `<div class="lkEmpty">Nothing here yet — the Store and the Season Pass stock these.</div>`;
+                  })(lkTab)
+                : '';
 
   lockerEl.style.display = 'flex';
   lockerEl.innerHTML =
