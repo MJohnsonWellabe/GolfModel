@@ -85,6 +85,13 @@ interface Career {
    *  average) use this, since those totals are updated by every round played
    *  and so are honestly "as of now" already. */
   name: string;
+  /** Epoch ms of the round that set `name` — a rename must win by actual
+   *  DATE, not by array position. `fetchAllRounds()` merges a Firebase
+   *  snapshot's `Object.values()` (roughly but not reliably chronological)
+   *  with local rounds appended after, so "the last round this loop sees"
+   *  is not the same as "the most recently played round." Mirrors
+   *  `admin/aggregate.ts`'s `r.d >= a.lastPlayed` guard. */
+  nameAt: number;
   rounds: number;
   toParSum: number;
   aces: number;
@@ -118,6 +125,7 @@ function careers(rounds: readonly RoundRecord[]): Career[] {
       c = {
         uid: r.uid,
         name: r.names || 'Golfer',
+        nameAt: r.d,
         rounds: 0,
         toParSum: 0,
         aces: 0,
@@ -133,10 +141,15 @@ function careers(rounds: readonly RoundRecord[]): Career[] {
     }
     // The most recent name wins on the RUNNING TALLIES (aces, chip-ins,
     // average) — those totals are updated by every round played, so "as of
-    // now" is already honest. The single-moment bests below (best drive,
-    // lowest round, fewest putts) freeze to whoever's round actually set
-    // them instead, matching how course leaderboards freeze the name.
-    if (r.names) c.name = r.names;
+    // now" is already honest. Gated on `r.d` (actual play date), not just
+    // "whichever round this loop reaches last" — see `nameAt`'s doc comment.
+    // The single-moment bests below (best drive, lowest round, fewest putts)
+    // freeze to whoever's round actually set them instead, matching how
+    // course leaderboards freeze the name.
+    if (r.names && r.d >= c.nameAt) {
+      c.name = r.names;
+      c.nameAt = r.d;
+    }
     c.rounds += 1;
     c.toParSum += r.toPar;
     for (const s of r.holes) if (s === 1) c.aces += 1;

@@ -117,6 +117,19 @@ describe('who is eligible', () => {
     expect(byId('chipins')(boards).entries[0].name).toBe('New Name');
   });
 
+  it('picks the running-tally name by actual DATE, not array position', () => {
+    // fetchAllRounds() merges a Firebase snapshot with local rounds appended
+    // after, so the array order is not reliably chronological. The OLDER
+    // round ('Old Name', d: 1) is pushed AFTER the NEWER one ('New Name',
+    // d: 2) here — a board that just took "whichever round it saw last"
+    // would wrongly land back on 'Old Name'.
+    const boards = recordBoards([
+      round({ uid: 'a', names: 'New Name', d: 2, holes: [1, 4, 4] }),
+      round({ uid: 'a', names: 'Old Name', d: 1, holes: [4, 4, 4] })
+    ]);
+    expect(byId('aces')(boards).entries[0].name).toBe('New Name');
+  });
+
   it('freezes the lowest round and fewest putts the same way, whichever round came first', () => {
     // The best round and the fewest-putts round land on DIFFERENT rounds here
     // (order swapped from the drive test) — each must freeze independently to
