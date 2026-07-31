@@ -447,10 +447,13 @@ export function buildCourse(
    *   - the massif CURTAIN layer (dy -1400..-1500, wMul 4.2) reaches ~4490, so
    *     its stretched wings ran through the dome surface.
    *
-   * 6000 clears the furthest of them with room to spare, and costs nothing: the
-   * dome is one unlit sphere covering the same screen pixels whatever its
-   * radius, the camera's maxZ is 12000, and `applyFog = false` means its
-   * shading does not depend on distance either.
+   * 6000 clears the furthest of them with room to spare, and costs
+   * nothing: the dome is one unlit sphere covering the same screen pixels
+   * whatever its radius, and `applyFog = false` means its shading does not
+   * depend on distance either — the ONE thing that must move in lockstep is
+   * the camera's `maxZ` (`this.camera.maxZ` in main.ts), kept at exactly
+   * `DOME_R * 2` so the dome's far side is never past the camera's own far
+   * clip plane from the most extreme in-bounds camera position.
    */
   const DOME_R = 6000;
   /** How far past the ground mesh's edge the far-field relief (groundSkirt)
@@ -2375,6 +2378,20 @@ export function buildCourse(
       const tintedKeys = peakKeys.filter((k) => !k.startsWith('mountain') && !k.startsWith('canyon'));
       void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
         if (texturedKeys.length) {
+          // Real range dioramas read as sitting on top of the green (owner,
+          // twice: Timberline West and Red Hollow both "the mountain
+          // background is coming into the holes... overtaking the green",
+          // then again on Timberline itself). `peakDist` dropped from 2500 to
+          // 1450 for the peaks apron/far-field ground canvas (see its
+          // definition above) — good for that seam, but it also dragged the
+          // actual mountain meshes twice as close. The two needs are
+          // unrelated (how far the near-field ground texture has room to
+          // read vs. how far away a mountain silhouette should sit), so this
+          // massif placement uses its OWN fixed distance instead of
+          // `peakDist`, independently of whatever the apron needs. 3800 is
+          // comfortably past the pre-far-field distance (2500) that never
+          // drew a complaint.
+          const massifDist = 3800;
           // Opaque terracotta backstop behind the deepest range layer: the
           // decimated diorama prims leave saddle gaps that showed SKY-BLUE
           // through the mountains at the horizon (playtest: "a blue layer in
@@ -2409,7 +2426,7 @@ export function buildCourse(
           // any higher and its flat cream top shows above the range layers'
           // low saddles as a slab (playtest zoom). Bottom reaches -540 so
           // elevated tees can't see under it either.
-          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(
+          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - massifDist - 1700, 0).add(
             new Vector3(0, -240, 0)
           );
           bs.applyFog = false;
@@ -2450,6 +2467,9 @@ export function buildCourse(
             // between/beside the nearer layers — elevated tees (h2's +15
             // mesa) see over the short backstop otherwise.
             const holeMod = (hole.number - 1) % 3;
+            // massifDist (defined above, once per hole) applies to every spot
+            // in the composition — the near dominant peak AND its ridges/
+            // curtain move together, so the hand-tuned silhouette doesn't skew.
             const spots = key.startsWith('mountain_range')
               ? holeMod === 0
                 ? // h1 — a DOMINANT right-weighted massif looms close behind
@@ -2535,7 +2555,7 @@ export function buildCourse(
             // ~4490 from the world centre and its wMul-4.2 wings reach further
             // still, so an unanchored massif could run through the dome even
             // now that DOME_R is 6000 — on a long hole with an off-centre pin.
-            const anchor = backdropAnchor(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
+            const anchor = backdropAnchor(hole.pin.x + spot.dx, hole.pin.y - massifDist + spot.dy, -35);
               // Mirroring negates local X, so the recentering offset's X
               // component flips sign with it. The width stretch widens each
               // layer so adjacent silhouettes overlap (high saddles between
