@@ -5286,7 +5286,13 @@ function showSummary(): void {
     d: Date.now(),
     course: round.course.name,
     mode: round.mode,
-    names: round.players.map((p) => p.golfer.name).join(' & '),
+    // The GOLFER'S OWN name, not whichever career Pro they played as this
+    // round (`roundGolfer()` names the human player after the active Pro for
+    // the in-round narrative — "you play as your Pro" — but leaderboards
+    // should read who's actually behind the clubs, from the Locker Room's
+    // own "Golfer:" name, same as `sealRoundRecording`'s ghost recordings).
+    // An AI/scramble partner keeps its own name untouched.
+    names: round.players.map((p) => (p.isAI ? p.golfer.name : profile.name || 'Player')).join(' & '),
     golferId: me.golfer.id,
     total: totals[0],
     toPar: totals[0] - totalPar,
