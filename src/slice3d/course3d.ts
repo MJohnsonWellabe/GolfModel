@@ -106,77 +106,6 @@ function smoothNoise(x: number, y: number): number {
   );
 }
 
-/**
- * Fast integer hash -> 0..1, and the two-octave grain built on it — the same
- * pair `CourseTexture.ts` uses to paint the real ground's rough/fairway
- * grain. Not exported there (that module bakes a whole hole's classification
- * grid; this file's far-field tile below needs none of that setup), so
- * reproduced verbatim rather than threading a new export through for two
- * small pure functions.
- */
-function texelHash(x: number, y: number): number {
-  let h = (x * 374761393 + y * 668265263) | 0;
-  h = (h ^ (h >> 13)) | 0;
-  h = Math.imul(h, 1274126177);
-  return ((h ^ (h >> 16)) >>> 0) / 4294967296;
-}
-function grain(x: number, y: number): number {
-  return texelHash(x, y) * 0.65 + texelHash(x >> 2, y >> 2) * 0.35;
-}
-
-/**
- * FAR-FIELD ROUGH TILE — for the groundSkirt/peakApron only, a small,
- * fixed-cost canvas built from the SAME grain + mown-direction-stripe recipe
- * that makes the real, close-up rough look like rough (owner, after a first
- * attempt that invented a cruder two-octave sine "blotch" instead of reusing
- * this: "why can you not just make that area look like the area around the
- * green and fairway does?"). Re-baking the real per-hole texture this far out
- * would cost either an enormous texture or the crispness of the actual
- * playing surface (`bakeScale`'s whole reason to exist) — but the RECIPE
- * costs nothing to reuse at a small, fixed size and tile.
- *
- * The contrast here is NOT a match to the real rough's numbers
- * (`noiseAmp[0]=36`, `stripeContrast[0]=0.055` in CourseTexture.ts) — a 1:1
- * match was tried and failed a live seam check: this ring sits square in the
- * scene's EXP2 fog falloff, which crushes contrast fast with distance (~95%
- * gone by ~4100 world units at the default haze), so real-ground parity
- * still read as a flat, textureless band well short of the backdrop. Each
- * caller boosts `noiseAmp`/`stripeContrast` past parity by the amount needed
- * to survive fog out to where ITS backdrop actually sits — see the skirt and
- * apron call sites below for the reasoning behind each multiplier.
- */
-function makeFarFieldCanvas(
-  size: number,
-  tileWorld: number,
-  noiseAmp: number,
-  stripeWidth: number,
-  stripeContrast: number
-): HTMLCanvasElement {
-  const texelWorld = tileWorld / size;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  const img = ctx.createImageData(size, size);
-  for (let i = 0; i < img.data.length; i += 4) {
-    const px = (i / 4) % size;
-    const py = Math.floor(i / 4 / size);
-    let light = 1 + (grain(px, py) - 0.5) * (noiseAmp / 128);
-    // Mown-direction banding, same shape as the real rough's stripe pass —
-    // there's no tee->pin axis once you're off the hole, so a fixed diagonal
-    // stands in; at this distance the direction read is what sells it, not
-    // which way it runs.
-    const alongWorld = (px + py) * texelWorld;
-    const phase = Math.sin((alongWorld / stripeWidth) * Math.PI);
-    const band = Math.tanh(phase * 2.4) / 0.9837;
-    light *= 1 + band * stripeContrast;
-    const v = Math.max(0, Math.min(255, 128 * light));
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = 255;
-  }
-  ctx.putImageData(img, 0, 0);
-  return canvas;
-}
-
 /** Procedural tiling normal map: fine turf grain that responds to the sun. */
 function makeTurfNormalTexture(scene: Scene): DynamicTexture {
   const size = 128;
@@ -447,25 +376,12 @@ export function buildCourse(
    *   - the massif CURTAIN layer (dy -1400..-1500, wMul 4.2) reaches ~4490, so
    *     its stretched wings ran through the dome surface.
    *
-   * 6000 clears the furthest of them with room to spare, and costs
-   * nothing: the dome is one unlit sphere covering the same screen pixels
-   * whatever its radius, and `applyFog = false` means its shading does not
-   * depend on distance either — the ONE thing that must move in lockstep is
-   * the camera's `maxZ` (`this.camera.maxZ` in main.ts), kept at exactly
-   * `DOME_R * 2` so the dome's far side is never past the camera's own far
-   * clip plane from the most extreme in-bounds camera position.
+   * 6000 clears the furthest of them with room to spare, and costs nothing: the
+   * dome is one unlit sphere covering the same screen pixels whatever its
+   * radius, the camera's maxZ is 12000, and `applyFog = false` means its
+   * shading does not depend on distance either.
    */
   const DOME_R = 6000;
-  /** How far past the ground mesh's edge the far-field relief (groundSkirt)
-   *  and the matching outer fescue scatter both reach — shared so the relief
-   *  and what's planted on it agree on where the course stops and the haze
-   *  begins. See `makeFarFieldCanvas` for why this ring's texture no longer
-   *  matches the real rough's contrast 1:1. */
-  const FAR_FIELD_REACH = 3200;
-  /** World units per tile for the far-field ground canvas (`makeFarFieldCanvas`
-   *  call sites) — shared so the groundSkirt ring and the peakApron plane
-   *  behind it tile at the same physical frequency and meet without a step. */
-  const FAR_TILE_WORLD = 350;
   /** Multiply any decorative-scatter GRID PITCH by this to reach the tier's
    *  density. Counts go as 1/step², so a 0.45x density is a 1.49x pitch.
    *  Trees, hazards and every collision hitbox are outside this — only the
@@ -518,47 +434,11 @@ export function buildCourse(
   // rather than a blue map edge. (An earlier pass dropped the mesh into a trench
   // here; that sank the rim rocks and exposed the sky dome — removed.)
   const boundary = hole.boundary;
-  /**
-   * How far a world point lies OUTSIDE the padded ground rectangle, in world
-   * units — 0 anywhere the real ground mesh covers.
-   *
-   * Chebyshev, not Euclidean, because that is the shape the far-field skirt
-   * grows in: concentric rectangles expanding uniformly from this rectangle's
-   * edge. The two have to agree or the scatter planted on the skirt sits at a
-   * different height than the skirt itself.
-   */
-  const outsideBy = (wx: number, wy: number): number =>
-    Math.max(0, -pad - wx, wx - (w + pad), -pad - wy, wy - (h + pad));
-  /**
-   * The far field's rolling relief at a world point: 0 over the real ground,
-   * ramping in past its edge.
-   *
-   * THE ONE SOURCE OF TRUTH for the skirt's shape. The skirt mesh and every
-   * fescue card planted out there read their height through this, so they
-   * cannot disagree — a card grounded on a flat assumption floats or sinks the
-   * moment the ground rolls.
-   *
-   * `engine.groundAt` is unaffected, so PHYSICS never sees any of it: this is
-   * all outside the world rectangle, where no ball can finish (owner: "don't
-   * introduce major playability issues").
-   */
-  const farLift = (wx: number, wy: number): number => {
-    const e = outsideBy(wx, wy);
-    if (e <= 0) return 0;
-    // A sea course must not raise land past its shoreline — that ramp reads as
-    // a false shore behind an island green.
-    if (theme.backdrop === 'sea') return 0;
-    const t = Math.min(1, e / 900);
-    const ramp = t * t * (3 - 2 * t);
-    return ramp * (7 + smoothNoise(wx * 0.6, wy * 0.6) * 4.5 + smoothNoise(wx * 0.17, wy * 0.17) * 9);
-  };
   const heightAt = (wx: number, wy: number): number => {
     const terrain = engine.groundAt(wx, wy);
-    // Bounded world: authored terrain out to the mesh edge, plus the far-field
-    // roll beyond it. `farLift` is 0 over the whole padded ground, so every
-    // ground-mesh vertex is exactly what it always was; it only has an effect
-    // for points on the skirt (and for the scatter planted there).
-    if (boundary) return terrain + farLift(wx, wy);
+    // Bounded world: authored terrain straight out to the mesh edge — no scenery
+    // mound beyond the world edge (the void floor + fog own the horizon).
+    if (boundary) return terrain;
     // Playable interior: the authored heightfield (the SAME terrain physics
     // rolls on — engine.groundAt), plus scenery mounds that ramp up smoothly
     // beyond the world edge only.
@@ -732,185 +612,6 @@ export function buildCourse(
   }
   groundMat.bumpTexture = turfNormal;
   ground.material = groundMat;
-
-  /**
-   * THE FAR-FIELD SKIRT — the rough, actually rolling back toward the hills.
-   *
-   * The owner has asked for this in five different wordings across four
-   * passes, most recently: "I just want the background areas before those
-   * things to not look like crap between the mountains/hills/horizon and the
-   * back of the green." Every previous attempt answered with PAINT —
-   * recolouring the flat apron plane, matching its grain, giving it a normal
-   * map — and none of it worked, because past the ground mesh there was no
-   * GEOMETRY: one 16000-square quad at `subdivisions: 1`, dead level, seen at
-   * a grazing angle. A flat sheet reads as a flat sheet however it is painted.
-   *
-   * So: a ring of real rolling ground, from the mesh edge out to just short of
-   * the (now closer) backdrops. A RING, not a bigger `TEXTURE_PAD`, for two
-   * reasons. It never overlaps the playable terrain — no z-fighting, no
-   * masking plane that could draw over a sunken green. And widening the pad is
-   * a measured trap: the bake budget's 0.5 floor stops being a budget past
-   * ~1000 of pad (4.0M texels → 10.2M at 2500, class grid ×12, near-field
-   * albedo still halves, and the fixed 140 subdivisions drop to 44 units per
-   * quad, losing the very relief this is for).
-   *
-   * COST, deliberately bounded (owner: "don't introduce ... graphic loading
-   * issues"): ~10 shells × 144 points ≈ 3k triangles, ONE StandardMaterial
-   * with the 128px detail canvas and NO normal map — the previous cut carried
-   * the ground's bump texture out here and it was the single biggest line in
-   * its frame cost, for relief the fog swallows anyway. The mesh is frozen,
-   * casts no shadows, receives none, and is skipped entirely on sea courses
-   * (their horizon is water, which is already correct).
-   */
-  if (theme.backdrop !== 'sea') {
-    /** How far past the ground mesh's edge the real geometry reaches — just
-     *  short of the pulled-in backdrops, so the hand-off happens where the
-     *  ranges and the fog already own the frame.
-     *
-     * Raised from 1600: the flat `peakApron` quad picks up past this radius,
-     * and on a warm-rough course (Wild Prairie #d8a94e, Maple Vale #cfa055)
-     * that dead-level plane still read as a lake even after two rounds of
-     * pure repaint (`6bd9a78`'s exposure/detail-map fix, this ring's own
-     * introduction in `b4f08a5`) — this comment block's own conclusion was
-     * "a flat sheet reads as a flat sheet however it is painted," but the
-     * ring it justified only ever covered a third of the distance out to the
-     * pulled-in backdrops. Pushing it most of the rest of the way there
-     * removes the flat stretch for every peaks course, not just a retint of
-     * the two that got reported — cooler-rough courses (Wildwood #5d6b3a)
-     * were never broken, so they're unaffected either way. Shell count is
-     * unchanged (same triangle budget); the squared spacing already goes
-     * coarse near the outer edge, so the added ground is cheap and the ring
-     * still gives way to fog before the backdrops themselves. */
-    const SKIRT_OUT = FAR_FIELD_REACH;
-    const SHELLS = quality.tier >= 2 ? 7 : 10;
-    const AROUND = quality.tier >= 2 ? 96 : 144;
-    const gx0 = -pad;
-    const gy0 = -pad;
-    const gx1 = w + pad;
-    const gy1 = h + pad;
-
-    /** A point on the padded ground rectangle expanded by `e`, at parameter
-     *  `u` in [0,1) going round it. */
-    const shellPoint = (u: number, e: number): [number, number] => {
-      const x0 = gx0 - e;
-      const y0 = gy0 - e;
-      const x1 = gx1 + e;
-      const y1 = gy1 + e;
-      const sw = x1 - x0;
-      const sh = y1 - y0;
-      const per = 2 * (sw + sh);
-      let d = u * per;
-      if (d < sw) return [x0 + d, y0];
-      d -= sw;
-      if (d < sh) return [x1, y0 + d];
-      d -= sh;
-      if (d < sw) return [x1 - d, y1];
-      d -= sw;
-      return [x0, y1 - d];
-    };
-
-    /** The same height the ground mesh's outer vertices take, so the seam is
-     *  watertight — that hard horizontal line behind Timberline West's second
-     *  green was the whole complaint. See `farLift`. */
-    const skirtY = (wx: number, wy: number): number => engine.groundAt(wx, wy) + farLift(wx, wy);
-
-    const pos: number[] = [];
-    const uvs: number[] = [];
-    const idx: number[] = [];
-    for (let s = 0; s <= SHELLS; s++) {
-      // Squared spacing: fine where it meets the real ground (so the seam is
-      // smooth), coarse far out (where fog owns it anyway).
-      const e = Math.pow(s / SHELLS, 1.7) * SKIRT_OUT;
-      for (let a = 0; a <= AROUND; a++) {
-        const [wx, wy] = shellPoint((a % AROUND) / AROUND, e);
-        pos.push(wx, skirtY(wx, wy), -wy);
-        // The detail map is the only texture on this surface, so the uv just
-        // has to be continuous and world-scaled.
-        uvs.push(wx / 220, wy / 220);
-      }
-    }
-    const row = AROUND + 1;
-    for (let s = 0; s < SHELLS; s++) {
-      for (let a = 0; a < AROUND; a++) {
-        const i0 = s * row + a;
-        const i1 = i0 + 1;
-        const i2 = i0 + row;
-        const i3 = i2 + 1;
-        idx.push(i0, i2, i1, i1, i2, i3);
-      }
-    }
-    const skirt = new Mesh('groundSkirt', scene);
-    const vd = new VertexData();
-    vd.positions = pos;
-    vd.indices = idx;
-    vd.uvs = uvs;
-    const normals: number[] = [];
-    VertexData.ComputeNormals(pos, idx, normals);
-    vd.normals = normals;
-    vd.applyToMesh(skirt, false);
-    // The apron's colour, grain and exposure — this surface and the apron
-    // behind it must be the same ground, and the ground bake's own edge
-    // already fades to exactly this colour (CourseTexture's FADE_SPAN), so all
-    // three meet without a step.
-    const skirtMat = mat(scene, 'groundSkirtM', shade(groundFarC, 0.58), { emissive: shade(groundFarC, 0.25) });
-    skirtMat.specularColor = new Color3(0, 0, 0);
-    // The FAR-FIELD tile (see `makeFarFieldCanvas`), not the ground's own weak
-    // 128px detail multiplier — this ring is the ONLY texture this surface
-    // carries (no baked albedo underneath), and it sits in the fog's fast
-    // falloff, so it needs real contrast to still read as ground by the time
-    // it reaches the backdrops. First pass (1.8x the real rough's numbers)
-    // was verified too subtle at a live elevated camera check — a shallow
-    // viewing angle compounds the fog crush with texture minification
-    // (many world-units of grain compress into one screen pixel, and
-    // trilinear filtering without anisotropy averages it toward flat), so
-    // this needed to go further than fog math alone predicted. ~2.5x
-    // (noiseAmp 36 -> 90, stripeContrast 0.055 -> 0.15).
-    const skirtFarCanvas = makeFarFieldCanvas(512, FAR_TILE_WORLD, 90, 120, 0.15);
-    const skirtDetail = new DynamicTexture('turfDetailSkirt', { width: 512, height: 512 }, scene, true);
-    skirtDetail.getContext().drawImage(skirtFarCanvas, 0, 0);
-    skirtDetail.update(false);
-    skirtDetail.wrapU = Texture.WRAP_ADDRESSMODE;
-    skirtDetail.wrapV = Texture.WRAP_ADDRESSMODE;
-    // Anisotropic filtering: this ring is viewed at grazing angles (looking
-    // nearly along the ground toward the horizon), where plain trilinear
-    // filtering over-blurs a repeating tile far more than it would looking
-    // straight down — the same reason the real ground's own bake sets this.
-    skirtDetail.anisotropicFilteringLevel = 8;
-    // The uv above is world/220, so a tile every FAR_TILE_WORLD world units is
-    // 220/FAR_TILE_WORLD repeats per uv unit.
-    skirtDetail.uScale = 220 / FAR_TILE_WORLD;
-    skirtDetail.vScale = 220 / FAR_TILE_WORLD;
-    skirtMat.detailMap.texture = skirtDetail;
-    skirtMat.detailMap.isEnabled = true;
-    // Much stronger than the ground's own 0.24 — this blend IS the ring's
-    // only visible texture (no baked albedo underneath it), so it has to
-    // carry the whole "this is ground, not a painted plane" read by itself,
-    // against fog AND grazing-angle minification at once.
-    skirtMat.detailMap.diffuseBlendLevel = 0.75;
-    // ...AND THE SUN RESPONSE. Matching contrast and colour still leaves a
-    // perfectly uniform Lambert sheet where the real ground carries a normal
-    // map (`groundMat.bumpTexture`) — a dead-flat sheet right where the
-    // normal-mapped ground stops is its own small seam. A fresh instance
-    // (not `turfNormal` — its uScale is baked for the ground's own normalized
-    // UV, and this ring's UV is world/220, so a shared instance would carry
-    // the wrong scale for one of the two surfaces), world-tiled to the same
-    // physical tile size (world-units-per-tile) as the ground's own
-    // 90-repeats-per-width.
-    const skirtNormal = theme.turfNormalKey ? new Texture(theme.turfNormalKey, scene) : makeTurfNormalTexture(scene);
-    skirtNormal.wrapU = Texture.WRAP_ADDRESSMODE;
-    skirtNormal.wrapV = Texture.WRAP_ADDRESSMODE;
-    skirtNormal.uScale = (220 * 90) / (w + pad * 2);
-    skirtNormal.vScale = (220 * 90) / (h + pad * 2);
-    // Softer than the ground's 0.55: seen at grazing angles from hundreds of
-    // units away, where a full-strength normal reads as noise.
-    skirtNormal.level = 0.35;
-    skirtMat.bumpTexture = skirtNormal;
-    skirt.material = skirtMat;
-    skirt.applyFog = true;
-    skirt.receiveShadows = false;
-    skirt.isPickable = false;
-    skirt.freezeWorldMatrix();
-  }
 
   // Compile the ground shader NOW (during the loading veil) instead of lazily on
   // the first visible frame. The ground material is heavy (bake diffuse +
@@ -1927,28 +1628,7 @@ export function buildCourse(
   }
 
   // ------------------------------------------------------------ backdrop
-  //
-  // CLOSER ON LAND, on the owner's explicit instruction: "I don't need assets
-  // going all the way back ... you can even move those in closer if it makes
-  // it easier. I just want the background areas before those things to not
-  // look like crap between the mountains/hills/horizon and the back of the
-  // green." At 2500 the gap between the last real ground and the first
-  // mountain was 700-1100 yards of flat apron — an area no amount of paint
-  // ever fixed. 1900 (then this pass's 1450) shrinks that gap further.
-  //
-  // A SECOND, independent reason to keep pulling this in: the massifs are
-  // deliberately NOT fogged (`applyFog = false` on every massif clone,
-  // below) — a prior attempt to fog them "washed them to near-haze at this
-  // distance" and made the signature backdrop disappear instead of receding,
-  // which is worse. The ground IN FRONT of them fogs correctly by real
-  // distance (EXP2), and the far-field ground canvas above is now tuned to
-  // still show real contrast out to about where this puts the mountains —
-  // moving them in from 1900 gives that canvas less distance to survive
-  // before the unfogged range takes over, on top of shrinking the apron
-  // itself. The sea keeps 2500: its plane geometry and dune line are tuned to
-  // it, its near edge is pinned relative to this number, and open water TO the
-  // horizon is correct for a links course anyway.
-  const peakDist = theme.backdrop === 'sea' ? 2500 : 1450;
+  const peakDist = 2500;
   /**
    * A backdrop position, pulled in if it would fall OUTSIDE the sky dome.
    *
@@ -2064,30 +1744,20 @@ export function buildCourse(
     // plane meeting the turf on a dead-level line is what the owner reported as
     // Maple Vale's "gross brown glass pond"; every peaks course had it.
     //
-    // So: paint the FAR-FIELD tile (see `makeFarFieldCanvas`), not the
-    // ground's own weak 128px detail multiplier — the apron is seen from
-    // much further away than the ground ever is, sitting deeper in the fog's
-    // falloff than even the groundSkirt ring in front of it, so it needs MORE
-    // headroom, not the same amount: ~3.3x the real rough's numbers
-    // (noiseAmp 36 -> 120, stripeContrast 0.055 -> 0.2 — pushed past the
-    // skirt's own boost after a live camera check showed even 2.5x still read
-    // too flat at a grazing viewing angle). Same FAR_TILE_WORLD as the
-    // groundSkirt, so the two meet without a step.
-    const apronFarCanvas = makeFarFieldCanvas(512, FAR_TILE_WORLD, 120, 120, 0.2);
-    const apronDetail = new DynamicTexture('turfDetailApron', { width: 512, height: 512 }, scene, true);
-    apronDetail.getContext().drawImage(apronFarCanvas, 0, 0);
+    // So: paint the same 128px canvas again. It is still in scope and costs
+    // nothing (128 squared), and it restores the grain AND the exposure at once.
+    const apronDetail = new DynamicTexture('turfDetailApron', { width: 128, height: 128 }, scene, true);
+    apronDetail.getContext().drawImage(detailCanvas, 0, 0);
     apronDetail.update(false);
     apronDetail.wrapU = Texture.WRAP_ADDRESSMODE;
     apronDetail.wrapV = Texture.WRAP_ADDRESSMODE;
-    // Anisotropic filtering, same reasoning as the skirt's: this plane is
-    // seen at grazing angles, where plain trilinear filtering over-blurs a
-    // repeating tile far more than it would looking straight down.
-    apronDetail.anisotropicFilteringLevel = 8;
-    apronDetail.uScale = 16000 / FAR_TILE_WORLD;
-    apronDetail.vScale = 16000 / FAR_TILE_WORLD;
+    // Same WORLD tile size as underfoot: the ground runs 110 tiles across its
+    // padded width, so the apron needs that frequency over its own 16000.
+    apronDetail.uScale = (16000 * 110) / (w + pad * 2);
+    apronDetail.vScale = (16000 * 110) / (h + pad * 2);
     apronMat.detailMap.texture = apronDetail;
     apronMat.detailMap.isEnabled = true;
-    apronMat.detailMap.diffuseBlendLevel = 0.85;
+    apronMat.detailMap.diffuseBlendLevel = 0.24;
     // ...AND THE SUN RESPONSE. Matching colour and grain still leaves a
     // perfectly uniform lambert sheet, because the ground carries a normal map
     // (groundMat.bumpTexture) and the apron carried none. Share the very same
@@ -2378,20 +2048,6 @@ export function buildCourse(
       const tintedKeys = peakKeys.filter((k) => !k.startsWith('mountain') && !k.startsWith('canyon'));
       void loadNaturePrototypes(scene, natPalette, natKeys).then((protos) => {
         if (texturedKeys.length) {
-          // Real range dioramas read as sitting on top of the green (owner,
-          // twice: Timberline West and Red Hollow both "the mountain
-          // background is coming into the holes... overtaking the green",
-          // then again on Timberline itself). `peakDist` dropped from 2500 to
-          // 1450 for the peaks apron/far-field ground canvas (see its
-          // definition above) — good for that seam, but it also dragged the
-          // actual mountain meshes twice as close. The two needs are
-          // unrelated (how far the near-field ground texture has room to
-          // read vs. how far away a mountain silhouette should sit), so this
-          // massif placement uses its OWN fixed distance instead of
-          // `peakDist`, independently of whatever the apron needs. 3800 is
-          // comfortably past the pre-far-field distance (2500) that never
-          // drew a complaint.
-          const massifDist = 3800;
           // Opaque terracotta backstop behind the deepest range layer: the
           // decimated diorama prims leave saddle gaps that showed SKY-BLUE
           // through the mountains at the horizon (playtest: "a blue layer in
@@ -2426,7 +2082,7 @@ export function buildCourse(
           // any higher and its flat cream top shows above the range layers'
           // low saddles as a slab (playtest zoom). Bottom reaches -540 so
           // elevated tees can't see under it either.
-          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - massifDist - 1700, 0).add(
+          bs.position = backdropAnchor(hole.pin.x, hole.pin.y - peakDist - 1700, 0).add(
             new Vector3(0, -240, 0)
           );
           bs.applyFog = false;
@@ -2467,9 +2123,6 @@ export function buildCourse(
             // between/beside the nearer layers — elevated tees (h2's +15
             // mesa) see over the short backstop otherwise.
             const holeMod = (hole.number - 1) % 3;
-            // massifDist (defined above, once per hole) applies to every spot
-            // in the composition — the near dominant peak AND its ridges/
-            // curtain move together, so the hand-tuned silhouette doesn't skew.
             const spots = key.startsWith('mountain_range')
               ? holeMod === 0
                 ? // h1 — a DOMINANT right-weighted massif looms close behind
@@ -2555,7 +2208,7 @@ export function buildCourse(
             // ~4490 from the world centre and its wMul-4.2 wings reach further
             // still, so an unanchored massif could run through the dome even
             // now that DOME_R is 6000 — on a long hole with an off-centre pin.
-            const anchor = backdropAnchor(hole.pin.x + spot.dx, hole.pin.y - massifDist + spot.dy, -35);
+            const anchor = backdropAnchor(hole.pin.x + spot.dx, hole.pin.y - peakDist + spot.dy, -35);
               // Mirroring negates local X, so the recentering offset's X
               // component flips sign with it. The width stretch widens each
               // layer so adjacent silhouettes overlap (high saddles between
@@ -3563,93 +3216,6 @@ export function buildCourse(
                 if (hash2(jx + 3, jy + 7) > 0.55) continue; // sparse clumps
                 place(grasses, jx, jy, cap * (0.5 + hash2(jx, jy) * 0.35), 3, theme.lushGrass ? grassTint(jx, jy) : undefined);
               }
-            }
-          });
-        }
-      }
-    }
-
-    /**
-     * FAR-FIELD FESCUE — sparse grass on the ground between the corridor and
-     * the hills, because the reference the owner keeps pointing at is scatter
-     * on rolling ground, not a texture.
-     *
-     * THIS IS NOT THE FRAMING BAND THAT WAS REMOVED. `FRAME_BAND = 0` stays 0
-     * and the corridor families still stop dead at the playable boundary — the
-     * owner asked for that explicitly ("don't put grass or bush assets outside
-     * the playable area") and it stands. This is a different thing in a
-     * different place: it starts a clear FAR_GAP outside the boundary (so the
-     * corridor edge stays clean), it is only ever low grass — never bushes or
-     * props — and it thins to nothing toward the fog. Landscape, not
-     * furniture.
-     *
-     * COST, deliberately bounded. The first cut ran a 78-unit grid to 1500 —
-     * ~1500 extra cards per hole — and the perf gate caught it at once
-     * (Wildwood h3's worst armed frame went 80ms-ceiling → 567ms while the
-     * plant queue drained). This grid is 130 units to 900, roughly a fifth of
-     * the cards, tier 0/1 only, honouring scatterPitch: the first decoration a
-     * struggling device stops paying for.
-     */
-    if (theme.backdrop !== 'sea' && quality.tier <= 1) {
-      const farSet = pick(theme.heatherKeys ?? theme.grassKeys ?? []);
-      if (farSet.length) {
-        const farCap = theme.tallGrass?.cap ?? 5;
-        const FAR_GAP = 150;
-        const farGap = hole.boundary ? computeBoundary(hole, DEFAULT_MARGIN + FAR_GAP) : null;
-        const FAR_STEP = 130 * scatterPitch;
-        const REACH = 900;
-        for (let yy = -pad - REACH; yy < h + pad + REACH; yy += FAR_STEP) {
-          const yRow = yy;
-          popQueue.push(() => {
-            for (let xx = -pad - REACH; xx < w + pad + REACH; xx += FAR_STEP) {
-              if (farGap && pointInBoundary(xx, yRow, farGap)) continue;
-              const e = outsideBy(xx, yRow);
-              if (e <= 0) {
-                // Inside the world the real surface is knowable: rough OR sand
-                // (on a links the exposed waste is where fescue belongs), never
-                // water or a mown surface the boundary happens not to reach.
-                const surf = engine.surfaceAt(xx, yRow);
-                if (surf !== 'rough' && surf !== 'sand') continue;
-              }
-              // Thin toward the fog so the field fades out, never ends on a line.
-              const fade = 1 - Math.min(1, e / REACH);
-              if (hash2(xx * 1.7, yRow * 1.3) > 0.2 + fade * 0.45) continue;
-              const jx = xx + (hash2(xx + 21, yRow) - 0.5) * FAR_STEP * 0.9;
-              const jy = yRow + (hash2(yRow + 21, xx) - 0.5) * FAR_STEP * 0.9;
-              place(farSet, jx, jy, farCap * (0.7 + hash2(jx + 4, jy - 4) * 0.6), 9);
-            }
-          });
-        }
-        /**
-         * THE MID BAND — 900 out to ~2200, the same stretch the far-field
-         * ground canvas above was re-tuned for (the backdrop massifs on a
-         * land course sit around 1450-1900 out). Fog crushes a flat ground
-         * texture's contrast fast, but a bright, saturated fescue card reads
-         * against a duller fogged ground long after the ground's own subtle
-         * grain has washed out — by the survival math above, ~45% of the
-         * card's colour still gets through at 2200u, which is worth the
-         * draw; past that it drops below what's worth the cost, so this
-         * band stops there rather than reaching the full FAR_FIELD_REACH.
-         * A courser grid than the inner pass (roughly 3x the spacing) — this
-         * ring covers a much bigger area, and fog + distance hide the
-         * difference out here the same way the outer relief shells go
-         * coarse.
-         */
-        const FAR_STEP_MID = 380 * scatterPitch;
-        const REACH_MID = 2200;
-        for (let yy = -pad - REACH_MID; yy < h + pad + REACH_MID; yy += FAR_STEP_MID) {
-          const yRow = yy;
-          popQueue.push(() => {
-            for (let xx = -pad - REACH_MID; xx < w + pad + REACH_MID; xx += FAR_STEP_MID) {
-              const e = outsideBy(xx, yRow);
-              if (e <= REACH) continue; // the inner pass already covers this
-              if (farGap && pointInBoundary(xx, yRow, farGap)) continue;
-              // Same fade shape as the inner pass, continuing from its edge.
-              const fade = 1 - Math.min(1, (e - REACH) / (REACH_MID - REACH));
-              if (hash2(xx * 1.7, yRow * 1.3) > 0.35 + fade * 0.45) continue;
-              const jx = xx + (hash2(xx + 21, yRow) - 0.5) * FAR_STEP_MID * 0.9;
-              const jy = yRow + (hash2(yRow + 21, xx) - 0.5) * FAR_STEP_MID * 0.9;
-              place(farSet, jx, jy, farCap * (0.7 + hash2(jx + 4, jy - 4) * 0.6), 9);
             }
           });
         }
