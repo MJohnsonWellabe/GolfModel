@@ -106,7 +106,7 @@
       },
       "slope": {
         "angle": 2.3,
-        "strength": 0.3
+        "strength": 0.171
       },
       "pin": {
         "x": 376.1,
@@ -1734,7 +1734,7 @@
       },
       "slope": {
         "angle": 2.6,
-        "strength": 0.34
+        "strength": 0.069
       },
       "pin": {
         "x": 470,
@@ -2664,7 +2664,7 @@
       },
       "slope": {
         "angle": 2.7,
-        "strength": 0.32
+        "strength": 0.133
       },
       "pin": {
         "x": 827.3,

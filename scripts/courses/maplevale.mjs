@@ -100,7 +100,10 @@ const maplevale = {
       world: { width: 1000, height: 1300 },
       tee: [500, 1160], teeBox: { w: 26, d: 18 },
       green: { cx: 470, cy: 300, rx: 62, ry: 50, rot: -0.2 },
-      slope: { angle: 0.4, strength: 0.24 },
+      // 48in-cap pass (owner: "flatten all greens to not have any variance
+      // larger than 48 inches"): was ~76in end-to-end. Retuned down to a
+      // real, puttable tilt that stays under budget alone.
+      slope: { angle: 0.4, strength: 0.133 },
       centerline: [[500, 1130], [488, 990], [470, 850], [452, 700], [452, 560], [462, 430], [468, 360]],
       width: [52, 96, 122, 128, 118, 96, 60],
       hazards: [
@@ -133,7 +136,8 @@ const maplevale = {
       world: { width: 900, height: 800 },
       tee: [450, 660], teeBox: { w: 24, d: 16 },
       green: { cx: 458, cy: 320, rx: 58, ry: 48, rot: 0.15 },
-      slope: { angle: 2.1, strength: 0.22 },
+      // 48in-cap pass: was ~59in. Retuned to stay under the 48in budget.
+      slope: { angle: 2.1, strength: 0.158 },
       centerline: [[450, 640], [452, 540], [456, 420]],
       width: [40, 46, 48],
       hazards: [
@@ -163,7 +167,8 @@ const maplevale = {
       world: { width: 1050, height: 1400 },
       tee: [520, 1290], teeBox: { w: 26, d: 18 },
       green: { cx: 560, cy: 250, rx: 64, ry: 52, rot: 0.3 },
-      slope: { angle: 5.6, strength: 0.26 },
+      // 48in-cap pass: was ~78in. Retuned to stay under the 48in budget.
+      slope: { angle: 5.6, strength: 0.140 },
       centerline: [[520, 1260], [510, 1120], [496, 980], [500, 840], [530, 700], [556, 560], [560, 430], [558, 330]],
       width: [50, 100, 118, 112, 124, 116, 96, 58],
       hazards: [

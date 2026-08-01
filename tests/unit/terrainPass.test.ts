@@ -126,10 +126,16 @@ describe('Red Hollow terrain identity', () => {
     // the steepest the 8px heightfield can express. (The spec's literal
     // 30-45° is incompatible with the grid resolution, the ≤5 relief gate
     // and downhill putt pace — documented in the terrain-pass doc.)
+    // 48in-cap pass: trimmed 2.6 -> 2.39 (owner: "flatten all greens to not
+    // have any variance larger than 48 inches") — the two greenside erosion
+    // pits (h2: the greenside craters are genuinely DEEP erosion pits, this
+    // file) already use most of the green's 48in budget at real
+    // bunkerDepthScale, so the ledge itself had to give up a little of its
+    // own step to fit. Still a clearly distinct, readable two tiers.
     const { hole, hf } = field(redhollow, 1);
     const back = hf.heightAt(hole.green.cx, 398); // upper (back) tier
     const front = hf.heightAt(hole.green.cx, 466); // lower (front) tier
-    expect(back - front).toBeGreaterThanOrEqual(2.6);
+    expect(back - front).toBeGreaterThanOrEqual(2.35);
     // The ramp is continuous — no step exceeds redhollow's 2.4 putt gate,
     // and pins never sit on it (gradient-vetoed, see layouts gates).
     for (let y = 380; y <= 466; y += 8) {
@@ -255,10 +261,14 @@ describe('Wild Prairie terrain identity', () => {
         }
       }
       expect(max - min, `h${i + 1} ridge-to-valley`).toBeGreaterThanOrEqual(6);
-      // 20 (was 16): identity pass 3 scales the hero dunes to true
+      // 21 (was 16, then 20): identity pass 3 scales the hero dunes to true
       // landforms (h11-13, the amphitheater's enclosing walls) with deep
-      // blowout bowls cut into their faces.
-      expect(max - min, `h${i + 1} stays sandhills, not mountains`).toBeLessThanOrEqual(20);
+      // blowout bowls cut into their faces. Nudged again by the 48in-cap
+      // pass, which restored h2's amphitheater rim close to its original
+      // height (it had been over-reduced for green-cap purposes; a more
+      // surgical fix on the green-only points left the rim within a hair of
+      // the old 20 ceiling) — still "sandhills", nowhere near "mountains".
+      expect(max - min, `h${i + 1} stays sandhills, not mountains`).toBeLessThanOrEqual(21);
     }
   });
 
@@ -311,9 +321,12 @@ describe('Wild Prairie terrain identity', () => {
     expect(theme.treeKeys).toEqual([]);
     expect(theme.prairieClusters).toBe(true); // dense clustered native rough
     // Owner playtest: "reduce the total fescue, render in randomized clumps
-    // rather than everywhere" — density lowered 33→22, so the floor tracks the
-    // new reduced target (still a substantial, course-carrying stand).
-    expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(20);
+    // rather than everywhere" — density lowered 33→22. Lowered again, 22→11
+    // (owner: "lighten the load on wild prairie number 3... half the density
+    // of the grass... whatever it takes" — h3 alone ran ~25.8k grass cells,
+    // the game's densest hole bar Port Johnson h3). The floor tracks that
+    // latest reduction so it can't silently regress further.
+    expect((theme.tallGrass as { density: number }).density).toBeGreaterThanOrEqual(10);
     expect(theme.bunkerLipPacked).toBe(true); // grass-lined blowout lips
     expect(theme.greenShadeGain).toBeGreaterThanOrEqual(12); // contours read
   });
@@ -626,7 +639,16 @@ describe('Wild Prairie green contours + fairway preservation', () => {
       0: [[470, 1100, 6.05], [467, 1052, 6.42], [463, 1004, 3.98], [460, 956, 2.74], [458, 908, 3.75], [456, 860, 4.9], [456, 812, 4.63], [459, 764, 5.03], [461, 716, 4.66], [465, 668, 1.83], [469, 621, 1.66], [471, 573, 3.3], [470, 525, 1.47], [468, 477, 1.25], [481, 431, 0.99], [496, 385, 1.79]],
       // EXIT-PLAN BATCH: re-pinned after the owner-approved Wild Horse bunker was
       // pulled left into the drive-rest band (dishes the drive-zone samples).
-      2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.48], [466, 1136, 9.58], [501, 1075, 12.83], [537, 1015, 16.19], [573, 954, 14.56], [609, 893, 9.63], [633, 827, 4.75], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.94], [709, 555, 9.34], [730, 487, 11.89], [752, 420, 10.31]]
+      // 48in-cap pass: re-pinned again — the final ridge (elevation index 3,
+      // the shoulder the green rides behind) had to come down from h10 to
+      // h6.7 to bring the green's own worst-case rise under 48in (the green
+      // sits ON this ridge's shoulder by design, so the two aren't
+      // separable). Re-measured at the theme's REAL bunkerDepthScale/
+      // wasteDepthScale (2.3/2.8, not the engine default 1/0 — see
+      // greenSlopeCap.test.ts) — only the 4 samples the ridge segment
+      // actually crosses (x670-752) moved; everything else, including the
+      // rest of this approach leg, is unchanged.
+      2: [[400, 1410, 4.0], [410, 1340, 2.78], [420, 1270, 3.03], [443, 1203, 5.48], [466, 1136, 9.58], [501, 1075, 12.83], [537, 1015, 16.19], [573, 954, 14.56], [609, 893, 9.63], [633, 827, 4.75], [652, 759, 1.02], [670, 690, 0.56], [688, 622, 5.63], [709, 555, 7.34], [730, 487, 8.61], [752, 420, 6.82]]
     };
     for (const [hiStr, samples] of Object.entries(SNAP)) {
       const { hf } = field(wildvalley, Number(hiStr));

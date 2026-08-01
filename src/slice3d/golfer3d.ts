@@ -400,6 +400,11 @@ export class Golfer3D {
   // Model rig.
   private inst: CharacterInstance | null = null;
   private modelPivot: TransformNode | null = null;
+  /** Decoy grip spheres — the only "hands" for a procedural (non-model)
+   *  body, and the model-backed body's stand-in until `armIK` locks on;
+   *  hidden once the real hand is tracking the club (see `updateArmIK`). */
+  private gripGlove: Mesh | null = null;
+  private gripHand: Mesh | null = null;
   private idleAnim: AnimationGroup | null = null;
   // The skeleton 'root' bone is rotated by the pack's Idle/Run/etc. clips, which
   // would swing the whole body off the ball line (and differently per character).
@@ -407,6 +412,28 @@ export class Golfer3D {
   private rootBone: TransformNode | null = null;
   private rootBoneRestRot: Quaternion | null = null;
   private rootBoneRestPos: Vector3 | null = null;
+
+  // 2-bone IK for the real skinned arm (owner: "the hands... are totally
+  // detached from the body... move their actual hands onto the club"). The
+  // pack ships no swing clip, so the real arm otherwise sits frozen in Idle
+  // while the club swings on its own procedural rig (see buildClubRig) — this
+  // drives the actual `DEF-upper_arm.R`/`DEF-forearm.R`/`DEF-hand.R` bones to
+  // reach the same grip point every frame (idle AND swinging), so the model's
+  // own hand is what appears to hold the club. See `updateArmIK`.
+  private armUpper: TransformNode | null = null;
+  private armFore: TransformNode | null = null;
+  private armIK: {
+    upperLen: number;
+    foreLen: number;
+    /** World-space direction shoulder→elbow at rest — the IK's bend-plane
+     *  hint, so the elbow keeps folding the way this character's rig
+     *  actually bends instead of an arbitrary default. */
+    restElbowDir: Vector3;
+    restUpperDir: Vector3;
+    restUpperQuat: Quaternion;
+    restForeDir: Vector3;
+    restForeQuat: Quaternion;
+  } | null = null;
 
   constructor(
     scene: Scene,
@@ -454,6 +481,7 @@ export class Golfer3D {
               this.rootBone.rotationQuaternion?.clone() ?? Quaternion.FromEulerVector(this.rootBone.rotation);
             this.rootBoneRestPos = this.rootBone.position.clone();
           }
+          this.captureArmRest(inst);
           this.idleAnim = inst.anims.get('Idle') ?? null;
           this.idleAnim?.start(true, this.personality.idleSpeed);
           this.applyModelPose(0);
@@ -501,6 +529,10 @@ export class Golfer3D {
       const blendTo = this.swinging ? 0 : 1;
       this.addressBlend += (blendTo - this.addressBlend) * Math.min(1, dt * 14);
       this.applyAddressClubPose();
+      // Every frame, idle through impact — the arm has to track wherever the
+      // procedural club rig currently is, and that rig moves both here and
+      // from the external swing driver.
+      this.updateArmIK();
       if (this.swinging) return;
       // Waggle/sway carry the character's personality: amplitude and tempo
       // multipliers on the same base motion (neutral = exactly the V1 feel).
@@ -539,10 +571,12 @@ export class Golfer3D {
     gloveHand.material = gloveM;
     gloveHand.position = new Vector3(-0.1, -1.86, 0.6);
     gloveHand.parent = this.shoulderPivot;
+    this.gripGlove = gloveHand;
     const bareHand = MeshBuilder.CreateSphere('hand', { diameter: 0.46, segments: 8 }, scene);
     bareHand.material = skin;
     bareHand.position = new Vector3(0.1, -1.98, 0.63);
     bareHand.parent = this.shoulderPivot;
+    this.gripHand = bareHand;
 
     this.wristPivot = new TransformNode('wrist', scene);
     this.wristPivot.position = new Vector3(0, -1.92, 0.62);
@@ -577,6 +611,132 @@ export class Golfer3D {
     this.driverModel.setEnabled(this.clubKind === 'driver');
     this.putterModel.setEnabled(this.clubKind === 'putter');
     this.applyAddressClubPose();
+  }
+
+  /** One-time rest-pose capture for the right-arm 2-bone IK, once the model
+   *  has loaded and been reparented. Silently no-ops (leaving the decoy grip
+   *  spheres visible) if this pack's rig ever lacks the expected bones. */
+  private captureArmRest(inst: CharacterInstance): void {
+    const upper = inst.bones.get('DEF-upper_arm.R');
+    const fore = inst.bones.get('DEF-forearm.R');
+    const hand = inst.bones.get('DEF-hand.R');
+    if (!upper || !fore || !hand) return;
+    // Reparenting inst.root onto modelPivot just above invalidates cached
+    // world matrices — force a fresh compute before reading absolute poses.
+    inst.root.computeWorldMatrix(true);
+    this.armUpper = upper;
+    this.armFore = fore;
+    const upperPos = upper.getAbsolutePosition();
+    const forePos = fore.getAbsolutePosition();
+    const handPos = hand.getAbsolutePosition();
+    const restUpperDir = forePos.subtract(upperPos);
+    const upperLen = restUpperDir.length();
+    restUpperDir.normalize();
+    const restForeDir = handPos.subtract(forePos);
+    const foreLen = restForeDir.length();
+    restForeDir.normalize();
+    if (upperLen < 1e-4 || foreLen < 1e-4) return;
+    this.armIK = {
+      upperLen,
+      foreLen,
+      restElbowDir: restUpperDir.clone(),
+      restUpperDir,
+      restUpperQuat: (upper.absoluteRotationQuaternion ?? Quaternion.Identity()).clone(),
+      restForeDir,
+      restForeQuat: (fore.absoluteRotationQuaternion ?? Quaternion.Identity()).clone()
+    };
+    // The real hand will track the club every frame from here — the decoy
+    // grip spheres (built for the procedural body, reused as a stand-in
+    // before this loaded) are now redundant.
+    this.gripGlove?.setEnabled(false);
+    this.gripHand?.setEnabled(false);
+  }
+
+  /**
+   * 2-bone IK, run every frame (idle, address and mid-swing alike): bends
+   * the real `DEF-upper_arm.R` / `DEF-forearm.R` so `DEF-hand.R` reaches the
+   * club's actual grip point, instead of sitting wherever the Idle clip left
+   * it while the club swings on its own separate procedural rig.
+   *
+   * Solved with the standard law-of-cosines 2-bone reach (shoulder→elbow→
+   * hand), using the rest pose's own elbow direction as the bend-plane hint
+   * so the elbow keeps folding the way this character's rig actually bends
+   * rather than an arbitrary default. Each bone's rotation is computed in
+   * WORLD space (rest direction → desired direction) and converted to local
+   * via its parent's current world rotation — this needs no assumption
+   * about the bones' own local axis conventions, only their bind pose.
+   */
+  private updateArmIK(): void {
+    const ik = this.armIK;
+    const upper = this.armUpper;
+    const fore = this.armFore;
+    if (!ik || !upper || !fore) return;
+    const shoulderPos = upper.getAbsolutePosition();
+    const { upperLen: l1, foreLen: l2 } = ik;
+    const maxReach = l1 + l2 - 1e-4;
+    const minReach = Math.max(1e-4, Math.abs(l1 - l2) + 1e-4);
+    // The procedural club rig's swing radius (~2 units around shoulderPivot)
+    // is bigger than this real arm's max reach (~1.28: this rig and the
+    // purchased character skeleton were never built to matching
+    // proportions), so the raw wristPivot target is essentially always out
+    // of reach — by 3+ units at the wide points of the swing (top of
+    // backswing, full finish). There is no 2-bone configuration that closes
+    // that gap; aiming straight at the true target and reaching as far as
+    // this arm goes is the mathematically closest this rig can get (verified
+    // against the alternative of rescaling toward shoulderPivot's own
+    // offset, which samples a differently-centered circle and measured
+    // WORSE at the wide points despite reading better near address).
+    const rawOffset = this.wristPivot.getAbsolutePosition().subtract(shoulderPos);
+    const rawLen = rawOffset.length();
+    if (rawLen < 1e-4) return; // degenerate — leave the last good pose
+    let dist = Math.min(maxReach, Math.max(minReach, rawLen));
+    const dirToTarget = rawOffset.scale(1 / rawLen);
+    const target = shoulderPos.add(dirToTarget.scale(dist));
+
+    // Bend-plane normal from the rest elbow direction; fall back to a fixed
+    // axis if the target sits (near-)exactly along the rest bone direction,
+    // where that cross product degenerates.
+    let planeNormal = Vector3.Cross(dirToTarget, ik.restElbowDir);
+    if (planeNormal.lengthSquared() < 1e-8) planeNormal = Vector3.Cross(dirToTarget, Vector3.Up());
+    if (planeNormal.lengthSquared() < 1e-8) planeNormal = Vector3.Cross(dirToTarget, Vector3.Right());
+    planeNormal.normalize();
+    const bendDir = Vector3.Cross(planeNormal, dirToTarget).normalize();
+
+    const shoulderAngle = Math.acos(
+      Math.min(1, Math.max(-1, (l1 * l1 + dist * dist - l2 * l2) / (2 * l1 * dist)))
+    );
+    const bone1Dir = dirToTarget
+      .scale(Math.cos(shoulderAngle))
+      .add(bendDir.scale(Math.sin(shoulderAngle)))
+      .normalize();
+    const elbowPos = shoulderPos.add(bone1Dir.scale(l1));
+    const bone2Dir = target.subtract(elbowPos).normalize();
+
+    this.aimBoneWorld(upper, ik.restUpperDir, ik.restUpperQuat, bone1Dir);
+    this.aimBoneWorld(fore, ik.restForeDir, ik.restForeQuat, bone2Dir);
+  }
+
+  /** Rotate `bone` so its bind-pose forward axis (`restDir`, `restQuat` —
+   *  both world-space) now points along `desiredWorldDir`, converting the
+   *  result into `bone`'s local (parent-relative) rotationQuaternion. */
+  private aimBoneWorld(bone: TransformNode, restDir: Vector3, restQuat: Quaternion, desiredWorldDir: Vector3): void {
+    const delta = Quaternion.Identity();
+    Quaternion.FromUnitVectorsToRef(restDir, desiredWorldDir, delta);
+    const desiredWorldQuat = delta.multiply(restQuat);
+    const parent = bone.parent as TransformNode | null;
+    // The parent (upper arm, for the forearm call) may have had ITS rotation
+    // set earlier this same frame — computeWorldMatrix doesn't run again
+    // until the render pass, so without forcing it here `absoluteRotation-
+    // Quaternion` reads last frame's stale orientation and the child bends
+    // relative to the wrong parent frame.
+    parent?.computeWorldMatrix(true);
+    const parentWorldQuat = parent?.absoluteRotationQuaternion;
+    if (parentWorldQuat) {
+      bone.rotationQuaternion = Quaternion.Inverse(parentWorldQuat).multiply(desiredWorldQuat);
+    } else {
+      bone.rotationQuaternion = desiredWorldQuat;
+    }
+    bone.computeWorldMatrix(true);
   }
 
   /** Rebuild the procedural clubs with proportion overrides. Art-lab hook

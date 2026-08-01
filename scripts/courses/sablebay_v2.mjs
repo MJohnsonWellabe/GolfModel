@@ -99,7 +99,10 @@ const sablebayV2 = {
       tee: [624, 1124],
       teeBox: { w: 30, d: 22 },
       green: { cx: 420, cy: 362, rx: 60, ry: 46, rot: 0.2 },
-      slope: { angle: 3.0, strength: 0.3 },
+      // 48in-cap pass (owner: "flatten all greens to not have any variance
+      // larger than 48 inches"): was ~94in. Retuned to a real, puttable tilt
+      // that stays under budget alone.
+      slope: { angle: 3.0, strength: 0.134 },
       centerline: [[624, 1096], [610, 980], [578, 850], [508, 694], [452, 536], [426, 416]],
       width: [42, 60, 82, 80, 66, 50],
       hazards: [
@@ -215,7 +218,8 @@ const sablebayV2 = {
       tee: [468, 760],
       teeBox: { w: 30, d: 22 },
       green: { cx: 474, cy: 424, rx: 54, ry: 42, rot: 0.5 },
-      slope: { angle: 2.8, strength: 0.32 },
+      // 48in-cap pass: was ~81in. Retuned to stay under the 48in budget.
+      slope: { angle: 2.8, strength: 0.165 },
       centerline: [[468, 746], [470, 724]],
       width: [40, 40],
       hazards: [
@@ -331,7 +335,8 @@ const sablebayV2 = {
       tee: [360, 1460],
       teeBox: { w: 32, d: 24 },
       green: { cx: 848, cy: 404, rx: 80, ry: 56, rot: -0.2 },
-      slope: { angle: 3.2, strength: 0.32 },
+      // 48in-cap pass: was ~138in. Retuned to stay under the 48in budget.
+      slope: { angle: 3.2, strength: 0.092 },
       fairways: [
         { centerline: [[360, 1432], [430, 1300], [548, 1204], [668, 1150]], width: [44, 78, 92, 84] },
         { centerline: [[668, 1150], [746, 1006], [780, 856], [770, 712]], width: [84, 76, 68, 60] },

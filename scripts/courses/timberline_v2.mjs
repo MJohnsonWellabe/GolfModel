@@ -156,7 +156,10 @@ const timberlineV2 = {
       tee: [700, 1110],
       teeBox: { w: 30, d: 22 },
       green: { cx: 360, cy: 420, rx: 58, ry: 44, rot: 0.4 },
-      slope: { angle: 2.3, strength: 0.3 },
+      // 48in-cap pass (owner: "flatten all greens to not have any variance
+      // larger than 48 inches"): was ~74in. Retuned to a real, puttable tilt
+      // that stays under budget alone.
+      slope: { angle: 2.3, strength: 0.171 },
       centerline: [[700, 1080], [700, 940], [702, 800], [700, 672], [584, 566], [452, 470], [380, 438]],
       width: [42, 58, 82, 82, 74, 58, 48],
       hazards: [
@@ -252,7 +255,9 @@ const timberlineV2 = {
       tee: [470, 820],
       teeBox: { w: 30, d: 22 },
       green: { cx: 470, cy: 420, rx: 56, ry: 42, rot: 0 },
-      slope: { angle: 2.6, strength: 0.34 },
+      // 48in-cap pass: was ~113in. Retuned to stay under the 48in budget —
+      // the tiered pad below still gives the green its own real movement.
+      slope: { angle: 2.6, strength: 0.069 },
       centerline: [[470, 806], [470, 784]],
       width: [40, 40],
       hazards: [
@@ -406,7 +411,8 @@ const timberlineV2 = {
       // second holds far less often, so more reach attempts spill into the front
       // sand (below) for a hard up-and-down instead of a tap-in.
       green: { cx: 840, cy: 356, rx: 52, ry: 39, rot: -0.35 },
-      slope: { angle: 2.7, strength: 0.32 },
+      // 48in-cap pass: was ~94in. Retuned to stay under the 48in budget.
+      slope: { angle: 2.7, strength: 0.133 },
       fairways: [
         // RIGHT fairway (MAIN, safe + longer = ~551 yd): a wide arc bowed out to
         // the right; ~300 off the tee leaves ~250 in with a clean, dry look at
