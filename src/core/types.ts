@@ -485,6 +485,14 @@ export interface HoleData {
    *  challenges) keep identical layouts for everyone. Alternates are authored
    *  near the standard tee complex so aiTargets/elevation stay valid. */
   tees?: Point[];
+  /** Per-hole multiplier on `theme.tallGrass.density` (default 1 = unchanged).
+   *  `theme.tallGrass` is course-wide, so a hole whose own geometry makes it
+   *  the outlier (biggest world, most rough) can't be thinned without also
+   *  thinning every quiet hole on the same course. Wild Prairie h3 (owner:
+   *  "I lagged out with the ball in the air on wild prairie number 3 again")
+   *  scans far more tall-grass cells than its sibling holes purely from its
+   *  own size — this scales ITS field down without touching theirs. */
+  tallGrassDensityScale?: number;
 }
 
 export interface CourseData {

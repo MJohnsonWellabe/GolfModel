@@ -84,10 +84,7 @@ const portjohnsonV2 = {
       tee: [500, 1170],
       teeBox: { w: 32, d: 24 },
       green: { cx: 500, cy: 300, rx: 96, ry: 70, rot: 0.3 },
-      // 48in-cap pass (owner: "flatten all greens to not have any variance
-      // larger than 48 inches"): was ~134in. Retuned to a real, puttable
-      // tilt that stays under budget alone.
-      slope: { angle: 2.2, strength: 0.107 },
+      slope: { angle: 2.2, strength: 0.34 },
       centerline: [[500, 1140], [498, 980], [506, 810], [522, 640], [512, 470], [502, 360]],
       width: [50, 86, 92, 78, 64, 52],
       hazards: [
@@ -128,12 +125,7 @@ const portjohnsonV2 = {
       // aiming landmark straight up the hole. rot ~PI turns the gatehouse to face
       // the green/tee. Kept OFF a raised motte and short of the green's back edge
       // so its footprint never bends the green's putting gradient (gate-checked).
-      // Pushed further back (owner: "move the castle back a little into the
-      // background more") — y118 sat only 182 units behind the green; y-40 is a
-      // further ~158 units into the padded skirt's flat terrain (still short of
-      // the true pad edge at -220), reading as a background landmark rather than
-      // a structure crowding the putting surface.
-      props: [{ key: 'castle', x: 500, y: -40, rot: 3.14, len: 230, upright: true }],
+      props: [{ key: 'castle', x: 500, y: 118, rot: 3.14, len: 230, upright: true }],
       elevation: [
         // Tee shelf.
         { x: 500, y: 1170, h: 1.8, r: 120, shape: 'plateau' },
@@ -191,11 +183,7 @@ const portjohnsonV2 = {
       // putt by 20 feet ... a glitch in how it read"). Pulled back into the
       // calibrated band (0.40) and the tier contour softened below, so it still
       // reads as a Redan but the readout now matches the roll.
-      // 48in-cap pass (owner: "flatten all greens to not have any variance
-      // larger than 48 inches"): combined with the kicker bank this was
-      // ~201in. The linear tilt drops to 0 — the kicker bank (scaled below)
-      // still gives the Redan its real right-to-left feed.
-      slope: { angle: 3.8, strength: 0 },
+      slope: { angle: 3.8, strength: 0.4 },
       centerline: [[460, 770], [464, 620], [470, 500]],
       width: [40, 56, 64],
       hazards: [
@@ -220,10 +208,10 @@ const portjohnsonV2 = {
         { x: 700, y: 640, x2: 660, y2: 430, h: 20, r: 170 }, // right framing dune
         { x: 244, y: 690, x2: 210, y2: 470, h: 17, r: 155 }, // left framing dune over the waste
         // The kicker bank right of the green — the Redan's feeding slope.
-        { x: 618, y: 424, x2: 548, y2: 330, h: 2.1, r: 95 },
+        { x: 618, y: 424, x2: 548, y2: 330, h: 2.8, r: 95 },
         // The green shelf tilts with the hole (right-to-left, front-to-back
         // handled by slope); behind-left falls away.
-        { x: 470, y: 300, h: 0.9, r: 130, shape: 'plateau', skirt: 0.55 },
+        { x: 470, y: 300, h: 1.2, r: 130, shape: 'plateau', skirt: 0.55 },
         { x: 380, y: 210, h: -1.4, r: 90 },
         // TIERED GREEN SURFACE: a raised back-right knob and a front hollow give
         // the putting surface a real upper/lower tier — softened (owner glitch:
@@ -254,13 +242,7 @@ const portjohnsonV2 = {
       tee: [360, 1540],
       teeBox: { w: 32, d: 24 },
       green: { cx: 720, cy: 360, rx: 104, ry: 72, rot: 0.4 },
-      // 48in-cap pass (owner: "flatten all greens to not have any variance
-      // larger than 48 inches"): was ~222in — a greenside pot's flanking
-      // mounds were landing INSIDE this large green (pot 952 moved off the
-      // green's footprint below), and the final-rise ridge + mesa cap still
-      // reached it on top of the tilt. Tilt dropped to 0; ridge + mesa cap
-      // scaled ~0.46x so the rise still reads at the green within budget.
-      slope: { angle: 2.8, strength: 0 },
+      slope: { angle: 2.8, strength: 0.34 },
       fairways: [
         { centerline: [[360, 1510], [406, 1330], [520, 1180], [672, 1082]], width: [52, 94, 102, 90] },
         { centerline: [[672, 1082], [652, 900], [556, 756], [472, 644]], width: [90, 84, 78, 66] },
@@ -314,15 +296,9 @@ const portjohnsonV2 = {
         pot(560, 520, 12, 948),
         pot(622, 462, 12, 949),
         pot(682, 410, 12, 950),
-        // Greenside garrison: right and short-left. The short-left pot moved
-        // out from (636,330) to (579,310) — 48in-cap pass: this large green
-        // (rx104) let the pot's flanking mounds (fixed-radius, HeightField.ts
-        // addFlankingMounds) land INSIDE the putting surface, ~58in of the
-        // green's worst-case rise coming from mounds alone. Moved further
-        // outward along the same "away from the green" line so it still
-        // guards the same angle without cratering the green itself.
+        // Greenside garrison: right and short-left.
         pot(822, 470, 13, 951),
-        pot(579, 310, 12, 952)
+        pot(636, 330, 12, 952)
       ],
       // THE LIGHTHOUSE on its skerry in the firth behind the green (owner: "in
       // view and in the water"). Sits just north of the green on the tee
@@ -379,9 +355,9 @@ const portjohnsonV2 = {
         { x: 500, y: 720, h: 4.5, r: 115 },
         // The wall's rise: the diagonal ridge the pots march along (kept as
         // authored — it feeds the greenside surface, so it stays gate-gentle).
-        { x: 470, y: 640, x2: 700, y2: 420, h: 2.3, r: 108 },
+        { x: 470, y: 640, x2: 700, y2: 420, h: 4.6, r: 108 },
         // Green shelf at the top of the rise, front-right door open.
-        { x: 720, y: 360, h: 1.5, r: 150, shape: 'plateau', skirt: 0.55 },
+        { x: 720, y: 360, h: 3.0, r: 150, shape: 'plateau', skirt: 0.55 },
         // Framing dunes: a grand range right of leg 1, dunes behind the green,
         // the sea side dropping off left.
         { x: 940, y: 1280, x2: 1060, y2: 880, h: 20, r: 180 },

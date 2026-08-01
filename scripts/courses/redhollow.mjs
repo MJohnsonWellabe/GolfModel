@@ -66,14 +66,7 @@ const redhollow = {
       world: { width: 950, height: 1240 },
       tee: [330, 1130], teeBox: { w: 28, d: 20 },
       green: { cx: 560, cy: 330, rx: 66, ry: 52, rot: 0.35 },
-      // 48in-cap pass (owner: "flatten all greens to not have any variance
-      // larger than 48 inches... you can add more rolling hills that are
-      // smaller"): the shelf's own terrace relief already reads at the green
-      // (h1's broad +10 base plateau + the shelf's gentle undulation bumps),
-      // so the authored linear tilt on top of that pushed the green's
-      // worst-case rise to ~99in. Retuned to the most tilt the shelf's own
-      // relief leaves room for within the 48in budget.
-      slope: { angle: 2.2, strength: 0.021 },
+      slope: { angle: 2.2, strength: 0.32 },
       // PASS 6: the bend is stronger still — after the drive the fairway
       // presses hard against the cliff edge (left edge riding within a few
       // px of the drop) and the whole second half wraps the mountainside
@@ -241,18 +234,7 @@ const redhollow = {
       world: { width: 900, height: 950 },
       tee: [450, 800], teeBox: { w: 26, d: 18 },
       green: { cx: 450, cy: 430, rx: 62, ry: 50, rot: -0.2 },
-      // 48in-cap pass: was ~114in combining the tilt with the two-tier mesa
-      // ledge. Tilt dropped to 0; the ledge between the tiers (h3.8) was the
-      // actual source of the green's own worst-case rise, not the mesa cap
-      // itself (the green's whole footprint sits inside the cap's flat top —
-      // a plateau's flat radius stays constant however tall it's built — so
-      // the cap's h22 is untouched and the canyon-drop drama survives whole).
-      // Also found: the two greenside erosion-pit bunkers (depthMul 3.2)
-      // reach the green's edge and — at this theme's real bunkerDepthScale
-      // (1.35, not the engine default of 1) — add ~12in on their own, so the
-      // ledge needed trimming further than the terrain alone would suggest
-      // (down to h1.8) to leave room for them.
-      slope: { angle: 4.4, strength: 0 },
+      slope: { angle: 4.4, strength: 0.35 },
       // PASS 7: pins live on the two tier FLATS (back-center + back-right on
       // the upper tier, front on the lower) — never on the ramp between.
       pins: [[450, 398], [474, 412], [438, 462]],
@@ -307,7 +289,7 @@ const redhollow = {
         // the mid-face, it feeds to a tier) AND lets a downhill putt still roll
         // down to the lower tier without flying the green (rockPass gate). A
         // lower→upper putt now plays clearly uphill. Pins on the two flats only.
-        { x: 426, y: 392, x2: 474, y2: 386, h: 1.9, r: 60, shape: 'plateau', skirt: 0.72 },
+        { x: 426, y: 392, x2: 474, y2: 386, h: 3.8, r: 60, shape: 'plateau', skirt: 0.72 },
         // Green mesa erosion (all outside the green + fringe).
         { x: 330, y: 330, h: 7, r: 46, shape: 'plateau', skirt: 0.6 },
         { x: 578, y: 500, h: 6, r: 42, shape: 'plateau', skirt: 0.6 },
@@ -375,15 +357,7 @@ const redhollow = {
       // the same vertical as the tee→island drop), inside a crater bowl.
       green: { cx: 300, cy: 480, rx: 56, ry: 46, rot: 0.7 },
       green2: { cx: 262, cy: 452, rx: 34, ry: 28, rot: 0.7 },
-      // 48in-cap pass: was ~101in on the main lobe, ~80in once the green2
-      // lobe (the kidney's second bean) was included in the sampled check.
-      // Tilt dropped to 0. The crater FLOOR itself (h-10) is untouched — the
-      // whole green sits inside its flat base, so the floor's own depth
-      // (and the tee-to-green drop the other terrainPass gates pin) never
-      // moved; only the two RIM ridges above it were trimmed (~2 and ~6,
-      // down from 9 and 10), since those are what actually cross into the
-      // green's own footprint and drove its worst-case rise.
-      slope: { angle: 5.6, strength: 0 },
+      slope: { angle: 5.6, strength: 0.34 },
       // PASS 4 — ISLAND PLATFORMS: three separate fairway islands carved
       // into the canyon (all at +4), reached by chosen carries. Island 1→3
       // is exactly driver range, so a big hitter can skip island 2.
@@ -453,8 +427,8 @@ const redhollow = {
         // so the sunken green wears a real apron/collar out to the wall toes
         // instead of the putting surface running straight into the rim ramp.
         { x: 300, y: 480, h: -10, r: 118, shape: 'plateau', skirt: 0.64 },
-        { x: 186, y: 562, x2: 170, y2: 432, h: 2, r: 95 },
-        { x: 202, y: 358, x2: 326, y2: 330, h: 6, r: 100 },
+        { x: 186, y: 562, x2: 170, y2: 432, h: 9, r: 95 },
+        { x: 202, y: 358, x2: 326, y2: 330, h: 10, r: 100 },
         { x: 410, y: 360, x2: 444, y2: 442, h: 9, r: 90 },
         // Canyon rim walls (pass-3 winding-canyon identity; the west rim
         // shortened + a NW continuation so the bowl owns its corner).

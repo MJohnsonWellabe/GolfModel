@@ -3095,7 +3095,8 @@ export function buildCourse(
     // of an open links. Visual only (no collision), kept off the tee/fairway/
     // green and the immediate tee approach so it never reads as a wall at address.
     if (theme.tallGrass) {
-      const { cap, density } = theme.tallGrass;
+      const { cap, density: baseDensity } = theme.tallGrass;
+      const density = baseDensity * (hole.tallGrassDensityScale ?? 1);
       const tgStep = (40 / Math.sqrt(Math.max(0.15, density))) * scatterPitch;
       // Photo-textured heather / links-fescue cards (theme.heatherKeys) are the
       // preferred field content — real fescue + purple heather imagery, planted

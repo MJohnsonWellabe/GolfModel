@@ -65,11 +65,7 @@ const timberlineWestV2 = {
       tee: [450, 1080],
       teeBox: { w: 30, d: 22 },
       green: { cx: 300, cy: 330, rx: 60, ry: 46, rot: -0.3 },
-      // 48in-cap pass: was ~137in — the benched pad, its back tier, and the
-      // left mountainside all reach the green on top of the tilt. Tilt
-      // dropped to 0; those three relief sources scaled ~0.43x so the bench,
-      // tier and mountainside backdrop still read within budget.
-      slope: { angle: 1.8, strength: 0 },
+      slope: { angle: 1.8, strength: 0.3 },
       centerline: [[450, 1050], [452, 860], [446, 690], [418, 560], [356, 440], [312, 368]],
       width: [40, 58, 78, 74, 60, 48],
       hazards: [
@@ -112,8 +108,8 @@ const timberlineWestV2 = {
         { x: 450, y: 820, h: 6, r: 150 },        // drive-zone bench (downhill)
         // BENCHED, gently TIERED green on the upper-left mountainside — a wide
         // flat pad (puttable) with a subtle back tier summed on top.
-        { x: 300, y: 330, h: 5.6, r: 165, shape: 'plateau', skirt: 0.6 },
-        { x: 276, y: 296, h: 0.6, r: 96, shape: 'plateau', skirt: 0.5 }, // gentle back tier (wide, puttable)
+        { x: 300, y: 330, h: 13, r: 165, shape: 'plateau', skirt: 0.6 },
+        { x: 276, y: 296, h: 1.4, r: 96, shape: 'plateau', skirt: 0.5 }, // gentle back tier (wide, puttable)
         // CREEK CHANNEL — a level trough (2 units down) along the fairway-crossing
         // creek so the water reads flat; runs off into the treelines both sides.
         { x: 306, y: 632, x2: 382, y2: 600, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
@@ -121,7 +117,7 @@ const timberlineWestV2 = {
         { x: 452, y: 566, x2: 524, y2: 534, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
         { x: 524, y: 534, x2: 592, y2: 508, h: -2, r: 26, shape: 'plateau', skirt: 0.5 },
         // Framing mountainsides both flanks + backdrop rise behind the green.
-        { x: 150, y: 720, x2: 170, y2: 320, h: 12.8, r: 100 },
+        { x: 150, y: 720, x2: 170, y2: 320, h: 30, r: 100 },
         { x: 760, y: 780, x2: 778, y2: 420, h: 28, r: 112 },
         { x: 228, y: 186, h: 20, r: 90 } // backdrop rise behind green — held clear of the putting surface
       ]
@@ -140,9 +136,7 @@ const timberlineWestV2 = {
       tee: [450, 730],
       teeBox: { w: 30, d: 22 },
       green: { cx: 452, cy: 430, rx: 42, ry: 32, rot: 0.4 },
-      // 48in-cap pass: was ~77in. Retuned to a real, puttable tilt on top of
-      // the hollow's own bowl relief that stays under budget.
-      slope: { angle: 2.3, strength: 0.111 },
+      slope: { angle: 2.3, strength: 0.32 },
       // PINS tucked BEHIND the pincer pots (owner-approved §8 h2: the default
       // ring sat all three dead-centre). Front-left pin behind the front-left
       // pot (402,470); back-right pin behind the back-right pot (502,392), kept
@@ -213,10 +207,7 @@ const timberlineWestV2 = {
       // A smaller target plus the enlarged front pond makes the go-for-it second
       // a low-percentage play — miss short and it's water, not a two-putt.
       green: { cx: 858, cy: 560, rx: 64, ry: 46, rot: 0.5 },
-      // 48in-cap pass: was ~126in — the green mesa's own cap was already most
-      // of that, so the tilt drops to 0 (the mesa cap's own tier still gives
-      // the green real movement, unscaled, within budget).
-      slope: { angle: 2.6, strength: 0 },
+      slope: { angle: 2.6, strength: 0.34 },
       fairways: [
         { centerline: [[360, 1450], [378, 1080], [400, 880], [540, 772], [700, 672], [830, 592]], width: [46, 72, 86, 80, 66, 56] },
         // SHORT-GRASS BAILOUT SHELF long-left of the walled green (owner-approved

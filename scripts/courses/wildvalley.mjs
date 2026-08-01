@@ -63,11 +63,16 @@ const wildvalley = {
     // ROUND 3 (owner: "lighten the load on wild prairie number 3... half the
     // density of the grass... whatever it takes"): hole 3 alone runs ~25.8k
     // grass cells (the densest hole in the game bar Port Johnson h3) purely
-    // from its own geometry — biggest world, widest rough corridors, 10
+    // from its own geometry — biggest world, widest rough corridors, 9
     // bunkers. Holes 1/2 were already near the ~1.7k-cell quiet-hole
-    // baseline, so halving this course-wide knob concentrates the visible
-    // cut on h3's dense rough without a new per-hole density mechanism.
-    tallGrass: { cap: 8, density: 11, waste: true },
+    // baseline. A first pass halved this COURSE-WIDE knob (22 -> 11) to cut
+    // h3 — which also thinned 1/2 unnecessarily and still wasn't enough
+    // (owner, round 4: "I lagged out with the ball in the air on wild
+    // prairie number 3 again"). Restored to full density here; h3 alone is
+    // now cut via `tallGrassDensityScale` on its own hole entry below, which
+    // course3d.ts's tall-grass field applies on top of this course-wide
+    // value — see that hole's own comment for the target.
+    tallGrass: { cap: 8, density: 22, waste: true },
     roughTuftHeight: 1.9,
     tuftDensity: 3.3,
     sandPlantKeys: ['grass_g', 'grass_h'],
@@ -83,14 +88,7 @@ const wildvalley = {
       world: { width: 980, height: 1250 },
       tee: [470, 1130], teeBox: { w: 28, d: 20 },
       green: { cx: 510, cy: 300, rx: 64, ry: 52, rot: 0.25 },
-      // 48in-cap pass (owner: "flatten all greens to not have any variance
-      // larger than 48 inches... you can add more rolling hills that are
-      // smaller"): was ~85in combining the tilt with the green-front mesa
-      // cap, the green contour spine, and the great ridge's flank grazing
-      // the green's edge. Tilt dropped to 0; the mesa cap, contour spine and
-      // ridge flank scaled ~0.83x each so the green keeps real rolling
-      // character (the contour spine survives as the read) within budget.
-      slope: { angle: 1.2, strength: 0 },
+      slope: { angle: 1.2, strength: 0.28 },
       // WILD PRAIRIE PASS — the split moved to the DRIVER landing zone.
       // Monte Carlo audit (60 seeded drives, 85-stat golfer): rest band
       // y 534–653, mean (475,593) = 269yd. The fairway balloons to 150
@@ -131,16 +129,16 @@ const wildvalley = {
         // ridge dominates the right skyline, the counter-ridge walls the left,
         // the back ridge stacks a dune wall behind the green, and the edge
         // dunes rise into big flanking sandhills.
-        { x: 780, y: 1080, x2: 700, y2: 430, h: 14.9, r: 235 },
+        { x: 780, y: 1080, x2: 700, y2: 430, h: 18, r: 235 },
         { x: 190, y: 1000, x2: 290, y2: 480, h: 12, r: 185 },
         { x: 260, y: 105, x2: 790, y2: 140, h: 12, r: 160 },
         { x: 470, y: 1155, h: 6, r: 145, shape: 'plateau' },
-        { x: 510, y: 292, h: 3.3, r: 112, shape: 'plateau' },
+        { x: 510, y: 292, h: 4, r: 112, shape: 'plateau' },
         // GREEN CONTOUR (correction pass): a diagonal spine ridge aligned
         // with the RIGHT-lane approach — play the right lane off the split
         // and you putt along it; come from the left lane and every approach
         // putt crosses it. Broad and fully puttable (~0.5 per 8px).
-        { x: 478, y: 324, x2: 540, y2: 282, h: 1.2, r: 46 },
+        { x: 478, y: 324, x2: 540, y2: 282, h: 1.4, r: 46 },
         // WILD PRAIRIE PASS — restored hilliness: cross-ridges roll the
         // fairway itself (a carry ridge before the split, a saddle through
         // the drive zone, dune shoulders pinching the approach) without
@@ -171,19 +169,7 @@ const wildvalley = {
       // fat side feeds down and gets caught.
       green: { cx: 400, cy: 440, rx: 62, ry: 50, rot: 0.3 },
       green2: { cx: 480, cy: 380, rx: 52, ry: 44, rot: 0.3 },
-      // 48in-cap pass: was ~80in on the main lobe (the reported "right side
-      // falls down left, ball won't stop" hole) — the amphitheater walls and
-      // the green's own mesa cap/dome both reach the putting surface on top
-      // of the authored tilt. Sampling the green2 lobe (the back-right pin
-      // pocket) too showed it was worse still (~103in, that far wall running
-      // closer to it). Tilt dropped to 0; the far amphitheater walls (the
-      // ones that only graze the green) cut hard (~0.3x) while the green's
-      // own local shoulders (mesa cap, dome, interior shoulder) were kept
-      // close to full strength (~1.1x — a touch OVER original, needed to
-      // clear the readable-contour floor once the tilt was gone) so the
-      // green's own puttable movement reads clearly and the amphitheater
-      // still frames it, both within budget.
-      slope: { angle: 3.1, strength: 0 },
+      slope: { angle: 3.1, strength: 0.34 },
       centerline: [[440, 600], [428, 530]],
       width: [56, 62],
       // WILD PRAIRIE PASS — pins favor the BACK-RIGHT (the green2 lobe):
@@ -211,20 +197,20 @@ const wildvalley = {
       // WILD PRAIRIE PASS: enclosing walls raised — the amphitheater reads
       // again from the tee (the putting surface untouched, gate-checked).
       elevation: [
-        { x: 245, y: 565, x2: 235, y2: 360, h: 3.8, r: 140 },
-        { x: 362, y: 250, x2: 488, y2: 228, h: 4.2, r: 155 },
-        { x: 600, y: 330, x2: 615, y2: 470, h: 3.8, r: 130 },
+        { x: 245, y: 565, x2: 235, y2: 360, h: 12.5, r: 140 },
+        { x: 362, y: 250, x2: 488, y2: 228, h: 14, r: 155 },
+        { x: 600, y: 330, x2: 615, y2: 470, h: 12.5, r: 130 },
         // Rim shoulders continuing the bowl beyond the frame — raised so the
         // dune walls read from the tee (owner: bring h2 to Prairie h3 standard).
         { x: 150, y: 250, x2: 60, y2: 600, h: 10, r: 160 },
         { x: 700, y: 250, x2: 800, y2: 550, h: 10, r: 160 },
-        { x: 430, y: 420, h: 2.2, r: 150, shape: 'plateau' },
-        { x: 352, y: 372, h: 1.8, r: 120 },
+        { x: 430, y: 420, h: 2, r: 150, shape: 'plateau' },
+        { x: 352, y: 372, h: 1.6, r: 120 },
         // GREEN CONTOUR (correction pass): an interior shoulder wrapping the
         // back-right pin lobe — the preferred pin sits on its small flat,
         // guarded by real slope on every side (not by edge proximity), the
         // south falloff feeding toward the notch bunker.
-        { x: 502, y: 352, x2: 522, y2: 392, h: 1.7, r: 46, shape: 'plateau', skirt: 0.55 },
+        { x: 502, y: 352, x2: 522, y2: 392, h: 1.5, r: 46, shape: 'plateau', skirt: 0.55 },
         { x: 440, y: 780, h: 4.5, r: 135, shape: 'plateau' },
         { x: 150, y: 680, x2: 360, y2: 640, h: 6, r: 105 },
         { x: 520, y: 680, x2: 700, y2: 620, h: 6, r: 115 },
@@ -251,12 +237,17 @@ const wildvalley = {
       world: { width: 1200, height: 1560 },
       tee: [400, 1440], teeBox: { w: 30, d: 22 },
       green: { cx: 760, cy: 330, rx: 62, ry: 50, rot: -0.3 },
-      // 48in-cap pass: was ~83in — the final ridge's shoulder and the
-      // green's own crown both reach the putting surface on top of the
-      // authored tilt. Tilt dropped to 0; the ridge, mesa cap and front-left
-      // crown scaled ~0.67x so the green still rides the ridge's roll (now
-      // puttable) within budget.
-      slope: { angle: 0.4, strength: 0 },
+      // PER-HOLE cut (owner, round 4: "I lagged out with the ball in the air
+      // on wild prairie number 3 again... remove some of the grass assets").
+      // At the course's full density (restored above) this hole alone scans
+      // ~25.8k tall-grass cells — its own size (biggest world on the course)
+      // and rough acreage, not anything specific to its bunkers/terrain. 0.22
+      // brings it to ~5.7k, well under Port Johnson h3's ~40.7k (the other
+      // hole the owner reports choppy) and close to what drain.spec.ts's
+      // worst-frame measurement stays clean at; verify against that spec
+      // before loosening.
+      tallGrassDensityScale: 0.22,
+      slope: { angle: 0.4, strength: 0.3 },
       // WILD PRAIRIE PASS: the S-curve deepened (LZ1 pushed left, the turn
       // to LZ2 sharpened) and every bunker re-audited against the Monte
       // Carlo dispersion: drives rest x521–560 / y956–1057, second shots
@@ -300,13 +291,13 @@ const wildvalley = {
         { x: 140, y: 1180, x2: 560, y2: 1060, h: 11, r: 210 },
         { x: 620, y: 960, x2: 1080, y2: 840, h: 12, r: 220 },
         { x: 300, y: 700, x2: 640, y2: 600, h: 7, r: 150 },
-        { x: 560, y: 505, x2: 860, y2: 462, h: 6.7, r: 165 },
+        { x: 560, y: 505, x2: 860, y2: 462, h: 10, r: 165 },
         { x: 400, y: 1460, h: 4, r: 140, shape: 'plateau' },
-        { x: 760, y: 320, h: 4.0, r: 132, shape: 'plateau' },
+        { x: 760, y: 320, h: 6, r: 132, shape: 'plateau' },
         // GREEN CONTOUR (correction pass): the green continues the final
         // fairway ridge's roll — a broad front-left crown and a back-right
         // shelf on the same ENE axis, readable and fully puttable.
-        { x: 742, y: 348, h: 0.67, r: 50 },
+        { x: 742, y: 348, h: 1.0, r: 50 },
         { x: 790, y: 296, x2: 822, y2: 308, h: 1.3, r: 44, shape: 'plateau', skirt: 0.45 },
         // Edge dunes continuing both ridge systems.
         { x: 180, y: 400, x2: 420, y2: 330, h: 4.5, r: 130 },

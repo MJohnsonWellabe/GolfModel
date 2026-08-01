@@ -125,7 +125,8 @@ export function emit(course, id, dir = 'src/data/courses') {
         ...(h.props ? { props: h.props } : {}),
         ...(h.sailboats ? { sailboats: h.sailboats } : {}),
         ...(h.sailboatSpots ? { sailboatSpots: h.sailboatSpots } : {}),
-        ...(h.recoveryZones ? { recoveryZones: h.recoveryZones } : {})
+        ...(h.recoveryZones ? { recoveryZones: h.recoveryZones } : {}),
+        ...(h.tallGrassDensityScale !== undefined ? { tallGrassDensityScale: h.tallGrassDensityScale } : {})
       };
     })
   };
