@@ -8379,6 +8379,14 @@ function renderTourHub(fromSync = false): void {
       const n = nextSeasonNo(profile.tours);
       const justFinished = n > 1;
       const cpToSpend = spendableCp(profile);
+      // Any OTHER season still live (Stage 5 parallel seasons): closing ONE
+      // out only clears `activeId` for that one (archiveTour), so a second
+      // season can easily still be sitting in `profile.tours.seasons` right
+      // now with nothing on this screen pointing at it (owner: "right now
+      // that screen's a dead end other than to start a new season. I should
+      // be able to go to my others"). There is no "current" one to exclude
+      // here — activeId is null — so every key left is reachable.
+      const otherLive = Object.keys(profile.tours.seasons).length;
       // Records and Improve-your-Pro don't need a live season underneath
       // them — a player who just wants to check their career, or spend CP,
       // shouldn't have to start a season first to reach either.
@@ -8394,6 +8402,14 @@ function renderTourHub(fromSync = false): void {
         `<button id="thRecords" class="careerNavBtn"><span class="cnIcon">🏅</span>` +
         `<span class="cnName">Career records</span>` +
         `<span class="cnSub">Wins, majors and every season placement</span></button>` +
+        // Same button (id, icon, wording) as the active-season branch's
+        // #thSwitch row further down — one feature, reachable from both the
+        // dead end and the normal hub.
+        (otherLive
+          ? `<button id="thSwitch" class="careerNavBtn"><span class="cnIcon">🔀</span>` +
+            `<span class="cnName">Your seasons</span>` +
+            `<span class="cnSub">${otherLive} still going · switch to one of them</span></button>`
+          : '') +
         `</div>`;
       el.innerHTML =
         `<div class="recInner"><h2>⛳ Tour Season</h2>` +
@@ -8411,6 +8427,7 @@ function renderTourHub(fromSync = false): void {
         renderTourHub();
       });
       el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+      el.querySelector('#thSwitch')?.addEventListener('click', () => renderSeasonPicker());
       el.querySelector('#thTrain')?.addEventListener('click', () => {
         el.style.display = 'none';
         pushReturn(() => renderTourHub());

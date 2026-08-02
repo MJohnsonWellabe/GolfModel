@@ -246,6 +246,85 @@ test('a finished season does not instantly start the next one', async ({ page })
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
 
+test('finishing one of several parallel seasons still lets you reach the others', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown');
+  await page.locator('#proName').fill('Parallel Pro');
+  await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
+  await page.locator('#lkBack').dispatchEvent('click');
+
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  expect((await tourProbe(page)).seasonNo).toBe(1);
+
+  // With only ONE season ever, closing it out shows the ordinary dead end —
+  // no "Your seasons" row (nothing else to switch to).
+  const forcedSolo = await page.evaluate(() =>
+    (window as never as { __forceSeasonFinale: () => boolean }).__forceSeasonFinale()
+  );
+  expect(forcedSolo).toBe(true);
+  await page.locator('#destTour').dispatchEvent('click');
+  await expect(hub).toBeVisible();
+  await expect(hub.locator('#thSwitch')).toHaveCount(0);
+
+  // Start season 2 (still solo, no season 1 to worry about — it's archived).
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  expect((await tourProbe(page)).seasonNo).toBe(2);
+
+  // Add a THIRD, parallel season alongside season 2 — now two are live at once.
+  await hub.locator('#thSwitch').dispatchEvent('click');
+  await hub.locator('#thAddSeason').dispatchEvent('click');
+  expect((await tourProbe(page)).seasonNo).toBe(3);
+
+  // Close season 3 out (the one currently active) — season 2 is still live,
+  // untouched, sitting in profile.tours.seasons the whole time.
+  const forcedParallel = await page.evaluate(() =>
+    (window as never as { __forceSeasonFinale: () => boolean }).__forceSeasonFinale()
+  );
+  expect(forcedParallel).toBe(true);
+  expect((await tourProbe(page)).started, 'closing season 3 must leave none active').toBe(false);
+
+  // Re-opening the hub: the dead end now ALSO offers a door back to the
+  // still-live season 2, not just "Start Season 4" (owner: "right now that
+  // screen's a dead end other than to start a new season. I should be able
+  // to go to my others").
+  await page.locator('#destTour').dispatchEvent('click');
+  await expect(hub).toBeVisible();
+  await expect(hub.locator('#thPlay')).toHaveCount(0);
+  await expect(hub.locator('#thStartSeason')).toContainText('Start Season 4');
+  const switchBtn = hub.locator('#thSwitch');
+  await expect(switchBtn).toBeVisible();
+  await expect(switchBtn).toContainText('1 still going');
+
+  // Following it opens the picker, which lists the still-live season 2.
+  await switchBtn.dispatchEvent('click');
+  const picks = hub.locator('.seasonPick');
+  await expect(picks).toHaveCount(1);
+  await expect(picks).toContainText('Season 2');
+  await picks.first().dispatchEvent('click');
+
+  // Picking it lands on the NORMAL hub, playing season 2 — no longer a dead end.
+  await expect(hub).toBeVisible();
+  const after = await tourProbe(page);
+  expect(after.started).toBe(true);
+  expect(after.seasonNo).toBe(2);
+  await expect(hub.locator('#thPlay')).toBeVisible();
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
 test('Quick Start rotates: the button names the NEXT course, not the last', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize(PHONE);
