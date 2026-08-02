@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { golferRecordBoards, majorsGrid, MAJOR_NAMES, recordTourEventWin, TourHistory } from '../../src/systems/TourSeason';
+import {
+  ArchivedTourSeason,
+  golferRecordBoards,
+  majorsGrid,
+  MAJOR_NAMES,
+  mergeTourHistory,
+  recordTourEventWin,
+  TOUR_MAJOR_IDXS,
+  TourHistory,
+  tourHistoryFromArchive
+} from '../../src/systems/TourSeason';
 import type { CareerPro } from '../../src/data/career';
 
 function pro(id: string, name: string): CareerPro {
@@ -69,7 +79,7 @@ describe('golferRecordBoards', () => {
     expect(seasonsPlayed.entries[0].label).toBe('2/10');
   });
 
-  it('flattens season championships to one row per (golfer, season) win, not per season number', () => {
+  it('flattens season championships to one row per (golfer, season) win, ordered by season number', () => {
     const pros = [pro('a', 'Alpha'), pro('b', 'Bravo')];
     const hist: TourHistory = {
       a: {
@@ -78,9 +88,13 @@ describe('golferRecordBoards', () => {
         majorWins: 0,
         majors: [],
         majorCounts: {},
+        // Deliberately out of season-number order and with the LATER season
+        // scoring FEWER points — proves the sort is by season number, not
+        // by points (owner: "the season winners should order by season
+        // number").
         seasons: [
-          { seasonNo: 1, rank: 1, points: 1000 },
-          { seasonNo: 2, rank: 1, points: 3105 }
+          { seasonNo: 2, rank: 1, points: 1000 },
+          { seasonNo: 1, rank: 1, points: 3105 }
         ]
       },
       b: {
@@ -95,12 +109,13 @@ describe('golferRecordBoards', () => {
     const boards = golferRecordBoards(hist, pros);
     const champs = boards.find((b) => b.id === 'championships')!;
     // Alpha won two DIFFERENT seasons both numbered relative to their own
-    // career — both are real championships and both should appear, ranked
-    // by that season's points, independent of season-number collisions
-    // across golfers (Bravo's un-won S1 never appears here at all).
-    expect(champs.entries.map((e) => [e.name, e.label])).toEqual([
-      ['Alpha', 'S2 · 3105 pts'],
-      ['Alpha', 'S1 · 1000 pts']
+    // career — both are real championships and both should appear, in
+    // chronological order, independent of season-number collisions across
+    // golfers (Bravo's un-won S1 never appears here at all) and independent
+    // of which one scored more.
+    expect(champs.entries.map((e) => [e.rank, e.name, e.label])).toEqual([
+      [1, 'Alpha', 'S1 · 3105 pts'],
+      [1, 'Alpha', 'S2 · 1000 pts']
     ]);
   });
 
@@ -125,6 +140,84 @@ describe('recordTourEventWin', () => {
     expect(hist.a.wins).toBe(4);
     expect(hist.a.majors.sort()).toEqual([MAJOR_NAMES[0], MAJOR_NAMES[1]].sort());
     expect(hist.a.majorCounts).toEqual({ [MAJOR_NAMES[0]]: 2, [MAJOR_NAMES[1]]: 1 });
+  });
+});
+
+/** A minimal archived season: `wins` are the 0-based event indices the
+ *  player finished 1st in (drives both the win count and, via
+ *  TOUR_MAJOR_IDXS, which of those wins were majors — mirrors how
+ *  tourSchedule decides major-ness from idx alone, independent of seed). */
+function archivedSeason(
+  proId: string,
+  proName: string,
+  seasonNo: number,
+  wins: number[],
+  opts: { ended?: ArchivedTourSeason['ended']; totalEvents?: number } = {}
+): ArchivedTourSeason {
+  const totalEvents = opts.totalEvents ?? 16;
+  const results = Array.from({ length: totalEvents }, (_, idx) => ({
+    idx,
+    playerRank: wins.includes(idx) ? 1 : 4,
+    points: wins.includes(idx) ? 500 : 100,
+    toPar: -2,
+    winnerId: wins.includes(idx) ? 'player' : 'rival1'
+  }));
+  return {
+    key: `solo:${seasonNo}`,
+    seasonNo,
+    proId,
+    proName,
+    at: 0,
+    ended: opts.ended ?? 'finale',
+    playerRank: 1,
+    playerPoints: 1000,
+    standings: [{ id: 'player', name: proName, isPlayer: true, total: 1000, toPar: -2 }],
+    results
+  };
+}
+
+describe('tourHistoryFromArchive', () => {
+  it('reconstructs wins, majors and per-major counts purely from event index', () => {
+    // idx 3 and 7 are both TOUR_MAJOR_IDXS — the Pro won the first major
+    // twice (across two seasons) and the second major once, plus one
+    // ordinary (non-major) event.
+    const [major1, major2] = TOUR_MAJOR_IDXS;
+    const archive = [
+      archivedSeason('a', 'Alpha', 1, [major1, 0]),
+      archivedSeason('a', 'Alpha', 2, [major1, major2])
+    ];
+    const hist = tourHistoryFromArchive(archive);
+    expect(hist.a.wins).toBe(4); // major1 x2, major2 x1, event 0 x1
+    expect(hist.a.majorWins).toBe(3);
+    expect(hist.a.majorCounts).toEqual({ [MAJOR_NAMES[0]]: 2, [MAJOR_NAMES[1]]: 1 });
+    expect(hist.a.majors.sort()).toEqual([MAJOR_NAMES[0], MAJOR_NAMES[1]].sort());
+    expect(hist.a.seasons.map((s) => s.seasonNo)).toEqual([1, 2]);
+  });
+
+  it('records a quit season with its actual event count, not a full season', () => {
+    const archive = [archivedSeason('a', 'Alpha', 1, [], { ended: 'quit', totalEvents: 6 })];
+    const hist = tourHistoryFromArchive(archive);
+    expect(hist.a.seasons[0]).toMatchObject({ seasonNo: 1, events: 6 });
+  });
+
+  it('skips an archive entry with no proId (never a real Pro to credit)', () => {
+    const archive = [{ ...archivedSeason('', '', 1, [0]) }];
+    expect(tourHistoryFromArchive(archive)).toEqual({});
+  });
+
+  it('fixes the reported bug: old data with majorWins/majors but no majorCounts gets its counts back via merge', () => {
+    // Exactly the shape a pre-majorCounts save would have: majors/majorWins
+    // say a Grand Slam happened, majorCounts is empty because that field
+    // didn't exist yet — the grid would show every cell as zero.
+    const staleHist: TourHistory = {
+      a: { name: 'Alpha', wins: 4, majorWins: 4, majors: [...MAJOR_NAMES], majorCounts: {}, seasons: [] }
+    };
+    const archive = TOUR_MAJOR_IDXS.map((idx, i) => archivedSeason('a', 'Alpha', i + 1, [idx]));
+    const reconciled = mergeTourHistory(staleHist, tourHistoryFromArchive(archive));
+    expect(reconciled.a.majorCounts).toEqual(Object.fromEntries(MAJOR_NAMES.map((m) => [m, 1])));
+    const grid = majorsGrid(reconciled, [pro('a', 'Alpha')]);
+    expect(grid.columns[0]).toMatchObject({ name: 'Alpha', tag: ' — GRAND SLAM' });
+    expect(grid.rows.map((r) => r.counts[0])).toEqual([1, 1, 1, 1]);
   });
 });
 

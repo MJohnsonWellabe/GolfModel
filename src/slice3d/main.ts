@@ -54,7 +54,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, majorsGrid, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, majorsGrid, MAJOR_NAMES, MAX_PLAYOFF_HOLES, mergeTourHistory, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, tourHistoryFromArchive, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -8697,13 +8697,22 @@ function renderTourEventResult(idx: number): void {
  * (`golferRecordBoards`). Both are pure aggregation; this just renders them
  * with the same board markup the global leaderboards use. Renders inside
  * the tour hub overlay; Back returns to the hub.
+ *
+ * `hist` is `profile.tourHistory` MERGED with `tourHistoryFromArchive` —
+ * owner: a Grand Slam showed on the majors grid with every count reading
+ * zero under it, "it needs to pull history". `tourHistory` is written
+ * incrementally by a handful of call sites (and `majorCounts` didn't exist
+ * until this screen did), so a win recorded before that — or by a path that
+ * missed a call — has no count without this. The archive is replayed fresh
+ * on every open rather than persisted back, so this never touches the saved
+ * profile or its cross-device merge.
  */
 function renderTourGolferRecords(): void {
   const el = document.getElementById('tourHub');
   if (!el) return;
   el.style.display = 'flex';
   tourView = 'records';
-  const hist = profile.tourHistory;
+  const hist = mergeTourHistory(profile.tourHistory, tourHistoryFromArchive(profile.tours.archive));
   const pros = profile.career.pros;
   const t = tourNow();
   const liveNote =
@@ -12916,6 +12925,42 @@ else {
   const fin = finishSeason(t);
   recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);
   closeOutSeason(t, proRetired(profile.tourHistory, pro.id) ? 'retired' : 'finale');
+  persistProfile();
+  return true;
+};
+// Test hook (tests/visual/tourRecords.spec.ts — "it needs to pull history"):
+// writes a season straight into profile.tours.archive, the way a real
+// closed-out season lands there, WITHOUT calling recordTourEventWin/
+// recordTourSeasonFinish — simulating a win that's real (it's sitting in the
+// archive, same as any other finished season) but whose profile.tourHistory
+// entry never got the call that should have stamped it. Lets a spec assert
+// the records screen still shows it, via tourHistoryFromArchive.
+(window as unknown as { __forgeArchivedMajorWin: unknown }).__forgeArchivedMajorWin = (
+  seasonNo: number,
+  majorIdx: number
+) => {
+  const pro = activePro(profile.career);
+  if (!pro) return false;
+  const winIdx = TOUR_MAJOR_IDXS[majorIdx] ?? TOUR_MAJOR_IDXS[0];
+  const results = Array.from({ length: TOUR_EVENTS }, (_, i) => ({
+    idx: i,
+    playerRank: i === winIdx ? 1 : 4,
+    points: i === winIdx ? 500 : 100,
+    toPar: -2,
+    winnerId: i === winIdx ? pro.id : TOUR_RIVALS[0].id
+  }));
+  profile.tours.archive.unshift({
+    key: `solo:${900000 + seasonNo}`,
+    seasonNo,
+    proId: pro.id,
+    proName: pro.name,
+    at: Date.now(),
+    ended: 'finale',
+    playerRank: 1,
+    playerPoints: 1000,
+    standings: [{ id: 'player', name: pro.name, isPlayer: true, total: 1000, toPar: -2 }],
+    results
+  });
   persistProfile();
   return true;
 };

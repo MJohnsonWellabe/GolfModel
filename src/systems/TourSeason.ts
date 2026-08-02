@@ -1149,7 +1149,10 @@ export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]
         label: `${rec.seasons.length}/${SEASON_LIMIT}`
       });
       for (const s of rec.seasons) {
-        if (s.rank === 1) championRows.push({ name, value: s.points, label: `S${s.seasonNo} · ${s.points} pts` });
+        // `value` carries the season number here, not points — this board
+        // sorts chronologically (owner: "the season winners should order by
+        // season number"), not by who scored more.
+        if (s.rank === 1) championRows.push({ name, value: s.seasonNo, label: `S${s.seasonNo} · ${s.points} pts` });
       }
     }
   }
@@ -1177,7 +1180,13 @@ export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]
       id: 'championships',
       title: '🥇 Season championships',
       blurb: 'Every season a golfer finished on top of the points table.',
-      entries: rankRows(championRows)
+      // Chronological, not ranked against each other — every row here IS a
+      // championship, so `rank` is pinned at 1 for all of them (the renderer
+      // shows 🏆 for rank 1), ordered oldest season first instead of
+      // running rankRows' points-desc sort.
+      entries: [...championRows]
+        .sort((a, b) => a.value - b.value)
+        .map((r) => ({ rank: 1, name: r.name, tag: r.tag, label: r.label, sub: r.sub }))
     }
   ];
 }
@@ -1415,6 +1424,46 @@ export interface ArchivedTourSeason {
   results: TourEventResult[];
   /** Present when it was a shared season: who it was played with. */
   coop?: { id: string; partnerNames: string[] };
+}
+
+/**
+ * RECOVER a Pro's wins and season finishes straight from the archive (owner:
+ * a golfer's Grand Slam badge showed on the majors grid, but the count under
+ * it read zero everywhere — "it needs to pull history"). `TourHistory` is
+ * built incrementally by `recordTourEventWin`/`recordTourSeasonFinish` at a
+ * handful of call sites, and `majorCounts` didn't exist until this screen
+ * did — any win recorded before then, or by a path that missed a call, has
+ * no count to show even though `majors`/`majorWins` (older, coarser fields)
+ * still say it happened. `ArchivedTourSeason.results` is the one place that
+ * never depended on those call sites: every event this Pro ever finished is
+ * still sitting there, and which of those were a MAJOR — and which major —
+ * is a pure function of the event's index (`TOUR_MAJOR_IDXS`/`MAJOR_NAMES`;
+ * see `tourSchedule`), not of the season's seed. So replaying the archive
+ * through the exact same recording functions reconstructs an independent,
+ * complete `TourHistory` — merge it with whatever's already stored
+ * (`mergeTourHistory`, larger tallies win) and every past win counts again,
+ * regardless of whether its own recording call ever fired.
+ */
+export function tourHistoryFromArchive(archive: readonly ArchivedTourSeason[]): TourHistory {
+  const out: TourHistory = {};
+  for (const a of archive) {
+    if (!a.proId) continue;
+    for (const r of a.results) {
+      if (r.playerRank !== 1) continue;
+      const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
+      recordTourEventWin(out, a.proId, a.proName, majorNo >= 0 ? MAJOR_NAMES[majorNo] : undefined);
+    }
+    recordTourSeasonFinish(
+      out,
+      a.proId,
+      a.proName,
+      a.seasonNo,
+      a.playerRank,
+      a.playerPoints,
+      a.ended === 'quit' ? a.results.length : undefined
+    );
+  }
+  return out;
 }
 
 /** Archive cap. Ten seasons is the career limit per Pro (SEASON_LIMIT), so this
