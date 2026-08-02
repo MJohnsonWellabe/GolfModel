@@ -54,7 +54,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, hasGrandSlam, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -8623,10 +8623,15 @@ function renderTourEventResult(idx: number): void {
 /**
  * THE RECORD BOOK (owner: "inside the tour screen there should be a way to
  * access past results by golfer. so I can see career wins, major wins and
- * season placements. for any golfer I've used"): every Pro in the stable —
- * and every Pro since deleted whose record survives on the profile — with
- * their career wins, major wins, and season-by-season placements. Renders
- * inside the tour hub overlay; Back returns to the hub.
+ * season placements. for any golfer I've used" — then, stacked differently:
+ * "show the major wins in a section, tourney wins in a section, season
+ * points, seasons played, etc. all separate sections rather than separating
+ * by golfer"): one board per stat, each a ranked list of every Pro in the
+ * stable — and every Pro since deleted whose record survives on the profile
+ * — who has a qualifying result. `golferRecordBoards` does the pure
+ * aggregation; this just renders it with the same board markup the global
+ * leaderboards use. Renders inside the tour hub overlay; Back returns to the
+ * hub.
  */
 function renderTourGolferRecords(): void {
   const el = document.getElementById('tourHub');
@@ -8635,53 +8640,36 @@ function renderTourGolferRecords(): void {
   tourView = 'records';
   const hist = profile.tourHistory;
   const pros = profile.career.pros;
-  // The stable in creation order, then record-book-only Pros (deleted from
-  // the stable, but their wins are still theirs).
-  const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
   const t = tourNow();
   const liveNote =
     t && Object.keys(t.points).length
       ? `<div class="recSub">Season ${t.seasonNo} is in progress — its placement joins the book when it ends.</div>`
       : '';
-  const cards = ids
-    .map((id) => {
-      const pro = pros.find((p) => p.id === id);
-      const rec = hist[id];
-      const name = pro?.name ?? rec?.name ?? id;
-      const style = pro ? (ARCHETYPES.find((a) => a.id === pro.styleId)?.name ?? '') : '';
-      const tag = !pro ? ' · retired' : proRetired(hist, id) ? ' · 🏛 Hall of Fame' : style ? ` · ${style}` : '';
-      const wins = rec?.wins ?? 0;
-      const majors = rec?.majorWins ?? 0;
-      const seasons = rec?.seasons ?? [];
-      const slam = hasGrandSlam(rec);
-      const majorNames = rec?.majors ?? [];
-      const seasonRows = seasons.length
-        ? seasons
-            .map(
-              (s) =>
-                `<div class="recRow"><span class="recRk">S${s.seasonNo}</span>` +
-                `<span class="recNm">${s.rank === 1 ? '🏆 Season champion' : `${ordinal(s.rank)} in points`}` +
-                `${s.events !== undefined ? ` · left after ${s.events}` : ''}</span>` +
-                `<span class="recTot">${s.points} pts</span></div>`
-            )
-            .join('')
-        : `<div class="recSub">No season finished yet.</div>`;
-      return (
-        `<div class="tourResult thProCard"><div class="tourHeadRow">🏌 ${escapeHtml(name)}${escapeHtml(tag)}</div>` +
-        `<div class="recRow"><span class="recRk">🏆</span><span class="recNm">Tour wins</span><span class="recTot">${wins}</span></div>` +
-        `<div class="recRow"><span class="recRk">👑</span><span class="recNm">Majors${slam ? ' — GRAND SLAM' : ''}</span><span class="recTot">${majors}</span></div>` +
-        (majorNames.length ? `<div class="recSub">${escapeHtml(majorNames.join(' · '))}</div>` : '') +
-        `<div class="recRow"><span class="recRk">📅</span><span class="recNm">Seasons played</span><span class="recTot">${seasons.length}/${SEASON_LIMIT}</span></div>` +
-        seasonRows +
-        `</div>`
-      );
-    })
-    .join('');
-  el.innerHTML =
-    `<div class="recInner"><h2>🏅 Golfer records</h2>` +
-    (cards || `<div class="recSub">Start a career and play the tour — every Pro's wins land here.</div>`) +
-    liveNote +
-    `<button id="thRecBack" class="ghostBtn">Back</button></div>`;
+  // No Pro has ever existed — nothing to aggregate at all. Once a Pro exists,
+  // even with nothing qualifying yet, each section below shows its own
+  // "Nobody yet" rather than this blanket message (matches the global
+  // records boards' convention).
+  const everHadAPro = pros.length > 0 || Object.keys(hist).length > 0;
+  const sections = everHadAPro
+    ? golferRecordBoards(hist, pros)
+        .map((b) => {
+          const rows = b.entries.length
+            ? b.entries
+                .map(
+                  (e) =>
+                    `<div class="recRow"><span class="recRk">${e.rank === 1 ? '🏆' : `${e.rank}.`}</span>` +
+                    `<span class="recNm">${escapeHtml(e.name)}${e.tag ? escapeHtml(e.tag) : ''}</span>` +
+                    `<span class="recTot">${escapeHtml(e.label)}</span></div>` +
+                    (e.sub ? `<div class="recSub">${escapeHtml(e.sub)}</div>` : '')
+                )
+                .join('')
+            : `<div class="recEmpty">Nobody yet — be first.</div>`;
+          return `<div class="boardBlock"><div class="boardHead">${b.title}</div>` +
+            `<div class="boardBlurb">${escapeHtml(b.blurb)}</div>${rows}</div>`;
+        })
+        .join('')
+    : `<div class="recSub">Start a career and play the tour — every Pro's wins land here.</div>`;
+  el.innerHTML = `<div class="recInner"><h2>🏅 Golfer records</h2>${sections}${liveNote}<button id="thRecBack" class="ghostBtn">Back</button></div>`;
   el.querySelector('#thRecBack')?.addEventListener('click', () => renderTourHub());
 }
 

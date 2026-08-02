@@ -2,17 +2,23 @@ import { expect, test } from '@playwright/test';
 import { openDestination, seedReturningDevice } from './support/wizard';
 
 /**
- * THE RECORD BOOK on the real UI (owner: "inside the tour screen there should
- * be a way to access past results by golfer. so I can see career wins, major
- * wins and season placements. for any golfer I've used"): the hub carries a
- * Golfer records door; a fresh Pro reads as a blank page; recorded results —
- * stamped through the REAL recording functions — render as wins, majors, and
- * season placements per Pro.
+ * THE RECORD BOOK on the real UI (owner, pass 1: "inside the tour screen
+ * there should be a way to access past results by golfer. so I can see
+ * career wins, major wins and season placements. for any golfer I've used" —
+ * then, pass 2: "stack up the golfer records from career tour seasons
+ * differently. show the major wins in a section, tourney wins in a section,
+ * season points, seasons played, etc. all separate sections rather than
+ * separating by golfer"): the hub carries a Golfer records door; a fresh Pro
+ * qualifies for nothing yet, so every section reads "Nobody yet"; recorded
+ * results — stamped through the REAL recording functions — land the golfer
+ * in the sections they qualify for.
  */
 
 const PHONE = { width: 390, height: 844 };
 
-test('the hub opens the record book: wins, majors, season placements per Pro', async ({ page }) => {
+test('the hub opens the record book: wins, majors, season points and championships by section', async ({
+  page
+}) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -30,18 +36,23 @@ test('the hub opens the record book: wins, majors, season placements per Pro', a
   await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
   await page.locator('#lkBack').dispatchEvent('click');
 
-  // The hub carries the door; a fresh Pro's page is blank but PRESENT.
+  // The hub carries the door; a fresh Pro qualifies for nothing, so every
+  // section is present but reads its own empty state.
   await page.locator('#destTour').dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
   await hub.locator('#thRecords').dispatchEvent('click');
   await expect(hub).toContainText('Golfer records');
-  await expect(hub).toContainText('Records Pro');
+  await expect(hub).toContainText('Major wins');
   await expect(hub).toContainText('Tour wins');
-  await expect(hub).toContainText('No season finished yet');
+  await expect(hub).toContainText('Best season points');
+  await expect(hub).toContainText('Seasons played');
+  await expect(hub).toContainText('Season championships');
+  await expect(hub).toContainText('Nobody yet');
+  await expect(hub).not.toContainText('Records Pro');
 
   // Stamp a career through the real recording functions: two wins (one a
-  // major) and two finished seasons.
+  // major) and two finished seasons — S1 3rd in points, S2 the champion.
   const forged = await page.evaluate(() => {
     const w = window as never as { __forgeTourResult: (k: string, s?: number, r?: number, p?: number) => boolean };
     return (
@@ -53,17 +64,29 @@ test('the hub opens the record book: wins, majors, season placements per Pro', a
   });
   expect(forged).toBe(true);
 
-  // Re-open the book: the tallies and placements read per the design —
-  // career wins, major wins, and one line per season.
+  // Re-open the book: each qualifying stat lands the Pro in its own section.
   await hub.locator('#thRecBack').dispatchEvent('click');
   await hub.locator('#thRecords').dispatchEvent('click');
-  const card = hub.locator('.thProCard', { hasText: 'Records Pro' });
-  await expect(card).toContainText('Tour wins');
-  await expect(card.locator('.recRow', { hasText: 'Tour wins' })).toContainText('2');
-  await expect(card.locator('.recRow', { hasText: 'Majors' })).toContainText('1');
-  await expect(card.locator('.recRow', { hasText: /^S1/ })).toContainText('3rd in points');
-  await expect(card.locator('.recRow', { hasText: /^S1/ })).toContainText('1240 pts');
-  await expect(card.locator('.recRow', { hasText: /^S2/ })).toContainText('Season champion');
+
+  const majorsBlock = hub.locator('.boardBlock', { hasText: 'Major wins' });
+  await expect(majorsBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('1');
+
+  const winsBlock = hub.locator('.boardBlock', { hasText: 'Tour wins' });
+  await expect(winsBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('2');
+
+  // Best season points is S2's 3105, not S1's lower 1240 — a max, not a sum.
+  const seasonPointsBlock = hub.locator('.boardBlock', { hasText: 'Best season points' });
+  await expect(seasonPointsBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('3105 pts (S2)');
+
+  const seasonsPlayedBlock = hub.locator('.boardBlock', { hasText: 'Seasons played' });
+  await expect(seasonsPlayedBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('2/10');
+
+  // Only S2 was a championship (rank 1) — S1's 3rd-place finish must not
+  // appear here at all: this section is championships only.
+  const championshipsBlock = hub.locator('.boardBlock', { hasText: 'Season championships' });
+  const championshipRows = championshipsBlock.locator('.recRow', { hasText: 'Records Pro' });
+  await expect(championshipRows).toHaveCount(1);
+  await expect(championshipRows).toContainText('S2 · 3105 pts');
 
   // Back returns to the hub proper.
   await hub.locator('#thRecBack').dispatchEvent('click');

@@ -3,6 +3,7 @@ import { CourseData } from '../core/types';
 import { TOUR_RIVALS, TourRival } from '../data/tourRivals';
 import { simulateEntrantRound } from './AiTournament';
 import { majorCourseForRound } from './TourMajorSetup';
+import type { CareerPro } from '../data/career';
 
 /**
  * THE TOUR SEASON — the career Pro's competitive spine (owner, career round
@@ -985,6 +986,137 @@ export function migrateTourHistory(raw: unknown): TourHistory {
     };
   }
   return out;
+}
+
+// ----- RECORD BOOK, BY STAT (owner: "stack up the golfer records from career
+// tour seasons differently. show the major wins in a section, tourney wins in
+// a section, season points, seasons played, etc. all separate sections rather
+// than separating by golfer"). `golferRecordBoards` folds the same
+// `TourHistory` the per-golfer cards used to read into one ranked board per
+// stat — pure, so it's testable without a browser (same shape/spirit as
+// `RecordBoards.ts`'s `recordBoards()` for the global leaderboards).
+
+export interface GolferRecordEntry {
+  rank: number;
+  name: string;
+  /** Trailing tag next to the name — Grand Slam, Hall of Fame. */
+  tag?: string;
+  /** Display value, e.g. "3", "3105 pts (S2)". */
+  label: string;
+  /** Optional sub-line under the row, e.g. which majors were won. */
+  sub?: string;
+}
+
+export interface GolferRecordBoard {
+  id: string;
+  title: string;
+  blurb: string;
+  entries: GolferRecordEntry[];
+}
+
+interface GolferRow {
+  name: string;
+  tag?: string;
+  value: number;
+  label: string;
+  sub?: string;
+}
+
+/** Sort rows by value desc and apply competition ranking ("1224" — tied
+ *  values share the better rank), same convention as `RecordBoards.ts`'s
+ *  internal `board()`. */
+function rankRows(rows: GolferRow[]): GolferRecordEntry[] {
+  const sorted = [...rows].sort((a, b) => b.value - a.value);
+  const out: GolferRecordEntry[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const rank = i > 0 && sorted[i].value === sorted[i - 1].value ? out[i - 1].rank : i + 1;
+    out.push({ rank, name: sorted[i].name, tag: sorted[i].tag, label: sorted[i].label, sub: sorted[i].sub });
+  }
+  return out;
+}
+
+/**
+ * One board per stat — Major wins, Tour wins, Best season points, Seasons
+ * played, and Season championships — each a ranked list of every golfer with
+ * a qualifying (nonzero) value, same "don't list a zero" convention the
+ * global boards use (a golfer with 0 aces never appears on the Aces board).
+ *
+ * `pros` is the live stable (for name/id ordering); `hist` also covers Pros
+ * since deleted from the stable, whose record still counts.
+ */
+export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]): GolferRecordBoard[] {
+  const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
+  const nameFor = (id: string): string => pros.find((p) => p.id === id)?.name ?? hist[id]?.name ?? id;
+
+  const majorRows: GolferRow[] = [];
+  const winRows: GolferRow[] = [];
+  const bestSeasonRows: GolferRow[] = [];
+  const seasonsPlayedRows: GolferRow[] = [];
+  const championRows: GolferRow[] = [];
+
+  for (const id of ids) {
+    const rec = hist[id];
+    if (!rec) continue;
+    const name = nameFor(id);
+    if (rec.majorWins > 0) {
+      majorRows.push({
+        name,
+        tag: hasGrandSlam(rec) ? ' — GRAND SLAM' : undefined,
+        value: rec.majorWins,
+        label: `${rec.majorWins}`,
+        sub: rec.majors.join(' · ')
+      });
+    }
+    if (rec.wins > 0) {
+      winRows.push({ name, value: rec.wins, label: `${rec.wins}` });
+    }
+    if (rec.seasons.length > 0) {
+      const best = rec.seasons.reduce((a, b) => (b.points > a.points ? b : a));
+      bestSeasonRows.push({ name, value: best.points, label: `${best.points} pts (S${best.seasonNo})` });
+      seasonsPlayedRows.push({
+        name,
+        tag: proRetired(hist, id) ? ' · 🏛 Hall of Fame' : undefined,
+        value: rec.seasons.length,
+        label: `${rec.seasons.length}/${SEASON_LIMIT}`
+      });
+      for (const s of rec.seasons) {
+        if (s.rank === 1) championRows.push({ name, value: s.points, label: `S${s.seasonNo} · ${s.points} pts` });
+      }
+    }
+  }
+
+  return [
+    {
+      id: 'majors',
+      title: '👑 Major wins',
+      blurb: 'Career championships at the four majors.',
+      entries: rankRows(majorRows)
+    },
+    {
+      id: 'wins',
+      title: '🏆 Tour wins',
+      blurb: 'Every tour event won, majors included.',
+      entries: rankRows(winRows)
+    },
+    {
+      id: 'seasonPoints',
+      title: '📊 Best season points',
+      blurb: "Each golfer's single highest-scoring season.",
+      entries: rankRows(bestSeasonRows)
+    },
+    {
+      id: 'seasonsPlayed',
+      title: '📅 Seasons played',
+      blurb: `Full career runs out of ${SEASON_LIMIT}.`,
+      entries: rankRows(seasonsPlayedRows)
+    },
+    {
+      id: 'championships',
+      title: '🥇 Season championships',
+      blurb: 'Every season a golfer finished on top of the points table.',
+      entries: rankRows(championRows)
+    }
+  ];
 }
 
 /**
