@@ -143,6 +143,22 @@ export interface TourSeasonState {
   activeEvent: TourActiveEvent | null;
   /** SHARED SEASON: set when this season is being played with a friend. */
   coop?: TourCoopState;
+  /** The Pro this season belongs to, stamped ONCE at creation from whoever
+   *  was active then. Owner: "assigning most of my wins to Charlotte... they
+   *  were spread across pros" — a season used to have no memory of its own
+   *  owner, so every win recorded during it, and the season itself at
+   *  archive time, read `profile.career.activeProId` fresh — WHOEVER that
+   *  happened to be at that instant, not necessarily whoever actually played
+   *  it. Running more than one season in parallel (Stage 5) and switching
+   *  the season picker without also switching the active Pro in the Locker
+   *  (the picker never touched `activeProId`, and vice versa) silently
+   *  routed a season's wins onto whichever Pro was last active for anything
+   *  else. `proName` is snapshotted alongside so recording still works if
+   *  this Pro is later deleted from the stable. Absent on a season created
+   *  before this existed, which falls back to the old activePro()-at-use
+   *  behavior — see `seasonOwner` in main.ts. */
+  proId?: string;
+  proName?: string;
 }
 
 /** How a finished event went for the player, plus who took it. */
@@ -176,8 +192,16 @@ export interface TourStandingRow {
   dnp?: boolean;
 }
 
-export function newSeason(seed: number, seasonNo = 1): TourSeasonState {
-  return { seasonNo, seed, played: 0, points: {}, results: [], activeEvent: null };
+export function newSeason(seed: number, seasonNo = 1, proId?: string, proName?: string): TourSeasonState {
+  return {
+    seasonNo,
+    seed,
+    played: 0,
+    points: {},
+    results: [],
+    activeEvent: null,
+    ...(proId ? { proId, proName: proName ?? '' } : {})
+  };
 }
 
 /**
@@ -792,7 +816,7 @@ export function finishSeason(s: TourSeasonState, rivals: readonly TourRival[] = 
 /** The next season: number up, fresh seed (a NEW schedule), points cleared.
  *  The rivals persist by construction — they are the data, not the state. */
 export function rolloverSeason(s: TourSeasonState, newSeed: number): TourSeasonState {
-  return newSeason(newSeed, s.seasonNo + 1);
+  return newSeason(newSeed, s.seasonNo + 1, s.proId, s.proName);
 }
 
 // ----- PER-GOLFER TOUR RECORDS (owner pass 8 follow-up: "past results by
@@ -936,7 +960,7 @@ export function quitSeason(
   rivals: readonly TourRival[] = TOUR_RIVALS
 ): { recorded: TourProSeasonFinish | null; next: TourSeasonState | null; retired: boolean } {
   if (s.played <= 0) {
-    return { recorded: null, next: newSeason(newSeed, s.seasonNo), retired: false };
+    return { recorded: null, next: newSeason(newSeed, s.seasonNo, proId, proName), retired: false };
   }
   // The rank the player actually SAW — coopSeasonStandings folds in a shared
   // season's partner and falls through to the solo table when there is none.
@@ -946,7 +970,10 @@ export function quitSeason(
   recordTourSeasonFinish(history, proId, proName, s.seasonNo, rank || table.length, points, s.played);
   const recorded = history[proId].seasons.find((x) => x.seasonNo === s.seasonNo) ?? null;
   const retired = proRetired(history, proId);
-  return { recorded, next: retired ? null : rolloverSeason(s, newSeed), retired };
+  // newSeason directly, with the CALLER's resolved proId/proName — not
+  // rolloverSeason(s, ...), which would carry forward s.proId/proName and
+  // silently drop the stamp for a season quit before this field existed.
+  return { recorded, next: retired ? null : newSeason(newSeed, s.seasonNo + 1, proId, proName), retired };
 }
 
 /** Any stored shape → a valid history. A corrupt Pro record drops whole
@@ -1290,7 +1317,16 @@ export function migrateTour(raw: unknown): TourSeasonState | null {
         }
       : null;
   const coop = migrateCoop(t.coop);
-  return { seasonNo: t.seasonNo, seed: t.seed, played, points, results, activeEvent, ...(coop ? { coop } : {}) };
+  return {
+    seasonNo: t.seasonNo,
+    seed: t.seed,
+    played,
+    points,
+    results,
+    activeEvent,
+    ...(coop ? { coop } : {}),
+    ...(typeof t.proId === 'string' && t.proId ? { proId: t.proId, proName: typeof t.proName === 'string' ? t.proName : '' } : {})
+  };
 }
 
 /** A stored shared-season link → a valid one, or nothing. A damaged block

@@ -7443,8 +7443,27 @@ function setTour(t: TourSeasonState | null): void {
  * whole shared-season block — which is why a finished co-op season's standings
  * could not be looked at afterwards.
  */
-function closeOutSeason(t: TourSeasonState, ended: 'finale' | 'retired'): void {
+/**
+ * Who a season belongs to — the Pro stamped on it at creation
+ * (`t.proId`/`t.proName`), falling back to whoever's active NOW only for a
+ * LEGACY season created before that stamp existed (owner: "assigning most
+ * of my wins to Charlotte... they were spread across pros" — reading
+ * `activePro()` fresh at record/archive time is what caused that: it is
+ * whoever is active THIS INSTANT, not necessarily whoever played the
+ * season). Every recording/archiving call below must resolve the owner
+ * through this, never through a bare `activePro(profile.career)` read.
+ */
+function seasonOwner(t: TourSeasonState): { id: string; name: string } | null {
+  if (t.proId) {
+    const live = profile.career.pros.find((p) => p.id === t.proId);
+    return { id: t.proId, name: live?.name || t.proName || 'Golfer' };
+  }
   const pro = activePro(profile.career);
+  return pro ? { id: pro.id, name: pro.name } : null;
+}
+
+function closeOutSeason(t: TourSeasonState, ended: 'finale' | 'retired'): void {
+  const pro = seasonOwner(t);
   profile.tours = archiveTour(profile.tours, t, {
     proId: pro?.id ?? '',
     proName: pro?.name ?? '',
@@ -7506,8 +7525,24 @@ function startTourEvent(): void {
   if (!tourNow()) {
     // nextSeasonNo, not the default 1: a player who has archived seasons (or
     // is running one alongside) must not be handed a duplicate number.
-    setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
+    // pro?.id/name stamped now so this season stays THIS Pro's, whatever
+    // the player switches to before it closes out.
+    setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours), pro?.id, pro?.name));
     persistProfile();
+  } else {
+    // An EXISTING season is about to actually be played — resolve and lock in
+    // its real owner right here, not whoever the Locker happens to be showing
+    // (owner: "assigning most of my wins to Charlotte... they were spread
+    // across pros" — switching which season is active without also switching
+    // the Locker's active Pro used to silently play the round, and record it,
+    // as whoever was last active). roundGolfer() reads activePro() fresh at
+    // tee-off, so fixing it here is enough to guarantee the character AND the
+    // stats used for the whole round are the season's true owner's.
+    const owner = seasonOwner(tourNow()!);
+    if (owner && owner.id !== profile.career.activeProId && profile.career.pros.some((p) => p.id === owner.id)) {
+      profile.career = setActivePro(profile.career, owner.id);
+      persistProfile();
+    }
   }
   // The tour is played AS the Pro — entering selects the career style.
   if (sel.archetype !== 'career') {
@@ -7585,7 +7620,10 @@ async function syncCoopSeason(repaint = false): Promise<void> {
  * pays the champion reward it was holding back.
  */
 function settleFinishedCoopSeason(t: TourSeasonState): void {
-  const pro = activePro(profile.career);
+  // seasonOwner, NOT activePro(): this runs off an async partner-sync
+  // (`syncCoopSeason`), which can land well after the player has switched to
+  // a different Pro or season since actually playing this one.
+  const pro = seasonOwner(t);
   if (!pro || t.played < TOUR_EVENTS || !t.coop) return;
   if (!coopSeasonSettled(t, Date.now())) return;
   const fin = finishSeason(t);
@@ -7610,9 +7648,13 @@ async function startCoopSeason(): Promise<void> {
   const myId = challengePlayerId();
   const existing = tourNow();
   const seasonNo = existing?.seasonNo ?? 1;
+  const startingPro = activePro(profile.career);
   // A season with events already banked can't be shared retroactively — the
   // partner would be joining a race already run — so that case starts fresh.
-  const base = existing && existing.played === 0 ? existing : newSeason(Math.floor(Math.random() * 1e9), seasonNo);
+  const base =
+    existing && existing.played === 0
+      ? existing
+      : newSeason(Math.floor(Math.random() * 1e9), seasonNo, startingPro?.id, startingPro?.name);
   const sid = makeCoopId();
   // Whoever starts the season chooses its difficulty, and it is theirs at the
   // moment of starting — so a later Settings change never retunes a season
@@ -7674,9 +7716,12 @@ async function receiveCoopInvite(raw: string): Promise<void> {
         renderLockerRoom();
         return;
       }
+      // Resolved BEFORE the network awaits below, not after — this Pro is who
+      // is joining, whatever else the player does while the request is in flight.
+      const joiningPro = activePro(profile.career);
       await joinCoopSeason(sid, myId, coopDisplayName());
       const fresh = (await fetchCoopSeason(sid)) ?? doc;
-      const season = newSeason(fresh.seed, fresh.seasonNo);
+      const season = newSeason(fresh.seed, fresh.seasonNo, joiningPro?.id, joiningPro?.name);
       // The host's difficulty comes along with the schedule and the seed: from
       // here on every event in THIS season is played at it, whatever the joiner
       // has set for their own rounds.
@@ -7940,9 +7985,12 @@ function tourEventOutcomeUi(
   const evRows = tourEventBoardHtml(outcome.standings, def.idx);
   const won = outcome.playerRank === 1;
   const myPts = outcome.pointsAwarded?.['player'] ?? 0;
-  // The Pro this result belongs to in the record book (the tour force-selects
-  // the active Pro on entry, so this is who just played).
-  const recordPro = activePro(profile.career);
+  // The Pro this result belongs to in the record book — the season's OWN
+  // stamped owner (`seasonOwner`), not whoever the Locker's active Pro
+  // happens to be right now: those two can drift apart the moment more than
+  // one season is live at once (owner: "assigning most of my wins to
+  // Charlotte... they were spread across pros").
+  const recordPro = seasonOwner(t);
   let headline: string;
   let cpLine = '';
   if (won) {
@@ -8158,7 +8206,7 @@ function renderPlayoffSummary(): void {
  */
 function confirmQuitSeason(): void {
   const t = tourNow();
-  const pro = activePro(profile.career);
+  const pro = t ? seasonOwner(t) : null;
   if (!t || !pro) return;
   const started = t.played > 0;
   const complete = t.played >= TOUR_EVENTS;
@@ -8223,7 +8271,7 @@ function confirmQuitSeason(): void {
  *  same way startRound does. */
 function applyQuitSeason(): void {
   const t = tourNow();
-  const pro = activePro(profile.career);
+  const pro = t ? seasonOwner(t) : null;
   if (!t || !pro) return;
   // Moving on from a COMPLETE shared season freezes the title where it
   // stands, so a player who is leading takes it rather than losing it by
@@ -8318,7 +8366,7 @@ function renderTourHub(fromSync = false): void {
     // did before this screen learned to gate a FRESH season on an explicit
     // tap. Silently standing one up here changes nothing for them.
     if (noTourPro && proRetired(profile.tourHistory, noTourPro.id)) {
-      setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
+      setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours), noTourPro.id, noTourPro.name));
       persistProfile();
     } else {
       // No active season — either this Pro's very first visit, or a season
@@ -8358,7 +8406,7 @@ function renderTourHub(fromSync = false): void {
         el.style.display = 'none';
       });
       el.querySelector('#thStartSeason')?.addEventListener('click', () => {
-        setTour(newSeason(Math.floor(Math.random() * 1e9), n));
+        setTour(newSeason(Math.floor(Math.random() * 1e9), n, noTourPro?.id, noTourPro?.name));
         persistProfile();
         renderTourHub();
       });
@@ -8373,6 +8421,15 @@ function renderTourHub(fromSync = false): void {
     }
   }
   const t = tourNow()!;
+  // NOT resynced to the season's owner here on mere viewing (an earlier pass
+  // did this unconditionally and it backfired: reaching "Start another
+  // season" for a DIFFERENT Pro always routes through this render first, so
+  // snapping activeProId back to the already-active season's owner made it
+  // impossible to ever start a parallel season for anyone else — you could
+  // never keep a different Pro active long enough to tap the button). Actual
+  // play resolves and locks in the real owner right before it matters, in
+  // startTourEvent(); recording resolves it independently via seasonOwner()
+  // at every call site. Merely looking at the hub commits to nothing.
   const ids = tourCourseIds();
   const def = currentEvent(t, ids);
   const roundsIn = eventRoundsPlayed(t);
@@ -8835,6 +8892,17 @@ function renderSeasonPicker(): void {
   el.querySelectorAll('.seasonPick[data-season]').forEach((b) =>
     b.addEventListener('click', () => {
       const key = (b as HTMLElement).dataset.season!;
+      // Switching WHICH season plays next has to also switch WHO plays it —
+      // this used to only flip `profile.tours.activeId`, leaving the Locker's
+      // active Pro wherever it last was. Play a few events and every one of
+      // them recorded onto the wrong Pro (owner: "assigning most of my wins
+      // to Charlotte... they were spread across pros"). A season with no
+      // stamped owner (created before this existed) leaves the active Pro
+      // alone, same as before.
+      const picked = profile.tours.seasons[key];
+      if (picked?.proId && profile.career.pros.some((p) => p.id === picked.proId)) {
+        profile.career = setActivePro(profile.career, picked.proId);
+      }
       profile.tours = selectTour(profile.tours, key);
       persistProfile();
       renderTourHub();
@@ -8847,9 +8915,10 @@ function renderSeasonPicker(): void {
       renderSeasonPicker();
       return;
     }
+    const addingPro = activePro(profile.career);
     profile.tours = putTour(
       profile.tours,
-      newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours))
+      newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours), addingPro?.id, addingPro?.name)
     );
     persistProfile();
     analytics.track('season_started', { live: Object.keys(profile.tours.seasons).length });
@@ -12899,6 +12968,31 @@ else {
 // book without winning simulated events.
 (window as unknown as { __tourRecords: unknown }).__tourRecords = () =>
   JSON.parse(JSON.stringify(profile.tourHistory));
+// Diagnostic (owner: "won't the season results show the actual pro's name.
+// just look there"): every archived season's OWN stamped proId/proName —
+// the season-level record itself, before any of the record-book's
+// aggregation — next to the CURRENT roster, so a mismatch between what a
+// season says it belongs to and who's actually in the stable today is
+// visible directly rather than inferred. Read-only.
+(window as unknown as { __tourArchiveDump: unknown }).__tourArchiveDump = () => ({
+  pros: profile.career.pros.map((p) => ({ id: p.id, name: p.name })),
+  activeProId: profile.career.activeProId,
+  activeSeason: (() => {
+    const t = activeTour(profile.tours);
+    return t ? { seasonNo: t.seasonNo, proId: t.proId ?? null, proName: t.proName ?? null } : null;
+  })(),
+  archive: profile.tours.archive
+    .map((a) => ({
+      seasonNo: a.seasonNo,
+      proId: a.proId,
+      proName: a.proName,
+      ended: a.ended,
+      playerRank: a.playerRank,
+      playerPoints: a.playerPoints,
+      at: new Date(a.at).toISOString()
+    }))
+    .sort((x, y) => x.at.localeCompare(y.at))
+});
 (window as unknown as { __forgeTourResult: unknown }).__forgeTourResult = (
   kind: 'win' | 'major' | 'season',
   seasonNo = 1,
@@ -12918,9 +13012,15 @@ else {
 // requiring a spec to actually play sixteen events. Lets a spec assert the
 // hub does NOT land in a fresh season afterward — only the explicit
 // "Start Season N" button does that.
+//
+// Resolves the owner via seasonOwner(t), NOT a bare activePro(profile.career)
+// read — this hook exists to exercise the same finale path the real UI takes,
+// and the whole point of the ownership fix is that a season must archive under
+// ITS OWN stamped Pro even when a DIFFERENT Pro is currently active (owner:
+// "assigning most of my wins to Charlotte... they were spread across pros").
 (window as unknown as { __forceSeasonFinale: unknown }).__forceSeasonFinale = () => {
   const t = tourNow();
-  const pro = activePro(profile.career);
+  const pro = t ? seasonOwner(t) : null;
   if (!t || !pro) return false;
   const fin = finishSeason(t);
   recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);

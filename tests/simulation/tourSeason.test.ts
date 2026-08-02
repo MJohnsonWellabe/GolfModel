@@ -203,6 +203,46 @@ describe('the season arc', () => {
   });
 });
 
+// OWNERSHIP (owner: "assigning most of my wins to Charlotte... they were
+// spread across pros"): a season used to have no memory of its own owner —
+// every recording call re-read whichever Pro happened to be active AT THAT
+// INSTANT, which drifted from whoever actually played it the moment more
+// than one season ran in parallel. A season now carries its owner from the
+// moment it's created, through rollover and a quit, independent of
+// whatever the player's active Pro becomes afterward.
+describe('season ownership', () => {
+  it('newSeason stamps the given Pro; omitting one leaves no stamp at all (legacy shape)', () => {
+    const owned = newSeason(1, 1, 'pro1', 'Ace');
+    expect(owned.proId).toBe('pro1');
+    expect(owned.proName).toBe('Ace');
+    const unowned = newSeason(1);
+    expect(unowned.proId).toBeUndefined();
+    expect('proId' in unowned).toBe(false);
+  });
+
+  it('rolloverSeason carries the SAME owner forward, not whoever is active later', () => {
+    const s = newSeason(1, 1, 'pro1', 'Ace');
+    const next = rolloverSeason(s, 999);
+    expect(next.proId).toBe('pro1');
+    expect(next.proName).toBe('Ace');
+  });
+
+  it('rolloverSeason on a legacy (unowned) season stays unowned', () => {
+    const s = newSeason(1);
+    const next = rolloverSeason(s, 999);
+    expect(next.proId).toBeUndefined();
+  });
+
+  it('migrateTour round-trips proId/proName, and omits them entirely when absent', () => {
+    const owned = newSeason(9, 1, 'pro1', 'Ace');
+    const revived = migrateTour(JSON.parse(JSON.stringify(owned)))!;
+    expect(revived.proId).toBe('pro1');
+    expect(revived.proName).toBe('Ace');
+    const unowned = migrateTour(JSON.parse(JSON.stringify(newSeason(9))))!;
+    expect('proId' in unowned).toBe(false);
+  });
+});
+
 describe('merge and migrate', () => {
   it('the further-progressed season wins whole', () => {
     const ahead = newSeason(1);

@@ -53,6 +53,28 @@ describe('quitting part-way', () => {
     expect(seasonsCompleted(h, 'pro1')).toBe(1);
   });
 
+  it('the rolled-over season is stamped with the CALLER-resolved owner, not the old season\'s own (possibly missing) stamp', () => {
+    // A legacy season with no owner of its own — quitSeason still receives
+    // an explicit proId/proName from its caller (owner: seasonOwner() in
+    // main.ts resolves this correctly even when the season predates the
+    // stamp), and the rollover must carry THAT forward, not silently drop it.
+    const h: TourHistory = {};
+    const s = seasonAt(6, 1240);
+    expect(s.proId).toBeUndefined();
+    const out = quitSeason(s, h, 'pro1', 'Ace', 999);
+    expect(out.next!.proId).toBe('pro1');
+    expect(out.next!.proName).toBe('Ace');
+  });
+
+  it('a season quit before playing anything also stamps its free reroll with the owner', () => {
+    const h: TourHistory = {};
+    const s = newSeason(4242, 1); // 0 played
+    const out = quitSeason(s, h, 'pro1', 'Ace', 999);
+    expect(out.recorded).toBeNull();
+    expect(out.next!.proId).toBe('pro1');
+    expect(out.next!.proName).toBe('Ace');
+  });
+
   it('records the rank the player actually held, not a default', () => {
     const h: TourHistory = {};
     const s = seasonAt(9, 300);
