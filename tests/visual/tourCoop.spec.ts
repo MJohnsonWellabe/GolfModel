@@ -89,6 +89,9 @@ test('start a shared season, then join it from the invite link', async ({ page }
   await page.locator('#destTour').dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
+  // No season starts itself anymore — start one so #thCoop (season-scoped)
+  // has something to share.
+  await hub.locator('#thStartSeason').dispatchEvent('click');
   await expect(hub.locator('#thCoop')).toContainText(/with a friend/i);
   await hub.locator('#thCoop').dispatchEvent('click');
   await expect(hub.locator('#thCoopShare')).toBeVisible({ timeout: 20_000 });
@@ -177,6 +180,7 @@ test('the schedule opens and STAYS open in a shared season', async ({ page }) =>
   await page.locator('#destTour').dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
+  await hub.locator('#thStartSeason').dispatchEvent('click');
   await hub.locator('#thCoop').dispatchEvent('click');
   await expect(hub.locator('#thCoopShare')).toBeVisible({ timeout: 20_000 });
   await expect(hub).toContainText('Shared season');

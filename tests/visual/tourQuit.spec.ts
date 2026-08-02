@@ -38,6 +38,8 @@ test('end a season part-way: it counts, and a fresh one is up', async ({ page })
   await page.locator('#destTour').dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
+  // No season starts itself anymore — start one so there's something to quit.
+  await hub.locator('#thStartSeason').dispatchEvent('click');
 
   // A season nobody has played offers a free reroll, not an ending.
   await expect(hub.locator('#thQuit')).toContainText('New schedule');
@@ -80,11 +82,12 @@ test('end a season part-way: it counts, and a fresh one is up', async ({ page })
   expect((await probe(page)).played).toBe(0);
   await expect(hub).toContainText('Tour Season 2');
 
-  // …and the abandoned one is on the golfer's record, marked as left early.
+  // …and the abandoned one still counts toward the golfer's career — the
+  // record book is organized by stat now (see tourRecords.spec.ts), and
+  // "Seasons played" counts a quit season exactly like a finished one.
   await hub.locator('#thRecords').dispatchEvent('click');
-  const card = hub.locator('.thProCard', { hasText: 'Quitter Pro' });
-  await expect(card.locator('.recRow', { hasText: /^S1/ })).toContainText('left after 6');
-  await expect(card.locator('.recRow', { hasText: 'Seasons played' })).toContainText('1/10');
+  const seasonsPlayedBlock = hub.locator('.boardBlock', { hasText: 'Seasons played' });
+  await expect(seasonsPlayedBlock.locator('.recRow', { hasText: 'Quitter Pro' })).toContainText('1/10');
 
   expect(errors, errors.join('\n')).toHaveLength(0);
 });

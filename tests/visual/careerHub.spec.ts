@@ -32,7 +32,12 @@ async function openCareer(page: import('@playwright/test').Page): Promise<void> 
   await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
   await page.locator('#lkBack').dispatchEvent('click');
   await page.locator('#destTour').dispatchEvent('click');
-  await expect(page.locator('#tourHub')).toBeVisible();
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  // No season starts itself anymore (owner: "there shouldn't be an instant
+  // new season started") — every test below wants a live one to land on.
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  await expect(hub.locator('#thPlay')).toBeVisible();
 }
 
 test('the career landing offers each destination and names the CP waiting', async ({ page }) => {

@@ -5,13 +5,16 @@ import { openDestination, seedReturningDevice } from './support/wizard';
  * THE RECORD BOOK on the real UI (owner, pass 1: "inside the tour screen
  * there should be a way to access past results by golfer. so I can see
  * career wins, major wins and season placements. for any golfer I've used" —
- * then, pass 2: "stack up the golfer records from career tour seasons
- * differently. show the major wins in a section, tourney wins in a section,
- * season points, seasons played, etc. all separate sections rather than
- * separating by golfer"): the hub carries a Golfer records door; a fresh Pro
+ * pass 2: "stack up the golfer records from career tour seasons differently.
+ * show the major wins in a section, tourney wins in a section, season
+ * points, seasons played, etc. all separate sections rather than separating
+ * by golfer" — pass 3: "make the top part of the career records part
+ * somehow a grid that shows golfers names across the top, majors down the
+ * left and a number of times they've won in the grid"): the hub carries a
+ * Golfer records door — reachable even with no season active — a fresh Pro
  * qualifies for nothing yet, so every section reads "Nobody yet"; recorded
  * results — stamped through the REAL recording functions — land the golfer
- * in the sections they qualify for.
+ * in the sections (and grid column) they qualify for.
  */
 
 const PHONE = { width: 390, height: 844 };
@@ -68,8 +71,14 @@ test('the hub opens the record book: wins, majors, season points and championshi
   await hub.locator('#thRecBack').dispatchEvent('click');
   await hub.locator('#thRecords').dispatchEvent('click');
 
-  const majorsBlock = hub.locator('.boardBlock', { hasText: 'Major wins' });
-  await expect(majorsBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('1');
+  // Major wins is a grid now: golfers across the top, majors down the left,
+  // a win COUNT per cell — one column for Records Pro, one won cell (the
+  // forged major), the rest of that row's majors at "–".
+  const majorsGrid = hub.locator('.majorsGridWrap');
+  await expect(majorsGrid).toContainText('Records Pro');
+  const wonCells = majorsGrid.locator('td.won');
+  await expect(wonCells).toHaveCount(1);
+  await expect(wonCells).toContainText('1');
 
   const winsBlock = hub.locator('.boardBlock', { hasText: 'Tour wins' });
   await expect(winsBlock.locator('.recRow', { hasText: 'Records Pro' })).toContainText('2');
@@ -88,8 +97,9 @@ test('the hub opens the record book: wins, majors, season points and championshi
   await expect(championshipRows).toHaveCount(1);
   await expect(championshipRows).toContainText('S2 · 3105 pts');
 
-  // Back returns to the hub proper.
+  // Back returns to the hub proper — no season was ever started in this
+  // test, so it's still the explicit "Start Season" door, not mid-season.
   await hub.locator('#thRecBack').dispatchEvent('click');
-  await expect(hub.locator('#thPlay')).toBeVisible();
+  await expect(hub.locator('#thStartSeason')).toBeVisible();
   expect(errors, errors.join('\n')).toHaveLength(0);
 });

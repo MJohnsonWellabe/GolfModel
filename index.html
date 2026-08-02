@@ -4556,6 +4556,67 @@
         padding: 24px;
         text-align: center;
       }
+      /* The record book's top section (owner: "make the top part of the
+         career records part somehow a grid that shows golfers names across
+         the top, majors down the left and a number of times they've won in
+         the grid"). Scrolls horizontally on a roster wider than the phone;
+         the golfer column stays pinned so a long scroll never loses the row
+         labels. */
+      .majorsGridWrap {
+        overflow-x: auto;
+        border-radius: 11px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        margin-bottom: 2px;
+      }
+      .majorsGrid {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 12.5px;
+      }
+      .majorsGrid th,
+      .majorsGrid td {
+        padding: 9px 12px;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .majorsGrid thead th {
+        font-weight: 800;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.07);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+      }
+      .majorsGrid tbody th {
+        font-weight: 700;
+        color: #cfe3ca;
+        text-align: left;
+      }
+      .majorsGrid tbody tr + tr th,
+      .majorsGrid tbody tr + tr td {
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .majorsGrid th:first-child,
+      .majorsGrid td:first-child {
+        position: sticky;
+        left: 0;
+        background: #0d3f22;
+      }
+      .majorsGrid td {
+        color: #6f8f76;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .majorsGrid td.won {
+        color: #ffd54f;
+        font-weight: 900;
+      }
+      .gridSlam {
+        display: block;
+        font-size: 9px;
+        color: #ffd54f;
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        white-space: nowrap;
+      }
       .recFoot {
         margin: 14px 0 18px;
         font-size: 12.5px;

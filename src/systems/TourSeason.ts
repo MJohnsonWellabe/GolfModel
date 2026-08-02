@@ -830,6 +830,12 @@ export interface TourProRecord {
    *  is all four (MAJOR_NAMES), and a repeat win of the same major does not
    *  bring it closer. */
   majors: string[];
+  /** HOW MANY TIMES this Pro has won each major, keyed by major name — the
+   *  record book's majors grid (golfer x major) needs the count, not just
+   *  the deduped "did they ever win it" `majors` list above. A major absent
+   *  from this map has never been won; both fields are kept in lockstep by
+   *  `recordTourEventWin`. */
+  majorCounts: Record<string, number>;
   /** One line per season CLOSED OUT — played to the finale or quit part-way
    *  (a quit line carries `events`). This list's length is also the career
    *  counter SEASON_LIMIT reads. */
@@ -858,7 +864,7 @@ export function hasGrandSlam(rec: TourProRecord | undefined): boolean {
 export type TourHistory = Record<string, TourProRecord>;
 
 function proRecord(h: TourHistory, proId: string, name: string): TourProRecord {
-  const rec = h[proId] ?? (h[proId] = { name, wins: 0, majorWins: 0, majors: [], seasons: [] });
+  const rec = h[proId] ?? (h[proId] = { name, wins: 0, majorWins: 0, majors: [], majorCounts: {}, seasons: [] });
   rec.name = name;
   return rec;
 }
@@ -872,6 +878,7 @@ export function recordTourEventWin(h: TourHistory, proId: string, name: string, 
   if (majorName) {
     rec.majorWins += 1;
     if (!rec.majors.includes(majorName)) rec.majors.push(majorName);
+    rec.majorCounts[majorName] = (rec.majorCounts[majorName] ?? 0) + 1;
   }
 }
 
@@ -977,11 +984,18 @@ export function migrateTourHistory(raw: unknown): TourHistory {
     const clean = (v: number): number => Math.max(0, Math.floor(v));
     seasons.sort((a, b) => a.seasonNo - b.seasonNo);
     const majors = (Array.isArray(r.majors) ? r.majors : []).filter((m): m is string => typeof m === 'string');
+    const majorCounts: Record<string, number> = {};
+    for (const [m, v] of Object.entries(r.majorCounts ?? {})) {
+      if (MAJOR_NAMES.includes(m as (typeof MAJOR_NAMES)[number]) && typeof v === 'number' && v > 0) {
+        majorCounts[m] = clean(v);
+      }
+    }
     out[id] = {
       name: r.name,
       wins: clean(r.wins),
       majorWins: clean(r.majorWins),
       majors: [...new Set(majors)],
+      majorCounts,
       seasons
     };
   }
@@ -1035,20 +1049,84 @@ function rankRows(rows: GolferRow[]): GolferRecordEntry[] {
   return out;
 }
 
+/** Every Pro id worth reading a record for: the live stable in creation
+ *  order, then Pros since deleted from it whose `TourHistory` entry still
+ *  counts, plus a name lookup that prefers the live Pro's (possibly renamed)
+ *  name and falls back to the history's own snapshot. Shared by every reader
+ *  below so they never drift on WHICH golfers this screen shows. */
+function proRoster(
+  hist: TourHistory,
+  pros: readonly CareerPro[]
+): { ids: string[]; nameFor: (id: string) => string } {
+  const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
+  const nameFor = (id: string): string => pros.find((p) => p.id === id)?.name ?? hist[id]?.name ?? id;
+  return { ids, nameFor };
+}
+
+export interface MajorsGridColumn {
+  name: string;
+  /** Trailing tag next to the name — currently just the career Grand Slam. */
+  tag?: string;
+}
+
+export interface MajorsGridRow {
+  major: string;
+  /** Win count per column, same order/length as `MajorsGrid.columns`. */
+  counts: number[];
+}
+
+export interface MajorsGrid {
+  /** One column per golfer with at least one major win, ordered by total
+   *  major wins desc (most decorated first) — a golfer with zero majors
+   *  never gets a column, same "don't show a zero" convention every other
+   *  board on this screen uses. */
+  columns: MajorsGridColumn[];
+  /** One row per major, in the FIXED canonical order (MAJOR_NAMES) rather
+   *  than sorted by count — this is a championship history table, not a
+   *  leaderboard, so the rows read the same every time you open it. */
+  rows: MajorsGridRow[];
+}
+
 /**
- * One board per stat — Major wins, Tour wins, Best season points, Seasons
- * played, and Season championships — each a ranked list of every golfer with
- * a qualifying (nonzero) value, same "don't list a zero" convention the
- * global boards use (a golfer with 0 aces never appears on the Aces board).
+ * The record book's top section (owner: "make the top part of the career
+ * records part somehow a grid that shows golfers names across the top,
+ * majors down the left and a number of times they've won in the grid"):
+ * golfers across the top, the four majors down the left, win COUNT per cell
+ * — not just whether they've won it (that's `TourProRecord.majors`), but how
+ * many times (`TourProRecord.majorCounts`).
+ */
+export function majorsGrid(hist: TourHistory, pros: readonly CareerPro[]): MajorsGrid {
+  const { ids, nameFor } = proRoster(hist, pros);
+  const qualifying = ids
+    .map((id) => ({ id, rec: hist[id] }))
+    .filter((x): x is { id: string; rec: TourProRecord } => !!x.rec && x.rec.majorWins > 0)
+    .sort((a, b) => b.rec.majorWins - a.rec.majorWins);
+  const columns = qualifying.map(({ id, rec }) => ({
+    name: nameFor(id),
+    tag: hasGrandSlam(rec) ? ' — GRAND SLAM' : undefined
+  }));
+  const rows = MAJOR_NAMES.map((major) => ({
+    major,
+    counts: qualifying.map(({ rec }) => rec.majorCounts[major] ?? 0)
+  }));
+  return { columns, rows };
+}
+
+/**
+ * One board per stat — Tour wins, Best season points, Seasons played, and
+ * Season championships — each a ranked list of every golfer with a
+ * qualifying (nonzero) value, same "don't list a zero" convention the global
+ * boards use (a golfer with 0 aces never appears on the Aces board). Major
+ * wins moved to its own grid — see `majorsGrid` — since a single count per
+ * golfer couldn't show WHICH majors, and counting by major needed a column
+ * each, not a shared rank.
  *
  * `pros` is the live stable (for name/id ordering); `hist` also covers Pros
  * since deleted from the stable, whose record still counts.
  */
 export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]): GolferRecordBoard[] {
-  const ids = [...pros.map((p) => p.id), ...Object.keys(hist).filter((id) => !pros.some((p) => p.id === id))];
-  const nameFor = (id: string): string => pros.find((p) => p.id === id)?.name ?? hist[id]?.name ?? id;
+  const { ids, nameFor } = proRoster(hist, pros);
 
-  const majorRows: GolferRow[] = [];
   const winRows: GolferRow[] = [];
   const bestSeasonRows: GolferRow[] = [];
   const seasonsPlayedRows: GolferRow[] = [];
@@ -1058,15 +1136,6 @@ export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]
     const rec = hist[id];
     if (!rec) continue;
     const name = nameFor(id);
-    if (rec.majorWins > 0) {
-      majorRows.push({
-        name,
-        tag: hasGrandSlam(rec) ? ' — GRAND SLAM' : undefined,
-        value: rec.majorWins,
-        label: `${rec.majorWins}`,
-        sub: rec.majors.join(' · ')
-      });
-    }
     if (rec.wins > 0) {
       winRows.push({ name, value: rec.wins, label: `${rec.wins}` });
     }
@@ -1086,12 +1155,6 @@ export function golferRecordBoards(hist: TourHistory, pros: readonly CareerPro[]
   }
 
   return [
-    {
-      id: 'majors',
-      title: '👑 Major wins',
-      blurb: 'Career championships at the four majors.',
-      entries: rankRows(majorRows)
-    },
     {
       id: 'wins',
       title: '🏆 Tour wins',
@@ -1132,7 +1195,12 @@ export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
     const y = b[id];
     if (!x || !y) {
       const only = (x ?? y)!;
-      out[id] = { ...only, majors: [...only.majors], seasons: only.seasons.map((s) => ({ ...s })) };
+      out[id] = {
+        ...only,
+        majors: [...only.majors],
+        majorCounts: { ...only.majorCounts },
+        seasons: only.seasons.map((s) => ({ ...s }))
+      };
       continue;
     }
     const bySeason = new Map<number, TourProSeasonFinish>();
@@ -1145,12 +1213,17 @@ export function mergeTourHistory(a: TourHistory, b: TourHistory): TourHistory {
       const depth = (f: TourProSeasonFinish): number => f.events ?? TOUR_EVENTS;
       if (!held || depth(s) > depth(held)) bySeason.set(s.seasonNo, { ...s });
     }
+    const majorCounts: Record<string, number> = {};
+    for (const m of new Set([...Object.keys(x.majorCounts), ...Object.keys(y.majorCounts)])) {
+      majorCounts[m] = Math.max(x.majorCounts[m] ?? 0, y.majorCounts[m] ?? 0);
+    }
     out[id] = {
       // The name from the copy with more to say (the further-progressed one).
       name: x.wins + x.seasons.length >= y.wins + y.seasons.length ? x.name : y.name,
       wins: Math.max(x.wins, y.wins),
       majorWins: Math.max(x.majorWins, y.majorWins),
       majors: [...new Set([...x.majors, ...y.majors])],
+      majorCounts,
       seasons: [...bySeason.values()].sort((s1, s2) => s1.seasonNo - s2.seasonNo)
     };
   }

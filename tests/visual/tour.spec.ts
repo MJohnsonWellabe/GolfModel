@@ -100,6 +100,9 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
   await tile.dispatchEvent('click');
   const hub = page.locator('#tourHub');
   await expect(hub).toBeVisible();
+  // No season exists yet, even on this very first visit — an explicit tap
+  // starts it (owner: "there shouldn't be an instant new season started").
+  await hub.locator('#thStartSeason').dispatchEvent('click');
   // The hub is a LANDING now (owner pass 11: "there should be a career
   // landing, button to look at schedule, play the next event, see career
   // records, improve your player"). Playing is on it; the season's reference
@@ -186,6 +189,60 @@ test('enter the tour as the Pro, finish the event, bank season points', async ({
 
   await hubAfter.locator('#thSchedBack').dispatchEvent('click');
   await expect(page.locator('#landing')).toHaveClass(/on/);
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
+test('a finished season does not instantly start the next one', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown');
+  await page.locator('#proName').fill('Season Ender');
+  await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
+  await page.locator('#lkBack').dispatchEvent('click');
+
+  // Even the very first season waits on an explicit tap now — "no active
+  // season" reads the same whether it's day one or the morning after a
+  // finale, and both get the same door rather than a silent auto-start.
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await expect(hub.locator('#thPlay')).toHaveCount(0);
+  await expect(hub.locator('#thStartSeason')).toContainText('Start Season 1');
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  expect((await tourProbe(page)).seasonNo).toBe(1);
+
+  // Close season 1 out through the REAL finale functions (owner: "after a
+  // tour season finishes, there shouldn't be an instant new season started").
+  const forced = await page.evaluate(() => (window as never as { __forceSeasonFinale: () => boolean }).__forceSeasonFinale());
+  expect(forced).toBe(true);
+  expect((await tourProbe(page)).started, 'closing a season must leave none active').toBe(false);
+
+  // Re-opening the hub must NOT have silently rolled a fresh season either —
+  // it offers an explicit door instead.
+  await page.locator('#destTour').dispatchEvent('click');
+  await expect(hub).toBeVisible();
+  await expect(hub.locator('#thPlay')).toHaveCount(0);
+  const startBtn = hub.locator('#thStartSeason');
+  await expect(startBtn).toBeVisible();
+  await expect(startBtn).toContainText('Start Season 2');
+  await expect(hub).toContainText('Season 1 is complete');
+
+  // The explicit tap is what actually starts it.
+  await startBtn.dispatchEvent('click');
+  const after = await tourProbe(page);
+  expect(after.started).toBe(true);
+  expect(after.seasonNo).toBe(2);
+  await expect(hub.locator('#thPlay')).toContainText('Event 1/16');
+
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
 

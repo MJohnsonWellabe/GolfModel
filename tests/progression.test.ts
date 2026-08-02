@@ -214,7 +214,7 @@ describe('career feats (owner pass 9)', () => {
   const withHistory = (rec: Partial<TourProRecord>): PlayerProfile => {
     const p = defaultProfile();
     p.tourHistory = {
-      pro1: { name: 'Ace', wins: 0, majorWins: 0, majors: [], seasons: [], ...rec } as TourProRecord
+      pro1: { name: 'Ace', wins: 0, majorWins: 0, majors: [], majorCounts: {}, seasons: [], ...rec } as TourProRecord
     };
     return p;
   };
@@ -237,8 +237,8 @@ describe('career feats (owner pass 9)', () => {
   it('they are per-GOLFER, never a total across the stable', () => {
     const p = defaultProfile();
     p.tourHistory = {
-      a: { name: 'A', wins: 6, majorWins: 2, majors: [], seasons: [] },
-      b: { name: 'B', wins: 6, majorWins: 2, majors: [], seasons: [] }
+      a: { name: 'A', wins: 6, majorWins: 2, majors: [], majorCounts: {}, seasons: [] },
+      b: { name: 'B', wins: 6, majorWins: 2, majors: [], majorCounts: {}, seasons: [] }
     };
     // 12 wins and 4 majors between them is not 10 wins or 4 majors with ONE.
     expect(fires('tour_wins_10', p)).toBe(false);

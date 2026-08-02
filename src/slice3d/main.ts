@@ -54,7 +54,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, rolloverSeason as rolloverTourSeason, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, majorsGrid, MAJOR_NAMES, MAX_PLAYOFF_HOLES, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -7427,8 +7427,16 @@ function setTour(t: TourSeasonState | null): void {
 }
 
 /**
- * End a season properly: archive it with its full final standings, then roll
- * the next one out unless the Pro who played it has retired.
+ * End a season properly: archive it with its full final standings and leave
+ * NO active season behind — `archiveTour` already clears `activeId` for the
+ * season it just closed.
+ *
+ * Deliberately does not roll a new season out (owner: "after a tour season
+ * finishes, there shouldn't be an instant new season started. give me a
+ * final screen then the option to start a new season") — the finale's own
+ * result screen is that final screen, and the Tour hub's "Start Season N"
+ * button (see `renderTourHub`) is the explicit next step, whenever the
+ * player is ready for it rather than the instant the last event posts.
  *
  * This replaces three copies of `profile.tour = retired ? null : rollover(t)`.
  * Each of them destroyed the points table, all sixteen event results and the
@@ -7443,7 +7451,6 @@ function closeOutSeason(t: TourSeasonState, ended: 'finale' | 'retired'): void {
     at: Date.now(),
     ended
   });
-  if (ended !== 'retired') setTour(rolloverTourSeason(t, Math.floor(Math.random() * 1e9)));
 }
 
 // ----- SUDDEN DEATH (owner pass 8): a player tied for an event's lead plays
@@ -8303,12 +8310,67 @@ function renderTourHub(fromSync = false): void {
     });
     return;
   }
-  // First visit: the season is born HERE, so the schedule has a seed to show.
   if (!tourNow()) {
-    // nextSeasonNo, not the default 1: a player who has archived seasons (or
-    // is running one alongside) must not be handed a duplicate number.
-    setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
-    persistProfile();
+    const noTourPro = activePro(profile.career);
+    // A retired Pro can't tour again, but the rest of this function still
+    // needs a real season object to read from (standings, schedule, nav
+    // counts) — `hubRetired` below suppresses its play button, exactly as it
+    // did before this screen learned to gate a FRESH season on an explicit
+    // tap. Silently standing one up here changes nothing for them.
+    if (noTourPro && proRetired(profile.tourHistory, noTourPro.id)) {
+      setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours)));
+      persistProfile();
+    } else {
+      // No active season — either this Pro's very first visit, or a season
+      // just finished (owner: "after a tour season finishes, there shouldn't
+      // be an instant new season started. give me a final screen then the
+      // option to start a new season"). The finale's own result screen (see
+      // the season-ended branch below) IS that final screen; this is the
+      // explicit next step, on the player's own schedule rather than the
+      // instant the last event posts.
+      const n = nextSeasonNo(profile.tours);
+      const justFinished = n > 1;
+      const cpToSpend = spendableCp(profile);
+      // Records and Improve-your-Pro don't need a live season underneath
+      // them — a player who just wants to check their career, or spend CP,
+      // shouldn't have to start a season first to reach either.
+      const noSeasonNav =
+        `<div class="tourHeadRow">Your career</div><div class="careerNav">` +
+        (noTourPro
+          ? `<button id="thTrain" class="careerNavBtn${cpToSpend > 0 ? ' hot' : ''}"><span class="cnIcon">💪</span>` +
+            `<span class="cnName">Improve your Pro</span>` +
+            `<span class="cnSub">${escapeHtml(noTourPro.name)} · ${ovr(
+              applyClubUpgrades(noTourPro.attrs, profile.clubUpgrades)
+            )} OVR · ${cpToSpend > 0 ? `${cpToSpend} CP to spend` : 'no CP banked'}</span></button>`
+          : '') +
+        `<button id="thRecords" class="careerNavBtn"><span class="cnIcon">🏅</span>` +
+        `<span class="cnName">Career records</span>` +
+        `<span class="cnSub">Wins, majors and every season placement</span></button>` +
+        `</div>`;
+      el.innerHTML =
+        `<div class="recInner"><h2>⛳ Tour Season</h2>` +
+        `<div class="recSub">${justFinished ? `Season ${n - 1} is complete — see the full recap in Career records. ` : ''}` +
+        `Sixteen events, four majors, ten rivals — ready when you are.</div>` +
+        `<button id="thStartSeason" class="tourAction">Start Season ${n} →</button>` +
+        noSeasonNav +
+        `<button id="thBack" class="ghostBtn">Back</button></div>`;
+      el.querySelector('#thBack')?.addEventListener('click', () => {
+        el.style.display = 'none';
+      });
+      el.querySelector('#thStartSeason')?.addEventListener('click', () => {
+        setTour(newSeason(Math.floor(Math.random() * 1e9), n));
+        persistProfile();
+        renderTourHub();
+      });
+      el.querySelector('#thRecords')?.addEventListener('click', () => renderTourGolferRecords());
+      el.querySelector('#thTrain')?.addEventListener('click', () => {
+        el.style.display = 'none';
+        pushReturn(() => renderTourHub());
+        lkTab = 'style';
+        renderLockerRoom();
+      });
+      return;
+    }
   }
   const t = tourNow()!;
   const ids = tourCourseIds();
@@ -8626,12 +8688,15 @@ function renderTourEventResult(idx: number): void {
  * season placements. for any golfer I've used" — then, stacked differently:
  * "show the major wins in a section, tourney wins in a section, season
  * points, seasons played, etc. all separate sections rather than separating
- * by golfer"): one board per stat, each a ranked list of every Pro in the
- * stable — and every Pro since deleted whose record survives on the profile
- * — who has a qualifying result. `golferRecordBoards` does the pure
- * aggregation; this just renders it with the same board markup the global
- * leaderboards use. Renders inside the tour hub overlay; Back returns to the
- * hub.
+ * by golfer" — then, the top section again: "make the top part... a grid
+ * that shows golfers names across the top, majors down the left and a
+ * number of times they've won in the grid"): a golfer x major grid up top
+ * (`majorsGrid`), then one board per remaining stat, each a ranked list of
+ * every Pro in the stable — and every Pro since deleted whose record
+ * survives on the profile — who has a qualifying result
+ * (`golferRecordBoards`). Both are pure aggregation; this just renders them
+ * with the same board markup the global leaderboards use. Renders inside
+ * the tour hub overlay; Back returns to the hub.
  */
 function renderTourGolferRecords(): void {
   const el = document.getElementById('tourHub');
@@ -8650,8 +8715,32 @@ function renderTourGolferRecords(): void {
   // "Nobody yet" rather than this blanket message (matches the global
   // records boards' convention).
   const everHadAPro = pros.length > 0 || Object.keys(hist).length > 0;
-  const sections = everHadAPro
-    ? golferRecordBoards(hist, pros)
+  let sections = '';
+  if (everHadAPro) {
+    const grid = majorsGrid(hist, pros);
+    const gridBody = grid.columns.length
+      ? `<div class="majorsGridWrap"><table class="majorsGrid"><thead><tr><th></th>` +
+        grid.columns
+          .map(
+            (c) =>
+              `<th>${escapeHtml(c.name)}${c.tag ? `<span class="gridSlam">${escapeHtml(c.tag.replace(' — ', ''))}</span>` : ''}</th>`
+          )
+          .join('') +
+        `</tr></thead><tbody>` +
+        grid.rows
+          .map(
+            (r) =>
+              `<tr><th>${escapeHtml(r.major)}</th>` +
+              r.counts.map((n) => `<td${n > 0 ? ' class="won"' : ''}>${n > 0 ? n : '–'}</td>`).join('') +
+              `</tr>`
+          )
+          .join('') +
+        `</tbody></table></div>`
+      : `<div class="recEmpty">Nobody yet — be first.</div>`;
+    sections =
+      `<div class="boardBlock"><div class="boardHead">👑 Major wins</div>` +
+      `<div class="boardBlurb">Career championships at the four majors.</div>${gridBody}</div>` +
+      golferRecordBoards(hist, pros)
         .map((b) => {
           const rows = b.entries.length
             ? b.entries
@@ -8667,8 +8756,10 @@ function renderTourGolferRecords(): void {
           return `<div class="boardBlock"><div class="boardHead">${b.title}</div>` +
             `<div class="boardBlurb">${escapeHtml(b.blurb)}</div>${rows}</div>`;
         })
-        .join('')
-    : `<div class="recSub">Start a career and play the tour — every Pro's wins land here.</div>`;
+        .join('');
+  } else {
+    sections = `<div class="recSub">Start a career and play the tour — every Pro's wins land here.</div>`;
+  }
   el.innerHTML = `<div class="recInner"><h2>🏅 Golfer records</h2>${sections}${liveNote}<button id="thRecBack" class="ghostBtn">Back</button></div>`;
   el.querySelector('#thRecBack')?.addEventListener('click', () => renderTourHub());
 }
@@ -12809,6 +12900,22 @@ else {
   if (!pro) return false;
   if (kind === 'season') recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, seasonNo, rank, points);
   else recordTourEventWin(profile.tourHistory, pro.id, pro.name, kind === 'major' ? MAJOR_NAMES[0] : undefined);
+  persistProfile();
+  return true;
+};
+// Test hook (tests/visual/tour.spec.ts — "no instant new season"): closes the
+// CURRENT active season out through the exact same real functions the finale
+// UI calls (finishSeason, recordTourSeasonFinish, closeOutSeason), without
+// requiring a spec to actually play sixteen events. Lets a spec assert the
+// hub does NOT land in a fresh season afterward — only the explicit
+// "Start Season N" button does that.
+(window as unknown as { __forceSeasonFinale: unknown }).__forceSeasonFinale = () => {
+  const t = tourNow();
+  const pro = activePro(profile.career);
+  if (!t || !pro) return false;
+  const fin = finishSeason(t);
+  recordTourSeasonFinish(profile.tourHistory, pro.id, pro.name, t.seasonNo, fin.playerRank, t.points['player'] ?? 0);
+  closeOutSeason(t, proRetired(profile.tourHistory, pro.id) ? 'retired' : 'finale');
   persistProfile();
   return true;
 };
