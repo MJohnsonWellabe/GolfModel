@@ -23,11 +23,11 @@ test('admin landing + staging areas render', async ({ page }) => {
     (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
   }, ADMIN_EMAIL);
 
-  // Landing: six destination cards (dashboard, marketing, season, store, live
-  // ops, design studio).
+  // Landing: seven destination cards (dashboard, marketing, season, store,
+  // live ops, design studio, season ownership repair).
   await page.waitForSelector('.adminGrid .adminCard', { state: 'visible' });
   const cards = await page.locator('.adminGrid .adminCard').count();
-  expect(cards).toBe(6);
+  expect(cards).toBe(7);
   await page.waitForTimeout(200);
   await page.screenshot({ path: 'tests/visual/__shots__/admin-landing.png', fullPage: true });
 
@@ -66,4 +66,16 @@ test('admin landing + staging areas render', async ({ page }) => {
   await page.waitForSelector('#liveops', { timeout: 15000 }).catch(() => {});
   await page.waitForTimeout(400);
   await page.screenshot({ path: 'tests/visual/__shots__/admin-liveops.png', fullPage: true });
+
+  // Back to landing, then Season Ownership Repair. No live Google session,
+  // so it renders its "Not signed in" state — still a real render, not a
+  // timeout, which is what this contact sheet is checking for.
+  await page.evaluate((email) => {
+    (window as unknown as { __adminLandingPreview: (e: string) => void }).__adminLandingPreview(email);
+  }, ADMIN_EMAIL);
+  await page.waitForSelector('.adminGrid .adminCard', { state: 'visible' });
+  await page.locator('.adminCard[data-card="tourrepair"] .acOpen').click();
+  await page.waitForSelector('text=Season Ownership Repair', { timeout: 15000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: 'tests/visual/__shots__/admin-tourrepair.png', fullPage: true });
 });

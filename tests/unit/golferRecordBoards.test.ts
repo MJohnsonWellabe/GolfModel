@@ -5,6 +5,7 @@ import {
   majorsGrid,
   MAJOR_NAMES,
   mergeTourHistory,
+  reassignArchivedSeason,
   recordTourEventWin,
   TOUR_MAJOR_IDXS,
   TourHistory,
@@ -218,6 +219,103 @@ describe('tourHistoryFromArchive', () => {
     const grid = majorsGrid(reconciled, [pro('a', 'Alpha')]);
     expect(grid.columns[0]).toMatchObject({ name: 'Alpha', tag: ' — GRAND SLAM' });
     expect(grid.rows.map((r) => r.counts[0])).toEqual([1, 1, 1, 1]);
+  });
+});
+
+/**
+ * ONE-TIME REASSIGNMENT (owner: "this assigned a bunch of stuff to the
+ * wrong pro... they were spread across pros" — the admin repair tool built
+ * for the already-corrupted historical data). `mergeTourHistory` takes the
+ * LARGER tally per Pro, so these tests specifically check that the OLD
+ * (wrong) owner's stale, too-high counters actually go DOWN — re-stamping
+ * the archive entry alone would leave them dominating the merge forever.
+ */
+describe('reassignArchivedSeason', () => {
+  it('moves wins, a major, and the season line off the old owner and onto the new one', () => {
+    const [major1] = TOUR_MAJOR_IDXS;
+    const archive = [archivedSeason('charlotte', 'Charlotte', 4, [major1, 0])];
+    const history = tourHistoryFromArchive(archive); // as if it was recorded live, same as the archive says
+    const { archive: nextArchive, history: nextHistory } = reassignArchivedSeason(
+      archive,
+      history,
+      'solo:4',
+      'parker',
+      'Parker'
+    );
+    expect(nextArchive[0]).toMatchObject({ proId: 'parker', proName: 'Parker' });
+    expect(nextHistory.charlotte).toBeUndefined();
+    expect(nextHistory.parker.wins).toBe(2);
+    expect(nextHistory.parker.majorWins).toBe(1);
+    expect(nextHistory.parker.majorCounts).toEqual({ [MAJOR_NAMES[0]]: 1 });
+    expect(nextHistory.parker.majors).toEqual([MAJOR_NAMES[0]]);
+    expect(nextHistory.parker.seasons.map((s) => s.seasonNo)).toEqual([4]);
+  });
+
+  it('leaves the old owner\'s OTHER seasons untouched — only this one moves', () => {
+    const [major1] = TOUR_MAJOR_IDXS;
+    const archive = [
+      archivedSeason('charlotte', 'Charlotte', 1, [major1]),
+      archivedSeason('charlotte', 'Charlotte', 2, [0])
+    ];
+    const history = tourHistoryFromArchive(archive);
+    const { history: nextHistory } = reassignArchivedSeason(archive, history, 'solo:1', 'parker', 'Parker');
+    // Season 2's plain win stays Charlotte's.
+    expect(nextHistory.charlotte.wins).toBe(1);
+    expect(nextHistory.charlotte.majorWins).toBe(0);
+    expect(nextHistory.charlotte.seasons.map((s) => s.seasonNo)).toEqual([2]);
+    // Season 1's major moves to Parker.
+    expect(nextHistory.parker.wins).toBe(1);
+    expect(nextHistory.parker.majorWins).toBe(1);
+  });
+
+  it('fixes the actual bug: a stale, too-high tally on the old owner stops beating the new owner in the merge', () => {
+    // The exact failure mode: profile.tourHistory already has Charlotte
+    // credited (built by the original buggy recording calls, same numbers
+    // the archive itself says) — re-stamping the archive entry ALONE would
+    // leave this stale copy, and mergeTourHistory's max-per-Pro would keep
+    // showing Charlotte with the win forever.
+    const [major1] = TOUR_MAJOR_IDXS;
+    const archive = [archivedSeason('charlotte', 'Charlotte', 7, [major1])];
+    const staleHistory = tourHistoryFromArchive(archive);
+    const { archive: nextArchive, history: nextHistory } = reassignArchivedSeason(
+      archive,
+      staleHistory,
+      'solo:7',
+      'parker',
+      'Parker'
+    );
+    const merged = mergeTourHistory(nextHistory, tourHistoryFromArchive(nextArchive));
+    expect(merged.parker.majorWins).toBe(1);
+    expect(merged.charlotte).toBeUndefined();
+  });
+
+  it('a quit season carries its actual event count to the new owner', () => {
+    const archive = [archivedSeason('charlotte', 'Charlotte', 1, [], { ended: 'quit', totalEvents: 6 })];
+    const history = tourHistoryFromArchive(archive);
+    const { history: nextHistory } = reassignArchivedSeason(archive, history, 'solo:1', 'parker', 'Parker');
+    expect(nextHistory.parker.seasons[0]).toMatchObject({ seasonNo: 1, events: 6 });
+  });
+
+  it('an unknown key is a no-op — fresh copies, nothing changed', () => {
+    const archive = [archivedSeason('charlotte', 'Charlotte', 1, [0])];
+    const history = tourHistoryFromArchive(archive);
+    const { archive: nextArchive, history: nextHistory } = reassignArchivedSeason(
+      archive,
+      history,
+      'solo:999',
+      'parker',
+      'Parker'
+    );
+    expect(nextArchive).toEqual(archive);
+    expect(nextHistory).toEqual(history);
+    expect(nextHistory.parker).toBeUndefined();
+  });
+
+  it('reassigning to the SAME owner it already has is a no-op', () => {
+    const archive = [archivedSeason('charlotte', 'Charlotte', 1, [0])];
+    const history = tourHistoryFromArchive(archive);
+    const { history: nextHistory } = reassignArchivedSeason(archive, history, 'solo:1', 'charlotte', 'Charlotte');
+    expect(nextHistory).toEqual(history);
   });
 });
 

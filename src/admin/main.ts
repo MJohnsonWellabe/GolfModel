@@ -16,6 +16,7 @@ import { renderMarketingManager } from './marketing';
 import { renderSeasonPassStaging } from './seasonPassStaging';
 import { renderStoreStaging } from './storeStaging';
 import { renderLiveOps } from './liveOps';
+import { renderTourHistoryRepair } from './tourHistoryRepair';
 import { loadMarketingConfig } from '../firebase/MarketingConfig';
 import { loadAdminDraft } from '../firebase/AdminDrafts';
 import { ENV } from '../config/env';
@@ -492,6 +493,7 @@ async function showLanding(): Promise<void> {
       ${destCardHtml('store', '🛍️', 'Future Store Items Staging', 'Draft upcoming store items — price, rarity and availability. Staging only, never live.', 'Loading…', '')}
       ${destCardHtml('liveops', '🔁', 'Retention / Live Ops', 'Daily Challenge and Weekly Featured overrides — stage, validate, publish. Reward math stays code-defined.', 'Loading…', '')}
       ${destCardHtml('studio', '📐', 'Design Studio', 'Hole Builder (plan-view course editor), Grass Picker and Tree Catalog — the authoring tools.', `${STUDIO_TOOLS.length} tools`, 'live')}
+      ${destCardHtml('tourrepair', '🩹', 'Season Ownership Repair', 'One-time fix for tour seasons archived under the wrong Pro — reassign your own account’s history, cloud and local.', 'Your account', '')}
     </div>
     <p class="sub" style="margin-top:22px">
       <a id="openDev" href="index.html?env=dev" style="color:#ffcf33;font-weight:600;text-decoration:none">
@@ -525,6 +527,9 @@ async function showLanding(): Promise<void> {
         break;
       case 'liveops':
         void renderLiveOps($('app'), back);
+        break;
+      case 'tourrepair':
+        void renderTourHistoryRepair($('app'), back);
         break;
       default:
         break;

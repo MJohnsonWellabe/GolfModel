@@ -1502,6 +1502,92 @@ export function tourHistoryFromArchive(archive: readonly ArchivedTourSeason[]): 
   return out;
 }
 
+/**
+ * ONE-TIME CORRECTION for a season that was archived under the wrong Pro
+ * (owner: "this assigned a bunch of stuff to the wrong pro... they were
+ * spread across pros" — seasons closed before the ownership fix could be
+ * stamped with whoever happened to be active at that instant, not
+ * necessarily who played them). Moves the archive entry AND its already-
+ * recorded `TourHistory` contribution — wins, major wins, the season line —
+ * off the old Pro and onto the new one.
+ *
+ * Both halves matter: the records screen reads
+ * `mergeTourHistory(profile.tourHistory, tourHistoryFromArchive(archive))`,
+ * and `mergeTourHistory` takes the LARGER tally per Pro. Re-stamping the
+ * archive entry alone would leave the old Pro's stale, too-high
+ * `profile.tourHistory` counters (built by the original, buggy recording
+ * calls) still winning that merge forever. So this undoes exactly what
+ * `tourHistoryFromArchive` would have added for this one entry — the same
+ * replay, in reverse — before re-adding it under the new owner through the
+ * real recording functions.
+ *
+ * Pure: returns new archive + history, mutates neither input. An unknown
+ * `key`, or a `toProId` matching the entry's current owner, is a no-op
+ * (fresh copies handed back unchanged).
+ */
+export function reassignArchivedSeason(
+  archive: readonly ArchivedTourSeason[],
+  history: TourHistory,
+  key: string,
+  toProId: string,
+  toProName: string
+): { archive: ArchivedTourSeason[]; history: TourHistory } {
+  const idx = archive.findIndex((a) => a.key === key);
+  if (idx < 0 || archive[idx].proId === toProId) {
+    return { archive: [...archive], history };
+  }
+  const from = archive[idx];
+  const nextArchive = archive.map((a, i) => (i === idx ? { ...a, proId: toProId, proName: toProName } : a));
+  const nextHistory: TourHistory = JSON.parse(JSON.stringify(history));
+
+  // Undo this season's contribution to the OLD owner, if it had one.
+  const old = from.proId ? nextHistory[from.proId] : undefined;
+  if (old) {
+    for (const r of from.results) {
+      if (r.playerRank !== 1) continue;
+      old.wins = Math.max(0, old.wins - 1);
+      const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
+      if (majorNo < 0) continue;
+      const name = MAJOR_NAMES[majorNo];
+      old.majorWins = Math.max(0, old.majorWins - 1);
+      const remaining = Math.max(0, (old.majorCounts[name] ?? 0) - 1);
+      if (remaining > 0) old.majorCounts[name] = remaining;
+      else {
+        delete old.majorCounts[name];
+        old.majors = old.majors.filter((m) => m !== name);
+      }
+    }
+    old.seasons = old.seasons.filter((s) => s.seasonNo !== from.seasonNo);
+    // Nothing left of this Pro's history — drop the record entirely rather
+    // than leaving a phantom zero-value entry (golferRecordBoards already
+    // omits zero-value Pros from every section, but an admin re-checking the
+    // raw data afterward should see this Pro genuinely has nothing, not a
+    // record that merely reads zero).
+    if (old.wins === 0 && old.majorWins === 0 && old.seasons.length === 0) {
+      delete nextHistory[from.proId];
+    }
+  }
+
+  // Re-record it onto the NEW owner through the real recording functions —
+  // additive for wins/majors, idempotent-by-seasonNo for the season line.
+  for (const r of from.results) {
+    if (r.playerRank !== 1) continue;
+    const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
+    recordTourEventWin(nextHistory, toProId, toProName, majorNo >= 0 ? MAJOR_NAMES[majorNo] : undefined);
+  }
+  recordTourSeasonFinish(
+    nextHistory,
+    toProId,
+    toProName,
+    from.seasonNo,
+    from.playerRank,
+    from.playerPoints,
+    from.ended === 'quit' ? from.results.length : undefined
+  );
+
+  return { archive: nextArchive, history: nextHistory };
+}
+
 /** Archive cap. Ten seasons is the career limit per Pro (SEASON_LIMIT), so this
  *  holds several Pros' worth before anything is dropped. */
 export const TOUR_ARCHIVE_CAP = 40;
