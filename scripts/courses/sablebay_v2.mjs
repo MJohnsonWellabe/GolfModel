@@ -353,19 +353,31 @@ const sablebayV2 = {
         // the fairway continue up the right side before looping back across
         // into the Bay inlet that's at the end of the fairway").
         //
-        // It leaves the tidal channel's right tip, runs the length of F2 in the
-        // gap between the fairway's right shoulder and the treeline — measured
-        // at 53-80px the whole way, so a 32px creek clears both — and then bends
-        // west to meet the cove's east edge at (806,648). That last bend is the
-        // point of the whole thing: cove + creek together close the corridor, so
-        // the approach to the point green is a CARRY rather than a walk up the
-        // dry right.
+        // It runs the length of F2 in the gap between the fairway's right
+        // shoulder and the treeline — measured at 53-80px the whole way, so a
+        // 32px creek clears both — then bends west into the cove. That bend is
+        // the point of the whole thing: cove + creek together close the
+        // corridor, so the approach to the point green is a CARRY rather than a
+        // walk up the dry right.
+        //
+        // ITS ENDS SIT INSIDE THE OTHER TWO BODIES, and that is load-bearing.
+        // It used to start at (812,1030) and end at (808,652), which are the
+        // channel's right TIP and a point just outside the cove's east edge —
+        // both OUTSIDE their neighbour (verified by point-in-polygon: `false`
+        // for each). `stream()` caps flat at the first and last centre point,
+        // so the three bodies met at a hairline or not at all, and the hole read
+        // as three unrelated puddles (owner: "it reads as 3 separate water
+        // features. It should all connect"). The first and last points are now
+        // well INSIDE the channel and the cove respectively, so the flat caps
+        // land in existing water and the three merge into one tidal system.
+        // The routed middle is unchanged — that part was measured against the
+        // corridor and the treeline and still is.
         //
         // It is a creek, not a second channel: narrow enough to read as running
         // water against the sand, wide enough that clipping it is a penalty.
         // No hand-authored hollow — buildHeightField carves a bed under any
         // water that would otherwise be buried, and keeps the cut off the green.
-        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: stream([[812, 1030], [826, 985], [836, 930], [843, 875], [844, 820], [840, 762], [836, 714], [826, 678], [808, 652]], 32, 771) },
+        { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: stream([[790, 1060], [812, 1030], [826, 985], [836, 930], [843, 875], [844, 820], [840, 762], [836, 714], [826, 678], [806, 650], [790, 620]], 32, 771) },
         // THE OPEN BAY down the west, and the CHANNEL the reach carries to the
         // point green (a cove biting in front of the green).
         { type: 'water', water: '#2f83c0', waterDeep: '#1d5488', polygon: [[40, 720], [244, 736], [312, 872], [292, 1060], [212, 1200], [40, 1220]] },
