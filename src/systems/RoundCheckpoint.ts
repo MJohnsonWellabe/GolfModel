@@ -35,13 +35,20 @@
  *
  * WHAT IT DOES NOT COVER
  * ----------------------
- * Only plain solo rounds. Versus/scramble rounds carry an opponent's state, AI
- * tournaments span three courses, and weekly/tournament/challenge entries carry
- * submission rules — reviving any of those from a partial record risks a
- * double-submitted or mis-scored entry, which the trust rules in
- * docs/vision/03_PLAYER_EXPERIENCE.md ("be honest about ... leaderboard
- * limitations") say we should not gamble with. Those rounds simply do not
- * checkpoint.
+ * Versus/scramble rounds carry an opponent's state, AI tournaments span three
+ * courses, and weekly/tournament/challenge entries carry submission rules —
+ * reviving any of those from a partial record risks a double-submitted or
+ * mis-scored entry, which the trust rules in docs/vision/03_PLAYER_EXPERIENCE.md
+ * ("be honest about ... leaderboard limitations") say we should not gamble
+ * with. Those rounds simply do not checkpoint.
+ *
+ * A TOUR SEASON round DOES checkpoint (owner: "when I exit a round I can't
+ * resume rounds anymore in season") — it carries an optional `tour` marker
+ * (which season, which event index) so main.ts can confirm, before ever
+ * resuming into it, that the season is still open and still on that same
+ * event. A season that's since closed, or been handed off to a different
+ * Pro, or moved past that event some other way invalidates the checkpoint
+ * instead of resuming into a mismatched context.
  *
  * Storage is device-local (like DeviceSettings, and for the same reason: an
  * interrupted round is a fact about THIS device, and guests must get it too).
@@ -101,6 +108,22 @@ export interface RoundCheckpoint {
    *  the device every time it is touched must stop being offered (owner:
    *  "can't resume with the resume button", three crashes in a row). */
   attempts?: number;
+  /**
+   * Present only for a TOUR SEASON round (owner: "when I exit a round I
+   * can't resume rounds anymore in season"). Which season and which event
+   * index in its schedule this checkpoint belongs to — `tourKey(t)` from
+   * TourSeason.ts, and the event's `idx` in `tourSchedule()`.
+   *
+   * A tour round can't just resume like a plain one: the course/seed alone
+   * aren't enough to know it's SAFE to resume into, because the season it
+   * belongs to might have closed, been handed off to a different Pro, or
+   * moved on to a different event since this was written. This module has
+   * no idea what a `TourSeasonState` is, so it only carries the marker —
+   * main.ts validates it against the LIVE season before ever resuming into
+   * it, and drops a stale one rather than resuming into a mismatched
+   * context.
+   */
+  tour?: { seasonKey: string; eventIdx: number };
 }
 
 export interface KVStorage {
@@ -205,6 +228,7 @@ export function checkpointFor(input: {
   ball?: { x: number; y: number };
   strokes?: number;
   diff?: string;
+  tour?: { seasonKey: string; eventIdx: number };
 }): RoundCheckpoint {
   return {
     v: VERSION,
@@ -216,6 +240,7 @@ export function checkpointFor(input: {
     parSoFar: input.parSoFar,
     at: input.at,
     ...(input.diff ? { diff: input.diff } : {}),
+    ...(input.tour ? { tour: input.tour } : {}),
     // Both or neither, and only when there is genuinely a shot in the ground:
     // resuming "on the tee having played 0" is just starting the hole.
     ...(input.ball && (input.strokes ?? 0) > 0

@@ -173,6 +173,53 @@ describe('a half-played hole', () => {
   });
 });
 
+/**
+ * TOUR SEASON ROUNDS (owner: "when I exit a round I can't resume rounds
+ * anymore in season"). This module doesn't know what a TourSeasonState is —
+ * it just carries the `tour` marker through, and treats a tour checkpoint
+ * as resumable by the same rules as any other. Validating the marker
+ * against the LIVE season (has it closed? moved to a different event?) is
+ * main.ts's job at resume time, not this module's.
+ */
+describe('a tour season checkpoint', () => {
+  it('round-trips the season/event marker through storage', () => {
+    const s = memStorage();
+    const cp = checkpointFor({
+      courseId: 'sablebay',
+      seed: 42,
+      holeIdx: 1,
+      holes: 3,
+      scores: [4],
+      parSoFar: 4,
+      at: NOW,
+      tour: { seasonKey: 'solo:123', eventIdx: 3 }
+    });
+    expect(cp.tour).toEqual({ seasonKey: 'solo:123', eventIdx: 3 });
+    saveCheckpoint(cp, s);
+    expect(loadCheckpoint(NOW, s)?.tour).toEqual({ seasonKey: 'solo:123', eventIdx: 3 });
+  });
+
+  it('is resumable by the same rules as a plain round — no special gating here', () => {
+    const cp = checkpointFor({
+      courseId: 'sablebay',
+      seed: 42,
+      holeIdx: 1,
+      holes: 16,
+      scores: [4],
+      parSoFar: 4,
+      at: NOW,
+      ball: { x: 10, y: 20 },
+      strokes: 2,
+      tour: { seasonKey: 'solo:123', eventIdx: 3 }
+    });
+    expect(isResumable(cp, NOW)).toBe(true);
+  });
+
+  it('a plain round has no tour marker at all', () => {
+    expect(sample().tour).toBeUndefined();
+  });
+});
+
 describe('the crash-loop breaker', () => {
   // Owner report, verbatim: "White screened on wild prairie hole 3 three
   // times in a row and can't resume with the resume button." A checkpoint

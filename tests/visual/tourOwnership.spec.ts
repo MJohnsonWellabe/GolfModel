@@ -183,3 +183,123 @@ test('two Pros running seasons in parallel: the picker switches who is playing a
 
   expect(errors, errors.join('\n')).toHaveLength(0);
 });
+
+/**
+ * SEASON HAND-OFF (owner, on the ownership fix's own side effect: "some
+ * users are saying they can't switch golfer midway through the season and
+ * they should be able to" — switching Pros in the Locker while a season is
+ * active, then hitting Play, used to silently snap back to the season's
+ * true owner with no explanation. Confirmed answer: don't remove the
+ * correctness fix, add an explicit way around it).
+ */
+async function forgeWin(page: import('@playwright/test').Page, idx: number): Promise<boolean> {
+  return page.evaluate(
+    (i) => (window as never as { __forgeLiveEventWin: (idx: number) => boolean }).__forgeLiveEventWin(i),
+    idx
+  );
+}
+
+test('tapping Play with a different Pro active asks who is playing, and "Play as" keeps the season with its owner', async ({
+  page
+}) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await makePro(page, 'Alice');
+  await page.locator('#lkBack').dispatchEvent('click');
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  expect(await forgeWin(page, 0)).toBe(true); // Alice already has a win banked in season 1
+
+  await hub.locator('#thBack').dispatchEvent('click');
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await makePro(page, 'Bob');
+  await page.locator('#lkBack').dispatchEvent('click');
+  await page.locator('#destTour').dispatchEvent('click');
+  await expect(hub).toBeVisible();
+
+  const before = await dump(page);
+  const alice = before.pros.find((p) => p.name === 'Alice')!;
+  const bob = before.pros.find((p) => p.name === 'Bob')!;
+  expect(before.activeProId).toBe(bob.id); // Bob's active, Alice's season is still what's live
+
+  await hub.locator('#thPlay').dispatchEvent('pointerdown');
+  const modal = page.locator('.storeConfirm');
+  await expect(modal).toBeVisible();
+  await expect(modal).toContainText('belongs to Alice');
+  await expect(modal.locator('#handoffKeep')).toContainText('Play as Alice');
+  await expect(modal.locator('#handoffTake')).toContainText('Hand off to Bob');
+
+  await page.waitForTimeout(400); // past the tap-guard window
+  await modal.locator('#handoffKeep').dispatchEvent('click');
+
+  const after = await dump(page);
+  expect(after.activeProId).toBe(alice.id); // switched back to play as the true owner
+  expect(after.activeSeason?.proId).toBe(alice.id);
+  const recs = await records(page);
+  expect(recs[alice.id]?.wins ?? 0).toBeGreaterThanOrEqual(1); // the earlier win is still Alice's
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
+test('hand-off moves the season, and its already-banked win, to whoever is active now', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await makePro(page, 'Alice');
+  await page.locator('#lkBack').dispatchEvent('click');
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  expect(await forgeWin(page, 0)).toBe(true);
+
+  await hub.locator('#thBack').dispatchEvent('click');
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await makePro(page, 'Bob');
+  await page.locator('#lkBack').dispatchEvent('click');
+  await page.locator('#destTour').dispatchEvent('click');
+  await expect(hub).toBeVisible();
+
+  const before = await dump(page);
+  const alice = before.pros.find((p) => p.name === 'Alice')!;
+  const bob = before.pros.find((p) => p.name === 'Bob')!;
+
+  await hub.locator('#thPlay').dispatchEvent('pointerdown');
+  const modal = page.locator('.storeConfirm');
+  await expect(modal).toBeVisible();
+  await page.waitForTimeout(400);
+  await modal.locator('#handoffTake').dispatchEvent('click');
+
+  const after = await dump(page);
+  expect(after.activeProId).toBe(bob.id); // untouched — Bob was already active
+  expect(after.activeSeason?.proId).toBe(bob.id); // the season itself moved to Bob
+
+  const recs = await records(page);
+  expect(recs[bob.id]?.wins).toBe(1); // the win banked before the hand-off moved with it
+  expect(recs[alice.id]).toBeUndefined(); // nothing left of Alice's record
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});

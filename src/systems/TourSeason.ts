@@ -1502,6 +1502,51 @@ export function tourHistoryFromArchive(archive: readonly ArchivedTourSeason[]): 
   return out;
 }
 
+/** Subtract a set of event results' win/major credit from a Pro's history
+ *  record, if they have one — the shared "undo" half of both reassign
+ *  functions below. Floors at 0 rather than going negative, and drops a
+ *  major's count/name entirely once it hits 0 (no lingering zero entries). */
+function undoWinsFromHistory(history: TourHistory, proId: string | undefined, results: readonly TourEventResult[]): void {
+  const rec = proId ? history[proId] : undefined;
+  if (!rec) return;
+  for (const r of results) {
+    if (r.playerRank !== 1) continue;
+    rec.wins = Math.max(0, rec.wins - 1);
+    const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
+    if (majorNo < 0) continue;
+    const name = MAJOR_NAMES[majorNo];
+    rec.majorWins = Math.max(0, rec.majorWins - 1);
+    const remaining = Math.max(0, (rec.majorCounts[name] ?? 0) - 1);
+    if (remaining > 0) rec.majorCounts[name] = remaining;
+    else {
+      delete rec.majorCounts[name];
+      rec.majors = rec.majors.filter((m) => m !== name);
+    }
+  }
+}
+
+/** Add a set of event results' win/major credit onto a Pro's history record
+ *  through the real recording function — additive, creates the record if
+ *  it's this Pro's first. The shared "add" half of both reassign functions. */
+function addWinsToHistory(history: TourHistory, proId: string, proName: string, results: readonly TourEventResult[]): void {
+  for (const r of results) {
+    if (r.playerRank !== 1) continue;
+    const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
+    recordTourEventWin(history, proId, proName, majorNo >= 0 ? MAJOR_NAMES[majorNo] : undefined);
+  }
+}
+
+/** Drop a Pro's history record entirely once nothing is left of it, rather
+ *  than leaving a phantom zero-value entry — golferRecordBoards already
+ *  omits zero-value Pros from every section, but an admin re-checking the
+ *  raw data afterward should see this Pro genuinely has nothing, not a
+ *  record that merely reads zero. */
+function dropEmptyRecord(history: TourHistory, proId: string | undefined): void {
+  if (!proId) return;
+  const rec = history[proId];
+  if (rec && rec.wins === 0 && rec.majorWins === 0 && rec.seasons.length === 0) delete history[proId];
+}
+
 /**
  * ONE-TIME CORRECTION for a season that was archived under the wrong Pro
  * (owner: "this assigned a bunch of stuff to the wrong pro... they were
@@ -1540,41 +1585,15 @@ export function reassignArchivedSeason(
   const nextArchive = archive.map((a, i) => (i === idx ? { ...a, proId: toProId, proName: toProName } : a));
   const nextHistory: TourHistory = JSON.parse(JSON.stringify(history));
 
-  // Undo this season's contribution to the OLD owner, if it had one.
-  const old = from.proId ? nextHistory[from.proId] : undefined;
-  if (old) {
-    for (const r of from.results) {
-      if (r.playerRank !== 1) continue;
-      old.wins = Math.max(0, old.wins - 1);
-      const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
-      if (majorNo < 0) continue;
-      const name = MAJOR_NAMES[majorNo];
-      old.majorWins = Math.max(0, old.majorWins - 1);
-      const remaining = Math.max(0, (old.majorCounts[name] ?? 0) - 1);
-      if (remaining > 0) old.majorCounts[name] = remaining;
-      else {
-        delete old.majorCounts[name];
-        old.majors = old.majors.filter((m) => m !== name);
-      }
-    }
-    old.seasons = old.seasons.filter((s) => s.seasonNo !== from.seasonNo);
-    // Nothing left of this Pro's history — drop the record entirely rather
-    // than leaving a phantom zero-value entry (golferRecordBoards already
-    // omits zero-value Pros from every section, but an admin re-checking the
-    // raw data afterward should see this Pro genuinely has nothing, not a
-    // record that merely reads zero).
-    if (old.wins === 0 && old.majorWins === 0 && old.seasons.length === 0) {
-      delete nextHistory[from.proId];
-    }
+  undoWinsFromHistory(nextHistory, from.proId, from.results);
+  if (from.proId && nextHistory[from.proId]) {
+    nextHistory[from.proId].seasons = nextHistory[from.proId].seasons.filter((s) => s.seasonNo !== from.seasonNo);
   }
+  dropEmptyRecord(nextHistory, from.proId);
 
-  // Re-record it onto the NEW owner through the real recording functions —
-  // additive for wins/majors, idempotent-by-seasonNo for the season line.
-  for (const r of from.results) {
-    if (r.playerRank !== 1) continue;
-    const majorNo = TOUR_MAJOR_IDXS.indexOf(r.idx as (typeof TOUR_MAJOR_IDXS)[number]);
-    recordTourEventWin(nextHistory, toProId, toProName, majorNo >= 0 ? MAJOR_NAMES[majorNo] : undefined);
-  }
+  // Re-record it onto the NEW owner — additive for wins/majors,
+  // idempotent-by-seasonNo for the season line.
+  addWinsToHistory(nextHistory, toProId, toProName, from.results);
   recordTourSeasonFinish(
     nextHistory,
     toProId,
@@ -1587,6 +1606,44 @@ export function reassignArchivedSeason(
 
   return { archive: nextArchive, history: nextHistory };
 }
+
+/**
+ * HAND OFF an ACTIVE, still-in-progress season to a different Pro (owner:
+ * "some users are saying they can't switch golfer midway through the season
+ * and they should be able to" — the season-ownership fix deliberately keeps
+ * a season locked to whoever it was stamped for at creation, so switching
+ * Pros mid-season and trying to play silently snapped back to the original
+ * owner. This is the explicit, opt-in way around that: reassign the season
+ * itself, including everything already earned in it).
+ *
+ * Same shape as `reassignArchivedSeason`, but for a LIVE `TourSeasonState`
+ * rather than an `ArchivedTourSeason`, and with one real difference: there is
+ * no season LINE to move yet. `recordTourSeasonFinish` only fires when a
+ * season CLOSES (finale/quit/retirement), and this one hasn't — so
+ * `history[proId].seasons` has nothing from this season to touch either way.
+ *
+ * Deliberately does NOT claw back CP already granted (and possibly already
+ * spent growing stats) from wins recorded before the hand-off — that's
+ * treated as sunk, the same way a real result already paid out would be.
+ * Only the win/major CREDIT and the season's going-forward ownership move.
+ *
+ * Pure: returns a new season + history, mutates neither input. A `toProId`
+ * matching the season's current owner is a no-op (same references back).
+ */
+export function reassignLiveSeason(
+  t: TourSeasonState,
+  history: TourHistory,
+  toProId: string,
+  toProName: string
+): { season: TourSeasonState; history: TourHistory } {
+  if (t.proId === toProId) return { season: t, history };
+  const nextHistory: TourHistory = JSON.parse(JSON.stringify(history));
+  undoWinsFromHistory(nextHistory, t.proId, t.results);
+  dropEmptyRecord(nextHistory, t.proId);
+  addWinsToHistory(nextHistory, toProId, toProName, t.results);
+  return { season: { ...t, proId: toProId, proName: toProName }, history: nextHistory };
+}
+
 
 /** Archive cap. Ten seasons is the career limit per Pro (SEASON_LIMIT), so this
  *  holds several Pros' worth before anything is dropped. */

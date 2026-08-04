@@ -5,7 +5,9 @@ import {
   majorsGrid,
   MAJOR_NAMES,
   mergeTourHistory,
+  newSeason,
   reassignArchivedSeason,
+  reassignLiveSeason,
   recordTourEventWin,
   TOUR_MAJOR_IDXS,
   TourHistory,
@@ -315,6 +317,83 @@ describe('reassignArchivedSeason', () => {
     const archive = [archivedSeason('charlotte', 'Charlotte', 1, [0])];
     const history = tourHistoryFromArchive(archive);
     const { history: nextHistory } = reassignArchivedSeason(archive, history, 'solo:1', 'charlotte', 'Charlotte');
+    expect(nextHistory).toEqual(history);
+  });
+});
+
+/** A live (not yet closed) season `proId`/`proName` owns, `wins` events deep
+ *  into its results already — same idx-drives-major-ness convention as
+ *  `archivedSeason`, just on a TourSeasonState instead of an archive entry. */
+function liveSeason(proId: string, proName: string, seasonNo: number, wins: number[]): ReturnType<typeof newSeason> {
+  const s = newSeason(seasonNo * 1000, seasonNo, proId, proName);
+  const played = wins.length ? Math.max(...wins) + 1 : 0;
+  s.played = played;
+  s.results = Array.from({ length: played }, (_, idx) => ({
+    idx,
+    playerRank: wins.includes(idx) ? 1 : 4,
+    points: wins.includes(idx) ? 500 : 100,
+    toPar: -2,
+    winnerId: wins.includes(idx) ? 'player' : 'rival1'
+  }));
+  return s;
+}
+
+/**
+ * SEASON HAND-OFF (owner: "some users are saying they can't switch golfer
+ * midway through the season and they should be able to" — the season-
+ * ownership fix locks a season to its stamped owner, so this is the
+ * explicit, opt-in way to move an ACTIVE, still-open season to a different
+ * Pro, including whatever it's already earned).
+ */
+describe('reassignLiveSeason', () => {
+  it('moves already-recorded wins and a major off the old owner and onto the new one', () => {
+    const [major1] = TOUR_MAJOR_IDXS;
+    const s = liveSeason('charlotte', 'Charlotte', 5, [major1, 0]);
+    // As if these two wins had already been recorded live, event by event,
+    // the way the real recording path does DURING a season — no season
+    // line yet, since this one hasn't closed.
+    const history: TourHistory = {};
+    recordTourEventWin(history, 'charlotte', 'Charlotte', MAJOR_NAMES[0]);
+    recordTourEventWin(history, 'charlotte', 'Charlotte');
+    const { season, history: nextHistory } = reassignLiveSeason(s, history, 'parker', 'Parker');
+    expect(season.proId).toBe('parker');
+    expect(season.proName).toBe('Parker');
+    expect(nextHistory.charlotte).toBeUndefined();
+    expect(nextHistory.parker.wins).toBe(2);
+    expect(nextHistory.parker.majorWins).toBe(1);
+    expect(nextHistory.parker.majorCounts).toEqual({ [MAJOR_NAMES[0]]: 1 });
+  });
+
+  it('does not touch the season line — a live season has none to move yet', () => {
+    const s = liveSeason('charlotte', 'Charlotte', 5, [0]);
+    const history: TourHistory = {
+      charlotte: { name: 'Charlotte', wins: 1, majorWins: 0, majors: [], majorCounts: {}, seasons: [] }
+    };
+    const { history: nextHistory } = reassignLiveSeason(s, history, 'parker', 'Parker');
+    expect(nextHistory.parker.seasons).toEqual([]);
+    expect(nextHistory.charlotte).toBeUndefined(); // wins moved, nothing left of the record
+  });
+
+  it('a season with nothing played yet hands off cleanly (no history to move)', () => {
+    const s = liveSeason('charlotte', 'Charlotte', 5, []);
+    const { season, history: nextHistory } = reassignLiveSeason(s, {}, 'parker', 'Parker');
+    expect(season.proId).toBe('parker');
+    expect(nextHistory).toEqual({});
+  });
+
+  it('hands off cleanly even when the old owner has no history record at all', () => {
+    const s = liveSeason('charlotte', 'Charlotte', 5, [0]);
+    const { history: nextHistory } = reassignLiveSeason(s, {}, 'parker', 'Parker');
+    expect(nextHistory.parker.wins).toBe(1);
+  });
+
+  it('reassigning to the SAME owner it already has is a no-op', () => {
+    const s = liveSeason('charlotte', 'Charlotte', 5, [0]);
+    const history: TourHistory = {
+      charlotte: { name: 'Charlotte', wins: 1, majorWins: 0, majors: [], majorCounts: {}, seasons: [] }
+    };
+    const { season, history: nextHistory } = reassignLiveSeason(s, history, 'charlotte', 'Charlotte');
+    expect(season).toBe(s); // same reference — genuinely untouched
     expect(nextHistory).toEqual(history);
   });
 });

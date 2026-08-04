@@ -54,7 +54,7 @@ import { verifyRecording } from '../systems/RoundVerify';
 import { bestRecordingFor, saveRecording } from '../systems/RecordingStore';
 import { bestRounds, clearLocalHistory, fetchAllRounds, loadLocal, isNewRecord, isShared, makeRoundId, RoundRecord, saveRound } from '../firebase/History';
 import { AiTournamentState, completeRound, createAiTournament, hotStreakAt, isFinal, purseFor, standings as aiTourStandings } from '../systems/AiTournament';
-import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, majorsGrid, MAJOR_NAMES, MAX_PLAYOFF_HOLES, mergeTourHistory, newSeason, playoffPending, pointsForStandings, proRetired, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, tourHistoryFromArchive, TOUR_POINTS, seasonStandings, SEASON_LIMIT, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
+import { activeTour, archiveTour, canAddSeason, clearActiveTour, LIVE_SEASON_CAP, nextSeasonNo, putTour, selectTour, applyCoopSnapshot, completeTourPlayoffHole, completeTourRound, coopSeasonSettled, coopSeasonStandings, currentEvent, quitSeason, eventBoardRows, eventRoundsPlayed, eventRowsFor, finishSeason, golferRecordBoards, majorsGrid, MAJOR_NAMES, MAX_PLAYOFF_HOLES, mergeTourHistory, newSeason, playoffPending, pointsForStandings, proRetired, reassignLiveSeason, recordTourEventWin, recordTourSeasonFinish, recomputeSeasonPoints, tourHistoryFromArchive, TOUR_POINTS, seasonStandings, SEASON_LIMIT, tourKey, TourCoopPartner, TourEventResult, TourSeasonState, TourEventDef, TourRoundOutcome, tourSchedule, TOUR_EVENTS, TOUR_MAJOR_IDXS } from '../systems/TourSeason';
 import { TOUR_RIVALS } from '../data/tourRivals';
 import { CoopSeasonDoc, coopUrl, createCoopSeason, fetchCoopSeason, joinCoopSeason, makeCoopId, parseCoopParam, postCoopResult } from '../firebase/CoopSeason';
 import { majorCourseForRound } from '../systems/TourMajorSetup';
@@ -65,7 +65,7 @@ import { isAdminEmail } from '../admin/adminEmails';
 import { chargesRemaining, CRASH_LOG_MAX, CrashRecord, clearLocalProfile, consumeCharge, CosmeticKind, defaultProfile, DeviceSettings, grantConsumable, grantPerk, loadDeviceSettings, loadProfile, mergeProfiles, perkRemaining, PlayerProfile, resetProfileRecords, saveDeviceSettings, saveProfile } from '../profile/Profile';
 import { achievementCp, COINS, DAILY_CHALLENGES, DailyChallenge, emptyRoundStats, RoundStats, XP, dailyChallengeFor } from '../data/progression';
 import { featById, FEAT_TIERS, FEATS, recordHoleFeats } from '../systems/Feats';
-import { activePro, careerOvr, careerStarted, CP, pointCost, pointsAffordable, setActivePro, setProLook, startPro } from '../data/career';
+import { activePro, careerOvr, careerStarted, CareerPro, CP, pointCost, pointsAffordable, setActivePro, setProLook, startPro } from '../data/career';
 // CP belongs to the Pro who earned it — every grant/spend goes through the
 // wallet so a rookie starts at zero and a retired Pro's balance is frozen
 // rather than nagging from the landing (systems/CareerWallet.ts).
@@ -4879,7 +4879,6 @@ function checkpointRound(): boolean {
   if (
     round.mode !== 'solo' ||
     aiTour ||
-    tourRoundLive ||
     tourPlayoff ||
     round.weeklyEventId ||
     round.challenge ||
@@ -4887,6 +4886,18 @@ function checkpointRound(): boolean {
     round.seed === undefined
   ) {
     return false;
+  }
+  // A tour season round DOES checkpoint (owner: "when I exit a round I can't
+  // resume rounds anymore in season") — stamped with which season and which
+  // event it belongs to, so a resume can confirm both are still current
+  // before ever re-entering (see resumeSavedRound). No live event to attach
+  // to (season closed mid-shot some other way) means nothing worth saving.
+  let tour: { seasonKey: string; eventIdx: number } | undefined;
+  if (tourRoundLive) {
+    const t = tourNow();
+    const def = t ? currentEvent(t, tourCourseIds()) : null;
+    if (!t || !def) return false;
+    tour = { seasonKey: tourKey(t), eventIdx: def.idx };
   }
   const holes = holesThisRound();
   if (round.holeIdx < 0 || round.holeIdx >= holes) return false;
@@ -4908,7 +4919,8 @@ function checkpointRound(): boolean {
       at: Date.now(),
       ball,
       strokes,
-      diff: round.difficulty
+      diff: round.difficulty,
+      tour
     })
   );
   return true;
@@ -7529,21 +7541,28 @@ function startTourEvent(): void {
     // the player switches to before it closes out.
     setTour(newSeason(Math.floor(Math.random() * 1e9), nextSeasonNo(profile.tours), pro?.id, pro?.name));
     persistProfile();
-  } else {
-    // An EXISTING season is about to actually be played — resolve and lock in
-    // its real owner right here, not whoever the Locker happens to be showing
-    // (owner: "assigning most of my wins to Charlotte... they were spread
-    // across pros" — switching which season is active without also switching
-    // the Locker's active Pro used to silently play the round, and record it,
-    // as whoever was last active). roundGolfer() reads activePro() fresh at
-    // tee-off, so fixing it here is enough to guarantee the character AND the
-    // stats used for the whole round are the season's true owner's.
-    const owner = seasonOwner(tourNow()!);
-    if (owner && owner.id !== profile.career.activeProId && profile.career.pros.some((p) => p.id === owner.id)) {
-      profile.career = setActivePro(profile.career, owner.id);
-      persistProfile();
-    }
+    proceedToTourPlay();
+    return;
   }
+  // An EXISTING season is about to actually be played. It stays with its
+  // true owner (owner: "assigning most of my wins to Charlotte... they were
+  // spread across pros") UNLESS the player explicitly hands it off to
+  // whoever's active now — the escape hatch for that fix's own side effect
+  // (owner: "some users are saying they can't switch golfer midway through
+  // the season and they should be able to").
+  const t = tourNow()!;
+  const owner = seasonOwner(t);
+  const ownerInRoster = !!owner && profile.career.pros.some((p) => p.id === owner.id);
+  if (owner && pro && owner.id !== pro.id) {
+    confirmSeasonHandoff(t, owner, ownerInRoster, pro, () => proceedToTourPlay());
+    return;
+  }
+  proceedToTourPlay();
+}
+
+/** The rest of entering a tour event, once who's playing it is settled
+ *  (nothing to ask, or the hand-off/keep-owner modal already answered it). */
+function proceedToTourPlay(): void {
   // The tour is played AS the Pro — entering selects the career style.
   if (sel.archetype !== 'career') {
     sel.archetype = 'career';
@@ -7552,10 +7571,83 @@ function startTourEvent(): void {
   // A tie waiting on sudden death resumes THERE, not into a fresh round —
   // the regulation rounds are banked and the event can only end via playoff.
   if (playoffPending(tourNow()!, tourCourseIds())) {
+    // A checkpointed mid-hole resume can't apply to a playoff hole (it's a
+    // different, 1-hole context) — drop it rather than leave it to be
+    // silently misapplied to some later, unrelated tour round.
+    resumingFrom = null;
     startTourPlayoffHole();
     return;
   }
   startTourRound();
+}
+
+/**
+ * A live season's owner and the Locker's active Pro have drifted apart —
+ * ask which one is actually about to play, rather than either silently
+ * snapping back (the original fix) or silently misattributing (the original
+ * bug). `ownerInRoster` false means the season's owner was deleted from the
+ * stable since — there is no one to "play as" any more, so only hand-off is
+ * offered.
+ */
+function confirmSeasonHandoff(
+  t: TourSeasonState,
+  owner: { id: string; name: string },
+  ownerInRoster: boolean,
+  requestedPro: CareerPro,
+  onProceed: () => void
+): void {
+  const modal = document.createElement('div');
+  modal.className = 'storeConfirm';
+  modal.style.zIndex = '30';
+  const close = (): void => modal.remove();
+  const ask = ownerInRoster
+    ? `Season ${t.seasonNo} belongs to ${escapeHtml(owner.name)}. ${escapeHtml(requestedPro.name)} is active right now.`
+    : `Season ${t.seasonNo} belonged to ${escapeHtml(owner.name)}, no longer in your stable. ` +
+      `${escapeHtml(requestedPro.name)} can take it over.`;
+  modal.innerHTML =
+    `<div class="storeConfirmBox"><div class="scTitle">Who's playing this season?</div>` +
+    `<div class="scAsk">${ask}</div>` +
+    `<div class="btnRow">` +
+    (ownerInRoster ? `<button id="handoffKeep" class="ghostBtn">Play as ${escapeHtml(owner.name)}</button>` : '') +
+    `<button id="handoffTake" class="${ownerInRoster ? 'dangerBtn' : 'ghostBtn'}">Hand off to ${escapeHtml(
+      requestedPro.name
+    )}</button>` +
+    `<button id="handoffCancel" class="ghostBtn">Cancel</button></div></div>`;
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) close();
+  });
+  document.body.appendChild(modal);
+  // Same arming window as confirmQuitSeason/confirmResetRecords — the tap
+  // that opened this must not also confirm it.
+  const armedAt = Date.now();
+  const ARM_MS = 350;
+  modal.querySelector<HTMLButtonElement>('#handoffCancel')!.addEventListener('click', close);
+  modal.querySelector<HTMLButtonElement>('#handoffKeep')?.addEventListener('click', () => {
+    if (Date.now() - armedAt < ARM_MS) return;
+    close();
+    profile.career = setActivePro(profile.career, owner.id);
+    // The retirement check in startTourEvent() only covered whoever was
+    // active when this modal was opened — re-check the Pro we're about to
+    // switch BACK to before actually proceeding.
+    if (proRetired(profile.tourHistory, owner.id)) {
+      showMsg(`🏛 ${owner.name} has retired after ${SEASON_LIMIT} seasons — start a new Pro to tour again`, 3400);
+      persistProfile();
+      lkTab = 'style';
+      renderLockerRoom();
+      return;
+    }
+    persistProfile();
+    onProceed();
+  });
+  modal.querySelector<HTMLButtonElement>('#handoffTake')!.addEventListener('click', () => {
+    if (Date.now() - armedAt < ARM_MS) return;
+    close();
+    const result = reassignLiveSeason(t, profile.tourHistory, requestedPro.id, requestedPro.name);
+    profile.tours = putTour(profile.tours, result.season);
+    profile.tourHistory = result.history;
+    persistProfile();
+    onProceed();
+  });
 }
 
 // ----- SHARED SEASONS (owner pass 9): two players, one schedule. The AI
@@ -7758,13 +7850,23 @@ function startTourRound(): void {
   const t = tourNow();
   const def = t ? currentEvent(t, tourCourseIds()) : null;
   if (!t || !def) return;
+  // A checkpointed tour round resuming into THIS exact event — reuse its
+  // seed (so wind/pins match what was already shown) and start mid-hole
+  // instead of fresh (owner: "when I exit a round I can't resume rounds
+  // anymore in season"). resumeSavedTourRound() already validated this
+  // before setting resumingFrom; re-checked here too so any other path into
+  // this function can't accidentally apply a stale/mismatched resume.
+  const resume =
+    resumingFrom?.tour && resumingFrom.tour.seasonKey === tourKey(t) && resumingFrom.tour.eventIdx === def.idx
+      ? resumingFrom
+      : null;
   round.course = courseFallback(def.courseId);
   round.mode = 'solo';
-  round.holeIdx = 0;
+  round.holeIdx = resume?.holeIdx ?? 0;
   round.activePlayer = 0;
   round.holeWinds = [];
   round.holePins = [];
-  round.seed = (Math.random() * 0xffffffff) >>> 0;
+  round.seed = resume?.seed ?? (Math.random() * 0xffffffff) >>> 0;
   // A MAJOR escalates per round — forward tees/kind pins, the authored card,
   // then back tees/tucked pins (owner pass 8). The course is materialized for
   // the round about to be played, and the pins are prefilled from it so the
@@ -7797,7 +7899,10 @@ function startTourRound(): void {
   lastRecording = null;
   roundRecorder.stop();
   const golfer = roundGolfer();
-  round.players = [{ golfer, isAI: false, scores: [] }];
+  // Completed holes back on the card so the scorecard, the running to-par
+  // and the end-of-round scoring all see the whole round — the same
+  // resumingFrom.scores restore the plain-round path already does.
+  round.players = [{ golfer, isAI: false, scores: resume?.scores.slice() ?? [] }];
   // The tour is entered from the HUB over the landing — not from the wizard
   // like the AI tournament — so the landing must come down too, or the round
   // builds underneath it and "Play event" appears to bounce back to the menu
@@ -7806,6 +7911,15 @@ function startTourRound(): void {
   closeDest();
   setupEl.style.display = 'none';
   playHole();
+  if (resume) {
+    // MID-HOLE: put the ball back where it was resting, with the strokes it
+    // cost — mirrors resumeSavedRound()'s plain-round path. `resumeAt`
+    // re-reads the surface under the point from the COURSE, not a stored
+    // value, so the lie can't disagree with the ground it names.
+    if (resume.ball && resume.strokes) current?.resumeAt(resume.ball.x, resume.ball.y, resume.strokes);
+    analytics.track('round_resumed', { course: courseIdByName(round.course.name), hole: resume.holeIdx + 1 });
+    resumingFrom = null;
+  }
 }
 
 /**
@@ -12127,7 +12241,10 @@ function updateResumeCard(): void {
 
 /** Re-enter a checkpointed round on the hole that was in progress, with the
  *  same seed (identical wind and pins) and the completed holes back on the
- *  card. The hole itself restarts from its tee — nothing mid-shot is stored. */
+ *  card. The hole itself restarts from its tee — nothing mid-shot is stored.
+ *  A tour-season checkpoint (`cp.tour`) routes through `resumeSavedTourRound`
+ *  instead — it needs to confirm the season/event are still current before
+ *  ever resuming into them. */
 function resumeSavedRound(cp: RoundCheckpoint): void {
   endPractice();
   // Strike the record BEFORE the build it is about to trigger: if that build
@@ -12135,6 +12252,10 @@ function resumeSavedRound(cp: RoundCheckpoint): void {
   // retire the record instead of trapping the player in a crash loop. The
   // first checkpoint write of the resumed round (at rest) resets the count.
   markResumeAttempt();
+  if (cp.tour) {
+    resumeSavedTourRound(cp, cp.tour);
+    return;
+  }
   resumingFrom = cp;
   sel.mode = 'solo';
   sel.courseId = cp.courseId;
@@ -12145,6 +12266,32 @@ function resumeSavedRound(cp: RoundCheckpoint): void {
   // the COURSE rather than from a file — a stored lie could disagree with the
   // ground it names.
   if (cp.ball && cp.strokes) current?.resumeAt(cp.ball.x, cp.ball.y, cp.strokes);
+}
+
+/**
+ * The tour-season half of `resumeSavedRound` (owner: "when I exit a round I
+ * can't resume rounds anymore in season"). Confirms the season and event
+ * this checkpoint was written for are STILL the live ones — a season that's
+ * since closed, moved on to a different event, or been handed off some
+ * other way invalidates the checkpoint rather than resuming into a
+ * mismatched context — then re-enters through `startTourEvent()`'s own
+ * setup (retirement/career-mode checks, the hand-off prompt if the Locker
+ * has since drifted, the style switch) exactly as tapping Play normally
+ * would. `startTourRound()` itself picks up `resumingFrom`'s seed/hole/
+ * scores once this sets it.
+ */
+function resumeSavedTourRound(cp: RoundCheckpoint, tour: { seasonKey: string; eventIdx: number }): void {
+  const t = tourNow();
+  const def = t ? currentEvent(t, tourCourseIds()) : null;
+  if (!t || !def || tourKey(t) !== tour.seasonKey || def.idx !== tour.eventIdx) {
+    clearCheckpoint();
+    updateResumeCard();
+    showMsg("That tour round isn't there anymore.", 2600);
+    return;
+  }
+  resumingFrom = cp;
+  landingEl.classList.remove('on');
+  startTourEvent();
 }
 
 /** Place the opt-in "Learn to play" entry. It's hidden unless the tutorial flag
@@ -12621,7 +12768,12 @@ function leaveRound(): void {
   // PRACTICE / THE RANGE: nothing is at stake — no card, no record — so there
   // is nothing to confirm losing. The menu button just leaves.
   if (!practiceMode) {
-    const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound;
+    // Tour rounds ARE resumable now (owner: "when I exit a round I can't
+    // resume rounds anymore in season") — checkpointRound() itself decides
+    // whether there's actually a live event to attach to. A sudden-death
+    // playoff hole has no meaningful mid-hole resume target, same as
+    // checkpointRound()'s own exclusion.
+    const resumable = flag('resumeRound') && round.mode === 'solo' && !dailyRound && !tourPlayoff;
     const message = resumable
       ? 'Leave this round? Your card is saved — you can finish it from the menu.'
       : "Leave this round? This one can't be resumed, so the card is lost.";
@@ -13105,6 +13257,33 @@ else {
   t.played = Math.min(n, TOUR_EVENTS);
   t.points = recomputeSeasonPoints(t, ids, TOUR_RIVALS);
   t.activeEvent = null;
+  persistProfile();
+  return true;
+};
+// Test hook (tests/visual/tourOwnership.spec.ts — the hand-off flow): stamp
+// a WIN for event `idx` directly into the CURRENTLY ACTIVE season's own
+// results, through the same recording call a real win takes
+// (recordTourEventWin, under seasonOwner(t) — not just __seasonProgress's
+// 2nd-place filler), so a spec can put a season a few events deep with real
+// credit already on the books, without playing them out.
+(window as unknown as { __forgeLiveEventWin: unknown }).__forgeLiveEventWin = (idx: number) => {
+  const t = tourNow();
+  const owner = t ? seasonOwner(t) : null;
+  if (!t || !owner) return false;
+  const ids = tourCourseIds();
+  const sched = tourSchedule(t.seed, ids);
+  const def = sched[idx];
+  if (!def) return false;
+  t.results.push({
+    idx,
+    playerRank: 1,
+    points: TOUR_POINTS[0] * (def.major ? 2 : 1),
+    toPar: -4,
+    winnerId: 'player'
+  });
+  t.played = Math.max(t.played, idx + 1);
+  t.points = recomputeSeasonPoints(t, ids, TOUR_RIVALS);
+  recordTourEventWin(profile.tourHistory, owner.id, owner.name, def.majorName);
   persistProfile();
   return true;
 };

@@ -348,3 +348,135 @@ test('Quick Start rotates: the button names the NEXT course, not the last', asyn
   // …is offered the rotation's next stop (sablebay → wildwood), on the button.
   await expect(play).toContainText('Wildwood');
 });
+
+/**
+ * RESUMING A TOUR ROUND (owner: "when I exit a round I can't resume rounds
+ * anymore in season"). checkpointRound() used to refuse to save anything
+ * for a tour round at all, while leaveRound()'s confirm dialog still
+ * promised "your card is saved" — nothing was ever there to resume. Now a
+ * tour round checkpoints (tagged with which season/event it belongs to)
+ * and leaving genuinely re-enters the same event, same hole, same ball.
+ */
+async function playOneShotAndSettle(page: import('@playwright/test').Page): Promise<void> {
+  for (let guard = 0; guard < 600; guard++) {
+    const step = await page.evaluate(() => {
+      const w = window as never as {
+        __slice3d?: { state: { phase: string }; skipIntro(): void; playSkilledShot(): boolean; settleFlight(): boolean };
+      };
+      const s = w.__slice3d;
+      if (!s) return 'wait';
+      if (s.state.phase === 'intro') {
+        s.skipIntro();
+        return 'intro';
+      }
+      if (s.state.phase === 'aiming') {
+        s.playSkilledShot();
+        return 'hit';
+      }
+      if (s.state.phase === 'flying') {
+        s.settleFlight();
+        return 'settle';
+      }
+      return 'done';
+    });
+    if (step === 'settle') {
+      // One shot struck and settled — stop right here, mid-hole.
+      await page.waitForTimeout(150);
+      return;
+    }
+    await page.waitForTimeout(step === 'wait' ? 200 : 80);
+  }
+  throw new Error('never got a shot to settle');
+}
+
+async function startTourSeasonAndTeeOff(page: import('@playwright/test').Page, proName: string): Promise<void> {
+  await openDestination(page, 'locker');
+  await page.locator('#landingLocker').dispatchEvent('click');
+  await page.locator('#lockerRoom').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.lkTab[data-tab="style"]').dispatchEvent('pointerdown');
+  await page.locator('#proName').fill(proName);
+  await page.locator('.careerStart[data-cstart="bigHitter"]').dispatchEvent('pointerdown');
+  await page.locator('#lkBack').dispatchEvent('click');
+  await page.locator('#destTour').dispatchEvent('click');
+  const hub = page.locator('#tourHub');
+  await expect(hub).toBeVisible();
+  await hub.locator('#thStartSeason').dispatchEvent('click');
+  await expect(hub.locator('#thPlay')).toBeVisible();
+  await hub.locator('#thPlay').dispatchEvent('pointerdown');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, { timeout: 60_000 });
+}
+
+test('leaving a tour round mid-hole and resuming picks up the SAME event, not a disconnected round', async ({
+  page
+}) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('dialog', (d) => void d.accept());
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await startTourSeasonAndTeeOff(page, 'Resumer');
+  const mid = await tourProbe(page);
+  expect(mid.roundLive).toBe(true);
+  expect(mid.eventIdx).toBe(0);
+
+  await playOneShotAndSettle(page);
+
+  // Leave mid-hole — the confirm now promises a resume it actually keeps.
+  await page.locator('#pauseBtn').dispatchEvent('pointerdown');
+  await expect(page.locator('#landing')).toHaveClass(/on/, { timeout: 30_000 });
+  const scene = await page.evaluate(() => (window as never as { __slice3d: unknown }).__slice3d);
+  expect(scene, 'the round scene was left alive behind the menu').toBeNull();
+
+  // The resume card is offered — this is the checkpoint that used to never
+  // get written for a tour round.
+  const resumeCard = page.locator('#resumeCard');
+  await expect(resumeCard.locator('#rsPlay')).toBeVisible({ timeout: 10_000 });
+
+  await resumeCard.locator('#rsPlay').dispatchEvent('pointerdown');
+  await page.waitForFunction(() => !!(window as never as Record<string, unknown>).__slice3d, undefined, { timeout: 60_000 });
+
+  // Back in the SAME season, SAME event — not a fresh/disconnected round.
+  const after = await tourProbe(page);
+  expect(after.roundLive).toBe(true);
+  expect(after.eventIdx).toBe(0);
+  expect(after.seasonNo).toBe(mid.seasonNo);
+  await expect(page.locator('#landing')).not.toHaveClass(/on/);
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
+
+test('a tour checkpoint for a season that has since closed is dropped, not resumed into', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(String(e)));
+  page.on('dialog', (d) => void d.accept());
+  await page.setViewportSize(PHONE);
+  await seedReturningDevice(page);
+  await page.goto('/?freeze=1');
+  await page.locator('#landingPlay').waitFor({ state: 'visible', timeout: 60_000 });
+
+  await startTourSeasonAndTeeOff(page, 'StaleCheck');
+  await playOneShotAndSettle(page);
+  await page.locator('#pauseBtn').dispatchEvent('pointerdown');
+  await expect(page.locator('#landing')).toHaveClass(/on/, { timeout: 30_000 });
+  await expect(page.locator('#resumeCard #rsPlay')).toBeVisible({ timeout: 10_000 });
+
+  // The season this checkpoint belongs to closes through some OTHER path
+  // before the player ever taps resume.
+  const forced = await page.evaluate(() => (window as never as { __forceSeasonFinale: () => boolean }).__forceSeasonFinale());
+  expect(forced).toBe(true);
+
+  await page.locator('#resumeCard #rsPlay').dispatchEvent('pointerdown');
+  await page.waitForTimeout(500);
+  // Never resumed into a mismatched context: no round came up…
+  const scene = await page.evaluate(() => (window as never as { __slice3d: unknown }).__slice3d);
+  expect(scene, 'resumed into a round despite the season having closed').toBeNull();
+  // …and the stale card is gone.
+  await expect(page.locator('#resumeCard #rsPlay')).toHaveCount(0);
+
+  expect(errors, errors.join('\n')).toHaveLength(0);
+});
